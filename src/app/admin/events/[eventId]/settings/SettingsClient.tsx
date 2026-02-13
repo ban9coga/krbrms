@@ -252,18 +252,21 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
     setDraftRules((prev) => {
       const { category_id: _omit, ...prevRest } = prev[categoryId] ?? {}
       const { category_id: _omitPatch, ...patchRest } = patch as Partial<CategoryRule>
+      const next = {
+        ...prevRest,
+        ...patchRest,
+      } as CategoryRule
+
+      if (next.min_riders == null) next.min_riders = 8
+      if (next.enable_qualification == null) next.enable_qualification = true
+      if (next.enable_quarter_final == null) next.enable_quarter_final = true
+      if (next.enable_semi_final == null) next.enable_semi_final = true
+      if (!next.enabled_final_classes) next.enabled_final_classes = []
+      next.category_id = categoryId
+
       return {
         ...prev,
-        [categoryId]: {
-          min_riders: 8,
-          enable_qualification: true,
-          enable_quarter_final: true,
-          enable_semi_final: true,
-          enabled_final_classes: [],
-          ...prevRest,
-          ...patchRest,
-          category_id: categoryId,
-        },
+        [categoryId]: next,
       }
     })
   }
