@@ -89,7 +89,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     return NextResponse.json({ error: invalid.error }, { status: 400 })
   }
 
-  const totalAmount = preparedItems.reduce((sum, item) => sum + ('price' in item ? item.price : 0), 0)
+  const pricedItems = preparedItems.filter(
+    (item): item is { price: number } => Boolean(item) && 'price' in item
+  )
+  const totalAmount = pricedItems.reduce((sum, item) => sum + item.price, 0)
 
   const { data: registration, error: regError } = await adminClient
     .from('registrations')
