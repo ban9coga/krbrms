@@ -139,6 +139,7 @@ export default function LoginPage() {
               border: '2px solid #111',
               background: '#fff',
               color: '#111',
+              boxSizing: 'border-box',
             }}
             required
           />
@@ -158,6 +159,7 @@ export default function LoginPage() {
                 border: '2px solid #111',
                 background: '#fff',
                 color: '#111',
+                boxSizing: 'border-box',
               }}
               required
             />
