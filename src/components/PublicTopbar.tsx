@@ -60,7 +60,7 @@ export default function PublicTopbar({ onRegisterClick, showRegister = true }: P
                   cursor: 'pointer',
                 }}
               >
-                Daftar Rider
+                Daftar Rider di Sini
               </button>
             ) : (
               <Link
@@ -78,7 +78,7 @@ export default function PublicTopbar({ onRegisterClick, showRegister = true }: P
                   textTransform: 'uppercase',
                 }}
               >
-                Daftar Rider
+                Daftar Rider di Sini
               </Link>
             ))}
           <Link
