@@ -35,21 +35,18 @@ export default function LoginPage() {
     const normalized =
       role === 'jury_start' ? 'CHECKER' : role === 'jury_finish' ? 'FINISHER' : role
 
-    if (normalized === 'RACE_DIRECTOR') {
-      router.push('/race-director/approval')
-    } else if (normalized === 'FINISHER') {
-      router.push('/jury/finish')
-    } else if (normalized === 'CHECKER') {
-      router.push('/jury/start')
-    } else if (normalized === 'super_admin') {
-      router.push('/admin')
-    } else if (normalized === 'admin') {
-      router.push('/admin')
-    } else if (normalized === 'race_control') {
-      router.push('/race-control')
-    } else {
-      router.push('/admin')
-    }
+    const target =
+      normalized === 'RACE_DIRECTOR'
+        ? '/race-director/approval'
+        : normalized === 'FINISHER'
+        ? '/jury/finish'
+        : normalized === 'CHECKER'
+        ? '/jury/start'
+        : normalized === 'race_control'
+        ? '/race-control'
+        : '/admin'
+
+    window.location.href = target
   }
 
   return (
