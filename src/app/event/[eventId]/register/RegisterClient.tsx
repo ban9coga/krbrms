@@ -53,6 +53,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   const [paymentProof, setPaymentProof] = useState<File | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState<string | null>(null)
+  const [activeStep, setActiveStep] = useState(1)
 
   useEffect(() => {
     const load = async () => {
@@ -77,7 +78,10 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     loadCategories()
   }, [eventId])
 
-  const addRider = () => setRiders((prev) => [...prev, initialRider()])
+  const addRider = () => {
+    setRiders((prev) => [...prev, initialRider()])
+    setActiveStep(2)
+  }
 
   const removeRider = (index: number) =>
     setRiders((prev) => prev.filter((_, idx) => idx !== index).map((item) => ({ ...item })))
@@ -109,6 +113,19 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   const totalAmount = useMemo(() => {
     return riders.reduce((sum, rider) => sum + BASE_PRICE + (rider.extraCategoryId ? EXTRA_PRICE : 0), 0)
   }, [riders])
+
+  const hasContact = contactName.trim() && contactPhone.trim()
+  const hasRiderData = riders.some((r) => r.name || r.dateOfBirth || r.requestedPlateNumber || r.photo || r.docKk)
+  const hasPayment = paymentProof !== null
+  useEffect(() => {
+    if (hasPayment) {
+      setActiveStep(3)
+    } else if (hasRiderData) {
+      setActiveStep(2)
+    } else if (hasContact) {
+      setActiveStep(1)
+    }
+  }, [hasContact, hasRiderData, hasPayment])
 
   const handleSubmit = async () => {
     setSuccess(null)
@@ -238,11 +255,48 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f7f2d7', padding: '20px 16px 80px' }}>
+    <div style={{ minHeight: '100vh', background: '#f7f2d7', padding: '20px 16px 120px' }}>
       <div style={{ maxWidth: 860, margin: '0 auto', display: 'grid', gap: 16 }}>
         <div style={{ padding: 16, borderRadius: 18, border: '2px solid #111', background: '#fff' }}>
           <div style={{ fontWeight: 900, fontSize: 22 }}>Pendaftaran Event</div>
           <div style={{ fontWeight: 700, marginTop: 4 }}>{eventName ?? 'KRB Race Event'}</div>
+        </div>
+
+        <div
+          style={{
+            padding: 12,
+            borderRadius: 16,
+            border: '2px solid #111',
+            background: '#fff',
+            display: 'grid',
+            gap: 8,
+          }}
+        >
+          <div style={{ fontWeight: 900 }}>Progress</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 8 }}>
+            {[
+              { id: 1, label: 'Kontak' },
+              { id: 2, label: 'Data Rider' },
+              { id: 3, label: 'Pembayaran' },
+            ].map((step) => {
+              const active = activeStep >= step.id
+              return (
+                <div
+                  key={step.id}
+                  style={{
+                    padding: '8px 10px',
+                    borderRadius: 999,
+                    border: '2px solid #111',
+                    background: active ? '#dff6e6' : '#f1f1f1',
+                    fontWeight: 800,
+                    textAlign: 'center',
+                  }}
+                >
+                  {step.id}. {step.label}
+                </div>
+              )
+            })}
+          </div>
         </div>
 
         <div style={{ padding: 16, borderRadius: 18, border: '2px solid #111', background: '#fff' }}>
@@ -325,14 +379,17 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                   style={{ padding: 12, borderRadius: 12, border: '2px solid #111' }}
                 />
 
-                  <div style={{ fontWeight: 800, fontSize: 13 }}>
-                    Kategori Otomatis:{' '}
-                    {birthYear === 2017
-                      ? 'FFA-MIX'
-                      : primaryCategory
-                      ? primaryCategory.label
-                      : 'Belum ditemukan'}
-                  </div>
+                <div style={{ fontWeight: 800, fontSize: 13 }}>
+                  Kategori Otomatis:{' '}
+                  {birthYear === 2017
+                    ? 'FFA-MIX'
+                    : primaryCategory
+                    ? primaryCategory.label
+                    : 'Belum ditemukan'}
+                </div>
+                <div style={{ fontSize: 12, color: '#333', fontWeight: 700 }}>
+                  Pilih tanggal lahir & gender agar kategori terdeteksi otomatis.
+                </div>
 
                 {extras.length > 0 && (
                   <select
@@ -366,19 +423,75 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
 
                 <div style={{ display: 'grid', gap: 8 }}>
                   <label style={{ fontWeight: 700 }}>Upload Foto Rider (wajib)</label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => updateRider(idx, { photo: e.target.files?.[0] ?? null })}
-                  />
+                  <label
+                    style={{
+                      border: '2px solid #111',
+                      borderRadius: 12,
+                      padding: 10,
+                      background: '#eaf7ee',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: 12,
+                      cursor: 'pointer',
+                      fontWeight: 800,
+                    }}
+                  >
+                    <span>{rider.photo ? rider.photo.name : 'Pilih file foto'}</span>
+                    <span
+                      style={{
+                        border: '2px solid #111',
+                        borderRadius: 10,
+                        padding: '4px 8px',
+                        background: '#fff',
+                        fontSize: 12,
+                      }}
+                    >
+                      Browse
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => updateRider(idx, { photo: e.target.files?.[0] ?? null })}
+                      style={{ display: 'none' }}
+                    />
+                  </label>
                 </div>
                 <div style={{ display: 'grid', gap: 8 }}>
                   <label style={{ fontWeight: 700 }}>Upload KK / Akte Kelahiran (wajib)</label>
-                  <input
-                    type="file"
-                    accept="image/*,.pdf"
-                    onChange={(e) => updateRider(idx, { docKk: e.target.files?.[0] ?? null })}
-                  />
+                  <label
+                    style={{
+                      border: '2px solid #111',
+                      borderRadius: 12,
+                      padding: 10,
+                      background: '#eaf7ee',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: 12,
+                      cursor: 'pointer',
+                      fontWeight: 800,
+                    }}
+                  >
+                    <span>{rider.docKk ? rider.docKk.name : 'Pilih dokumen KK/Akte'}</span>
+                    <span
+                      style={{
+                        border: '2px solid #111',
+                        borderRadius: 10,
+                        padding: '4px 8px',
+                        background: '#fff',
+                        fontSize: 12,
+                      }}
+                    >
+                      Browse
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*,.pdf"
+                      onChange={(e) => updateRider(idx, { docKk: e.target.files?.[0] ?? null })}
+                      style={{ display: 'none' }}
+                    />
+                  </label>
                 </div>
               </div>
             </div>
@@ -391,9 +504,10 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
           style={{
             padding: 14,
             borderRadius: 14,
-            border: '2px dashed #111',
-            background: '#dff6e6',
+            border: '2px solid #111',
+            background: '#b9f3c9',
             fontWeight: 900,
+            cursor: 'pointer',
           }}
         >
           + Tambah Rider
@@ -424,32 +538,84 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
               style={{ padding: 12, borderRadius: 12, border: '2px solid #111' }}
             />
             <div style={{ fontWeight: 800 }}>Total: {formatRupiah(totalAmount)}</div>
-            <input type="file" accept="image/*,.pdf" onChange={(e) => setPaymentProof(e.target.files?.[0] ?? null)} />
+            <label
+              style={{
+                border: '2px solid #111',
+                borderRadius: 12,
+                padding: 10,
+                background: '#eaf7ee',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 12,
+                cursor: 'pointer',
+                fontWeight: 800,
+              }}
+            >
+              <span>{paymentProof ? paymentProof.name : 'Upload bukti pembayaran'}</span>
+              <span
+                style={{
+                  border: '2px solid #111',
+                  borderRadius: 10,
+                  padding: '4px 8px',
+                  background: '#fff',
+                  fontSize: 12,
+                }}
+              >
+                Browse
+              </span>
+              <input
+                type="file"
+                accept="image/*,.pdf"
+                onChange={(e) => setPaymentProof(e.target.files?.[0] ?? null)}
+                style={{ display: 'none' }}
+              />
+            </label>
           </div>
         </div>
-
-        <button
-          type="button"
-          disabled={submitting}
-          onClick={handleSubmit}
-          style={{
-            padding: 16,
-            borderRadius: 16,
-            border: '2px solid #111',
-            background: submitting ? '#bbb' : '#34c759',
-            color: '#111',
-            fontWeight: 900,
-            fontSize: 16,
-          }}
-        >
-          {submitting ? 'Menyimpan...' : 'Kirim Pendaftaran'}
-        </button>
 
         {success && (
           <div style={{ padding: 14, borderRadius: 12, border: '2px solid #111', background: '#d7ffd9' }}>
             {success}
           </div>
         )}
+      </div>
+
+      <div
+        style={{
+          position: 'fixed',
+          bottom: 16,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: 'min(860px, calc(100% - 32px))',
+          background: '#fff',
+          border: '2px solid #111',
+          borderRadius: 16,
+          padding: '10px 14px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: 12,
+          boxShadow: '0 10px 24px rgba(0,0,0,0.12)',
+        }}
+      >
+        <div style={{ fontWeight: 900 }}>Total: {formatRupiah(totalAmount)}</div>
+        <button
+          type="button"
+          disabled={submitting}
+          onClick={handleSubmit}
+          style={{
+            padding: '10px 14px',
+            borderRadius: 12,
+            border: '2px solid #111',
+            background: submitting ? '#bbb' : '#34c759',
+            color: '#111',
+            fontWeight: 900,
+            cursor: 'pointer',
+          }}
+        >
+          {submitting ? 'Menyimpan...' : 'Kirim Pendaftaran'}
+        </button>
       </div>
     </div>
   )
