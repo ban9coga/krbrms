@@ -27,7 +27,7 @@ export default function ResultDetailClient({
   const [category, setCategory] = useState<RiderCategory | null>(null)
   const [motos, setMotos] = useState<MotoItem[]>([])
   const [selectedMotoId, setSelectedMotoId] = useState<string>('')
-  const [raceStatus, setRaceStatus] = useState<'LIVE' | 'FINISHED'>('FINISHED')
+  const [raceStatus, setRaceStatus] = useState<'UPCOMING' | 'LIVE' | 'FINISHED'>('FINISHED')
   const [rows, setRows] = useState<LeaderboardRow[]>([])
   const [loading, setLoading] = useState(false)
   const [stageRows, setStageRows] = useState<
