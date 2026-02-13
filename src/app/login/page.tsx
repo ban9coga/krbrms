@@ -102,7 +102,7 @@ export default function LoginPage() {
         >
           Back
         </button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
           <div
             style={{
               width: 32,
@@ -153,7 +153,7 @@ export default function LoginPage() {
               autoComplete="current-password"
               style={{
                 width: '100%',
-                padding: '12px 44px 12px 12px',
+                padding: '12px 64px 12px 12px',
                 borderRadius: '10px',
                 border: '2px solid #111',
                 background: '#fff',
@@ -166,14 +166,14 @@ export default function LoginPage() {
               onClick={() => setShowPassword((v) => !v)}
               style={{
                 position: 'absolute',
-                right: 8,
+                right: 10,
                 top: '50%',
                 transform: 'translateY(-50%)',
                 border: '2px solid #111',
                 background: '#fff',
                 borderRadius: 8,
-                padding: '4px 8px',
-                fontSize: 12,
+                padding: '3px 8px',
+                fontSize: 11,
                 fontWeight: 800,
                 cursor: 'pointer',
               }}
