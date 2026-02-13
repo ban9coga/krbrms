@@ -78,6 +78,7 @@ export default function JuryFinishPage() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
+    document.cookie = 'sb-access-token=; Path=/; Max-Age=0'
     router.push('/login')
   }
 

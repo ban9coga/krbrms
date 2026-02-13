@@ -24,6 +24,12 @@ export default function LoginPage() {
       return
     }
 
+    const accessToken = data.session?.access_token
+    if (accessToken) {
+      const maxAge = data.session?.expires_in ?? 3600
+      document.cookie = `sb-access-token=${encodeURIComponent(accessToken)}; Path=/; Max-Age=${maxAge}; Secure; SameSite=Lax`
+    }
+
     const user = data.user
     const meta = (user?.user_metadata ?? {}) as Record<string, unknown>
     const appMeta = (user?.app_metadata ?? {}) as Record<string, unknown>
