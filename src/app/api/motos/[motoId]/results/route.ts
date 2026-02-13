@@ -52,7 +52,9 @@ export async function GET(_: Request, { params }: { params: Promise<{ motoId: st
   }
 
   const enriched = (data ?? []).map((row) => {
-    const riderId = row.riders?.id
+    const rider =
+      Array.isArray(row.riders) ? row.riders[0] : row.riders
+    const riderId = rider?.id
     const penalty_total = riderId ? penaltyMap.get(riderId) ?? 0 : 0
     const status = (row.result_status ?? 'FINISH') as 'FINISH' | 'DNF' | 'DNS'
     const basePoint =
