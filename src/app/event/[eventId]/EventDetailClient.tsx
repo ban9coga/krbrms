@@ -84,6 +84,9 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
 
   const canLoadMore = riders.length < riderTotal
   const eventDate = event ? new Date(event.event_date) : null
+  const formattedDate = eventDate
+    ? eventDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+    : null
   const daysToEvent =
     eventDate ? Math.ceil((eventDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null
 
@@ -155,9 +158,9 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                 background: '#fff',
                 border: '2px solid #111',
                 borderRadius: '16px',
-                padding: '20px',
+                padding: '16px',
                 display: 'grid',
-                gap: '12px',
+                gap: '10px',
               }}
               >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
@@ -165,7 +168,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                   <h1 style={{ fontSize: '24px', fontWeight: 900, margin: 0 }}>{event.name}</h1>
                   <div style={{ color: '#333', fontWeight: 700 }}>Lokasi: {event.location || '-'}</div>
                   <div style={{ color: '#333', fontWeight: 700 }}>
-                    Tanggal: {eventDate ? eventDate.toLocaleDateString() : '-'}
+                    Tanggal: {formattedDate ?? '-'}
                   </div>
                 </div>
                 <StatusBadge
@@ -204,7 +207,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                   Total Riders
                   <div style={{ fontSize: 20 }}>{riderTotal}</div>
                   <div style={{ fontSize: 12, fontWeight: 800, marginTop: 4, opacity: 0.8 }}>
-                    {event.status === 'UPCOMING' ? 'Hidden' : showRiders ? 'Hide' : 'Tap to view'}
+                    {event.status === 'UPCOMING' ? 'Terkunci sampai LIVE' : showRiders ? 'Sembunyikan' : 'Klik untuk lihat'}
                   </div>
                 </div>
                 <div
@@ -261,8 +264,11 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
               </div>
             </div>
 
-            <div style={{ marginTop: 18, display: 'grid', gap: 12 }}>
-              <h2 style={{ fontSize: 20, fontWeight: 900, margin: 0 }}>Live Scoring</h2>
+            <div style={{ marginTop: 16, display: 'grid', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <h2 style={{ fontSize: 20, fontWeight: 900, margin: 0 }}>Live Scoring</h2>
+                {event.status !== 'LIVE' && <StatusBadge label="Locked" />}
+              </div>
               {event.status !== 'LIVE' ? (
                 <div
                   style={{
@@ -273,7 +279,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                     fontWeight: 800,
                   }}
                 >
-                  Live scoring muncul saat event LIVE.
+                  Live scoring akan muncul saat event LIVE.
                 </div>
               ) : liveMotosSorted.length === 0 ? (
                 <div
@@ -407,8 +413,11 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
             </div>
 
             {event.status === 'UPCOMING' ? (
-              <div style={{ marginTop: 18, display: 'grid', gap: 12 }}>
-                <h2 style={{ fontSize: 20, fontWeight: 900, margin: 0 }}>Riders</h2>
+              <div style={{ marginTop: 16, display: 'grid', gap: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <h2 style={{ fontSize: 20, fontWeight: 900, margin: 0 }}>Riders</h2>
+                  <StatusBadge label="Locked" />
+                </div>
                 <div
                   style={{
                     padding: 14,
@@ -422,7 +431,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                 </div>
               </div>
             ) : showRiders ? (
-              <div style={{ marginTop: 18, display: 'grid', gap: 12 }}>
+              <div style={{ marginTop: 16, display: 'grid', gap: 12 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'end', gap: 12 }}>
                   <h2 style={{ fontSize: 20, fontWeight: 900, margin: 0 }}>Riders</h2>
                   <div style={{ fontWeight: 900, color: '#333' }}>Total: {riderTotal}</div>
