@@ -12,6 +12,20 @@ type RegistrationItemInput = {
   requested_plate_suffix?: string | null
 }
 
+type PreparedItem =
+  | { error: string }
+  | {
+      rider_name: string
+      date_of_birth: string
+      gender: 'BOY' | 'GIRL'
+      club: string | null
+      primary_category_id: string | null
+      extra_category_id: string | null
+      requested_plate_number: number | null
+      requested_plate_suffix: string | null
+      price: number
+    }
+
 const BASE_PRICE = 250000
 const EXTRA_PRICE = 150000
 
@@ -58,7 +72,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   if (catError) return NextResponse.json({ error: catError.message }, { status: 400 })
   const categoryMap = new Map((categories ?? []).map((c) => [c.id, c]))
 
-  const preparedItems = items.map((item) => {
+  const preparedItems: PreparedItem[] = items.map((item) => {
     const birthYear = toYear(item.date_of_birth ?? '')
     const primary = item.primary_category_id ? categoryMap.get(item.primary_category_id) : null
     const extra = item.extra_category_id ? categoryMap.get(item.extra_category_id) : null
@@ -90,7 +104,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   }
 
   const pricedItems = preparedItems.filter(
-    (item): item is { price: number } => Boolean(item) && 'price' in item
+    (item): item is Extract<PreparedItem, { price: number }> => 'price' in item
   )
   const totalAmount = pricedItems.reduce((sum, item) => sum + item.price, 0)
 
