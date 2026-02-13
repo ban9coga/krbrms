@@ -56,6 +56,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const eventId = useMemo(() => extractEventId(pathname), [pathname])
   const eventNav = useMemo(() => (eventId ? EventNav(eventId) : []), [eventId])
+  const globalNav = useMemo(() => {
+    if (userRole === 'super_admin') {
+      return [...GlobalNav, { label: 'Users', href: '/admin/users' }]
+    }
+    return GlobalNav
+  }, [userRole])
 
   useEffect(() => {
     const stored = window.localStorage.getItem('krb_admin_sidebar_collapsed')
@@ -178,7 +184,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       )}
 
       <div style={{ display: 'grid', gap: 8 }}>
-        {GlobalNav.map((item) => {
+        {globalNav.map((item) => {
           const active = isActivePath(pathname, item.href)
           return (
             <Link
