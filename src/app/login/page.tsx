@@ -9,9 +9,12 @@ export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
+    setErrorMessage(null)
     setLoading(true)
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
@@ -20,7 +23,7 @@ export default function LoginPage() {
     setLoading(false)
 
     if (error) {
-      alert('Login gagal: ' + error.message)
+      setErrorMessage('Login gagal: ' + error.message)
       return
     }
 
@@ -85,8 +88,7 @@ export default function LoginPage() {
             position: 'absolute',
             top: '12px',
             right: '12px',
-            width: '36px',
-            height: '36px',
+            padding: '6px 10px',
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -94,11 +96,30 @@ export default function LoginPage() {
             border: '2px solid #111',
             borderRadius: '999px',
             cursor: 'pointer',
+            fontWeight: 800,
           }}
           aria-label="Kembali ke landing"
         >
-          ←
+          Back
         </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+          <div
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 10,
+              border: '2px solid #111',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontWeight: 900,
+              background: '#eaf7ee',
+            }}
+          >
+            KRB
+          </div>
+          <div style={{ fontSize: 12, fontWeight: 800, color: '#333' }}>KRB Race Management</div>
+        </div>
         <h1 style={{ fontSize: '22px', fontWeight: 800, marginBottom: '8px' }}>Login</h1>
         <p style={{ color: '#333', marginBottom: '18px' }}>
           Masuk untuk admin, juri, atau race control.
@@ -109,6 +130,9 @@ export default function LoginPage() {
             placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            name="email"
+            id="login-email"
+            autoComplete="username"
             style={{
               padding: '12px',
               borderRadius: '10px',
@@ -118,20 +142,61 @@ export default function LoginPage() {
             }}
             required
           />
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            style={{
-              padding: '12px',
-              borderRadius: '10px',
-              border: '2px solid #111',
-              background: '#fff',
-              color: '#111',
-            }}
-            required
-          />
+          <div style={{ position: 'relative' }}>
+            <input
+              type={showPassword ? 'text' : 'password'}
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              name="password"
+              id="login-password"
+              autoComplete="current-password"
+              style={{
+                width: '100%',
+                padding: '12px 44px 12px 12px',
+                borderRadius: '10px',
+                border: '2px solid #111',
+                background: '#fff',
+                color: '#111',
+              }}
+              required
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              style={{
+                position: 'absolute',
+                right: 8,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                border: '2px solid #111',
+                background: '#fff',
+                borderRadius: 8,
+                padding: '4px 8px',
+                fontSize: 12,
+                fontWeight: 800,
+                cursor: 'pointer',
+              }}
+              aria-label={showPassword ? 'Sembunyikan password' : 'Lihat password'}
+            >
+              {showPassword ? 'Hide' : 'Show'}
+            </button>
+          </div>
+          {errorMessage && (
+            <div
+              style={{
+                padding: '10px 12px',
+                borderRadius: 10,
+                border: '2px solid #e74c3c',
+                background: '#fff5f5',
+                color: '#c0392b',
+                fontWeight: 700,
+                fontSize: 13,
+              }}
+            >
+              {errorMessage}
+            </div>
+          )}
           <button
             type="submit"
             disabled={loading}
