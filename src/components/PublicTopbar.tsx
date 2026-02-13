@@ -26,10 +26,19 @@ export default function PublicTopbar({ onRegisterClick, showRegister = true }: P
           flexWrap: 'wrap',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <Link
+          href="/"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            textDecoration: 'none',
+            color: '#111',
+          }}
+        >
           <img src="/krb-logo.png" alt="KRB Logo" style={{ width: '36px', height: '36px', objectFit: 'contain' }} />
           <div style={{ fontWeight: 800 }}>KRB Race Management System</div>
-        </div>
+        </Link>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           {showRegister &&
             (onRegisterClick ? (
