@@ -248,20 +248,24 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
     }
   }
 
-  const updateDraft = (categoryId: string, patch: Partial<CategoryRule>) => {
-    setDraftRules((prev) => ({
-      ...prev,
-      [categoryId]: {
-        category_id: categoryId,
-        min_riders: 8,
-        enable_qualification: true,
-        enable_quarter_final: true,
-        enable_semi_final: true,
-        enabled_final_classes: [],
-        ...(prev[categoryId] ?? {}),
-        ...patch,
-      },
-    }))
+  const updateDraft = (categoryId: string, patch: Partial<Omit<CategoryRule, 'category_id'>>) => {
+    setDraftRules((prev) => {
+      const { category_id: _omit, ...prevRest } = prev[categoryId] ?? {}
+      const { category_id: _omitPatch, ...patchRest } = patch as Partial<CategoryRule>
+      return {
+        ...prev,
+        [categoryId]: {
+          min_riders: 8,
+          enable_qualification: true,
+          enable_quarter_final: true,
+          enable_semi_final: true,
+          enabled_final_classes: [],
+          ...prevRest,
+          ...patchRest,
+          category_id: categoryId,
+        },
+      }
+    })
   }
 
   const addRule = (categoryId: string) => {
