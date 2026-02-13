@@ -12,8 +12,9 @@ export default function PublicTopbar({ onRegisterClick, showRegister = true }: P
         position: 'sticky',
         top: 0,
         zIndex: 10,
-        background: 'rgba(255,255,255,0.9)',
+        background: '#fff',
         borderBottom: '2px solid #111',
+        boxShadow: '0 4px 0 rgba(0,0,0,0.06)',
       }}
     >
       <div
