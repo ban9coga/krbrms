@@ -166,6 +166,8 @@ create table if not exists event_settings (
   event_id uuid primary key references events(id) on delete cascade,
   event_logo_url text,
   sponsor_logo_urls text[] not null default '{}',
+  base_price int not null default 250000,
+  extra_price int not null default 150000,
   scoring_rules jsonb not null default '{}'::jsonb,
   display_theme jsonb not null default '{}'::jsonb,
   race_format_settings jsonb not null default '{}'::jsonb,

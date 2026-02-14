@@ -7,6 +7,8 @@ type SettingsRow = {
   event_id: string
   event_logo_url: string | null
   sponsor_logo_urls: string[]
+  base_price?: number | null
+  extra_price?: number | null
   scoring_rules: Record<string, unknown>
   display_theme: Record<string, unknown>
   race_format_settings: Record<string, unknown>
@@ -90,6 +92,8 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
   const [form, setForm] = useState({
     event_logo_url: '',
     sponsor_logo_urls: '',
+    base_price: '250000',
+    extra_price: '150000',
     scoring_rules: '{\n}\n',
     display_theme: '{\n}\n',
     race_format_settings: '{\n}\n',
@@ -118,6 +122,8 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
         setForm({
           event_logo_url: data.event_logo_url ?? '',
           sponsor_logo_urls: (data.sponsor_logo_urls ?? []).join('\n'),
+          base_price: typeof data.base_price === 'number' ? String(data.base_price) : '250000',
+          extra_price: typeof data.extra_price === 'number' ? String(data.extra_price) : '150000',
           scoring_rules: JSON.stringify(data.scoring_rules ?? {}, null, 2),
           display_theme: JSON.stringify(data.display_theme ?? {}, null, 2),
           race_format_settings: JSON.stringify(data.race_format_settings ?? {}, null, 2),
@@ -315,6 +321,16 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
 
     setSaving(true)
     try {
+      const basePriceNum = Number(form.base_price)
+      const extraPriceNum = Number(form.extra_price)
+      if (!Number.isFinite(basePriceNum) || basePriceNum <= 0) {
+        alert('Base price tidak valid.')
+        return
+      }
+      if (!Number.isFinite(extraPriceNum) || extraPriceNum < 0) {
+        alert('Extra price tidak valid.')
+        return
+      }
       await apiFetch(`/api/events/${eventId}/settings`, {
         method: 'PATCH',
         body: JSON.stringify({
@@ -323,6 +339,8 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
             .split(/\n/)
             .map((s) => s.trim())
             .filter(Boolean),
+          base_price: basePriceNum,
+          extra_price: extraPriceNum,
           scoring_rules: scoring,
           display_theme: theme,
           race_format_settings: format,
@@ -415,6 +433,32 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
                   onChange={(e) => setForm({ ...form, sponsor_logo_urls: e.target.value })}
                   style={{ padding: 12, borderRadius: 12, border: '2px solid #111', minHeight: 90, fontWeight: 800 }}
                 />
+                <div style={{ display: 'grid', gap: 8 }}>
+                  <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                    Biaya Pendaftaran
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <input
+                      type="number"
+                      min={0}
+                      placeholder="Base Price"
+                      value={form.base_price}
+                      onChange={(e) => setForm({ ...form, base_price: e.target.value })}
+                      style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                    />
+                    <input
+                      type="number"
+                      min={0}
+                      placeholder="Extra Price"
+                      value={form.extra_price}
+                      onChange={(e) => setForm({ ...form, extra_price: e.target.value })}
+                      style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                    />
+                  </div>
+                  <div style={{ fontSize: 12, color: '#333', fontWeight: 700 }}>
+                    Base = biaya per rider. Extra = biaya tambahan kategori ekstra.
+                  </div>
+                </div>
               </>
             )}
 

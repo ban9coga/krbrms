@@ -21,8 +21,8 @@ type RiderForm = {
   docKk?: File | null
 }
 
-const BASE_PRICE = 250000
-const EXTRA_PRICE = 150000
+const DEFAULT_BASE_PRICE = 250000
+const DEFAULT_EXTRA_PRICE = 150000
 
 const formatRupiah = (value: number) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value)
@@ -47,6 +47,8 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   const [contactEmail, setContactEmail] = useState('')
   const [communityName, setCommunityName] = useState('')
   const [riders, setRiders] = useState<RiderForm[]>([initialRider()])
+  const [basePrice, setBasePrice] = useState(DEFAULT_BASE_PRICE)
+  const [extraPrice, setExtraPrice] = useState(DEFAULT_EXTRA_PRICE)
   const [bankName, setBankName] = useState('')
   const [accountName, setAccountName] = useState('')
   const [accountNumber, setAccountNumber] = useState('')
@@ -74,8 +76,23 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         setCategories([])
       }
     }
+    const loadSettings = async () => {
+      try {
+        const res = await fetch(`/api/events/${eventId}/settings`)
+        const json = await res.json()
+        const data = json?.data ?? null
+        const base = Number(data?.base_price)
+        const extra = Number(data?.extra_price)
+        setBasePrice(Number.isFinite(base) && base > 0 ? base : DEFAULT_BASE_PRICE)
+        setExtraPrice(Number.isFinite(extra) && extra >= 0 ? extra : DEFAULT_EXTRA_PRICE)
+      } catch {
+        setBasePrice(DEFAULT_BASE_PRICE)
+        setExtraPrice(DEFAULT_EXTRA_PRICE)
+      }
+    }
     load()
     loadCategories()
+    loadSettings()
   }, [eventId])
 
   const addRider = () => {
@@ -111,8 +128,8 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   }
 
   const totalAmount = useMemo(() => {
-    return riders.reduce((sum, rider) => sum + BASE_PRICE + (rider.extraCategoryId ? EXTRA_PRICE : 0), 0)
-  }, [riders])
+    return riders.reduce((sum, rider) => sum + basePrice + (rider.extraCategoryId ? extraPrice : 0), 0)
+  }, [riders, basePrice, extraPrice])
 
   const hasContact = contactName.trim() && contactPhone.trim()
   const hasRiderData = riders.some((r) => r.name || r.dateOfBirth || r.requestedPlateNumber || r.photo || r.docKk)
