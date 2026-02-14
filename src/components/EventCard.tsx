@@ -107,7 +107,12 @@ export default function EventCard({ event }: { event: EventItem }) {
           Lokasi: {event.location || '-'}
         </div>
         <div style={{ color: '#333', fontSize: '14px' }}>
-          Tanggal: {new Date(event.event_date).toLocaleDateString()}
+          Tanggal:{' '}
+          {new Date(event.event_date).toLocaleDateString('id-ID', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+          })}
         </div>
       </div>
     </Link>
