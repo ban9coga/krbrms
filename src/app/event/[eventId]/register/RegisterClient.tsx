@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import PublicTopbar from '../../../../components/PublicTopbar'
 
 type CategoryItem = {
   id: string
@@ -272,7 +273,9 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f7f2d7', padding: '20px 16px 120px' }}>
+    <div style={{ minHeight: '100vh', background: '#f7f2d7' }}>
+      <PublicTopbar showRegister={false} />
+      <div style={{ padding: '20px 16px 120px' }}>
       <div style={{ maxWidth: 860, margin: '0 auto', display: 'grid', gap: 16 }}>
         <div style={{ padding: 16, borderRadius: 18, border: '2px solid #111', background: '#fff' }}>
           <div style={{ fontWeight: 900, fontSize: 22 }}>Pendaftaran Event</div>
@@ -633,6 +636,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         >
           {submitting ? 'Menyimpan...' : 'Kirim Pendaftaran'}
         </button>
+      </div>
       </div>
     </div>
   )
