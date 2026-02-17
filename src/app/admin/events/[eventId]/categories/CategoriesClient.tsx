@@ -15,6 +15,7 @@ export default function CategoriesClient({ eventId }: { eventId: string }) {
   const [categories, setCategories] = useState<CategoryItem[]>([])
   const [loading, setLoading] = useState(false)
   const [savingId, setSavingId] = useState<string | null>(null)
+  const [syncing, setSyncing] = useState(false)
 
   const getErrorMessage = (err: unknown) => (err instanceof Error ? err.message : 'Request failed')
 
@@ -61,6 +62,18 @@ export default function CategoriesClient({ eventId }: { eventId: string }) {
     }
   }
 
+  const syncFromRiders = async () => {
+    setSyncing(true)
+    try {
+      await apiFetch(`/api/events/${eventId}/categories/sync`, { method: 'POST' })
+      await load()
+    } catch (err: unknown) {
+      alert(getErrorMessage(err))
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   return (
     <div style={{ maxWidth: 980 }}>
       <h1 style={{ fontSize: 26, fontWeight: 950, margin: 0 }}>Categories</h1>
@@ -68,6 +81,23 @@ export default function CategoriesClient({ eventId }: { eventId: string }) {
         Categories dibuat otomatis dari tahun lahir & gender:
         <div>2017 = FFA-MIX</div>
         <div>2018-2023 = Boys/Girls</div>
+      </div>
+      <div style={{ marginTop: 10 }}>
+        <button
+          type="button"
+          onClick={syncFromRiders}
+          disabled={syncing}
+          style={{
+            padding: '8px 12px',
+            borderRadius: 12,
+            border: '2px solid #111',
+            background: '#bfead2',
+            fontWeight: 900,
+            cursor: 'pointer',
+          }}
+        >
+          {syncing ? 'Syncing...' : 'Sync Categories from Riders'}
+        </button>
       </div>
 
       <div style={{ marginTop: 14, display: 'grid', gap: 10 }}>
