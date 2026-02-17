@@ -84,9 +84,9 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
       { stageCounts: Record<string, number>; motoCounts: { quarter: number; semi: number; final: number } }
     >
   >({})
-  const [sections, setSections] = useState<{ basic: boolean; json: boolean; advanced: boolean }>({
+  const [sections, setSections] = useState<{ basic: boolean; appearance: boolean; advanced: boolean }>({
     basic: true,
-    json: false,
+    appearance: false,
     advanced: false,
   })
   const [advancedOpen, setAdvancedOpen] = useState<Record<string, boolean>>({})
@@ -104,6 +104,16 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
     scoring_dnf_points: 'last',
     scoring_dq_threshold: '7',
     scoring_tie_breaker: 'last_best',
+    display_primary_color: '#2ecc71',
+    display_secondary_color: '#111111',
+    display_header_bg: '#eaf7ee',
+    display_card_bg: '#ffffff',
+    display_logo_url: '',
+    race_moto_per_batch: '3',
+    race_gate_positions: '8',
+    race_qualification_enabled: true,
+    race_auto_advance: true,
+    race_final_classes: 'ELITE,NOVICE',
     scoring_rules: '{\n}\n',
     display_theme: '{\n}\n',
     race_format_settings: '{\n}\n',
@@ -130,6 +140,8 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
       setRow(data)
       if (data) {
         const scoring = (data.scoring_rules ?? {}) as Record<string, unknown>
+        const theme = (data.display_theme ?? {}) as Record<string, unknown>
+        const format = (data.race_format_settings ?? {}) as Record<string, unknown>
         const nextForm = {
           event_logo_url: data.event_logo_url ?? '',
           sponsor_logo_urls: (data.sponsor_logo_urls ?? []).join('\n'),
@@ -155,6 +167,26 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
               : '7',
           scoring_tie_breaker:
             typeof scoring.tie_breaker === 'string' ? scoring.tie_breaker : 'last_best',
+          display_primary_color:
+            typeof theme.primary_color === 'string' ? theme.primary_color : '#2ecc71',
+          display_secondary_color:
+            typeof theme.secondary_color === 'string' ? theme.secondary_color : '#111111',
+          display_header_bg:
+            typeof theme.header_bg === 'string' ? theme.header_bg : '#eaf7ee',
+          display_card_bg:
+            typeof theme.card_bg === 'string' ? theme.card_bg : '#ffffff',
+          display_logo_url:
+            typeof theme.logo_url === 'string' ? theme.logo_url : '',
+          race_moto_per_batch:
+            typeof format.moto_per_batch === 'number' ? String(format.moto_per_batch) : '3',
+          race_gate_positions:
+            typeof format.gate_positions === 'number' ? String(format.gate_positions) : '8',
+          race_qualification_enabled:
+            typeof format.qualification_enabled === 'boolean' ? format.qualification_enabled : true,
+          race_auto_advance:
+            typeof format.auto_advance === 'boolean' ? format.auto_advance : true,
+          race_final_classes:
+            Array.isArray(format.final_classes) ? format.final_classes.join(',') : 'ELITE,NOVICE',
           scoring_rules: JSON.stringify(data.scoring_rules ?? {}, null, 2),
           display_theme: JSON.stringify(data.display_theme ?? {}, null, 2),
           race_format_settings: JSON.stringify(data.race_format_settings ?? {}, null, 2),
@@ -371,11 +403,32 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
       dq_penalty_threshold: dqThreshold,
       tie_breaker: form.scoring_tie_breaker,
     }
-    const theme = safeJsonParse(form.display_theme)
-    const format = safeJsonParse(form.race_format_settings)
-    if (!scoring || !theme || !format) {
-      alert('JSON tidak valid. Pastikan scoring_rules / display_theme / race_format_settings adalah JSON yang benar.')
+    const theme = {
+      primary_color: form.display_primary_color.trim() || '#2ecc71',
+      secondary_color: form.display_secondary_color.trim() || '#111111',
+      header_bg: form.display_header_bg.trim() || '#eaf7ee',
+      card_bg: form.display_card_bg.trim() || '#ffffff',
+      logo_url: form.display_logo_url.trim() || null,
+    }
+    const motoPerBatch = Number(form.race_moto_per_batch)
+    const gatePositions = Number(form.race_gate_positions)
+    if (!Number.isFinite(motoPerBatch) || motoPerBatch <= 0) {
+      alert('Moto per batch tidak valid.')
       return
+    }
+    if (!Number.isFinite(gatePositions) || gatePositions <= 0) {
+      alert('Gate positions tidak valid.')
+      return
+    }
+    const format = {
+      moto_per_batch: motoPerBatch,
+      gate_positions: gatePositions,
+      qualification_enabled: Boolean(form.race_qualification_enabled),
+      auto_advance: Boolean(form.race_auto_advance),
+      final_classes: form.race_final_classes
+        .split(',')
+        .map((v) => v.trim())
+        .filter(Boolean),
     }
 
     setSaving(true)
@@ -433,12 +486,7 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
   const basicSummary = `Base ${Number(form.base_price || 0).toLocaleString()} • Extra ${Number(
     form.extra_price || 0
   ).toLocaleString()} • FFA ${form.ffa_mix_min_year}-${form.ffa_mix_max_year}`
-  const jsonSummary =
-    form.scoring_rules.trim() === '{\n}\n' &&
-    form.display_theme.trim() === '{\n}\n' &&
-    form.race_format_settings.trim() === '{\n}\n'
-      ? 'Empty'
-      : 'Configured'
+  const appearanceSummary = `Theme ${form.display_primary_color} • Race ${form.race_moto_per_batch} motos`
   const advancedSummary = `${advancedItems.filter((i) => i.config?.enabled).length} enabled`
 
   return (
@@ -457,15 +505,15 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
       >
         {[
           { key: 'basic', label: 'Basic' },
-          { key: 'json', label: 'JSON Config' },
+          { key: 'appearance', label: 'Display & Race Format' },
           { key: 'advanced', label: 'Advanced Multi-Stage' },
         ].map((section) => {
           const isOpen = sections[section.key as keyof typeof sections]
           const summary =
             section.key === 'basic'
               ? basicSummary
-              : section.key === 'json'
-              ? jsonSummary
+              : section.key === 'appearance'
+              ? appearanceSummary
               : advancedSummary
           return (
             <button
@@ -629,23 +677,86 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
               </>
             )}
 
-            {sections.json && (
+            {sections.appearance && (
               <>
-                <div style={{ marginTop: 6, fontWeight: 950, fontSize: 18 }}>JSON Config</div>
-                <div style={{ color: '#333', fontWeight: 700, fontSize: 13 }}>
-                  Simpan sebagai JSON agar fleksibel untuk aturan scoring & theme display.
-                  <div>Catatan: scoring_rules diatur dari UI Basic.</div>
+                <div style={{ marginTop: 6, fontWeight: 950, fontSize: 18 }}>Display & Race Format</div>
+                <div style={{ marginTop: 10, fontWeight: 900 }}>Display Theme</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <input
+                    value={form.display_primary_color}
+                    onChange={(e) => setForm({ ...form, display_primary_color: e.target.value })}
+                    placeholder="Primary color"
+                    style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                  />
+                  <input
+                    value={form.display_secondary_color}
+                    onChange={(e) => setForm({ ...form, display_secondary_color: e.target.value })}
+                    placeholder="Secondary color"
+                    style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                  />
+                  <input
+                    value={form.display_header_bg}
+                    onChange={(e) => setForm({ ...form, display_header_bg: e.target.value })}
+                    placeholder="Header background"
+                    style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                  />
+                  <input
+                    value={form.display_card_bg}
+                    onChange={(e) => setForm({ ...form, display_card_bg: e.target.value })}
+                    placeholder="Card background"
+                    style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                  />
                 </div>
-            <textarea
-              value={form.display_theme}
-              onChange={(e) => setForm({ ...form, display_theme: e.target.value })}
-              style={{ padding: 12, borderRadius: 12, border: '2px solid #111', minHeight: 130, fontFamily: 'monospace' }}
-            />
-            <textarea
-              value={form.race_format_settings}
-              onChange={(e) => setForm({ ...form, race_format_settings: e.target.value })}
-              style={{ padding: 12, borderRadius: 12, border: '2px solid #111', minHeight: 130, fontFamily: 'monospace' }}
-            />
+                <input
+                  value={form.display_logo_url}
+                  onChange={(e) => setForm({ ...form, display_logo_url: e.target.value })}
+                  placeholder="Logo URL (optional)"
+                  style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                />
+
+                <div style={{ marginTop: 14, fontWeight: 900 }}>Race Format</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <input
+                    type="number"
+                    min={1}
+                    value={form.race_moto_per_batch}
+                    onChange={(e) => setForm({ ...form, race_moto_per_batch: e.target.value })}
+                    placeholder="Moto per batch"
+                    style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                  />
+                  <input
+                    type="number"
+                    min={1}
+                    value={form.race_gate_positions}
+                    onChange={(e) => setForm({ ...form, race_gate_positions: e.target.value })}
+                    placeholder="Gate positions"
+                    style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+                  <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 800 }}>
+                    <input
+                      type="checkbox"
+                      checked={form.race_qualification_enabled}
+                      onChange={(e) => setForm({ ...form, race_qualification_enabled: e.target.checked })}
+                    />
+                    Qualification enabled
+                  </label>
+                  <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 800 }}>
+                    <input
+                      type="checkbox"
+                      checked={form.race_auto_advance}
+                      onChange={(e) => setForm({ ...form, race_auto_advance: e.target.checked })}
+                    />
+                    Auto advance
+                  </label>
+                </div>
+                <input
+                  value={form.race_final_classes}
+                  onChange={(e) => setForm({ ...form, race_final_classes: e.target.value })}
+                  placeholder="Final classes (comma)"
+                  style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                />
               </>
             )}
 
