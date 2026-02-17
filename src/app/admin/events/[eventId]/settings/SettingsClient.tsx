@@ -90,6 +90,7 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
     advanced: false,
   })
   const [advancedOpen, setAdvancedOpen] = useState<Record<string, boolean>>({})
+  const [initialForm, setInitialForm] = useState<string>('')
 
   const [form, setForm] = useState({
     event_logo_url: '',
@@ -123,7 +124,7 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
       const data = json.data as SettingsRow | null
       setRow(data)
       if (data) {
-        setForm({
+        const nextForm = {
           event_logo_url: data.event_logo_url ?? '',
           sponsor_logo_urls: (data.sponsor_logo_urls ?? []).join('\n'),
           base_price: typeof data.base_price === 'number' ? String(data.base_price) : '250000',
@@ -135,7 +136,9 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
           scoring_rules: JSON.stringify(data.scoring_rules ?? {}, null, 2),
           display_theme: JSON.stringify(data.display_theme ?? {}, null, 2),
           race_format_settings: JSON.stringify(data.race_format_settings ?? {}, null, 2),
-        })
+        }
+        setForm(nextForm)
+        setInitialForm(JSON.stringify(nextForm))
       }
     } finally {
       setLoading(false)
@@ -367,6 +370,9 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
         }),
       })
       await load()
+      setInitialForm(JSON.stringify({
+        ...form,
+      }))
       alert('Settings tersimpan.')
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Gagal menyimpan settings.')
@@ -374,6 +380,18 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
       setSaving(false)
     }
   }
+
+  const isDirty = initialForm !== JSON.stringify(form)
+  const basicSummary = `Base ${Number(form.base_price || 0).toLocaleString()} • Extra ${Number(
+    form.extra_price || 0
+  ).toLocaleString()} • FFA ${form.ffa_mix_min_year}-${form.ffa_mix_max_year}`
+  const jsonSummary =
+    form.scoring_rules.trim() === '{\n}\n' &&
+    form.display_theme.trim() === '{\n}\n' &&
+    form.race_format_settings.trim() === '{\n}\n'
+      ? 'Empty'
+      : 'Configured'
+  const advancedSummary = `${advancedItems.filter((i) => i.config?.enabled).length} enabled`
 
   return (
     <div style={{ maxWidth: 980 }}>
@@ -395,6 +413,12 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
           { key: 'advanced', label: 'Advanced Multi-Stage' },
         ].map((section) => {
           const isOpen = sections[section.key as keyof typeof sections]
+          const summary =
+            section.key === 'basic'
+              ? basicSummary
+              : section.key === 'json'
+              ? jsonSummary
+              : advancedSummary
           return (
             <button
               key={section.key}
@@ -412,7 +436,10 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
                 cursor: 'pointer',
               }}
             >
-              <span>{section.label}</span>
+              <span style={{ display: 'grid', gap: 2, textAlign: 'left' }}>
+                <span>{section.label}</span>
+                <span style={{ fontSize: 11, fontWeight: 800, color: '#333' }}>{summary}</span>
+              </span>
               <span style={{ fontSize: 12 }}>{isOpen ? 'Hide' : 'Show'}</span>
             </button>
           )
@@ -531,9 +558,6 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
               </>
             )}
 
-            <div style={{ color: '#333', fontWeight: 700, fontSize: 12 }}>
-              Saved: {row?.updated_at ? new Date(row.updated_at).toLocaleString() : '-'}
-            </div>
           </>
         )}
       </div>
@@ -862,7 +886,12 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
           boxShadow: '0 6px 18px rgba(0,0,0,0.08)',
         }}
       >
-        <div style={{ fontWeight: 900 }}>Save Event Settings</div>
+        <div style={{ display: 'grid', gap: 2 }}>
+          <div style={{ fontWeight: 900 }}>Save Event Settings</div>
+          <div style={{ fontSize: 12, color: '#333', fontWeight: 700 }}>
+            {isDirty ? 'Unsaved changes' : `Saved: ${row?.updated_at ? new Date(row.updated_at).toLocaleString() : '-'}`}
+          </div>
+        </div>
         <button
           type="button"
           onClick={handleSave}
