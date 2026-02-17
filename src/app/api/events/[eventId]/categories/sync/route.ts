@@ -27,7 +27,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     const birthYear = Number(row.birth_year)
     if (!Number.isFinite(birthYear)) continue
     const gender = row.gender as 'BOY' | 'GIRL'
-    const cat = toCategory(birthYear, gender)
+    const cat = toCategory(birthYear, gender) as { year: number; gender: 'BOY' | 'GIRL' | 'MIX'; label: string }
     const key = `${cat.year}-${cat.gender}`
     if (!unique.has(key)) unique.set(key, cat)
   }
