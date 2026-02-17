@@ -636,12 +636,6 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
                   Simpan sebagai JSON agar fleksibel untuk aturan scoring & theme display.
                   <div>Catatan: scoring_rules diatur dari UI Basic.</div>
                 </div>
-
-            <textarea
-              value={form.scoring_rules}
-              onChange={(e) => setForm({ ...form, scoring_rules: e.target.value })}
-              style={{ padding: 12, borderRadius: 12, border: '2px solid #111', minHeight: 130, fontFamily: 'monospace' }}
-            />
             <textarea
               value={form.display_theme}
               onChange={(e) => setForm({ ...form, display_theme: e.target.value })}
