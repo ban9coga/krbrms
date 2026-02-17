@@ -199,7 +199,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
         const allItemsHaveDocs =
           (reg.registration_items ?? []).length > 0 &&
           reg.registration_items.every((item) => (docsByItem.get(item.id) ?? 0) > 0)
-        const canApprove = hasPayment && allItemsHaveDocs
+        const canApprove = hasPayment && allItemsHaveDocs && reg.status === 'PENDING'
 
         return (
         <div key={reg.id} style={{ border: '2px solid #111', borderRadius: 16, padding: 16, background: '#fff' }}>
@@ -301,14 +301,14 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
             >
               Approve & Create Riders
             </button>
-            {!canApprove && (
+            {!canApprove && reg.status === 'PENDING' && (
               <div style={{ fontSize: 12, fontWeight: 800, alignSelf: 'center' }}>
                 Lengkapi pembayaran & dokumen
               </div>
             )}
             <button
               type="button"
-              disabled={savingId === reg.id}
+              disabled={savingId === reg.id || reg.status !== 'PENDING'}
               onClick={() => reject(reg)}
               style={{ padding: '10px 14px', borderRadius: 10, border: '2px solid #111', background: '#ffd6d6' }}
             >
