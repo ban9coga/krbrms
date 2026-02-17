@@ -99,6 +99,11 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
     extra_price: '150000',
     ffa_mix_min_year: '2017',
     ffa_mix_max_year: '2017',
+    scoring_base_mode: 'finish_order',
+    scoring_dns_points: '9',
+    scoring_dnf_points: 'last',
+    scoring_dq_threshold: '7',
+    scoring_tie_breaker: 'last_best',
     scoring_rules: '{\n}\n',
     display_theme: '{\n}\n',
     race_format_settings: '{\n}\n',
@@ -124,6 +129,7 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
       const data = json.data as SettingsRow | null
       setRow(data)
       if (data) {
+        const scoring = (data.scoring_rules ?? {}) as Record<string, unknown>
         const nextForm = {
           event_logo_url: data.event_logo_url ?? '',
           sponsor_logo_urls: (data.sponsor_logo_urls ?? []).join('\n'),
@@ -133,6 +139,22 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
             typeof data.ffa_mix_min_year === 'number' ? String(data.ffa_mix_min_year) : '2017',
           ffa_mix_max_year:
             typeof data.ffa_mix_max_year === 'number' ? String(data.ffa_mix_max_year) : '2017',
+          scoring_base_mode:
+            typeof scoring.base_points_mode === 'string' ? scoring.base_points_mode : 'finish_order',
+          scoring_dns_points:
+            typeof scoring.dns_points === 'number' ? String(scoring.dns_points) : '9',
+          scoring_dnf_points:
+            typeof scoring.dnf_points === 'number'
+              ? String(scoring.dnf_points)
+              : typeof scoring.dnf_points === 'string'
+              ? scoring.dnf_points
+              : 'last',
+          scoring_dq_threshold:
+            typeof scoring.dq_penalty_threshold === 'number'
+              ? String(scoring.dq_penalty_threshold)
+              : '7',
+          scoring_tie_breaker:
+            typeof scoring.tie_breaker === 'string' ? scoring.tie_breaker : 'last_best',
           scoring_rules: JSON.stringify(data.scoring_rules ?? {}, null, 2),
           display_theme: JSON.stringify(data.display_theme ?? {}, null, 2),
           race_format_settings: JSON.stringify(data.race_format_settings ?? {}, null, 2),
@@ -322,7 +344,33 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
   }
 
   const handleSave = async () => {
-    const scoring = safeJsonParse(form.scoring_rules)
+    const dnsPoints = Number(form.scoring_dns_points)
+    const dnfPoints =
+      form.scoring_dnf_points.trim().toLowerCase() === 'last'
+        ? 'last'
+        : Number(form.scoring_dnf_points)
+    const dqThreshold = Number(form.scoring_dq_threshold)
+
+    if (!Number.isFinite(dnsPoints) || dnsPoints < 0) {
+      alert('DNS points tidak valid.')
+      return
+    }
+    if (dnfPoints !== 'last' && (!Number.isFinite(dnfPoints) || dnfPoints < 0)) {
+      alert('DNF points tidak valid.')
+      return
+    }
+    if (!Number.isFinite(dqThreshold) || dqThreshold < 0) {
+      alert('DQ threshold tidak valid.')
+      return
+    }
+
+    const scoring = {
+      base_points_mode: form.scoring_base_mode,
+      dns_points: dnsPoints,
+      dnf_points: dnfPoints,
+      dq_penalty_threshold: dqThreshold,
+      tie_breaker: form.scoring_tie_breaker,
+    }
     const theme = safeJsonParse(form.display_theme)
     const format = safeJsonParse(form.race_format_settings)
     if (!scoring || !theme || !format) {
@@ -530,6 +578,54 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
                     Rider dalam rentang ini akan masuk kategori FFA-MIX.
                   </div>
                 </div>
+                <div style={{ display: 'grid', gap: 8, marginTop: 6 }}>
+                  <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                    Scoring Rules
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <select
+                      value={form.scoring_base_mode}
+                      onChange={(e) => setForm({ ...form, scoring_base_mode: e.target.value })}
+                      style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                    >
+                      <option value="finish_order">finish_order</option>
+                    </select>
+                    <select
+                      value={form.scoring_tie_breaker}
+                      onChange={(e) => setForm({ ...form, scoring_tie_breaker: e.target.value })}
+                      style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                    >
+                      <option value="last_best">last_best</option>
+                    </select>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                    <input
+                      type="number"
+                      min={0}
+                      placeholder="DNS points"
+                      value={form.scoring_dns_points}
+                      onChange={(e) => setForm({ ...form, scoring_dns_points: e.target.value })}
+                      style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                    />
+                    <input
+                      placeholder="DNF points (number or 'last')"
+                      value={form.scoring_dnf_points}
+                      onChange={(e) => setForm({ ...form, scoring_dnf_points: e.target.value })}
+                      style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                    />
+                    <input
+                      type="number"
+                      min={0}
+                      placeholder="DQ threshold"
+                      value={form.scoring_dq_threshold}
+                      onChange={(e) => setForm({ ...form, scoring_dq_threshold: e.target.value })}
+                      style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                    />
+                  </div>
+                  <div style={{ fontSize: 12, color: '#333', fontWeight: 700 }}>
+                    Scoring rules disimpan otomatis ke JSON scoring_rules saat Save.
+                  </div>
+                </div>
               </>
             )}
 
@@ -538,6 +634,7 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
                 <div style={{ marginTop: 6, fontWeight: 950, fontSize: 18 }}>JSON Config</div>
                 <div style={{ color: '#333', fontWeight: 700, fontSize: 13 }}>
                   Simpan sebagai JSON agar fleksibel untuk aturan scoring & theme display.
+                  <div>Catatan: scoring_rules diatur dari UI Basic.</div>
                 </div>
 
             <textarea
