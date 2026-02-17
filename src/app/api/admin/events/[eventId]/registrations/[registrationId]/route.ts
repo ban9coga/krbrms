@@ -1,6 +1,44 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../../../lib/auth'
 
+const resolveCategory = async (
+  eventId: string,
+  birthYear: number,
+  gender: 'BOY' | 'GIRL'
+) => {
+  const isU2017 = birthYear === 2017
+  const yearKey = isU2017 ? 2017 : birthYear
+  const categoryGender = isU2017 ? 'MIX' : gender
+  const label = isU2017 ? 'FFA-MIX' : `${birthYear} ${gender === 'BOY' ? 'Boys' : 'Girls'}`
+
+  const { data: existing } = await adminClient
+    .from('categories')
+    .select('id')
+    .eq('event_id', eventId)
+    .eq('year', yearKey)
+    .eq('gender', categoryGender)
+    .maybeSingle()
+
+  if (existing?.id) return existing.id
+
+  const { data: created, error } = await adminClient
+    .from('categories')
+    .insert([
+      {
+        event_id: eventId,
+        year: yearKey,
+        gender: categoryGender,
+        label,
+        enabled: true,
+      },
+    ])
+    .select('id')
+    .single()
+
+  if (error || !created?.id) throw new Error('Failed to create category')
+  return created.id
+}
+
 type ApprovalItem = {
   id: string
   plate_number?: number | null
@@ -83,6 +121,12 @@ export async function PATCH(
     const input = itemMap.get(item.id)
     const plateNumber = input?.plate_number ?? item.requested_plate_number
     const plateSuffix = normalizeSuffix(input?.plate_suffix ?? item.requested_plate_suffix)
+    const birthYear = Number(String(item.date_of_birth).slice(0, 4))
+    if (Number.isNaN(birthYear)) {
+      return NextResponse.json({ error: `Invalid date_of_birth for ${item.rider_name}` }, { status: 400 })
+    }
+    await resolveCategory(eventId, birthYear, item.gender)
+
     const { data: riderRow, error: riderError } = await adminClient
       .from('riders')
       .insert({
