@@ -28,6 +28,8 @@ type PreparedItem =
 
 const BASE_PRICE = 250000
 const EXTRA_PRICE = 150000
+const DEFAULT_FFA_MIN_YEAR = 2017
+const DEFAULT_FFA_MAX_YEAR = 2017
 
 const toYear = (dateString: string) => {
   const d = new Date(dateString)
@@ -72,6 +74,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   if (catError) return NextResponse.json({ error: catError.message }, { status: 400 })
   const categoryMap = new Map((categories ?? []).map((c) => [c.id, c]))
 
+  const { data: settings, error: settingsError } = await adminClient
+    .from('event_settings')
+    .select('ffa_mix_min_year, ffa_mix_max_year')
+    .eq('event_id', eventId)
+    .maybeSingle()
+
+  if (settingsError) return NextResponse.json({ error: settingsError.message }, { status: 400 })
+  const ffaMin = Number(settings?.ffa_mix_min_year)
+  const ffaMax = Number(settings?.ffa_mix_max_year)
+  const ffaMinYear = Number.isFinite(ffaMin) ? ffaMin : DEFAULT_FFA_MIN_YEAR
+  const ffaMaxYear = Number.isFinite(ffaMax) ? ffaMax : DEFAULT_FFA_MAX_YEAR
+
   const preparedItems: PreparedItem[] = items.map((item) => {
     const birthYear = toYear(item.date_of_birth ?? '')
     const primary = item.primary_category_id ? categoryMap.get(item.primary_category_id) : null
@@ -83,6 +97,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     if (!birthYear) return { error: 'Invalid date_of_birth' }
     if (primary && primary.event_id !== eventId) return { error: 'Invalid primary category' }
     if (extra && extra.event_id !== eventId) return { error: 'Invalid extra category' }
+    if (primary?.gender === 'MIX' && (birthYear < ffaMinYear || birthYear > ffaMaxYear)) {
+      return { error: 'Birth year not eligible for FFA-MIX' }
+    }
+    if (extra?.gender === 'MIX' && (birthYear < ffaMinYear || birthYear > ffaMaxYear)) {
+      return { error: 'Birth year not eligible for FFA-MIX' }
+    }
 
     const price = BASE_PRICE + (extra ? EXTRA_PRICE : 0)
     return {

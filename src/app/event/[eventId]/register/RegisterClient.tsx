@@ -24,6 +24,8 @@ type RiderForm = {
 
 const DEFAULT_BASE_PRICE = 250000
 const DEFAULT_EXTRA_PRICE = 150000
+const DEFAULT_FFA_MIN_YEAR = 2017
+const DEFAULT_FFA_MAX_YEAR = 2017
 
 const formatRupiah = (value: number) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value)
@@ -50,6 +52,8 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   const [riders, setRiders] = useState<RiderForm[]>([initialRider()])
   const [basePrice, setBasePrice] = useState(DEFAULT_BASE_PRICE)
   const [extraPrice, setExtraPrice] = useState(DEFAULT_EXTRA_PRICE)
+  const [ffaMinYear, setFfaMinYear] = useState(DEFAULT_FFA_MIN_YEAR)
+  const [ffaMaxYear, setFfaMaxYear] = useState(DEFAULT_FFA_MAX_YEAR)
   const [bankName, setBankName] = useState('')
   const [accountName, setAccountName] = useState('')
   const [accountNumber, setAccountNumber] = useState('')
@@ -84,11 +88,17 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         const data = json?.data ?? null
         const base = Number(data?.base_price)
         const extra = Number(data?.extra_price)
+        const ffaMin = Number(data?.ffa_mix_min_year)
+        const ffaMax = Number(data?.ffa_mix_max_year)
         setBasePrice(Number.isFinite(base) && base > 0 ? base : DEFAULT_BASE_PRICE)
         setExtraPrice(Number.isFinite(extra) && extra >= 0 ? extra : DEFAULT_EXTRA_PRICE)
+        setFfaMinYear(Number.isFinite(ffaMin) ? ffaMin : DEFAULT_FFA_MIN_YEAR)
+        setFfaMaxYear(Number.isFinite(ffaMax) ? ffaMax : DEFAULT_FFA_MAX_YEAR)
       } catch {
         setBasePrice(DEFAULT_BASE_PRICE)
         setExtraPrice(DEFAULT_EXTRA_PRICE)
+        setFfaMinYear(DEFAULT_FFA_MIN_YEAR)
+        setFfaMaxYear(DEFAULT_FFA_MAX_YEAR)
       }
     }
     load()
@@ -107,21 +117,23 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   const updateRider = (index: number, updates: Partial<RiderForm>) =>
     setRiders((prev) => prev.map((item, idx) => (idx === index ? { ...item, ...updates } : item)))
 
+  const isInFfaRange = (birthYear: number | null) =>
+    typeof birthYear === 'number' && birthYear >= ffaMinYear && birthYear <= ffaMaxYear
+
   const computePrimaryCategory = (birthYear: number | null, gender: 'BOY' | 'GIRL') => {
     if (!birthYear) return null
-    if (birthYear === 2017) {
-      return categories.find((c) => c.year === 2017 && c.gender === 'MIX') ?? null
+    if (isInFfaRange(birthYear)) {
+      return categories.find((c) => c.gender === 'MIX') ?? null
     }
     return categories.find((c) => c.year === birthYear && c.gender === gender) ?? null
   }
 
   const extraCategoryOptions = (birthYear: number | null, gender: 'BOY' | 'GIRL') => {
     const options: CategoryItem[] = []
-    // Allow FFA-MIX for any birth year if category exists.
-    const ffaMix = categories.find((c) => c.year === 2017 && c.gender === 'MIX')
+    const ffaMix = isInFfaRange(birthYear) ? categories.find((c) => c.gender === 'MIX') : null
     if (ffaMix) options.push(ffaMix)
 
-    if (!birthYear || birthYear <= 2017) return options
+    if (!birthYear || birthYear <= ffaMinYear) return options
     return [
       ...options,
       ...categories.filter((c) => c.gender === gender && c.year < birthYear && c.id !== ffaMix?.id),
@@ -401,7 +413,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
 
                 <div style={{ fontWeight: 800, fontSize: 13 }}>
                   Kategori Otomatis:{' '}
-                  {birthYear === 2017
+                  {isInFfaRange(birthYear)
                     ? 'FFA-MIX'
                     : primaryCategory
                     ? primaryCategory.label

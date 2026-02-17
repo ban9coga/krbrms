@@ -9,6 +9,8 @@ type SettingsRow = {
   sponsor_logo_urls: string[]
   base_price?: number | null
   extra_price?: number | null
+  ffa_mix_min_year?: number | null
+  ffa_mix_max_year?: number | null
   scoring_rules: Record<string, unknown>
   display_theme: Record<string, unknown>
   race_format_settings: Record<string, unknown>
@@ -94,6 +96,8 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
     sponsor_logo_urls: '',
     base_price: '250000',
     extra_price: '150000',
+    ffa_mix_min_year: '2017',
+    ffa_mix_max_year: '2017',
     scoring_rules: '{\n}\n',
     display_theme: '{\n}\n',
     race_format_settings: '{\n}\n',
@@ -124,6 +128,10 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
           sponsor_logo_urls: (data.sponsor_logo_urls ?? []).join('\n'),
           base_price: typeof data.base_price === 'number' ? String(data.base_price) : '250000',
           extra_price: typeof data.extra_price === 'number' ? String(data.extra_price) : '150000',
+          ffa_mix_min_year:
+            typeof data.ffa_mix_min_year === 'number' ? String(data.ffa_mix_min_year) : '2017',
+          ffa_mix_max_year:
+            typeof data.ffa_mix_max_year === 'number' ? String(data.ffa_mix_max_year) : '2017',
           scoring_rules: JSON.stringify(data.scoring_rules ?? {}, null, 2),
           display_theme: JSON.stringify(data.display_theme ?? {}, null, 2),
           race_format_settings: JSON.stringify(data.race_format_settings ?? {}, null, 2),
@@ -323,12 +331,22 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
     try {
       const basePriceNum = Number(form.base_price)
       const extraPriceNum = Number(form.extra_price)
+      const ffaMinNum = Number(form.ffa_mix_min_year)
+      const ffaMaxNum = Number(form.ffa_mix_max_year)
       if (!Number.isFinite(basePriceNum) || basePriceNum <= 0) {
         alert('Base price tidak valid.')
         return
       }
       if (!Number.isFinite(extraPriceNum) || extraPriceNum < 0) {
         alert('Extra price tidak valid.')
+        return
+      }
+      if (!Number.isFinite(ffaMinNum) || !Number.isFinite(ffaMaxNum)) {
+        alert('FFA MIX range tidak valid.')
+        return
+      }
+      if (ffaMinNum > ffaMaxNum) {
+        alert('FFA MIX min year tidak boleh lebih besar dari max year.')
         return
       }
       await apiFetch(`/api/events/${eventId}/settings`, {
@@ -341,6 +359,8 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
             .filter(Boolean),
           base_price: basePriceNum,
           extra_price: extraPriceNum,
+          ffa_mix_min_year: ffaMinNum,
+          ffa_mix_max_year: ffaMaxNum,
           scoring_rules: scoring,
           display_theme: theme,
           race_format_settings: format,
@@ -457,6 +477,30 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
                   </div>
                   <div style={{ fontSize: 12, color: '#333', fontWeight: 700 }}>
                     Base = biaya per rider. Extra = biaya tambahan kategori ekstra.
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gap: 8, marginTop: 6 }}>
+                  <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                    FFA MIX Range
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <input
+                      type="number"
+                      placeholder="FFA Min Year"
+                      value={form.ffa_mix_min_year}
+                      onChange={(e) => setForm({ ...form, ffa_mix_min_year: e.target.value })}
+                      style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                    />
+                    <input
+                      type="number"
+                      placeholder="FFA Max Year"
+                      value={form.ffa_mix_max_year}
+                      onChange={(e) => setForm({ ...form, ffa_mix_max_year: e.target.value })}
+                      style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                    />
+                  </div>
+                  <div style={{ fontSize: 12, color: '#333', fontWeight: 700 }}>
+                    Rider dalam rentang ini akan masuk kategori FFA-MIX.
                   </div>
                 </div>
               </>

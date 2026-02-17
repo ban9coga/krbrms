@@ -6,7 +6,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ eventId: s
   const { data, error } = await adminClient
     .from('event_settings')
     .select(
-      'event_id, event_logo_url, sponsor_logo_urls, base_price, extra_price, scoring_rules, display_theme, race_format_settings, created_at, updated_at'
+      'event_id, event_logo_url, sponsor_logo_urls, base_price, extra_price, ffa_mix_min_year, ffa_mix_max_year, scoring_rules, display_theme, race_format_settings, created_at, updated_at'
     )
     .eq('event_id', eventId)
     .maybeSingle()
@@ -26,6 +26,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ eventI
     sponsor_logo_urls,
     base_price,
     extra_price,
+    ffa_mix_min_year,
+    ffa_mix_max_year,
     scoring_rules,
     display_theme,
     race_format_settings,
@@ -41,6 +43,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ eventI
           sponsor_logo_urls,
           base_price,
           extra_price,
+          ffa_mix_min_year,
+          ffa_mix_max_year,
           scoring_rules,
           display_theme,
           race_format_settings,

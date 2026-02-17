@@ -168,6 +168,8 @@ create table if not exists event_settings (
   sponsor_logo_urls text[] not null default '{}',
   base_price int not null default 250000,
   extra_price int not null default 150000,
+  ffa_mix_min_year int,
+  ffa_mix_max_year int,
   scoring_rules jsonb not null default '{}'::jsonb,
   display_theme jsonb not null default '{}'::jsonb,
   race_format_settings jsonb not null default '{}'::jsonb,
