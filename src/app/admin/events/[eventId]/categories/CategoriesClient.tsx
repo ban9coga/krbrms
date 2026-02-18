@@ -6,6 +6,8 @@ import { supabase } from '../../../../../lib/supabaseClient'
 type CategoryItem = {
   id: string
   year: number
+  year_min?: number
+  year_max?: number
   gender: 'BOY' | 'GIRL' | 'MIX'
   label: string
   enabled: boolean
@@ -78,9 +80,7 @@ export default function CategoriesClient({ eventId }: { eventId: string }) {
     <div style={{ maxWidth: 980 }}>
       <h1 style={{ fontSize: 26, fontWeight: 950, margin: 0 }}>Categories</h1>
       <div style={{ marginTop: 8, color: '#333', fontWeight: 700 }}>
-        Categories dibuat otomatis dari tahun lahir & gender:
-        <div>2017 = FFA-MIX</div>
-        <div>2018-2023 = Boys/Girls</div>
+        Categories dibuat otomatis dari tahun lahir & gender.
       </div>
       <div style={{ marginTop: 10 }}>
         <button
@@ -130,7 +130,7 @@ export default function CategoriesClient({ eventId }: { eventId: string }) {
             <div style={{ display: 'grid', gap: 2 }}>
               <div style={{ fontWeight: 900 }}>{item.label}</div>
               <div style={{ fontSize: 12, fontWeight: 800, color: '#333' }}>
-                {item.year} • {item.gender}
+                {(item.year_min ?? item.year)}-{(item.year_max ?? item.year)} - {item.gender}
               </div>
             </div>
             <button

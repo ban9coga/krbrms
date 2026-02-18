@@ -34,7 +34,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ riderId:
 
   const { data: category } = await adminClient
     .from('categories')
-    .select('id, event_id, year, gender')
+    .select('id, event_id, year, year_min, year_max, gender')
     .eq('id', categoryId)
     .maybeSingle()
 
@@ -43,15 +43,12 @@ export async function PUT(req: Request, { params }: { params: Promise<{ riderId:
   }
 
   const birthYear = Number(String(rider.date_of_birth).slice(0, 4))
-  if (category.year >= birthYear) {
+  const maxYear = (category.year_max ?? category.year) as number
+  if (maxYear >= birthYear) {
     return NextResponse.json({ error: 'Extra category must be above rider birth year' }, { status: 400 })
   }
 
-  if (category.year === 2017) {
-    if (category.gender !== 'MIX') {
-      return NextResponse.json({ error: 'U2017 must be FFA-MIX' }, { status: 400 })
-    }
-  } else if (category.gender !== rider.gender) {
+  if (category.gender !== 'MIX' && category.gender !== rider.gender) {
     return NextResponse.json({ error: 'Gender must match for extra category' }, { status: 400 })
   }
 

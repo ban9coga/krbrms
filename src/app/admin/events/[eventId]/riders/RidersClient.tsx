@@ -6,6 +6,8 @@ import { supabase } from '../../../../../lib/supabaseClient'
 type CategoryItem = {
   id: string
   year: number
+  year_min?: number
+  year_max?: number
   gender: 'BOY' | 'GIRL' | 'MIX'
   label: string
   enabled: boolean
@@ -354,7 +356,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
         <div>
           <h1 style={{ fontSize: 26, fontWeight: 950, margin: 0 }}>Riders</h1>
           <div style={{ marginTop: 8, color: '#333', fontWeight: 700 }}>
-            Tahun lahir dibatasi 2017 - 2023. Plate unik per event (contoh: 12, 12A, 7B).
+            Tahun lahir dibatasi 2016 - 2025. Plate unik per event (contoh: 12, 12A, 7B).
           </div>
         </div>
       </div>
@@ -746,8 +748,9 @@ export default function RidersClient({ eventId }: { eventId: string }) {
               {(() => {
                 const birthYear = Number(String(editForm.date_of_birth).slice(0, 4))
                 const eligible = categories.filter((c) => {
-                  if (c.year >= birthYear) return false
-                  if (c.year === 2017) return c.gender === 'MIX'
+                  const max = c.year_max ?? c.year
+                  if (max >= birthYear) return false
+                  if (c.gender === 'MIX') return true
                   return c.gender === editForm.gender
                 })
                 if (eligible.length === 0) {

@@ -6,6 +6,8 @@ import PublicTopbar from '../../../../components/PublicTopbar'
 type CategoryItem = {
   id: string
   year: number
+  year_min?: number
+  year_max?: number
   gender: 'BOY' | 'GIRL' | 'MIX'
   label: string
 }
@@ -117,27 +119,32 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   const updateRider = (index: number, updates: Partial<RiderForm>) =>
     setRiders((prev) => prev.map((item, idx) => (idx === index ? { ...item, ...updates } : item)))
 
-  const isInFfaRange = (birthYear: number | null) =>
-    typeof birthYear === 'number' && birthYear >= ffaMinYear && birthYear <= ffaMaxYear
+  const inRange = (c: CategoryItem, birthYear: number) => {
+    const min = c.year_min ?? c.year
+    const max = c.year_max ?? c.year
+    return birthYear >= min && birthYear <= max
+  }
 
   const computePrimaryCategory = (birthYear: number | null, gender: 'BOY' | 'GIRL') => {
     if (!birthYear) return null
-    if (isInFfaRange(birthYear)) {
-      return categories.find((c) => c.gender === 'MIX') ?? null
+    const candidates = categories.filter((c) => inRange(c, birthYear))
+    const genderMatch = candidates.filter((c) => c.gender === gender)
+    if (genderMatch.length > 0) {
+      return genderMatch.sort((a, b) => (a.year_max ?? a.year) - (b.year_max ?? b.year))[0] ?? null
     }
-    return categories.find((c) => c.year === birthYear && c.gender === gender) ?? null
+    const mix = candidates.filter((c) => c.gender === 'MIX')
+    return mix.sort((a, b) => (a.year_max ?? a.year) - (b.year_max ?? b.year))[0] ?? null
   }
 
   const extraCategoryOptions = (birthYear: number | null, gender: 'BOY' | 'GIRL') => {
     const options: CategoryItem[] = []
-    const ffaMix = isInFfaRange(birthYear) ? categories.find((c) => c.gender === 'MIX') : null
-    if (ffaMix) options.push(ffaMix)
-
-    if (!birthYear || birthYear <= ffaMinYear) return options
-    return [
-      ...options,
-      ...categories.filter((c) => c.gender === gender && c.year < birthYear && c.id !== ffaMix?.id),
-    ]
+    if (!birthYear) return options
+    return categories.filter((c) => {
+      const max = c.year_max ?? c.year
+      if (max >= birthYear) return false
+      if (c.gender === 'MIX') return true
+      return c.gender === gender
+    })
   }
 
   const totalAmount = useMemo(() => {
@@ -413,11 +420,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
 
                 <div style={{ fontWeight: 800, fontSize: 13 }}>
                   Kategori Otomatis:{' '}
-                  {isInFfaRange(birthYear)
-                    ? 'FFA-MIX'
-                    : primaryCategory
-                    ? primaryCategory.label
-                    : 'Belum ditemukan'}
+                  {primaryCategory ? primaryCategory.label : 'Belum ditemukan'}
                 </div>
                 <div style={{ fontSize: 12, color: '#333', fontWeight: 700 }}>
                   Pilih tanggal lahir & gender agar kategori terdeteksi otomatis.

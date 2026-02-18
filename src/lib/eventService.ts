@@ -18,6 +18,8 @@ export type YearCategory = {
 export type RiderCategory = {
   id: string
   year: number
+  year_min?: number
+  year_max?: number
   gender: 'BOY' | 'GIRL' | 'MIX'
   label: string
   enabled: boolean
@@ -78,7 +80,7 @@ export const getYearCategories = async (eventId: string): Promise<YearCategory[]
   const years = Array.from(new Set(data.map((item) => item.year))).sort((a, b) => b - a)
   return years.map((year) => ({
     year: String(year),
-    label: year === 2017 ? 'FFA-MIX' : String(year),
+    label: String(year),
   }))
 }
 

@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../lib/auth'
 
-const MIN_BIRTH_YEAR = 2017
-const MAX_BIRTH_YEAR = 2023
+const MIN_BIRTH_YEAR = 2016
+const MAX_BIRTH_YEAR = 2025
 
 const suggestSuffix = (used: (string | null)[]) => {
   const existing = new Set(used.filter(Boolean) as string[])
@@ -18,37 +18,48 @@ const resolveCategory = async (
   birthYear: number,
   gender: 'BOY' | 'GIRL'
 ) => {
-  const isU2017 = birthYear === 2017
-  const yearKey = isU2017 ? 2017 : birthYear
-  const categoryGender = isU2017 ? 'MIX' : gender
-  const label = isU2017 ? 'FFA-MIX' : `${birthYear} ${gender === 'BOY' ? 'Boys' : 'Girls'}`
-
-  const { data: existing } = await adminClient
+  const { data: categories } = await adminClient
     .from('categories')
-    .select('id')
+    .select('id, year, year_min, year_max, gender')
     .eq('event_id', eventId)
-    .eq('year', yearKey)
-    .eq('gender', categoryGender)
-    .maybeSingle()
+    .eq('enabled', true)
 
-  if (existing?.id) return existing.id
+  const list = (categories ?? []).map((c) => ({
+    ...c,
+    year_min: c.year_min ?? c.year,
+    year_max: c.year_max ?? c.year,
+  }))
 
-  const { data: created, error } = await adminClient
-    .from('categories')
-    .insert([
-      {
-        event_id: eventId,
-        year: yearKey,
-        gender: categoryGender,
-        label,
-        enabled: true,
-      },
-    ])
-    .select('id')
-    .single()
+  if (list.length === 0) {
+    // Fallback: create single-year category if none exist.
+    const label = `${birthYear} ${gender === 'BOY' ? 'Boys' : 'Girls'}`
+    const { data: created, error } = await adminClient
+      .from('categories')
+      .insert([
+        {
+          event_id: eventId,
+          year: birthYear,
+          year_min: birthYear,
+          year_max: birthYear,
+          gender,
+          label,
+          enabled: true,
+        },
+      ])
+      .select('id')
+      .single()
+    if (error || !created?.id) throw new Error('Failed to create category')
+    return created.id
+  }
 
-  if (error || !created?.id) throw new Error('Failed to create category')
-  return created.id
+  const candidates = list.filter((c) => birthYear >= c.year_min && birthYear <= c.year_max)
+  const genderMatch = candidates.filter((c) => c.gender === gender)
+  const chosen =
+    genderMatch.sort((a, b) => a.year_max - b.year_max)[0] ??
+    candidates.filter((c) => c.gender === 'MIX').sort((a, b) => a.year_max - b.year_max)[0]
+
+  if (!chosen?.id) throw new Error('No matching category for rider')
+  return chosen.id as string
 }
 
 export async function GET(req: Request) {
@@ -75,7 +86,7 @@ export async function GET(req: Request) {
   if (categoryId) {
     const { data: category, error: categoryError } = await adminClient
       .from('categories')
-      .select('id, event_id, year, gender')
+      .select('id, event_id, year, year_min, year_max, gender')
       .eq('id', categoryId)
       .maybeSingle()
     if (categoryError || !category) {
@@ -91,15 +102,17 @@ export async function GET(req: Request) {
       .eq('category_id', categoryId)
     const extraIds = (extraRows ?? []).map((row) => row.rider_id)
 
+    const minYear = (category.year_min ?? category.year) as number
+    const maxYear = (category.year_max ?? category.year) as number
     if (extraIds.length > 0) {
       const baseFilter =
         category.gender === 'MIX'
-          ? `birth_year.eq.${category.year}`
-          : `and(birth_year.eq.${category.year},gender.eq.${category.gender})`
+          ? `and(birth_year.gte.${minYear},birth_year.lte.${maxYear})`
+          : `and(birth_year.gte.${minYear},birth_year.lte.${maxYear},gender.eq.${category.gender})`
       const orFilter = `${baseFilter},id.in.(${extraIds.join(',')})`
       query = query.or(orFilter)
     } else {
-      query = query.eq('birth_year', category.year)
+      query = query.gte('birth_year', minYear).lte('birth_year', maxYear)
       if (category.gender !== 'MIX') {
         query = query.eq('gender', category.gender)
       }

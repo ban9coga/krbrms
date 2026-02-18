@@ -6,37 +6,47 @@ const resolveCategory = async (
   birthYear: number,
   gender: 'BOY' | 'GIRL'
 ) => {
-  const isU2017 = birthYear === 2017
-  const yearKey = isU2017 ? 2017 : birthYear
-  const categoryGender = isU2017 ? 'MIX' : gender
-  const label = isU2017 ? 'FFA-MIX' : `${birthYear} ${gender === 'BOY' ? 'Boys' : 'Girls'}`
-
-  const { data: existing } = await adminClient
+  const { data: categories } = await adminClient
     .from('categories')
-    .select('id')
+    .select('id, year, year_min, year_max, gender')
     .eq('event_id', eventId)
-    .eq('year', yearKey)
-    .eq('gender', categoryGender)
-    .maybeSingle()
+    .eq('enabled', true)
 
-  if (existing?.id) return existing.id
+  const list = (categories ?? []).map((c) => ({
+    ...c,
+    year_min: c.year_min ?? c.year,
+    year_max: c.year_max ?? c.year,
+  }))
 
-  const { data: created, error } = await adminClient
-    .from('categories')
-    .insert([
-      {
-        event_id: eventId,
-        year: yearKey,
-        gender: categoryGender,
-        label,
-        enabled: true,
-      },
-    ])
-    .select('id')
-    .single()
+  if (list.length === 0) {
+    const label = `${birthYear} ${gender === 'BOY' ? 'Boys' : 'Girls'}`
+    const { data: created, error } = await adminClient
+      .from('categories')
+      .insert([
+        {
+          event_id: eventId,
+          year: birthYear,
+          year_min: birthYear,
+          year_max: birthYear,
+          gender,
+          label,
+          enabled: true,
+        },
+      ])
+      .select('id')
+      .single()
+    if (error || !created?.id) throw new Error('Failed to create category')
+    return created.id
+  }
 
-  if (error || !created?.id) throw new Error('Failed to create category')
-  return created.id
+  const candidates = list.filter((c) => birthYear >= c.year_min && birthYear <= c.year_max)
+  const genderMatch = candidates.filter((c) => c.gender === gender)
+  const chosen =
+    genderMatch.sort((a, b) => a.year_max - b.year_max)[0] ??
+    candidates.filter((c) => c.gender === 'MIX').sort((a, b) => a.year_max - b.year_max)[0]
+
+  if (!chosen?.id) throw new Error('No matching category for rider')
+  return chosen.id as string
 }
 
 type ApprovalItem = {

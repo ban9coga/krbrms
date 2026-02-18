@@ -6,7 +6,7 @@ const toCategory = (birthYear: number, gender: 'BOY' | 'GIRL') => {
   const yearKey = isU2017 ? 2017 : birthYear
   const categoryGender = isU2017 ? 'MIX' : gender
   const label = isU2017 ? 'FFA-MIX' : `${birthYear} ${gender === 'BOY' ? 'Boys' : 'Girls'}`
-  return { year: yearKey, gender: categoryGender, label }
+  return { year: yearKey, year_min: yearKey, year_max: yearKey, gender: categoryGender, label }
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
@@ -22,12 +22,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
 
   if (riderError) return NextResponse.json({ error: riderError.message }, { status: 400 })
 
-  const unique = new Map<string, { year: number; gender: 'BOY' | 'GIRL' | 'MIX'; label: string }>()
+  const unique = new Map<string, { year: number; year_min: number; year_max: number; gender: 'BOY' | 'GIRL' | 'MIX'; label: string }>()
   for (const row of riders ?? []) {
     const birthYear = Number(row.birth_year)
     if (!Number.isFinite(birthYear)) continue
     const gender = row.gender as 'BOY' | 'GIRL'
-    const cat = toCategory(birthYear, gender) as { year: number; gender: 'BOY' | 'GIRL' | 'MIX'; label: string }
+    const cat = toCategory(birthYear, gender) as { year: number; year_min: number; year_max: number; gender: 'BOY' | 'GIRL' | 'MIX'; label: string }
     const key = `${cat.year}-${cat.gender}`
     if (!unique.has(key)) unique.set(key, cat)
   }
@@ -35,6 +35,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   const payload = Array.from(unique.values()).map((c) => ({
     event_id: eventId,
     year: c.year,
+    year_min: c.year_min,
+    year_max: c.year_max,
     gender: c.gender,
     label: c.label,
     enabled: true,

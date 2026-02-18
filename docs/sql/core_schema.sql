@@ -51,6 +51,8 @@ create table if not exists categories (
   id uuid primary key default uuid_generate_v4(),
   event_id uuid not null references events(id) on delete cascade,
   year int not null,
+  year_min int not null default 2017,
+  year_max int not null default 2017,
   gender gender_type not null,
   label text not null,
   enabled boolean not null default true,
@@ -82,8 +84,8 @@ create table if not exists riders (
   constraint ck_rider_gender check (gender in ('BOY','GIRL')),
   constraint ck_plate_suffix check (plate_suffix is null or plate_suffix ~ '^[A-Z]$'),
   constraint ck_birth_year check (
-    birth_year >= 2017
-    and birth_year <= 2023
+    birth_year >= 2016
+    and birth_year <= 2025
   )
 );
 

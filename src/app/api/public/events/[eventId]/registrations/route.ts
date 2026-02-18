@@ -28,8 +28,6 @@ type PreparedItem =
 
 const BASE_PRICE = 250000
 const EXTRA_PRICE = 150000
-const DEFAULT_FFA_MIN_YEAR = 2017
-const DEFAULT_FFA_MAX_YEAR = 2017
 
 const toYear = (dateString: string) => {
   const d = new Date(dateString)
@@ -68,23 +66,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
 
   const { data: categories, error: catError } = await adminClient
     .from('categories')
-    .select('id, event_id, year, gender')
+    .select('id, event_id, year, year_min, year_max, gender')
     .in('id', Array.from(categoryIds))
 
   if (catError) return NextResponse.json({ error: catError.message }, { status: 400 })
   const categoryMap = new Map((categories ?? []).map((c) => [c.id, c]))
 
-  const { data: settings, error: settingsError } = await adminClient
-    .from('event_settings')
-    .select('ffa_mix_min_year, ffa_mix_max_year')
-    .eq('event_id', eventId)
-    .maybeSingle()
-
-  if (settingsError) return NextResponse.json({ error: settingsError.message }, { status: 400 })
-  const ffaMin = Number(settings?.ffa_mix_min_year)
-  const ffaMax = Number(settings?.ffa_mix_max_year)
-  const ffaMinYear = Number.isFinite(ffaMin) ? ffaMin : DEFAULT_FFA_MIN_YEAR
-  const ffaMaxYear = Number.isFinite(ffaMax) ? ffaMax : DEFAULT_FFA_MAX_YEAR
+  // range validation handled per category
 
   const preparedItems: PreparedItem[] = items.map((item) => {
     const birthYear = toYear(item.date_of_birth ?? '')
@@ -97,11 +85,22 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     if (!birthYear) return { error: 'Invalid date_of_birth' }
     if (primary && primary.event_id !== eventId) return { error: 'Invalid primary category' }
     if (extra && extra.event_id !== eventId) return { error: 'Invalid extra category' }
-    if (primary?.gender === 'MIX' && (birthYear < ffaMinYear || birthYear > ffaMaxYear)) {
-      return { error: 'Birth year not eligible for FFA-MIX' }
+    const primaryMin = primary ? (primary.year_min ?? primary.year) : null
+    const primaryMax = primary ? (primary.year_max ?? primary.year) : null
+    if (primary && (birthYear < primaryMin || birthYear > primaryMax)) {
+      return { error: 'Birth year not eligible for selected category' }
     }
-    if (extra?.gender === 'MIX' && (birthYear < ffaMinYear || birthYear > ffaMaxYear)) {
-      return { error: 'Birth year not eligible for FFA-MIX' }
+    if (primary && primary.gender !== 'MIX' && primary.gender !== item.gender) {
+      return { error: 'Gender not eligible for selected category' }
+    }
+
+    const extraMin = extra ? (extra.year_min ?? extra.year) : null
+    const extraMax = extra ? (extra.year_max ?? extra.year) : null
+    if (extra && (birthYear < extraMin || birthYear > extraMax)) {
+      return { error: 'Birth year not eligible for extra category' }
+    }
+    if (extra && extra.gender !== 'MIX' && extra.gender !== item.gender) {
+      return { error: 'Gender not eligible for extra category' }
     }
 
     const price = BASE_PRICE + (extra ? EXTRA_PRICE : 0)
