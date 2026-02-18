@@ -350,6 +350,25 @@ export default function RidersClient({ eventId }: { eventId: string }) {
     }
   }
 
+  const handleDelete = async (riderId: string) => {
+    if (eventStatus === 'LIVE') {
+      alert('Event sudah LIVE. Rider tidak bisa dihapus.')
+      return
+    }
+    const ok = window.confirm('Hapus rider ini? Data akan dihapus permanen.')
+    if (!ok) return
+    setSaving(true)
+    try {
+      const { res, json } = await apiFetch(`/api/riders/${riderId}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error(json?.error || 'Gagal hapus rider.')
+      await loadRiders(page, query)
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Gagal hapus rider.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div style={{ maxWidth: 980 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'end', gap: 12 }}>
@@ -601,21 +620,39 @@ export default function RidersClient({ eventId }: { eventId: string }) {
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => openEdit(r)}
-              style={{
-                padding: '8px 10px',
-                borderRadius: 12,
-                border: '2px solid #111',
-                background: '#fff',
-                fontWeight: 900,
-                whiteSpace: 'nowrap',
-                cursor: 'pointer',
-              }}
-            >
-              Edit
-            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => openEdit(r)}
+                style={{
+                  padding: '8px 10px',
+                  borderRadius: 12,
+                  border: '2px solid #111',
+                  background: '#fff',
+                  fontWeight: 900,
+                  whiteSpace: 'nowrap',
+                  cursor: 'pointer',
+                }}
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                disabled={eventStatus === 'LIVE' || saving}
+                onClick={() => handleDelete(r.id)}
+                style={{
+                  padding: '8px 10px',
+                  borderRadius: 12,
+                  border: '2px solid #111',
+                  background: eventStatus === 'LIVE' ? '#eee' : '#ffe1e1',
+                  fontWeight: 900,
+                  whiteSpace: 'nowrap',
+                  cursor: eventStatus === 'LIVE' ? 'not-allowed' : 'pointer',
+                }}
+              >
+                Delete
+              </button>
+            </div>
           </div>
         ))}
       </div>

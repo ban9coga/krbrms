@@ -164,3 +164,35 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ riderI
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json({ data })
 }
+
+export async function DELETE(req: Request, { params }: { params: Promise<{ riderId: string }> }) {
+  const auth = await requireAdmin(req.headers.get('authorization'))
+  if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { riderId } = await params
+  const { data: rider, error: riderError } = await adminClient
+    .from('riders')
+    .select('id, event_id')
+    .eq('id', riderId)
+    .single()
+
+  if (riderError || !rider) return NextResponse.json({ error: 'Rider not found' }, { status: 404 })
+
+  const { data: event } = await adminClient
+    .from('events')
+    .select('status')
+    .eq('id', rider.event_id)
+    .maybeSingle()
+
+  if (event?.status === 'LIVE') {
+    return NextResponse.json({ error: 'Cannot delete rider when event is LIVE' }, { status: 400 })
+  }
+
+  const { error } = await adminClient
+    .from('riders')
+    .delete()
+    .eq('id', riderId)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  return NextResponse.json({ ok: true })
+}
