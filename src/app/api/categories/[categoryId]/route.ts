@@ -6,10 +6,18 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ catego
   if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { categoryId } = await params
   const body = await req.json()
-  const { enabled } = body ?? {}
+  const { enabled, year_min, year_max, label } = body ?? {}
+  if (year_min != null && year_max != null && Number(year_min) > Number(year_max)) {
+    return NextResponse.json({ error: 'year_min must be <= year_max' }, { status: 400 })
+  }
   const { data, error } = await adminClient
     .from('categories')
-    .update({ enabled })
+    .update({
+      enabled,
+      year_min: year_min != null ? Number(year_min) : undefined,
+      year_max: year_max != null ? Number(year_max) : undefined,
+      label: typeof label === 'string' ? label : undefined,
+    })
     .eq('id', categoryId)
     .select('*')
     .single()

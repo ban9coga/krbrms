@@ -18,6 +18,7 @@ export default function CategoriesClient({ eventId }: { eventId: string }) {
   const [loading, setLoading] = useState(false)
   const [savingId, setSavingId] = useState<string | null>(null)
   const [syncing, setSyncing] = useState(false)
+  const [editMap, setEditMap] = useState<Record<string, { year_min: string; year_max: string; label: string }>>({})
 
   const getErrorMessage = (err: unknown) => (err instanceof Error ? err.message : 'Request failed')
 
@@ -76,6 +77,44 @@ export default function CategoriesClient({ eventId }: { eventId: string }) {
     }
   }
 
+  const updateEdit = (item: CategoryItem) => {
+    setEditMap((prev) => ({
+      ...prev,
+      [item.id]: {
+        year_min: String(item.year_min ?? item.year),
+        year_max: String(item.year_max ?? item.year),
+        label: item.label ?? '',
+      },
+    }))
+  }
+
+  const saveEdit = async (item: CategoryItem) => {
+    const draft = editMap[item.id]
+    if (!draft) return
+    const yearMin = Number(draft.year_min)
+    const yearMax = Number(draft.year_max)
+    if (!Number.isFinite(yearMin) || !Number.isFinite(yearMax)) {
+      alert('Year range tidak valid.')
+      return
+    }
+    if (yearMin > yearMax) {
+      alert('Year min tidak boleh lebih besar dari year max.')
+      return
+    }
+    setSavingId(item.id)
+    try {
+      await apiFetch(`/api/categories/${item.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ year_min: yearMin, year_max: yearMax, label: draft.label }),
+      })
+      await load()
+    } catch (err: unknown) {
+      alert(getErrorMessage(err))
+    } finally {
+      setSavingId(null)
+    }
+  }
+
   return (
     <div style={{ maxWidth: 980 }}>
       <h1 style={{ fontSize: 26, fontWeight: 950, margin: 0 }}>Categories</h1>
@@ -113,7 +152,9 @@ export default function CategoriesClient({ eventId }: { eventId: string }) {
           </div>
         )}
 
-        {categories.map((item) => (
+        {categories.map((item) => {
+          const draft = editMap[item.id]
+          return (
           <div
             key={item.id}
             style={{
@@ -132,6 +173,73 @@ export default function CategoriesClient({ eventId }: { eventId: string }) {
               <div style={{ fontSize: 12, fontWeight: 800, color: '#333' }}>
                 {(item.year_min ?? item.year)}-{(item.year_max ?? item.year)} - {item.gender}
               </div>
+              <div style={{ display: 'grid', gap: 6, marginTop: 6 }}>
+                <input
+                  placeholder="Label"
+                  value={draft?.label ?? item.label}
+                  onChange={(e) =>
+                    setEditMap((prev) => ({
+                      ...prev,
+                      [item.id]: {
+                        year_min: prev[item.id]?.year_min ?? String(item.year_min ?? item.year),
+                        year_max: prev[item.id]?.year_max ?? String(item.year_max ?? item.year),
+                        label: e.target.value,
+                      },
+                    }))
+                  }
+                  onFocus={() => updateEdit(item)}
+                  style={{ padding: 8, borderRadius: 8, border: '1px solid #111' }}
+                />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                  <input
+                    placeholder="Year min"
+                    value={draft?.year_min ?? String(item.year_min ?? item.year)}
+                    onChange={(e) =>
+                      setEditMap((prev) => ({
+                        ...prev,
+                        [item.id]: {
+                          year_min: e.target.value,
+                          year_max: prev[item.id]?.year_max ?? String(item.year_max ?? item.year),
+                          label: prev[item.id]?.label ?? item.label,
+                        },
+                      }))
+                    }
+                    onFocus={() => updateEdit(item)}
+                    style={{ padding: 8, borderRadius: 8, border: '1px solid #111' }}
+                  />
+                  <input
+                    placeholder="Year max"
+                    value={draft?.year_max ?? String(item.year_max ?? item.year)}
+                    onChange={(e) =>
+                      setEditMap((prev) => ({
+                        ...prev,
+                        [item.id]: {
+                          year_min: prev[item.id]?.year_min ?? String(item.year_min ?? item.year),
+                          year_max: e.target.value,
+                          label: prev[item.id]?.label ?? item.label,
+                        },
+                      }))
+                    }
+                    onFocus={() => updateEdit(item)}
+                    style={{ padding: 8, borderRadius: 8, border: '1px solid #111' }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => saveEdit(item)}
+                  disabled={savingId === item.id}
+                  style={{
+                    padding: '6px 10px',
+                    borderRadius: 10,
+                    border: '2px solid #111',
+                    background: '#d7ecff',
+                    fontWeight: 900,
+                    width: 'fit-content',
+                  }}
+                >
+                  {savingId === item.id ? 'Saving...' : 'Save'}
+                </button>
+              </div>
             </div>
             <button
               type="button"
@@ -149,7 +257,7 @@ export default function CategoriesClient({ eventId }: { eventId: string }) {
               {savingId === item.id ? 'Saving...' : item.enabled ? 'Enabled' : 'Disabled'}
             </button>
           </div>
-        ))}
+        )})}
       </div>
     </div>
   )
