@@ -205,7 +205,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                   }}
                 >
                   Total Riders
-                  <div style={{ fontSize: 20 }}>{riderTotal}</div>
+                  <div style={{ fontSize: 20 }}>{event.status === 'UPCOMING' ? '—' : riderTotal}</div>
                   <div style={{ fontSize: 12, fontWeight: 800, marginTop: 4, opacity: 0.8 }}>
                     {event.status === 'UPCOMING' ? 'Terkunci sampai LIVE' : showRiders ? 'Sembunyikan' : 'Klik untuk lihat'}
                   </div>
