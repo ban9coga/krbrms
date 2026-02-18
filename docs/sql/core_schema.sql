@@ -53,10 +53,12 @@ create table if not exists categories (
   year int not null,
   year_min int not null default 2017,
   year_max int not null default 2017,
+  capacity int,
   gender gender_type not null,
   label text not null,
   enabled boolean not null default true,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  constraint ck_categories_capacity check (capacity is null or capacity >= 0)
 );
 
 create index if not exists idx_categories_event on categories(event_id);

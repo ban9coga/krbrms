@@ -96,6 +96,64 @@ export async function PATCH(
     return NextResponse.json({ ok: true })
   }
 
+  const categoryIds = new Set<string>()
+  for (const item of itemRows ?? []) {
+    if (item.primary_category_id) categoryIds.add(item.primary_category_id as string)
+    if (item.extra_category_id) categoryIds.add(item.extra_category_id as string)
+  }
+
+  if (categoryIds.size > 0) {
+    const { data: categories, error: catError } = await adminClient
+      .from('categories')
+      .select('id, capacity, label')
+      .in('id', Array.from(categoryIds))
+    if (catError) return NextResponse.json({ error: catError.message }, { status: 400 })
+
+    const capacityMap = new Map(
+      (categories ?? []).map((c) => [c.id, { capacity: c.capacity as number | null, label: c.label as string }])
+    )
+    const hasCapacity = Array.from(capacityMap.values()).some((c) => typeof c.capacity === 'number')
+
+    if (hasCapacity) {
+      const { data: existingItems, error: existingError } = await adminClient
+        .from('registration_items')
+        .select('primary_category_id, extra_category_id, status, registration_id, registrations!inner(event_id)')
+        .eq('registrations.event_id', eventId)
+        .in('status', ['PENDING', 'APPROVED'])
+        .neq('registration_id', registrationId)
+      if (existingError) return NextResponse.json({ error: existingError.message }, { status: 400 })
+
+      const currentCounts = new Map<string, number>()
+      for (const row of existingItems ?? []) {
+        const primaryId = row.primary_category_id as string | null
+        const extraId = row.extra_category_id as string | null
+        if (primaryId) currentCounts.set(primaryId, (currentCounts.get(primaryId) ?? 0) + 1)
+        if (extraId) currentCounts.set(extraId, (currentCounts.get(extraId) ?? 0) + 1)
+      }
+
+      const addCounts = new Map<string, number>()
+      for (const item of itemRows ?? []) {
+        if (item.primary_category_id) {
+          const id = item.primary_category_id as string
+          addCounts.set(id, (addCounts.get(id) ?? 0) + 1)
+        }
+        if (item.extra_category_id) {
+          const id = item.extra_category_id as string
+          addCounts.set(id, (addCounts.get(id) ?? 0) + 1)
+        }
+      }
+
+      for (const [catId, addCount] of addCounts) {
+        const capInfo = capacityMap.get(catId)
+        if (!capInfo || capInfo.capacity == null) continue
+        const current = currentCounts.get(catId) ?? 0
+        if (current + addCount > capInfo.capacity) {
+          return NextResponse.json({ error: `Kuota kategori "${capInfo.label}" penuh.` }, { status: 400 })
+        }
+      }
+    }
+  }
+
   const itemMap = new Map((items ?? []).map((i) => [i.id, i]))
 
   for (const item of itemRows ?? []) {

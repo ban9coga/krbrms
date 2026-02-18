@@ -5,7 +5,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ eventId: s
   const { eventId } = await params
   const { data, error } = await adminClient
     .from('categories')
-    .select('id, year, year_min, year_max, gender, label, enabled')
+    .select('id, year, year_min, year_max, capacity, gender, label, enabled')
     .eq('event_id', eventId)
     .order('year_min', { ascending: true })
     .order('gender', { ascending: true })

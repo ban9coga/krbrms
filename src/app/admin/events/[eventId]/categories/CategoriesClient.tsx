@@ -8,6 +8,7 @@ type CategoryItem = {
   year: number
   year_min?: number
   year_max?: number
+  capacity?: number | null
   gender: 'BOY' | 'GIRL' | 'MIX'
   label: string
   enabled: boolean
@@ -18,7 +19,9 @@ export default function CategoriesClient({ eventId }: { eventId: string }) {
   const [loading, setLoading] = useState(false)
   const [savingId, setSavingId] = useState<string | null>(null)
   const [syncing, setSyncing] = useState(false)
-  const [editMap, setEditMap] = useState<Record<string, { year_min: string; year_max: string; label: string }>>({})
+  const [editMap, setEditMap] = useState<
+    Record<string, { year_min: string; year_max: string; label: string; capacity: string }>
+  >({})
 
   const getErrorMessage = (err: unknown) => (err instanceof Error ? err.message : 'Request failed')
 
@@ -84,6 +87,7 @@ export default function CategoriesClient({ eventId }: { eventId: string }) {
         year_min: String(item.year_min ?? item.year),
         year_max: String(item.year_max ?? item.year),
         label: item.label ?? '',
+        capacity: item.capacity == null ? '' : String(item.capacity),
       },
     }))
   }
@@ -93,6 +97,7 @@ export default function CategoriesClient({ eventId }: { eventId: string }) {
     if (!draft) return
     const yearMin = Number(draft.year_min)
     const yearMax = Number(draft.year_max)
+    const capacityValue = draft.capacity.trim() === '' ? null : Number(draft.capacity)
     if (!Number.isFinite(yearMin) || !Number.isFinite(yearMax)) {
       alert('Year range tidak valid.')
       return
@@ -101,11 +106,20 @@ export default function CategoriesClient({ eventId }: { eventId: string }) {
       alert('Year min tidak boleh lebih besar dari year max.')
       return
     }
+    if (capacityValue !== null && (!Number.isFinite(capacityValue) || capacityValue < 0)) {
+      alert('Quota tidak valid.')
+      return
+    }
     setSavingId(item.id)
     try {
       await apiFetch(`/api/categories/${item.id}`, {
         method: 'PATCH',
-        body: JSON.stringify({ year_min: yearMin, year_max: yearMax, label: draft.label }),
+        body: JSON.stringify({
+          year_min: yearMin,
+          year_max: yearMax,
+          label: draft.label,
+          capacity: capacityValue,
+        }),
       })
       await load()
     } catch (err: unknown) {
@@ -173,6 +187,9 @@ export default function CategoriesClient({ eventId }: { eventId: string }) {
               <div style={{ fontSize: 12, fontWeight: 800, color: '#333' }}>
                 {(item.year_min ?? item.year)}-{(item.year_max ?? item.year)} - {item.gender}
               </div>
+              <div style={{ fontSize: 12, fontWeight: 800, color: '#333' }}>
+                Quota: {item.capacity == null ? 'Unlimited' : item.capacity}
+              </div>
               <div style={{ display: 'grid', gap: 6, marginTop: 6 }}>
                 <input
                   placeholder="Label"
@@ -184,6 +201,7 @@ export default function CategoriesClient({ eventId }: { eventId: string }) {
                         year_min: prev[item.id]?.year_min ?? String(item.year_min ?? item.year),
                         year_max: prev[item.id]?.year_max ?? String(item.year_max ?? item.year),
                         label: e.target.value,
+                        capacity: prev[item.id]?.capacity ?? (item.capacity == null ? '' : String(item.capacity)),
                       },
                     }))
                   }
@@ -201,6 +219,7 @@ export default function CategoriesClient({ eventId }: { eventId: string }) {
                           year_min: e.target.value,
                           year_max: prev[item.id]?.year_max ?? String(item.year_max ?? item.year),
                           label: prev[item.id]?.label ?? item.label,
+                          capacity: prev[item.id]?.capacity ?? (item.capacity == null ? '' : String(item.capacity)),
                         },
                       }))
                     }
@@ -217,6 +236,7 @@ export default function CategoriesClient({ eventId }: { eventId: string }) {
                           year_min: prev[item.id]?.year_min ?? String(item.year_min ?? item.year),
                           year_max: e.target.value,
                           label: prev[item.id]?.label ?? item.label,
+                          capacity: prev[item.id]?.capacity ?? (item.capacity == null ? '' : String(item.capacity)),
                         },
                       }))
                     }
@@ -224,6 +244,23 @@ export default function CategoriesClient({ eventId }: { eventId: string }) {
                     style={{ padding: 8, borderRadius: 8, border: '1px solid #111' }}
                   />
                 </div>
+                <input
+                  placeholder="Quota (kosong = unlimited)"
+                  value={draft?.capacity ?? (item.capacity == null ? '' : String(item.capacity))}
+                  onChange={(e) =>
+                    setEditMap((prev) => ({
+                      ...prev,
+                      [item.id]: {
+                        year_min: prev[item.id]?.year_min ?? String(item.year_min ?? item.year),
+                        year_max: prev[item.id]?.year_max ?? String(item.year_max ?? item.year),
+                        label: prev[item.id]?.label ?? item.label,
+                        capacity: e.target.value,
+                      },
+                    }))
+                  }
+                  onFocus={() => updateEdit(item)}
+                  style={{ padding: 8, borderRadius: 8, border: '1px solid #111' }}
+                />
                 <button
                   type="button"
                   onClick={() => saveEdit(item)}
