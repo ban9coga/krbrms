@@ -5,7 +5,8 @@ import { supabase } from '../../../../../lib/supabaseClient'
 
 type CategoryItem = {
   id: string
-  year: number
+  year_min?: number | null
+  year_max?: number | null
   gender: 'BOY' | 'GIRL' | 'MIX'
   label: string
   enabled: boolean
@@ -66,6 +67,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
   const [drawing, setDrawing] = useState(false)
   const [drawnOrder, setDrawnOrder] = useState<RiderItem[]>([])
   const [batchSize, setBatchSize] = useState(8)
+  const [gatePositions, setGatePositions] = useState(8)
   const [rollingName, setRollingName] = useState<string>('Ready')
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [wheelRiders, setWheelRiders] = useState<RiderItem[]>([])
@@ -144,6 +146,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
   const loadCategories = async () => {
     setLoading(true)
     try {
+      await loadSettings()
       const res = await fetch(`/api/events/${eventId}/categories`)
       const json = await res.json()
       const list = (json?.data ?? []) as CategoryItem[]
@@ -153,6 +156,23 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       }
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadSettings = async () => {
+    if (!eventId) return
+    try {
+      const { res, json } = await apiFetch(`/api/events/${eventId}/settings`)
+      if (!res.ok) return
+      const format = (json?.data?.race_format_settings ?? {}) as Record<string, unknown>
+      const nextGate = typeof format.gate_positions === 'number' ? format.gate_positions : 8
+      setGatePositions(nextGate)
+      setBatchSize((prev) => {
+        const capped = Math.max(4, Math.min(nextGate, prev))
+        return prev === 8 ? nextGate : capped
+      })
+    } catch {
+      // ignore settings errors
     }
   }
 
@@ -222,9 +242,19 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     window.setTimeout(() => {
       setRollingName(shuffled[index].name)
       setDrawnOrder(shuffled)
-      setDrawing(false)
-      setHasDrawn(true)
-    }, 2200)
+    setDrawing(false)
+    setHasDrawn(true)
+  }, 2200)
+  }
+
+  const resetDraw = () => {
+    if (categoryLocked) return
+    setDrawnOrder([])
+    setWheelRiders([])
+    setWheelRotation(0)
+    setRollingName('Ready')
+    setHasDrawn(false)
+    setSaveState('idle')
   }
 
   const saveAsMoto = async () => {
@@ -321,9 +351,39 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
             <div style={{ color: '#444', fontWeight: 700 }}>
               Total rider: {riders.length} | Batch: {batches.length}
             </div>
+            <div style={{ color: '#444', fontWeight: 700 }}>
+              Gate positions: {gatePositions}
+            </div>
             {categoryLocked && (
               <div style={{ color: '#b40000', fontWeight: 900 }}>
                 Kategori ini sudah pernah didraw. Draw terkunci.
+              </div>
+            )}
+          </div>
+          <div style={{ display: 'grid', gap: 8 }}>
+            <div style={{ fontWeight: 900 }}>Preview Rider</div>
+            {riders.length === 0 ? (
+              <div style={{ fontWeight: 800, color: '#555' }}>Belum ada rider.</div>
+            ) : (
+              <div style={{ display: 'grid', gap: 6, maxHeight: 180, overflowY: 'auto' }}>
+                {riders.map((rider) => (
+                  <div
+                    key={rider.id}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      gap: 10,
+                      padding: '6px 8px',
+                      borderRadius: 8,
+                      border: '1px solid #ddd',
+                      background: '#fff',
+                      fontWeight: 800,
+                    }}
+                  >
+                    <span>{rider.name}</span>
+                    <span>{rider.no_plate_display}</span>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -396,6 +456,21 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                 }}
               >
                 {saveState === 'saving' ? 'Saving...' : 'Save as Moto'}
+              </button>
+              <button
+                type="button"
+                onClick={resetDraw}
+                disabled={categoryLocked || drawnOrder.length === 0}
+                style={{
+                  padding: '12px 16px',
+                  borderRadius: 12,
+                  border: '2px solid #111',
+                  background: categoryLocked ? '#eee' : '#fff',
+                  fontWeight: 900,
+                  cursor: categoryLocked ? 'not-allowed' : 'pointer',
+                }}
+              >
+                Reset Draw
               </button>
             </div>
           </div>

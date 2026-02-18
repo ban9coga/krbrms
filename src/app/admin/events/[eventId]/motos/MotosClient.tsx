@@ -5,7 +5,8 @@ import { supabase } from '../../../../../lib/supabaseClient'
 
 type CategoryItem = {
   id: string
-  year: number
+  year_min?: number | null
+  year_max?: number | null
   gender: 'BOY' | 'GIRL' | 'MIX'
   label: string
   enabled: boolean
@@ -67,17 +68,19 @@ export default function MotosClient({ eventId }: { eventId: string }) {
   const categoryLabel = useMemo(() => {
     const map = new Map<string, string>()
     for (const c of categories) {
-      const label = c.gender === 'MIX' ? 'FFA-MIX' : `${c.year} ${c.gender === 'BOY' ? 'Boys' : 'Girls'}`
-      map.set(c.id, label)
+      map.set(c.id, c.label)
     }
     return map
   }, [categories])
 
   const categoriesSorted = useMemo(() => {
     return [...categories].sort((a, b) => {
-      const ay = typeof a.year === 'number' ? a.year : 0
-      const by = typeof b.year === 'number' ? b.year : 0
-      if (by !== ay) return by - ay
+      const ayMax = typeof a.year_max === 'number' ? a.year_max : typeof a.year_min === 'number' ? a.year_min : 0
+      const byMax = typeof b.year_max === 'number' ? b.year_max : typeof b.year_min === 'number' ? b.year_min : 0
+      if (byMax !== ayMax) return byMax - ayMax
+      const ayMin = typeof a.year_min === 'number' ? a.year_min : ayMax
+      const byMin = typeof b.year_min === 'number' ? b.year_min : byMax
+      if (byMin !== ayMin) return byMin - ayMin
       const order = { BOY: 0, GIRL: 1, MIX: 2 } as const
       const ag = order[a.gender] ?? 9
       const bg = order[b.gender] ?? 9
