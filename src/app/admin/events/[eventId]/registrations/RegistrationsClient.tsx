@@ -62,6 +62,8 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
   const [categories, setCategories] = useState<CategoryItem[]>([])
   const [savingId, setSavingId] = useState<string | null>(null)
   const [plateInputs, setPlateInputs] = useState<Record<string, { number: string; suffix: string }>>({})
+  const [filterStatus, setFilterStatus] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>('ALL')
+  const [paymentOpen, setPaymentOpen] = useState<Record<string, boolean>>({})
 
   const categoryMap = useMemo(() => new Map(categories.map((c) => [c.id, c.label])), [categories])
 
@@ -127,6 +129,8 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
   }
 
   const approve = async (registration: RegistrationRow) => {
+    const ok = window.confirm('Approve pendaftaran ini dan buat data rider?')
+    if (!ok) return
     setSavingId(registration.id)
     try {
       const items = registration.registration_items.map((item) => ({
@@ -187,9 +191,23 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
 
   return (
     <div style={{ padding: 20, display: 'grid', gap: 16 }}>
-      <div style={{ fontWeight: 900, fontSize: 22 }}>Registrations</div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ fontWeight: 900, fontSize: 22 }}>Registrations</div>
+        <select
+          value={filterStatus}
+          onChange={(e) => setFilterStatus(e.target.value as typeof filterStatus)}
+          style={{ padding: '8px 12px', borderRadius: 10, border: '2px solid #111', fontWeight: 800 }}
+        >
+          <option value="ALL">All</option>
+          <option value="PENDING">Pending</option>
+          <option value="APPROVED">Approved</option>
+          <option value="REJECTED">Rejected</option>
+        </select>
+      </div>
       {registrations.length === 0 && <div>Belum ada pendaftaran.</div>}
-      {registrations.map((reg) => {
+      {registrations
+        .filter((r) => (filterStatus === 'ALL' ? true : r.status === filterStatus))
+        .map((reg) => {
         const hasPayment = (reg.registration_payments ?? []).length > 0
         const docsByItem = new Map<string, number>()
         for (const doc of reg.registration_documents ?? []) {
@@ -200,6 +218,8 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
           (reg.registration_items ?? []).length > 0 &&
           reg.registration_items.every((item) => (docsByItem.get(item.id) ?? 0) > 0)
         const canApprove = hasPayment && allItemsHaveDocs && reg.status === 'PENDING'
+        const statusColor =
+          reg.status === 'APPROVED' ? '#2ecc71' : reg.status === 'REJECTED' ? '#ff6b6b' : '#f1c40f'
 
         return (
         <div key={reg.id} style={{ border: '2px solid #111', borderRadius: 16, padding: 16, background: '#fff' }}>
@@ -211,23 +231,50 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
               {reg.community_name && <div style={{ fontSize: 13 }}>Komunitas: {reg.community_name}</div>}
             </div>
             <div style={{ fontWeight: 900 }}>{formatRupiah(reg.total_amount)}</div>
-            <div style={{ fontWeight: 800 }}>Status: {reg.status}</div>
+            <div
+              style={{
+                fontWeight: 900,
+                padding: '4px 10px',
+                borderRadius: 999,
+                border: '2px solid #111',
+                background: statusColor,
+                color: '#111',
+              }}
+            >
+              {reg.status}
+            </div>
+          </div>
+          <div style={{ marginTop: 6, fontSize: 12, fontWeight: 800 }}>
+            {hasPayment ? '✅ Pembayaran ada' : '❌ Pembayaran belum ada'} •{' '}
+            {allItemsHaveDocs ? '✅ Dokumen lengkap' : '❌ Dokumen belum lengkap'}
           </div>
 
           <div style={{ marginTop: 12 }}>
-            <div style={{ fontWeight: 800 }}>Bukti Pembayaran</div>
-            {reg.registration_payments.map((pay) => (
-              <div key={pay.id} style={{ fontSize: 13 }}>
-                {pay.bank_name} {pay.account_number} ({pay.account_name}) - {formatRupiah(pay.amount)}{' '}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ fontWeight: 800 }}>Bukti Pembayaran</div>
+              {reg.status === 'APPROVED' && (
                 <button
                   type="button"
-                  onClick={() => openFile(pay.proof_url)}
-                  style={{ marginLeft: 6, border: '1px solid #111', borderRadius: 6, padding: '2px 8px' }}
+                  onClick={() => setPaymentOpen((prev) => ({ ...prev, [reg.id]: !prev[reg.id] }))}
+                  style={{ border: '1px solid #111', borderRadius: 6, padding: '2px 8px' }}
                 >
-                  Lihat Bukti
+                  {paymentOpen[reg.id] ? 'Sembunyikan' : 'Lihat'}
                 </button>
-              </div>
-            ))}
+              )}
+            </div>
+            {(reg.status !== 'APPROVED' || paymentOpen[reg.id]) &&
+              reg.registration_payments.map((pay) => (
+                <div key={pay.id} style={{ fontSize: 13 }}>
+                  {pay.bank_name} {pay.account_number} ({pay.account_name}) - {formatRupiah(pay.amount)}{' '}
+                  <button
+                    type="button"
+                    onClick={() => openFile(pay.proof_url)}
+                    style={{ marginLeft: 6, border: '1px solid #111', borderRadius: 6, padding: '2px 8px' }}
+                  >
+                    Lihat Bukti
+                  </button>
+                </div>
+              ))}
           </div>
 
           <div style={{ marginTop: 12, display: 'grid', gap: 10 }}>
@@ -273,7 +320,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                         ))}
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px', gap: 8, marginTop: 8 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px', gap: 8, marginTop: 8 }}>
                     <input
                       placeholder="Plate Number"
                       value={plateInputs[item.id]?.number ?? item.requested_plate_number ?? ''}
