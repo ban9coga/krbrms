@@ -1,13 +1,22 @@
 'use client'
 
-import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import AdminEventsPage from './events/page'
 import { supabase } from '../../lib/supabaseClient'
 
+type DashboardMetrics = {
+  total_riders: number
+  total_registrations: number
+  live_motos: number
+  last_updated: string | null
+}
+
 export default function AdminDashboardPage() {
   const [email, setEmail] = useState<string | null>(null)
   const [role, setRole] = useState<string | null>(null)
+  const [metrics, setMetrics] = useState<DashboardMetrics | null>(null)
+  const [metricsLoading, setMetricsLoading] = useState(false)
+  const [metricsError, setMetricsError] = useState<string | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -19,6 +28,24 @@ export default function AdminDashboardPage() {
       const metaRole = typeof meta.role === 'string' ? meta.role : null
       const appRole = typeof appMeta.role === 'string' ? appMeta.role : null
       setRole(metaRole || appRole || null)
+
+      setMetricsLoading(true)
+      setMetricsError(null)
+      try {
+        const { data: sessionData } = await supabase.auth.getSession()
+        const token = sessionData.session?.access_token
+        const res = await fetch('/api/admin/dashboard', {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        })
+        const json = await res.json().catch(() => ({}))
+        if (!res.ok) throw new Error(json?.error || 'Request failed')
+        setMetrics(json.data ?? null)
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Request failed'
+        setMetricsError(message)
+      } finally {
+        setMetricsLoading(false)
+      }
     }
     load()
   }, [])
@@ -28,6 +55,68 @@ export default function AdminDashboardPage() {
       <h1 style={{ fontSize: 28, fontWeight: 950, margin: 0 }}>Admin Dashboard</h1>
       <div style={{ marginTop: 8, color: '#333', fontWeight: 700 }}>
         {email ? `Signed in as ${email}` : 'Signed in'} {role ? `• role: ${role}` : ''}
+      </div>
+
+      <div style={{ marginTop: 18, display: 'grid', gap: 12 }}>
+        <div style={{ fontWeight: 950, fontSize: 18 }}>Dashboard KPI</div>
+        {metricsError ? (
+          <div
+            style={{
+              padding: 12,
+              borderRadius: 12,
+              border: '2px solid #b40000',
+              background: '#ffd7d7',
+              color: '#b40000',
+              fontWeight: 900,
+            }}
+          >
+            Gagal memuat KPI: {metricsError}
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
+            {[
+              { label: 'Total Riders', value: metrics?.total_riders ?? 0 },
+              { label: 'Total Registrasi', value: metrics?.total_registrations ?? 0 },
+              { label: 'Moto LIVE', value: metrics?.live_motos ?? 0 },
+            ].map((item) => (
+              <div
+                key={item.label}
+                style={{
+                  padding: 14,
+                  borderRadius: 16,
+                  border: '2px solid #111',
+                  background: '#fff',
+                }}
+              >
+                <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                  {item.label}
+                </div>
+                <div style={{ marginTop: 6, fontSize: 22, fontWeight: 950 }}>
+                  {metricsLoading ? '...' : item.value}
+                </div>
+              </div>
+            ))}
+            <div
+              style={{
+                padding: 14,
+                borderRadius: 16,
+                border: '2px solid #111',
+                background: '#fff',
+              }}
+            >
+              <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                Last Update
+              </div>
+              <div style={{ marginTop: 6, fontSize: 14, fontWeight: 900 }}>
+                {metricsLoading
+                  ? '...'
+                  : metrics?.last_updated
+                  ? new Date(metrics.last_updated).toLocaleString('id-ID')
+                  : '-'}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <div style={{ marginTop: 24 }}>
