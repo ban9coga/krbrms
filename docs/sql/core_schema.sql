@@ -70,6 +70,7 @@ create table if not exists riders (
   id uuid primary key default uuid_generate_v4(),
   event_id uuid not null references events(id) on delete cascade,
   name text not null,
+  rider_nickname text,
   date_of_birth date not null,
   birth_year int generated always as (extract(year from date_of_birth)::int) stored,
   gender gender_type not null,

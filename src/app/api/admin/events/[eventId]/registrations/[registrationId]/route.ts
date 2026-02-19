@@ -200,6 +200,7 @@ export async function PATCH(
       .insert({
         event_id: eventId,
         name: item.rider_name,
+        rider_nickname: item.rider_nickname ?? null,
         date_of_birth: item.date_of_birth,
         gender: item.gender,
         plate_number: plateNumber,

@@ -13,6 +13,7 @@ type CategoryItem = {
 type RegistrationItem = {
   id: string
   rider_name: string
+  rider_nickname?: string | null
   date_of_birth: string
   gender: 'BOY' | 'GIRL'
   club: string | null
@@ -283,6 +284,11 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
               return (
                 <div key={item.id} style={{ border: '1px solid #ddd', borderRadius: 12, padding: 12 }}>
                   <div style={{ fontWeight: 800 }}>{item.rider_name}</div>
+                  {item.rider_nickname && (
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#333' }}>
+                      Panggilan: {item.rider_nickname}
+                    </div>
+                  )}
                   <div style={{ fontSize: 12 }}>
                     {item.gender} · {item.date_of_birth} · {item.club ?? '-'}
                   </div>

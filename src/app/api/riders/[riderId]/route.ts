@@ -70,6 +70,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ riderI
 
   const {
     name,
+    rider_nickname,
     date_of_birth,
     gender,
     plate_number,
@@ -149,6 +150,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ riderI
     .from('riders')
     .update({
       name,
+      rider_nickname: typeof rider_nickname === 'string' ? rider_nickname.trim() || null : undefined,
       date_of_birth,
       gender,
       plate_number: hasPlateNumber ? nextPlateNumber : undefined,

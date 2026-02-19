@@ -77,7 +77,7 @@ export async function GET(req: Request) {
   let query = adminClient
     .from('riders')
     .select(
-      'id, event_id, name, date_of_birth, birth_year, gender, plate_number, plate_suffix, no_plate_display, club, photo_url, photo_thumbnail_url',
+      'id, event_id, name, rider_nickname, date_of_birth, birth_year, gender, plate_number, plate_suffix, no_plate_display, club, photo_url, photo_thumbnail_url',
       { count: 'exact' }
     )
     .order('plate_number', { ascending: true })
@@ -118,7 +118,7 @@ export async function GET(req: Request) {
       }
     }
   }
-  if (q) query = query.or(`name.ilike.%${q}%,no_plate_display.ilike.%${q}%`)
+  if (q) query = query.or(`name.ilike.%${q}%,rider_nickname.ilike.%${q}%,no_plate_display.ilike.%${q}%`)
   query = query.range(from, to)
   const { data, error, count } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
@@ -133,6 +133,7 @@ export async function POST(req: Request) {
   const {
     event_id,
     name,
+    rider_nickname,
     date_of_birth,
     gender,
     plate_number,
@@ -222,6 +223,7 @@ export async function POST(req: Request) {
       {
         event_id,
         name,
+        rider_nickname: typeof rider_nickname === 'string' ? rider_nickname.trim() || null : null,
         date_of_birth,
         gender,
         plate_number: plateNumber,

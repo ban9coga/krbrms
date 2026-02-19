@@ -3,6 +3,7 @@ import { adminClient } from '../../../../../../lib/auth'
 
 type RegistrationItemInput = {
   rider_name: string
+  rider_nickname?: string | null
   date_of_birth: string
   gender: 'BOY' | 'GIRL'
   club?: string | null
@@ -16,6 +17,7 @@ type PreparedItem =
   | { error: string }
   | {
       rider_name: string
+      rider_nickname: string | null
       date_of_birth: string
       gender: 'BOY' | 'GIRL'
       club: string | null
@@ -106,6 +108,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     const price = BASE_PRICE + (extra ? EXTRA_PRICE : 0)
     return {
       rider_name: item.rider_name,
+      rider_nickname: item.rider_nickname ?? null,
       date_of_birth: item.date_of_birth,
       gender: item.gender,
       club: item.club ?? null,

@@ -14,6 +14,7 @@ type CategoryItem = {
 
 type RiderForm = {
   name: string
+  nickname: string
   dateOfBirth: string
   gender: 'BOY' | 'GIRL'
   club: string
@@ -34,6 +35,7 @@ const formatRupiah = (value: number) =>
 
 const initialRider = (): RiderForm => ({
   name: '',
+  nickname: '',
   dateOfBirth: '',
   gender: 'BOY',
   club: '',
@@ -203,6 +205,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         const primary = computePrimaryCategory(birthYear, r.gender)
         return {
           rider_name: r.name,
+          rider_nickname: r.nickname || null,
           date_of_birth: r.dateOfBirth,
           gender: r.gender,
           club: r.club || null,
@@ -390,13 +393,19 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                 )}
               </div>
 
-              <div style={{ display: 'grid', gap: 10, marginTop: 10 }}>
-                <input
-                  value={rider.name}
-                  onChange={(e) => updateRider(idx, { name: e.target.value })}
-                  placeholder="Nama Rider"
-                  style={{ padding: 12, borderRadius: 12, border: '2px solid #111' }}
-                />
+        <div style={{ display: 'grid', gap: 10, marginTop: 10 }}>
+          <input
+            value={rider.name}
+            onChange={(e) => updateRider(idx, { name: e.target.value })}
+            placeholder="Nama Rider"
+            style={{ padding: 12, borderRadius: 12, border: '2px solid #111' }}
+          />
+          <input
+            value={rider.nickname}
+            onChange={(e) => updateRider(idx, { nickname: e.target.value })}
+            placeholder="Nama Panggilan (opsional)"
+            style={{ padding: 12, borderRadius: 12, border: '2px solid #111' }}
+          />
                 <input
                   type="date"
                   value={rider.dateOfBirth}

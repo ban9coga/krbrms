@@ -16,6 +16,7 @@ type CategoryItem = {
 type RiderItem = {
   id: string
   name: string
+  rider_nickname?: string | null
   date_of_birth: string
   birth_year?: number
   gender: 'BOY' | 'GIRL'
@@ -93,6 +94,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
 
   const [form, setForm] = useState({
     name: '',
+    rider_nickname: '',
     date_of_birth: '',
     gender: 'BOY' as 'BOY' | 'GIRL',
     plate_number: '',
@@ -105,6 +107,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
   const [editing, setEditing] = useState<RiderItem | null>(null)
   const [editForm, setEditForm] = useState({
     name: '',
+    rider_nickname: '',
     date_of_birth: '',
     gender: 'BOY' as 'BOY' | 'GIRL',
     plate_number: '',
@@ -198,6 +201,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
       const payload = {
         event_id: eventId,
         name: form.name.trim(),
+        rider_nickname: form.rider_nickname.trim() || null,
         date_of_birth: form.date_of_birth,
         gender: form.gender,
         plate_number: Number(form.plate_number),
@@ -236,7 +240,15 @@ export default function RidersClient({ eventId }: { eventId: string }) {
         if (!upload.res.ok) throw new Error(upload.json?.error || 'Upload photo failed')
       }
 
-      setForm({ name: '', date_of_birth: '', gender: 'BOY', plate_number: '', plate_suffix: '', club: '' })
+      setForm({
+        name: '',
+        rider_nickname: '',
+        date_of_birth: '',
+        gender: 'BOY',
+        plate_number: '',
+        plate_suffix: '',
+        club: '',
+      })
       setPhotoFile(null)
       setPage(1)
       await loadRiders(1, query)
@@ -253,6 +265,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
     setEditPhotoStatus('idle')
     setEditForm({
       name: rider.name ?? '',
+      rider_nickname: rider.rider_nickname ?? '',
       date_of_birth: rider.date_of_birth ?? '',
       gender: rider.gender,
       plate_number: String(rider.plate_number ?? ''),
@@ -291,6 +304,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
     try {
       const payload: Record<string, unknown> = {
         name: editForm.name.trim(),
+        rider_nickname: editForm.rider_nickname.trim() || null,
         date_of_birth: editForm.date_of_birth,
         gender: editForm.gender,
         club: editForm.club.trim() || null,
@@ -409,6 +423,12 @@ export default function RidersClient({ eventId }: { eventId: string }) {
             placeholder="Nama Rider"
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
+            style={{ padding: 12, borderRadius: 12, border: '2px solid #111' }}
+          />
+          <input
+            placeholder="Nama Panggilan (opsional)"
+            value={form.rider_nickname}
+            onChange={(e) => setForm({ ...form, rider_nickname: e.target.value })}
             style={{ padding: 12, borderRadius: 12, border: '2px solid #111' }}
           />
           <div style={{ display: 'grid', gap: 8 }}>
@@ -614,6 +634,11 @@ export default function RidersClient({ eventId }: { eventId: string }) {
               <div style={{ fontWeight: 950, fontSize: 16 }}>
                 {r.no_plate_display} - {r.name}
               </div>
+              {r.rider_nickname && (
+                <div style={{ color: '#333', fontWeight: 800, fontSize: 12 }}>
+                  Panggilan: {r.rider_nickname}
+                </div>
+              )}
               <div style={{ color: '#333', fontWeight: 700, fontSize: 13 }}>
                 DOB: {r.date_of_birth} - {r.gender}
                 {r.club ? ` - ${r.club}` : ''}
@@ -722,6 +747,12 @@ export default function RidersClient({ eventId }: { eventId: string }) {
               placeholder="Nama Rider"
               value={editForm.name}
               onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+              style={{ padding: 12, borderRadius: 12, border: '2px solid #111' }}
+            />
+            <input
+              placeholder="Nama Panggilan (opsional)"
+              value={editForm.rider_nickname}
+              onChange={(e) => setEditForm({ ...editForm, rider_nickname: e.target.value })}
               style={{ padding: 12, borderRadius: 12, border: '2px solid #111' }}
             />
             <input
