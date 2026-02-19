@@ -81,7 +81,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     const primary = item.primary_category_id ? categoryMap.get(item.primary_category_id) : null
     const extra = item.extra_category_id ? categoryMap.get(item.extra_category_id) : null
 
-    if (!item.rider_name || !item.date_of_birth || !item.gender) {
+    if (!item.rider_name || !item.rider_nickname || !item.date_of_birth || !item.gender) {
       return { error: 'Missing rider fields' }
     }
     if (!birthYear) return { error: 'Invalid date_of_birth' }

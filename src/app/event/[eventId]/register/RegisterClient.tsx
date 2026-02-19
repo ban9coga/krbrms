@@ -154,7 +154,9 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   }, [riders, basePrice, extraPrice])
 
   const hasContact = contactName.trim() && contactPhone.trim()
-  const hasRiderData = riders.some((r) => r.name || r.dateOfBirth || r.requestedPlateNumber || r.photo || r.docKk)
+  const hasRiderData = riders.some(
+    (r) => r.name || r.nickname || r.dateOfBirth || r.requestedPlateNumber || r.photo || r.docKk
+  )
   const hasPayment = paymentProof !== null
   useEffect(() => {
     if (hasPayment) {
@@ -179,13 +181,14 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     const hasInvalid = riders.some(
       (r) =>
         !r.name ||
+        !r.nickname ||
         !r.dateOfBirth ||
         !r.requestedPlateNumber ||
         !r.photo ||
         !r.docKk
     )
     if (hasInvalid) {
-      alert('Lengkapi data rider. Wajib: nomor plate, foto rider, dan KK/Akte.')
+      alert('Lengkapi data rider. Wajib: nama, panggilan, nomor plate, foto rider, dan KK/Akte.')
       return
     }
 
@@ -403,7 +406,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
           <input
             value={rider.nickname}
             onChange={(e) => updateRider(idx, { nickname: e.target.value })}
-            placeholder="Nama Panggilan (opsional)"
+                  placeholder="Nama Panggilan"
             style={{ padding: 12, borderRadius: 12, border: '2px solid #111' }}
           />
                 <input
