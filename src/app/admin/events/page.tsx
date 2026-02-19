@@ -273,9 +273,10 @@ export default function AdminEventsPage({ showCreate = true }: { showCreate?: bo
               return hay.includes(q)
             })
           : events
+        const safeFiltered = filtered.filter((event): event is EventItem => Boolean(event))
         return (
       <div style={{ marginTop: 12, display: 'grid', gap: 12 }}>
-        {filtered.map((event) => (
+        {safeFiltered.map((event) => (
           <div
             key={event.id}
             style={{
@@ -299,21 +300,37 @@ export default function AdminEventsPage({ showCreate = true }: { showCreate?: bo
                   {event.location || '-'} • {event.event_date}
                 </div>
               </div>
-              <select
-                value={event.status}
-                onChange={(e) => handleStatus(event.id, e.target.value as EventItem['status'])}
-                style={{
-                  padding: '8px 10px',
-                  borderRadius: 12,
-                  border: '2px solid #111',
-                  background: '#fff',
-                  fontWeight: 900,
-                }}
-              >
-                <option value="UPCOMING">UPCOMING</option>
-                <option value="LIVE">LIVE</option>
-                <option value="FINISHED">FINISHED</option>
-              </select>
+              <div style={{ display: 'grid', gap: 8, justifyItems: 'end' }}>
+                <select
+                  value={event.status}
+                  onChange={(e) => handleStatus(event.id, e.target.value as EventItem['status'])}
+                  style={{
+                    padding: '8px 10px',
+                    borderRadius: 12,
+                    border: '2px solid #111',
+                    background: '#fff',
+                    fontWeight: 900,
+                  }}
+                >
+                  <option value="UPCOMING">UPCOMING</option>
+                  <option value="LIVE">LIVE</option>
+                  <option value="FINISHED">FINISHED</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={() => handleVisibility(event.id, !(event.is_public ?? true))}
+                  style={{
+                    padding: '8px 10px',
+                    borderRadius: 12,
+                    border: '2px solid #111',
+                    background: event.is_public === false ? '#ffe1e1' : '#fff',
+                    fontWeight: 900,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {event.is_public === false ? 'Show on Public' : 'Hide from Public'}
+                </button>
+              </div>
             </div>
 
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
