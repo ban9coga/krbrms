@@ -273,10 +273,10 @@ export default function AdminEventsPage({ showCreate = true }: { showCreate?: bo
               return hay.includes(q)
             })
           : events
-        const safeFiltered = filtered.filter(Boolean) as EventItem[]
+        const safeFiltered: EventItem[] = filtered.filter(Boolean) as EventItem[]
         return (
       <div style={{ marginTop: 12, display: 'grid', gap: 12 }}>
-        {safeFiltered.map((event) => {
+        {safeFiltered.map((event: EventItem) => {
           if (!event) return null
           return (
           <div
