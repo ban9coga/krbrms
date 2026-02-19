@@ -157,6 +157,16 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   const hasRiderData = riders.some(
     (r) => r.name || r.nickname || r.dateOfBirth || r.requestedPlateNumber || r.photo || r.docKk
   )
+  const ridersComplete = riders.every(
+    (r) =>
+      r.name &&
+      r.nickname &&
+      r.dateOfBirth &&
+      r.requestedPlateNumber &&
+      r.photo &&
+      r.docKk
+  )
+  const showTotal = Boolean(hasContact && ridersComplete)
   const hasPayment = paymentProof !== null
   useEffect(() => {
     if (hasPayment) {
@@ -584,7 +594,13 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
               placeholder="Nomor Rekening"
               style={{ padding: 12, borderRadius: 12, border: '2px solid #111' }}
             />
-            <div style={{ fontWeight: 800 }}>Total: {formatRupiah(totalAmount)}</div>
+            {showTotal ? (
+              <div style={{ fontWeight: 800 }}>Total: {formatRupiah(totalAmount)}</div>
+            ) : (
+              <div style={{ fontWeight: 800, color: '#777' }}>
+                Total akan muncul setelah kontak & data rider lengkap.
+              </div>
+            )}
             <label
               style={{
                 border: '2px solid #111',
@@ -646,7 +662,9 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
           boxShadow: '0 10px 24px rgba(0,0,0,0.12)',
         }}
       >
-        <div style={{ fontWeight: 900 }}>Total: {formatRupiah(totalAmount)}</div>
+        <div style={{ fontWeight: 900 }}>
+          {showTotal ? `Total: ${formatRupiah(totalAmount)}` : 'Lengkapi kontak & data rider'}
+        </div>
         <button
           type="button"
           disabled={submitting}
