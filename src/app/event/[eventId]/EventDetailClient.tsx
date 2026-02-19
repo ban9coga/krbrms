@@ -99,17 +99,24 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
   }, [categories])
 
   const liveMotosSorted = useMemo(() => {
-    const yearMap = new Map<string, number>()
+    const yearMinMap = new Map<string, number>()
+    const yearMaxMap = new Map<string, number>()
     const genderMap = new Map<string, RiderCategory['gender']>()
     for (const c of categories) {
-      yearMap.set(c.id, c.year)
+      const minYear = typeof c.year_min === 'number' ? c.year_min : c.year
+      const maxYear = typeof c.year_max === 'number' ? c.year_max : c.year
+      yearMinMap.set(c.id, minYear)
+      yearMaxMap.set(c.id, maxYear)
       genderMap.set(c.id, c.gender)
     }
     const genderOrder = { BOY: 0, GIRL: 1, MIX: 2 } as const
     return [...liveMotos].sort((a, b) => {
-      const ay = yearMap.get(a.category_id) ?? 0
-      const by = yearMap.get(b.category_id) ?? 0
-      if (by !== ay) return by - ay
+      const ayMax = yearMaxMap.get(a.category_id) ?? 0
+      const byMax = yearMaxMap.get(b.category_id) ?? 0
+      if (byMax !== ayMax) return byMax - ayMax
+      const ayMin = yearMinMap.get(a.category_id) ?? ayMax
+      const byMin = yearMinMap.get(b.category_id) ?? byMax
+      if (byMin !== ayMin) return byMin - ayMin
       const ag = genderOrder[genderMap.get(a.category_id) ?? 'MIX'] ?? 9
       const bg = genderOrder[genderMap.get(b.category_id) ?? 'MIX'] ?? 9
       if (ag !== bg) return ag - bg
@@ -118,6 +125,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
   }, [liveMotos, categories])
 
   const toggleLiveResults = async (motoId: string, categoryId: string) => {
+    if (event?.status !== 'LIVE') return
     if (expandedMotoId === motoId) {
       setExpandedMotoId('')
       return
@@ -331,7 +339,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                           {m.moto_order}. {m.moto_name}
                         </div>
                         <div style={{ fontSize: 12, fontWeight: 900, opacity: 0.75 }}>
-                          {isOpen ? 'Tap to hide results' : 'Tap to view results'}
+                          {isOpen ? 'Tap to hide results ▲' : 'Tap to view results ▼'}
                         </div>
 
                         {isOpen && (
@@ -359,11 +367,27 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                                     #{row.position} {row.rider_name}
                                   </div>
                                   <div>
-                                    {row.bike_number} • {row.total_point ?? '-'} pts
+                                    {row.bike_number} • {row.total_point == null ? '-' : `${row.total_point} pts`}
                                   </div>
                                 </div>
                               ))
                             )}
+                            <Link
+                              href={`/event/${eventId}/results`}
+                              style={{
+                                marginTop: 6,
+                                width: 'fit-content',
+                                padding: '8px 12px',
+                                borderRadius: 10,
+                                border: '2px solid #111',
+                                background: '#fff',
+                                fontWeight: 900,
+                                textDecoration: 'none',
+                                color: '#111',
+                              }}
+                            >
+                              Lihat semua hasil
+                            </Link>
                             <div style={{ marginTop: 6, fontWeight: 900 }}>Qualification → Next Stages</div>
                             {stageLoadingFlag ? (
                               <div style={{ fontWeight: 800 }}>Loading stage results...</div>
