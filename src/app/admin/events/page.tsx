@@ -205,17 +205,17 @@ export default function AdminEventsPage({ showCreate = true }: { showCreate?: bo
               </select>
               <button
                 type="button"
-                onClick={() => handleVisibility(event!.id, !(event?.is_public ?? true))}
+                onClick={() => handleVisibility(ev.id, !(ev.is_public ?? true))}
                 style={{
                   padding: '8px 10px',
                   borderRadius: 12,
                   border: '2px solid #111',
-                  background: event.is_public === false ? '#ffe1e1' : '#fff',
+                  background: ev.is_public === false ? '#ffe1e1' : '#fff',
                   fontWeight: 900,
                   cursor: 'pointer',
                 }}
               >
-                {event.is_public === false ? 'Show on Public' : 'Hide from Public'}
+                {ev.is_public === false ? 'Show on Public' : 'Hide from Public'}
               </button>
             </div>
 
@@ -276,11 +276,11 @@ export default function AdminEventsPage({ showCreate = true }: { showCreate?: bo
         const safeFiltered: EventItem[] = filtered.filter(Boolean) as EventItem[]
         return (
       <div style={{ marginTop: 12, display: 'grid', gap: 12 }}>
-        {safeFiltered.map((event: EventItem) => {
-          if (!event) return null
+        {safeFiltered.map((ev: EventItem) => {
+          if (!ev) return null
           return (
           <div
-            key={event.id}
+            key={ev.id}
             style={{
               padding: 14,
               border: '2px solid #111',
@@ -292,20 +292,20 @@ export default function AdminEventsPage({ showCreate = true }: { showCreate?: bo
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: 10 }}>
               <div>
-                <div style={{ fontWeight: 950, fontSize: 18 }}>{event.name}</div>
-                {event.is_public === false && (
+                <div style={{ fontWeight: 950, fontSize: 18 }}>{ev.name}</div>
+                {ev.is_public === false && (
                   <div style={{ marginTop: 4, fontSize: 12, fontWeight: 900, color: '#b40000' }}>
                     Hidden from public
                   </div>
                 )}
                 <div style={{ marginTop: 2, color: '#333', fontWeight: 700 }}>
-                  {event.location || '-'} • {event.event_date}
+                  {ev.location || '-'} • {ev.event_date}
                 </div>
               </div>
               <div style={{ display: 'grid', gap: 8, justifyItems: 'end' }}>
                 <select
-                  value={event.status}
-                  onChange={(e) => handleStatus(event.id, e.target.value as EventItem['status'])}
+                  value={ev.status}
+                  onChange={(e) => handleStatus(ev.id, e.target.value as EventItem['status'])}
                   style={{
                     padding: '8px 10px',
                     borderRadius: 12,
@@ -320,24 +320,24 @@ export default function AdminEventsPage({ showCreate = true }: { showCreate?: bo
                 </select>
                 <button
                   type="button"
-                  onClick={() => handleVisibility(event.id, !(event.is_public ?? true))}
+                  onClick={() => handleVisibility(ev.id, !(ev.is_public ?? true))}
                   style={{
                     padding: '8px 10px',
                     borderRadius: 12,
                     border: '2px solid #111',
-                    background: event.is_public === false ? '#ffe1e1' : '#fff',
+                    background: ev.is_public === false ? '#ffe1e1' : '#fff',
                     fontWeight: 900,
                     cursor: 'pointer',
                   }}
                 >
-                  {event.is_public === false ? 'Show on Public' : 'Hide from Public'}
+                  {ev.is_public === false ? 'Show on Public' : 'Hide from Public'}
                 </button>
               </div>
             </div>
 
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <Link
-                href={`/admin/events/${event.id}`}
+                href={`/admin/events/${ev.id}`}
                 style={{
                   padding: '8px 12px',
                   borderRadius: 12,
@@ -352,7 +352,7 @@ export default function AdminEventsPage({ showCreate = true }: { showCreate?: bo
               </Link>
               <button
                 type="button"
-                onClick={() => handleEdit(event)}
+                onClick={() => handleEdit(ev)}
                 style={{
                   padding: '8px 12px',
                   borderRadius: 12,
@@ -366,7 +366,7 @@ export default function AdminEventsPage({ showCreate = true }: { showCreate?: bo
               </button>
               <button
                 type="button"
-                onClick={() => handleDelete(event.id)}
+                onClick={() => handleDelete(ev.id)}
                 style={{
                   padding: '8px 12px',
                   borderRadius: 12,
@@ -380,7 +380,7 @@ export default function AdminEventsPage({ showCreate = true }: { showCreate?: bo
                 Delete
               </button>
               <a
-                href={`/event/${event.id}`}
+                href={`/event/${ev.id}`}
                 style={{
                   padding: '8px 12px',
                   borderRadius: 12,
