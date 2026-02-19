@@ -276,7 +276,9 @@ export default function AdminEventsPage({ showCreate = true }: { showCreate?: bo
         const safeFiltered = filtered.filter((event): event is EventItem => Boolean(event))
         return (
       <div style={{ marginTop: 12, display: 'grid', gap: 12 }}>
-        {safeFiltered.map((event) => (
+        {safeFiltered.map((event) => {
+          if (!event) return null
+          return (
           <div
             key={event.id}
             style={{
@@ -392,8 +394,8 @@ export default function AdminEventsPage({ showCreate = true }: { showCreate?: bo
                 Public Page
               </a>
             </div>
-          </div>
-        ))}
+            </div>
+        )})}
         {!loading && filtered.length === 0 && (
           <div
             style={{
