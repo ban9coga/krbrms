@@ -6,6 +6,7 @@ export type EventItem = {
   location?: string | null
   event_date: string
   status: EventStatus
+  is_public?: boolean | null
   created_at?: string | null
   updated_at?: string | null
 }

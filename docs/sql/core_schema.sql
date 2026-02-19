@@ -34,6 +34,7 @@ create table if not exists events (
   location text,
   event_date date not null,
   status event_status not null default 'UPCOMING',
+  is_public boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

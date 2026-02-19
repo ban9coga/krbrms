@@ -156,8 +156,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
     }
     setLoading(true)
     try {
-      const eventRes = await fetch(`/api/events/${eventId}`)
-      const eventJson = await eventRes.json()
+      const { json: eventJson } = await apiFetch(`/api/events/${eventId}`)
       setEventStatus(eventJson?.data?.status ?? null)
 
       const qs = new URLSearchParams({

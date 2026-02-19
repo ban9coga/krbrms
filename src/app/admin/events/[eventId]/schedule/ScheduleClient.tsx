@@ -60,8 +60,7 @@ export default function ScheduleClient({ eventId }: { eventId: string }) {
     if (!eventId) return
     setLoading(true)
     try {
-      const eventRes = await fetch(`/api/events/${eventId}`)
-      const eventJson = await eventRes.json()
+      const eventJson = await apiFetch(`/api/events/${eventId}`)
       setEventDate(eventJson?.data?.event_date ?? '')
 
       const catRes = await fetch(`/api/events/${eventId}/categories`)

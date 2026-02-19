@@ -48,8 +48,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       const catJson = await catRes.json()
       setCategories((catJson.data ?? []).filter((c: CategoryItem) => c.enabled))
 
-      const eventRes = await fetch(`/api/events/${eventId}`)
-      const eventJson = await eventRes.json()
+      const eventJson = await apiFetch(`/api/events/${eventId}`)
       setEventStatus(eventJson?.data?.status ?? null)
 
       const motoRes = await fetch(`/api/motos?event_id=${eventId}`)

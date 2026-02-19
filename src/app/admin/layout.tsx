@@ -112,7 +112,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         return
       }
       try {
-        const res = await fetch(`/api/events/${eventId}`)
+        const { data } = await supabase.auth.getSession()
+        const token = data.session?.access_token
+        const res = await fetch(`/api/events/${eventId}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        })
         const json = await res.json()
         setEventName(json?.data?.name ?? null)
       } catch {

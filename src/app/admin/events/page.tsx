@@ -10,6 +10,7 @@ type EventItem = {
   location?: string | null
   event_date: string
   status: 'UPCOMING' | 'LIVE' | 'FINISHED'
+  is_public?: boolean | null
 }
 
 export default function AdminEventsPage({ showCreate = true }: { showCreate?: boolean }) {
@@ -41,8 +42,7 @@ export default function AdminEventsPage({ showCreate = true }: { showCreate?: bo
   const loadEvents = async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/events')
-      const json = await res.json()
+      const json = await apiFetch('/api/events')
       setEvents(json.data ?? [])
     } finally {
       setLoading(false)
@@ -111,6 +111,18 @@ export default function AdminEventsPage({ showCreate = true }: { showCreate?: bo
       await apiFetch(`/api/events/${eventId}`, {
         method: 'PATCH',
         body: JSON.stringify({ status }),
+      })
+      await loadEvents()
+    } catch (err: unknown) {
+      alert(getErrorMessage(err))
+    }
+  }
+
+  const handleVisibility = async (eventId: string, isPublic: boolean) => {
+    try {
+      await apiFetch(`/api/events/${eventId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ is_public: isPublic }),
       })
       await loadEvents()
     } catch (err: unknown) {
@@ -191,6 +203,20 @@ export default function AdminEventsPage({ showCreate = true }: { showCreate?: bo
                 <option value="LIVE">LIVE</option>
                 <option value="FINISHED">FINISHED</option>
               </select>
+              <button
+                type="button"
+                onClick={() => handleVisibility(event.id, !(event.is_public ?? true))}
+                style={{
+                  padding: '8px 10px',
+                  borderRadius: 12,
+                  border: '2px solid #111',
+                  background: event.is_public === false ? '#ffe1e1' : '#fff',
+                  fontWeight: 900,
+                  cursor: 'pointer',
+                }}
+              >
+                {event.is_public === false ? 'Show on Public' : 'Hide from Public'}
+              </button>
             </div>
 
             <button
@@ -264,6 +290,11 @@ export default function AdminEventsPage({ showCreate = true }: { showCreate?: bo
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: 10 }}>
               <div>
                 <div style={{ fontWeight: 950, fontSize: 18 }}>{event.name}</div>
+                {event.is_public === false && (
+                  <div style={{ marginTop: 4, fontSize: 12, fontWeight: 900, color: '#b40000' }}>
+                    Hidden from public
+                  </div>
+                )}
                 <div style={{ marginTop: 2, color: '#333', fontWeight: 700 }}>
                   {event.location || '-'} • {event.event_date}
                 </div>
