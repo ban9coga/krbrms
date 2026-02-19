@@ -205,7 +205,7 @@ export default function AdminEventsPage({ showCreate = true }: { showCreate?: bo
               </select>
               <button
                 type="button"
-                onClick={() => handleVisibility(event.id, !(event.is_public ?? true))}
+                onClick={() => handleVisibility(event!.id, !(event?.is_public ?? true))}
                 style={{
                   padding: '8px 10px',
                   borderRadius: 12,
