@@ -3,23 +3,18 @@ import EmptyState from '../components/EmptyState'
 import LandingTopbar from '../components/LandingTopbar'
 import PageSection from '../components/PageSection'
 import type { EventItem, EventStatus } from '../lib/eventService'
-import { headers } from 'next/headers'
 import Link from 'next/link'
-
-const getBaseUrl = async () => {
-  const headerList = await headers()
-  const proto = headerList.get('x-forwarded-proto') ?? 'http'
-  const host = headerList.get('x-forwarded-host') ?? headerList.get('host')
-  if (!host) return ''
-  return `${proto}://${host}`
-}
+import { adminClient } from '../lib/auth'
 
 const fetchEvents = async (status?: EventStatus): Promise<EventItem[]> => {
-  const baseUrl = await getBaseUrl()
-  const url = status ? `${baseUrl}/api/events?status=${status}` : `${baseUrl}/api/events`
-  const res = await fetch(url, { cache: 'no-store' })
-  const json = await res.json()
-  return json.data ?? []
+  let query = adminClient
+    .from('events')
+    .select('id, name, location, event_date, status, is_public')
+    .eq('is_public', true)
+    .order('event_date', { ascending: false })
+  if (status) query = query.eq('status', status)
+  const { data } = await query
+  return (data ?? []) as EventItem[]
 }
 
 export default async function LandingPage() {
