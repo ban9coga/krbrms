@@ -35,18 +35,6 @@ export default async function LandingPage() {
       <LandingTopbar events={allEvents} />
 
       <main style={{ maxWidth: '980px', margin: '0 auto', padding: '24px 20px 48px' }}>
-        <style jsx global>{`
-          @keyframes fadeUp {
-            from {
-              opacity: 0;
-              transform: translateY(8px);
-            }
-            to {
-              opacity: 1;
-              transform: translateY(0);
-            }
-          }
-        `}</style>
         <div id="ongoing-events">
           <PageSection title="Ongoing Events">
             {ongoingEvents.length === 0 && <EmptyState label="Belum ada event yang sedang berlangsung." />}

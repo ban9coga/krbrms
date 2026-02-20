@@ -23,6 +23,18 @@ export default function LandingTopbar({ events }: LandingTopbarProps) {
 
   return (
     <>
+      <style jsx global>{`
+        @keyframes fadeUp {
+          from {
+            opacity: 0;
+            transform: translateY(8px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
       <PublicTopbar onRegisterClick={() => setShowRegisterPicker(true)} />
 
       {showRegisterPicker && (
