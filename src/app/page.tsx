@@ -6,6 +6,8 @@ import type { EventItem, EventStatus } from '../lib/eventService'
 import Link from 'next/link'
 import { adminClient } from '../lib/auth'
 
+export const dynamic = 'force-dynamic'
+
 const fetchEvents = async (status?: EventStatus): Promise<EventItem[]> => {
   let query = adminClient
     .from('events')
