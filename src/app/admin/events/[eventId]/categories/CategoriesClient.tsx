@@ -204,6 +204,7 @@ export default function CategoriesClient({ eventId }: { eventId: string }) {
                         year_max: prev[item.id]?.year_max ?? String(item.year_max ?? item.year),
                         label: e.target.value,
                         capacity: prev[item.id]?.capacity ?? (item.capacity == null ? '' : String(item.capacity)),
+                        gender: prev[item.id]?.gender ?? item.gender,
                       },
                     }))
                   }
@@ -222,6 +223,7 @@ export default function CategoriesClient({ eventId }: { eventId: string }) {
                           year_max: prev[item.id]?.year_max ?? String(item.year_max ?? item.year),
                           label: prev[item.id]?.label ?? item.label,
                           capacity: prev[item.id]?.capacity ?? (item.capacity == null ? '' : String(item.capacity)),
+                          gender: prev[item.id]?.gender ?? item.gender,
                         },
                       }))
                     }
@@ -239,6 +241,7 @@ export default function CategoriesClient({ eventId }: { eventId: string }) {
                           year_max: e.target.value,
                           label: prev[item.id]?.label ?? item.label,
                           capacity: prev[item.id]?.capacity ?? (item.capacity == null ? '' : String(item.capacity)),
+                          gender: prev[item.id]?.gender ?? item.gender,
                         },
                       }))
                     }
@@ -270,17 +273,18 @@ export default function CategoriesClient({ eventId }: { eventId: string }) {
                 <input
                   placeholder="Quota (kosong = unlimited)"
                   value={draft?.capacity ?? (item.capacity == null ? '' : String(item.capacity))}
-                  onChange={(e) =>
-                    setEditMap((prev) => ({
-                      ...prev,
-                      [item.id]: {
-                        year_min: prev[item.id]?.year_min ?? String(item.year_min ?? item.year),
-                        year_max: prev[item.id]?.year_max ?? String(item.year_max ?? item.year),
-                        label: prev[item.id]?.label ?? item.label,
-                        capacity: e.target.value,
-                      },
-                    }))
-                  }
+                    onChange={(e) =>
+                      setEditMap((prev) => ({
+                        ...prev,
+                        [item.id]: {
+                          year_min: prev[item.id]?.year_min ?? String(item.year_min ?? item.year),
+                          year_max: prev[item.id]?.year_max ?? String(item.year_max ?? item.year),
+                          label: prev[item.id]?.label ?? item.label,
+                          capacity: e.target.value,
+                          gender: prev[item.id]?.gender ?? item.gender,
+                        },
+                      }))
+                    }
                   onFocus={() => updateEdit(item)}
                   style={{ padding: 8, borderRadius: 8, border: '1px solid #111' }}
                 />
