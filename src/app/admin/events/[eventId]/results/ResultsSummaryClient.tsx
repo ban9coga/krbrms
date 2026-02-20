@@ -127,7 +127,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
       setPenaltyMap({})
       return
     }
-    const { res, json } = await apiFetch(`/api/admin/events/${eventId}/penalties`)
+    const { res, json } = await apiFetch(`/api/jury/events/${eventId}/rider-penalties`)
     if (!res.ok) {
       setPenaltyMap({})
       return
@@ -136,14 +136,20 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
       rider_id: string
       rule_code: string | null
       penalty_point: number | null
-      approval_status: string | null
       created_at: string | null
+      rider_penalty_approvals?: Array<{ approval_status: string | null }>
     }>
     const grouped: Record<string, PenaltyRow[]> = {}
     for (const row of items) {
       if (!riderIds.includes(row.rider_id)) continue
       if (!grouped[row.rider_id]) grouped[row.rider_id] = []
-      grouped[row.rider_id].push(row)
+      grouped[row.rider_id].push({
+        rider_id: row.rider_id,
+        rule_code: row.rule_code,
+        penalty_point: row.penalty_point,
+        approval_status: row.rider_penalty_approvals?.[0]?.approval_status ?? null,
+        created_at: row.created_at ?? null,
+      })
     }
     setPenaltyMap(grouped)
   }
