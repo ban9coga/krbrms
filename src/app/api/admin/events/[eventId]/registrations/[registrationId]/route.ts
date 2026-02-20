@@ -201,6 +201,7 @@ export async function PATCH(
         event_id: eventId,
         name: item.rider_name,
         rider_nickname: item.rider_nickname ?? null,
+        jersey_size: item.jersey_size ?? null,
         date_of_birth: item.date_of_birth,
         gender: item.gender,
         plate_number: plateNumber,

@@ -71,6 +71,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ riderI
   const {
     name,
     rider_nickname,
+    jersey_size,
     date_of_birth,
     gender,
     plate_number,
@@ -91,6 +92,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ riderI
   const nextGender = gender ?? rider.gender
   if (nextGender !== 'BOY' && nextGender !== 'GIRL') {
     return NextResponse.json({ error: 'gender must be BOY or GIRL' }, { status: 400 })
+  }
+
+  if (jersey_size && !['XS', 'S', 'M', 'L', 'XL'].includes(String(jersey_size))) {
+    return NextResponse.json({ error: 'jersey_size invalid' }, { status: 400 })
   }
 
   const nextDob = date_of_birth ?? rider.date_of_birth
@@ -151,6 +156,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ riderI
     .update({
       name,
       rider_nickname: typeof rider_nickname === 'string' ? rider_nickname.trim() || null : undefined,
+      jersey_size: typeof jersey_size === 'string' ? jersey_size : undefined,
       date_of_birth,
       gender,
       plate_number: hasPlateNumber ? nextPlateNumber : undefined,

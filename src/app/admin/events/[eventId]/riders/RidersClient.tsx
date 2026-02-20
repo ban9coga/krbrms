@@ -17,6 +17,7 @@ type RiderItem = {
   id: string
   name: string
   rider_nickname?: string | null
+  jersey_size?: string | null
   date_of_birth: string
   birth_year?: number
   gender: 'BOY' | 'GIRL'
@@ -95,6 +96,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
   const [form, setForm] = useState({
     name: '',
     rider_nickname: '',
+    jersey_size: '',
     date_of_birth: '',
     gender: 'BOY' as 'BOY' | 'GIRL',
     plate_number: '',
@@ -108,6 +110,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
   const [editForm, setEditForm] = useState({
     name: '',
     rider_nickname: '',
+    jersey_size: '',
     date_of_birth: '',
     gender: 'BOY' as 'BOY' | 'GIRL',
     plate_number: '',
@@ -201,6 +204,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
         event_id: eventId,
         name: form.name.trim(),
         rider_nickname: form.rider_nickname.trim() || null,
+        jersey_size: form.jersey_size || null,
         date_of_birth: form.date_of_birth,
         gender: form.gender,
         plate_number: Number(form.plate_number),
@@ -242,6 +246,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
       setForm({
         name: '',
         rider_nickname: '',
+        jersey_size: '',
         date_of_birth: '',
         gender: 'BOY',
         plate_number: '',
@@ -265,6 +270,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
     setEditForm({
       name: rider.name ?? '',
       rider_nickname: rider.rider_nickname ?? '',
+      jersey_size: rider.jersey_size ?? '',
       date_of_birth: rider.date_of_birth ?? '',
       gender: rider.gender,
       plate_number: String(rider.plate_number ?? ''),
@@ -304,6 +310,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
       const payload: Record<string, unknown> = {
         name: editForm.name.trim(),
         rider_nickname: editForm.rider_nickname.trim() || null,
+        jersey_size: editForm.jersey_size || null,
         date_of_birth: editForm.date_of_birth,
         gender: editForm.gender,
         club: editForm.club.trim() || null,
@@ -430,6 +437,18 @@ export default function RidersClient({ eventId }: { eventId: string }) {
             onChange={(e) => setForm({ ...form, rider_nickname: e.target.value })}
             style={{ padding: 12, borderRadius: 12, border: '2px solid #111' }}
           />
+          <select
+            value={form.jersey_size}
+            onChange={(e) => setForm({ ...form, jersey_size: e.target.value })}
+            style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 900 }}
+          >
+            <option value="">Ukuran Jersey (opsional)</option>
+            <option value="XS">XS</option>
+            <option value="S">S</option>
+            <option value="M">M</option>
+            <option value="L">L</option>
+            <option value="XL">XL</option>
+          </select>
           <div style={{ display: 'grid', gap: 8 }}>
             <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
               Tanggal Lahir
@@ -638,6 +657,11 @@ export default function RidersClient({ eventId }: { eventId: string }) {
                   Panggilan: {r.rider_nickname}
                 </div>
               )}
+              {r.jersey_size && (
+                <div style={{ color: '#333', fontWeight: 800, fontSize: 12 }}>
+                  Jersey: {r.jersey_size}
+                </div>
+              )}
               <div style={{ color: '#333', fontWeight: 700, fontSize: 13 }}>
                 DOB: {r.date_of_birth} - {r.gender}
                 {r.club ? ` - ${r.club}` : ''}
@@ -754,6 +778,18 @@ export default function RidersClient({ eventId }: { eventId: string }) {
               onChange={(e) => setEditForm({ ...editForm, rider_nickname: e.target.value })}
               style={{ padding: 12, borderRadius: 12, border: '2px solid #111' }}
             />
+            <select
+              value={editForm.jersey_size}
+              onChange={(e) => setEditForm({ ...editForm, jersey_size: e.target.value })}
+              style={{ padding: 12, borderRadius: 12, border: '2px solid #111' }}
+            >
+              <option value="">Ukuran Jersey (opsional)</option>
+              <option value="XS">XS</option>
+              <option value="S">S</option>
+              <option value="M">M</option>
+              <option value="L">L</option>
+              <option value="XL">XL</option>
+            </select>
             <input
               type="date"
               value={editForm.date_of_birth}

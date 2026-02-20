@@ -77,7 +77,7 @@ export async function GET(req: Request) {
   let query = adminClient
     .from('riders')
     .select(
-      'id, event_id, name, rider_nickname, date_of_birth, birth_year, gender, plate_number, plate_suffix, no_plate_display, club, photo_url, photo_thumbnail_url',
+      'id, event_id, name, rider_nickname, jersey_size, date_of_birth, birth_year, gender, plate_number, plate_suffix, no_plate_display, club, photo_url, photo_thumbnail_url',
       { count: 'exact' }
     )
     .order('plate_number', { ascending: true })
@@ -134,6 +134,7 @@ export async function POST(req: Request) {
     event_id,
     name,
     rider_nickname,
+    jersey_size,
     date_of_birth,
     gender,
     plate_number,
@@ -176,6 +177,10 @@ export async function POST(req: Request) {
 
   if (gender !== 'BOY' && gender !== 'GIRL') {
     return NextResponse.json({ error: 'gender must be BOY or GIRL' }, { status: 400 })
+  }
+
+  if (jersey_size && !['XS', 'S', 'M', 'L', 'XL'].includes(String(jersey_size))) {
+    return NextResponse.json({ error: 'jersey_size invalid' }, { status: 400 })
   }
 
   const birthYear = Number(String(date_of_birth).slice(0, 4))
@@ -224,6 +229,7 @@ export async function POST(req: Request) {
         event_id,
         name,
         rider_nickname: typeof rider_nickname === 'string' ? rider_nickname.trim() || null : null,
+        jersey_size: typeof jersey_size === 'string' ? jersey_size : null,
         date_of_birth,
         gender,
         plate_number: plateNumber,

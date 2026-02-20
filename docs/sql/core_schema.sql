@@ -72,6 +72,7 @@ create table if not exists riders (
   event_id uuid not null references events(id) on delete cascade,
   name text not null,
   rider_nickname text,
+  jersey_size text,
   date_of_birth date not null,
   birth_year int generated always as (extract(year from date_of_birth)::int) stored,
   gender gender_type not null,
@@ -87,6 +88,7 @@ create table if not exists riders (
   updated_at timestamptz not null default now(),
   constraint ck_rider_gender check (gender in ('BOY','GIRL')),
   constraint ck_plate_suffix check (plate_suffix is null or plate_suffix ~ '^[A-Z]$'),
+  constraint ck_rider_jersey_size check (jersey_size is null or jersey_size in ('XS','S','M','L','XL')),
   constraint ck_birth_year check (
     birth_year >= 2016
     and birth_year <= 2025
