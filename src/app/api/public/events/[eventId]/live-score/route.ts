@@ -263,22 +263,17 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       })
       const rankMap = new Map(
         rankedRows
-          .filter((r) => r.status !== 'DQ' && r.total_point !== null)
+          .filter((r) => r.total_point !== null)
           .map((r, idx) => ({ rider_id: r.rider_id, rank: idx + 1 }))
           .map((r) => [r.rider_id, r.rank])
       )
 
-      const classForRank = (rank: number | null | undefined, totalRiders: number, status: string) => {
-        if (!rank || status !== 'FINISHED') return null
+      const classForRank = (rank: number | null | undefined, totalRiders: number) => {
+        if (!rank) return null
         if (totalRiders <= 8) return 'ELITE'
-        if (totalRiders <= 16) {
-          if (rank >= 1 && rank <= 4) return 'ELITE'
-          if (rank >= 5 && rank <= 8) return 'NOVICE'
-          return null
-        }
-        if (rank === 5) return 'ACADEMY'
-        if (rank === 6) return 'AMATEUR'
-        if (rank === 7 || rank === 8) return 'BEGINNER'
+        if (totalRiders <= 16) return rank <= 8 ? 'ELITE' : 'NOVICE'
+        if (rank <= 8) return 'ELITE'
+        if (rank <= 16) return 'NOVICE'
         return null
       }
 
@@ -288,7 +283,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
           return {
             ...r,
             rank_point: rank,
-            class_label: classForRank(rank, riderIdsInBatch.length, r.status),
+            class_label: classForRank(rank, riderIdsInBatch.length),
           }
         })
         .sort((a, b) => (a.gate_moto1 ?? 9999) - (b.gate_moto1 ?? 9999))
