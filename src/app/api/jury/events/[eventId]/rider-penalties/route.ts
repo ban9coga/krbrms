@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server'
-import { adminClient } from '../../../../../../lib/auth'
+import { adminClient, requireAdmin } from '../../../../../../lib/auth'
 import { requireJury } from '../../../../../../services/juryAuth'
 
 export async function GET(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
-  const auth = await requireJury(req, ['CHECKER', 'FINISHER', 'RACE_DIRECTOR', 'super_admin'])
-  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+  const juryAuth = await requireJury(req, ['CHECKER', 'FINISHER', 'RACE_DIRECTOR', 'super_admin', 'admin'])
+  if (!juryAuth.ok) {
+    const adminAuth = await requireAdmin(req.headers.get('authorization'))
+    if (!adminAuth.ok) return NextResponse.json({ error: juryAuth.error }, { status: juryAuth.status })
+  }
 
   const { eventId } = await params
   const { data, error } = await adminClient
