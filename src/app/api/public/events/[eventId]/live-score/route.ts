@@ -327,10 +327,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       return res?.finish_order ?? null
     }
 
-    const rows = riderIdsInMoto.map((riderId) => {
+    const rows: StageRow[] = riderIdsInMoto.map((riderId) => {
       const rider = riderMap.get(riderId)
       const res = resultRows.find((r) => r.moto_id === moto.id && r.rider_id === riderId) ?? null
-      const status = res?.result_status ?? null
+      const status = (res?.result_status ?? 'PENDING') as StageRow['status']
       return {
         rider_id: riderId,
         gate: gateMap.get(riderId) ?? null,
@@ -338,7 +338,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         no_plate: rider?.no_plate_display ?? '-',
         club: rider?.club ?? '-',
         point: pointForResult(res),
-        status: status ?? 'PENDING',
+        status,
       }
     })
 
