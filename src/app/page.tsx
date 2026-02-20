@@ -5,8 +5,8 @@ import PageSection from '../components/PageSection'
 import type { EventItem, EventStatus } from '../lib/eventService'
 import { headers } from 'next/headers'
 
-const getBaseUrl = () => {
-  const headerList = headers()
+const getBaseUrl = async () => {
+  const headerList = await headers()
   const proto = headerList.get('x-forwarded-proto') ?? 'http'
   const host = headerList.get('x-forwarded-host') ?? headerList.get('host')
   if (!host) return ''
@@ -14,7 +14,7 @@ const getBaseUrl = () => {
 }
 
 const fetchEvents = async (status?: EventStatus): Promise<EventItem[]> => {
-  const baseUrl = getBaseUrl()
+  const baseUrl = await getBaseUrl()
   const url = status ? `${baseUrl}/api/events?status=${status}` : `${baseUrl}/api/events`
   const res = await fetch(url, { cache: 'no-store' })
   const json = await res.json()
