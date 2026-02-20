@@ -35,13 +35,25 @@ export default async function LandingPage() {
       <LandingTopbar events={allEvents} />
 
       <main style={{ maxWidth: '980px', margin: '0 auto', padding: '24px 20px 48px' }}>
+        <style jsx global>{`
+          @keyframes fadeUp {
+            from {
+              opacity: 0;
+              transform: translateY(8px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+        `}</style>
         <div id="ongoing-events">
           <PageSection title="Ongoing Events">
             {ongoingEvents.length === 0 && <EmptyState label="Belum ada event yang sedang berlangsung." />}
-            <div style={{ display: 'grid', gap: '12px' }}>
-              {ongoingEvents.map((event) => (
+            <div style={{ display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
+              {ongoingEvents.map((event, idx) => (
                 <div key={event.id} style={{ display: 'grid', gap: 8 }}>
-                  <EventCard event={event} />
+                  <EventCard event={event} index={idx} />
                   {event.is_public !== false && (
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                       <Link
@@ -71,18 +83,18 @@ export default async function LandingPage() {
 
         <PageSection title="Coming Soon">
           {upcomingEvents.length === 0 && <EmptyState label="Belum ada event yang akan datang." />}
-          <div style={{ display: 'grid', gap: '12px' }}>
-            {upcomingEvents.map((event) => (
-              <EventCard key={event.id} event={event} />
+          <div style={{ display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
+            {upcomingEvents.map((event, idx) => (
+              <EventCard key={event.id} event={event} index={idx} />
             ))}
           </div>
         </PageSection>
 
         <PageSection title="Completed Events">
           {finishedEvents.length === 0 && <EmptyState label="Belum ada event yang selesai." />}
-          <div style={{ display: 'grid', gap: '12px' }}>
-            {finishedEvents.map((event) => (
-              <EventCard key={event.id} event={event} />
+          <div style={{ display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
+            {finishedEvents.map((event, idx) => (
+              <EventCard key={event.id} event={event} index={idx} />
             ))}
           </div>
         </PageSection>

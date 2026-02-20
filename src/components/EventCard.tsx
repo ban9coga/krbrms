@@ -2,8 +2,9 @@ import Link from 'next/link'
 import StatusBadge from './StatusBadge'
 import type { EventItem } from '../lib/eventService'
 
-export default function EventCard({ event }: { event: EventItem }) {
+export default function EventCard({ event, index = 0 }: { event: EventItem; index?: number }) {
   const showGoGreen = event.status === 'LIVE'
+  const headerBg = event.status === 'LIVE' ? '#e9fff1' : '#fff'
 
   return (
     <Link
@@ -24,6 +25,8 @@ export default function EventCard({ event }: { event: EventItem }) {
           display: 'grid',
           gap: '10px',
           transition: 'transform 0.12s ease, box-shadow 0.12s ease',
+          animation: 'fadeUp 0.4s ease both',
+          animationDelay: `${index * 40}ms`,
         }}
         onMouseEnter={(e) => {
           ;(e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)'
@@ -34,17 +37,45 @@ export default function EventCard({ event }: { event: EventItem }) {
           ;(e.currentTarget as HTMLDivElement).style.boxShadow = '0 10px 24px rgba(15, 23, 42, 0.06)'
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center' }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: '12px',
+            alignItems: 'center',
+            padding: '10px 12px',
+            borderRadius: 12,
+            background: headerBg,
+            border: '1px solid rgba(15, 23, 42, 0.08)',
+          }}
+        >
           <div style={{ fontWeight: 900, fontSize: '17px', letterSpacing: '-0.01em' }}>{event.name}</div>
-          <StatusBadge
-            label={
-              event.status === 'LIVE'
-                ? 'Ongoing Event'
-                : event.status === 'FINISHED'
-                ? 'Completed Event'
-                : 'Coming Soon'
-            }
-          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {event.status === 'LIVE' && (
+              <span
+                style={{
+                  padding: '4px 8px',
+                  borderRadius: 999,
+                  background: '#16a34a',
+                  color: '#fff',
+                  fontWeight: 900,
+                  fontSize: 11,
+                  letterSpacing: '0.04em',
+                }}
+              >
+                LIVE NOW
+              </span>
+            )}
+            <StatusBadge
+              label={
+                event.status === 'LIVE'
+                  ? 'Ongoing Event'
+                  : event.status === 'FINISHED'
+                  ? 'Completed Event'
+                  : 'Coming Soon'
+              }
+            />
+          </div>
         </div>
         {showGoGreen ? (
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -124,6 +155,21 @@ export default function EventCard({ event }: { event: EventItem }) {
             month: 'short',
             year: 'numeric',
           })}
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 12, color: '#6b7280', fontWeight: 700 }}>Klik untuk detail</span>
+          <span
+            style={{
+              padding: '6px 10px',
+              borderRadius: 999,
+              border: '1px solid rgba(15, 23, 42, 0.18)',
+              fontWeight: 900,
+              fontSize: 12,
+              background: '#f5f7fa',
+            }}
+          >
+            Detail Event
+          </span>
         </div>
       </div>
     </Link>
