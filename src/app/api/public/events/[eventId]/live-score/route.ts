@@ -268,13 +268,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
           .map((r) => [r.rider_id, r.rank])
       )
 
-      const classForRank = (rank: number | null | undefined, totalRiders: number) => {
+      const classForRank = (rank: number | null | undefined) => {
         if (!rank) return null
-        if (totalRiders <= 8) return 'ELITE'
-        if (totalRiders <= 16) return rank <= 8 ? 'ELITE' : 'NOVICE'
         if (rank <= 8) return 'ELITE'
         if (rank <= 16) return 'NOVICE'
-        return null
+        if (rank <= 24) return 'ACADEMY'
+        if (rank <= 32) return 'AMATEUR'
+        if (rank <= 40) return 'BEGINNER'
+        return 'ROOKIE'
       }
 
       const ordered = rows
@@ -283,7 +284,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
           return {
             ...r,
             rank_point: rank,
-            class_label: classForRank(rank, riderIdsInBatch.length),
+            class_label: classForRank(rank),
           }
         })
         .sort((a, b) => (a.gate_moto1 ?? 9999) - (b.gate_moto1 ?? 9999))
