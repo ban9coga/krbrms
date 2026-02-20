@@ -13,8 +13,8 @@ export default function PublicTopbar({ onRegisterClick, showRegister = true }: P
         top: 0,
         zIndex: 10,
         background: '#fff',
-        borderBottom: '2px solid #111',
-        boxShadow: '0 4px 0 rgba(0,0,0,0.06)',
+        borderBottom: '1px solid rgba(15, 23, 42, 0.12)',
+        boxShadow: '0 8px 24px rgba(15, 23, 42, 0.06)',
       }}
     >
       <div
@@ -22,7 +22,7 @@ export default function PublicTopbar({ onRegisterClick, showRegister = true }: P
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '14px 20px',
+          padding: '14px 22px',
           gap: 12,
           flexWrap: 'wrap',
         }}
@@ -38,7 +38,9 @@ export default function PublicTopbar({ onRegisterClick, showRegister = true }: P
           }}
         >
           <img src="/krb-logo.png" alt="KRB Logo" style={{ width: '36px', height: '36px', objectFit: 'contain' }} />
-          <div style={{ fontWeight: 800 }}>KRB Race Management System</div>
+          <div style={{ fontWeight: 800, fontSize: 16, letterSpacing: '-0.01em' }}>
+            KRB Race Management System
+          </div>
         </Link>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           {showRegister &&
@@ -47,16 +49,14 @@ export default function PublicTopbar({ onRegisterClick, showRegister = true }: P
                 type="button"
                 onClick={onRegisterClick}
                 style={{
-                  padding: '8px 12px',
+                  padding: '8px 14px',
                   borderRadius: '999px',
-                  border: '2px solid #111',
+                  border: '1px solid rgba(15, 23, 42, 0.18)',
                   background: '#34c759',
                   color: '#111',
                   fontWeight: 800,
                   textDecoration: 'none',
-                  fontSize: '12px',
-                  letterSpacing: '0.08em',
-                  textTransform: 'uppercase',
+                  fontSize: '13px',
                   cursor: 'pointer',
                 }}
               >
@@ -66,16 +66,14 @@ export default function PublicTopbar({ onRegisterClick, showRegister = true }: P
               <Link
                 href="/"
                 style={{
-                  padding: '8px 12px',
+                  padding: '8px 14px',
                   borderRadius: '999px',
-                  border: '2px solid #111',
+                  border: '1px solid rgba(15, 23, 42, 0.18)',
                   background: '#34c759',
                   color: '#111',
                   fontWeight: 800,
                   textDecoration: 'none',
-                  fontSize: '12px',
-                  letterSpacing: '0.08em',
-                  textTransform: 'uppercase',
+                  fontSize: '13px',
                 }}
               >
                 Daftar Rider di Sini
@@ -84,16 +82,14 @@ export default function PublicTopbar({ onRegisterClick, showRegister = true }: P
           <Link
             href="/login"
             style={{
-              padding: '8px 12px',
+              padding: '8px 14px',
               borderRadius: '999px',
-              border: '2px solid #111',
-              background: '#2ecc71',
+              border: '1px solid rgba(15, 23, 42, 0.18)',
+              background: '#e9f7ef',
               color: '#111',
               fontWeight: 800,
               textDecoration: 'none',
-              fontSize: '12px',
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
+              fontSize: '13px',
             }}
           >
             Login

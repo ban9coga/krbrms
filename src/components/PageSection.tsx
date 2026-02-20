@@ -5,8 +5,8 @@ type Props = {
 
 export default function PageSection({ title, children }: Props) {
   return (
-    <section style={{ marginBottom: '18px' }}>
-      <h2 style={{ fontSize: '20px', fontWeight: 800, marginBottom: '8px' }}>
+    <section style={{ marginBottom: '28px' }}>
+      <h2 style={{ fontSize: '24px', fontWeight: 900, marginBottom: '10px', letterSpacing: '-0.01em' }}>
         {title}
       </h2>
       {children}

@@ -42,8 +42,9 @@ export default function LandingTopbar({ events }: LandingTopbarProps) {
               width: '100%',
               maxWidth: 520,
               background: '#fff',
-              borderRadius: 16,
-              border: '2px solid #111',
+              borderRadius: 18,
+              border: '1px solid rgba(15, 23, 42, 0.12)',
+              boxShadow: '0 20px 50px rgba(15, 23, 42, 0.15)',
               padding: 16,
               display: 'grid',
               gap: 12,
@@ -55,8 +56,8 @@ export default function LandingTopbar({ events }: LandingTopbarProps) {
                 type="button"
                 onClick={() => setShowRegisterPicker(false)}
                 style={{
-                  border: '2px solid #111',
-                  background: '#ffe1e1',
+                  border: '1px solid rgba(15, 23, 42, 0.2)',
+                  background: '#fbe7e7',
                   borderRadius: 10,
                   padding: '6px 10px',
                   fontWeight: 800,
@@ -75,7 +76,7 @@ export default function LandingTopbar({ events }: LandingTopbarProps) {
                   key={event.id}
                   href={`/event/${event.id}/register`}
                   style={{
-                    border: '2px solid #111',
+                    border: '1px solid rgba(15, 23, 42, 0.12)',
                     borderRadius: 12,
                     padding: 12,
                     textDecoration: 'none',

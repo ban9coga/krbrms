@@ -31,7 +31,7 @@ export default async function LandingPage() {
   const allEvents = [...upcomingEvents, ...ongoingEvents, ...finishedEvents]
 
   return (
-    <div style={{ minHeight: '100vh', background: '#eaf7ee', color: '#111' }}>
+    <div style={{ minHeight: '100vh', background: '#f6fbf7', color: '#111' }}>
       <LandingTopbar events={allEvents} />
 
       <main style={{ maxWidth: '980px', margin: '0 auto', padding: '24px 20px 48px' }}>

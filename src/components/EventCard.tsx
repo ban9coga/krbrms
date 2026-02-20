@@ -15,16 +15,18 @@ export default function EventCard({ event }: { event: EventItem }) {
     >
       <div
         style={{
-          padding: '14px',
-          borderRadius: '14px',
-          border: '2px solid #111',
+          padding: '16px',
+          borderRadius: '16px',
+          border: '1px solid rgba(15, 23, 42, 0.12)',
+          boxShadow: '0 10px 24px rgba(15, 23, 42, 0.06)',
           background: '#fff',
           display: 'grid',
-          gap: '8px',
+          gap: '10px',
+          transition: 'transform 0.12s ease, box-shadow 0.12s ease',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
-          <div style={{ fontWeight: 800, fontSize: '16px' }}>{event.name}</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center' }}>
+          <div style={{ fontWeight: 900, fontSize: '17px', letterSpacing: '-0.01em' }}>{event.name}</div>
           <StatusBadge
             label={
               event.status === 'LIVE'
@@ -39,7 +41,7 @@ export default function EventCard({ event }: { event: EventItem }) {
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <span
               style={{
-                border: '2px solid #111',
+                border: '1px solid rgba(15, 23, 42, 0.2)',
                 borderRadius: 999,
                 padding: '4px 10px',
                 background: '#2ecc71',
@@ -61,7 +63,7 @@ export default function EventCard({ event }: { event: EventItem }) {
             </span>
             <span
               style={{
-                border: '2px solid #111',
+                border: '1px solid rgba(15, 23, 42, 0.2)',
                 borderRadius: 999,
                 padding: '4px 10px',
                 background: '#fff',
@@ -84,7 +86,7 @@ export default function EventCard({ event }: { event: EventItem }) {
             </span>
             <span
               style={{
-                border: '2px solid #111',
+                border: '1px solid rgba(15, 23, 42, 0.2)',
                 borderRadius: 999,
                 padding: '4px 10px',
                 background: '#fff',
@@ -103,10 +105,10 @@ export default function EventCard({ event }: { event: EventItem }) {
             </span>
           </div>
         ) : null}
-        <div style={{ color: '#333', fontSize: '14px' }}>
+        <div style={{ color: '#374151', fontSize: '14px' }}>
           Lokasi: {event.location || '-'}
         </div>
-        <div style={{ color: '#333', fontSize: '14px' }}>
+        <div style={{ color: '#374151', fontSize: '14px' }}>
           Tanggal:{' '}
           {new Date(event.event_date).toLocaleDateString('id-ID', {
             day: '2-digit',
