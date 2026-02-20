@@ -203,20 +203,6 @@ export default function AdminEventsPage({ showCreate = true }: { showCreate?: bo
                 <option value="LIVE">LIVE</option>
                 <option value="FINISHED">FINISHED</option>
               </select>
-              <button
-                type="button"
-                onClick={() => handleVisibility(ev.id, !(ev.is_public ?? true))}
-                style={{
-                  padding: '8px 10px',
-                  borderRadius: 12,
-                  border: '2px solid #111',
-                  background: ev.is_public === false ? '#ffe1e1' : '#fff',
-                  fontWeight: 900,
-                  cursor: 'pointer',
-                }}
-              >
-                {ev.is_public === false ? 'Show on Public' : 'Hide from Public'}
-              </button>
             </div>
 
             <button
