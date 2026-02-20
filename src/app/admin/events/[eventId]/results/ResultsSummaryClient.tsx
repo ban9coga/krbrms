@@ -43,6 +43,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
   const [batches, setBatches] = useState<Batch[]>([])
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'FINISHED' | 'DNF' | 'DNS' | 'DQ'>('ALL')
 
   const apiFetch = async (url: string) => {
     const { data } = await supabase.auth.getSession()
@@ -118,7 +119,8 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
 
   const exportCsv = () => {
     const rows = batches.flatMap((batch) => batch.rows)
-    if (rows.length === 0) {
+    const filtered = statusFilter === 'ALL' ? rows : rows.filter((r) => r.status === statusFilter)
+    if (filtered.length === 0) {
       alert('Tidak ada data untuk diexport.')
       return
     }
@@ -141,7 +143,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
     ]
     const csv = [
       header.join(','),
-      ...rows.map((r) =>
+      ...filtered.map((r) =>
         [
           r.batch_index,
           r.rank_point ?? '',
@@ -170,10 +172,91 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
     URL.revokeObjectURL(url)
   }
 
+  const exportPerBatch = () => {
+    if (batches.length === 0) {
+      alert('Tidak ada batch untuk diexport.')
+      return
+    }
+    const header = [
+      'batch',
+      'rank',
+      'name',
+      'no_plate',
+      'club',
+      'gate_m1',
+      'gate_m2',
+      'gate_m3',
+      'point_m1',
+      'point_m2',
+      'point_m3',
+      'penalty',
+      'total_point',
+      'class',
+      'status',
+    ]
+    batches.forEach((batch) => {
+      const rows = statusFilter === 'ALL'
+        ? batch.rows
+        : batch.rows.filter((r) => r.status === statusFilter)
+      if (rows.length === 0) return
+      const csv = [
+        header.join(','),
+        ...rows.map((r) =>
+          [
+            r.batch_index,
+            r.rank_point ?? '',
+            `"${r.name ?? ''}"`,
+            `"${r.no_plate ?? ''}"`,
+            `"${r.club ?? ''}"`,
+            r.gate_moto1 ?? '',
+            r.gate_moto2 ?? '',
+            r.gate_moto3 ?? '',
+            r.point_moto1 ?? '',
+            r.point_moto2 ?? '',
+            r.point_moto3 ?? '',
+            r.penalty_total ?? 0,
+            r.total_point ?? '',
+            r.class_label ?? '',
+            r.status ?? '',
+          ].join(',')
+        ),
+      ].join('\n')
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `results_${selectedCategory}_batch_${batch.batch_index}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+    })
+  }
+
   const categoryLabel = useMemo(
     () => categories.find((c) => c.id === selectedCategory)?.label ?? 'Category',
     [categories, selectedCategory]
   )
+
+  const summary = useMemo(() => {
+    const rows = batches.flatMap((b) => b.rows)
+    const filtered = statusFilter === 'ALL' ? rows : rows.filter((r) => r.status === statusFilter)
+    if (filtered.length === 0) {
+      return {
+        total: 0,
+        avg: 0,
+        top: [] as SummaryRow[],
+      }
+    }
+    const total = filtered.length
+    const validPoints = filtered.map((r) => r.total_point).filter((v) => v != null) as number[]
+    const avg = validPoints.length
+      ? validPoints.reduce((a, b) => a + b, 0) / validPoints.length
+      : 0
+    const top = [...filtered]
+      .filter((r) => r.total_point != null)
+      .sort((a, b) => (a.total_point ?? 9999) - (b.total_point ?? 9999))
+      .slice(0, 3)
+    return { total, avg, top }
+  }, [batches, statusFilter])
 
   return (
     <div style={{ maxWidth: 1020 }}>
@@ -183,7 +266,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
       </div>
 
       <div style={{ marginTop: 16, display: 'grid', gap: 12 }}>
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }} className="no-print">
           <select
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value)}
@@ -194,6 +277,17 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
                 {c.label}
               </option>
             ))}
+          </select>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
+            style={{ padding: '8px 12px', borderRadius: 10, border: '2px solid #111', fontWeight: 800 }}
+          >
+            <option value="ALL">All Status</option>
+            <option value="FINISHED">FINISHED</option>
+            <option value="DNF">DNF</option>
+            <option value="DNS">DNS</option>
+            <option value="DQ">DQ</option>
           </select>
           <button
             type="button"
@@ -223,9 +317,61 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
           >
             Export CSV
           </button>
+          <button
+            type="button"
+            onClick={exportPerBatch}
+            style={{
+              padding: '8px 12px',
+              borderRadius: 10,
+              border: '2px solid #111',
+              background: '#d7ecff',
+              fontWeight: 900,
+              cursor: 'pointer',
+            }}
+          >
+            Export per Batch
+          </button>
+          <button
+            type="button"
+            onClick={() => window.print()}
+            style={{
+              padding: '8px 12px',
+              borderRadius: 10,
+              border: '2px solid #111',
+              background: '#fff',
+              fontWeight: 900,
+              cursor: 'pointer',
+            }}
+          >
+            Print
+          </button>
         </div>
 
         <div style={{ fontWeight: 900 }}>Kategori: {categoryLabel}</div>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+            gap: 10,
+          }}
+        >
+          <div style={{ padding: 10, borderRadius: 12, border: '2px solid #111', background: '#fff', fontWeight: 900 }}>
+            Total Rider
+            <div style={{ fontSize: 18 }}>{summary.total}</div>
+          </div>
+          <div style={{ padding: 10, borderRadius: 12, border: '2px solid #111', background: '#fff', fontWeight: 900 }}>
+            Avg Total Point
+            <div style={{ fontSize: 18 }}>{summary.avg.toFixed(2)}</div>
+          </div>
+          <div style={{ padding: 10, borderRadius: 12, border: '2px solid #111', background: '#fff', fontWeight: 900 }}>
+            Top 3
+            <div style={{ fontSize: 12, fontWeight: 800 }}>
+              {summary.top.length === 0
+                ? '-'
+                : summary.top.map((r, idx) => `${idx + 1}. ${r.name} (${r.total_point})`).join(' | ')}
+            </div>
+          </div>
+        </div>
 
         {loading && (
           <div style={{ padding: 12, border: '2px dashed #111', borderRadius: 12, background: '#fff', fontWeight: 900 }}>
@@ -243,7 +389,12 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
           </div>
         )}
 
-        {batches.map((batch) => (
+        {batches.map((batch) => {
+          const rows = statusFilter === 'ALL'
+            ? batch.rows
+            : batch.rows.filter((r) => r.status === statusFilter)
+          if (rows.length === 0) return null
+          return (
           <div key={batch.batch_index} style={{ border: '2px solid #111', borderRadius: 14, background: '#fff' }}>
             <div style={{ padding: '10px 12px', borderBottom: '2px solid #111', fontWeight: 900 }}>
               Batch {batch.batch_index}
@@ -274,7 +425,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {batch.rows.map((row) => (
+                  {rows.map((row) => (
                     <tr key={`${batch.batch_index}-${row.rider_id}`} style={{ borderBottom: '1px solid #ddd' }}>
                       <td style={{ padding: 8 }}>{row.rank_point ?? '-'}</td>
                       <td style={{ padding: 8, fontWeight: 800 }}>{row.name}</td>
@@ -295,8 +446,17 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
               </table>
             </div>
           </div>
-        ))}
+          )
+        })}
       </div>
+      <style>
+        {`
+          @media print {
+            .no-print { display: none !important; }
+            body { background: #fff !important; }
+          }
+        `}
+      </style>
     </div>
   )
 }
