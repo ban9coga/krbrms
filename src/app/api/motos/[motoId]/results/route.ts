@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../lib/auth'
+import { computeQualificationAndStore, generateStageMotos } from '../../../../../services/advancedRaceAuto'
 
 export async function GET(_: Request, { params }: { params: Promise<{ motoId: string }> }) {
   const { motoId } = await params
@@ -86,7 +87,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
 
   const { data: moto, error: motoError } = await adminClient
     .from('motos')
-    .select('id, event_id')
+    .select('id, event_id, category_id, moto_name')
     .eq('id', motoId)
     .single()
 
@@ -128,5 +129,57 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
     .from('results')
     .upsert(payload, { onConflict: 'moto_id,rider_id' })
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+
+  // Auto-advance: if qualification motos for this category are complete, compute stages and create stage motos.
+  if (moto?.event_id && moto?.category_id) {
+    const { data: cfg } = await adminClient
+      .from('race_stage_config')
+      .select('enabled')
+      .eq('event_id', moto.event_id)
+      .eq('category_id', moto.category_id)
+      .maybeSingle()
+
+    if (cfg?.enabled) {
+      const { data: allMotos } = await adminClient
+        .from('motos')
+        .select('id, moto_name')
+        .eq('event_id', moto.event_id)
+        .eq('category_id', moto.category_id)
+
+      const qualMotos = (allMotos ?? []).filter((m) =>
+        /moto\s*[12]\s*-\s*batch/i.test(m.moto_name ?? '')
+      )
+
+      if (qualMotos.length > 0) {
+        const qualIds = qualMotos.map((m) => m.id)
+        const { data: riderCounts } = await adminClient
+          .from('moto_riders')
+          .select('moto_id, rider_id')
+          .in('moto_id', qualIds)
+        const { data: resultCounts } = await adminClient
+          .from('results')
+          .select('moto_id, rider_id')
+          .in('moto_id', qualIds)
+
+        const ridersByMoto = new Map<string, number>()
+        for (const row of riderCounts ?? []) {
+          ridersByMoto.set(row.moto_id, (ridersByMoto.get(row.moto_id) ?? 0) + 1)
+        }
+        const resultsByMoto = new Map<string, number>()
+        for (const row of resultCounts ?? []) {
+          resultsByMoto.set(row.moto_id, (resultsByMoto.get(row.moto_id) ?? 0) + 1)
+        }
+
+        const allComplete = qualIds.every((id) => (resultsByMoto.get(id) ?? 0) >= (ridersByMoto.get(id) ?? 0))
+        if (allComplete) {
+          const result = await computeQualificationAndStore(moto.event_id, moto.category_id)
+          if (result.ok) {
+            await generateStageMotos(moto.event_id, moto.category_id)
+          }
+        }
+      }
+    }
+  }
+
   return NextResponse.json({ ok: true })
 }
