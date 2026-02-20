@@ -33,7 +33,7 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
   const [loading, setLoading] = useState(false)
   const [categoryLabel, setCategoryLabel] = useState('')
   const [batches, setBatches] = useState<Batch[]>([])
-  const [sortMode, setSortMode] = useState<'GATE' | 'RANK'>('GATE')
+  const [sortMode, setSortMode] = useState<'GATE' | 'RANK'>('RANK')
   const [refreshing, setRefreshing] = useState(false)
 
   useEffect(() => {
