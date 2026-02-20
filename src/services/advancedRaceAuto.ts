@@ -138,14 +138,26 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
     return true
   })
 
-  await adminClient
-    .from('race_stage_result')
-    .delete()
-    .eq('category_id', categoryId)
-    .in('stage', ['QUALIFICATION', 'QUARTER_FINAL', 'SEMI_FINAL', 'FINAL'])
+  // Only clear stages for batches that are complete to allow incremental updates.
+  const completedBatchIds = batches
+    .filter((b) => {
+      const totalMotoRiders = b.riders.length * 2
+      return b.finishes.length >= totalMotoRiders
+    })
+    .map((b) => b.batchId)
 
-  const qualificationRows = Object.entries(batchRanks).flatMap(([batchId, ranks]) =>
-    ranks.map((row) => ({
+  if (completedBatchIds.length > 0) {
+    await adminClient
+      .from('race_stage_result')
+      .delete()
+      .eq('category_id', categoryId)
+      .in('batch_id', completedBatchIds)
+      .in('stage', ['QUALIFICATION'])
+  }
+
+  const qualificationRows = Object.entries(batchRanks).flatMap(([batchId, ranks]) => {
+    if (!completedBatchIds.includes(batchId)) return []
+    return ranks.map((row) => ({
       rider_id: row.riderId,
       category_id: categoryId,
       stage: 'QUALIFICATION',
@@ -153,16 +165,32 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
       position: row.rank,
       points: row.points,
     }))
+  })
+
+  const completedRiderIds = new Set(
+    qualificationRows.map((row) => row.rider_id)
   )
 
-  const advanceRows = filteredAdvances.map((row) => ({
-    rider_id: row.riderId,
-    category_id: categoryId,
-    stage: row.toStage,
-    final_class: row.finalClass ?? null,
-    position: null,
-    points: null,
-  }))
+  const completedRiderList = Array.from(completedRiderIds)
+  if (completedRiderList.length > 0) {
+    await adminClient
+      .from('race_stage_result')
+      .delete()
+      .eq('category_id', categoryId)
+      .in('rider_id', completedRiderList)
+      .in('stage', ['QUARTER_FINAL', 'SEMI_FINAL', 'FINAL'])
+  }
+
+  const advanceRows = filteredAdvances
+    .filter((row) => completedRiderIds.has(row.riderId))
+    .map((row) => ({
+      rider_id: row.riderId,
+      category_id: categoryId,
+      stage: row.toStage,
+      final_class: row.finalClass ?? null,
+      position: null,
+      points: null,
+    }))
 
   const payload = [...qualificationRows, ...advanceRows]
   if (payload.length > 0) {
