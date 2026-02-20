@@ -92,6 +92,8 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
   })
   const [advancedOpen, setAdvancedOpen] = useState<Record<string, boolean>>({})
   const [initialForm, setInitialForm] = useState<string>('')
+  const [logoUploading, setLogoUploading] = useState(false)
+  const [logoError, setLogoError] = useState<string>('')
 
   const [form, setForm] = useState({
     event_logo_url: '',
@@ -131,6 +133,22 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
     const json = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(json?.error || 'Request failed')
     return json
+  }
+
+  const uploadLogo = async (file: File) => {
+    const { data } = await supabase.auth.getSession()
+    const token = data.session?.access_token
+    if (!token) throw new Error('Session expired. Silakan login ulang.')
+    const body = new FormData()
+    body.append('file', file)
+    const res = await fetch(`/api/events/${eventId}/logo`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body,
+    })
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(json?.error || 'Gagal upload logo.')
+    return json?.url as string
   }
 
   const load = async () => {
@@ -739,6 +757,42 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
                   placeholder="Logo URL (optional)"
                   style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
                 />
+                <div style={{ display: 'grid', gap: 8 }}>
+                  <div style={{ fontWeight: 900 }}>Upload Logo</div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    disabled={logoUploading}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0]
+                      if (!file) return
+                      setLogoError('')
+                      setLogoUploading(true)
+                      try {
+                        const url = await uploadLogo(file)
+                        setForm((prev) => ({
+                          ...prev,
+                          event_logo_url: url,
+                          display_logo_url: url,
+                        }))
+                      } catch (err: unknown) {
+                        setLogoError(err instanceof Error ? err.message : 'Gagal upload logo.')
+                      } finally {
+                        setLogoUploading(false)
+                      }
+                    }}
+                    style={{ padding: 8, borderRadius: 10, border: '2px solid #111', fontWeight: 800 }}
+                  />
+                  {logoUploading && <div style={{ fontWeight: 800 }}>Uploading...</div>}
+                  {logoError && <div style={{ fontWeight: 800, color: '#b91c1c' }}>{logoError}</div>}
+                  {form.event_logo_url && (
+                    <img
+                      src={form.event_logo_url}
+                      alt="Event logo preview"
+                      style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 12, border: '2px solid #111' }}
+                    />
+                  )}
+                </div>
                 <input
                   value={form.display_slogan}
                   onChange={(e) => setForm({ ...form, display_slogan: e.target.value })}
