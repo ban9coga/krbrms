@@ -24,6 +24,19 @@ export default async function LandingPage() {
     fetchEvents('FINISHED'),
   ])
   const allEvents = [...upcomingEvents, ...ongoingEvents, ...finishedEvents]
+  const eventIds = allEvents.map((e) => e.id)
+  const settingsMap = new Map<string, { logo?: string | null; slogan?: string | null }>()
+  if (eventIds.length > 0) {
+    const { data: settingsRows } = await adminClient
+      .from('event_settings')
+      .select('event_id, event_logo_url, display_theme')
+      .in('event_id', eventIds)
+    for (const row of settingsRows ?? []) {
+      const theme = (row.display_theme ?? {}) as Record<string, unknown>
+      const slogan = typeof theme.slogan === 'string' ? theme.slogan : null
+      settingsMap.set(row.event_id, { logo: row.event_logo_url ?? null, slogan })
+    }
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: '#f6fbf7', color: '#111' }}>
@@ -36,7 +49,12 @@ export default async function LandingPage() {
             <div style={{ display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
               {ongoingEvents.map((event, idx) => (
                 <div key={event.id} style={{ display: 'grid', gap: 8 }}>
-                  <EventCard event={event} index={idx} />
+                  <EventCard
+                    event={event}
+                    index={idx}
+                    logoUrl={settingsMap.get(event.id)?.logo ?? null}
+                    slogan={settingsMap.get(event.id)?.slogan ?? null}
+                  />
                   {event.is_public !== false && (
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                       <Link
@@ -68,7 +86,13 @@ export default async function LandingPage() {
           {upcomingEvents.length === 0 && <EmptyState label="Belum ada event yang akan datang." />}
           <div style={{ display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
             {upcomingEvents.map((event, idx) => (
-              <EventCard key={event.id} event={event} index={idx} />
+              <EventCard
+                key={event.id}
+                event={event}
+                index={idx}
+                logoUrl={settingsMap.get(event.id)?.logo ?? null}
+                slogan={settingsMap.get(event.id)?.slogan ?? null}
+              />
             ))}
           </div>
         </PageSection>
@@ -77,7 +101,13 @@ export default async function LandingPage() {
           {finishedEvents.length === 0 && <EmptyState label="Belum ada event yang selesai." />}
           <div style={{ display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
             {finishedEvents.map((event, idx) => (
-              <EventCard key={event.id} event={event} index={idx} />
+              <EventCard
+                key={event.id}
+                event={event}
+                index={idx}
+                logoUrl={settingsMap.get(event.id)?.logo ?? null}
+                slogan={settingsMap.get(event.id)?.slogan ?? null}
+              />
             ))}
           </div>
         </PageSection>

@@ -111,6 +111,7 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
     display_header_bg: '#eaf7ee',
     display_card_bg: '#ffffff',
     display_logo_url: '',
+    display_slogan: '',
     race_moto_per_batch: '3',
     race_gate_positions: '8',
     race_qualification_enabled: true,
@@ -180,6 +181,8 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
             typeof theme.card_bg === 'string' ? theme.card_bg : '#ffffff',
           display_logo_url:
             typeof theme.logo_url === 'string' ? theme.logo_url : '',
+          display_slogan:
+            typeof theme.slogan === 'string' ? theme.slogan : '',
           race_moto_per_batch:
             typeof format.moto_per_batch === 'number' ? String(format.moto_per_batch) : '3',
           race_gate_positions:
@@ -412,6 +415,7 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
       header_bg: form.display_header_bg.trim() || '#eaf7ee',
       card_bg: form.display_card_bg.trim() || '#ffffff',
       logo_url: form.display_logo_url.trim() || null,
+      slogan: form.display_slogan.trim() || null,
     }
     const motoPerBatch = Number(form.race_moto_per_batch)
     const gatePositions = Number(form.race_gate_positions)
@@ -733,6 +737,12 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
                   value={form.display_logo_url}
                   onChange={(e) => setForm({ ...form, display_logo_url: e.target.value })}
                   placeholder="Logo URL (optional)"
+                  style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                />
+                <input
+                  value={form.display_slogan}
+                  onChange={(e) => setForm({ ...form, display_slogan: e.target.value })}
+                  placeholder="Event slogan (optional)"
                   style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
                 />
 

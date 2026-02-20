@@ -4,7 +4,17 @@ import Link from 'next/link'
 import StatusBadge from './StatusBadge'
 import type { EventItem } from '../lib/eventService'
 
-export default function EventCard({ event, index = 0 }: { event: EventItem; index?: number }) {
+export default function EventCard({
+  event,
+  index = 0,
+  logoUrl,
+  slogan,
+}: {
+  event: EventItem
+  index?: number
+  logoUrl?: string | null
+  slogan?: string | null
+}) {
   const showGoGreen = event.status === 'LIVE'
   const headerBg = event.status === 'LIVE' ? '#e9fff1' : '#fff'
 
@@ -51,7 +61,19 @@ export default function EventCard({ event, index = 0 }: { event: EventItem; inde
             border: '1px solid rgba(15, 23, 42, 0.08)',
           }}
         >
-          <div style={{ fontWeight: 900, fontSize: '17px', letterSpacing: '-0.01em' }}>{event.name}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {logoUrl ? (
+              <img
+                src={logoUrl}
+                alt={`${event.name} logo`}
+                style={{ width: 36, height: 36, borderRadius: 10, objectFit: 'cover', border: '1px solid #e5e7eb' }}
+              />
+            ) : null}
+            <div style={{ display: 'grid', gap: 2 }}>
+              <div style={{ fontWeight: 900, fontSize: '17px', letterSpacing: '-0.01em' }}>{event.name}</div>
+              {slogan ? <div style={{ fontSize: 12, color: '#6b7280', fontWeight: 700 }}>{slogan}</div> : null}
+            </div>
+          </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {event.status === 'LIVE' && (
               <span
