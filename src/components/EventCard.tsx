@@ -68,15 +68,11 @@ export default function EventCard({ event, index = 0 }: { event: EventItem; inde
                 LIVE NOW
               </span>
             )}
-            <StatusBadge
-              label={
-                event.status === 'LIVE'
-                  ? 'Ongoing Event'
-                  : event.status === 'FINISHED'
-                  ? 'Completed Event'
-                  : 'Coming Soon'
-              }
-            />
+            {event.status !== 'LIVE' && (
+              <StatusBadge
+                label={event.status === 'FINISHED' ? 'Completed Event' : 'Coming Soon'}
+              />
+            )}
           </div>
         </div>
         {showGoGreen ? (
