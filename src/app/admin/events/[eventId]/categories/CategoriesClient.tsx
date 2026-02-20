@@ -20,7 +20,7 @@ export default function CategoriesClient({ eventId }: { eventId: string }) {
   const [savingId, setSavingId] = useState<string | null>(null)
   const [syncing, setSyncing] = useState(false)
   const [editMap, setEditMap] = useState<
-    Record<string, { year_min: string; year_max: string; label: string; capacity: string }>
+    Record<string, { year_min: string; year_max: string; label: string; capacity: string; gender: CategoryItem['gender'] }>
   >({})
 
   const getErrorMessage = (err: unknown) => (err instanceof Error ? err.message : 'Request failed')
@@ -88,6 +88,7 @@ export default function CategoriesClient({ eventId }: { eventId: string }) {
         year_max: String(item.year_max ?? item.year),
         label: item.label ?? '',
         capacity: item.capacity == null ? '' : String(item.capacity),
+        gender: item.gender,
       },
     }))
   }
@@ -119,6 +120,7 @@ export default function CategoriesClient({ eventId }: { eventId: string }) {
           year_max: yearMax,
           label: draft.label,
           capacity: capacityValue,
+          gender: draft.gender,
         }),
       })
       await load()
@@ -244,6 +246,27 @@ export default function CategoriesClient({ eventId }: { eventId: string }) {
                     style={{ padding: 8, borderRadius: 8, border: '1px solid #111' }}
                   />
                 </div>
+                <select
+                  value={draft?.gender ?? item.gender}
+                  onChange={(e) =>
+                    setEditMap((prev) => ({
+                      ...prev,
+                      [item.id]: {
+                        year_min: prev[item.id]?.year_min ?? String(item.year_min ?? item.year),
+                        year_max: prev[item.id]?.year_max ?? String(item.year_max ?? item.year),
+                        label: prev[item.id]?.label ?? item.label,
+                        capacity: prev[item.id]?.capacity ?? (item.capacity == null ? '' : String(item.capacity)),
+                        gender: e.target.value as CategoryItem['gender'],
+                      },
+                    }))
+                  }
+                  onFocus={() => updateEdit(item)}
+                  style={{ padding: 8, borderRadius: 8, border: '1px solid #111' }}
+                >
+                  <option value="BOY">BOY</option>
+                  <option value="GIRL">GIRL</option>
+                  <option value="MIX">MIX</option>
+                </select>
                 <input
                   placeholder="Quota (kosong = unlimited)"
                   value={draft?.capacity ?? (item.capacity == null ? '' : String(item.capacity))}
