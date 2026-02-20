@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { adminClient } from '../../../../../lib/auth'
+import { adminClient, requireAdmin } from '../../../../../lib/auth'
 
 type CategoryRow = {
   id: string
@@ -259,4 +259,22 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       gate_positions_saved: hasGateTable,
     },
   })
+}
+
+export async function DELETE(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  const auth = await requireAdmin(req.headers.get('authorization'))
+  if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { eventId } = await params
+  const body = await req.json().catch(() => ({}))
+  const categoryId = body?.category_id as string | undefined
+  if (!categoryId) return NextResponse.json({ error: 'category_id required' }, { status: 400 })
+
+  const { error } = await adminClient
+    .from('motos')
+    .delete()
+    .eq('event_id', eventId)
+    .eq('category_id', categoryId)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  return NextResponse.json({ ok: true })
 }

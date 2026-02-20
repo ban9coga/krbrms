@@ -257,6 +257,33 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     setSaveState('idle')
   }
 
+  const resetLockedDraw = async () => {
+    if (!selectedCategory) return
+    const ok = window.confirm('Reset draw? Ini akan menghapus semua moto untuk kategori ini.')
+    if (!ok) return
+    setSaveState('saving')
+    try {
+      const { res, json } = await apiFetch(`/api/events/${eventId}/live-draw`, {
+        method: 'DELETE',
+        body: JSON.stringify({ category_id: selectedCategory }),
+      })
+      if (!res.ok) throw new Error(json?.error || 'Gagal reset draw')
+      setDrawnOrder([])
+      setWheelRiders([])
+      setWheelRotation(0)
+      setRollingName('Ready')
+      setHasDrawn(false)
+      setCategoryLocked(false)
+      setLockedMotos([])
+      setSaveState('idle')
+      await loadRiders(selectedCategory)
+      alert('Draw berhasil direset.')
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Gagal reset draw')
+      setSaveState('idle')
+    }
+  }
+
   const saveAsMoto = async () => {
     if (!selectedCategory || drawnOrder.length === 0) {
       alert('Lakukan draw terlebih dulu.')
@@ -472,6 +499,23 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
               >
                 Reset Draw
               </button>
+              {categoryLocked && (
+                <button
+                  type="button"
+                  onClick={resetLockedDraw}
+                  disabled={saveState === 'saving'}
+                  style={{
+                    padding: '12px 16px',
+                    borderRadius: 12,
+                    border: '2px solid #111',
+                    background: '#ffd6d6',
+                    fontWeight: 900,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Reset Draw (Hapus Moto)
+                </button>
+              )}
             </div>
           </div>
         </div>
