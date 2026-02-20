@@ -29,10 +29,27 @@ type Batch = {
   rows: Row[]
 }
 
+type StageRow = {
+  rider_id: string
+  gate: number | null
+  name: string
+  no_plate: string
+  club: string | null
+  point: number | null
+  status: 'FINISH' | 'DNF' | 'DNS' | 'PENDING'
+}
+
+type StageGroup = {
+  title: string
+  moto_id: string
+  rows: StageRow[]
+}
+
 export default function LiveScoreClient({ eventId, categoryId }: { eventId: string; categoryId: string }) {
   const [loading, setLoading] = useState(false)
   const [categoryLabel, setCategoryLabel] = useState('')
   const [batches, setBatches] = useState<Batch[]>([])
+  const [stages, setStages] = useState<StageGroup[]>([])
   const [sortMode, setSortMode] = useState<'GATE' | 'RANK'>('RANK')
   const [refreshing, setRefreshing] = useState(false)
 
@@ -46,6 +63,7 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
         const json = await res.json()
         setCategoryLabel(json.data?.category ?? '')
         setBatches(json.data?.batches ?? [])
+        setStages(json.data?.stages ?? [])
       } finally {
         setLoading(false)
       }
@@ -62,6 +80,7 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
       const json = await res.json()
       setCategoryLabel(json.data?.category ?? '')
       setBatches(json.data?.batches ?? [])
+      setStages(json.data?.stages ?? [])
     } finally {
       setRefreshing(false)
     }
@@ -194,6 +213,51 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
             </div>
           )})}
         </div>
+
+        {stages.length > 0 && (
+          <div style={{ display: 'grid', gap: 16, marginTop: 24 }}>
+            {stages.map((stage) => (
+              <div
+                key={stage.moto_id}
+                style={{
+                  background: '#fff',
+                  border: '2px solid #111',
+                  borderRadius: 14,
+                  overflow: 'hidden',
+                }}
+              >
+                <div style={{ background: '#0a7a1f', color: '#fff', padding: '10px 12px', fontWeight: 900 }}>
+                  {stage.title}
+                </div>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 640 }}>
+                    <thead>
+                      <tr style={{ background: '#f5f5f5', textAlign: 'left' }}>
+                        {['Gate', 'Nama Peserta', 'No Plat', 'Komunitas', 'Point', 'Status'].map((h) => (
+                          <th key={h} style={{ padding: 8, borderBottom: '2px solid #111', fontWeight: 900 }}>
+                            {h}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {stage.rows.map((row) => (
+                        <tr key={row.rider_id} style={{ borderBottom: '1px solid #ddd' }}>
+                          <td style={{ padding: 8 }}>{row.gate ?? '-'}</td>
+                          <td style={{ padding: 8, fontWeight: 800 }}>{row.name}</td>
+                          <td style={{ padding: 8 }}>{row.no_plate}</td>
+                          <td style={{ padding: 8 }}>{row.club || '-'}</td>
+                          <td style={{ padding: 8, fontWeight: 900, color: '#1d4ed8' }}>{row.point ?? '-'}</td>
+                          <td style={{ padding: 8, fontWeight: 900 }}>{row.status}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

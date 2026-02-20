@@ -27,6 +27,22 @@ type RiderRow = {
   club: string | null
 }
 
+type StageRow = {
+  rider_id: string
+  gate: number | null
+  name: string
+  no_plate: string
+  club: string | null
+  point: number | null
+  status: 'FINISH' | 'DNF' | 'DNS' | 'PENDING'
+}
+
+type StageGroup = {
+  title: string
+  moto_id: string
+  rows: StageRow[]
+}
+
 const shuffle = <T,>(items: T[]) => {
   const out = [...items]
   for (let i = out.length - 1; i > 0; i--) {
@@ -298,10 +314,46 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     })
     .sort((a, b) => a.batch_index - b.batch_index)
 
+  const stageMotos = motoRows.filter((m) => !parseBatchKey(m.moto_name))
+  const stageGroups: StageGroup[] = stageMotos.map((moto) => {
+    const gates = gateRows.filter((g) => g.moto_id === moto.id)
+    const gateMap = new Map(gates.map((g) => [g.rider_id, g.gate_position]))
+    const riderIdsInMoto = Array.from(new Set(gates.map((g) => g.rider_id)))
+    const lastPos = gates.length || null
+    const pointForResult = (res: ResultRow | null) => {
+      const status = res?.result_status ?? 'FINISH'
+      if (status === 'DNS') return 9
+      if (status === 'DNF') return lastPos
+      return res?.finish_order ?? null
+    }
+
+    const rows = riderIdsInMoto.map((riderId) => {
+      const rider = riderMap.get(riderId)
+      const res = resultRows.find((r) => r.moto_id === moto.id && r.rider_id === riderId) ?? null
+      const status = res?.result_status ?? null
+      return {
+        rider_id: riderId,
+        gate: gateMap.get(riderId) ?? null,
+        name: rider?.name ?? '-',
+        no_plate: rider?.no_plate_display ?? '-',
+        club: rider?.club ?? '-',
+        point: pointForResult(res),
+        status: status ?? 'PENDING',
+      }
+    })
+
+    return {
+      title: moto.moto_name,
+      moto_id: moto.id,
+      rows: rows.sort((a, b) => (a.gate ?? 9999) - (b.gate ?? 9999)),
+    }
+  })
+
   return NextResponse.json({
     data: {
       category: category.label,
       batches,
+      stages: stageGroups,
     },
   })
 }
