@@ -92,9 +92,35 @@ export async function resolveCategoryConfig(categoryId: string, override?: Resol
       .maybeSingle()
 
     if (ruleError || !rule) {
-      const warning = 'No rule matched. Using default (disabled).'
-      console.warn(warning)
-      return DEFAULT_RESULT(categoryId, eventId, totalRiders ?? 0, warning)
+      const total = totalRiders ?? 0
+      const finals =
+        total <= 8
+          ? ['ELITE']
+          : total <= 16
+          ? ['ELITE', 'NOVICE']
+          : total <= 24
+          ? ['ELITE', 'NOVICE', 'PRO']
+          : total <= 32
+          ? ['ELITE', 'NOVICE', 'PRO', 'ROOKIE']
+          : total <= 40
+          ? ['ELITE', 'NOVICE', 'PRO', 'ROOKIE', 'ACADEMY']
+          : total <= 48
+          ? ['ELITE', 'NOVICE', 'PRO', 'ROOKIE', 'ACADEMY', 'AMATEUR']
+          : ['ELITE', 'NOVICE', 'PRO', 'ROOKIE', 'ACADEMY', 'AMATEUR', 'BEGINNER']
+
+      return {
+        categoryId,
+        eventId,
+        totalRiders: total,
+        stages: {
+          enableQualification: total > 0,
+          enableQuarterFinal: total > 8,
+          enableSemiFinal: total > 8,
+        },
+        finalClasses: finals,
+        source: 'default',
+        warning: 'No rule matched. Using default auto mapping.',
+      }
     }
 
     return {

@@ -270,12 +270,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
 
       const classForRank = (rank: number | null | undefined) => {
         if (!rank) return null
-        if (rank <= 8) return 'ELITE'
-        if (rank <= 16) return 'NOVICE'
-        if (rank <= 24) return 'ACADEMY'
-        if (rank <= 32) return 'AMATEUR'
-        if (rank <= 40) return 'BEGINNER'
-        return 'ROOKIE'
+        if (rank >= 1 && rank <= 4) return 'QUARTER FINAL'
+        if (rank === 5) return 'FINAL ACADEMY'
+        if (rank === 6) return 'FINAL AMATEUR'
+        if (rank === 7 || rank === 8) return 'FINAL BEGINNER'
+        return null
       }
 
       const ordered = rows
