@@ -253,10 +253,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         }
       })
 
-      const statusOrder: Record<string, number> = { FINISHED: 1, DNF: 2, DNS: 3, DQ: 4 }
       const rankedRows = [...rows].sort((a, b) => {
-        const status = statusOrder[a.status] - statusOrder[b.status]
-        if (status !== 0) return status
         const aPoint = a.total_point ?? Number.MAX_SAFE_INTEGER
         const bPoint = b.total_point ?? Number.MAX_SAFE_INTEGER
         if (aPoint !== bPoint) return aPoint - bPoint
