@@ -11,6 +11,7 @@ export default function EventCard({ event }: { event: EventItem }) {
       style={{
         textDecoration: 'none',
         color: '#111',
+        display: 'block',
       }}
     >
       <div
@@ -23,6 +24,14 @@ export default function EventCard({ event }: { event: EventItem }) {
           display: 'grid',
           gap: '10px',
           transition: 'transform 0.12s ease, box-shadow 0.12s ease',
+        }}
+        onMouseEnter={(e) => {
+          ;(e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)'
+          ;(e.currentTarget as HTMLDivElement).style.boxShadow = '0 14px 30px rgba(15, 23, 42, 0.1)'
+        }}
+        onMouseLeave={(e) => {
+          ;(e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)'
+          ;(e.currentTarget as HTMLDivElement).style.boxShadow = '0 10px 24px rgba(15, 23, 42, 0.06)'
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center' }}>
