@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../../lib/auth'
-import { computeStageAdvances } from '../../../../../../services/advancedRaceAuto'
+import { computeStageAdvances, generateStageMotos } from '../../../../../../services/advancedRaceAuto'
 
 export async function POST(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const auth = await requireAdmin(req.headers.get('authorization'))
@@ -19,6 +19,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     return NextResponse.json({ error: 'Category not found in event' }, { status: 404 })
   }
 
+  await generateStageMotos(eventId, categoryId)
   const result = await computeStageAdvances(eventId, categoryId)
   if (!result.ok) {
     return NextResponse.json({ warning: result.warning ?? 'Advance skipped.' })
