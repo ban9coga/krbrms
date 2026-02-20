@@ -4,6 +4,8 @@ import { adminClient } from '../../../../../lib/auth'
 type CategoryRow = {
   id: string
   year: number
+  year_min?: number | null
+  year_max?: number | null
   gender: 'BOY' | 'GIRL' | 'MIX'
   enabled: boolean
 }
@@ -40,7 +42,7 @@ const shuffle = <T,>(items: T[]) => {
 const loadCategory = async (eventId: string, categoryId: string) => {
   const { data, error } = await adminClient
     .from('categories')
-    .select('id, year, gender, enabled')
+    .select('id, year, year_min, year_max, gender, enabled')
     .eq('event_id', eventId)
     .eq('id', categoryId)
     .single()
@@ -49,6 +51,8 @@ const loadCategory = async (eventId: string, categoryId: string) => {
 }
 
 const loadRidersForCategory = async (eventId: string, category: CategoryRow) => {
+  const minYear = category.year_min ?? category.year
+  const maxYear = category.year_max ?? category.year
   let query = adminClient
     .from('riders')
     .select('id, name, no_plate_display, plate_number, plate_suffix, birth_year, gender')
@@ -63,12 +67,12 @@ const loadRidersForCategory = async (eventId: string, category: CategoryRow) => 
   if (extraIds.length > 0) {
     const baseFilter =
       category.gender === 'MIX'
-        ? `birth_year.eq.${category.year}`
-        : `and(birth_year.eq.${category.year},gender.eq.${category.gender})`
+        ? `and(birth_year.gte.${minYear},birth_year.lte.${maxYear})`
+        : `and(birth_year.gte.${minYear},birth_year.lte.${maxYear},gender.eq.${category.gender})`
     const orFilter = `${baseFilter},id.in.(${extraIds.join(',')})`
     query = query.or(orFilter)
   } else {
-    query = query.eq('birth_year', category.year)
+    query = query.gte('birth_year', minYear).lte('birth_year', maxYear)
     if (category.gender !== 'MIX') {
       query = query.eq('gender', category.gender)
     }
