@@ -44,6 +44,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'FINISHED' | 'DNF' | 'DNS' | 'DQ'>('ALL')
+  const [batchFilter, setBatchFilter] = useState<'ALL' | string>('ALL')
 
   const apiFetch = async (url: string) => {
     const { data } = await supabase.auth.getSession()
@@ -96,6 +97,10 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
         })),
       }))
       setBatches(next)
+      if (batchFilter !== 'ALL') {
+        const valid = next.some((b) => String(b.batch_index) === batchFilter)
+        if (!valid) setBatchFilter('ALL')
+      }
     } catch {
       setErrorMsg('Gagal memuat summary.')
       setBatches([])
@@ -237,7 +242,10 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
   )
 
   const summary = useMemo(() => {
-    const rows = batches.flatMap((b) => b.rows)
+    const rows =
+      batchFilter === 'ALL'
+        ? batches.flatMap((b) => b.rows)
+        : batches.find((b) => String(b.batch_index) === batchFilter)?.rows ?? []
     const filtered = statusFilter === 'ALL' ? rows : rows.filter((r) => r.status === statusFilter)
     if (filtered.length === 0) {
       return {
@@ -275,6 +283,18 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
             {categories.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.label}
+              </option>
+            ))}
+          </select>
+          <select
+            value={batchFilter}
+            onChange={(e) => setBatchFilter(e.target.value as typeof batchFilter)}
+            style={{ padding: '8px 12px', borderRadius: 10, border: '2px solid #111', fontWeight: 800 }}
+          >
+            <option value="ALL">All Batches</option>
+            {batches.map((b) => (
+              <option key={b.batch_index} value={String(b.batch_index)}>
+                Batch {b.batch_index}
               </option>
             ))}
           </select>
@@ -390,6 +410,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
         )}
 
         {batches.map((batch) => {
+          if (batchFilter !== 'ALL' && String(batch.batch_index) !== batchFilter) return null
           const rows = statusFilter === 'ALL'
             ? batch.rows
             : batch.rows.filter((r) => r.status === statusFilter)
