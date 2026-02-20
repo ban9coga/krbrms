@@ -11,6 +11,7 @@ type SettingsRow = {
   extra_price?: number | null
   ffa_mix_min_year?: number | null
   ffa_mix_max_year?: number | null
+  require_jersey_size?: boolean | null
   scoring_rules: Record<string, unknown>
   display_theme: Record<string, unknown>
   race_format_settings: Record<string, unknown>
@@ -99,6 +100,7 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
     extra_price: '150000',
     ffa_mix_min_year: '2017',
     ffa_mix_max_year: '2017',
+    require_jersey_size: false,
     scoring_base_mode: 'finish_order',
     scoring_dns_points: '9',
     scoring_dnf_points: 'last',
@@ -151,6 +153,7 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
             typeof data.ffa_mix_min_year === 'number' ? String(data.ffa_mix_min_year) : '2017',
           ffa_mix_max_year:
             typeof data.ffa_mix_max_year === 'number' ? String(data.ffa_mix_max_year) : '2017',
+          require_jersey_size: Boolean(data.require_jersey_size),
           scoring_base_mode:
             typeof scoring.base_points_mode === 'string' ? scoring.base_points_mode : 'finish_order',
           scoring_dns_points:
@@ -465,6 +468,7 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
           extra_price: extraPriceNum,
           ffa_mix_min_year: ffaMinNum,
           ffa_mix_max_year: ffaMaxNum,
+          require_jersey_size: Boolean(form.require_jersey_size),
           scoring_rules: scoring,
           display_theme: theme,
           race_format_settings: format,
@@ -485,7 +489,9 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
   const isDirty = initialForm !== JSON.stringify(form)
   const basicSummary = `Base ${Number(form.base_price || 0).toLocaleString()} • Extra ${Number(
     form.extra_price || 0
-  ).toLocaleString()} • FFA ${form.ffa_mix_min_year}-${form.ffa_mix_max_year}`
+  ).toLocaleString()} • FFA ${form.ffa_mix_min_year}-${form.ffa_mix_max_year} • Jersey ${
+    form.require_jersey_size ? 'Wajib' : 'Opsional'
+  }`
   const appearanceSummary = `Theme ${form.display_primary_color} • Race ${form.race_moto_per_batch} motos`
   const advancedSummary = `${advancedItems.filter((i) => i.config?.enabled).length} enabled`
 
@@ -624,6 +630,22 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
                   </div>
                   <div style={{ fontSize: 12, color: '#333', fontWeight: 700 }}>
                     Rider dalam rentang ini akan masuk kategori FFA-MIX.
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gap: 8, marginTop: 6 }}>
+                  <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                    Jersey
+                  </div>
+                  <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 800 }}>
+                    <input
+                      type="checkbox"
+                      checked={form.require_jersey_size}
+                      onChange={(e) => setForm({ ...form, require_jersey_size: e.target.checked })}
+                    />
+                    Wajib isi ukuran jersey per rider
+                  </label>
+                  <div style={{ fontSize: 12, color: '#333', fontWeight: 700 }}>
+                    Jika aktif, pendaftar harus memilih ukuran jersey (XS–XL).
                   </div>
                 </div>
                 <div style={{ display: 'grid', gap: 8, marginTop: 6 }}>

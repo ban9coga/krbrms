@@ -63,6 +63,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
   }
 
+  const { data: settingsRow, error: settingsError } = await adminClient
+    .from('event_settings')
+    .select('require_jersey_size')
+    .eq('event_id', eventId)
+    .maybeSingle()
+
+  if (settingsError) return NextResponse.json({ error: settingsError.message }, { status: 400 })
+  const requireJerseySize = Boolean(settingsRow?.require_jersey_size)
+
   const categoryIds = new Set<string>()
   for (const item of items) {
     if (item.primary_category_id) categoryIds.add(item.primary_category_id)
@@ -86,6 +95,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
 
     if (!item.rider_name || !item.rider_nickname || !item.date_of_birth || !item.gender) {
       return { error: 'Missing rider fields' }
+    }
+    if (requireJerseySize && !item.jersey_size) {
+      return { error: 'Jersey size required' }
     }
     if (item.jersey_size && !JERSEY_SIZES.has(item.jersey_size)) {
       return { error: 'Invalid jersey size' }

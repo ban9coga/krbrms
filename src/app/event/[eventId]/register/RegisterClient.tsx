@@ -60,6 +60,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   const [extraPrice, setExtraPrice] = useState(DEFAULT_EXTRA_PRICE)
   const [ffaMinYear, setFfaMinYear] = useState(DEFAULT_FFA_MIN_YEAR)
   const [ffaMaxYear, setFfaMaxYear] = useState(DEFAULT_FFA_MAX_YEAR)
+  const [requireJerseySize, setRequireJerseySize] = useState(false)
   const [bankName, setBankName] = useState('')
   const [accountName, setAccountName] = useState('')
   const [accountNumber, setAccountNumber] = useState('')
@@ -96,6 +97,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         const extra = Number(data?.extra_price)
         const ffaMin = Number(data?.ffa_mix_min_year)
         const ffaMax = Number(data?.ffa_mix_max_year)
+        setRequireJerseySize(Boolean(data?.require_jersey_size))
         setBasePrice(Number.isFinite(base) && base > 0 ? base : DEFAULT_BASE_PRICE)
         setExtraPrice(Number.isFinite(extra) && extra >= 0 ? extra : DEFAULT_EXTRA_PRICE)
         setFfaMinYear(Number.isFinite(ffaMin) ? ffaMin : DEFAULT_FFA_MIN_YEAR)
@@ -105,6 +107,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         setExtraPrice(DEFAULT_EXTRA_PRICE)
         setFfaMinYear(DEFAULT_FFA_MIN_YEAR)
         setFfaMaxYear(DEFAULT_FFA_MAX_YEAR)
+        setRequireJerseySize(false)
       }
     }
     load()
@@ -163,6 +166,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     (r) =>
       r.name &&
       r.nickname &&
+      (!requireJerseySize || r.jerseySize) &&
       r.dateOfBirth &&
       r.requestedPlateNumber &&
       r.photo &&
@@ -194,13 +198,14 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
       (r) =>
         !r.name ||
         !r.nickname ||
+        (requireJerseySize && !r.jerseySize) ||
         !r.dateOfBirth ||
         !r.requestedPlateNumber ||
         !r.photo ||
         !r.docKk
     )
     if (hasInvalid) {
-      alert('Lengkapi data rider. Wajib: nama, panggilan, nomor plate, foto rider, dan KK/Akte.')
+      alert('Lengkapi data rider. Wajib: nama, panggilan, nomor plate, foto rider, KK/Akte, dan ukuran jersey (jika diwajibkan).')
       return
     }
 
@@ -427,7 +432,9 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
             onChange={(e) => updateRider(idx, { jerseySize: e.target.value })}
             style={{ padding: 12, borderRadius: 12, border: '2px solid #111' }}
           >
-            <option value="">Ukuran Jersey (opsional)</option>
+            <option value="">
+              Ukuran Jersey {requireJerseySize ? '(wajib)' : '(opsional)'}
+            </option>
             <option value="XS">XS</option>
             <option value="S">S</option>
             <option value="M">M</option>
