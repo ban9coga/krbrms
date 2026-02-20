@@ -4,6 +4,7 @@ import { adminClient } from '../../../../../../lib/auth'
 type RegistrationItemInput = {
   rider_name: string
   rider_nickname?: string | null
+  jersey_size?: string | null
   date_of_birth: string
   gender: 'BOY' | 'GIRL'
   club?: string | null
@@ -18,6 +19,7 @@ type PreparedItem =
   | {
       rider_name: string
       rider_nickname: string | null
+      jersey_size: string | null
       date_of_birth: string
       gender: 'BOY' | 'GIRL'
       club: string | null
@@ -30,6 +32,7 @@ type PreparedItem =
 
 const BASE_PRICE = 250000
 const EXTRA_PRICE = 150000
+const JERSEY_SIZES = new Set(['XS', 'S', 'M', 'L', 'XL'])
 
 const toYear = (dateString: string) => {
   const d = new Date(dateString)
@@ -84,6 +87,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     if (!item.rider_name || !item.rider_nickname || !item.date_of_birth || !item.gender) {
       return { error: 'Missing rider fields' }
     }
+    if (item.jersey_size && !JERSEY_SIZES.has(item.jersey_size)) {
+      return { error: 'Invalid jersey size' }
+    }
     if (!birthYear) return { error: 'Invalid date_of_birth' }
     if (primary && primary.event_id !== eventId) return { error: 'Invalid primary category' }
     if (extra && extra.event_id !== eventId) return { error: 'Invalid extra category' }
@@ -109,6 +115,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     return {
       rider_name: item.rider_name,
       rider_nickname: item.rider_nickname ?? null,
+      jersey_size: item.jersey_size ?? null,
       date_of_birth: item.date_of_birth,
       gender: item.gender,
       club: item.club ?? null,

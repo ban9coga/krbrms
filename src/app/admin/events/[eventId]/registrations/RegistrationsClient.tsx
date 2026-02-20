@@ -14,6 +14,7 @@ type RegistrationItem = {
   id: string
   rider_name: string
   rider_nickname?: string | null
+  jersey_size?: string | null
   date_of_birth: string
   gender: 'BOY' | 'GIRL'
   club: string | null
@@ -287,6 +288,11 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                   {item.rider_nickname && (
                     <div style={{ fontSize: 12, fontWeight: 700, color: '#333' }}>
                       Panggilan: {item.rider_nickname}
+                    </div>
+                  )}
+                  {item.jersey_size && (
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#333' }}>
+                      Jersey: {item.jersey_size}
                     </div>
                   )}
                   <div style={{ fontSize: 12 }}>

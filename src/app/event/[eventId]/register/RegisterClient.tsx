@@ -15,6 +15,7 @@ type CategoryItem = {
 type RiderForm = {
   name: string
   nickname: string
+  jerseySize: string
   dateOfBirth: string
   gender: 'BOY' | 'GIRL'
   club: string
@@ -36,6 +37,7 @@ const formatRupiah = (value: number) =>
 const initialRider = (): RiderForm => ({
   name: '',
   nickname: '',
+  jerseySize: '',
   dateOfBirth: '',
   gender: 'BOY',
   club: '',
@@ -219,6 +221,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         return {
           rider_name: r.name,
           rider_nickname: r.nickname || null,
+          jersey_size: r.jerseySize || null,
           date_of_birth: r.dateOfBirth,
           gender: r.gender,
           club: r.club || null,
@@ -419,6 +422,18 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                   placeholder="Nama Panggilan"
             style={{ padding: 12, borderRadius: 12, border: '2px solid #111' }}
           />
+          <select
+            value={rider.jerseySize}
+            onChange={(e) => updateRider(idx, { jerseySize: e.target.value })}
+            style={{ padding: 12, borderRadius: 12, border: '2px solid #111' }}
+          >
+            <option value="">Ukuran Jersey (opsional)</option>
+            <option value="XS">XS</option>
+            <option value="S">S</option>
+            <option value="M">M</option>
+            <option value="L">L</option>
+            <option value="XL">XL</option>
+          </select>
                 <input
                   type="date"
                   value={rider.dateOfBirth}
