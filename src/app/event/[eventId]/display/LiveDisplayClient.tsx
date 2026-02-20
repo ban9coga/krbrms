@@ -32,6 +32,7 @@ type Batch = {
   batch_index: number
   moto1_id: string
   moto2_id: string
+  moto3_id?: string | null
   rows: Row[]
 }
 
@@ -40,7 +41,22 @@ type LiveScorePayload = {
   batches?: Batch[]
 }
 
+type MotoItem = {
+  id: string
+  category_id: string
+  moto_name: string
+  moto_order: number
+  status: 'UPCOMING' | 'LIVE' | 'FINISHED'
+}
+
 type Mode = 'LINEUP' | 'RESULTS' | 'WINNERS'
+
+const parseMotoIndex = (name?: string | null) => {
+  if (!name) return null
+  const match = name.match(/moto\s*(\d+)/i)
+  if (!match) return null
+  return Number(match[1])
+}
 
 export default function LiveDisplayClient({ eventId }: { eventId: string }) {
   const [event, setEvent] = useState<EventItem | null>(null)
@@ -48,6 +64,8 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
   const [categoryId, setCategoryId] = useState<string>('')
   const [categoryLabel, setCategoryLabel] = useState<string>('')
   const [batches, setBatches] = useState<Batch[]>([])
+  const [motos, setMotos] = useState<MotoItem[]>([])
+  const [activeMoto, setActiveMoto] = useState<MotoItem | null>(null)
   const [mode, setMode] = useState<Mode>('LINEUP')
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
@@ -60,15 +78,29 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
         const cats = (await getEventCategories(eventId)).filter((c) => c.enabled)
         setEvent(eventData)
         setCategories(cats)
-        if (!categoryId && cats.length > 0) {
-          setCategoryId(cats[0].id)
-        }
+        if (!categoryId && cats.length > 0) setCategoryId(cats[0].id)
       } finally {
         setLoading(false)
       }
     }
     if (eventId) load()
   }, [eventId, categoryId])
+
+  const fetchMotos = async () => {
+    const res = await fetch(`/api/motos?event_id=${eventId}`)
+    const json = await res.json()
+    const data = (json?.data ?? []) as MotoItem[]
+    setMotos(data)
+    const live = data.find((m) => m.status === 'LIVE') ?? null
+    const upcoming = data
+      .filter((m) => m.status === 'UPCOMING')
+      .sort((a, b) => a.moto_order - b.moto_order)[0]
+    const nextActive = live ?? upcoming ?? null
+    setActiveMoto(nextActive)
+    if (nextActive && nextActive.category_id !== categoryId) {
+      setCategoryId(nextActive.category_id)
+    }
+  }
 
   const fetchLiveScore = async (id: string) => {
     if (!id) return
@@ -81,6 +113,7 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
 
   useEffect(() => {
     if (categoryId) fetchLiveScore(categoryId)
+    fetchMotos()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [categoryId, eventId])
 
@@ -89,6 +122,7 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
     setRefreshing(true)
     try {
       await fetchLiveScore(categoryId)
+      await fetchMotos()
     } finally {
       setRefreshing(false)
     }
@@ -104,16 +138,43 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
   }, [categoryId, eventId])
 
   const hasData = useMemo(() => batches.some((batch) => batch.rows.length > 0), [batches])
+  const activeMotoIndex = useMemo(() => parseMotoIndex(activeMoto?.moto_name), [activeMoto])
+
+  const activeBatch = useMemo(() => {
+    if (!activeMoto) return null
+    return (
+      batches.find(
+        (b) => b.moto1_id === activeMoto.id || b.moto2_id === activeMoto.id || b.moto3_id === activeMoto.id
+      ) ?? null
+    )
+  }, [batches, activeMoto])
+
+  const batchView = useMemo(() => {
+    if (!activeBatch) return batches
+    return [activeBatch]
+  }, [activeBatch, batches])
 
   const winnersByBatch = useMemo(() => {
-    return batches.map((batch) => {
+    return batchView.map((batch) => {
       const rows = [...batch.rows].sort((a, b) => (a.rank_point ?? 9999) - (b.rank_point ?? 9999))
       return {
         batch_index: batch.batch_index,
         winners: rows.slice(0, 3),
       }
     })
-  }, [batches])
+  }, [batchView])
+
+  const nextUp = useMemo(() => {
+    if (!activeBatch || !activeMotoIndex) return null
+    const rows = [...activeBatch.rows].sort((a, b) => (a.gate_moto1 ?? 9999) - (b.gate_moto1 ?? 9999))
+    const isPending = (row: Row) => {
+      if (activeMotoIndex === 1) return row.point_moto1 == null
+      if (activeMotoIndex === 2) return row.point_moto2 == null
+      return row.point_moto3 == null
+    }
+    const nextRow = rows.find(isPending) ?? null
+    return nextRow
+  }, [activeBatch, activeMotoIndex])
 
   return (
     <div style={{ minHeight: '100vh', background: '#eaf7ee', color: '#111' }}>
@@ -124,6 +185,11 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
             <div style={{ fontSize: 20, fontWeight: 950 }}>{event?.name ?? 'Live Display'}</div>
             <div style={{ fontWeight: 800, color: '#333' }}>{categoryLabel || 'Pilih Kategori'}</div>
             {event?.location && <div style={{ color: '#333' }}>{event.location}</div>}
+            {activeMoto && (
+              <div style={{ marginTop: 6, fontWeight: 900 }}>
+                Now: {activeMoto.moto_name} ({activeMoto.status})
+              </div>
+            )}
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <select
@@ -178,6 +244,30 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
           </div>
         </div>
 
+        {nextUp && (
+          <div
+            style={{
+              marginTop: 12,
+              padding: '10px 12px',
+              borderRadius: 14,
+              border: '2px solid #111',
+              background: '#fff4c4',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+              fontWeight: 900,
+            }}
+          >
+            <div>NEXT UP</div>
+            <div>{nextUp.name}</div>
+            <div>No: {nextUp.no_plate}</div>
+            <div>
+              Gate {activeMotoIndex === 1 ? nextUp.gate_moto1 : activeMotoIndex === 2 ? nextUp.gate_moto2 : nextUp.gate_moto3}
+            </div>
+          </div>
+        )}
+
         {loading && <LoadingState />}
         {!loading && event?.is_public === false && (
           <EmptyState label="Event ini sedang disembunyikan dari publik." />
@@ -188,7 +278,7 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
 
         {!loading && event?.is_public !== false && hasData && mode === 'LINEUP' && (
           <div style={{ display: 'grid', gap: 16, marginTop: 16 }}>
-            {batches.map((batch) => {
+            {batchView.map((batch) => {
               const rows = [...batch.rows].sort((a, b) => (a.gate_moto1 ?? 9999) - (b.gate_moto1 ?? 9999))
               return (
                 <div key={batch.batch_index} style={{ background: '#fff', border: '2px solid #111', borderRadius: 14 }}>
@@ -228,7 +318,7 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
 
         {!loading && event?.is_public !== false && hasData && mode === 'RESULTS' && (
           <div style={{ display: 'grid', gap: 16, marginTop: 16 }}>
-            {batches.map((batch) => {
+            {batchView.map((batch) => {
               const rows = [...batch.rows].sort((a, b) => (a.rank_point ?? 9999) - (b.rank_point ?? 9999))
               return (
                 <div key={batch.batch_index} style={{ background: '#fff', border: '2px solid #111', borderRadius: 14 }}>
