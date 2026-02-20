@@ -37,6 +37,14 @@ type Batch = {
   rows: SummaryRow[]
 }
 
+type PenaltyRow = {
+  rider_id: string
+  rule_code: string | null
+  penalty_point: number | null
+  approval_status: string | null
+  created_at: string | null
+}
+
 export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
   const [categories, setCategories] = useState<CategoryItem[]>([])
   const [selectedCategory, setSelectedCategory] = useState<string>('')
@@ -45,6 +53,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'FINISHED' | 'DNF' | 'DNS' | 'DQ'>('ALL')
   const [batchFilter, setBatchFilter] = useState<'ALL' | string>('ALL')
+  const [penaltyMap, setPenaltyMap] = useState<Record<string, PenaltyRow[]>>({})
 
   const apiFetch = async (url: string) => {
     const { data } = await supabase.auth.getSession()
@@ -97,6 +106,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
         })),
       }))
       setBatches(next)
+      await loadPenalties(next)
       if (batchFilter !== 'ALL') {
         const valid = next.some((b) => String(b.batch_index) === batchFilter)
         if (!valid) setBatchFilter('ALL')
@@ -107,6 +117,35 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
     } finally {
       setLoading(false)
     }
+  }
+
+  const loadPenalties = async (nextBatches: Batch[]) => {
+    const riderIds = Array.from(
+      new Set(nextBatches.flatMap((b) => b.rows.map((r) => r.rider_id)))
+    )
+    if (riderIds.length === 0) {
+      setPenaltyMap({})
+      return
+    }
+    const { res, json } = await apiFetch(`/api/admin/events/${eventId}/penalties`)
+    if (!res.ok) {
+      setPenaltyMap({})
+      return
+    }
+    const items = (json?.data ?? []) as Array<{
+      rider_id: string
+      rule_code: string | null
+      penalty_point: number | null
+      approval_status: string | null
+      created_at: string | null
+    }>
+    const grouped: Record<string, PenaltyRow[]> = {}
+    for (const row of items) {
+      if (!riderIds.includes(row.rider_id)) continue
+      if (!grouped[row.rider_id]) grouped[row.rider_id] = []
+      grouped[row.rider_id].push(row)
+    }
+    setPenaltyMap(grouped)
   }
 
   useEffect(() => {
@@ -457,7 +496,21 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
                       <td style={{ padding: 8 }}>{row.point_moto1 ?? '-'}</td>
                       <td style={{ padding: 8 }}>{row.point_moto2 ?? '-'}</td>
                       <td style={{ padding: 8 }}>{row.point_moto3 ?? '-'}</td>
-                      <td style={{ padding: 8 }}>{row.penalty_total ?? '-'}</td>
+                      <td style={{ padding: 8 }}>
+                        {row.penalty_total ?? '-'}
+                        {penaltyMap[row.rider_id]?.length ? (
+                          <details style={{ marginTop: 4 }}>
+                            <summary style={{ cursor: 'pointer', fontWeight: 800 }}>Detail</summary>
+                            <div style={{ display: 'grid', gap: 4, paddingTop: 4 }}>
+                              {penaltyMap[row.rider_id].map((p, idx) => (
+                                <div key={`${row.rider_id}-${idx}`} style={{ fontSize: 12 }}>
+                                  {p.rule_code ?? 'RULE'} · {p.penalty_point ?? 0} · {p.approval_status ?? '-'}
+                                </div>
+                              ))}
+                            </div>
+                          </details>
+                        ) : null}
+                      </td>
                       <td style={{ padding: 8, fontWeight: 900 }}>{row.total_point ?? '-'}</td>
                       <td style={{ padding: 8 }}>{row.class_label ?? '-'}</td>
                       <td style={{ padding: 8 }}>{row.status ?? '-'}</td>
