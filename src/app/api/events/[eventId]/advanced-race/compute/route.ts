@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../../lib/auth'
 import { resolveCategoryConfig } from '../../../../../../services/categoryResolver'
 import { computeQualification } from '../../../../../../services/raceStageEngine'
+import { generateStageMotos } from '../../../../../../services/advancedRaceAuto'
 
 type MotoRow = {
   id: string
@@ -163,6 +164,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     const { error: insertError } = await adminClient.from('race_stage_result').insert(payload)
     if (insertError) return NextResponse.json({ error: insertError.message }, { status: 400 })
   }
+
+  await generateStageMotos(eventId, categoryId)
 
   return NextResponse.json({
     data: {
