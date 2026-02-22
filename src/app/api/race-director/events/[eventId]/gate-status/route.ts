@@ -67,6 +67,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     let ready = 0
     let checked = 0
     let absent = 0
+    let warnings = 0
     for (const riderId of riders) {
       const status = statusMap.get(riderId) ?? null
       if (status === 'ABSENT') {
@@ -74,8 +75,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         checked += 1
         continue
       }
+      if (status === 'DNS') {
+        checked += 1
+        continue
+      }
       if (status !== 'ACTIVE') continue
       checked += 1
+      ready += 1
       const key = `${m.id}:${riderId}`
       const set = checkMap.get(key) ?? new Set<string>()
       let ok = true
@@ -85,7 +91,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
           break
         }
       }
-      if (ok) ready += 1
+      if (!ok) warnings += 1
     }
     const total = riders.length
     const isReady = total > 0 && ready + absent === total
@@ -97,6 +103,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       total,
       ready,
       absent,
+      warnings,
     }
   })
 

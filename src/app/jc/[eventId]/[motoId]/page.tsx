@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '../../../../lib/supabaseClient'
+import { PENALTY_DEFINITIONS } from '../../../../lib/penaltyDefinitions'
 
 type CategoryItem = {
   id: string
@@ -44,6 +45,14 @@ type SafetyRequirement = {
   sort_order?: number | null
 }
 
+const SAFETY_PENALTY_MAP: Record<string, string> = {
+  helmet: 'SAFETY_HELM_STRAP',
+  gloves: 'SAFETY_NO_GLOVES',
+  plate: 'TECH_PLATE_NOT_VISIBLE',
+  'elbow guard': 'SAFETY_NO_ELBOW_GUARD',
+  'knee guard': 'SAFETY_NO_KNEE_GUARD',
+}
+
 export default function JCPage() {
   const router = useRouter()
   const params = useParams()
@@ -63,6 +72,7 @@ export default function JCPage() {
   const [lastUpdated, setLastUpdated] = useState<string | null>(null)
   const [safetyRequirements, setSafetyRequirements] = useState<SafetyRequirement[]>([])
   const [safetyChecks, setSafetyChecks] = useState<Record<string, Record<string, boolean>>>({})
+  const [penaltiesByRider, setPenaltiesByRider] = useState<Record<string, Set<string>>>({})
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -139,11 +149,12 @@ export default function JCPage() {
     if (!selectedMotoId || !eventId) return
     if (!silent) setLoading(true)
     try {
-      const [lockRes, riderRes, statusRes, safetyRes] = await Promise.all([
+      const [lockRes, riderRes, statusRes, safetyRes, penaltiesRes] = await Promise.all([
         apiFetch(`/api/jury/motos/${selectedMotoId}/lock-status`),
         apiFetch(`/api/jury/motos/${selectedMotoId}/riders`),
         apiFetch(`/api/jury/events/${eventId}/rider-status`),
         apiFetch(`/api/jury/motos/${selectedMotoId}/safety-checks`),
+        apiFetch(`/api/jury/events/${eventId}/rider-penalties`),
       ])
 
       setLocked(!!lockRes.data)
@@ -188,6 +199,13 @@ export default function JCPage() {
           return next
         })
       }
+      const penaltyMap: Record<string, Set<string>> = {}
+      for (const row of penaltiesRes.data ?? []) {
+        const set = penaltyMap[row.rider_id] ?? new Set<string>()
+        set.add(String(row.rule_code))
+        penaltyMap[row.rider_id] = set
+      }
+      setPenaltiesByRider(penaltyMap)
       setLastUpdated(new Date().toLocaleTimeString())
     } finally {
       if (!silent) setLoading(false)
@@ -269,6 +287,32 @@ export default function JCPage() {
   const isSafetyOk = (riderId: string) =>
     requiredSafety.every((item) => safetyChecks[riderId]?.[item.id] === true)
 
+  const applySafetyPenalty = async (riderId: string, label: string) => {
+    const key = label.trim().toLowerCase()
+    const ruleCode = SAFETY_PENALTY_MAP[key]
+    if (!ruleCode) return
+    const existing = penaltiesByRider[riderId]
+    if (existing?.has(ruleCode)) return
+    const def = PENALTY_DEFINITIONS.find((p) => p.id === ruleCode)
+    await apiFetch(`/api/jury/riders/${riderId}/penalties`, {
+      method: 'POST',
+      body: JSON.stringify({
+        event_id: eventId,
+        stage: 'MOTO',
+        rule_code: ruleCode,
+        note: def ? `Missing ${def.label}` : `Missing ${label}`,
+        moto_id: selectedMotoId,
+      }),
+    })
+    setPenaltiesByRider((prev) => {
+      const next = { ...prev }
+      const set = new Set(next[riderId] ?? [])
+      set.add(ruleCode)
+      next[riderId] = set
+      return next
+    })
+  }
+
   const readyCount = useMemo(() => {
     return riderList.filter((r) => statuses[r.id]?.participation_status === 'ACTIVE' && isSafetyOk(r.id)).length
   }, [riderList, statuses, safetyChecks])
@@ -282,6 +326,13 @@ export default function JCPage() {
         ...prev,
         [riderId]: { rider_id: riderId, participation_status: status, registration_order: order },
       }))
+      if (status === 'ACTIVE') {
+        for (const req of requiredSafety) {
+          if (!safetyChecks[riderId]?.[req.id]) {
+            await applySafetyPenalty(riderId, req.label)
+          }
+        }
+      }
       if (status === 'DNS') {
         await apiFetch(`/api/jury/motos/${selectedMotoId}/results`, {
           method: 'POST',
@@ -636,13 +687,13 @@ export default function JCPage() {
                   <button
                     type="button"
                     onClick={() => handleSaveStatus(r.id, 'ACTIVE', r.gate_position ?? 0)}
-                    disabled={statusDisabled || !safetyOk}
+                    disabled={statusDisabled}
                     style={{
                       padding: '12px 14px',
                       borderRadius: 999,
                       border: '2px solid #1b5e20',
-                      background: safetyOk ? '#2ecc71' : '#e5e7eb',
-                      color: safetyOk ? '#fff' : '#111',
+                      background: safetyOk ? '#2ecc71' : '#ffe9a8',
+                      color: '#111',
                       fontWeight: 900,
                     }}
                   >

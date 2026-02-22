@@ -60,6 +60,22 @@ export const PENALTY_DEFINITIONS: PenaltyDefinition[] = [
     automatic_action: 'warning',
   },
   {
+    id: 'SAFETY_NO_ELBOW_GUARD',
+    label: 'Pelindung siku tidak dipakai',
+    category: 'Safety',
+    description: 'Rider tidak memakai pelindung siku.',
+    points: 2,
+    automatic_action: 'warning',
+  },
+  {
+    id: 'SAFETY_NO_KNEE_GUARD',
+    label: 'Pelindung lutut tidak dipakai',
+    category: 'Safety',
+    description: 'Rider tidak memakai pelindung lutut.',
+    points: 2,
+    automatic_action: 'warning',
+  },
+  {
     id: 'CONDUCT_FALSE_START',
     label: 'False start',
     category: 'Conduct',

@@ -54,7 +54,15 @@ export default function RaceDirectorApprovalPage() {
   const [motos, setMotos] = useState<MotoRow[]>([])
   const [lockedMap, setLockedMap] = useState<Record<string, boolean>>({})
   const [gateStatus, setGateStatus] = useState<
-    Array<{ moto_id: string; moto_name: string; status: string; total: number; ready: number; absent: number }>
+    Array<{
+      moto_id: string
+      moto_name: string
+      status: string
+      total: number
+      ready: number
+      absent: number
+      warnings?: number
+    }>
   >([])
   const [openCategoryId, setOpenCategoryId] = useState<string | null>(null)
   const [auditLogs, setAuditLogs] = useState<
@@ -337,7 +345,10 @@ export default function RaceDirectorApprovalPage() {
                 >
                   <span>{g.moto_name}</span>
                   <span>
-                    {g.status} • {g.ready}/{g.total}
+                    {g.status}
+                    {g.warnings && g.warnings > 0 ? ` (WARN ${g.warnings})` : ''}
+                    {' • '}
+                    {g.ready}/{g.total}
                   </span>
                 </div>
               ))}
