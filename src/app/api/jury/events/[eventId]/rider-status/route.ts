@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../../lib/auth'
+import { assertMotoEditable, assertMotoNotUnderProtest } from '../../../../../../lib/motoLock'
 import { requireJury } from '../../../../../../services/juryAuth'
 
 const getApprovalMode = async (eventId: string) => {
@@ -94,7 +95,24 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   }
 
   if (await isLockedMoto(moto_id)) {
-    return NextResponse.json({ error: 'Moto locked. Updates disabled.' }, { status: 409 })
+    try {
+      assertMotoEditable('locked')
+    } catch (err: unknown) {
+      return NextResponse.json({ error: err instanceof Error ? err.message : 'Moto locked.' }, { status: 409 })
+    }
+  }
+  if (moto_id) {
+    const { data: moto, error: motoError } = await adminClient
+      .from('motos')
+      .select('id, status')
+      .eq('id', moto_id)
+      .maybeSingle()
+    if (motoError) return NextResponse.json({ error: motoError.message }, { status: 400 })
+    try {
+      assertMotoNotUnderProtest((moto as { status?: string | null })?.status ?? null)
+    } catch (err: unknown) {
+      return NextResponse.json({ error: err instanceof Error ? err.message : 'Moto under protest review.' }, { status: 409 })
+    }
   }
 
   const approvalMode = await getApprovalMode(eventId)

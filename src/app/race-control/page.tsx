@@ -7,7 +7,7 @@ import { supabase } from '../../lib/supabaseClient'
 type EventRow = {
   id: string
   name: string
-  status: 'UPCOMING' | 'LIVE' | 'FINISHED'
+  status: 'UPCOMING' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED'
   event_date: string
 }
 
@@ -15,7 +15,7 @@ type QueueMoto = {
   moto_id: string
   moto_name: string
   moto_order: number
-  status: 'UPCOMING' | 'LIVE' | 'FINISHED'
+  status: 'UPCOMING' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED'
   category_label: string
   rows: Array<{
     rider_id: string

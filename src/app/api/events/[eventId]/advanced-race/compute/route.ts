@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../../lib/auth'
+import { assertMotoEditable, assertMotoNotUnderProtest } from '../../../../../../lib/motoLock'
 import { resolveCategoryConfig } from '../../../../../../services/categoryResolver'
 import { computeQualification } from '../../../../../../services/raceStageEngine'
 import { generateStageMotos } from '../../../../../../services/advancedRaceAuto'
@@ -8,7 +9,7 @@ type MotoRow = {
   id: string
   moto_name: string
   moto_order: number
-  status: 'UPCOMING' | 'LIVE' | 'FINISHED'
+  status: 'UPCOMING' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED'
 }
 
 type ResultRow = {
@@ -64,6 +65,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   const motoRows = (motos ?? []) as MotoRow[]
   if (motoRows.length === 0) {
     return NextResponse.json({ warning: 'No motos found for category.' }, { status: 200 })
+  }
+  try {
+    motoRows.forEach((m) => {
+      const status = (m as { status?: string | null }).status ?? null
+      assertMotoEditable(status)
+      assertMotoNotUnderProtest(status)
+    })
+  } catch (err: unknown) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Moto locked.' }, { status: 409 })
   }
 
   const motoIds = motoRows.map((m) => m.id)

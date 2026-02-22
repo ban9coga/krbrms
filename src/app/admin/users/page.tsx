@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../../lib/supabaseClient'
 
-type RoleType = 'admin' | 'jury' | 'race_control' | 'super_admin' | 'CHECKER' | 'FINISHER' | 'RACE_DIRECTOR'
+type RoleType = 'admin' | 'jury' | 'race_control' | 'super_admin' | 'CHECKER' | 'FINISHER' | 'RACE_DIRECTOR' | 'MC'
 
 type UserRow = {
   id: string
@@ -176,6 +176,7 @@ export default function AdminUsersPage() {
             <option value="CHECKER">Checker (Jury Start)</option>
             <option value="FINISHER">Finisher (Jury Finish)</option>
             <option value="RACE_DIRECTOR">Race Director</option>
+            <option value="MC">MC (Tablet)</option>
           </select>
           <button
             type="submit"
@@ -271,6 +272,7 @@ export default function AdminUsersPage() {
                   <option value="CHECKER">Checker</option>
                   <option value="FINISHER">Finisher</option>
                   <option value="RACE_DIRECTOR">Race Director</option>
+                  <option value="MC">MC</option>
                 </select>
                 <button
                   type="button"

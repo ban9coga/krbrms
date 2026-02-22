@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../lib/auth'
+import { assertMotoEditable, assertMotoNotUnderProtest } from '../../../../../lib/motoLock'
 import { computeQualificationAndStore, generateStageMotos } from '../../../../../services/advancedRaceAuto'
 
 export async function GET(_: Request, { params }: { params: Promise<{ motoId: string }> }) {
@@ -87,12 +88,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
 
   const { data: moto, error: motoError } = await adminClient
     .from('motos')
-    .select('id, event_id, category_id, moto_name')
+    .select('id, event_id, category_id, moto_name, status')
     .eq('id', motoId)
     .single()
 
   if (motoError || !moto?.event_id) {
     return NextResponse.json({ error: 'Moto not found' }, { status: 404 })
+  }
+  try {
+    assertMotoEditable((moto as { status?: string | null }).status ?? null)
+    assertMotoNotUnderProtest((moto as { status?: string | null }).status ?? null)
+  } catch (err: unknown) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Moto locked.' }, { status: 409 })
   }
 
   const payload = (results as Array<{ rider_id: string; finish_order?: number | null; result_status?: string }>).map((row) => ({
@@ -129,6 +136,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
     .from('results')
     .upsert(payload, { onConflict: 'moto_id,rider_id' })
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+
+  await adminClient
+    .from('motos')
+    .update({ status: 'PROVISIONAL', provisional_at: new Date().toISOString() })
+    .eq('id', motoId)
 
   // Auto-advance: if qualification motos for this category are complete, compute stages and create stage motos.
   if (moto?.event_id && moto?.category_id) {

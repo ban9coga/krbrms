@@ -11,7 +11,7 @@ const adminClient = createClient(supabaseUrl, supabaseServiceKey)
 type CreateUserPayload = {
   email: string
   password: string
-  role: 'admin' | 'jury' | 'race_control' | 'CHECKER' | 'FINISHER' | 'RACE_DIRECTOR'
+  role: 'admin' | 'jury' | 'race_control' | 'CHECKER' | 'FINISHER' | 'RACE_DIRECTOR' | 'MC'
 }
 
 export async function POST(req: Request) {

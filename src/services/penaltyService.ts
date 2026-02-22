@@ -1,6 +1,7 @@
 'use server'
 
 import { adminClient } from '../lib/auth'
+import { assertMotoEditable } from '../lib/motoLock'
 
 export type PenaltyStage = 'MOTO' | 'QUARTER' | 'SEMI' | 'FINAL' | 'ALL'
 
@@ -47,7 +48,9 @@ export async function addRiderPenalty(params: {
   rule_code: string
   penalty_point: number
   note?: string | null
+  moto_status?: string | null
 }) {
+  assertMotoEditable(params.moto_status ?? null)
   const { error } = await adminClient.from('rider_penalties').insert([
     {
       rider_id: params.rider_id,

@@ -11,7 +11,7 @@ begin
     create type gender_type as enum ('BOY','GIRL','MIX');
   end if;
   if not exists (select 1 from pg_type where typname = 'moto_status') then
-    create type moto_status as enum ('UPCOMING','LIVE','FINISHED');
+    create type moto_status as enum ('UPCOMING','LIVE','FINISHED','PROVISIONAL','PROTEST_REVIEW','LOCKED');
   end if;
   if not exists (select 1 from pg_type where typname = 'result_status') then
     create type result_status as enum ('FINISH','DNF','DNS');

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../../lib/auth'
+import { assertMotoEditable, assertMotoNotUnderProtest } from '../../../../../../lib/motoLock'
 import { requireJury } from '../../../../../../services/juryAuth'
 
 const isLockedMoto = async (motoId: string) => {
@@ -21,7 +22,22 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
     return NextResponse.json({ error: 'Read-only for RACE_DIRECTOR' }, { status: 403 })
   }
   if (await isLockedMoto(motoId)) {
-    return NextResponse.json({ error: 'Moto locked. Updates disabled.' }, { status: 409 })
+    try {
+      assertMotoEditable('locked')
+    } catch (err: unknown) {
+      return NextResponse.json({ error: err instanceof Error ? err.message : 'Moto locked.' }, { status: 409 })
+    }
+  }
+  const { data: motoStatusRow, error: statusError } = await adminClient
+    .from('motos')
+    .select('status')
+    .eq('id', motoId)
+    .maybeSingle()
+  if (statusError) return NextResponse.json({ error: statusError.message }, { status: 400 })
+  try {
+    assertMotoNotUnderProtest((motoStatusRow as { status?: string | null })?.status ?? null)
+  } catch (err: unknown) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Moto under protest review.' }, { status: 409 })
   }
 
   const body = await req.json()
@@ -98,7 +114,22 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ motoI
 
   const { motoId } = await params
   if (await isLockedMoto(motoId) && auth.role !== 'RACE_DIRECTOR' && auth.role !== 'super_admin') {
-    return NextResponse.json({ error: 'Moto locked. Updates disabled.' }, { status: 409 })
+    try {
+      assertMotoEditable('locked')
+    } catch (err: unknown) {
+      return NextResponse.json({ error: err instanceof Error ? err.message : 'Moto locked.' }, { status: 409 })
+    }
+  }
+  const { data: statusRow, error: statusErr } = await adminClient
+    .from('motos')
+    .select('status')
+    .eq('id', motoId)
+    .maybeSingle()
+  if (statusErr) return NextResponse.json({ error: statusErr.message }, { status: 400 })
+  try {
+    assertMotoNotUnderProtest((statusRow as { status?: string | null })?.status ?? null)
+  } catch (err: unknown) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Moto under protest review.' }, { status: 409 })
   }
 
   const { error } = await adminClient.from('results').delete().eq('moto_id', motoId)

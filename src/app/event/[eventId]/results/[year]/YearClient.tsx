@@ -11,7 +11,7 @@ import { getCategoriesByYear, getMotosByCategory, type RiderCategory, type MotoI
 const normalize = (value: string) => value.toLowerCase()
 
 export default function YearClient({ eventId, year }: { eventId: string; year: string }) {
-  const [categories, setCategories] = useState<(RiderCategory & { status: 'UPCOMING' | 'LIVE' | 'FINISHED' })[]>([])
+  const [categories, setCategories] = useState<(RiderCategory & { status: 'UPCOMING' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED' })[]>([])
   const [loading, setLoading] = useState(false)
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'LIVE' | 'FINISHED'>('ALL')
@@ -26,7 +26,7 @@ export default function YearClient({ eventId, year }: { eventId: string; year: s
           const hasLive = motos.some((m) => m.status === 'LIVE')
           const hasFinished = motos.some((m) => m.status === 'FINISHED')
           const hasUpcoming = motos.some((m) => m.status === 'UPCOMING')
-          const status: 'UPCOMING' | 'LIVE' | 'FINISHED' = hasLive
+          const status: 'UPCOMING' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED' = hasLive
             ? 'LIVE'
             : hasFinished && hasUpcoming
             ? 'LIVE'

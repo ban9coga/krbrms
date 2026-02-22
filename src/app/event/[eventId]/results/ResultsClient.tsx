@@ -19,7 +19,7 @@ import {
 export default function ResultsClient({ eventId }: { eventId: string }) {
   const [event, setEvent] = useState<EventItem | null>(null)
   const [categories, setCategories] = useState<
-    (RiderCategory & { status: 'UPCOMING' | 'LIVE' | 'FINISHED' })[]
+    (RiderCategory & { status: 'UPCOMING' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED' })[]
   >([])
   const [loading, setLoading] = useState(false)
   const router = useRouter()
@@ -37,7 +37,7 @@ export default function ResultsClient({ eventId }: { eventId: string }) {
             const hasLive = motos.some((m) => m.status === 'LIVE')
             const hasFinished = motos.some((m) => m.status === 'FINISHED')
             const hasUpcoming = motos.some((m) => m.status === 'UPCOMING')
-            const status: 'UPCOMING' | 'LIVE' | 'FINISHED' = hasLive
+            const status: 'UPCOMING' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED' = hasLive
               ? 'LIVE'
               : hasFinished && hasUpcoming
               ? 'LIVE'

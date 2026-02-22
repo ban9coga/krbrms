@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../../lib/auth'
+import { assertMotoEditable, assertMotoNotUnderProtest } from '../../../../../../lib/motoLock'
 import { computeStageAdvances, generateStageMotos } from '../../../../../../services/advancedRaceAuto'
 
 export async function POST(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
@@ -17,6 +18,22 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     .maybeSingle()
   if (catError || !category || category.event_id !== eventId) {
     return NextResponse.json({ error: 'Category not found in event' }, { status: 404 })
+  }
+
+  const { data: motos, error: motoError } = await adminClient
+    .from('motos')
+    .select('id, status')
+    .eq('event_id', eventId)
+    .eq('category_id', categoryId)
+  if (motoError) return NextResponse.json({ error: motoError.message }, { status: 400 })
+  try {
+    (motos ?? []).forEach((m) => {
+      const status = (m as { status?: string | null }).status ?? null
+      assertMotoEditable(status)
+      assertMotoNotUnderProtest(status)
+    })
+  } catch (err: unknown) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Moto locked.' }, { status: 409 })
   }
 
   await generateStageMotos(eventId, categoryId)

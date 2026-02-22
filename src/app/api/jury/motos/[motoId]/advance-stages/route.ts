@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../../lib/auth'
+import { assertMotoEditable, assertMotoNotUnderProtest } from '../../../../../../lib/motoLock'
 import { requireJury } from '../../../../../../services/juryAuth'
 import { computeQualificationAndStore, computeStageAdvances, generateStageMotos } from '../../../../../../services/advancedRaceAuto'
 
@@ -12,11 +13,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
   const { motoId } = await params
   const { data: moto, error } = await adminClient
     .from('motos')
-    .select('id, event_id, category_id, moto_name')
+    .select('id, event_id, category_id, moto_name, status')
     .eq('id', motoId)
     .maybeSingle()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   if (!moto) return NextResponse.json({ error: 'Moto not found' }, { status: 404 })
+  try {
+    assertMotoEditable((moto as { status?: string | null }).status ?? null)
+    assertMotoNotUnderProtest((moto as { status?: string | null }).status ?? null)
+  } catch (err: unknown) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Moto locked.' }, { status: 409 })
+  }
 
   if (!moto.category_id || !isMoto2Batch(moto.moto_name)) {
     return NextResponse.json({ ok: true, skipped: true })

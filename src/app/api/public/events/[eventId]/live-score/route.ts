@@ -314,6 +314,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         moto1_id: moto1.id,
         moto2_id: moto2.id,
         moto3_id: moto3?.id ?? null,
+        moto_status: moto2.status ?? moto1.status ?? null,
+        isProvisional: ['PROVISIONAL'].includes((moto2.status ?? moto1.status ?? '').toUpperCase()),
+        isUnderReview: ['PROTEST_REVIEW'].includes((moto2.status ?? moto1.status ?? '').toUpperCase()),
+        isOfficial: ['LOCKED'].includes((moto2.status ?? moto1.status ?? '').toUpperCase()),
         rows: ordered,
       }
     })

@@ -2,13 +2,14 @@
 
 import { adminClient } from '../lib/auth'
 import { resolveCategoryConfig } from './categoryResolver'
+import { assertMotoEditable, assertMotoNotUnderProtest } from '../lib/motoLock'
 import { computeQualification } from './raceStageEngine'
 
 type MotoRow = {
   id: string
   moto_name: string
   moto_order: number
-  status: 'UPCOMING' | 'LIVE' | 'FINISHED'
+  status: 'UPCOMING' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED'
 }
 
 type ResultRow = {
@@ -73,6 +74,15 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
   if (motoError) return { ok: false, warning: motoError.message }
   const motoRows = (motos ?? []) as MotoRow[]
   if (motoRows.length === 0) return { ok: false, warning: 'No motos for category.' }
+  try {
+    motoRows.forEach((m) => {
+      const status = (m as { status?: string | null }).status ?? null
+      assertMotoEditable(status)
+      assertMotoNotUnderProtest(status)
+    })
+  } catch (err: unknown) {
+    return { ok: false, warning: err instanceof Error ? err.message : 'Moto locked.' }
+  }
 
   const motoIds = motoRows.map((m) => m.id)
   const { data: results, error: resultError } = await adminClient
@@ -211,6 +221,22 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
   if (!config?.enabled) return { ok: false, warning: 'Advanced race disabled.' }
 
   const maxRiders = Math.max(4, Number(config.max_riders_per_race ?? 8))
+
+  const { data: existingMotos, error: motoError } = await adminClient
+    .from('motos')
+    .select('id, status')
+    .eq('event_id', eventId)
+    .eq('category_id', categoryId)
+  if (motoError) return { ok: false, warning: motoError.message }
+  try {
+    (existingMotos ?? []).forEach((m) => {
+      const status = (m as { status?: string | null }).status ?? null
+      assertMotoEditable(status)
+      assertMotoNotUnderProtest(status)
+    })
+  } catch (err: unknown) {
+    return { ok: false, warning: err instanceof Error ? err.message : 'Moto locked.' }
+  }
 
   const { data: stageRows, error } = await adminClient
     .from('race_stage_result')
@@ -369,6 +395,22 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
     .eq('category_id', categoryId)
     .maybeSingle()
   if (!config?.enabled) return { ok: false, warning: 'Advanced race disabled.' }
+
+  const { data: existingMotos, error: motoError } = await adminClient
+    .from('motos')
+    .select('id, status')
+    .eq('event_id', eventId)
+    .eq('category_id', categoryId)
+  if (motoError) return { ok: false, warning: motoError.message }
+  try {
+    (existingMotos ?? []).forEach((m) => {
+      const status = (m as { status?: string | null }).status ?? null
+      assertMotoEditable(status)
+      assertMotoNotUnderProtest(status)
+    })
+  } catch (err: unknown) {
+    return { ok: false, warning: err instanceof Error ? err.message : 'Moto locked.' }
+  }
 
   const quarterMotos = await loadStageMotos(eventId, categoryId, 'Quarter Final')
   const semiMotos = await loadStageMotos(eventId, categoryId, 'Semi Final')

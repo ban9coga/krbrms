@@ -9,7 +9,7 @@ type EventItem = {
   name: string
   location?: string | null
   event_date: string
-  status: 'UPCOMING' | 'LIVE' | 'FINISHED'
+  status: 'UPCOMING' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED'
   is_public?: boolean | null
 }
 
