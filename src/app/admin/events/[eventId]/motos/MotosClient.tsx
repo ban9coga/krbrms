@@ -222,7 +222,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                     <button
                       type="button"
                       onClick={() => handlePublishMoto(m.id)}
-                      disabled={m.status !== 'LOCKED' || m.is_published}
+                      disabled={m.status !== 'LOCKED' || !!m.is_published}
                       style={{
                         padding: '8px 12px',
                         borderRadius: 999,
