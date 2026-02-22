@@ -82,8 +82,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     .eq('category_id', categoryId)
     .order('moto_order', { ascending: true })
   if (motoError) return NextResponse.json({ error: motoError.message }, { status: 400 })
-  const motoRows = (motos ?? []) as MotoRow[]
-  .filter((m) => {
+  const motoRows = ((motos ?? []) as MotoRow[]).filter((m) => {
     const status = m.status ?? ''
     return status === 'LIVE' || (status === 'LOCKED' && m.is_published === true)
   })
