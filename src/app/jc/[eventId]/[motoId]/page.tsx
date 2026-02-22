@@ -223,12 +223,12 @@ export default function JCPage() {
     return s
   }, [riderList, statuses])
 
+  const isSafetyOk = (riderId: string) =>
+    SAFETY_CHECKLIST.every((item) => safetyChecks[riderId]?.[item] === true)
+
   const readyCount = useMemo(() => {
     return riderList.filter((r) => statuses[r.id]?.participation_status === 'ACTIVE' && isSafetyOk(r.id)).length
   }, [riderList, statuses, safetyChecks])
-
-  const isSafetyOk = (riderId: string) =>
-    SAFETY_CHECKLIST.every((item) => safetyChecks[riderId]?.[item] === true)
 
   const handleSaveStatus = async (riderId: string, status: StatusRow['participation_status'], order: number) => {
     if (!selectedMotoId) return
