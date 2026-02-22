@@ -151,31 +151,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
       )
 
       if (qualMotos.length > 0) {
-        const qualIds = qualMotos.map((m) => m.id)
-        const { data: riderCounts } = await adminClient
-          .from('moto_riders')
-          .select('moto_id, rider_id')
-          .in('moto_id', qualIds)
-        const { data: resultCounts } = await adminClient
-          .from('results')
-          .select('moto_id, rider_id')
-          .in('moto_id', qualIds)
-
-        const ridersByMoto = new Map<string, number>()
-        for (const row of riderCounts ?? []) {
-          ridersByMoto.set(row.moto_id, (ridersByMoto.get(row.moto_id) ?? 0) + 1)
-        }
-        const resultsByMoto = new Map<string, number>()
-        for (const row of resultCounts ?? []) {
-          resultsByMoto.set(row.moto_id, (resultsByMoto.get(row.moto_id) ?? 0) + 1)
-        }
-
-        const allComplete = qualIds.every((id) => (resultsByMoto.get(id) ?? 0) >= (ridersByMoto.get(id) ?? 0))
-        if (allComplete) {
-          const result = await computeQualificationAndStore(moto.event_id, moto.category_id)
-          if (result.ok) {
-            await generateStageMotos(moto.event_id, moto.category_id)
-          }
+        const result = await computeQualificationAndStore(moto.event_id, moto.category_id)
+        if (result.ok) {
+          await generateStageMotos(moto.event_id, moto.category_id)
         }
       }
     }

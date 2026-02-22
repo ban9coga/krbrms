@@ -241,26 +241,42 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
   const newMotos: Array<{ event_id: string; category_id: string; moto_name: string; moto_order: number; status: string }> = []
   const newMotoRiders: Array<{ moto_id: string; rider_id: string }> = []
 
-  const quarterExists = await safeMotoNameExists(eventId, categoryId, 'Quarter Final')
-  if (!quarterExists && quarterRiders.length > 0) {
-    const groups = chunk(quarterRiders, maxRiders)
-    groups.forEach((group, idx) => {
-      newMotos.push({
-        event_id: eventId,
-        category_id: categoryId,
-        moto_name: `Quarter Final - Heat ${idx + 1}`,
-        moto_order: nextOrder++,
-        status: 'UPCOMING',
+  if (quarterRiders.length > 0) {
+    const existingQuarterMotos = await loadStageMotos(eventId, categoryId, 'Quarter Final')
+    const existingQuarterIds = existingQuarterMotos.map((m) => m.id)
+    const assignedQuarter = new Set<string>()
+    if (existingQuarterIds.length > 0) {
+      const { data: assignedRows } = await adminClient
+        .from('moto_riders')
+        .select('moto_id, rider_id')
+        .in('moto_id', existingQuarterIds)
+      for (const row of assignedRows ?? []) {
+        assignedQuarter.add(row.rider_id)
+      }
+    }
+
+    const pendingQuarter = quarterRiders.filter((id) => !assignedQuarter.has(id))
+    if (pendingQuarter.length > 0) {
+      const groups = chunk(pendingQuarter, maxRiders)
+      const startIndex = existingQuarterMotos.length
+      groups.forEach((_, idx) => {
+        newMotos.push({
+          event_id: eventId,
+          category_id: categoryId,
+          moto_name: `Quarter Final - Heat ${startIndex + idx + 1}`,
+          moto_order: nextOrder++,
+          status: 'UPCOMING',
+        })
       })
-    })
-    const { data: motoRows, error: motoError } = await adminClient
-      .from('motos')
-      .insert(newMotos.slice(-groups.length))
-      .select('id')
-    if (motoError || !motoRows) return { ok: false, warning: motoError?.message || 'Failed to create QF motos.' }
-    motoRows.forEach((m, i) => {
-      groups[i].forEach((riderId) => newMotoRiders.push({ moto_id: m.id, rider_id: riderId }))
-    })
+      const { data: motoRows, error: motoError } = await adminClient
+        .from('motos')
+        .insert(newMotos.slice(-groups.length))
+        .select('id')
+      if (motoError || !motoRows) return { ok: false, warning: motoError?.message || 'Failed to create QF motos.' }
+      motoRows.forEach((m, i) => {
+        groups[i].forEach((riderId) => newMotoRiders.push({ moto_id: m.id, rider_id: riderId }))
+      })
+    }
   }
 
   const semiExists = await safeMotoNameExists(eventId, categoryId, 'Semi Final')
