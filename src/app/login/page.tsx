@@ -50,7 +50,7 @@ export default function LoginPage() {
         : normalized === 'FINISHER'
         ? '/jury/finish'
         : normalized === 'CHECKER'
-        ? '/jury/start'
+        ? '/jc'
         : normalized === 'race_control'
         ? '/race-control'
         : '/admin'
