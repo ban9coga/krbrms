@@ -17,7 +17,10 @@ type MotoItem = {
   category_id: string
   moto_name: string
   moto_order: number
-  status: 'UPCOMING' | 'LIVE' | 'FINISHED'
+  status: 'UPCOMING' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED'
+  is_published?: boolean | null
+  published_at?: string | null
+  provisional_at?: string | null
 }
 
 
@@ -25,7 +28,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
   const [categories, setCategories] = useState<CategoryItem[]>([])
   const [motos, setMotos] = useState<MotoItem[]>([])
   const [loading, setLoading] = useState(false)
-  const [eventStatus, setEventStatus] = useState<'UPCOMING' | 'LIVE' | 'FINISHED' | null>(null)
+  const [eventStatus, setEventStatus] = useState<'UPCOMING' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED' | null>(null)
 
   const getErrorMessage = (err: unknown) => (err instanceof Error ? err.message : 'Request failed')
 
@@ -112,6 +115,15 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     }
   }
 
+  const handlePublishMoto = async (motoId: string) => {
+    try {
+      await apiFetch(`/api/motos/${motoId}/publish`, { method: 'POST' })
+      await load()
+    } catch (err: unknown) {
+      alert(getErrorMessage(err))
+    }
+  }
+
   return (
     <div style={{ maxWidth: 980 }}>
       <h1 style={{ fontSize: 26, fontWeight: 950, margin: 0 }}>Motos</h1>
@@ -174,25 +186,55 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                     borderRadius: 14,
                     border: '2px solid #111',
                     background: '#eaf7ee',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
+                    display: 'grid',
+                    gridTemplateColumns: '1fr auto',
                     gap: 10,
                   }}
                 >
-                  <div style={{ fontWeight: 900 }}>
-                    {m.moto_order}. {m.moto_name}
+                  <div style={{ display: 'grid', gap: 6 }}>
+                    <div style={{ fontWeight: 900 }}>
+                      {m.moto_order}. {m.moto_name}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontWeight: 800, fontSize: 12 }}>
+                      <span>Status: {m.status}</span>
+                      {m.status === 'PROVISIONAL' && m.provisional_at && (
+                        <span>Provisional: {new Date(m.provisional_at).toLocaleString()}</span>
+                      )}
+                      {m.is_published && m.published_at && (
+                        <span>Published: {new Date(m.published_at).toLocaleString()}</span>
+                      )}
+                    </div>
                   </div>
-                  <select
-                    value={m.status}
-                    onChange={(e) => handleUpdateMotoStatus(m.id, e.target.value as MotoItem['status'])}
-                    disabled={eventStatus !== 'LIVE'}
-                    style={{ padding: '8px 10px', borderRadius: 12, border: '2px solid #111', fontWeight: 900 }}
-                  >
-                    <option value="UPCOMING">UPCOMING</option>
-                    <option value="LIVE">LIVE</option>
-                    <option value="FINISHED">FINISHED</option>
-                  </select>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <select
+                      value={m.status}
+                      onChange={(e) => handleUpdateMotoStatus(m.id, e.target.value as MotoItem['status'])}
+                      disabled={eventStatus !== 'LIVE'}
+                      style={{ padding: '8px 10px', borderRadius: 12, border: '2px solid #111', fontWeight: 900 }}
+                    >
+                      <option value="UPCOMING">UPCOMING</option>
+                      <option value="LIVE">LIVE</option>
+                      <option value="FINISHED">FINISHED</option>
+                      <option value="PROVISIONAL">PROVISIONAL</option>
+                      <option value="PROTEST_REVIEW">PROTEST_REVIEW</option>
+                      <option value="LOCKED">LOCKED</option>
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => handlePublishMoto(m.id)}
+                      disabled={m.status !== 'LOCKED' || m.is_published}
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: 999,
+                        border: '2px solid #111',
+                        background: m.status === 'LOCKED' && !m.is_published ? '#2ecc71' : '#fff',
+                        fontWeight: 900,
+                        cursor: m.status === 'LOCKED' && !m.is_published ? 'pointer' : 'not-allowed',
+                      }}
+                    >
+                      {m.is_published ? 'Published' : 'Publish'}
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
