@@ -77,6 +77,7 @@ export default function JuryStartPage() {
   const [locked, setLocked] = useState(false)
   const [query, setQuery] = useState('')
   const [openPenalty, setOpenPenalty] = useState<Record<string, boolean>>({})
+  const [redirected, setRedirected] = useState(false)
 
   const apiFetch = async (url: string, options: RequestInit = {}) => {
     const { data } = await supabase.auth.getSession()
@@ -232,6 +233,13 @@ export default function JuryStartPage() {
     }
     loadMoto()
   }, [selectedMotoId, eventId])
+
+  useEffect(() => {
+    if (redirected) return
+    if (!eventId || !selectedMotoId) return
+    setRedirected(true)
+    router.replace(`/jc/${eventId}/${selectedMotoId}`)
+  }, [eventId, selectedMotoId, redirected, router])
 
   const riderList = useMemo(() => {
     const sorted = [...riders].sort((a, b) => {
