@@ -99,7 +99,13 @@ export default function JCPage() {
         const catRows = (catJson.data ?? []) as CategoryItem[]
         setCategories(catRows)
         setFlags(flagJson.data ?? { penalty_enabled: true, absent_enabled: true })
-        setSafetyRequirements((safetyRes.data ?? []) as SafetyRequirement[])
+        const rawSafety = (safetyRes.data ?? []) as SafetyRequirement[]
+        const uniqueSafety = new Map<string, SafetyRequirement>()
+        for (const item of rawSafety) {
+          const key = item.label.trim().toLowerCase()
+          if (!uniqueSafety.has(key)) uniqueSafety.set(key, item)
+        }
+        setSafetyRequirements(Array.from(uniqueSafety.values()))
 
         const yearMap = new Map<string, number>()
         const genderMap = new Map<string, string>()
@@ -159,7 +165,13 @@ export default function JCPage() {
       }
       setStatuses((prev) => ({ ...prev, ...nextStatuses }))
 
-      const requirements = (safetyRes.data?.requirements ?? []) as SafetyRequirement[]
+      const rawRequirements = (safetyRes.data?.requirements ?? []) as SafetyRequirement[]
+      const uniqueSafety = new Map<string, SafetyRequirement>()
+      for (const item of rawRequirements) {
+        const key = item.label.trim().toLowerCase()
+        if (!uniqueSafety.has(key)) uniqueSafety.set(key, item)
+      }
+      const requirements = Array.from(uniqueSafety.values())
       const checks = (safetyRes.data?.checks ?? []) as Array<{
         rider_id: string
         requirement_id: string
