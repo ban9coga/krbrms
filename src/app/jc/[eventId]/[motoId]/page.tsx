@@ -618,7 +618,7 @@ export default function JCPage() {
                   </label>
                   {safetyOk[r.id] === false && (
                     <span style={{ fontSize: 12, color: '#b91c1c', fontWeight: 800 }}>
-                      Safety incomplete -> penalty otomatis
+                      Safety incomplete &gt; penalty otomatis
                     </span>
                   )}
                 </div>
