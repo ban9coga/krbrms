@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { adminClient } from '../../../../../lib/auth'
-import { requireJury } from '../../../../../services/juryAuth'
+import { adminClient } from '../../../../../../../lib/auth'
+import { requireJury } from '../../../../../../../services/juryAuth'
 
 export async function POST(req: Request, { params }: { params: Promise<{ protestId: string }> }) {
   const auth = await requireJury(req, ['RACE_DIRECTOR'])
