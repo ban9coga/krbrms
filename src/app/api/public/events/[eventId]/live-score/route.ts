@@ -5,6 +5,8 @@ type MotoRow = {
   id: string
   moto_name: string
   moto_order: number
+  status?: string | null
+  is_published?: boolean | null
 }
 
 type GateRow = {
@@ -75,12 +77,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
 
   const { data: motos, error: motoError } = await adminClient
     .from('motos')
-    .select('id, moto_name, moto_order')
+    .select('id, moto_name, moto_order, status, is_published')
     .eq('event_id', eventId)
     .eq('category_id', categoryId)
     .order('moto_order', { ascending: true })
   if (motoError) return NextResponse.json({ error: motoError.message }, { status: 400 })
   const motoRows = (motos ?? []) as MotoRow[]
+  .filter((m) => {
+    const status = m.status ?? ''
+    return status === 'LIVE' || (status === 'LOCKED' && m.is_published === true)
+  })
 
   const motoIds = motoRows.map((m) => m.id)
   if (motoIds.length === 0) return NextResponse.json({ data: { batches: [], category: category.label } })
