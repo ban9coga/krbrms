@@ -37,7 +37,12 @@ type EventFlags = {
   absent_enabled: boolean
 }
 
-const SAFETY_CHECKLIST = ['Helmet', 'Gloves', 'Plate']
+type SafetyRequirement = {
+  id: string
+  label: string
+  is_required: boolean
+  sort_order?: number | null
+}
 
 export default function JCPage() {
   const router = useRouter()
@@ -56,6 +61,7 @@ export default function JCPage() {
   const [locked, setLocked] = useState(false)
   const [query, setQuery] = useState('')
   const [lastUpdated, setLastUpdated] = useState<string | null>(null)
+  const [safetyRequirements, setSafetyRequirements] = useState<SafetyRequirement[]>([])
   const [safetyChecks, setSafetyChecks] = useState<Record<string, Record<string, boolean>>>({})
 
   const handleLogout = async () => {
@@ -81,10 +87,11 @@ export default function JCPage() {
       if (!eventId) return
       setLoading(true)
       try {
-        const [motoRes, catRes, flagRes] = await Promise.all([
+        const [motoRes, catRes, flagRes, safetyRes] = await Promise.all([
           fetch(`/api/motos?event_id=${eventId}`),
           fetch(`/api/events/${eventId}/categories`),
           apiFetch(`/api/jury/events/${eventId}/modules`),
+          apiFetch(`/api/jury/events/${eventId}/safety-requirements`),
         ])
         const motoJson = await motoRes.json()
         const catJson = await catRes.json()
@@ -92,6 +99,7 @@ export default function JCPage() {
         const catRows = (catJson.data ?? []) as CategoryItem[]
         setCategories(catRows)
         setFlags(flagJson.data ?? { penalty_enabled: true, absent_enabled: true })
+        setSafetyRequirements((safetyRes.data ?? []) as SafetyRequirement[])
 
         const yearMap = new Map<string, number>()
         const genderMap = new Map<string, string>()
@@ -125,10 +133,11 @@ export default function JCPage() {
     if (!selectedMotoId || !eventId) return
     if (!silent) setLoading(true)
     try {
-      const [lockRes, riderRes, statusRes] = await Promise.all([
+      const [lockRes, riderRes, statusRes, safetyRes] = await Promise.all([
         apiFetch(`/api/jury/motos/${selectedMotoId}/lock-status`),
         apiFetch(`/api/jury/motos/${selectedMotoId}/riders`),
         apiFetch(`/api/jury/events/${eventId}/rider-status`),
+        apiFetch(`/api/jury/motos/${selectedMotoId}/safety-checks`),
       ])
 
       setLocked(!!lockRes.data)
@@ -150,6 +159,23 @@ export default function JCPage() {
       }
       setStatuses((prev) => ({ ...prev, ...nextStatuses }))
 
+      const requirements = (safetyRes.data?.requirements ?? []) as SafetyRequirement[]
+      const checks = (safetyRes.data?.checks ?? []) as Array<{
+        rider_id: string
+        requirement_id: string
+        is_checked: boolean
+      }>
+      if (requirements.length > 0) setSafetyRequirements(requirements)
+      if (checks.length > 0) {
+        setSafetyChecks((prev) => {
+          const next = { ...prev }
+          for (const row of checks) {
+            const current = next[row.rider_id] ?? {}
+            next[row.rider_id] = { ...current, [row.requirement_id]: row.is_checked }
+          }
+          return next
+        })
+      }
       setLastUpdated(new Date().toLocaleTimeString())
     } finally {
       if (!silent) setLoading(false)
@@ -169,14 +195,14 @@ export default function JCPage() {
       for (const rider of riders) {
         const current = next[rider.id] ?? {}
         const updated: Record<string, boolean> = { ...current }
-        for (const item of SAFETY_CHECKLIST) {
-          if (typeof updated[item] !== 'boolean') updated[item] = false
+        for (const item of safetyRequirements) {
+          if (typeof updated[item.id] !== 'boolean') updated[item.id] = false
         }
         next[rider.id] = updated
       }
       return next
     })
-  }, [riders])
+  }, [riders, safetyRequirements])
 
   const categoryLabel = useMemo(() => {
     const map = new Map<string, string>()
@@ -223,8 +249,13 @@ export default function JCPage() {
     return s
   }, [riderList, statuses])
 
+  const requiredSafety = useMemo(
+    () => safetyRequirements.filter((r) => r.is_required !== false),
+    [safetyRequirements]
+  )
+
   const isSafetyOk = (riderId: string) =>
-    SAFETY_CHECKLIST.every((item) => safetyChecks[riderId]?.[item] === true)
+    requiredSafety.every((item) => safetyChecks[riderId]?.[item.id] === true)
 
   const readyCount = useMemo(() => {
     return riderList.filter((r) => statuses[r.id]?.participation_status === 'ACTIVE' && isSafetyOk(r.id)).length
@@ -398,18 +429,30 @@ export default function JCPage() {
           </button>
           <button
             type="button"
-            onClick={() =>
+            onClick={async () => {
               setSafetyChecks((prev) => {
                 const next = { ...prev }
                 for (const rider of riderList) {
                   const current = next[rider.id] ?? {}
                   const updated: Record<string, boolean> = { ...current }
-                  for (const item of SAFETY_CHECKLIST) updated[item] = true
+                  for (const item of safetyRequirements) updated[item.id] = true
                   next[rider.id] = updated
                 }
                 return next
               })
-            }
+              for (const rider of riderList) {
+                for (const item of safetyRequirements) {
+                  await apiFetch(`/api/jury/motos/${selectedMotoId}/safety-checks`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                      rider_id: rider.id,
+                      requirement_id: item.id,
+                      is_checked: true,
+                    }),
+                  })
+                }
+              }
+            }}
             disabled={saving || bannerDisabled || locked}
             style={{
               padding: '10px 14px',
@@ -532,18 +575,35 @@ export default function JCPage() {
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
-                  {SAFETY_CHECKLIST.map((item) => {
-                    const checked = safetyChecks[r.id]?.[item] === true
+                  {safetyRequirements.map((item) => {
+                    const checked = safetyChecks[r.id]?.[item.id] === true
                     return (
                       <button
-                        key={item}
+                        key={item.id}
                         type="button"
-                        onClick={() =>
+                        onClick={async () => {
+                          const nextChecked = !checked
                           setSafetyChecks((prev) => ({
                             ...prev,
-                            [r.id]: { ...(prev[r.id] ?? {}), [item]: !checked },
+                            [r.id]: { ...(prev[r.id] ?? {}), [item.id]: nextChecked },
                           }))
-                        }
+                          try {
+                            await apiFetch(`/api/jury/motos/${selectedMotoId}/safety-checks`, {
+                              method: 'POST',
+                              body: JSON.stringify({
+                                rider_id: r.id,
+                                requirement_id: item.id,
+                                is_checked: nextChecked,
+                              }),
+                            })
+                          } catch (err) {
+                            // revert on failure
+                            setSafetyChecks((prev) => ({
+                              ...prev,
+                              [r.id]: { ...(prev[r.id] ?? {}), [item.id]: checked },
+                            }))
+                          }
+                        }}
                         disabled={saving || bannerDisabled || locked}
                         style={{
                           padding: '10px 8px',
@@ -554,7 +614,7 @@ export default function JCPage() {
                           fontWeight: 900,
                         }}
                       >
-                        {item} {checked ? '✓' : ''}
+                        {item.label} {checked ? '✓' : ''}
                       </button>
                     )
                   })}

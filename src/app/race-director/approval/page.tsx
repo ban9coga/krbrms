@@ -53,6 +53,9 @@ export default function RaceDirectorApprovalPage() {
   const [approvalMode, setApprovalMode] = useState<'AUTO' | 'DIRECTOR'>('AUTO')
   const [motos, setMotos] = useState<MotoRow[]>([])
   const [lockedMap, setLockedMap] = useState<Record<string, boolean>>({})
+  const [gateStatus, setGateStatus] = useState<
+    Array<{ moto_id: string; moto_name: string; status: string; total: number; ready: number; absent: number }>
+  >([])
   const [openCategoryId, setOpenCategoryId] = useState<string | null>(null)
   const [auditLogs, setAuditLogs] = useState<
     Array<{
@@ -99,13 +102,14 @@ export default function RaceDirectorApprovalPage() {
       if (!eventId) return
       setLoading(true)
       try {
-        const [approvalRes, modeRes, motoRes, auditRes, lockRes, catRes] = await Promise.all([
+        const [approvalRes, modeRes, motoRes, auditRes, lockRes, catRes, gateRes] = await Promise.all([
           apiFetch(`/api/race-director/approvals?event_id=${eventId}`),
           apiFetch(`/api/race-director/mode?event_id=${eventId}`),
           fetch(`/api/motos?event_id=${eventId}`),
           apiFetch(`/api/race-director/audit?event_id=${eventId}`),
           apiFetch(`/api/jury/events/${eventId}/locks`),
           fetch(`/api/events/${eventId}/categories`),
+          apiFetch(`/api/race-director/events/${eventId}/gate-status`),
         ])
         setStatusUpdates(approvalRes.status_updates ?? [])
         setPenalties(approvalRes.penalties ?? [])
@@ -119,6 +123,7 @@ export default function RaceDirectorApprovalPage() {
         setLockedMap(map)
         const catJson = await catRes.json()
         setCategories((catJson.data ?? []) as CategoryItem[])
+        setGateStatus(gateRes.data ?? [])
       } finally {
         setLoading(false)
       }
@@ -303,6 +308,39 @@ export default function RaceDirectorApprovalPage() {
             <div style={{ fontSize: 12, fontWeight: 800, color: '#333' }}>Locked Motos</div>
             <div style={{ fontSize: 22, fontWeight: 950 }}>
               {Object.values(lockedMap).filter(Boolean).length}
+            </div>
+          </div>
+          <div style={{ border: '2px solid #111', borderRadius: 14, background: '#fff', padding: 12 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: '#333' }}>Gate Status</div>
+            <div style={{ marginTop: 8, display: 'grid', gap: 6 }}>
+              {gateStatus.length === 0 && <div style={{ fontSize: 12, color: '#333' }}>No data.</div>}
+              {gateStatus.map((g) => (
+                <div
+                  key={g.moto_id}
+                  style={{
+                    border: '2px solid #111',
+                    borderRadius: 10,
+                    padding: '6px 8px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: 8,
+                    background:
+                      g.status === 'READY'
+                        ? '#bfead2'
+                        : g.status === 'CHECKING'
+                        ? '#ffe9a8'
+                        : '#fff',
+                    fontSize: 12,
+                    fontWeight: 900,
+                  }}
+                >
+                  <span>{g.moto_name}</span>
+                  <span>
+                    {g.status} • {g.ready}/{g.total}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
