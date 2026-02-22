@@ -323,11 +323,17 @@ export default function JCPage() {
   const bannerDisabled = !selectedMotoLive
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f8f4e6', color: '#111' }}>
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: 20, display: 'grid', gap: 16 }}>
+    <div
+      style={{
+        minHeight: '100vh',
+        background: 'linear-gradient(180deg, #fff6da 0%, #fffdf5 60%)',
+        color: '#111',
+      }}
+    >
+      <div style={{ maxWidth: 980, margin: '0 auto', padding: 20, display: 'grid', gap: 16 }}>
         <div style={{ display: 'grid', gap: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-            <div style={{ fontSize: 22, fontWeight: 900 }}>
+            <div style={{ fontSize: 26, fontWeight: 900 }}>
               {selectedCategoryLabel} - {selectedMoto?.moto_name ?? 'Moto'} - {selectedMoto?.moto_order ?? '-'}
             </div>
             <select
@@ -338,11 +344,12 @@ export default function JCPage() {
                 router.replace(`/jc/${eventId}/${next}`)
               }}
               style={{
-                padding: '10px 12px',
-                borderRadius: 12,
+                padding: '12px 16px',
+                borderRadius: 18,
                 border: '2px solid #111',
-                background: '#fff',
-                fontWeight: 800,
+                background: '#f7f7f7',
+                fontWeight: 900,
+                boxShadow: '0 4px 0 #111',
               }}
             >
               {motos.map((m) => (
@@ -369,156 +376,157 @@ export default function JCPage() {
           )}
         </div>
 
-        <div
-          style={{
-            position: 'sticky',
-            top: 0,
-            zIndex: 10,
-            background: '#f8f4e6',
-            paddingBottom: 12,
-            borderBottom: '2px solid #111',
-            display: 'grid',
-            gap: 10,
-          }}
-        >
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-            <button
-              type="button"
-              onClick={() => setAbsentMode((v) => !v)}
-              style={{
-                padding: '6px 12px',
-                borderRadius: 999,
-                border: '2px solid #111',
-                background: absentMode ? '#bfead2' : '#fff',
-                fontWeight: 900,
-              }}
-            >
-              ABSENT: {absentMode ? 'ON' : 'OFF'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setPenaltyMode((v) => !v)}
-              style={{
-                padding: '6px 12px',
-                borderRadius: 999,
-                border: '2px solid #111',
-                background: penaltyMode ? '#bfead2' : '#fff',
-                fontWeight: 900,
-              }}
-            >
-              PENALTY: {penaltyMode ? 'ON' : 'OFF'}
-            </button>
-            <button
-              type="button"
-              onClick={() => loadMoto()}
-              style={{
-                padding: '6px 12px',
-                borderRadius: 999,
-                border: '2px solid #111',
-                background: '#fff',
-                fontWeight: 900,
-              }}
-            >
-              Refresh
-            </button>
-            <div style={{ fontSize: 12, color: '#333', fontWeight: 700 }}>
-              Last updated: {lastUpdated ?? '-'}
+          <div
+            style={{
+              position: 'sticky',
+              top: 0,
+              zIndex: 10,
+              background: 'linear-gradient(180deg, #fff6da 0%, #fffdf5 100%)',
+              paddingBottom: 12,
+              borderBottom: '2px solid #111',
+              display: 'grid',
+              gap: 12,
+            }}
+          >
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+              <button
+                type="button"
+                onClick={() => setAbsentMode((v) => !v)}
+                style={{
+                  padding: '10px 16px',
+                  borderRadius: 999,
+                  border: '2px solid #111',
+                  background: absentMode ? 'linear-gradient(180deg, #3fcb5b, #2ea043)' : '#fff',
+                  color: absentMode ? '#fff' : '#111',
+                  fontWeight: 900,
+                  boxShadow: '0 4px 0 #111',
+                }}
+              >
+                ABSENT: {absentMode ? 'ON' : 'OFF'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setPenaltyMode((v) => !v)}
+                style={{
+                  padding: '10px 16px',
+                  borderRadius: 999,
+                  border: '2px solid #111',
+                  background: penaltyMode ? 'linear-gradient(180deg, #e05252, #b91c1c)' : '#fff',
+                  color: penaltyMode ? '#fff' : '#111',
+                  fontWeight: 900,
+                  boxShadow: '0 4px 0 #111',
+                }}
+              >
+                PENALTY: {penaltyMode ? 'ON' : 'OFF'}
+              </button>
+              <button
+                type="button"
+                onClick={() => loadMoto()}
+                style={{
+                  padding: '10px 16px',
+                  borderRadius: 999,
+                  border: '2px solid #111',
+                  background: '#fff',
+                  fontWeight: 900,
+                  boxShadow: '0 4px 0 #111',
+                }}
+              >
+                Refresh
+              </button>
+              <div style={{ fontSize: 12, color: '#333', fontWeight: 700 }}>
+                Last updated: {lastUpdated ?? '-'}
+              </div>
             </div>
-          </div>
 
-          <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'minmax(220px, 1fr) auto' }}>
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Cari nama / plate / gate..."
-              style={{
-                padding: '10px 12px',
-                borderRadius: 12,
-                border: '2px solid #111',
-                background: '#fff',
-                fontWeight: 800,
-              }}
-            />
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end' }}>
-              <span style={{ padding: '6px 10px', borderRadius: 999, border: '2px solid #111', fontWeight: 900 }}>
-                Total: {summary.total}
-              </span>
-              <span
-                style={{
-                  padding: '6px 10px',
-                  borderRadius: 999,
-                  border: '2px solid #111',
-                  background: '#dcfce7',
-                  fontWeight: 900,
-                }}
-              >
-                ACTIVE: {summary.active}
-              </span>
-              <span
-                style={{
-                  padding: '6px 10px',
-                  borderRadius: 999,
-                  border: '2px solid #111',
-                  background: '#ffe9a8',
-                  fontWeight: 900,
-                }}
-              >
-                DNS: {summary.dns}
-              </span>
-              <span
-                style={{
-                  padding: '6px 10px',
-                  borderRadius: 999,
-                  border: '2px solid #111',
-                  background: '#fee2e2',
-                  fontWeight: 900,
-                }}
-              >
-                ABSENT: {summary.absent}
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  setStatuses((prev) => {
-                    const next = { ...prev }
-                    for (const r of riderList) {
-                      next[r.id] = {
-                        rider_id: r.id,
-                        participation_status: 'ACTIVE',
-                        registration_order: r.registration_order,
+            <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'minmax(220px, 1fr) 240px' }}>
+              <div style={{ display: 'grid', gap: 10 }}>
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Cari nama / plate / gate..."
+                  style={{
+                    padding: '12px 14px',
+                    borderRadius: 18,
+                    border: '2px solid #111',
+                    background: '#fff',
+                    fontWeight: 800,
+                    boxShadow: '0 4px 0 #111',
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={handleAllReady}
+                  disabled={saving || bannerDisabled || locked}
+                  style={{
+                    padding: '14px 18px',
+                    borderRadius: 999,
+                    border: '2px solid #1b5e20',
+                    background: 'linear-gradient(180deg, #45cf63 0%, #2ea043 100%)',
+                    color: '#fff',
+                    fontWeight: 900,
+                    fontSize: 20,
+                    boxShadow: '0 6px 0 #1b5e20',
+                  }}
+                >
+                  All Ready
+                </button>
+                <div style={{ fontSize: 12, color: '#333', fontWeight: 700, textAlign: 'center' }}>
+                  Last updated: {lastUpdated ?? '-'}
+                </div>
+              </div>
+              <div style={{ display: 'grid', gap: 8 }}>
+                {[
+                  { label: `Total: ${summary.total}`, bg: '#fff', color: '#111' },
+                  { label: `ACTIVE: ${summary.active}`, bg: '#dcfce7', color: '#14532d' },
+                  { label: `DNS: ${summary.dns}`, bg: '#ffe9a8', color: '#8a5d00' },
+                  { label: `ABSENT: ${summary.absent}`, bg: '#fee2e2', color: '#7f1d1d' },
+                ].map((item) => (
+                  <div
+                    key={item.label}
+                    style={{
+                      padding: '10px 14px',
+                      borderRadius: 999,
+                      border: '2px solid #111',
+                      background: item.bg,
+                      color: item.color,
+                      fontWeight: 900,
+                      textAlign: 'center',
+                      boxShadow: '0 4px 0 #111',
+                    }}
+                  >
+                    {item.label}
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStatuses((prev) => {
+                      const next = { ...prev }
+                      for (const r of riderList) {
+                        next[r.id] = {
+                          rider_id: r.id,
+                          participation_status: 'ACTIVE',
+                          registration_order: r.registration_order,
+                        }
                       }
-                    }
-                    return next
-                  })
-                }}
-                disabled={saving || bannerDisabled || locked}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: 999,
-                  border: '2px solid #111',
-                  background: '#bfead2',
-                  fontWeight: 900,
-                }}
-              >
-                Set All ACTIVE
-              </button>
-              <button
-                type="button"
-                onClick={handleAllReady}
-                disabled={saving || bannerDisabled || locked}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: 999,
-                  border: '2px solid #111',
-                  background: '#2ecc71',
-                  fontWeight: 900,
-                }}
-              >
-                All Ready
-              </button>
+                      return next
+                    })
+                  }}
+                  disabled={saving || bannerDisabled || locked}
+                  style={{
+                    padding: '10px 14px',
+                    borderRadius: 999,
+                    border: '2px solid #111',
+                    background: '#bfead2',
+                    fontWeight: 900,
+                    boxShadow: '0 4px 0 #111',
+                  }}
+                >
+                  Set All ACTIVE
+                </button>
+              </div>
             </div>
           </div>
-        </div>
 
         {loading && <div style={{ fontWeight: 900 }}>Loading...</div>}
 
@@ -538,9 +546,10 @@ export default function JCPage() {
                   padding: 14,
                   borderRadius: 14,
                   border: '2px solid #111',
-                  background: '#fff',
+                  background: 'linear-gradient(180deg, #ffffff 0%, #f7f7f7 100%)',
                   display: 'grid',
                   gap: 10,
+                  boxShadow: '0 6px 0 #111',
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
@@ -584,10 +593,11 @@ export default function JCPage() {
                       disabled={statusDisabled}
                       style={{
                         padding: '10px 8px',
-                        borderRadius: 12,
+                        borderRadius: 999,
                         border: '2px solid #111',
                         background: currentStatus === s ? statusColor : '#fff',
                         fontWeight: 900,
+                        boxShadow: '0 4px 0 #111',
                       }}
                     >
                       {s}
@@ -617,18 +627,27 @@ export default function JCPage() {
                   onClick={() => handleSaveStatus(r.id, currentStatus, r.gate_position ?? 0)}
                   disabled={saving || bannerDisabled || locked}
                   style={{
-                    padding: '10px 12px',
-                    borderRadius: 12,
-                    border: '2px solid #111',
-                    background: '#2ecc71',
+                    padding: '12px 14px',
+                    borderRadius: 999,
+                    border: '2px solid #1b5e20',
+                    background: 'linear-gradient(180deg, #d7f6e2 0%, #bfead2 100%)',
+                    color: '#0f3d1a',
                     fontWeight: 900,
+                    boxShadow: '0 4px 0 #1b5e20',
                   }}
                 >
                   Save Status
                 </button>
 
                 {penaltyMode && (
-                  <div style={{ borderRadius: 12, border: '2px solid #111', padding: 10 }}>
+                  <div
+                    style={{
+                      borderRadius: 12,
+                      border: '2px solid #111',
+                      padding: 10,
+                      background: '#eef7f1',
+                    }}
+                  >
                     <div style={{ fontSize: 12, fontWeight: 900, marginBottom: 6 }}>Penalty</div>
                     <div style={{ display: 'grid', gap: 6 }}>
                       {PENALTY_DEFINITIONS.map((p) => (
