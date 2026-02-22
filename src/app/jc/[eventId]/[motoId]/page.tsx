@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '../../../../lib/supabaseClient'
-import { PENALTY_DEFINITIONS } from '../../../../lib/penaltyDefinitions'
 
 type CategoryItem = {
   id: string
@@ -38,6 +37,8 @@ type EventFlags = {
   absent_enabled: boolean
 }
 
+const SAFETY_CHECKLIST = ['Helmet', 'Gloves', 'Plate']
+
 export default function JCPage() {
   const router = useRouter()
   const params = useParams()
@@ -49,25 +50,13 @@ export default function JCPage() {
   const [selectedMotoId, setSelectedMotoId] = useState(initialMotoId)
   const [riders, setRiders] = useState<RiderItem[]>([])
   const [statuses, setStatuses] = useState<Record<string, StatusRow>>({})
-  const [penaltiesByRider, setPenaltiesByRider] = useState<
-    Record<
-      string,
-      Array<{
-        rule_code: string
-        penalty_point: number
-        approval_status?: string | null
-      }>
-    >
-  >({})
   const [flags, setFlags] = useState<EventFlags>({ penalty_enabled: true, absent_enabled: true })
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [locked, setLocked] = useState(false)
   const [query, setQuery] = useState('')
-  const [absentMode, setAbsentMode] = useState(true)
-  const [penaltyMode, setPenaltyMode] = useState(true)
   const [lastUpdated, setLastUpdated] = useState<string | null>(null)
-  const [safetyOk, setSafetyOk] = useState<Record<string, boolean>>({})
+  const [safetyChecks, setSafetyChecks] = useState<Record<string, Record<string, boolean>>>({})
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -136,11 +125,10 @@ export default function JCPage() {
     if (!selectedMotoId || !eventId) return
     if (!silent) setLoading(true)
     try {
-      const [lockRes, riderRes, statusRes, penaltiesRes] = await Promise.all([
+      const [lockRes, riderRes, statusRes] = await Promise.all([
         apiFetch(`/api/jury/motos/${selectedMotoId}/lock-status`),
         apiFetch(`/api/jury/motos/${selectedMotoId}/riders`),
         apiFetch(`/api/jury/events/${eventId}/rider-status`),
-        apiFetch(`/api/jury/events/${eventId}/rider-penalties`),
       ])
 
       setLocked(!!lockRes.data)
@@ -162,27 +150,6 @@ export default function JCPage() {
       }
       setStatuses((prev) => ({ ...prev, ...nextStatuses }))
 
-      const penaltyMap: Record<
-        string,
-        Array<{
-          rule_code: string
-          penalty_point: number
-          approval_status?: string | null
-        }>
-      > = {}
-      for (const row of penaltiesRes.data ?? []) {
-        const approval = Array.isArray(row.rider_penalty_approvals)
-          ? row.rider_penalty_approvals[0]?.approval_status
-          : row.rider_penalty_approvals?.approval_status
-        const list = penaltyMap[row.rider_id] ?? []
-        list.push({
-          rule_code: row.rule_code,
-          penalty_point: Number(row.penalty_point ?? 0),
-          approval_status: approval ?? null,
-        })
-        penaltyMap[row.rider_id] = list
-      }
-      setPenaltiesByRider(penaltyMap)
       setLastUpdated(new Date().toLocaleTimeString())
     } finally {
       if (!silent) setLoading(false)
@@ -195,6 +162,21 @@ export default function JCPage() {
     return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMotoId, eventId])
+
+  useEffect(() => {
+    setSafetyChecks((prev) => {
+      const next = { ...prev }
+      for (const rider of riders) {
+        const current = next[rider.id] ?? {}
+        const updated: Record<string, boolean> = { ...current }
+        for (const item of SAFETY_CHECKLIST) {
+          if (typeof updated[item] !== 'boolean') updated[item] = false
+        }
+        next[rider.id] = updated
+      }
+      return next
+    })
+  }, [riders])
 
   const categoryLabel = useMemo(() => {
     const map = new Map<string, string>()
@@ -241,29 +223,22 @@ export default function JCPage() {
     return s
   }, [riderList, statuses])
 
-  const safetyRuleDefault = PENALTY_DEFINITIONS.find((p) => p.category === 'Safety')
-  const safetyRuleIds = new Set(PENALTY_DEFINITIONS.filter((p) => p.category === 'Safety').map((p) => p.id))
+  const readyCount = useMemo(() => {
+    return riderList.filter((r) => statuses[r.id]?.participation_status === 'ACTIVE' && isSafetyOk(r.id)).length
+  }, [riderList, statuses, safetyChecks])
 
-  const ensureSafetyPenalty = async (riderId: string) => {
-    if (!safetyRuleDefault || !flags.penalty_enabled) return
-    const existing = penaltiesByRider[riderId] ?? []
-    const hasSafety = existing.some((p) => safetyRuleIds.has(p.rule_code))
-    if (hasSafety) return
-    await apiFetch(`/api/jury/riders/${riderId}/penalties`, {
-      method: 'POST',
-      body: JSON.stringify({ event_id: eventId, stage: 'MOTO', rule_code: safetyRuleDefault.id }),
-    })
-  }
+  const isSafetyOk = (riderId: string) =>
+    SAFETY_CHECKLIST.every((item) => safetyChecks[riderId]?.[item] === true)
 
   const handleSaveStatus = async (riderId: string, status: StatusRow['participation_status'], order: number) => {
     if (!selectedMotoId) return
     if (!selectedMotoLive || locked) return
-    if (!absentMode && status !== 'DNS') return
     setSaving(true)
     try {
-      if (!safetyOk[riderId]) {
-        await ensureSafetyPenalty(riderId)
-      }
+      setStatuses((prev) => ({
+        ...prev,
+        [riderId]: { rider_id: riderId, participation_status: status, registration_order: order },
+      }))
       if (status === 'DNS') {
         await apiFetch(`/api/jury/motos/${selectedMotoId}/results`, {
           method: 'POST',
@@ -287,22 +262,6 @@ export default function JCPage() {
     }
   }
 
-  const handlePenalty = async (riderId: string, ruleCode: string) => {
-    if (!selectedMotoId) return
-    if (!selectedMotoLive || locked) return
-    if (!flags.penalty_enabled) return
-    setSaving(true)
-    try {
-      await apiFetch(`/api/jury/riders/${riderId}/penalties`, {
-        method: 'POST',
-        body: JSON.stringify({ event_id: eventId, stage: 'MOTO', rule_code: ruleCode }),
-      })
-      await loadMoto(true)
-    } finally {
-      setSaving(false)
-    }
-  }
-
   const handleAllReady = async () => {
     if (!selectedMotoId) return
     if (!selectedMotoLive || locked) return
@@ -310,6 +269,8 @@ export default function JCPage() {
     setSaving(true)
     try {
       for (const r of riderList) {
+        const current = statuses[r.id]?.participation_status
+        if (current === 'ABSENT') continue
         await apiFetch(`/api/jury/events/${eventId}/rider-status`, {
           method: 'POST',
           body: JSON.stringify({
@@ -327,6 +288,14 @@ export default function JCPage() {
   }
 
   const bannerDisabled = !selectedMotoLive
+  const canGateReady =
+    riderList.length > 0 &&
+    riderList.every((r) => {
+      const status = statuses[r.id]?.participation_status
+      if (status === 'ABSENT') return true
+      if (status === 'ACTIVE' && isSafetyOk(r.id)) return true
+      return false
+    })
 
   return (
     <div style={{ minHeight: '100vh', background: '#fff6da', color: '#111' }}>
@@ -349,7 +318,7 @@ export default function JCPage() {
               Logout
             </button>
             <div style={{ marginLeft: 'auto', fontWeight: 700 }}>
-              {selectedCategoryLabel} - {selectedMoto?.moto_name ?? '-'}
+              {selectedCategoryLabel} - {selectedMoto?.moto_name ?? '-'} | Ready: {readyCount}/{summary.total}
             </div>
             <select
               value={selectedMotoId}
@@ -374,7 +343,7 @@ export default function JCPage() {
             </select>
           </div>
 
-          <div style={{ fontWeight: 700, color: '#333' }}>ABSENT + gate penalties sebelum race start.</div>
+          <div style={{ fontWeight: 700, color: '#333' }}>Safety checklist sebelum race start.</div>
         </div>
 
         {bannerDisabled && (
@@ -393,34 +362,6 @@ export default function JCPage() {
         )}
 
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-          <button
-            type="button"
-            onClick={() => setAbsentMode((v) => !v)}
-            style={{
-              padding: '8px 14px',
-              borderRadius: 999,
-              border: '2px solid #111',
-              background: absentMode ? '#2ecc71' : '#fff',
-              color: absentMode ? '#fff' : '#111',
-              fontWeight: 900,
-            }}
-          >
-            ABSENT: {absentMode ? 'ON' : 'OFF'}
-          </button>
-          <button
-            type="button"
-            onClick={() => setPenaltyMode((v) => !v)}
-            style={{
-              padding: '8px 14px',
-              borderRadius: 999,
-              border: '2px solid #111',
-              background: penaltyMode ? '#e74c3c' : '#fff',
-              color: penaltyMode ? '#fff' : '#111',
-              fontWeight: 900,
-            }}
-          >
-            PENALTY: {penaltyMode ? 'ON' : 'OFF'}
-          </button>
           <div style={{ fontSize: 12, color: '#333', fontWeight: 700 }}>
             Last updated: {lastUpdated ?? '-'}
           </div>
@@ -442,7 +383,7 @@ export default function JCPage() {
           <button
             type="button"
             onClick={handleAllReady}
-            disabled={saving || bannerDisabled || locked}
+            disabled={saving || bannerDisabled || locked || !canGateReady}
             style={{
               padding: '14px 18px',
               borderRadius: 999,
@@ -454,6 +395,31 @@ export default function JCPage() {
             }}
           >
             All Ready
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              setSafetyChecks((prev) => {
+                const next = { ...prev }
+                for (const rider of riderList) {
+                  const current = next[rider.id] ?? {}
+                  const updated: Record<string, boolean> = { ...current }
+                  for (const item of SAFETY_CHECKLIST) updated[item] = true
+                  next[rider.id] = updated
+                }
+                return next
+              })
+            }
+            disabled={saving || bannerDisabled || locked}
+            style={{
+              padding: '10px 14px',
+              borderRadius: 999,
+              border: '2px solid #111',
+              background: '#fff',
+              fontWeight: 900,
+            }}
+          >
+            MARK ALL SAFETY OK
           </button>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             <span style={{ padding: '6px 12px', borderRadius: 999, border: '2px solid #111', fontWeight: 900 }}>
@@ -492,32 +458,6 @@ export default function JCPage() {
             >
               ABSENT: {summary.absent}
             </span>
-            <button
-              type="button"
-              onClick={() => {
-                setStatuses((prev) => {
-                  const next = { ...prev }
-                  for (const r of riderList) {
-                    next[r.id] = {
-                      rider_id: r.id,
-                      participation_status: 'ACTIVE',
-                      registration_order: r.registration_order,
-                    }
-                  }
-                  return next
-                })
-              }}
-              disabled={saving || bannerDisabled || locked}
-              style={{
-                padding: '6px 12px',
-                borderRadius: 999,
-                border: '2px solid #111',
-                background: '#bfead2',
-                fontWeight: 900,
-              }}
-            >
-              Set All ACTIVE
-            </button>
           </div>
         </div>
 
@@ -533,12 +473,21 @@ export default function JCPage() {
           }}
         >
           {filteredRiders.map((r) => {
-            const currentStatus = statuses[r.id]?.participation_status ?? 'ACTIVE'
-            const statusDisabled = saving || bannerDisabled || locked || !absentMode
-            const penaltyDisabled = saving || bannerDisabled || locked || !penaltyMode || !flags.penalty_enabled
-            const statusColor =
-              currentStatus === 'ACTIVE' ? '#dcfce7' : currentStatus === 'DNS' ? '#ffe9a8' : '#fee2e2'
-            const penalties = penaltiesByRider[r.id] ?? []
+            const rawStatus = statuses[r.id]?.participation_status
+            const currentStatus = rawStatus ?? 'UNSET'
+            const hasStatus = typeof rawStatus === 'string'
+            const statusDisabled = saving || bannerDisabled || locked
+            const safetyOk = isSafetyOk(r.id)
+            const statusBadge =
+              !hasStatus
+                ? '#e5e7eb'
+                : currentStatus === 'ABSENT'
+                ? '#fee2e2'
+                : currentStatus === 'ACTIVE' && safetyOk
+                ? '#dcfce7'
+                : currentStatus === 'ACTIVE'
+                ? '#ffe9a8'
+                : '#e5e7eb'
 
             return (
               <div
@@ -566,117 +515,83 @@ export default function JCPage() {
                         padding: '4px 10px',
                         borderRadius: 999,
                         border: '2px solid #111',
-                        background: statusColor,
+                        background: statusBadge,
                         fontWeight: 900,
                         fontSize: 11,
                       }}
                     >
-                      {currentStatus}
+                      {!hasStatus
+                        ? 'UNCHECKED'
+                        : currentStatus === 'ACTIVE' && safetyOk
+                        ? 'READY'
+                        : currentStatus === 'ACTIVE'
+                        ? 'WARNING'
+                        : currentStatus}
                     </div>
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-                  {(['ACTIVE', 'DNS', 'ABSENT'] as const).map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() =>
-                        setStatuses((prev) => ({
-                          ...prev,
-                          [r.id]: {
-                            rider_id: r.id,
-                            participation_status: s,
-                            registration_order: r.gate_position ?? 0,
-                          },
-                        }))
-                      }
-                      disabled={statusDisabled}
-                      style={{
-                        padding: '10px 8px',
-                        borderRadius: 999,
-                        border: '2px solid #111',
-                        background: currentStatus === s ? statusColor : '#fff',
-                        fontWeight: 900,
-                        boxShadow: '0 4px 0 #111',
-                      }}
-                    >
-                      {s}
-                    </button>
-                  ))}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+                  {SAFETY_CHECKLIST.map((item) => {
+                    const checked = safetyChecks[r.id]?.[item] === true
+                    return (
+                      <button
+                        key={item}
+                        type="button"
+                        onClick={() =>
+                          setSafetyChecks((prev) => ({
+                            ...prev,
+                            [r.id]: { ...(prev[r.id] ?? {}), [item]: !checked },
+                          }))
+                        }
+                        disabled={saving || bannerDisabled || locked}
+                        style={{
+                          padding: '10px 8px',
+                          borderRadius: 12,
+                          border: '2px solid #111',
+                          background: checked ? '#2ecc71' : '#e5e7eb',
+                          color: checked ? '#fff' : '#111',
+                          fontWeight: 900,
+                        }}
+                      >
+                        {item} {checked ? '✓' : ''}
+                      </button>
+                    )
+                  })}
                 </div>
 
-                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 800 }}>
-                    <input
-                      type="checkbox"
-                      checked={safetyOk[r.id] !== false}
-                      onChange={(e) => setSafetyOk((prev) => ({ ...prev, [r.id]: e.target.checked }))}
-                      disabled={saving || bannerDisabled || locked}
-                    />
-                    Safety OK
-                  </label>
-                  {safetyOk[r.id] === false && (
-                    <span style={{ fontSize: 12, color: '#b91c1c', fontWeight: 800 }}>
-                      Safety incomplete &gt; penalty otomatis
-                    </span>
-                  )}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => handleSaveStatus(r.id, currentStatus, r.gate_position ?? 0)}
-                  disabled={saving || bannerDisabled || locked}
-                  style={{
-                    padding: '12px 14px',
-                    borderRadius: 999,
-                    border: '2px solid #1b5e20',
-                    background: 'linear-gradient(180deg, #d7f6e2 0%, #bfead2 100%)',
-                    color: '#0f3d1a',
-                    fontWeight: 900,
-                    boxShadow: '0 4px 0 #1b5e20',
-                  }}
-                >
-                  Save Status
-                </button>
-
-                {penaltyMode && (
-                  <div
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => handleSaveStatus(r.id, 'ACTIVE', r.gate_position ?? 0)}
+                    disabled={statusDisabled || !safetyOk}
                     style={{
-                      borderRadius: 12,
-                      border: '2px solid #111',
-                      padding: 10,
-                      background: '#eef7f1',
+                      padding: '12px 14px',
+                      borderRadius: 999,
+                      border: '2px solid #1b5e20',
+                      background: safetyOk ? '#2ecc71' : '#e5e7eb',
+                      color: safetyOk ? '#fff' : '#111',
+                      fontWeight: 900,
                     }}
                   >
-                    <div style={{ fontSize: 12, fontWeight: 900, marginBottom: 6 }}>Penalty</div>
-                    <div style={{ display: 'grid', gap: 6 }}>
-                      {PENALTY_DEFINITIONS.map((p) => (
-                        <label key={p.id} style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12 }}>
-                          <input
-                            type="checkbox"
-                            disabled={penaltyDisabled}
-                            onChange={(e) => {
-                              if (e.currentTarget.checked) {
-                                handlePenalty(r.id, p.id)
-                                e.currentTarget.checked = false
-                              }
-                            }}
-                          />
-                          <span>
-                            {p.label} (+{p.points})
-                          </span>
-                        </label>
-                      ))}
-                    </div>
-                    <div
-                      title={penalties.length > 0 ? penalties.map((p) => p.rule_code).join(', ') : 'No penalties'}
-                      style={{ marginTop: 8, fontSize: 12, color: '#444' }}
-                    >
-                      Aktif: {penalties.length > 0 ? penalties.map((p) => p.rule_code).join(', ') : '-'}
-                    </div>
-                  </div>
-                )}
+                    READY
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSaveStatus(r.id, 'ABSENT', r.gate_position ?? 0)}
+                    disabled={statusDisabled}
+                    style={{
+                      padding: '12px 14px',
+                      borderRadius: 999,
+                      border: '2px solid #b91c1c',
+                      background: '#fee2e2',
+                      color: '#7f1d1d',
+                      fontWeight: 900,
+                    }}
+                  >
+                    ABSENT
+                  </button>
+                </div>
               </div>
             )
           })}
