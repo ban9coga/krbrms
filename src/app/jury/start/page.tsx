@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/supabaseClient'
-import { PENALTY_DEFINITIONS } from '../../../lib/penaltyDefinitions'
 
 type EventItem = {
   id: string
@@ -749,9 +748,9 @@ export default function JuryStartPage() {
                       </div>
                       {openPenalty[r.id] && (
                         <div style={{ display: 'grid', gap: 6, marginTop: 8 }}>
-                          {PENALTY_DEFINITIONS.map((p) => (
+                          {rules.map((p) => (
                             <label
-                              key={p.id}
+                              key={p.code}
                               style={{
                                 display: 'flex',
                                 alignItems: 'center',
@@ -765,16 +764,19 @@ export default function JuryStartPage() {
                                 disabled={penaltyDisabled}
                                 onChange={(e) => {
                                   if (e.currentTarget.checked) {
-                                    handlePenalty(r.id, p.id)
+                                    handlePenalty(r.id, p.code)
                                     e.currentTarget.checked = false
                                   }
                                 }}
                               />
                               <span>
-                                {p.label} ({p.points} pts, {p.automatic_action})
+                                {p.description || p.code} ({p.penalty_point} pts, {p.applies_to_stage})
                               </span>
                             </label>
                           ))}
+                          {rules.length === 0 && (
+                            <div style={{ fontSize: 12, color: '#444' }}>Penalty rules belum diatur.</div>
+                          )}
                         </div>
                       )}
                     </div>

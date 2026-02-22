@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '../../../../lib/supabaseClient'
-import { PENALTY_DEFINITIONS } from '../../../../lib/penaltyDefinitions'
 
 type CategoryItem = {
   id: string
@@ -293,14 +292,13 @@ export default function JCPage() {
     if (!ruleCode) return
     const existing = penaltiesByRider[riderId]
     if (existing?.has(ruleCode)) return
-    const def = PENALTY_DEFINITIONS.find((p) => p.id === ruleCode)
     await apiFetch(`/api/jury/riders/${riderId}/penalties`, {
       method: 'POST',
       body: JSON.stringify({
         event_id: eventId,
         stage: 'MOTO',
         rule_code: ruleCode,
-        note: def ? `Missing ${def.label}` : `Missing ${label}`,
+        note: `Missing ${label}`,
         moto_id: selectedMotoId,
       }),
     })

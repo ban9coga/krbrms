@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/supabaseClient'
-import { PENALTY_DEFINITIONS } from '../../../lib/penaltyDefinitions'
 
 type EventItem = {
   id: string
@@ -17,6 +16,13 @@ type CategoryItem = {
   label: string
   year?: number
   gender?: 'BOY' | 'GIRL' | 'MIX'
+}
+
+type PenaltyRule = {
+  code: string
+  description: string | null
+  penalty_point: number
+  applies_to_stage: string
 }
 
 type MotoItem = {
@@ -47,6 +53,7 @@ export default function JuryFinishPage() {
   const [eventId, setEventId] = useState('')
   const [categories, setCategories] = useState<CategoryItem[]>([])
   const [motos, setMotos] = useState<MotoItem[]>([])
+  const [rules, setRules] = useState<PenaltyRule[]>([])
   const [selectedMotoId, setSelectedMotoId] = useState('')
   const [riders, setRiders] = useState<RiderItem[]>([])
   const [role, setRole] = useState<string | null>(null)
@@ -108,12 +115,14 @@ export default function JuryFinishPage() {
   useEffect(() => {
     const loadAll = async () => {
       if (!eventId) return
-      const [motoRes, catRes] = await Promise.all([
+      const [motoRes, catRes, ruleRes] = await Promise.all([
         fetch(`/api/motos?event_id=${eventId}`),
         fetch(`/api/events/${eventId}/categories`),
+        apiFetch(`/api/jury/events/${eventId}/penalties`),
       ])
       const motoJson = await motoRes.json()
       const catJson = await catRes.json()
+      setRules((ruleRes.data ?? []) as PenaltyRule[])
       const catRows = (catJson.data ?? []) as CategoryItem[]
       setCategories(catRows)
       const yearMap = new Map<string, number>()
@@ -635,9 +644,9 @@ export default function JuryFinishPage() {
                 PENALTY CHECKLIST
               </div>
               <div style={{ display: 'grid', gap: 6 }}>
-                {PENALTY_DEFINITIONS.map((p) => (
+                {rules.map((p) => (
                   <label
-                    key={p.id}
+                    key={p.code}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -648,10 +657,13 @@ export default function JuryFinishPage() {
                   >
                     <input type="checkbox" disabled />
                     <span>
-                      {p.label} ({p.points} pts, {p.automatic_action})
+                      {p.description || p.code} ({p.penalty_point} pts, {p.applies_to_stage})
                     </span>
                   </label>
                 ))}
+                {rules.length === 0 && (
+                  <div style={{ fontSize: 12, color: '#444' }}>Penalty rules belum diatur.</div>
+                )}
               </div>
             </div>
           </aside>

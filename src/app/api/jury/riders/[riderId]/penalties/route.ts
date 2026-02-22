@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../../lib/auth'
 import { assertMotoEditable, assertMotoNotUnderProtest } from '../../../../../../lib/motoLock'
-import { PENALTY_DEFINITIONS } from '../../../../../../lib/penaltyDefinitions'
 import { requireJury } from '../../../../../../services/juryAuth'
 
 const getApprovalMode = async (eventId: string) => {
@@ -68,30 +67,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ riderId
     .eq('code', rule_code)
     .maybeSingle()
 
-  let resolvedRule = rule
+  const resolvedRule = rule
   if (ruleError) return NextResponse.json({ error: ruleError.message }, { status: 400 })
 
   if (!resolvedRule) {
-    const def = PENALTY_DEFINITIONS.find((p) => p.id === rule_code)
-    if (!def) {
-      return NextResponse.json({ error: 'Rule not found or inactive' }, { status: 400 })
-    }
-    const { data: created, error: createError } = await adminClient
-      .from('event_penalty_rules')
-      .insert([
-        {
-          event_id,
-          code: def.id,
-          description: def.description,
-          penalty_point: def.points,
-          applies_to_stage: 'MOTO',
-          is_active: true,
-        },
-      ])
-      .select('code, penalty_point, applies_to_stage, is_active')
-      .single()
-    if (createError) return NextResponse.json({ error: createError.message }, { status: 400 })
-    resolvedRule = created
+    return NextResponse.json(
+      { error: 'Penalty rule not configured for this event.' },
+      { status: 400 }
+    )
   }
 
   if (!resolvedRule?.is_active) {
