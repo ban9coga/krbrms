@@ -69,6 +69,12 @@ export default function JCPage() {
   const [lastUpdated, setLastUpdated] = useState<string | null>(null)
   const [safetyOk, setSafetyOk] = useState<Record<string, boolean>>({})
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    document.cookie = 'sb-access-token=; Path=/; Max-Age=0'
+    router.push('/login')
+  }
+
   const apiFetch = async (url: string, options: RequestInit = {}) => {
     const { data } = await supabase.auth.getSession()
     const token = data.session?.access_token
@@ -323,18 +329,27 @@ export default function JCPage() {
   const bannerDisabled = !selectedMotoLive
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        background: 'linear-gradient(180deg, #fff6da 0%, #fffdf5 60%)',
-        color: '#111',
-      }}
-    >
+    <div style={{ minHeight: '100vh', background: '#fff6da', color: '#111' }}>
       <div style={{ maxWidth: 980, margin: '0 auto', padding: 20, display: 'grid', gap: 16 }}>
-        <div style={{ display: 'grid', gap: 10 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-            <div style={{ fontSize: 26, fontWeight: 900 }}>
-              {selectedCategoryLabel} - {selectedMoto?.moto_name ?? 'Moto'} - {selectedMoto?.moto_order ?? '-'}
+        <div style={{ display: 'grid', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ fontSize: 28, fontWeight: 900 }}>Jury Start</div>
+            <button
+              type="button"
+              onClick={handleLogout}
+              style={{
+                padding: '6px 12px',
+                borderRadius: 999,
+                border: '2px solid #b91c1c',
+                background: '#fee2e2',
+                color: '#7f1d1d',
+                fontWeight: 800,
+              }}
+            >
+              Logout
+            </button>
+            <div style={{ marginLeft: 'auto', fontWeight: 700 }}>
+              {selectedCategoryLabel} - {selectedMoto?.moto_name ?? '-'}
             </div>
             <select
               value={selectedMotoId}
@@ -345,11 +360,10 @@ export default function JCPage() {
               }}
               style={{
                 padding: '12px 16px',
-                borderRadius: 18,
+                borderRadius: 16,
                 border: '2px solid #111',
-                background: '#f7f7f7',
+                background: '#fff',
                 fontWeight: 900,
-                boxShadow: '0 4px 0 #111',
               }}
             >
               {motos.map((m) => (
@@ -360,177 +374,164 @@ export default function JCPage() {
             </select>
           </div>
 
-          {bannerDisabled && (
-            <div
-              style={{
-                padding: '10px 14px',
-                borderRadius: 12,
-                border: '2px solid #b91c1c',
-                background: '#fee2e2',
-                color: '#7f1d1d',
-                fontWeight: 800,
-              }}
-            >
-              Moto masih {selectedMoto?.status ?? 'UPCOMING'}. Input hanya bisa saat LIVE.
-            </div>
-          )}
+          <div style={{ fontWeight: 700, color: '#333' }}>ABSENT + gate penalties sebelum race start.</div>
         </div>
 
+        {bannerDisabled && (
           <div
             style={{
-              position: 'sticky',
-              top: 0,
-              zIndex: 10,
-              background: 'linear-gradient(180deg, #fff6da 0%, #fffdf5 100%)',
-              paddingBottom: 12,
-              borderBottom: '2px solid #111',
-              display: 'grid',
-              gap: 12,
+              padding: '10px 14px',
+              borderRadius: 12,
+              border: '2px solid #b91c1c',
+              background: '#fee2e2',
+              color: '#7f1d1d',
+              fontWeight: 800,
             }}
           >
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-              <button
-                type="button"
-                onClick={() => setAbsentMode((v) => !v)}
-                style={{
-                  padding: '10px 16px',
-                  borderRadius: 999,
-                  border: '2px solid #111',
-                  background: absentMode ? 'linear-gradient(180deg, #3fcb5b, #2ea043)' : '#fff',
-                  color: absentMode ? '#fff' : '#111',
-                  fontWeight: 900,
-                  boxShadow: '0 4px 0 #111',
-                }}
-              >
-                ABSENT: {absentMode ? 'ON' : 'OFF'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setPenaltyMode((v) => !v)}
-                style={{
-                  padding: '10px 16px',
-                  borderRadius: 999,
-                  border: '2px solid #111',
-                  background: penaltyMode ? 'linear-gradient(180deg, #e05252, #b91c1c)' : '#fff',
-                  color: penaltyMode ? '#fff' : '#111',
-                  fontWeight: 900,
-                  boxShadow: '0 4px 0 #111',
-                }}
-              >
-                PENALTY: {penaltyMode ? 'ON' : 'OFF'}
-              </button>
-              <button
-                type="button"
-                onClick={() => loadMoto()}
-                style={{
-                  padding: '10px 16px',
-                  borderRadius: 999,
-                  border: '2px solid #111',
-                  background: '#fff',
-                  fontWeight: 900,
-                  boxShadow: '0 4px 0 #111',
-                }}
-              >
-                Refresh
-              </button>
-              <div style={{ fontSize: 12, color: '#333', fontWeight: 700 }}>
-                Last updated: {lastUpdated ?? '-'}
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'minmax(220px, 1fr) 240px' }}>
-              <div style={{ display: 'grid', gap: 10 }}>
-                <input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Cari nama / plate / gate..."
-                  style={{
-                    padding: '12px 14px',
-                    borderRadius: 18,
-                    border: '2px solid #111',
-                    background: '#fff',
-                    fontWeight: 800,
-                    boxShadow: '0 4px 0 #111',
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={handleAllReady}
-                  disabled={saving || bannerDisabled || locked}
-                  style={{
-                    padding: '14px 18px',
-                    borderRadius: 999,
-                    border: '2px solid #1b5e20',
-                    background: 'linear-gradient(180deg, #45cf63 0%, #2ea043 100%)',
-                    color: '#fff',
-                    fontWeight: 900,
-                    fontSize: 20,
-                    boxShadow: '0 6px 0 #1b5e20',
-                  }}
-                >
-                  All Ready
-                </button>
-                <div style={{ fontSize: 12, color: '#333', fontWeight: 700, textAlign: 'center' }}>
-                  Last updated: {lastUpdated ?? '-'}
-                </div>
-              </div>
-              <div style={{ display: 'grid', gap: 8 }}>
-                {[
-                  { label: `Total: ${summary.total}`, bg: '#fff', color: '#111' },
-                  { label: `ACTIVE: ${summary.active}`, bg: '#dcfce7', color: '#14532d' },
-                  { label: `DNS: ${summary.dns}`, bg: '#ffe9a8', color: '#8a5d00' },
-                  { label: `ABSENT: ${summary.absent}`, bg: '#fee2e2', color: '#7f1d1d' },
-                ].map((item) => (
-                  <div
-                    key={item.label}
-                    style={{
-                      padding: '10px 14px',
-                      borderRadius: 999,
-                      border: '2px solid #111',
-                      background: item.bg,
-                      color: item.color,
-                      fontWeight: 900,
-                      textAlign: 'center',
-                      boxShadow: '0 4px 0 #111',
-                    }}
-                  >
-                    {item.label}
-                  </div>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStatuses((prev) => {
-                      const next = { ...prev }
-                      for (const r of riderList) {
-                        next[r.id] = {
-                          rider_id: r.id,
-                          participation_status: 'ACTIVE',
-                          registration_order: r.registration_order,
-                        }
-                      }
-                      return next
-                    })
-                  }}
-                  disabled={saving || bannerDisabled || locked}
-                  style={{
-                    padding: '10px 14px',
-                    borderRadius: 999,
-                    border: '2px solid #111',
-                    background: '#bfead2',
-                    fontWeight: 900,
-                    boxShadow: '0 4px 0 #111',
-                  }}
-                >
-                  Set All ACTIVE
-                </button>
-              </div>
-            </div>
+            Moto masih {selectedMoto?.status ?? 'UPCOMING'}. Input hanya bisa saat LIVE.
           </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <button
+            type="button"
+            onClick={() => setAbsentMode((v) => !v)}
+            style={{
+              padding: '8px 14px',
+              borderRadius: 999,
+              border: '2px solid #111',
+              background: absentMode ? '#2ecc71' : '#fff',
+              color: absentMode ? '#fff' : '#111',
+              fontWeight: 900,
+            }}
+          >
+            ABSENT: {absentMode ? 'ON' : 'OFF'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setPenaltyMode((v) => !v)}
+            style={{
+              padding: '8px 14px',
+              borderRadius: 999,
+              border: '2px solid #111',
+              background: penaltyMode ? '#e74c3c' : '#fff',
+              color: penaltyMode ? '#fff' : '#111',
+              fontWeight: 900,
+            }}
+          >
+            PENALTY: {penaltyMode ? 'ON' : 'OFF'}
+          </button>
+          <div style={{ fontSize: 12, color: '#333', fontWeight: 700 }}>
+            Last updated: {lastUpdated ?? '-'}
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gap: 10 }}>
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Cari nama / plate / gate..."
+            style={{
+              padding: '12px 14px',
+              borderRadius: 16,
+              border: '2px solid #111',
+              background: '#fff',
+              fontWeight: 800,
+            }}
+          />
+          <button
+            type="button"
+            onClick={handleAllReady}
+            disabled={saving || bannerDisabled || locked}
+            style={{
+              padding: '14px 18px',
+              borderRadius: 999,
+              border: '2px solid #1b5e20',
+              background: '#2ecc71',
+              color: '#fff',
+              fontWeight: 900,
+              fontSize: 20,
+            }}
+          >
+            All Ready
+          </button>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <span style={{ padding: '6px 12px', borderRadius: 999, border: '2px solid #111', fontWeight: 900 }}>
+              Total: {summary.total}
+            </span>
+            <span
+              style={{
+                padding: '6px 12px',
+                borderRadius: 999,
+                border: '2px solid #111',
+                background: '#dcfce7',
+                fontWeight: 900,
+              }}
+            >
+              ACTIVE: {summary.active}
+            </span>
+            <span
+              style={{
+                padding: '6px 12px',
+                borderRadius: 999,
+                border: '2px solid #111',
+                background: '#ffe9a8',
+                fontWeight: 900,
+              }}
+            >
+              DNS: {summary.dns}
+            </span>
+            <span
+              style={{
+                padding: '6px 12px',
+                borderRadius: 999,
+                border: '2px solid #111',
+                background: '#fee2e2',
+                fontWeight: 900,
+              }}
+            >
+              ABSENT: {summary.absent}
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setStatuses((prev) => {
+                  const next = { ...prev }
+                  for (const r of riderList) {
+                    next[r.id] = {
+                      rider_id: r.id,
+                      participation_status: 'ACTIVE',
+                      registration_order: r.registration_order,
+                    }
+                  }
+                  return next
+                })
+              }}
+              disabled={saving || bannerDisabled || locked}
+              style={{
+                padding: '6px 12px',
+                borderRadius: 999,
+                border: '2px solid #111',
+                background: '#bfead2',
+                fontWeight: 900,
+              }}
+            >
+              Set All ACTIVE
+            </button>
+          </div>
+        </div>
 
         {loading && <div style={{ fontWeight: 900 }}>Loading...</div>}
 
-        <div style={{ display: 'grid', gap: 12 }}>
+        <div
+          style={{
+            display: 'grid',
+            gap: 12,
+            maxHeight: '70vh',
+            overflowY: 'auto',
+            paddingRight: 6,
+          }}
+        >
           {filteredRiders.map((r) => {
             const currentStatus = statuses[r.id]?.participation_status ?? 'ACTIVE'
             const statusDisabled = saving || bannerDisabled || locked || !absentMode
@@ -617,7 +618,7 @@ export default function JCPage() {
                   </label>
                   {safetyOk[r.id] === false && (
                     <span style={{ fontSize: 12, color: '#b91c1c', fontWeight: 800 }}>
-                      Safety incomplete → penalty otomatis
+                      Safety incomplete -> penalty otomatis
                     </span>
                   )}
                 </div>
@@ -668,7 +669,10 @@ export default function JCPage() {
                         </label>
                       ))}
                     </div>
-                    <div style={{ marginTop: 8, fontSize: 12, color: '#444' }}>
+                    <div
+                      title={penalties.length > 0 ? penalties.map((p) => p.rule_code).join(', ') : 'No penalties'}
+                      style={{ marginTop: 8, fontSize: 12, color: '#444' }}
+                    >
                       Aktif: {penalties.length > 0 ? penalties.map((p) => p.rule_code).join(', ') : '-'}
                     </div>
                   </div>
