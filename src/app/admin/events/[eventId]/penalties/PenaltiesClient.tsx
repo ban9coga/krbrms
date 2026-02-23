@@ -17,6 +17,14 @@ type PenaltyRule = {
   is_active: boolean
 }
 
+type SafetyRequirement = {
+  id: string
+  label: string
+  is_required: boolean
+  sort_order?: number | null
+  penalty_code?: string | null
+}
+
 type RiderItem = {
   id: string
   name: string
@@ -48,6 +56,7 @@ type RiderGroup = {
 export default function PenaltiesClient({ eventId }: { eventId: string }) {
   const [flags, setFlags] = useState<FeatureFlags | null>(null)
   const [rules, setRules] = useState<PenaltyRule[]>([])
+  const [requirements, setRequirements] = useState<SafetyRequirement[]>([])
   const [statuses, setStatuses] = useState<Record<string, RiderStatus>>({})
   const [groups, setGroups] = useState<RiderGroup[]>([])
   const [expandedCategoryId, setExpandedCategoryId] = useState<string | null>(null)
@@ -77,17 +86,20 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
   const loadAll = async () => {
     setLoading(true)
     try {
-      const [flagRes, ruleRes, statusRes] = await Promise.all([
+      const [flagRes, ruleRes, statusRes, reqRes] = await Promise.all([
         fetch(`/api/events/${eventId}/modules`),
         fetch(`/api/events/${eventId}/penalties`),
         fetch(`/api/events/${eventId}/rider-status`),
+        fetch(`/api/events/${eventId}/safety-requirements`),
       ])
       const flagJson = await flagRes.json()
       const ruleJson = await ruleRes.json()
       const statusJson = await statusRes.json()
+      const reqJson = await reqRes.json()
 
       setFlags(flagJson.data ?? { penalty_enabled: false, absent_enabled: false })
       setRules(ruleJson.data ?? [])
+      setRequirements(reqJson.data ?? [])
 
       const map: Record<string, RiderStatus> = {}
       for (const row of statusJson.data ?? []) {
@@ -221,6 +233,19 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
     setSaving(true)
     try {
       await apiFetch(`/api/events/${eventId}/penalties/${ruleId}`, { method: 'DELETE' })
+      await loadAll()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleSaveRequirement = async (req: SafetyRequirement) => {
+    setSaving(true)
+    try {
+      await apiFetch(`/api/events/${eventId}/safety-requirements`, {
+        method: 'PATCH',
+        body: JSON.stringify({ id: req.id, penalty_code: req.penalty_code ?? null }),
+      })
       await loadAll()
     } finally {
       setSaving(false)
@@ -375,6 +400,70 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
                   Delete
                 </button>
               </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div
+        style={{
+          marginTop: 16,
+          background: '#fff',
+          border: '2px solid #111',
+          borderRadius: 16,
+          padding: 16,
+          display: 'grid',
+          gap: 10,
+        }}
+      >
+        <div style={{ fontWeight: 950, fontSize: 18 }}>Safety Checklist Mapping</div>
+        <div style={{ fontSize: 12, color: '#444', fontWeight: 700 }}>
+          Hubungkan item safety dengan penalty rule. Wajib sebelum auto-penalty berjalan.
+        </div>
+        {requirements.length === 0 && (
+          <div style={{ padding: 12, borderRadius: 12, border: '2px dashed #111' }}>Belum ada safety requirements.</div>
+        )}
+        <div style={{ display: 'grid', gap: 10 }}>
+          {requirements.map((req) => (
+            <div key={req.id} style={{ display: 'grid', gap: 8, padding: 12, borderRadius: 12, border: '2px solid #111' }}>
+              <div style={{ fontWeight: 900 }}>{req.label}</div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <select
+                  value={req.penalty_code ?? ''}
+                  onChange={(e) =>
+                    setRequirements((prev) =>
+                      prev.map((r) => (r.id === req.id ? { ...r, penalty_code: e.target.value || null } : r))
+                    )
+                  }
+                  style={{ padding: '8px 10px', borderRadius: 10, border: '2px solid #111', fontWeight: 800 }}
+                >
+                  <option value="">-- Not linked --</option>
+                  {rules.map((rule) => (
+                    <option key={rule.id} value={rule.code}>
+                      {rule.code} â€¢ {rule.penalty_point} pts
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => handleSaveRequirement(req)}
+                  disabled={saving}
+                  style={{
+                    padding: '6px 10px',
+                    borderRadius: 10,
+                    border: '2px solid #111',
+                    background: '#2ecc71',
+                    fontWeight: 900,
+                  }}
+                >
+                  Save Mapping
+                </button>
+              </div>
+              {req.is_required && (
+                <div style={{ fontSize: 11, fontWeight: 800, color: '#b45309' }}>
+                  Required: penalty_code wajib ada.
+                </div>
+              )}
             </div>
           ))}
         </div>

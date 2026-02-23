@@ -42,14 +42,14 @@ type SafetyRequirement = {
   label: string
   is_required: boolean
   sort_order?: number | null
+  penalty_code?: string | null
 }
 
-const SAFETY_PENALTY_MAP: Record<string, string> = {
-  helmet: 'SAFETY_HELM_STRAP',
-  gloves: 'SAFETY_NO_GLOVES',
-  plate: 'TECH_PLATE_NOT_VISIBLE',
-  'elbow guard': 'SAFETY_NO_ELBOW_GUARD',
-  'knee guard': 'SAFETY_NO_KNEE_GUARD',
+type PenaltyRule = {
+  code: string
+  description: string | null
+  penalty_point: number
+  applies_to_stage: string
 }
 
 export default function JCPage() {
@@ -72,6 +72,7 @@ export default function JCPage() {
   const [safetyRequirements, setSafetyRequirements] = useState<SafetyRequirement[]>([])
   const [safetyChecks, setSafetyChecks] = useState<Record<string, Record<string, boolean>>>({})
   const [penaltiesByRider, setPenaltiesByRider] = useState<Record<string, Set<string>>>({})
+  const [penaltyRules, setPenaltyRules] = useState<PenaltyRule[]>([])
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -96,11 +97,12 @@ export default function JCPage() {
       if (!eventId) return
       setLoading(true)
       try {
-        const [motoRes, catRes, flagRes, safetyRes] = await Promise.all([
+        const [motoRes, catRes, flagRes, safetyRes, ruleRes] = await Promise.all([
           fetch(`/api/motos?event_id=${eventId}`),
           fetch(`/api/events/${eventId}/categories`),
           apiFetch(`/api/jury/events/${eventId}/modules`),
           apiFetch(`/api/jury/events/${eventId}/safety-requirements`),
+          apiFetch(`/api/jury/events/${eventId}/penalties`),
         ])
         const motoJson = await motoRes.json()
         const catJson = await catRes.json()
@@ -109,6 +111,7 @@ export default function JCPage() {
         setCategories(catRows)
         setFlags(flagJson.data ?? { penalty_enabled: true, absent_enabled: true })
         const rawSafety = (safetyRes.data ?? []) as SafetyRequirement[]
+        setPenaltyRules((ruleRes.data ?? []) as PenaltyRule[])
         const uniqueSafety = new Map<string, SafetyRequirement>()
         for (const item of rawSafety) {
           const key = item.label.trim().toLowerCase()
@@ -283,13 +286,19 @@ export default function JCPage() {
     [safetyRequirements]
   )
 
+  const penaltyRuleCodes = useMemo(() => new Set(penaltyRules.map((r) => r.code)), [penaltyRules])
+
   const isSafetyOk = (riderId: string) =>
     requiredSafety.every((item) => safetyChecks[riderId]?.[item.id] === true)
 
-  const applySafetyPenalty = async (riderId: string, label: string) => {
-    const key = label.trim().toLowerCase()
-    const ruleCode = SAFETY_PENALTY_MAP[key]
-    if (!ruleCode) return
+  const applySafetyPenalty = async (riderId: string, requirement: SafetyRequirement) => {
+    const ruleCode = requirement.penalty_code?.trim()
+    if (!ruleCode) {
+      throw new Error(`Penalty rule missing for ${requirement.label}`)
+    }
+    if (!penaltyRuleCodes.has(ruleCode)) {
+      throw new Error(`Penalty rule not configured: ${ruleCode}`)
+    }
     const existing = penaltiesByRider[riderId]
     if (existing?.has(ruleCode)) return
     await apiFetch(`/api/jury/riders/${riderId}/penalties`, {
@@ -298,7 +307,7 @@ export default function JCPage() {
         event_id: eventId,
         stage: 'MOTO',
         rule_code: ruleCode,
-        note: `Missing ${label}`,
+        note: `Missing ${requirement.label}`,
         moto_id: selectedMotoId,
       }),
     })
@@ -327,7 +336,12 @@ export default function JCPage() {
       if (status === 'ACTIVE') {
         for (const req of requiredSafety) {
           if (!safetyChecks[riderId]?.[req.id]) {
-            await applySafetyPenalty(riderId, req.label)
+            try {
+              await applySafetyPenalty(riderId, req)
+            } catch (err: unknown) {
+              alert(err instanceof Error ? err.message : 'Penalty rule not configured.')
+              return
+            }
           }
         }
       }
@@ -363,6 +377,16 @@ export default function JCPage() {
       for (const r of riderList) {
         const current = statuses[r.id]?.participation_status
         if (current === 'ABSENT') continue
+        for (const req of requiredSafety) {
+          if (!safetyChecks[r.id]?.[req.id]) {
+            try {
+              await applySafetyPenalty(r.id, req)
+            } catch (err: unknown) {
+              alert(err instanceof Error ? err.message : 'Penalty rule not configured.')
+              return
+            }
+          }
+        }
         await apiFetch(`/api/jury/events/${eventId}/rider-status`, {
           method: 'POST',
           body: JSON.stringify({

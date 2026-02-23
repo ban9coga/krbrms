@@ -10,7 +10,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
 
   const { data, error } = await adminClient
     .from('event_safety_requirements')
-    .select('id, label, is_required, sort_order')
+    .select('id, label, is_required, sort_order, penalty_code')
     .eq('event_id', eventId)
     .order('sort_order', { ascending: true })
 
