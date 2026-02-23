@@ -469,18 +469,19 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
         </div>
       </div>
 
-      <div
-        style={{
-          marginTop: 16,
-          background: '#fff',
-          border: '2px solid #111',
-          borderRadius: 16,
-          padding: 16,
-          display: 'grid',
-          gap: 10,
-        }}
-      >
-        <div style={{ fontWeight: 950, fontSize: 18 }}>Mark ABSENT</div>
+      {false && (
+      <div 
+        style={{ 
+          marginTop: 16, 
+          background: '#fff', 
+          border: '2px solid #111', 
+          borderRadius: 16, 
+          padding: 16, 
+          display: 'grid', 
+          gap: 10, 
+        }} 
+      > 
+        <div style={{ fontWeight: 950, fontSize: 18 }}>Mark ABSENT</div> 
         {loading && <div style={{ fontWeight: 900 }}>Loading...</div>}
         {!loading && groups.length === 0 && (
           <div style={{ padding: 12, borderRadius: 12, border: '2px dashed #111' }}>No riders.</div>
@@ -543,8 +544,9 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
               </div>
             )
           })}
-        </div>
-      </div>
+        </div> 
+      </div> 
+      )}
     </div>
   )
 }
