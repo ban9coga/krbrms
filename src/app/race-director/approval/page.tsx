@@ -278,8 +278,8 @@ export default function RaceDirectorApprovalPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#eaf7ee', color: '#111', padding: 16 }}>
-      <div style={{ maxWidth: 1080, margin: '0 auto', display: 'grid', gap: 16 }}>
+    <div className="rd-page" style={{ minHeight: '100vh', background: '#eaf7ee', color: '#111', padding: 16 }}>
+      <div className="rd-container" style={{ maxWidth: 1080, margin: '0 auto', display: 'grid', gap: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <div>
             <h1 style={{ fontSize: 26, fontWeight: 950, margin: 0 }}>Race Director</h1>
@@ -368,6 +368,7 @@ export default function RaceDirectorApprovalPage() {
         {loading && <div style={{ fontWeight: 900 }}>Loading...</div>}
 
         <div
+          className="rd-summary-grid"
           style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
@@ -479,7 +480,10 @@ export default function RaceDirectorApprovalPage() {
                     </span>
                   </div>
                   <div style={{ fontSize: 11, color: '#666' }}>Rider ID: {u.rider_id}</div>
-                  <div style={{ display: 'grid', gap: 8, marginTop: 6, gridTemplateColumns: '1fr 1fr' }}>
+                  <div
+                    className="rd-action-grid"
+                    style={{ display: 'grid', gap: 8, marginTop: 6, gridTemplateColumns: '1fr 1fr' }}
+                  >
                     <button
                       disabled={approvalMode === 'AUTO'}
                       onClick={() => handleDecision('status', u.id, 'APPROVE')}
@@ -548,7 +552,10 @@ export default function RaceDirectorApprovalPage() {
                     <span style={{ fontSize: 12, color: '#666' }}>{new Date(p.created_at).toLocaleString()}</span>
                   </div>
                   <div style={{ fontSize: 11, color: '#666' }}>Rider ID: {p.rider_id}</div>
-                  <div style={{ display: 'grid', gap: 8, marginTop: 6, gridTemplateColumns: '1fr 1fr' }}>
+                  <div
+                    className="rd-action-grid"
+                    style={{ display: 'grid', gap: 8, marginTop: 6, gridTemplateColumns: '1fr 1fr' }}
+                  >
                     <button
                       disabled={approvalMode === 'AUTO'}
                       onClick={() => handleDecision('penalty', p.id, 'APPROVE')}
@@ -782,6 +789,22 @@ export default function RaceDirectorApprovalPage() {
           </section>
         </div>
       </div>
+      <style jsx>{`
+        @media (max-width: 640px) {
+          .rd-page {
+            padding: 10px;
+          }
+          .rd-container {
+            gap: 12px;
+          }
+          .rd-summary-grid {
+            grid-template-columns: 1fr;
+          }
+          .rd-action-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+      `}</style>
     </div>
   )
 }

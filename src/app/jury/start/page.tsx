@@ -393,7 +393,7 @@ export default function JuryStartPage() {
   return (
     <div className="jury-start">
       <div className="jury-container">
-        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+        <div className="js-header" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <h1 style={{ fontSize: 28, fontWeight: 900, margin: 0 }}>Jury Start</h1>
             <button
@@ -875,6 +875,15 @@ export default function JuryStartPage() {
         @media (min-width: 1024px) {
           .layout-grid {
             grid-template-columns: 1fr;
+          }
+        }
+        @media (max-width: 640px) {
+          .jury-container {
+            padding: 12px;
+          }
+          .js-header {
+            flex-direction: column;
+            align-items: flex-start;
           }
         }
       `}</style>

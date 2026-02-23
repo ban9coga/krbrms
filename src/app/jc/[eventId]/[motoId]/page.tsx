@@ -414,10 +414,10 @@ export default function JCPage() {
     })
 
   return (
-    <div style={{ minHeight: '100vh', background: '#fff6da', color: '#111' }}>
-      <div style={{ maxWidth: 980, margin: '0 auto', padding: 20, display: 'grid', gap: 16 }}>
+    <div className="jc-page" style={{ minHeight: '100vh', background: '#fff6da', color: '#111' }}>
+      <div className="jc-container" style={{ maxWidth: 980, margin: '0 auto', padding: 20, display: 'grid', gap: 16 }}>
         <div style={{ display: 'grid', gap: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div className="jc-header-row" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <div style={{ fontSize: 28, fontWeight: 900 }}>Jury Start</div>
             <button
               type="button"
@@ -443,6 +443,7 @@ export default function JCPage() {
                 setSelectedMotoId(next)
                 router.replace(`/jc/${eventId}/${next}`)
               }}
+              className="jc-moto-select"
               style={{
                 padding: '12px 16px',
                 borderRadius: 16,
@@ -742,6 +743,21 @@ export default function JCPage() {
           })}
         </div>
       </div>
+      <style jsx>{`
+        @media (max-width: 640px) {
+          .jc-container {
+            padding: 12px;
+            gap: 12px;
+          }
+          .jc-header-row {
+            flex-direction: column;
+            align-items: flex-start;
+          }
+          .jc-moto-select {
+            width: 100%;
+          }
+        }
+      `}</style>
     </div>
   )
 }

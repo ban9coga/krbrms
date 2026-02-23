@@ -383,7 +383,7 @@ export default function JuryFinishPage() {
   return (
     <div className="jury-finish">
       <div className="jury-container">
-        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+        <div className="jf-header" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <h1 style={{ fontSize: 28, fontWeight: 900, margin: 0 }}>Jury Finish</h1>
             <button
@@ -669,7 +669,7 @@ export default function JuryFinishPage() {
           </aside>
         </div>
 
-        <div style={{ marginTop: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+        <div className="jf-footer" style={{ marginTop: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
           <button
             type="button"
             onClick={handleUndo}
@@ -760,6 +760,21 @@ export default function JuryFinishPage() {
           }
           .input-grid {
             grid-template-columns: repeat(3, minmax(0, 1fr));
+          }
+        }
+        @media (max-width: 640px) {
+          .jury-container {
+            padding: 12px;
+          }
+          .jf-header {
+            flex-direction: column;
+            align-items: flex-start;
+          }
+          .jf-footer {
+            flex-direction: column;
+          }
+          .jf-footer > button {
+            width: 100% !important;
           }
         }
       `}</style>
