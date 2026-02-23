@@ -90,12 +90,12 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
         fetch(`/api/events/${eventId}/modules`),
         fetch(`/api/events/${eventId}/penalties`),
         fetch(`/api/events/${eventId}/rider-status`),
-        fetch(`/api/events/${eventId}/safety-requirements`),
+        apiFetch(`/api/events/${eventId}/safety-requirements`),
       ])
       const flagJson = await flagRes.json()
       const ruleJson = await ruleRes.json()
       const statusJson = await statusRes.json()
-      const reqJson = await reqRes.json()
+      const reqJson = reqRes
 
       setFlags(flagJson.data ?? { penalty_enabled: false, absent_enabled: false })
       setRules(ruleJson.data ?? [])
