@@ -42,6 +42,12 @@ type CategoryItem = {
   year?: number
 }
 
+type RiderItem = {
+  id: string
+  name: string
+  no_plate_display: string
+}
+
 export default function RaceDirectorApprovalPage() {
   const router = useRouter()
   const [eventId, setEventId] = useState('')
@@ -53,6 +59,7 @@ export default function RaceDirectorApprovalPage() {
   const [approvalMode, setApprovalMode] = useState<'AUTO' | 'DIRECTOR'>('AUTO')
   const [motos, setMotos] = useState<MotoRow[]>([])
   const [lockedMap, setLockedMap] = useState<Record<string, boolean>>({})
+  const [riderMap, setRiderMap] = useState<Record<string, RiderItem>>({})
   const [gateStatus, setGateStatus] = useState<
     Array<{
       moto_id: string
@@ -110,7 +117,29 @@ export default function RaceDirectorApprovalPage() {
       if (!eventId) return
       setLoading(true)
       try {
-        const [approvalRes, modeRes, motoRes, auditRes, lockRes, catRes, gateRes] = await Promise.all([
+        const fetchAllRiders = async () => {
+          const all: RiderItem[] = []
+          let page = 1
+          const pageSize = 200
+          let total = 0
+          do {
+            const qs = new URLSearchParams({
+              event_id: eventId,
+              page: String(page),
+              page_size: String(pageSize),
+            })
+            const res = await apiFetch(`/api/riders?${qs.toString()}`)
+            const rows = (res.data ?? []) as RiderItem[]
+            total = Number(res.total ?? 0)
+            all.push(...rows)
+            page++
+          } while (all.length < total)
+          const map: Record<string, RiderItem> = {}
+          for (const r of all) map[r.id] = r
+          return map
+        }
+
+        const [approvalRes, modeRes, motoRes, auditRes, lockRes, catRes, gateRes, riderRes] = await Promise.all([
           apiFetch(`/api/race-director/approvals?event_id=${eventId}`),
           apiFetch(`/api/race-director/mode?event_id=${eventId}`),
           fetch(`/api/motos?event_id=${eventId}`),
@@ -118,6 +147,7 @@ export default function RaceDirectorApprovalPage() {
           apiFetch(`/api/jury/events/${eventId}/locks`),
           fetch(`/api/events/${eventId}/categories`),
           apiFetch(`/api/race-director/events/${eventId}/gate-status`),
+          fetchAllRiders(),
         ])
         setStatusUpdates(approvalRes.status_updates ?? [])
         setPenalties(approvalRes.penalties ?? [])
@@ -132,6 +162,7 @@ export default function RaceDirectorApprovalPage() {
         const catJson = await catRes.json()
         setCategories((catJson.data ?? []) as CategoryItem[])
         setGateStatus(gateRes.data ?? [])
+        setRiderMap(riderRes ?? {})
       } finally {
         setLoading(false)
       }
@@ -167,6 +198,24 @@ export default function RaceDirectorApprovalPage() {
     }
     return grouped
   }, [motos])
+
+  const sortedStatusUpdates = useMemo(() => {
+    return [...statusUpdates].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+  }, [statusUpdates])
+
+  const sortedPenalties = useMemo(() => {
+    return [...penalties].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+  }, [penalties])
+
+  const timeAgo = (iso: string) => {
+    const diff = Date.now() - new Date(iso).getTime()
+    const sec = Math.max(0, Math.floor(diff / 1000))
+    const min = Math.floor(sec / 60)
+    const hr = Math.floor(min / 60)
+    if (hr > 0) return `${hr}h ${min % 60}m ago`
+    if (min > 0) return `${min}m ago`
+    return `${sec}s ago`
+  }
 
   const handleDecision = async (type: 'status' | 'penalty', id: string, decision: 'APPROVE' | 'REJECT') => {
     const reason = prompt('Reason (optional):') ?? ''
@@ -368,7 +417,16 @@ export default function RaceDirectorApprovalPage() {
             <div style={{ fontWeight: 900, fontSize: 18 }}>Status Updates</div>
             {statusUpdates.length === 0 && <div style={{ marginTop: 8 }}>No pending status updates.</div>}
             <div style={{ marginTop: 10, display: 'grid', gap: 10 }}>
-              {statusUpdates.map((u) => (
+              {sortedStatusUpdates.map((u) => {
+                const rider = riderMap[u.rider_id]
+                const riderLabel = rider ? `${rider.no_plate_display} · ${rider.name}` : u.rider_id
+                const statusBadge =
+                  u.proposed_status === 'ABSENT'
+                    ? '#fee2e2'
+                    : u.proposed_status === 'DNS'
+                    ? '#ffe9a8'
+                    : '#bfead2'
+                return (
                 <div
                   key={u.id}
                   style={{
@@ -380,12 +438,27 @@ export default function RaceDirectorApprovalPage() {
                     gap: 6,
                   }}
                 >
-                  <div style={{ fontWeight: 900 }}>Rider: {u.rider_id}</div>
-                  <div>Proposed: {u.proposed_status}</div>
-                  <div style={{ fontSize: 12, color: '#333' }}>
-                    {new Date(u.created_at).toLocaleString()}
+                  <div style={{ fontWeight: 900 }}>{riderLabel}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span
+                      style={{
+                        padding: '4px 8px',
+                        borderRadius: 999,
+                        border: '2px solid #111',
+                        background: statusBadge,
+                        fontWeight: 900,
+                        fontSize: 12,
+                      }}
+                    >
+                      {u.proposed_status}
+                    </span>
+                    <span style={{ fontSize: 12, color: '#333' }}>{timeAgo(u.created_at)}</span>
+                    <span style={{ fontSize: 12, color: '#666' }}>
+                      {new Date(u.created_at).toLocaleString()}
+                    </span>
                   </div>
-                  <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                  <div style={{ fontSize: 11, color: '#666' }}>Rider ID: {u.rider_id}</div>
+                  <div style={{ display: 'grid', gap: 8, marginTop: 6, gridTemplateColumns: '1fr 1fr' }}>
                     <button
                       disabled={approvalMode === 'AUTO'}
                       onClick={() => handleDecision('status', u.id, 'APPROVE')}
@@ -416,7 +489,7 @@ export default function RaceDirectorApprovalPage() {
                     </button>
                   </div>
                 </div>
-              ))}
+              )})}
             </div>
           </section>
 
@@ -431,7 +504,10 @@ export default function RaceDirectorApprovalPage() {
             <div style={{ fontWeight: 900, fontSize: 18 }}>Penalty Approvals</div>
             {penalties.length === 0 && <div style={{ marginTop: 8 }}>No pending penalties.</div>}
             <div style={{ marginTop: 10, display: 'grid', gap: 10 }}>
-              {penalties.map((p) => (
+              {sortedPenalties.map((p) => {
+                const rider = riderMap[p.rider_id]
+                const riderLabel = rider ? `${rider.no_plate_display} · ${rider.name}` : p.rider_id
+                return (
                 <div
                   key={p.id}
                   style={{
@@ -443,13 +519,15 @@ export default function RaceDirectorApprovalPage() {
                     gap: 6,
                   }}
                 >
-                  <div style={{ fontWeight: 900 }}>Rider: {p.rider_id}</div>
+                  <div style={{ fontWeight: 900 }}>{riderLabel}</div>
                   <div>Rule: {p.rule_code} (+{p.penalty_point})</div>
                   {p.note && <div style={{ fontSize: 12, color: '#333' }}>Note: {p.note}</div>}
-                  <div style={{ fontSize: 12, color: '#333' }}>
-                    {new Date(p.created_at).toLocaleString()}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 12, color: '#333' }}>{timeAgo(p.created_at)}</span>
+                    <span style={{ fontSize: 12, color: '#666' }}>{new Date(p.created_at).toLocaleString()}</span>
                   </div>
-                  <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                  <div style={{ fontSize: 11, color: '#666' }}>Rider ID: {p.rider_id}</div>
+                  <div style={{ display: 'grid', gap: 8, marginTop: 6, gridTemplateColumns: '1fr 1fr' }}>
                     <button
                       disabled={approvalMode === 'AUTO'}
                       onClick={() => handleDecision('penalty', p.id, 'APPROVE')}
@@ -480,7 +558,7 @@ export default function RaceDirectorApprovalPage() {
                     </button>
                   </div>
                 </div>
-              ))}
+              )})}
             </div>
           </section>
 
