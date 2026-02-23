@@ -59,6 +59,7 @@ export default function RaceDirectorApprovalPage() {
   const [approvalMode, setApprovalMode] = useState<'AUTO' | 'DIRECTOR'>('AUTO')
   const [motos, setMotos] = useState<MotoRow[]>([])
   const [lockedMap, setLockedMap] = useState<Record<string, boolean>>({})
+  const [role, setRole] = useState<string | null>(null)
   const [riderMap, setRiderMap] = useState<Record<string, RiderItem>>({})
   const [gateStatus, setGateStatus] = useState<
     Array<{
@@ -110,6 +111,19 @@ export default function RaceDirectorApprovalPage() {
     }
     loadEvents()
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    const loadRole = async () => {
+      const { data } = await supabase.auth.getUser()
+      const meta = (data.user?.user_metadata ?? {}) as Record<string, unknown>
+      const appMeta = (data.user?.app_metadata ?? {}) as Record<string, unknown>
+      const r =
+        (typeof meta.role === 'string' ? meta.role : null) ||
+        (typeof appMeta.role === 'string' ? appMeta.role : null)
+      setRole(r)
+    }
+    loadRole()
   }, [])
 
   useEffect(() => {
@@ -243,17 +257,24 @@ export default function RaceDirectorApprovalPage() {
   }
 
   const handleLock = async (motoId: string, lock: boolean) => {
-    const reason = prompt('Reason (required):') ?? ''
-    if (!reason.trim()) return
-    const url = lock
-      ? `/api/race-director/motos/${motoId}/lock`
-      : `/api/race-director/motos/${motoId}/unlock`
-    await apiFetch(url, { method: 'POST', body: JSON.stringify({ reason }) })
+    if (lock) {
+      const ok = confirm(
+        'Lock Moto?\n\nThis will finalize results and freeze modifications.\nThis action should only be done after all approvals are completed.'
+      )
+      if (!ok) return
+    }
+    const targetStatus = lock ? 'LOCKED' : 'PROVISIONAL'
+    await apiFetch(`/api/motos/${motoId}/status`, {
+      method: 'POST',
+      body: JSON.stringify({ status: targetStatus }),
+    })
     const lockRes = await apiFetch(`/api/jury/events/${eventId}/locks`)
     const lockList = (lockRes.data ?? []) as Array<{ moto_id: string }>
     const map: Record<string, boolean> = {}
     for (const row of lockList) map[row.moto_id] = true
     setLockedMap(map)
+    const refreshed = await apiFetch(`/api/motos?event_id=${eventId}`)
+    setMotos(refreshed.data ?? [])
   }
 
   return (
@@ -607,14 +628,18 @@ export default function RaceDirectorApprovalPage() {
                     {isOpen && (
                       <div style={{ display: 'grid', gap: 8 }}>
                         {list.map((m) => {
-                          const isLocked = !!lockedMap[m.id]
+                          const status = (m.status ?? '').toUpperCase()
+                          const isLocked = status === 'LOCKED'
+                          const canUnlock = isLocked && role === 'super_admin'
+                          const canLock = status === 'PROVISIONAL' || status === 'PROTEST_REVIEW'
+                          const showLockDisabled = status === 'UPCOMING'
                           return (
                             <div
                               key={m.id}
                               style={{
                                 border: '2px solid #111',
                                 borderRadius: 12,
-                                background: '#eaf7ee',
+                                background: isLocked ? '#dbeafe' : '#eaf7ee',
                                 padding: 12,
                                 display: 'grid',
                                 gap: 6,
@@ -631,39 +656,82 @@ export default function RaceDirectorApprovalPage() {
                                   padding: '4px 8px',
                                   borderRadius: 999,
                                   border: '2px solid #111',
-                                  background: isLocked ? '#ffd7d7' : '#bfead2',
+                                  background:
+                                    status === 'LOCKED'
+                                      ? '#93c5fd'
+                                      : status === 'PROVISIONAL'
+                                      ? '#ffe9a8'
+                                      : status === 'PROTEST_REVIEW'
+                                      ? '#ffd7d7'
+                                      : '#bfead2',
                                   width: 'fit-content',
                                 }}
                               >
-                                {isLocked ? 'LOCKED' : 'UNLOCKED'}
+                                {status || 'UNKNOWN'}
                               </div>
-                              <div style={{ display: 'flex', gap: 8 }}>
-                                <button
-                                  onClick={() => handleLock(m.id, true)}
+                              {status === 'LIVE' && (
+                                <div
                                   style={{
-                                    padding: '8px 12px',
-                                    borderRadius: 10,
-                                    border: '2px solid #111',
-                                    background: '#ffd7d7',
+                                    fontSize: 11,
                                     fontWeight: 900,
-                                    cursor: 'pointer',
+                                    padding: '4px 8px',
+                                    borderRadius: 999,
+                                    border: '2px solid #111',
+                                    background: '#ffe9a8',
+                                    width: 'fit-content',
                                   }}
                                 >
-                                  Lock
-                                </button>
-                                <button
-                                  onClick={() => handleLock(m.id, false)}
-                                  style={{
-                                    padding: '8px 12px',
-                                    borderRadius: 10,
-                                    border: '2px solid #111',
-                                    background: '#bfead2',
-                                    fontWeight: 900,
-                                    cursor: 'pointer',
-                                  }}
-                                >
-                                  Unlock
-                                </button>
+                                  Race in progress
+                                </div>
+                              )}
+                              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                {showLockDisabled && (
+                                  <button
+                                    disabled
+                                    title="Moto must be LIVE/PROVISIONAL before locking."
+                                    style={{
+                                      padding: '8px 12px',
+                                      borderRadius: 10,
+                                      border: '2px solid #111',
+                                      background: '#f3f4f6',
+                                      fontWeight: 900,
+                                      cursor: 'not-allowed',
+                                    }}
+                                  >
+                                    Lock
+                                  </button>
+                                )}
+                                {canLock && (
+                                  <button
+                                    onClick={() => handleLock(m.id, true)}
+                                    style={{
+                                      padding: '8px 12px',
+                                      borderRadius: 10,
+                                      border: '2px solid #111',
+                                      background: '#ffd7d7',
+                                      fontWeight: 900,
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    Lock
+                                  </button>
+                                )}
+                                {canUnlock && (
+                                  <button
+                                    onClick={() => handleLock(m.id, false)}
+                                    style={{
+                                      padding: '8px 12px',
+                                      borderRadius: 10,
+                                      border: '2px solid #b40000',
+                                      background: '#ffd7d7',
+                                      color: '#b40000',
+                                      fontWeight: 900,
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    Unlock
+                                  </button>
+                                )}
                               </div>
                             </div>
                           )
