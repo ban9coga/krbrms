@@ -48,6 +48,7 @@ type StatusRow = {
 }
 
 export default function JuryStartPage() {
+  const legacyDisabled = true
   const router = useRouter()
   const [events, setEvents] = useState<EventItem[]>([])
   const [eventId, setEventId] = useState('')
@@ -389,6 +390,31 @@ export default function JuryStartPage() {
     } finally {
       setSaving(false)
     }
+  }
+
+  if (legacyDisabled) {
+    return (
+      <div style={{ padding: 24 }}>
+        <h2 style={{ fontSize: 22, fontWeight: 900, marginBottom: 8 }}>Jury Start (Legacy)</h2>
+        <div style={{ marginBottom: 12 }}>
+          Halaman ini dinonaktifkan. Silakan gunakan halaman JC baru.
+        </div>
+        <button
+          type="button"
+          onClick={() => router.push('/jc')}
+          style={{
+            padding: '10px 14px',
+            borderRadius: 10,
+            border: '2px solid #111',
+            background: '#2ecc71',
+            fontWeight: 900,
+            cursor: 'pointer',
+          }}
+        >
+          Buka JC
+        </button>
+      </div>
+    )
   }
 
   return (
