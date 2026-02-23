@@ -646,33 +646,35 @@ export default function JuryFinishPage() {
               </div>
             </div>
 
-            <div style={{ marginTop: 16, borderTop: '2px dashed #111', paddingTop: 16 }}>
-              <div style={{ marginBottom: 10, fontSize: 12, fontWeight: 800, letterSpacing: '0.15em', color: '#444' }}>
-                PENALTY CHECKLIST
+            {false && (
+              <div style={{ marginTop: 16, borderTop: '2px dashed #111', paddingTop: 16 }}>
+                <div style={{ marginBottom: 10, fontSize: 12, fontWeight: 800, letterSpacing: '0.15em', color: '#444' }}>
+                  PENALTY CHECKLIST
+                </div>
+                <div style={{ display: 'grid', gap: 6 }}>
+                  {rules.map((p) => (
+                    <label
+                      key={p.code}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        fontSize: 12,
+                        fontWeight: 700,
+                      }}
+                    >
+                      <input type="checkbox" disabled />
+                      <span>
+                        {p.description || p.code} ({p.penalty_point} pts, {p.applies_to_stage})
+                      </span>
+                    </label>
+                  ))}
+                  {rules.length === 0 && (
+                    <div style={{ fontSize: 12, color: '#444' }}>Penalty rules belum diatur.</div>
+                  )}
+                </div>
               </div>
-              <div style={{ display: 'grid', gap: 6 }}>
-                {rules.map((p) => (
-                  <label
-                    key={p.code}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      fontSize: 12,
-                      fontWeight: 700,
-                    }}
-                  >
-                    <input type="checkbox" disabled />
-                    <span>
-                      {p.description || p.code} ({p.penalty_point} pts, {p.applies_to_stage})
-                    </span>
-                  </label>
-                ))}
-                {rules.length === 0 && (
-                  <div style={{ fontSize: 12, color: '#444' }}>Penalty rules belum diatur.</div>
-                )}
-              </div>
-            </div>
+            )}
           </aside>
         </div>
 
