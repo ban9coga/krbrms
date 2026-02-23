@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabaseClient'
+import { isMotoLive } from '../../lib/motoStatus'
 
 type EventItem = {
   id: string
@@ -63,7 +64,7 @@ export default function JCSelectorPage() {
         list.sort((a, b) => a.moto_order - b.moto_order)
         setMotos(list)
         if (!motoId && list.length) {
-          const live = list.find((m) => m.status === 'LIVE')
+          const live = list.find((m) => isMotoLive(m.status))
           setMotoId((live ?? list[0]).id)
         }
       } finally {

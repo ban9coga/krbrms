@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../../lib/auth'
+import { isMotoPublicVisible } from '../../../../../../lib/motoStatus'
 
 type MotoRow = {
   id: string
@@ -82,10 +83,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     .eq('category_id', categoryId)
     .order('moto_order', { ascending: true })
   if (motoError) return NextResponse.json({ error: motoError.message }, { status: 400 })
-  const motoRows = ((motos ?? []) as MotoRow[]).filter((m) => {
-    const status = m.status ?? ''
-    return status === 'LIVE' || (status === 'LOCKED' && m.is_published === true)
-  })
+  const motoRows = ((motos ?? []) as MotoRow[]).filter((m) => isMotoPublicVisible(m.status, m.is_published))
 
   const motoIds = motoRows.map((m) => m.id)
   if (motoIds.length === 0) return NextResponse.json({ data: { batches: [], category: category.label } })

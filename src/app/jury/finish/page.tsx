@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/supabaseClient'
+import { isMotoLive } from '../../../lib/motoStatus'
 
 type EventItem = {
   id: string
@@ -143,7 +144,7 @@ export default function JuryFinishPage() {
       })
       setMotos(sortedMotos)
       if (!selectedMotoId && sortedMotos.length) {
-        const liveMoto = sortedMotos.find((m) => m.status === 'LIVE')
+        const liveMoto = sortedMotos.find((m) => isMotoLive(m.status))
         setSelectedMotoId((liveMoto ?? sortedMotos[0]).id)
       }
     }
@@ -209,7 +210,7 @@ export default function JuryFinishPage() {
   }, [categories])
 
   const selectedMoto = useMemo(() => motos.find((m) => m.id === selectedMotoId) ?? null, [motos, selectedMotoId])
-  const selectedMotoLive = selectedMoto?.status === 'LIVE'
+  const selectedMotoLive = isMotoLive(selectedMoto?.status)
   const selectedCategoryLabel = selectedMoto
     ? categoryLabel.get(selectedMoto.category_id ?? '') ?? 'Unknown Category'
     : null
@@ -422,7 +423,7 @@ export default function JuryFinishPage() {
             >
               {motos.length === 0 && <option value="">Belum ada moto/batch</option>}
               {motos.map((m) => (
-                <option key={m.id} value={m.id} disabled={m.status !== 'LIVE'}>
+                <option key={m.id} value={m.id} disabled={!isMotoLive(m.status)}>
                   {m.moto_order}. {m.moto_name} - {categoryLabel.get(m.category_id ?? '') ?? 'Unknown'} - {m.status}
                 </option>
               ))}

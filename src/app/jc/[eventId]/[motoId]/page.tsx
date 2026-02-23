@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '../../../../lib/supabaseClient'
+import { isMotoLive } from '../../../../lib/motoStatus'
 
 type CategoryItem = {
   id: string
@@ -243,7 +244,7 @@ export default function JCPage() {
   }, [categories])
 
   const selectedMoto = useMemo(() => motos.find((m) => m.id === selectedMotoId) ?? null, [motos, selectedMotoId])
-  const selectedMotoLive = selectedMoto?.status === 'LIVE'
+  const selectedMotoLive = isMotoLive(selectedMoto?.status)
   const selectedCategoryLabel = selectedMoto
     ? categoryLabel.get(selectedMoto.category_id ?? '') ?? 'Unknown Category'
     : 'Kategori'

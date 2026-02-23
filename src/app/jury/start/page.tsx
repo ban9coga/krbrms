@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/supabaseClient'
+import { isMotoLive } from '../../../lib/motoStatus'
 
 type EventItem = {
   id: string
@@ -154,7 +155,7 @@ export default function JuryStartPage() {
         })
         setMotos(sortedMotos)
         if (!selectedMotoId && sortedMotos.length) {
-          const liveMoto = sortedMotos.find((m) => m.status === 'LIVE')
+          const liveMoto = sortedMotos.find((m) => isMotoLive(m.status))
           setSelectedMotoId((liveMoto ?? sortedMotos[0]).id)
         }
       } finally {
@@ -284,7 +285,7 @@ export default function JuryStartPage() {
   }, [categories])
 
   const selectedMoto = useMemo(() => motos.find((m) => m.id === selectedMotoId) ?? null, [motos, selectedMotoId])
-  const selectedMotoLive = selectedMoto?.status === 'LIVE'
+  const selectedMotoLive = isMotoLive(selectedMoto?.status)
   const selectedCategoryLabel = selectedMoto
     ? categoryLabel.get(selectedMoto.category_id ?? '') ?? 'Unknown Category'
     : null

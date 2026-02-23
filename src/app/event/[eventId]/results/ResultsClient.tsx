@@ -15,6 +15,7 @@ import {
   type RiderCategory,
   type MotoItem,
 } from '../../../../lib/eventService'
+import { isMotoFinished, isMotoLive, isMotoUpcoming } from '../../../../lib/motoStatus'
 
 export default function ResultsClient({ eventId }: { eventId: string }) {
   const [event, setEvent] = useState<EventItem | null>(null)
@@ -34,9 +35,9 @@ export default function ResultsClient({ eventId }: { eventId: string }) {
           .filter((c) => c.enabled)
           .map(async (category) => {
             const motos: MotoItem[] = await getMotosByCategory(category.id)
-            const hasLive = motos.some((m) => m.status === 'LIVE')
-            const hasFinished = motos.some((m) => m.status === 'FINISHED')
-            const hasUpcoming = motos.some((m) => m.status === 'UPCOMING')
+            const hasLive = motos.some((m) => isMotoLive(m.status))
+            const hasFinished = motos.some((m) => isMotoFinished(m.status))
+            const hasUpcoming = motos.some((m) => isMotoUpcoming(m.status))
             const status: 'UPCOMING' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED' = hasLive
               ? 'LIVE'
               : hasFinished && hasUpcoming

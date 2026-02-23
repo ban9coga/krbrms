@@ -13,6 +13,7 @@ import {
   type MotoItem,
   type RiderCategory,
 } from '../../../../../../lib/eventService'
+import { isMotoFinished, isMotoLive, isMotoUpcoming } from '../../../../../../lib/motoStatus'
 
 export default function ResultDetailClient({
   eventId,
@@ -49,9 +50,9 @@ export default function ResultDetailClient({
       const motoData = await getMotosByCategory(categoryId)
       setMotos(motoData)
       if (motoData.length > 0) setSelectedMotoId(motoData[0].id)
-      const hasLive = motoData.some((m) => m.status === 'LIVE')
-      const hasFinished = motoData.some((m) => m.status === 'FINISHED')
-      const hasUpcoming = motoData.some((m) => m.status === 'UPCOMING')
+      const hasLive = motoData.some((m) => isMotoLive(m.status))
+      const hasFinished = motoData.some((m) => isMotoFinished(m.status))
+      const hasUpcoming = motoData.some((m) => isMotoUpcoming(m.status))
       const status = hasLive ? 'LIVE' : hasFinished && hasUpcoming ? 'LIVE' : hasFinished ? 'FINISHED' : 'UPCOMING'
       setRaceStatus(status)
     }

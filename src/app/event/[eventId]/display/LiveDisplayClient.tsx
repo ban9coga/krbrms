@@ -10,6 +10,7 @@ import {
   type EventItem,
   type RiderCategory,
 } from '../../../../lib/eventService'
+import { isMotoLive, isMotoUpcoming } from '../../../../lib/motoStatus'
 
 type Row = {
   rider_id: string
@@ -86,14 +87,27 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
     if (eventId) load()
   }, [eventId, categoryId])
 
+  useEffect(() => {
+    const html = document.documentElement
+    const body = document.body
+    const prevHtml = html.style.overflowX
+    const prevBody = body.style.overflowX
+    html.style.overflowX = 'hidden'
+    body.style.overflowX = 'hidden'
+    return () => {
+      html.style.overflowX = prevHtml
+      body.style.overflowX = prevBody
+    }
+  }, [])
+
   const fetchMotos = async () => {
     const res = await fetch(`/api/motos?event_id=${eventId}`)
     const json = await res.json()
     const data = (json?.data ?? []) as MotoItem[]
     setMotos(data)
-    const live = data.find((m) => m.status === 'LIVE') ?? null
+    const live = data.find((m) => isMotoLive(m.status)) ?? null
     const upcoming = data
-      .filter((m) => m.status === 'UPCOMING')
+      .filter((m) => isMotoUpcoming(m.status))
       .sort((a, b) => a.moto_order - b.moto_order)[0]
     const nextActive = live ?? upcoming ?? null
     setActiveMoto(nextActive)
@@ -177,96 +191,114 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
   }, [activeBatch, activeMotoIndex])
 
   return (
-    <div style={{ minHeight: '100vh', background: '#eaf7ee', color: '#111' }}>
+    <div
+      style={{
+        minHeight: '100vh',
+        background: '#eaf7ee',
+        color: '#111',
+        width: '100%',
+        overflowX: 'hidden',
+      }}
+    >
       <PublicTopbar />
-      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '20px 20px 48px' }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
-          <div style={{ flex: 1, minWidth: 240 }}>
-            <div style={{ fontSize: 20, fontWeight: 950 }}>{event?.name ?? 'Live Display'}</div>
-            <div style={{ fontWeight: 800, color: '#333' }}>{categoryLabel || 'Pilih Kategori'}</div>
-            {event?.location && <div style={{ color: '#333' }}>{event.location}</div>}
-            {activeMoto && (
-              <div style={{ marginTop: 6, fontWeight: 900 }}>
-                Now: {activeMoto.moto_name} ({activeMoto.status})
-              </div>
-            )}
-          </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <select
-              value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
-              style={{
-                padding: '8px 10px',
-                borderRadius: 10,
-                border: '2px solid #111',
-                fontWeight: 800,
-                background: '#fff',
-              }}
-            >
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.label}
-                </option>
+      <div
+        style={{
+          width: '100%',
+          maxWidth: '100%',
+          margin: '0 auto',
+          padding: '16px 16px 40px',
+          boxSizing: 'border-box',
+        }}
+      >
+        <div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
+            <div style={{ flex: 1, minWidth: 240 }}>
+              <div style={{ fontSize: 20, fontWeight: 950 }}>{event?.name ?? 'Live Display'}</div>
+              <div style={{ fontWeight: 800, color: '#333' }}>{categoryLabel || 'Pilih Kategori'}</div>
+              {event?.location && <div style={{ color: '#333' }}>{event.location}</div>}
+              {activeMoto && (
+                <div style={{ marginTop: 6, fontWeight: 900 }}>
+                  Now: {activeMoto.moto_name} ({activeMoto.status})
+                </div>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <select
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value)}
+                style={{
+                  padding: '8px 10px',
+                  borderRadius: 10,
+                  border: '2px solid #111',
+                  fontWeight: 800,
+                  background: '#fff',
+                }}
+              >
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+              {(['LINEUP', 'RESULTS', 'WINNERS'] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setMode(m)}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: 999,
+                    border: '2px solid #111',
+                    background: mode === m ? '#2ecc71' : '#fff',
+                    fontWeight: 900,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {m === 'LINEUP' ? 'Lineup' : m === 'RESULTS' ? 'Live Results' : 'Winners'}
+                </button>
               ))}
-            </select>
-            {(['LINEUP', 'RESULTS', 'WINNERS'] as const).map((m) => (
               <button
-                key={m}
                 type="button"
-                onClick={() => setMode(m)}
+                onClick={refresh}
+                disabled={refreshing}
                 style={{
                   padding: '8px 12px',
                   borderRadius: 999,
                   border: '2px solid #111',
-                  background: mode === m ? '#2ecc71' : '#fff',
+                  background: '#bfead2',
                   fontWeight: 900,
                   cursor: 'pointer',
                 }}
               >
-                {m === 'LINEUP' ? 'Lineup' : m === 'RESULTS' ? 'Live Results' : 'Winners'}
+                {refreshing ? 'Refreshing...' : 'Refresh'}
               </button>
-            ))}
-            <button
-              type="button"
-              onClick={refresh}
-              disabled={refreshing}
-              style={{
-                padding: '8px 12px',
-                borderRadius: 999,
-                border: '2px solid #111',
-                background: '#bfead2',
-                fontWeight: 900,
-                cursor: 'pointer',
-              }}
-            >
-              {refreshing ? 'Refreshing...' : 'Refresh'}
-            </button>
-          </div>
-        </div>
-
-        {nextUp && (
-          <div
-            style={{
-              marginTop: 12,
-              padding: '10px 12px',
-              borderRadius: 14,
-              border: '2px solid #111',
-              background: '#fff4c4',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 12,
-              fontWeight: 900,
-            }}
-          >
-            <div>NEXT UP</div>
-            <div>{nextUp.name}</div>
-            <div>No: {nextUp.no_plate}</div>
-            <div>
-              Gate {activeMotoIndex === 1 ? nextUp.gate_moto1 : activeMotoIndex === 2 ? nextUp.gate_moto2 : nextUp.gate_moto3}
             </div>
           </div>
-        )}
+
+          {nextUp && (
+            <div
+              style={{
+                marginTop: 12,
+                padding: '10px 12px',
+                borderRadius: 14,
+                border: '2px solid #111',
+                background: '#fff4c4',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+                fontWeight: 900,
+              }}
+            >
+              <div>NEXT UP</div>
+              <div>{nextUp.name}</div>
+              <div>No: {nextUp.no_plate}</div>
+              <div>
+                Gate {activeMotoIndex === 1 ? nextUp.gate_moto1 : activeMotoIndex === 2 ? nextUp.gate_moto2 : nextUp.gate_moto3}
+              </div>
+            </div>
+          )}
+        </div>
 
         {loading && <LoadingState />}
         {!loading && event?.is_public === false && (
@@ -285,12 +317,51 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
                   <div style={{ background: '#0a7a1f', color: '#fff', padding: '10px 12px', fontWeight: 900 }}>
                     BATCH {batch.batch_index} (LINEUP)
                   </div>
-                  <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 720 }}>
+                  <div
+                    style={{
+                      overflowX: 'auto',
+                      WebkitOverflowScrolling: 'touch',
+                      maxWidth: '100%',
+                      overflowY: 'hidden',
+                      display: 'block',
+                      paddingBottom: 6,
+                      scrollbarGutter: 'stable',
+                      position: 'relative',
+                    }}
+                  >
+                    <table
+                      style={{
+                        width: '100%',
+                        borderCollapse: 'collapse',
+                        minWidth: 900,
+                        tableLayout: 'fixed',
+                        fontVariantNumeric: 'tabular-nums',
+                        boxSizing: 'border-box',
+                      }}
+                    >
+                      <colgroup>
+                        <col style={{ width: 70 }} />
+                        <col style={{ width: 70 }} />
+                        <col style={{ width: 70 }} />
+                        <col style={{ width: 200 }} />
+                        <col style={{ width: 90 }} />
+                        <col style={{ width: 160 }} />
+                      </colgroup>
                       <thead>
                         <tr style={{ background: '#f5f5f5', textAlign: 'left' }}>
                           {['Gate M1', 'Gate M2', 'Gate M3', 'Nama Peserta', 'No Plat', 'Komunitas'].map((h) => (
-                            <th key={h} style={{ padding: 8, borderBottom: '2px solid #111', fontWeight: 900 }}>
+                            <th
+                              key={h}
+                              style={{
+                                padding: 8,
+                                borderBottom: '2px solid #111',
+                                fontWeight: 900,
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                boxSizing: 'border-box',
+                              }}
+                            >
                               {h}
                             </th>
                           ))}
@@ -299,12 +370,77 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
                       <tbody>
                         {rows.map((row) => (
                           <tr key={row.rider_id} style={{ borderBottom: '1px solid #ddd' }}>
-                            <td style={{ padding: 8 }}>{row.gate_moto1 ?? '-'}</td>
-                            <td style={{ padding: 8 }}>{row.gate_moto2 ?? '-'}</td>
-                            <td style={{ padding: 8 }}>{row.gate_moto3 ?? '-'}</td>
-                            <td style={{ padding: 8, fontWeight: 800 }}>{row.name}</td>
-                            <td style={{ padding: 8 }}>{row.no_plate}</td>
-                            <td style={{ padding: 8 }}>{row.club || '-'}</td>
+                            <td
+                              style={{
+                                padding: 8,
+                                whiteSpace: 'nowrap',
+                                textAlign: 'center',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                boxSizing: 'border-box',
+                              }}
+                            >
+                              {row.gate_moto1 ?? '-'}
+                            </td>
+                            <td
+                              style={{
+                                padding: 8,
+                                whiteSpace: 'nowrap',
+                                textAlign: 'center',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                boxSizing: 'border-box',
+                              }}
+                            >
+                              {row.gate_moto2 ?? '-'}
+                            </td>
+                            <td
+                              style={{
+                                padding: 8,
+                                whiteSpace: 'nowrap',
+                                textAlign: 'center',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                boxSizing: 'border-box',
+                              }}
+                            >
+                              {row.gate_moto3 ?? '-'}
+                            </td>
+                            <td
+                              style={{
+                                padding: 8,
+                                fontWeight: 800,
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                boxSizing: 'border-box',
+                              }}
+                            >
+                              {row.name}
+                            </td>
+                            <td
+                              style={{
+                                padding: 8,
+                                whiteSpace: 'nowrap',
+                                textAlign: 'center',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                boxSizing: 'border-box',
+                              }}
+                            >
+                              {row.no_plate}
+                            </td>
+                            <td
+                              style={{
+                                padding: 8,
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                boxSizing: 'border-box',
+                              }}
+                            >
+                              {row.club || '-'}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -325,8 +461,42 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
                   <div style={{ background: '#0a7a1f', color: '#fff', padding: '10px 12px', fontWeight: 900 }}>
                     BATCH {batch.batch_index} (LIVE RESULTS)
                   </div>
-                  <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 860 }}>
+                  <div
+                    style={{
+                      overflowX: 'auto',
+                      WebkitOverflowScrolling: 'touch',
+                      maxWidth: '100%',
+                      overflowY: 'hidden',
+                      display: 'block',
+                      paddingBottom: 6,
+                      scrollbarGutter: 'stable',
+                      position: 'relative',
+                    }}
+                  >
+                    <table
+                      style={{
+                        width: '100%',
+                        borderCollapse: 'collapse',
+                        minWidth: 1200,
+                        tableLayout: 'fixed',
+                        fontVariantNumeric: 'tabular-nums',
+                        boxSizing: 'border-box',
+                      }}
+                    >
+                      <colgroup>
+                        <col style={{ width: 70 }} />
+                        <col style={{ width: 70 }} />
+                        <col style={{ width: 70 }} />
+                        <col style={{ width: 200 }} />
+                        <col style={{ width: 90 }} />
+                        <col style={{ width: 90 }} />
+                        <col style={{ width: 90 }} />
+                        <col style={{ width: 90 }} />
+                        <col style={{ width: 90 }} />
+                        <col style={{ width: 90 }} />
+                        <col style={{ width: 70 }} />
+                        <col style={{ width: 90 }} />
+                      </colgroup>
                       <thead>
                         <tr style={{ background: '#f5f5f5', textAlign: 'left' }}>
                           {[
@@ -343,7 +513,18 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
                             'Rank',
                             'Class',
                           ].map((h) => (
-                            <th key={h} style={{ padding: 8, borderBottom: '2px solid #111', fontWeight: 900 }}>
+                            <th
+                              key={h}
+                              style={{
+                                padding: 8,
+                                borderBottom: '2px solid #111',
+                                fontWeight: 900,
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                boxSizing: 'border-box',
+                              }}
+                            >
                               {h}
                             </th>
                           ))}
@@ -352,18 +533,155 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
                       <tbody>
                         {rows.map((row) => (
                           <tr key={row.rider_id} style={{ borderBottom: '1px solid #ddd' }}>
-                            <td style={{ padding: 8 }}>{row.gate_moto1 ?? '-'}</td>
-                            <td style={{ padding: 8 }}>{row.gate_moto2 ?? '-'}</td>
-                            <td style={{ padding: 8 }}>{row.gate_moto3 ?? '-'}</td>
-                            <td style={{ padding: 8, fontWeight: 800 }}>{row.name}</td>
-                            <td style={{ padding: 8 }}>{row.no_plate}</td>
-                            <td style={{ padding: 8 }}>{row.point_moto1 ?? '-'}</td>
-                            <td style={{ padding: 8 }}>{row.point_moto2 ?? '-'}</td>
-                            <td style={{ padding: 8 }}>{row.point_moto3 ?? '-'}</td>
-                            <td style={{ padding: 8, fontWeight: 900, color: '#b91c1c' }}>{row.penalty_total ?? '-'}</td>
-                            <td style={{ padding: 8, fontWeight: 900, color: '#1d4ed8' }}>{row.total_point ?? '-'}</td>
-                            <td style={{ padding: 8, fontWeight: 900, color: '#0f766e' }}>{row.rank_point ?? '-'}</td>
-                            <td style={{ padding: 8 }}>{row.class_label || '-'}</td>
+                            <td
+                              style={{
+                                padding: 8,
+                                whiteSpace: 'nowrap',
+                                textAlign: 'center',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                boxSizing: 'border-box',
+                              }}
+                            >
+                              {row.gate_moto1 ?? '-'}
+                            </td>
+                            <td
+                              style={{
+                                padding: 8,
+                                whiteSpace: 'nowrap',
+                                textAlign: 'center',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                boxSizing: 'border-box',
+                              }}
+                            >
+                              {row.gate_moto2 ?? '-'}
+                            </td>
+                            <td
+                              style={{
+                                padding: 8,
+                                whiteSpace: 'nowrap',
+                                textAlign: 'center',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                boxSizing: 'border-box',
+                              }}
+                            >
+                              {row.gate_moto3 ?? '-'}
+                            </td>
+                            <td
+                              style={{
+                                padding: 8,
+                                fontWeight: 800,
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                boxSizing: 'border-box',
+                              }}
+                            >
+                              {row.name}
+                            </td>
+                            <td
+                              style={{
+                                padding: 8,
+                                whiteSpace: 'nowrap',
+                                textAlign: 'center',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                boxSizing: 'border-box',
+                              }}
+                            >
+                              {row.no_plate}
+                            </td>
+                            <td
+                              style={{
+                                padding: 8,
+                                whiteSpace: 'nowrap',
+                                textAlign: 'center',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                boxSizing: 'border-box',
+                              }}
+                            >
+                              {row.point_moto1 ?? '-'}
+                            </td>
+                            <td
+                              style={{
+                                padding: 8,
+                                whiteSpace: 'nowrap',
+                                textAlign: 'center',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                boxSizing: 'border-box',
+                              }}
+                            >
+                              {row.point_moto2 ?? '-'}
+                            </td>
+                            <td
+                              style={{
+                                padding: 8,
+                                whiteSpace: 'nowrap',
+                                textAlign: 'center',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                boxSizing: 'border-box',
+                              }}
+                            >
+                              {row.point_moto3 ?? '-'}
+                            </td>
+                            <td
+                              style={{
+                                padding: 8,
+                                fontWeight: 900,
+                                color: '#b91c1c',
+                                whiteSpace: 'nowrap',
+                                textAlign: 'center',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                boxSizing: 'border-box',
+                              }}
+                            >
+                              {row.penalty_total ?? '-'}
+                            </td>
+                            <td
+                              style={{
+                                padding: 8,
+                                fontWeight: 900,
+                                color: '#1d4ed8',
+                                whiteSpace: 'nowrap',
+                                textAlign: 'center',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                boxSizing: 'border-box',
+                              }}
+                            >
+                              {row.total_point ?? '-'}
+                            </td>
+                            <td
+                              style={{
+                                padding: 8,
+                                fontWeight: 900,
+                                color: '#0f766e',
+                                whiteSpace: 'nowrap',
+                                textAlign: 'center',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                boxSizing: 'border-box',
+                              }}
+                            >
+                              {row.rank_point ?? '-'}
+                            </td>
+                            <td
+                              style={{
+                                padding: 8,
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                boxSizing: 'border-box',
+                              }}
+                            >
+                              {row.class_label || '-'}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
