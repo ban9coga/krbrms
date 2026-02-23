@@ -442,7 +442,12 @@ export default function JuryFinishPage() {
               fontWeight: 800,
             }}
           >
-            Tidak ada event LIVE untuk Jury Finish.
+            Tidak ada event LIVE untuk Jury Finish. Set event ke LIVE dulu.
+          </div>
+        )}
+        {events.length === 0 && (
+          <div style={{ fontSize: 12, color: '#444', marginTop: 6 }}>
+            Admin: ubah status event ke LIVE agar Jury Finish aktif.
           </div>
         )}
         {motoLocked && (
@@ -525,7 +530,9 @@ export default function JuryFinishPage() {
                     color: '#444',
                   }}
                 >
-                  Tidak ada rider yang tersisa di grid.
+                  {selectedMotoLive
+                    ? 'Tidak ada rider yang tersisa di grid.'
+                    : 'Pilih moto LIVE terlebih dahulu.'}
                 </div>
               )}
             </div>
@@ -771,10 +778,18 @@ export default function JuryFinishPage() {
             align-items: flex-start;
           }
           .jf-footer {
+            position: sticky;
+            bottom: 8px;
+            background: #fff7d6;
+            padding: 8px 0;
             flex-direction: column;
           }
           .jf-footer > button {
             width: 100% !important;
+          }
+          .input-grid > button {
+            height: 140px !important;
+            font-size: 52px !important;
           }
         }
       `}</style>
