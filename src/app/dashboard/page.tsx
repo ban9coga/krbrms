@@ -1,7 +1,5 @@
 import EventCard from '../../components/EventCard'
-import EmptyState from '../../components/EmptyState'
-import LandingTopbar from '../../components/LandingTopbar'
-import PageSection from '../../components/PageSection'
+import MarketingTopbar from '../../components/MarketingTopbar'
 import type { EventItem, EventStatus } from '../../lib/eventService'
 import Link from 'next/link'
 import { adminClient } from '../../lib/auth'
@@ -42,83 +40,103 @@ export default async function DashboardPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#f6fbf7', color: '#111' }}>
-      <LandingTopbar events={allEvents} />
+      <MarketingTopbar />
 
-      <main>
-        <section className="mx-auto max-w-6xl px-6 py-24">
-          <h2 className="mb-12 text-3xl font-bold">Event Sections</h2>
+      <main className="w-full bg-slate-100 px-2 py-4 sm:px-4 md:px-6 md:py-8">
+        <section className="mx-auto w-full max-w-[1500px]">
+          <div className="relative overflow-hidden rounded-[2rem] bg-[linear-gradient(125deg,#090f1d_0%,#1e293b_42%,#4a0f23_100%)] px-5 py-10 shadow-[0_40px_120px_rgba(15,23,42,0.32)] sm:px-8 sm:py-12 md:rounded-[2.5rem] md:px-14 md:py-14">
+            <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-rose-500/15 blur-3xl" />
+            <div className="pointer-events-none absolute -top-24 right-0 h-72 w-72 rounded-full bg-sky-400/15 blur-3xl" />
 
-          <div id="ongoing-events">
-            <PageSection title="Ongoing Events">
-              {ongoingEvents.length === 0 && <EmptyState label="Belum ada event yang sedang berlangsung." />}
-              <div style={{ display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
-                {ongoingEvents.map((event, idx) => (
-                  <div key={event.id} style={{ display: 'grid', gap: 8 }}>
-                    <EventCard
-                      event={event}
-                      index={idx}
-                      logoUrl={settingsMap.get(event.id)?.logo ?? null}
-                      slogan={settingsMap.get(event.id)?.slogan ?? null}
-                    />
-                    {event.is_public !== false && (
-                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                        <Link
-                          href={`/event/${event.id}/display`}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 8,
-                            padding: '8px 12px',
-                            borderRadius: 999,
-                            border: '1px solid rgba(15, 23, 42, 0.18)',
-                            background: '#2ecc71',
-                            color: '#111',
-                            fontWeight: 900,
-                            textDecoration: 'none',
-                          }}
-                        >
-                          Live Display (Publik)
-                        </Link>
+            <div className="relative z-10">
+              <h1 className="text-center text-3xl font-extrabold tracking-tight text-white sm:text-4xl md:text-5xl">
+                Event Dashboard
+              </h1>
+              <p className="mx-auto mt-3 max-w-3xl text-center text-sm text-slate-200 sm:text-base md:text-lg">
+                Pantau event yang sedang berjalan, upcoming race, dan hasil kompetisi dalam satu tampilan.
+              </p>
+
+              <div className="mx-auto mt-8 grid max-w-[1120px] gap-6 sm:mt-10 md:gap-8">
+                <div id="ongoing-events" className="rounded-3xl border border-slate-700/70 bg-slate-900/55 p-4 backdrop-blur-sm sm:p-6">
+                  <h2 className="mb-4 text-2xl font-bold text-white">Ongoing Events</h2>
+                  {ongoingEvents.length === 0 && (
+                    <p className="pb-2 text-sm font-semibold text-slate-300">Belum ada event yang sedang berlangsung.</p>
+                  )}
+                  <div style={{ display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
+                    {ongoingEvents.map((event, idx) => (
+                      <div key={event.id} style={{ display: 'grid', gap: 8 }}>
+                        <EventCard
+                          event={event}
+                          index={idx}
+                          logoUrl={settingsMap.get(event.id)?.logo ?? null}
+                          slogan={settingsMap.get(event.id)?.slogan ?? null}
+                        />
+                        {event.is_public !== false && (
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                            <Link
+                              href={`/event/${event.id}/display`}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                padding: '8px 12px',
+                                borderRadius: 999,
+                                border: '1px solid rgba(15, 23, 42, 0.18)',
+                                background: '#2ecc71',
+                                color: '#111',
+                                fontWeight: 900,
+                                textDecoration: 'none',
+                              }}
+                            >
+                              Live Display (Publik)
+                            </Link>
+                          </div>
+                        )}
                       </div>
-                    )}
+                    ))}
                   </div>
-                ))}
+                </div>
+
+                <div className="rounded-3xl border border-slate-700/70 bg-slate-900/55 p-4 backdrop-blur-sm sm:p-6">
+                  <h2 className="mb-4 text-2xl font-bold text-white">Coming Soon</h2>
+                  {upcomingEvents.length === 0 && (
+                    <p className="pb-2 text-sm font-semibold text-slate-300">Belum ada event yang akan datang.</p>
+                  )}
+                  <div style={{ display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
+                    {upcomingEvents.map((event, idx) => (
+                      <EventCard
+                        key={event.id}
+                        event={event}
+                        index={idx}
+                        logoUrl={settingsMap.get(event.id)?.logo ?? null}
+                        slogan={settingsMap.get(event.id)?.slogan ?? null}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-3xl border border-slate-700/70 bg-slate-900/55 p-4 backdrop-blur-sm sm:p-6">
+                  <h2 className="mb-4 text-2xl font-bold text-white">Completed Events</h2>
+                  {finishedEvents.length === 0 && (
+                    <p className="pb-2 text-sm font-semibold text-slate-300">Belum ada event yang selesai.</p>
+                  )}
+                  <div style={{ display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
+                    {finishedEvents.map((event, idx) => (
+                      <EventCard
+                        key={event.id}
+                        event={event}
+                        index={idx}
+                        logoUrl={settingsMap.get(event.id)?.logo ?? null}
+                        slogan={settingsMap.get(event.id)?.slogan ?? null}
+                      />
+                    ))}
+                  </div>
+                </div>
               </div>
-            </PageSection>
+            </div>
           </div>
-
-          <PageSection title="Coming Soon">
-            {upcomingEvents.length === 0 && <EmptyState label="Belum ada event yang akan datang." />}
-            <div style={{ display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
-              {upcomingEvents.map((event, idx) => (
-                <EventCard
-                  key={event.id}
-                  event={event}
-                  index={idx}
-                  logoUrl={settingsMap.get(event.id)?.logo ?? null}
-                  slogan={settingsMap.get(event.id)?.slogan ?? null}
-                />
-              ))}
-            </div>
-          </PageSection>
-
-          <PageSection title="Completed Events">
-            {finishedEvents.length === 0 && <EmptyState label="Belum ada event yang selesai." />}
-            <div style={{ display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
-              {finishedEvents.map((event, idx) => (
-                <EventCard
-                  key={event.id}
-                  event={event}
-                  index={idx}
-                  logoUrl={settingsMap.get(event.id)?.logo ?? null}
-                  slogan={settingsMap.get(event.id)?.slogan ?? null}
-                />
-              ))}
-            </div>
-          </PageSection>
         </section>
       </main>
     </div>
   )
 }
-
