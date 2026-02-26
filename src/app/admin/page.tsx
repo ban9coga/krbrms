@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import AdminEventsPage from './events/page'
+import AdminEventsView from './events/AdminEventsView'
 import { supabase } from '../../lib/supabaseClient'
 
 type DashboardMetrics = {
@@ -120,7 +120,7 @@ export default function AdminDashboardPage() {
       </div>
 
       <div style={{ marginTop: 24 }}>
-        <AdminEventsPage showCreate={false} />
+        <AdminEventsView showCreate={false} />
       </div>
     </div>
   )
