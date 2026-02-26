@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import PublicTopbar from '../../components/PublicTopbar'
+import CheckerTopbar from '../../components/CheckerTopbar'
 import { isMotoLive } from '../../lib/motoStatus'
 import { supabase } from '../../lib/supabaseClient'
 
@@ -77,7 +77,7 @@ export default function JCSelectorPage() {
 
   return (
     <div className="public-page">
-      <PublicTopbar />
+      <CheckerTopbar title="Checker Panel" />
       <main className="public-main">
         <section className="public-hero">
           <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-rose-500/15 blur-3xl" />

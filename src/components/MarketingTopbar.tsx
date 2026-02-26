@@ -1,4 +1,7 @@
+'use client'
+
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 
 const navItems = [
   { href: '/', label: 'Home' },
@@ -6,7 +9,22 @@ const navItems = [
   { href: '/dashboard#ongoing-events', label: 'Ongoing Events' },
 ]
 
-export default function MarketingTopbar() {
+type MarketingTopbarProps = {
+  showNav?: boolean
+  showLoginButton?: boolean
+}
+
+export default function MarketingTopbar({ showNav = true, showLoginButton = true }: MarketingTopbarProps) {
+  const pathname = usePathname()
+  const isLoginPage = pathname === '/login'
+
+  const isActive = (href: string) => {
+    if (href.includes('#')) return false
+    const baseHref = href.split('#')[0]
+    if (baseHref === '/') return pathname === '/'
+    return pathname === baseHref || pathname.startsWith(`${baseHref}/`)
+  }
+
   return (
     <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur">
       <div className="relative w-full px-4 py-3 md:px-6">
@@ -18,37 +36,45 @@ export default function MarketingTopbar() {
             </span>
           </Link>
 
-          <nav className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-6 text-sm font-semibold text-slate-600 md:flex">
+          {showNav && (
+            <nav className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-6 text-sm font-semibold text-slate-600 md:flex">
+              {navItems.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`transition-colors hover:text-rose-500 ${isActive(item.href) ? 'text-rose-500' : ''}`}
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
+          )}
+
+          {showLoginButton && !isLoginPage ? (
+            <Link
+              href="/login"
+              className="rounded-full bg-rose-500 px-5 py-2 text-sm font-bold text-white transition-colors hover:bg-rose-400"
+            >
+              Login
+            </Link>
+          ) : (
+            <div />
+          )}
+        </div>
+
+        {showNav && (
+          <nav className="mt-3 flex items-center justify-center gap-4 text-sm font-semibold text-slate-600 md:hidden">
             {navItems.map((item) => (
               <Link
-                key={item.href}
+                key={`${item.href}-mobile`}
                 href={item.href}
-                className={`transition-colors hover:text-rose-500 ${item.href === '/' ? 'text-rose-500' : ''}`}
+                className={`transition-colors hover:text-rose-500 ${isActive(item.href) ? 'text-rose-500' : ''}`}
               >
                 {item.label}
               </Link>
             ))}
           </nav>
-
-          <Link
-            href="/login"
-            className="rounded-full bg-rose-500 px-5 py-2 text-sm font-bold text-white transition-colors hover:bg-rose-400"
-          >
-            Login
-          </Link>
-        </div>
-
-        <nav className="mt-3 flex items-center justify-center gap-4 text-sm font-semibold text-slate-600 md:hidden">
-          {navItems.map((item) => (
-            <Link
-              key={`${item.href}-mobile`}
-              href={item.href}
-              className={`transition-colors hover:text-rose-500 ${item.href === '/' ? 'text-rose-500' : ''}`}
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
+        )}
       </div>
     </header>
   )

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import CheckerTopbar from '../../../../components/CheckerTopbar'
 import { supabase } from '../../../../lib/supabaseClient'
 import { isMotoLive } from '../../../../lib/motoStatus'
 
@@ -74,12 +75,6 @@ export default function JCPage() {
   const [safetyChecks, setSafetyChecks] = useState<Record<string, Record<string, boolean>>>({})
   const [penaltiesByRider, setPenaltiesByRider] = useState<Record<string, Set<string>>>({})
   const [penaltyRules, setPenaltyRules] = useState<PenaltyRule[]>([])
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut()
-    document.cookie = 'sb-access-token=; Path=/; Max-Age=0'
-    router.push('/login')
-  }
 
   const apiFetch = async (url: string, options: RequestInit = {}) => {
     const { data } = await supabase.auth.getSession()
@@ -416,24 +411,11 @@ export default function JCPage() {
 
   return (
     <div className="jc-page" style={{ minHeight: '100vh', background: '#fff6da', color: '#111' }}>
+      <CheckerTopbar title="Checker Panel" />
       <div className="jc-container" style={{ maxWidth: 980, margin: '0 auto', padding: 20, display: 'grid', gap: 16 }}>
         <div style={{ display: 'grid', gap: 8 }}>
           <div className="jc-header-row" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <div style={{ fontSize: 28, fontWeight: 900 }}>Jury Start</div>
-            <button
-              type="button"
-              onClick={handleLogout}
-              style={{
-                padding: '6px 12px',
-                borderRadius: 999,
-                border: '2px solid #b91c1c',
-                background: '#fee2e2',
-                color: '#7f1d1d',
-                fontWeight: 800,
-              }}
-            >
-              Logout
-            </button>
             <div style={{ marginLeft: 'auto', fontWeight: 700 }}>
               {selectedCategoryLabel} - {selectedMoto?.moto_name ?? '-'} | Ready: {readyCount}/{summary.total}
             </div>

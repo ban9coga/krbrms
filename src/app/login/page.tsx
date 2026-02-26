@@ -52,21 +52,17 @@ export default function LoginPage() {
 
   return (
     <div className="public-page">
-      <MarketingTopbar />
-      <main className="public-main">
-        <section className="public-hero">
-          <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-rose-500/15 blur-3xl" />
-          <div className="pointer-events-none absolute -top-24 right-0 h-72 w-72 rounded-full bg-sky-400/15 blur-3xl" />
-          <div className="relative z-10 grid gap-3">
-            <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-rose-300">Staff Access</p>
-            <h1 className="text-3xl font-black tracking-tight text-white md:text-5xl">Login Dashboard</h1>
-            <p className="max-w-2xl text-sm font-semibold text-slate-200 sm:text-base">
+      <MarketingTopbar showNav={false} />
+      <main className="mx-auto flex min-h-[calc(100vh-86px)] w-full max-w-[1200px] items-center justify-center px-4 py-8 sm:px-6">
+        <section className="w-full max-w-[460px] rounded-[1.6rem] border border-slate-200 bg-white/95 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.12)] sm:p-6">
+          <div className="mb-5 grid gap-2">
+            <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-rose-500">Staff Access</p>
+            <h1 className="text-3xl font-black tracking-tight text-slate-900">Login Dashboard</h1>
+            <p className="text-sm font-semibold text-slate-600">
               Masuk untuk admin, jury, race director, dan race control.
             </p>
           </div>
-        </section>
 
-        <section className="mx-auto w-full max-w-[480px] rounded-[1.6rem] border border-slate-200 bg-white/95 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.12)] sm:p-6">
           <div className="mb-5 flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <img src="/krb-logo.png" alt="KRB Logo" className="h-10 w-10 rounded-lg object-contain" />
