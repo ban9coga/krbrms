@@ -35,7 +35,7 @@ export default function LandingTopbar({ events }: LandingTopbarProps) {
           }
         }
       `}</style>
-      <PublicTopbar onRegisterClick={() => setShowRegisterPicker(true)} />
+      <PublicTopbar />
 
       {showRegisterPicker && (
         <div

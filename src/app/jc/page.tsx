@@ -77,7 +77,7 @@ export default function JCSelectorPage() {
 
   return (
     <div className="public-page">
-      <PublicTopbar showRegister={false} />
+      <PublicTopbar />
       <main className="public-main">
         <section className="public-hero">
           <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-rose-500/15 blur-3xl" />

@@ -3,18 +3,13 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
-type PublicTopbarProps = {
-  onRegisterClick?: () => void
-  showRegister?: boolean
-}
-
 const navItems = [
   { href: '/', label: 'Home' },
   { href: '/dashboard', label: 'Events' },
   { href: '/dashboard#ongoing-events', label: 'Ongoing Events' },
 ]
 
-export default function PublicTopbar({ onRegisterClick, showRegister = true }: PublicTopbarProps) {
+export default function PublicTopbar() {
   const pathname = usePathname()
 
   return (
@@ -48,23 +43,6 @@ export default function PublicTopbar({ onRegisterClick, showRegister = true }: P
           </nav>
 
           <div className="flex items-center gap-2">
-            {showRegister &&
-              (onRegisterClick ? (
-                <button
-                  type="button"
-                  onClick={onRegisterClick}
-                  className="rounded-full border border-emerald-300/70 bg-emerald-50 px-4 py-2 text-xs font-extrabold uppercase tracking-[0.12em] text-emerald-700 transition-colors hover:bg-emerald-100 sm:text-sm"
-                >
-                  Daftar Rider
-                </button>
-              ) : (
-                <Link
-                  href="/dashboard"
-                  className="rounded-full border border-emerald-300/70 bg-emerald-50 px-4 py-2 text-xs font-extrabold uppercase tracking-[0.12em] text-emerald-700 transition-colors hover:bg-emerald-100 sm:text-sm"
-                >
-                  Daftar Rider
-                </Link>
-              ))}
             <Link
               href="/login"
               className="rounded-full bg-rose-500 px-5 py-2 text-sm font-bold text-white transition-colors hover:bg-rose-400"

@@ -100,7 +100,7 @@ export default function McLivePage() {
   const badge = statusBadge(data?.moto ?? null)
   return (
     <div className="public-page">
-      <PublicTopbar showRegister={false} />
+      <PublicTopbar />
       <main className="public-main max-w-[1100px]">
         <section className="public-hero">
           <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-rose-500/15 blur-3xl" />
