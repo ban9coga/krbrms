@@ -11,7 +11,7 @@ type PublicTopbarProps = {
 const navItems = [
   { href: '/', label: 'Home' },
   { href: '/dashboard', label: 'Events' },
-  { href: '/dashboard#ongoing-events', label: 'Live Results' },
+  { href: '/dashboard#ongoing-events', label: 'Ongoing Events' },
 ]
 
 export default function PublicTopbar({ onRegisterClick, showRegister = true }: PublicTopbarProps) {

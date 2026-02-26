@@ -1,7 +1,6 @@
 import EventCard from '../../components/EventCard'
 import MarketingTopbar from '../../components/MarketingTopbar'
 import type { EventItem, EventStatus } from '../../lib/eventService'
-import Link from 'next/link'
 import { adminClient } from '../../lib/auth'
 
 export const dynamic = 'force-dynamic'
@@ -18,12 +17,11 @@ const fetchEvents = async (status?: EventStatus): Promise<EventItem[]> => {
 }
 
 export default async function DashboardPage() {
-  const [upcomingEvents, ongoingEvents, finishedEvents] = await Promise.all([
+  const [upcomingEvents, ongoingEvents] = await Promise.all([
     fetchEvents('UPCOMING'),
     fetchEvents('LIVE'),
-    fetchEvents('FINISHED'),
   ])
-  const allEvents = [...upcomingEvents, ...ongoingEvents, ...finishedEvents]
+  const allEvents = [...upcomingEvents, ...ongoingEvents]
   const eventIds = allEvents.map((e) => e.id)
   const settingsMap = new Map<string, { logo?: string | null; slogan?: string | null }>()
   if (eventIds.length > 0) {
@@ -64,46 +62,6 @@ export default async function DashboardPage() {
                   )}
                   <div style={{ display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
                     {ongoingEvents.map((event, idx) => (
-                      <div key={event.id} style={{ display: 'grid', gap: 8 }}>
-                        <EventCard
-                          event={event}
-                          index={idx}
-                          logoUrl={settingsMap.get(event.id)?.logo ?? null}
-                          slogan={settingsMap.get(event.id)?.slogan ?? null}
-                        />
-                        {event.is_public !== false && (
-                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                            <Link
-                              href={`/event/${event.id}/display`}
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 8,
-                                padding: '8px 12px',
-                                borderRadius: 999,
-                                border: '1px solid rgba(15, 23, 42, 0.18)',
-                                background: '#2ecc71',
-                                color: '#111',
-                                fontWeight: 900,
-                                textDecoration: 'none',
-                              }}
-                            >
-                              Live Display (Publik)
-                            </Link>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="rounded-3xl border border-slate-700/70 bg-slate-900/55 p-4 backdrop-blur-sm sm:p-6">
-                  <h2 className="mb-4 text-2xl font-bold text-white">Coming Soon</h2>
-                  {upcomingEvents.length === 0 && (
-                    <p className="pb-2 text-sm font-semibold text-slate-300">Belum ada event yang akan datang.</p>
-                  )}
-                  <div style={{ display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
-                    {upcomingEvents.map((event, idx) => (
                       <EventCard
                         key={event.id}
                         event={event}
@@ -116,12 +74,12 @@ export default async function DashboardPage() {
                 </div>
 
                 <div className="rounded-3xl border border-slate-700/70 bg-slate-900/55 p-4 backdrop-blur-sm sm:p-6">
-                  <h2 className="mb-4 text-2xl font-bold text-white">Completed Events</h2>
-                  {finishedEvents.length === 0 && (
-                    <p className="pb-2 text-sm font-semibold text-slate-300">Belum ada event yang selesai.</p>
+                  <h2 className="mb-4 text-2xl font-bold text-white">Upcoming Events</h2>
+                  {upcomingEvents.length === 0 && (
+                    <p className="pb-2 text-sm font-semibold text-slate-300">Belum ada event yang akan datang.</p>
                   )}
                   <div style={{ display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
-                    {finishedEvents.map((event, idx) => (
+                    {upcomingEvents.map((event, idx) => (
                       <EventCard
                         key={event.id}
                         event={event}
