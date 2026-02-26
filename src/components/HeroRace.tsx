@@ -1,3 +1,5 @@
+import Link from 'next/link'
+
 export default function HeroRace() {
   return (
     <section className="relative min-h-[90vh] w-full overflow-hidden bg-gradient-to-b from-slate-950 to-slate-900 py-24">
@@ -14,18 +16,18 @@ export default function HeroRace() {
           </p>
 
           <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
-            <button
-              type="button"
+            <Link
+              href="/live"
               className="rounded-xl bg-red-600 px-8 py-4 text-base font-semibold text-white transition-colors duration-200 hover:bg-red-500"
             >
               View Live Event
-            </button>
-            <button
-              type="button"
+            </Link>
+            <Link
+              href="/dashboard"
               className="rounded-xl bg-green-600 px-8 py-4 text-base font-semibold text-white transition-colors duration-200 hover:bg-green-500"
             >
               Register Rider
-            </button>
+            </Link>
           </div>
         </div>
       </div>

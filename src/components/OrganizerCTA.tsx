@@ -1,3 +1,5 @@
+import Link from 'next/link'
+
 export default function OrganizerCTA() {
   return (
     <section className="relative w-full overflow-hidden bg-slate-950 py-24">
@@ -13,18 +15,18 @@ export default function OrganizerCTA() {
         </p>
 
         <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
-          <button
-            type="button"
+          <Link
+            href="/dashboard"
             className="rounded-xl bg-red-600 px-8 py-4 text-base font-semibold text-white transition-colors duration-200 hover:bg-red-500"
           >
             Request Demo
-          </button>
-          <button
-            type="button"
+          </Link>
+          <Link
+            href="/login"
             className="rounded-xl border border-slate-500 px-8 py-4 text-base font-semibold text-slate-100 transition-colors duration-200 hover:border-slate-300 hover:text-white"
           >
             Contact Us
-          </button>
+          </Link>
         </div>
       </div>
     </section>
