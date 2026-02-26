@@ -1,11 +1,11 @@
 'use client'
 
+import Link from 'next/link'
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import MarketingTopbar from '../../components/MarketingTopbar'
 import { supabase } from '../../lib/supabaseClient'
 
 export default function LoginPage() {
-  const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -16,10 +16,7 @@ export default function LoginPage() {
     e.preventDefault()
     setErrorMessage(null)
     setLoading(true)
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     setLoading(false)
 
     if (error) {
@@ -36,13 +33,8 @@ export default function LoginPage() {
     const user = data.user
     const meta = (user?.user_metadata ?? {}) as Record<string, unknown>
     const appMeta = (user?.app_metadata ?? {}) as Record<string, unknown>
-    const role =
-      (typeof meta.role === 'string' ? meta.role : '') ||
-      (typeof appMeta.role === 'string' ? appMeta.role : '') ||
-      ''
-
-    const normalized =
-      role === 'jury_start' ? 'CHECKER' : role === 'jury_finish' ? 'FINISHER' : role
+    const role = (typeof meta.role === 'string' ? meta.role : '') || (typeof appMeta.role === 'string' ? appMeta.role : '') || ''
+    const normalized = role === 'jury_start' ? 'CHECKER' : role === 'jury_finish' ? 'FINISHER' : role
 
     const target =
       normalized === 'RACE_DIRECTOR'
@@ -59,165 +51,88 @@ export default function LoginPage() {
   }
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        background: '#eaf7ee',
-        color: '#111',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '20px',
-      }}
-    >
-      <div
-        style={{
-          width: '100%',
-          maxWidth: '380px',
-          background: '#fff',
-          border: '2px solid #111',
-          borderRadius: '16px',
-          padding: '24px',
-          position: 'relative',
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => router.push('/')}
-          style={{
-            position: 'absolute',
-            top: '12px',
-            right: '12px',
-            padding: '6px 10px',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: '#fff',
-            border: '2px solid #111',
-            borderRadius: '999px',
-            cursor: 'pointer',
-            fontWeight: 800,
-          }}
-          aria-label="Kembali ke landing"
-        >
-          Back
-        </button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-          <div
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: 10,
-              border: '2px solid #111',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontWeight: 900,
-              background: '#eaf7ee',
-            }}
-          >
-            KRB
+    <div className="public-page">
+      <MarketingTopbar />
+      <main className="public-main">
+        <section className="public-hero">
+          <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-rose-500/15 blur-3xl" />
+          <div className="pointer-events-none absolute -top-24 right-0 h-72 w-72 rounded-full bg-sky-400/15 blur-3xl" />
+          <div className="relative z-10 grid gap-3">
+            <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-rose-300">Staff Access</p>
+            <h1 className="text-3xl font-black tracking-tight text-white md:text-5xl">Login Dashboard</h1>
+            <p className="max-w-2xl text-sm font-semibold text-slate-200 sm:text-base">
+              Masuk untuk admin, jury, race director, dan race control.
+            </p>
           </div>
-          <div style={{ fontSize: 12, fontWeight: 800, color: '#333' }}>KRB Race Management</div>
-        </div>
-        <h1 style={{ fontSize: '22px', fontWeight: 800, marginBottom: '8px' }}>Login</h1>
-        <p style={{ color: '#333', marginBottom: '18px' }}>
-          Masuk untuk admin, juri, atau race control.
-        </p>
-        <form onSubmit={handleLogin} style={{ display: 'grid', gap: '12px' }}>
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            name="email"
-            id="login-email"
-            autoComplete="username"
-            style={{
-              padding: '12px',
-              borderRadius: '10px',
-              border: '2px solid #111',
-              background: '#fff',
-              color: '#111',
-              boxSizing: 'border-box',
-            }}
-            required
-          />
-          <div style={{ position: 'relative' }}>
+        </section>
+
+        <section className="mx-auto w-full max-w-[480px] rounded-[1.6rem] border border-slate-200 bg-white/95 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.12)] sm:p-6">
+          <div className="mb-5 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <img src="/krb-logo.png" alt="KRB Logo" className="h-10 w-10 rounded-lg object-contain" />
+              <div>
+                <p className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">KRB RMS</p>
+                <p className="text-lg font-black tracking-tight text-slate-900">Secure Login</p>
+              </div>
+            </div>
+            <Link
+              href="/"
+              className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-extrabold uppercase tracking-[0.1em] text-slate-600 transition-colors hover:bg-slate-100"
+            >
+              Back
+            </Link>
+          </div>
+
+          <form onSubmit={handleLogin} className="grid gap-3">
             <input
-              type={showPassword ? 'text' : 'password'}
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              name="password"
-              id="login-password"
-              autoComplete="current-password"
-              style={{
-                width: '100%',
-                padding: '12px 64px 12px 12px',
-                borderRadius: '10px',
-                border: '2px solid #111',
-                background: '#fff',
-                color: '#111',
-                boxSizing: 'border-box',
-              }}
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              name="email"
+              id="login-email"
+              autoComplete="username"
+              className="public-filter"
               required
             />
-            <button
-              type="button"
-              onClick={() => setShowPassword((v) => !v)}
-              style={{
-                position: 'absolute',
-                right: 10,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                border: '2px solid #111',
-                background: '#fff',
-                borderRadius: 8,
-                padding: '3px 8px',
-                fontSize: 11,
-                fontWeight: 800,
-                cursor: 'pointer',
-              }}
-              aria-label={showPassword ? 'Sembunyikan password' : 'Lihat password'}
-            >
-              {showPassword ? 'Hide' : 'Show'}
-            </button>
-          </div>
-          {errorMessage && (
-            <div
-              style={{
-                padding: '10px 12px',
-                borderRadius: 10,
-                border: '2px solid #e74c3c',
-                background: '#fff5f5',
-                color: '#c0392b',
-                fontWeight: 700,
-                fontSize: 13,
-              }}
-            >
-              {errorMessage}
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                name="password"
+                id="login-password"
+                autoComplete="current-password"
+                className="public-filter pr-20"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-[0.1em] text-slate-600 transition-colors hover:bg-slate-100"
+                aria-label={showPassword ? 'Sembunyikan password' : 'Lihat password'}
+              >
+                {showPassword ? 'Hide' : 'Show'}
+              </button>
             </div>
-          )}
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              padding: '12px',
-              borderRadius: '10px',
-              border: 'none',
-              background: '#2ecc71',
-              color: '#111',
-              fontWeight: 700,
-              cursor: 'pointer',
-            }}
-          >
-            {loading ? 'Memproses...' : 'LOGIN'}
-          </button>
-        </form>
-      </div>
+
+            {errorMessage && (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">
+                {errorMessage}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="mt-1 inline-flex items-center justify-center rounded-xl bg-rose-500 px-4 py-3 text-sm font-extrabold uppercase tracking-[0.12em] text-white transition-colors hover:bg-rose-400 disabled:cursor-not-allowed disabled:bg-rose-300"
+            >
+              {loading ? 'Memproses...' : 'Login'}
+            </button>
+          </form>
+        </section>
+      </main>
     </div>
   )
 }
-
-

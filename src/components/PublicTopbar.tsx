@@ -1,100 +1,97 @@
+'use client'
+
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 
 type PublicTopbarProps = {
   onRegisterClick?: () => void
   showRegister?: boolean
 }
 
+const navItems = [
+  { href: '/', label: 'Home' },
+  { href: '/dashboard', label: 'Events' },
+  { href: '/dashboard#ongoing-events', label: 'Live Results' },
+]
+
 export default function PublicTopbar({ onRegisterClick, showRegister = true }: PublicTopbarProps) {
+  const pathname = usePathname()
+
   return (
-    <header
-      style={{
-        position: 'sticky',
-        top: 0,
-        zIndex: 10,
-        background: '#fff',
-        borderBottom: '1px solid rgba(15, 23, 42, 0.12)',
-        boxShadow: '0 8px 24px rgba(15, 23, 42, 0.06)',
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '14px 22px',
-          gap: 12,
-          flexWrap: 'wrap',
-        }}
-      >
-        <Link
-          href="/"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px',
-            textDecoration: 'none',
-            color: '#111',
-          }}
-        >
-          <img src="/krb-logo.png" alt="KRB Logo" style={{ width: '36px', height: '36px', objectFit: 'contain' }} />
-          <div style={{ fontWeight: 800, fontSize: 16, letterSpacing: '-0.01em' }}>
-            KRB Race Management System
-          </div>
-        </Link>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {showRegister &&
-            (onRegisterClick ? (
-              <button
-                type="button"
-                onClick={onRegisterClick}
-                style={{
-                  padding: '8px 14px',
-                  borderRadius: '999px',
-                  border: '1px solid rgba(15, 23, 42, 0.18)',
-                  background: '#34c759',
-                  color: '#111',
-                  fontWeight: 800,
-                  textDecoration: 'none',
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                }}
-              >
-                Daftar Rider di Sini
-              </button>
-            ) : (
-              <Link
-                href="/"
-                style={{
-                  padding: '8px 14px',
-                  borderRadius: '999px',
-                  border: '1px solid rgba(15, 23, 42, 0.18)',
-                  background: '#34c759',
-                  color: '#111',
-                  fontWeight: 800,
-                  textDecoration: 'none',
-                  fontSize: '13px',
-                }}
-              >
-                Daftar Rider di Sini
-              </Link>
-            ))}
-          <Link
-            href="/login"
-            style={{
-              padding: '8px 14px',
-              borderRadius: '999px',
-              border: '1px solid rgba(15, 23, 42, 0.18)',
-              background: '#e9f7ef',
-              color: '#111',
-              fontWeight: 800,
-              textDecoration: 'none',
-              fontSize: '13px',
-            }}
-          >
-            Login
+    <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur">
+      <div className="relative w-full px-4 py-3 md:px-6">
+        <div className="flex items-center justify-between gap-4">
+          <Link href="/" className="flex min-w-0 items-center gap-3">
+            <img src="/krb-logo.png" alt="KRB Logo" className="h-10 w-10 rounded-lg object-contain" />
+            <span className="truncate text-sm font-black tracking-tight text-slate-900 sm:text-base md:text-lg">
+              Kancang Run Bike Racing Committee
+            </span>
           </Link>
+
+          <nav className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-6 text-sm font-semibold text-slate-600 md:flex">
+            {navItems.map((item) => {
+              const baseHref = item.href.split('#')[0]
+              const active =
+                baseHref === '/'
+                  ? pathname === '/'
+                  : pathname === baseHref || pathname.startsWith(`${baseHref}/`)
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`transition-colors hover:text-rose-500 ${active ? 'text-rose-500' : ''}`}
+                >
+                  {item.label}
+                </Link>
+              )
+            })}
+          </nav>
+
+          <div className="flex items-center gap-2">
+            {showRegister &&
+              (onRegisterClick ? (
+                <button
+                  type="button"
+                  onClick={onRegisterClick}
+                  className="rounded-full border border-emerald-300/70 bg-emerald-50 px-4 py-2 text-xs font-extrabold uppercase tracking-[0.12em] text-emerald-700 transition-colors hover:bg-emerald-100 sm:text-sm"
+                >
+                  Daftar Rider
+                </button>
+              ) : (
+                <Link
+                  href="/dashboard"
+                  className="rounded-full border border-emerald-300/70 bg-emerald-50 px-4 py-2 text-xs font-extrabold uppercase tracking-[0.12em] text-emerald-700 transition-colors hover:bg-emerald-100 sm:text-sm"
+                >
+                  Daftar Rider
+                </Link>
+              ))}
+            <Link
+              href="/login"
+              className="rounded-full bg-rose-500 px-5 py-2 text-sm font-bold text-white transition-colors hover:bg-rose-400"
+            >
+              Login
+            </Link>
+          </div>
         </div>
+
+        <nav className="mt-3 flex items-center justify-center gap-4 text-sm font-semibold text-slate-600 md:hidden">
+          {navItems.map((item) => {
+            const baseHref = item.href.split('#')[0]
+            const active =
+              baseHref === '/'
+                ? pathname === '/'
+                : pathname === baseHref || pathname.startsWith(`${baseHref}/`)
+            return (
+              <Link
+                key={`${item.href}-mobile`}
+                href={item.href}
+                className={`transition-colors hover:text-rose-500 ${active ? 'text-rose-500' : ''}`}
+              >
+                {item.label}
+              </Link>
+            )
+          })}
+        </nav>
       </div>
     </header>
   )

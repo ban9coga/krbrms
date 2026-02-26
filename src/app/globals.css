@@ -1,2 +1,63 @@
 @import "tailwindcss";
 
+@layer base {
+  html,
+  body {
+    margin: 0;
+    min-height: 100%;
+  }
+}
+
+@layer components {
+  .public-page {
+    @apply min-h-screen bg-slate-100 text-slate-900;
+  }
+
+  .public-main {
+    @apply mx-auto grid w-full max-w-[1400px] gap-4 px-3 py-5 sm:px-5 md:px-7 md:py-8;
+  }
+
+  .public-hero {
+    @apply relative overflow-hidden rounded-[2rem] bg-[linear-gradient(125deg,#090f1d_0%,#1e293b_42%,#4a0f23_100%)] px-5 py-7 shadow-[0_32px_90px_rgba(15,23,42,0.28)] sm:px-8 md:rounded-[2.4rem] md:px-12 md:py-10;
+  }
+
+  .public-panel-dark {
+    @apply rounded-[1.5rem] border border-slate-700/80 bg-slate-900/80 p-4 text-slate-100 shadow-[0_20px_44px_rgba(2,6,23,0.26)] backdrop-blur-sm sm:p-6;
+  }
+
+  .public-panel-light {
+    @apply rounded-[1.5rem] border border-slate-200 bg-white/90 p-4 shadow-[0_14px_34px_rgba(15,23,42,0.1)] sm:p-6;
+  }
+
+  .public-filter {
+    @apply rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 outline-none transition focus:border-rose-400 focus:ring-2 focus:ring-rose-300/30;
+  }
+
+  .public-chip {
+    @apply inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-extrabold uppercase tracking-[0.12em] text-slate-600;
+  }
+
+  .public-action {
+    @apply inline-flex items-center justify-center rounded-xl bg-rose-500 px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.12em] text-white transition-colors hover:bg-rose-400;
+  }
+
+  .public-table-wrap {
+    @apply overflow-x-auto rounded-2xl border border-slate-200 bg-white/95;
+  }
+
+  .public-table {
+    @apply w-full min-w-[760px] border-collapse text-sm;
+  }
+
+  .public-table thead tr {
+    @apply bg-slate-100 text-left text-xs font-black uppercase tracking-[0.12em] text-slate-600;
+  }
+
+  .public-table th {
+    @apply border-b border-slate-200 px-3 py-3;
+  }
+
+  .public-table td {
+    @apply border-b border-slate-100 px-3 py-2.5 text-slate-700;
+  }
+}

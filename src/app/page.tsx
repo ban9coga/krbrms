@@ -36,7 +36,7 @@ export default function LandingPage() {
               <Link href="/dashboard" className="text-slate-300 transition-colors hover:text-white">
                 Events
               </Link>
-              <Link href="/live" className="text-slate-300 transition-colors hover:text-white">
+              <Link href="/dashboard#ongoing-events" className="text-slate-300 transition-colors hover:text-white">
                 Live Results
               </Link>
               <Link href="/login" className="text-slate-300 transition-colors hover:text-white">

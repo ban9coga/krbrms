@@ -1,15 +1,10 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import LoadingState from '../../../../components/LoadingState'
 import EmptyState from '../../../../components/EmptyState'
+import LoadingState from '../../../../components/LoadingState'
 import PublicTopbar from '../../../../components/PublicTopbar'
-import {
-  getEventById,
-  getEventCategories,
-  type EventItem,
-  type RiderCategory,
-} from '../../../../lib/eventService'
+import { getEventById, getEventCategories, type EventItem, type RiderCategory } from '../../../../lib/eventService'
 import { isMotoLive, isMotoUpcoming } from '../../../../lib/motoStatus'
 
 type Row = {
@@ -59,13 +54,14 @@ const parseMotoIndex = (name?: string | null) => {
   return Number(match[1])
 }
 
+const modeOptions: Mode[] = ['LINEUP', 'RESULTS', 'WINNERS']
+
 export default function LiveDisplayClient({ eventId }: { eventId: string }) {
   const [event, setEvent] = useState<EventItem | null>(null)
   const [categories, setCategories] = useState<RiderCategory[]>([])
   const [categoryId, setCategoryId] = useState<string>('')
   const [categoryLabel, setCategoryLabel] = useState<string>('')
   const [batches, setBatches] = useState<Batch[]>([])
-  const [motos, setMotos] = useState<MotoItem[]>([])
   const [activeMoto, setActiveMoto] = useState<MotoItem | null>(null)
   const [mode, setMode] = useState<Mode>('LINEUP')
   const [loading, setLoading] = useState(false)
@@ -104,7 +100,6 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
     const res = await fetch(`/api/motos?event_id=${eventId}`)
     const json = await res.json()
     const data = (json?.data ?? []) as MotoItem[]
-    setMotos(data)
     const live = data.find((m) => isMotoLive(m.status)) ?? null
     const upcoming = data
       .filter((m) => isMotoUpcoming(m.status))
@@ -156,11 +151,7 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
 
   const activeBatch = useMemo(() => {
     if (!activeMoto) return null
-    return (
-      batches.find(
-        (b) => b.moto1_id === activeMoto.id || b.moto2_id === activeMoto.id || b.moto3_id === activeMoto.id
-      ) ?? null
-    )
+    return batches.find((b) => b.moto1_id === activeMoto.id || b.moto2_id === activeMoto.id || b.moto3_id === activeMoto.id) ?? null
   }, [batches, activeMoto])
 
   const batchView = useMemo(() => {
@@ -186,319 +177,134 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
       if (activeMotoIndex === 2) return row.point_moto2 == null
       return row.point_moto3 == null
     }
-    const nextRow = rows.find(isPending) ?? null
-    return nextRow
+    return rows.find(isPending) ?? null
   }, [activeBatch, activeMotoIndex])
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        background: '#eaf7ee',
-        color: '#111',
-        width: '100%',
-        overflowX: 'hidden',
-      }}
-    >
+    <div className="public-page overflow-x-hidden">
       <PublicTopbar />
-      <div
-        style={{
-          width: '100%',
-          maxWidth: '100%',
-          margin: '0 auto',
-          padding: '16px 16px 40px',
-          boxSizing: 'border-box',
-        }}
-      >
-        <div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
-            <div style={{ flex: 1, minWidth: 240 }}>
-              <div style={{ fontSize: 20, fontWeight: 950 }}>{event?.name ?? 'Live Display'}</div>
-              <div style={{ fontWeight: 800, color: '#333' }}>{categoryLabel || 'Pilih Kategori'}</div>
-              {event?.location && <div style={{ color: '#333' }}>{event.location}</div>}
-              {activeMoto && (
-                <div style={{ marginTop: 6, fontWeight: 900 }}>
-                  Now: {activeMoto.moto_name} ({activeMoto.status})
-                </div>
-              )}
-            </div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <select
-                value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
-                style={{
-                  padding: '8px 10px',
-                  borderRadius: 10,
-                  border: '2px solid #111',
-                  fontWeight: 800,
-                  background: '#fff',
-                }}
-              >
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
-              {(['LINEUP', 'RESULTS', 'WINNERS'] as const).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setMode(m)}
-                  style={{
-                    padding: '8px 12px',
-                    borderRadius: 999,
-                    border: '2px solid #111',
-                    background: mode === m ? '#2ecc71' : '#fff',
-                    fontWeight: 900,
-                    cursor: 'pointer',
-                  }}
+      <main className="public-main max-w-[1500px]">
+        <section className="public-hero">
+          <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-rose-500/15 blur-3xl" />
+          <div className="pointer-events-none absolute -top-24 right-0 h-72 w-72 rounded-full bg-sky-400/15 blur-3xl" />
+          <div className="relative z-10 grid gap-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="grid gap-1">
+                <h1 className="text-2xl font-black tracking-tight text-white md:text-4xl">{event?.name ?? 'Live Display'}</h1>
+                <p className="text-sm font-semibold text-slate-200">{categoryLabel || 'Pilih Kategori'}</p>
+                {event?.location && <p className="text-sm font-medium text-slate-300">{event.location}</p>}
+                {activeMoto && (
+                  <p className="text-xs font-extrabold uppercase tracking-[0.12em] text-rose-200">
+                    Now: {activeMoto.moto_name} ({activeMoto.status})
+                  </p>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={categoryId}
+                  onChange={(e) => setCategoryId(e.target.value)}
+                  className="rounded-xl border border-white/25 bg-white/10 px-3 py-2 text-sm font-semibold text-white outline-none"
                 >
-                  {m === 'LINEUP' ? 'Lineup' : m === 'RESULTS' ? 'Live Results' : 'Winners'}
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id} className="text-slate-900">
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+                {modeOptions.map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setMode(m)}
+                    className={`rounded-full border px-3 py-2 text-xs font-extrabold uppercase tracking-[0.12em] transition-colors sm:text-sm ${
+                      mode === m
+                        ? 'border-rose-300 bg-rose-500 text-white'
+                        : 'border-white/25 bg-white/10 text-white hover:bg-white/20'
+                    }`}
+                  >
+                    {m === 'LINEUP' ? 'Lineup' : m === 'RESULTS' ? 'Live Results' : 'Winners'}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={refresh}
+                  disabled={refreshing}
+                  className="rounded-full border border-emerald-300/70 bg-emerald-50 px-4 py-2 text-xs font-extrabold uppercase tracking-[0.12em] text-emerald-700 transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-70 sm:text-sm"
+                >
+                  {refreshing ? 'Refreshing...' : 'Refresh'}
                 </button>
-              ))}
-              <button
-                type="button"
-                onClick={refresh}
-                disabled={refreshing}
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: 999,
-                  border: '2px solid #111',
-                  background: '#bfead2',
-                  fontWeight: 900,
-                  cursor: 'pointer',
-                }}
-              >
-                {refreshing ? 'Refreshing...' : 'Refresh'}
-              </button>
-            </div>
-          </div>
-
-          {nextUp && (
-            <div
-              style={{
-                marginTop: 12,
-                padding: '10px 12px',
-                borderRadius: 14,
-                border: '2px solid #111',
-                background: '#fff4c4',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 12,
-                fontWeight: 900,
-              }}
-            >
-              <div>NEXT UP</div>
-              <div>{nextUp.name}</div>
-              <div>No: {nextUp.no_plate}</div>
-              <div>
-                Gate {activeMotoIndex === 1 ? nextUp.gate_moto1 : activeMotoIndex === 2 ? nextUp.gate_moto2 : nextUp.gate_moto3}
               </div>
             </div>
-          )}
-        </div>
+
+            {nextUp && (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-300 bg-amber-50/95 px-4 py-3 text-sm font-bold text-amber-900">
+                <span className="rounded-full border border-amber-300 bg-amber-100 px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.12em]">
+                  Next Up
+                </span>
+                <span>{nextUp.name}</span>
+                <span>No: {nextUp.no_plate}</span>
+                <span>
+                  Gate{' '}
+                  {activeMotoIndex === 1 ? nextUp.gate_moto1 : activeMotoIndex === 2 ? nextUp.gate_moto2 : nextUp.gate_moto3}
+                </span>
+              </div>
+            )}
+          </div>
+        </section>
 
         {loading && <LoadingState />}
-        {!loading && event?.is_public === false && (
-          <EmptyState label="Event ini sedang disembunyikan dari publik." />
-        )}
-        {!loading && event?.is_public !== false && !hasData && (
-          <EmptyState label="Belum ada data race untuk kategori ini." />
-        )}
+        {!loading && event?.is_public === false && <EmptyState label="Event ini sedang disembunyikan dari publik." />}
+        {!loading && event?.is_public !== false && !hasData && <EmptyState label="Belum ada data race untuk kategori ini." />}
 
         {!loading && event?.is_public !== false && hasData && mode === 'LINEUP' && (
-          <div style={{ display: 'grid', gap: 16, marginTop: 16 }}>
+          <section className="grid gap-4">
             {batchView.map((batch) => {
               const rows = [...batch.rows].sort((a, b) => (a.gate_moto1 ?? 9999) - (b.gate_moto1 ?? 9999))
               return (
-                <div key={batch.batch_index} style={{ background: '#fff', border: '2px solid #111', borderRadius: 14 }}>
-                  <div style={{ background: '#0a7a1f', color: '#fff', padding: '10px 12px', fontWeight: 900 }}>
-                    BATCH {batch.batch_index} (LINEUP)
-                  </div>
-                  <div
-                    style={{
-                      overflowX: 'auto',
-                      WebkitOverflowScrolling: 'touch',
-                      maxWidth: '100%',
-                      overflowY: 'hidden',
-                      display: 'block',
-                      paddingBottom: 6,
-                      scrollbarGutter: 'stable',
-                      position: 'relative',
-                    }}
-                  >
-                    <table
-                      style={{
-                        width: '100%',
-                        borderCollapse: 'collapse',
-                        minWidth: 900,
-                        tableLayout: 'fixed',
-                        fontVariantNumeric: 'tabular-nums',
-                        boxSizing: 'border-box',
-                      }}
-                    >
-                      <colgroup>
-                        <col style={{ width: 70 }} />
-                        <col style={{ width: 70 }} />
-                        <col style={{ width: 70 }} />
-                        <col style={{ width: 200 }} />
-                        <col style={{ width: 90 }} />
-                        <col style={{ width: 160 }} />
-                      </colgroup>
+                <article key={batch.batch_index} className="public-panel-dark">
+                  <h2 className="mb-3 text-lg font-black uppercase tracking-[0.08em] text-white">Batch {batch.batch_index} - Lineup</h2>
+                  <div className="public-table-wrap">
+                    <table className="public-table" style={{ minWidth: 900 }}>
                       <thead>
-                        <tr style={{ background: '#f5f5f5', textAlign: 'left' }}>
+                        <tr>
                           {['Gate M1', 'Gate M2', 'Gate M3', 'Nama Peserta', 'No Plat', 'Komunitas'].map((h) => (
-                            <th
-                              key={h}
-                              style={{
-                                padding: 8,
-                                borderBottom: '2px solid #111',
-                                fontWeight: 900,
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                boxSizing: 'border-box',
-                              }}
-                            >
-                              {h}
-                            </th>
+                            <th key={h}>{h}</th>
                           ))}
                         </tr>
                       </thead>
                       <tbody>
                         {rows.map((row) => (
-                          <tr key={row.rider_id} style={{ borderBottom: '1px solid #ddd' }}>
-                            <td
-                              style={{
-                                padding: 8,
-                                whiteSpace: 'nowrap',
-                                textAlign: 'center',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                boxSizing: 'border-box',
-                              }}
-                            >
-                              {row.gate_moto1 ?? '-'}
-                            </td>
-                            <td
-                              style={{
-                                padding: 8,
-                                whiteSpace: 'nowrap',
-                                textAlign: 'center',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                boxSizing: 'border-box',
-                              }}
-                            >
-                              {row.gate_moto2 ?? '-'}
-                            </td>
-                            <td
-                              style={{
-                                padding: 8,
-                                whiteSpace: 'nowrap',
-                                textAlign: 'center',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                boxSizing: 'border-box',
-                              }}
-                            >
-                              {row.gate_moto3 ?? '-'}
-                            </td>
-                            <td
-                              style={{
-                                padding: 8,
-                                fontWeight: 800,
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                boxSizing: 'border-box',
-                              }}
-                            >
-                              {row.name}
-                            </td>
-                            <td
-                              style={{
-                                padding: 8,
-                                whiteSpace: 'nowrap',
-                                textAlign: 'center',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                boxSizing: 'border-box',
-                              }}
-                            >
-                              {row.no_plate}
-                            </td>
-                            <td
-                              style={{
-                                padding: 8,
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                boxSizing: 'border-box',
-                              }}
-                            >
-                              {row.club || '-'}
-                            </td>
+                          <tr key={row.rider_id}>
+                            <td>{row.gate_moto1 ?? '-'}</td>
+                            <td>{row.gate_moto2 ?? '-'}</td>
+                            <td>{row.gate_moto3 ?? '-'}</td>
+                            <td className="font-extrabold text-slate-900">{row.name}</td>
+                            <td>{row.no_plate}</td>
+                            <td>{row.club || '-'}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
-                </div>
+                </article>
               )
             })}
-          </div>
+          </section>
         )}
 
         {!loading && event?.is_public !== false && hasData && mode === 'RESULTS' && (
-          <div style={{ display: 'grid', gap: 16, marginTop: 16 }}>
+          <section className="grid gap-4">
             {batchView.map((batch) => {
               const rows = [...batch.rows].sort((a, b) => (a.rank_point ?? 9999) - (b.rank_point ?? 9999))
               return (
-                <div key={batch.batch_index} style={{ background: '#fff', border: '2px solid #111', borderRadius: 14 }}>
-                  <div style={{ background: '#0a7a1f', color: '#fff', padding: '10px 12px', fontWeight: 900 }}>
-                    BATCH {batch.batch_index} (LIVE RESULTS)
-                  </div>
-                  <div
-                    style={{
-                      overflowX: 'auto',
-                      WebkitOverflowScrolling: 'touch',
-                      maxWidth: '100%',
-                      overflowY: 'hidden',
-                      display: 'block',
-                      paddingBottom: 6,
-                      scrollbarGutter: 'stable',
-                      position: 'relative',
-                    }}
-                  >
-                    <table
-                      style={{
-                        width: '100%',
-                        borderCollapse: 'collapse',
-                        minWidth: 1200,
-                        tableLayout: 'fixed',
-                        fontVariantNumeric: 'tabular-nums',
-                        boxSizing: 'border-box',
-                      }}
-                    >
-                      <colgroup>
-                        <col style={{ width: 70 }} />
-                        <col style={{ width: 70 }} />
-                        <col style={{ width: 70 }} />
-                        <col style={{ width: 200 }} />
-                        <col style={{ width: 90 }} />
-                        <col style={{ width: 90 }} />
-                        <col style={{ width: 90 }} />
-                        <col style={{ width: 90 }} />
-                        <col style={{ width: 90 }} />
-                        <col style={{ width: 90 }} />
-                        <col style={{ width: 70 }} />
-                        <col style={{ width: 90 }} />
-                      </colgroup>
+                <article key={batch.batch_index} className="public-panel-dark">
+                  <h2 className="mb-3 text-lg font-black uppercase tracking-[0.08em] text-white">
+                    Batch {batch.batch_index} - Live Results
+                  </h2>
+                  <div className="public-table-wrap">
+                    <table className="public-table" style={{ minWidth: 1220 }}>
                       <thead>
-                        <tr style={{ background: '#f5f5f5', textAlign: 'left' }}>
+                        <tr>
                           {[
                             'Gate M1',
                             'Gate M2',
@@ -513,220 +319,64 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
                             'Rank',
                             'Class',
                           ].map((h) => (
-                            <th
-                              key={h}
-                              style={{
-                                padding: 8,
-                                borderBottom: '2px solid #111',
-                                fontWeight: 900,
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                boxSizing: 'border-box',
-                              }}
-                            >
-                              {h}
-                            </th>
+                            <th key={h}>{h}</th>
                           ))}
                         </tr>
                       </thead>
                       <tbody>
                         {rows.map((row) => (
-                          <tr key={row.rider_id} style={{ borderBottom: '1px solid #ddd' }}>
-                            <td
-                              style={{
-                                padding: 8,
-                                whiteSpace: 'nowrap',
-                                textAlign: 'center',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                boxSizing: 'border-box',
-                              }}
-                            >
-                              {row.gate_moto1 ?? '-'}
-                            </td>
-                            <td
-                              style={{
-                                padding: 8,
-                                whiteSpace: 'nowrap',
-                                textAlign: 'center',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                boxSizing: 'border-box',
-                              }}
-                            >
-                              {row.gate_moto2 ?? '-'}
-                            </td>
-                            <td
-                              style={{
-                                padding: 8,
-                                whiteSpace: 'nowrap',
-                                textAlign: 'center',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                boxSizing: 'border-box',
-                              }}
-                            >
-                              {row.gate_moto3 ?? '-'}
-                            </td>
-                            <td
-                              style={{
-                                padding: 8,
-                                fontWeight: 800,
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                boxSizing: 'border-box',
-                              }}
-                            >
-                              {row.name}
-                            </td>
-                            <td
-                              style={{
-                                padding: 8,
-                                whiteSpace: 'nowrap',
-                                textAlign: 'center',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                boxSizing: 'border-box',
-                              }}
-                            >
-                              {row.no_plate}
-                            </td>
-                            <td
-                              style={{
-                                padding: 8,
-                                whiteSpace: 'nowrap',
-                                textAlign: 'center',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                boxSizing: 'border-box',
-                              }}
-                            >
-                              {row.point_moto1 ?? '-'}
-                            </td>
-                            <td
-                              style={{
-                                padding: 8,
-                                whiteSpace: 'nowrap',
-                                textAlign: 'center',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                boxSizing: 'border-box',
-                              }}
-                            >
-                              {row.point_moto2 ?? '-'}
-                            </td>
-                            <td
-                              style={{
-                                padding: 8,
-                                whiteSpace: 'nowrap',
-                                textAlign: 'center',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                boxSizing: 'border-box',
-                              }}
-                            >
-                              {row.point_moto3 ?? '-'}
-                            </td>
-                            <td
-                              style={{
-                                padding: 8,
-                                fontWeight: 900,
-                                color: '#b91c1c',
-                                whiteSpace: 'nowrap',
-                                textAlign: 'center',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                boxSizing: 'border-box',
-                              }}
-                            >
-                              {row.penalty_total ?? '-'}
-                            </td>
-                            <td
-                              style={{
-                                padding: 8,
-                                fontWeight: 900,
-                                color: '#1d4ed8',
-                                whiteSpace: 'nowrap',
-                                textAlign: 'center',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                boxSizing: 'border-box',
-                              }}
-                            >
-                              {row.total_point ?? '-'}
-                            </td>
-                            <td
-                              style={{
-                                padding: 8,
-                                fontWeight: 900,
-                                color: '#0f766e',
-                                whiteSpace: 'nowrap',
-                                textAlign: 'center',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                boxSizing: 'border-box',
-                              }}
-                            >
-                              {row.rank_point ?? '-'}
-                            </td>
-                            <td
-                              style={{
-                                padding: 8,
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                boxSizing: 'border-box',
-                              }}
-                            >
-                              {row.class_label || '-'}
-                            </td>
+                          <tr key={row.rider_id}>
+                            <td>{row.gate_moto1 ?? '-'}</td>
+                            <td>{row.gate_moto2 ?? '-'}</td>
+                            <td>{row.gate_moto3 ?? '-'}</td>
+                            <td className="font-extrabold text-slate-900">{row.name}</td>
+                            <td>{row.no_plate}</td>
+                            <td>{row.point_moto1 ?? '-'}</td>
+                            <td>{row.point_moto2 ?? '-'}</td>
+                            <td>{row.point_moto3 ?? '-'}</td>
+                            <td className="font-extrabold text-rose-600">{row.penalty_total ?? '-'}</td>
+                            <td className="font-extrabold text-sky-700">{row.total_point ?? '-'}</td>
+                            <td className="font-extrabold text-emerald-700">{row.rank_point ?? '-'}</td>
+                            <td>{row.class_label || '-'}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
-                </div>
+                </article>
               )
             })}
-          </div>
+          </section>
         )}
 
         {!loading && event?.is_public !== false && hasData && mode === 'WINNERS' && (
-          <div style={{ display: 'grid', gap: 16, marginTop: 16 }}>
+          <section className="grid gap-4">
             {winnersByBatch.map((batch) => (
-              <div key={batch.batch_index} style={{ background: '#fff', border: '2px solid #111', borderRadius: 14 }}>
-                <div style={{ background: '#0a7a1f', color: '#fff', padding: '10px 12px', fontWeight: 900 }}>
-                  BATCH {batch.batch_index} (WINNERS)
-                </div>
-                <div style={{ display: 'grid', gap: 10, padding: 12 }}>
-                  {batch.winners.length === 0 && <div>Belum ada hasil.</div>}
+              <article key={batch.batch_index} className="public-panel-dark">
+                <h2 className="mb-3 text-lg font-black uppercase tracking-[0.08em] text-white">Batch {batch.batch_index} - Winners</h2>
+                <div className="grid gap-3">
+                  {batch.winners.length === 0 && (
+                    <div className="rounded-xl border border-dashed border-slate-600 bg-slate-950/50 p-3 text-sm font-semibold text-slate-300">
+                      Belum ada hasil.
+                    </div>
+                  )}
                   {batch.winners.map((row, index) => (
                     <div
                       key={row.rider_id}
-                      style={{
-                        border: '2px solid #111',
-                        borderRadius: 12,
-                        padding: '10px 12px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: 12,
-                      }}
+                      className="grid gap-1 rounded-xl border border-slate-600 bg-slate-950/70 px-4 py-3 text-slate-100 sm:grid-cols-[1fr_auto] sm:items-center"
                     >
-                      <div style={{ fontWeight: 900, fontSize: 18 }}>
+                      <div className="text-base font-black">
                         {index + 1}. {row.name}
                       </div>
-                      <div style={{ fontWeight: 900 }}>Total: {row.total_point ?? '-'}</div>
+                      <div className="text-sm font-extrabold text-emerald-300">Total: {row.total_point ?? '-'}</div>
                     </div>
                   ))}
                 </div>
-              </div>
+              </article>
             ))}
-          </div>
+          </section>
         )}
-      </div>
+      </main>
     </div>
   )
 }

@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import LoadingState from '../../../../../components/LoadingState'
 import EmptyState from '../../../../../components/EmptyState'
+import LoadingState from '../../../../../components/LoadingState'
+import PublicTopbar from '../../../../../components/PublicTopbar'
 
 type Row = {
   rider_id: string
@@ -57,9 +58,7 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
     const load = async () => {
       setLoading(true)
       try {
-        const res = await fetch(
-          `/api/public/events/${eventId}/live-score?category_id=${encodeURIComponent(categoryId)}`
-        )
+        const res = await fetch(`/api/public/events/${eventId}/live-score?category_id=${encodeURIComponent(categoryId)}`)
         const json = await res.json()
         setCategoryLabel(json.data?.category ?? '')
         setBatches(json.data?.batches ?? [])
@@ -74,9 +73,7 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
   const refresh = async () => {
     setRefreshing(true)
     try {
-      const res = await fetch(
-        `/api/public/events/${eventId}/live-score?category_id=${encodeURIComponent(categoryId)}`
-      )
+      const res = await fetch(`/api/public/events/${eventId}/live-score?category_id=${encodeURIComponent(categoryId)}`)
       const json = await res.json()
       setCategoryLabel(json.data?.category ?? '')
       setBatches(json.data?.batches ?? [])
@@ -95,171 +92,156 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
   }, [eventId, categoryId])
 
   return (
-    <div style={{ minHeight: '100vh', background: '#eaf7ee', color: '#111', padding: 24 }}>
-      <div style={{ maxWidth: 980, margin: '0 auto' }}>
-        <Link href={`/event/${eventId}/results`} style={{ color: '#111', fontWeight: 800 }}>
-          &lt;- Back to Results
-        </Link>
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-          <div>
-            <h1 style={{ fontSize: 22, fontWeight: 900, marginTop: 12, marginBottom: 4 }}>Live Score</h1>
-            <div style={{ fontWeight: 900, color: '#333' }}>{categoryLabel || 'Category'}</div>
+    <div className="public-page">
+      <PublicTopbar />
+      <main className="public-main">
+        <section className="public-hero">
+          <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-rose-500/15 blur-3xl" />
+          <div className="pointer-events-none absolute -top-24 right-0 h-72 w-72 rounded-full bg-sky-400/15 blur-3xl" />
+          <div className="relative z-10 flex flex-wrap items-start justify-between gap-4">
+            <div className="grid gap-2">
+              <Link
+                href={`/event/${eventId}/results`}
+                className="inline-flex w-fit items-center rounded-full border border-white/30 bg-white/10 px-3 py-1.5 text-xs font-extrabold uppercase tracking-[0.12em] text-white transition-colors hover:bg-white/20"
+              >
+                Back to Results
+              </Link>
+              <h1 className="text-3xl font-black tracking-tight text-white md:text-5xl">Live Score</h1>
+              <p className="text-sm font-semibold text-slate-200 sm:text-base">{categoryLabel || 'Category'}</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {(['GATE', 'RANK'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setSortMode(mode)}
+                  className={`rounded-full border px-3 py-2 text-xs font-extrabold uppercase tracking-[0.12em] transition-colors sm:text-sm ${
+                    sortMode === mode
+                      ? 'border-rose-300 bg-rose-500 text-white'
+                      : 'border-white/25 bg-white/10 text-white hover:bg-white/20'
+                  }`}
+                >
+                  Sort {mode}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={refresh}
+                disabled={refreshing}
+                className="rounded-full border border-emerald-300/70 bg-emerald-50 px-4 py-2 text-xs font-extrabold uppercase tracking-[0.12em] text-emerald-700 transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-70 sm:text-sm"
+              >
+                {refreshing ? 'Refreshing...' : 'Refresh'}
+              </button>
+            </div>
           </div>
-          <button
-            type="button"
-            onClick={refresh}
-            disabled={refreshing}
-            style={{
-              padding: '8px 12px',
-              borderRadius: 999,
-              border: '2px solid #111',
-              background: '#bfead2',
-              fontWeight: 900,
-              cursor: 'pointer',
-            }}
-          >
-            {refreshing ? 'Refreshing...' : 'Refresh'}
-          </button>
-        </div>
+        </section>
 
         {loading && <LoadingState />}
         {!loading && batches.length === 0 && <EmptyState label="Belum ada batch." />}
 
-        <div style={{ display: 'grid', gap: 16, marginTop: 16 }}>
+        <section className="grid gap-4">
           {batches.map((batch) => {
             const rows =
               sortMode === 'RANK'
                 ? [...batch.rows].sort((a, b) => (a.rank_point ?? 9999) - (b.rank_point ?? 9999))
                 : [...batch.rows].sort((a, b) => (a.gate_moto1 ?? 9999) - (b.gate_moto1 ?? 9999))
             return (
-            <div
-              key={batch.batch_index}
-              style={{
-                background: '#fff',
-                border: '2px solid #111',
-                borderRadius: 14,
-                overflow: 'hidden',
-              }}
-            >
-              <div style={{ background: '#0a7a1f', color: '#fff', padding: '10px 12px', fontWeight: 900 }}>
-                BATCH {batch.batch_index} (KUALIFIKASI MOTO)
-              </div>
-              <div style={{ display: 'flex', gap: 8, padding: '8px 12px', borderBottom: '2px solid #111' }}>
-                {(['GATE', 'RANK'] as const).map((mode) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    onClick={() => setSortMode(mode)}
-                    style={{
-                      padding: '6px 10px',
-                      borderRadius: 999,
-                      border: '2px solid #111',
-                      background: sortMode === mode ? '#2ecc71' : '#fff',
-                      fontWeight: 900,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Sort by {mode === 'GATE' ? 'Gate' : 'Rank'}
-                  </button>
-                ))}
-              </div>
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 720 }}>
-                  <thead>
-                    <tr style={{ background: '#f5f5f5', textAlign: 'left' }}>
-                      {[
-                        'Gate M1',
-                        'Gate M2',
-                        'Gate M3',
-                        'Nama Peserta',
-                        'No Plat',
-                        'Komunitas',
-                        'Point M1',
-                        'Point M2',
-                        'Point M3',
-                        'Penalty',
-                        'Total Point',
-                        'Rank',
-                        'Class',
-                      ].map((h) => (
-                        <th key={h} style={{ padding: 8, borderBottom: '2px solid #111', fontWeight: 900 }}>
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((row) => (
-                      <tr key={row.rider_id} style={{ borderBottom: '1px solid #ddd' }}>
-                        <td style={{ padding: 8 }}>{row.gate_moto1 ?? '-'}</td>
-                        <td style={{ padding: 8 }}>{row.gate_moto2 ?? '-'}</td>
-                        <td style={{ padding: 8 }}>{row.gate_moto3 ?? '-'}</td>
-                        <td style={{ padding: 8, fontWeight: 800 }}>{row.name}</td>
-                        <td style={{ padding: 8 }}>{row.no_plate}</td>
-                        <td style={{ padding: 8 }}>{row.club || '-'}</td>
-                        <td style={{ padding: 8 }}>{row.point_moto1 ?? '-'}</td>
-                        <td style={{ padding: 8 }}>{row.point_moto2 ?? '-'}</td>
-                        <td style={{ padding: 8 }}>{row.point_moto3 ?? '-'}</td>
-                        <td style={{ padding: 8, fontWeight: 900, color: '#b91c1c' }}>{row.penalty_total ?? '-'}</td>
-                        <td style={{ padding: 8, fontWeight: 900, color: '#1d4ed8' }}>{row.total_point ?? '-'}</td>
-                        <td style={{ padding: 8, fontWeight: 900, color: '#0f766e' }}>{row.rank_point ?? '-'}</td>
-                        <td style={{ padding: 8 }}>{row.class_label || '-'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )})}
-        </div>
-
-        {stages.length > 0 && (
-          <div style={{ display: 'grid', gap: 16, marginTop: 24 }}>
-            {stages.map((stage) => (
-              <div
-                key={stage.moto_id}
-                style={{
-                  background: '#fff',
-                  border: '2px solid #111',
-                  borderRadius: 14,
-                  overflow: 'hidden',
-                }}
-              >
-                <div style={{ background: '#0a7a1f', color: '#fff', padding: '10px 12px', fontWeight: 900 }}>
-                  {stage.title}
+              <article key={batch.batch_index} className="public-panel-dark">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <h2 className="text-lg font-black uppercase tracking-[0.08em] text-white">
+                    Batch {batch.batch_index}
+                  </h2>
+                  <span className="rounded-full border border-slate-600 bg-slate-800 px-3 py-1 text-xs font-extrabold uppercase tracking-[0.1em] text-slate-200">
+                    Kualifikasi Moto
+                  </span>
                 </div>
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 640 }}>
+                <div className="public-table-wrap">
+                  <table className="public-table">
                     <thead>
-                      <tr style={{ background: '#f5f5f5', textAlign: 'left' }}>
-                        {['Gate', 'Nama Peserta', 'No Plat', 'Komunitas', 'Point', 'Status'].map((h) => (
-                          <th key={h} style={{ padding: 8, borderBottom: '2px solid #111', fontWeight: 900 }}>
-                            {h}
-                          </th>
+                      <tr>
+                        {[
+                          'Gate M1',
+                          'Gate M2',
+                          'Gate M3',
+                          'Nama Peserta',
+                          'No Plat',
+                          'Komunitas',
+                          'Point M1',
+                          'Point M2',
+                          'Point M3',
+                          'Penalty',
+                          'Total',
+                          'Rank',
+                          'Class',
+                        ].map((h) => (
+                          <th key={h}>{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {stage.rows.map((row) => (
-                        <tr key={row.rider_id} style={{ borderBottom: '1px solid #ddd' }}>
-                          <td style={{ padding: 8 }}>{row.gate ?? '-'}</td>
-                          <td style={{ padding: 8, fontWeight: 800 }}>{row.name}</td>
-                          <td style={{ padding: 8 }}>{row.no_plate}</td>
-                          <td style={{ padding: 8 }}>{row.club || '-'}</td>
-                          <td style={{ padding: 8, fontWeight: 900, color: '#1d4ed8' }}>{row.point ?? '-'}</td>
-                          <td style={{ padding: 8, fontWeight: 900 }}>{row.status}</td>
+                      {rows.map((row) => (
+                        <tr key={row.rider_id}>
+                          <td>{row.gate_moto1 ?? '-'}</td>
+                          <td>{row.gate_moto2 ?? '-'}</td>
+                          <td>{row.gate_moto3 ?? '-'}</td>
+                          <td className="font-extrabold text-slate-900">{row.name}</td>
+                          <td>{row.no_plate}</td>
+                          <td>{row.club || '-'}</td>
+                          <td>{row.point_moto1 ?? '-'}</td>
+                          <td>{row.point_moto2 ?? '-'}</td>
+                          <td>{row.point_moto3 ?? '-'}</td>
+                          <td className="font-extrabold text-rose-600">{row.penalty_total ?? '-'}</td>
+                          <td className="font-extrabold text-sky-700">{row.total_point ?? '-'}</td>
+                          <td className="font-extrabold text-emerald-700">{row.rank_point ?? '-'}</td>
+                          <td>{row.class_label || '-'}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
-              </div>
+              </article>
+            )
+          })}
+        </section>
+
+        {stages.length > 0 && (
+          <section className="grid gap-4">
+            {stages.map((stage) => (
+              <article key={stage.moto_id} className="public-panel-dark">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <h2 className="text-lg font-black uppercase tracking-[0.08em] text-white">{stage.title}</h2>
+                  <span className="rounded-full border border-slate-600 bg-slate-800 px-3 py-1 text-xs font-extrabold uppercase tracking-[0.1em] text-slate-200">
+                    Advanced Stage
+                  </span>
+                </div>
+                <div className="public-table-wrap">
+                  <table className="public-table">
+                    <thead>
+                      <tr>
+                        {['Gate', 'Nama Peserta', 'No Plat', 'Komunitas', 'Point', 'Status'].map((h) => (
+                          <th key={h}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {stage.rows.map((row) => (
+                        <tr key={row.rider_id}>
+                          <td>{row.gate ?? '-'}</td>
+                          <td className="font-extrabold text-slate-900">{row.name}</td>
+                          <td>{row.no_plate}</td>
+                          <td>{row.club || '-'}</td>
+                          <td className="font-extrabold text-sky-700">{row.point ?? '-'}</td>
+                          <td className="font-extrabold">{row.status}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </article>
             ))}
-          </div>
+          </section>
         )}
-      </div>
+      </main>
     </div>
   )
 }
-

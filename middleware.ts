@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const PROTECTED_PATHS = ['/admin', '/scoring', '/race-control', '/super-admin', '/jury', '/race-director']
+const PROTECTED_PATHS = ['/admin', '/scoring', '/race-control', '/super-admin', '/jury', '/race-director', '/jc']
 
 const ROLE_GUARDS: Record<string, string[]> = {
   '/admin/users': ['super_admin'],
   '/admin': ['admin', 'super_admin'],
+  '/jc': ['CHECKER', 'RACE_DIRECTOR', 'super_admin'],
   '/scoring': ['CHECKER', 'FINISHER', 'RACE_DIRECTOR', 'super_admin'],
   '/jury/start': ['CHECKER', 'RACE_DIRECTOR', 'super_admin'],
   '/jury/finish': ['FINISHER', 'RACE_DIRECTOR', 'super_admin'],
@@ -92,7 +93,7 @@ export function middleware(req: NextRequest) {
   const defaultRoute = (r: string) => {
     if (r === 'RACE_DIRECTOR') return '/race-director/approval'
     if (r === 'FINISHER') return '/jury/finish'
-    if (r === 'CHECKER') return '/jury/start'
+    if (r === 'CHECKER') return '/jc'
     if (r === 'super_admin') return '/admin'
     if (r === 'admin') return '/admin'
     if (r === 'race_control') return '/race-control'
@@ -119,5 +120,6 @@ export const config = {
     '/super-admin/:path*',
     '/jury/:path*',
     '/race-director/:path*',
+    '/jc/:path*',
   ],
 }

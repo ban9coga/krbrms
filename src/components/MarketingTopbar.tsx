@@ -3,7 +3,7 @@ import Link from 'next/link'
 const navItems = [
   { href: '/', label: 'Home' },
   { href: '/dashboard', label: 'Events' },
-  { href: '/live', label: 'Live Results' },
+  { href: '/dashboard#ongoing-events', label: 'Live Results' },
 ]
 
 export default function MarketingTopbar() {

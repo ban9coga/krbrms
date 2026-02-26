@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useEffect, useState } from 'react'
 import EmptyState from '../../../../../components/EmptyState'
 import LoadingState from '../../../../../components/LoadingState'
 import PublicTopbar from '../../../../../components/PublicTopbar'
@@ -9,10 +9,14 @@ import StatusBadge from '../../../../../components/StatusBadge'
 import { getCategoriesByYear, getMotosByCategory, type RiderCategory, type MotoItem } from '../../../../../lib/eventService'
 import { isMotoFinished, isMotoLive, isMotoUpcoming } from '../../../../../lib/motoStatus'
 
+type CategoryStatus = 'UPCOMING' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED'
+
 const normalize = (value: string) => value.toLowerCase()
 
+const statusOptions: Array<'ALL' | 'LIVE' | 'FINISHED'> = ['ALL', 'LIVE', 'FINISHED']
+
 export default function YearClient({ eventId, year }: { eventId: string; year: string }) {
-  const [categories, setCategories] = useState<(RiderCategory & { status: 'UPCOMING' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED' })[]>([])
+  const [categories, setCategories] = useState<(RiderCategory & { status: CategoryStatus })[]>([])
   const [loading, setLoading] = useState(false)
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'LIVE' | 'FINISHED'>('ALL')
@@ -27,7 +31,7 @@ export default function YearClient({ eventId, year }: { eventId: string; year: s
           const hasLive = motos.some((m) => isMotoLive(m.status))
           const hasFinished = motos.some((m) => isMotoFinished(m.status))
           const hasUpcoming = motos.some((m) => isMotoUpcoming(m.status))
-          const status: 'UPCOMING' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED' = hasLive
+          const status: CategoryStatus = hasLive
             ? 'LIVE'
             : hasFinished && hasUpcoming
             ? 'LIVE'
@@ -50,74 +54,70 @@ export default function YearClient({ eventId, year }: { eventId: string; year: s
   })
 
   return (
-    <div style={{ minHeight: '100vh', background: '#eaf7ee', color: '#111' }}>
+    <div className="public-page">
       <PublicTopbar />
-      <div style={{ maxWidth: '840px', margin: '0 auto', padding: '24px 20px 48px' }}>
-        <div style={{ fontWeight: 800, marginBottom: 12 }}>Race Categories {year}</div>
+      <main className="public-main">
+        <section className="public-hero">
+          <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-rose-500/15 blur-3xl" />
+          <div className="pointer-events-none absolute -top-24 right-0 h-72 w-72 rounded-full bg-sky-400/15 blur-3xl" />
+          <div className="relative z-10 grid gap-3">
+            <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-rose-300">Results Explorer</p>
+            <h1 className="text-3xl font-black tracking-tight text-white md:text-5xl">Race Categories {year}</h1>
+            <p className="max-w-2xl text-sm font-semibold text-slate-200 sm:text-base">
+              Filter category berdasarkan nama dan status race.
+            </p>
+          </div>
+        </section>
 
-        {loading && <LoadingState />}
-        {!loading && filtered.length === 0 && <EmptyState label="Belum ada race category." />}
+        <section className="public-panel-light">
+          <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Cari race category..."
+              className="public-filter"
+            />
+            <div className="flex flex-wrap gap-2">
+              {statusOptions.map((status) => (
+                <button
+                  key={status}
+                  type="button"
+                  onClick={() => setStatusFilter(status)}
+                  className={`rounded-full border px-3 py-2 text-xs font-extrabold uppercase tracking-[0.12em] transition-colors sm:text-sm ${
+                    statusFilter === status
+                      ? 'border-rose-300 bg-rose-50 text-rose-600'
+                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  {status}
+                </button>
+              ))}
+            </div>
+          </div>
 
-        <div style={{ display: 'grid', gap: '10px', marginTop: '12px' }}>
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Cari race category..."
-            style={{
-              padding: '12px',
-              borderRadius: '10px',
-              border: '2px solid #111',
-              background: '#fff',
-            }}
-          />
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            {(['ALL', 'LIVE', 'FINISHED'] as const).map((status) => (
-              <button
-                key={status}
-                type="button"
-                onClick={() => setStatusFilter(status)}
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: '999px',
-                  border: '2px solid #111',
-                  background: statusFilter === status ? '#2ecc71' : '#fff',
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                }}
+          <div className="mt-4 grid gap-3">
+            {loading && <LoadingState />}
+            {!loading && filtered.length === 0 && <EmptyState label="Belum ada race category." />}
+            {filtered.map((category) => (
+              <Link
+                key={category.id}
+                href={`/event/${eventId}/live-score/${encodeURIComponent(category.id)}`}
+                className="group rounded-2xl border border-slate-200 bg-white p-4 no-underline shadow-[0_10px_24px_rgba(15,23,42,0.08)] transition-all hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgba(15,23,42,0.12)]"
               >
-                {status}
-              </button>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="grid gap-1">
+                    <div className="text-lg font-black text-slate-900">{category.label}</div>
+                    <div className="text-xs font-semibold text-slate-500">
+                      Year {category.year_min ?? category.year} - {category.year_max ?? category.year}
+                    </div>
+                  </div>
+                  <StatusBadge label={category.status} />
+                </div>
+              </Link>
             ))}
           </div>
-        </div>
-
-        <div style={{ display: 'grid', gap: '12px', marginTop: '16px' }}>
-          {filtered.map((category) => (
-            <Link
-              key={category.id}
-              href={`/event/${eventId}/results/${year}/${encodeURIComponent(category.id)}`}
-              style={{ textDecoration: 'none', color: '#111' }}
-            >
-              <div
-                style={{
-                  padding: '14px',
-                  borderRadius: '12px',
-                  border: '2px solid #111',
-                  background: '#fff',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  fontWeight: 800,
-                }}
-              >
-                <div>{category.label}</div>
-                <StatusBadge label={category.status} />
-              </div>
-            </Link>
-          ))}
-        </div>
-      </div>
+        </section>
+      </main>
     </div>
   )
 }
-
