@@ -54,6 +54,18 @@ const parseMotoIndex = (name?: string | null) => {
   return Number(match[1])
 }
 
+const gateByMoto = (row: Row, motoIndex: number) => {
+  if (motoIndex === 1) return row.gate_moto1
+  if (motoIndex === 2) return row.gate_moto2
+  return row.gate_moto3
+}
+
+const pointByMoto = (row: Row, motoIndex: number) => {
+  if (motoIndex === 1) return row.point_moto1
+  if (motoIndex === 2) return row.point_moto2
+  return row.point_moto3
+}
+
 const modeOptions: Mode[] = ['LINEUP', 'RESULTS', 'WINNERS']
 
 export default function LiveDisplayClient({ eventId }: { eventId: string }) {
@@ -63,7 +75,7 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
   const [categoryLabel, setCategoryLabel] = useState<string>('')
   const [batches, setBatches] = useState<Batch[]>([])
   const [activeMoto, setActiveMoto] = useState<MotoItem | null>(null)
-  const [mode, setMode] = useState<Mode>('LINEUP')
+  const [mode, setMode] = useState<Mode>('RESULTS')
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
 
@@ -171,14 +183,34 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
 
   const nextUp = useMemo(() => {
     if (!activeBatch || !activeMotoIndex) return null
-    const rows = [...activeBatch.rows].sort((a, b) => (a.gate_moto1 ?? 9999) - (b.gate_moto1 ?? 9999))
-    const isPending = (row: Row) => {
-      if (activeMotoIndex === 1) return row.point_moto1 == null
-      if (activeMotoIndex === 2) return row.point_moto2 == null
-      return row.point_moto3 == null
-    }
+    const rows = [...activeBatch.rows].sort(
+      (a, b) => (gateByMoto(a, activeMotoIndex) ?? 9999) - (gateByMoto(b, activeMotoIndex) ?? 9999)
+    )
+    const isPending = (row: Row) => pointByMoto(row, activeMotoIndex) == null
     return rows.find(isPending) ?? null
   }, [activeBatch, activeMotoIndex])
+
+  const prepareQueue = useMemo(() => {
+    if (!activeMotoIndex) return []
+    const sourceBatch = activeBatch ?? batchView[0] ?? null
+    if (!sourceBatch) return []
+
+    const sorted = [...sourceBatch.rows].sort(
+      (a, b) => (gateByMoto(a, activeMotoIndex) ?? 9999) - (gateByMoto(b, activeMotoIndex) ?? 9999)
+    )
+
+    return sorted
+      .filter((row) => pointByMoto(row, activeMotoIndex) == null)
+      .slice(0, 8)
+      .map((row, index) => ({
+        queue: index + 1,
+        rider_id: row.rider_id,
+        gate: gateByMoto(row, activeMotoIndex),
+        no_plate: row.no_plate,
+        name: row.name,
+        club: row.club,
+      }))
+  }, [activeBatch, activeMotoIndex, batchView])
 
   return (
     <div className="public-page overflow-x-hidden">
@@ -243,10 +275,7 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
                 </span>
                 <span>{nextUp.name}</span>
                 <span>No: {nextUp.no_plate}</span>
-                <span>
-                  Gate{' '}
-                  {activeMotoIndex === 1 ? nextUp.gate_moto1 : activeMotoIndex === 2 ? nextUp.gate_moto2 : nextUp.gate_moto3}
-                </span>
+                <span>Gate {activeMotoIndex ? gateByMoto(nextUp, activeMotoIndex) ?? '-' : '-'}</span>
               </div>
             )}
           </div>
@@ -293,60 +322,98 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
         )}
 
         {!loading && event?.is_public !== false && hasData && mode === 'RESULTS' && (
-          <section className="grid gap-4">
-            {batchView.map((batch) => {
-              const rows = [...batch.rows].sort((a, b) => (a.rank_point ?? 9999) - (b.rank_point ?? 9999))
-              return (
-                <article key={batch.batch_index} className="public-panel-dark">
-                  <h2 className="mb-3 text-lg font-black uppercase tracking-[0.08em] text-white">
-                    Batch {batch.batch_index} - Live Results
-                  </h2>
-                  <div className="public-table-wrap">
-                    <table className="public-table" style={{ minWidth: 1220 }}>
-                      <thead>
-                        <tr>
-                          {[
-                            'Gate M1',
-                            'Gate M2',
-                            'Gate M3',
-                            'Nama Peserta',
-                            'No Plat',
-                            'Point M1',
-                            'Point M2',
-                            'Point M3',
-                            'Penalty',
-                            'Total',
-                            'Rank',
-                            'Class',
-                          ].map((h) => (
-                            <th key={h}>{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {rows.map((row) => (
-                          <tr key={row.rider_id}>
-                            <td>{row.gate_moto1 ?? '-'}</td>
-                            <td>{row.gate_moto2 ?? '-'}</td>
-                            <td>{row.gate_moto3 ?? '-'}</td>
-                            <td className="font-extrabold text-slate-900">{row.name}</td>
-                            <td>{row.no_plate}</td>
-                            <td>{row.point_moto1 ?? '-'}</td>
-                            <td>{row.point_moto2 ?? '-'}</td>
-                            <td>{row.point_moto3 ?? '-'}</td>
-                            <td className="font-extrabold text-rose-600">{row.penalty_total ?? '-'}</td>
-                            <td className="font-extrabold text-sky-700">{row.total_point ?? '-'}</td>
-                            <td className="font-extrabold text-emerald-700">{row.rank_point ?? '-'}</td>
-                            <td>{row.class_label || '-'}</td>
+          <>
+            <section className="grid gap-4">
+              {batchView.map((batch) => {
+                const rows = [...batch.rows].sort((a, b) => (a.rank_point ?? 9999) - (b.rank_point ?? 9999))
+                return (
+                  <article key={batch.batch_index} className="public-panel-dark">
+                    <h2 className="mb-3 text-lg font-black uppercase tracking-[0.08em] text-white">
+                      Batch {batch.batch_index} - Live Results
+                    </h2>
+                    <div className="public-table-wrap">
+                      <table className="public-table" style={{ minWidth: 1220 }}>
+                        <thead>
+                          <tr>
+                            {[
+                              'Gate M1',
+                              'Gate M2',
+                              'Gate M3',
+                              'Nama Peserta',
+                              'No Plat',
+                              'Point M1',
+                              'Point M2',
+                              'Point M3',
+                              'Penalty',
+                              'Total',
+                              'Rank',
+                              'Class',
+                            ].map((h) => (
+                              <th key={h}>{h}</th>
+                            ))}
                           </tr>
+                        </thead>
+                        <tbody>
+                          {rows.map((row) => (
+                            <tr key={row.rider_id}>
+                              <td>{row.gate_moto1 ?? '-'}</td>
+                              <td>{row.gate_moto2 ?? '-'}</td>
+                              <td>{row.gate_moto3 ?? '-'}</td>
+                              <td className="font-extrabold text-slate-900">{row.name}</td>
+                              <td>{row.no_plate}</td>
+                              <td>{row.point_moto1 ?? '-'}</td>
+                              <td>{row.point_moto2 ?? '-'}</td>
+                              <td>{row.point_moto3 ?? '-'}</td>
+                              <td className="font-extrabold text-rose-600">{row.penalty_total ?? '-'}</td>
+                              <td className="font-extrabold text-sky-700">{row.total_point ?? '-'}</td>
+                              <td className="font-extrabold text-emerald-700">{row.rank_point ?? '-'}</td>
+                              <td>{row.class_label || '-'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </article>
+                )
+              })}
+            </section>
+
+            <section className="public-panel-light">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-lg font-black uppercase tracking-[0.08em] text-slate-900">Rider Bersiap</h2>
+                <span className="public-chip">{activeMoto?.moto_name ?? 'Queue'}</span>
+              </div>
+
+              {prepareQueue.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 text-sm font-semibold text-slate-600">
+                  Belum ada rider yang perlu bersiap.
+                </div>
+              ) : (
+                <div className="public-table-wrap">
+                  <table className="public-table" style={{ minWidth: 760 }}>
+                    <thead>
+                      <tr>
+                        {['Antrian', 'Gate', 'No Plat', 'Nama Peserta', 'Komunitas'].map((h) => (
+                          <th key={h}>{h}</th>
                         ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </article>
-              )
-            })}
-          </section>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {prepareQueue.map((row) => (
+                        <tr key={`prepare-${row.rider_id}`}>
+                          <td className="font-extrabold text-rose-600">{row.queue}</td>
+                          <td>{row.gate ?? '-'}</td>
+                          <td>{row.no_plate}</td>
+                          <td className="font-extrabold text-slate-900">{row.name}</td>
+                          <td>{row.club || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          </>
         )}
 
         {!loading && event?.is_public !== false && hasData && mode === 'WINNERS' && (

@@ -1,6 +1,125 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../../../lib/auth'
 
+const REGISTRATION_BUCKET = process.env.NEXT_PUBLIC_REGISTRATION_BUCKET || 'registration-docs'
+const RIDER_PHOTO_BUCKET = 'rider-photos'
+
+const ensureRiderPhotoBucket = async () => {
+  const { data, error } = await adminClient.storage.getBucket(RIDER_PHOTO_BUCKET)
+  if (data && !error) return
+
+  const { error: createError } = await adminClient.storage.createBucket(RIDER_PHOTO_BUCKET, {
+    public: true,
+  })
+  if (createError && !createError.message.toLowerCase().includes('already exists')) {
+    throw createError
+  }
+}
+
+const extractStoragePath = (value: string, bucket: string) => {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  if (!/^https?:\/\//i.test(trimmed)) return trimmed.replace(/^\/+/, '')
+
+  try {
+    const url = new URL(trimmed)
+    const prefixes = [
+      `/storage/v1/object/public/${bucket}/`,
+      `/storage/v1/object/sign/${bucket}/`,
+      `/storage/v1/object/authenticated/${bucket}/`,
+    ]
+
+    for (const prefix of prefixes) {
+      const index = url.pathname.indexOf(prefix)
+      if (index < 0) continue
+      const relativePath = url.pathname.slice(index + prefix.length)
+      return decodeURIComponent(relativePath)
+    }
+  } catch {
+    return null
+  }
+
+  return null
+}
+
+const pickImageExt = (path: string) => {
+  const withoutQuery = path.split('?')[0] ?? path
+  const ext = withoutQuery.split('.').pop()?.toLowerCase()
+  if (!ext) return 'jpg'
+  if (ext === 'jpeg') return 'jpg'
+  if (ext === 'png' || ext === 'webp' || ext === 'gif' || ext === 'bmp' || ext === 'avif') return ext
+  return 'jpg'
+}
+
+const mimeTypeByExt: Record<string, string> = {
+  jpg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  gif: 'image/gif',
+  bmp: 'image/bmp',
+  avif: 'image/avif',
+}
+
+const syncRegistrationPhotoToRider = async (
+  eventId: string,
+  riderId: string,
+  registrationPhoto: string | null | undefined
+) => {
+  if (!registrationPhoto) return
+
+  const sourcePath = extractStoragePath(registrationPhoto, REGISTRATION_BUCKET)
+  if (!sourcePath) return
+
+  try {
+    const sourceStorage = adminClient.storage.from(REGISTRATION_BUCKET)
+    const { data: sourceFile, error: downloadError } = await sourceStorage.download(sourcePath)
+    if (downloadError || !sourceFile) {
+      console.error(`[registration-approval] failed download photo for rider ${riderId}`, downloadError?.message)
+      return
+    }
+
+    await ensureRiderPhotoBucket()
+    const riderStorage = adminClient.storage.from(RIDER_PHOTO_BUCKET)
+
+    const ext = pickImageExt(sourcePath)
+    const contentType = sourceFile.type || mimeTypeByExt[ext] || 'image/jpeg'
+    const payload = Buffer.from(await sourceFile.arrayBuffer())
+    const fullPath = `events/${eventId}/riders/${riderId}/full.${ext}`
+    const thumbPath = `events/${eventId}/riders/${riderId}/thumb.${ext}`
+
+    const { error: fullError } = await riderStorage.upload(fullPath, payload, {
+      contentType,
+      upsert: true,
+    })
+    if (fullError) {
+      console.error(`[registration-approval] failed upload full photo for rider ${riderId}`, fullError.message)
+      return
+    }
+
+    const { error: thumbError } = await riderStorage.upload(thumbPath, payload, {
+      contentType,
+      upsert: true,
+    })
+    if (thumbError) {
+      console.error(`[registration-approval] failed upload thumb photo for rider ${riderId}`, thumbError.message)
+      return
+    }
+
+    const version = Date.now()
+    const photoUrl = `${riderStorage.getPublicUrl(fullPath).data.publicUrl}?v=${version}`
+    const thumbUrl = `${riderStorage.getPublicUrl(thumbPath).data.publicUrl}?v=${version}`
+    const { error: updateError } = await adminClient
+      .from('riders')
+      .update({ photo_url: photoUrl, photo_thumbnail_url: thumbUrl })
+      .eq('id', riderId)
+    if (updateError) {
+      console.error(`[registration-approval] failed update photo url for rider ${riderId}`, updateError.message)
+    }
+  } catch (error) {
+    console.error(`[registration-approval] failed syncing photo for rider ${riderId}`, error)
+  }
+}
+
 const resolveCategory = async (
   eventId: string,
   birthYear: number,
@@ -76,7 +195,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
   }
 
-  const { data: reg, error: regError } = await adminClient
+  const { error: regError } = await adminClient
     .from('registrations')
     .select('*')
     .eq('id', registrationId)
@@ -211,6 +330,8 @@ export async function PATCH(
       .select('id')
       .single()
     if (riderError) return NextResponse.json({ error: riderError.message }, { status: 400 })
+
+    await syncRegistrationPhotoToRider(eventId, riderRow.id, item.photo_url as string | null | undefined)
     createdRiders.push({ rider_id: riderRow.id, extra_category_id: item.extra_category_id })
   }
 
