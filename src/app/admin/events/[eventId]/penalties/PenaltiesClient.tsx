@@ -70,6 +70,11 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
     applies_to_stage: 'ALL' as PenaltyRule['applies_to_stage'],
     is_active: true,
   })
+  const [requirementForm, setRequirementForm] = useState({
+    label: '',
+    sort_order: '',
+    is_required: true,
+  })
 
   const apiFetch = async (url: string, options: RequestInit = {}) => {
     const { data } = await supabase.auth.getSession()
@@ -252,6 +257,28 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
     }
   }
 
+  const handleCreateRequirement = async () => {
+    if (!requirementForm.label.trim()) {
+      alert('Label safety wajib diisi.')
+      return
+    }
+    setSaving(true)
+    try {
+      await apiFetch(`/api/events/${eventId}/safety-requirements`, {
+        method: 'POST',
+        body: JSON.stringify({
+          label: requirementForm.label.trim(),
+          sort_order: requirementForm.sort_order.trim() ? Number(requirementForm.sort_order) : 0,
+          is_required: requirementForm.is_required,
+        }),
+      })
+      setRequirementForm({ label: '', sort_order: '', is_required: true })
+      await loadAll()
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const handleSaveStatus = async (riderId: string, status: RiderStatus['participation_status'], order: number) => {
     setSaving(true)
     try {
@@ -420,6 +447,57 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
         <div style={{ fontSize: 12, color: '#444', fontWeight: 700 }}>
           Hubungkan item safety dengan penalty rule. Wajib sebelum auto-penalty berjalan.
         </div>
+        <div
+          style={{
+            display: 'grid',
+            gap: 8,
+            padding: 12,
+            borderRadius: 12,
+            border: '2px solid #111',
+            background: '#f9fafb',
+          }}
+        >
+          <div style={{ fontWeight: 900 }}>Add Safety Requirement</div>
+          <input
+            placeholder="Label (contoh: Helm, Pelindung Lutut, Sarung Tangan)"
+            value={requirementForm.label}
+            onChange={(e) => setRequirementForm((prev) => ({ ...prev, label: e.target.value }))}
+            style={{ padding: 10, borderRadius: 10, border: '2px solid #111' }}
+          />
+          <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: 8, alignItems: 'center' }}>
+            <input
+              placeholder="Sort Order"
+              inputMode="numeric"
+              value={requirementForm.sort_order}
+              onChange={(e) =>
+                setRequirementForm((prev) => ({ ...prev, sort_order: e.target.value.replace(/[^\d-]/g, '') }))
+              }
+              style={{ padding: 10, borderRadius: 10, border: '2px solid #111' }}
+            />
+            <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 900 }}>
+              <input
+                type="checkbox"
+                checked={requirementForm.is_required}
+                onChange={(e) => setRequirementForm((prev) => ({ ...prev, is_required: e.target.checked }))}
+              />
+              Required
+            </label>
+          </div>
+          <button
+            type="button"
+            onClick={handleCreateRequirement}
+            disabled={saving}
+            style={{
+              padding: 10,
+              borderRadius: 10,
+              border: '2px solid #111',
+              background: '#2ecc71',
+              fontWeight: 900,
+            }}
+          >
+            {saving ? 'Saving...' : 'Add Requirement'}
+          </button>
+        </div>
         {requirements.length === 0 && (
           <div style={{ padding: 12, borderRadius: 12, border: '2px dashed #111' }}>Belum ada safety requirements.</div>
         )}
@@ -427,6 +505,9 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
           {requirements.map((req) => (
             <div key={req.id} style={{ display: 'grid', gap: 8, padding: 12, borderRadius: 12, border: '2px solid #111' }}>
               <div style={{ fontWeight: 900 }}>{req.label}</div>
+              <div style={{ fontSize: 11, color: '#333', fontWeight: 700 }}>
+                Sort: {req.sort_order ?? 0} | {req.is_required ? 'Required' : 'Optional'}
+              </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                 <select
                   value={req.penalty_code ?? ''}

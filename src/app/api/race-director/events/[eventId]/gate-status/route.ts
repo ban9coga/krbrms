@@ -18,7 +18,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
 
   const { data: motos, error: motoError } = await adminClient
     .from('motos')
-    .select('id, moto_name, moto_order, status')
+    .select('id, category_id, moto_name, moto_order, status')
     .eq('event_id', eventId)
     .in('status', ['LIVE', 'UPCOMING', 'PROVISIONAL', 'LOCKED'])
     .order('moto_order', { ascending: true })
@@ -26,6 +26,25 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
 
   const motoIds = (motos ?? []).map((m) => m.id)
   if (motoIds.length === 0) return NextResponse.json({ data: [] })
+
+  const categoryIds = Array.from(
+    new Set(
+      (motos ?? [])
+        .map((m) => m.category_id as string | null)
+        .filter((id): id is string => typeof id === 'string' && id.length > 0)
+    )
+  )
+  const categoryLabelMap = new Map<string, string>()
+  if (categoryIds.length > 0) {
+    const { data: categories, error: categoryError } = await adminClient
+      .from('categories')
+      .select('id, label')
+      .in('id', categoryIds)
+    if (categoryError) return NextResponse.json({ error: categoryError.message }, { status: 400 })
+    for (const row of categories ?? []) {
+      categoryLabelMap.set(row.id, row.label ?? 'Category')
+    }
+  }
 
   const { data: motoRiders, error: mrError } = await adminClient
     .from('moto_riders')
@@ -39,6 +58,25 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     .eq('event_id', eventId)
   if (stError) return NextResponse.json({ error: stError.message }, { status: 400 })
   const statusMap = new Map((statuses ?? []).map((s) => [s.rider_id, s.participation_status]))
+
+  const { data: statusUpdates, error: statusUpdatesError } = await adminClient
+    .from('rider_status_updates')
+    .select('rider_id, proposed_status, approval_status, created_at')
+    .eq('event_id', eventId)
+    .order('created_at', { ascending: false })
+  if (statusUpdatesError) return NextResponse.json({ error: statusUpdatesError.message }, { status: 400 })
+  const latestUpdateMap = new Map<
+    string,
+    { proposed_status: string; approval_status: string }
+  >()
+  for (const row of statusUpdates ?? []) {
+    if (!latestUpdateMap.has(row.rider_id)) {
+      latestUpdateMap.set(row.rider_id, {
+        proposed_status: row.proposed_status,
+        approval_status: row.approval_status,
+      })
+    }
+  }
 
   const { data: checks, error: checkError } = await adminClient
     .from('rider_safety_checks')
@@ -69,7 +107,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     let absent = 0
     let warnings = 0
     for (const riderId of riders) {
-      const status = statusMap.get(riderId) ?? null
+      const approvedStatus = statusMap.get(riderId) ?? null
+      const latestUpdate = latestUpdateMap.get(riderId)
+      const status =
+        approvedStatus ??
+        (latestUpdate?.approval_status === 'PENDING' ? latestUpdate.proposed_status : null)
       if (status === 'ABSENT') {
         absent += 1
         checked += 1
@@ -99,6 +141,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     return {
       moto_id: m.id,
       moto_name: m.moto_name,
+      category_label: categoryLabelMap.get(m.category_id ?? '') ?? 'Category',
       status,
       total,
       ready,

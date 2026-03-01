@@ -116,6 +116,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   }
 
   const approvalMode = await getApprovalMode(eventId)
+  const shouldAutoApply = approvalMode === 'AUTO' || participation_status === 'ACTIVE'
 
   const { data, error } = await adminClient
     .from('rider_status_updates')
@@ -125,9 +126,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
         rider_id,
         proposed_status: participation_status,
         created_by: auth.user.id,
-        approval_status: approvalMode === 'AUTO' ? 'APPROVED' : 'PENDING',
-        approved_by: approvalMode === 'AUTO' ? 'SYSTEM' : null,
-        approved_at: approvalMode === 'AUTO' ? new Date().toISOString() : null,
+        approval_status: shouldAutoApply ? 'APPROVED' : 'PENDING',
+        approved_by: shouldAutoApply ? 'SYSTEM' : null,
+        approved_at: shouldAutoApply ? new Date().toISOString() : null,
       },
     ])
     .select('id, event_id, rider_id, proposed_status, approval_status')
@@ -135,7 +136,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
-  if (approvalMode === 'AUTO') {
+  if (shouldAutoApply) {
     await adminClient
       .from('rider_participation_status')
       .upsert(
@@ -154,10 +155,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   await adminClient.from('audit_log').insert([
     {
       action_type: 'STATUS_APPROVAL',
-      performed_by: approvalMode === 'AUTO' ? 'SYSTEM' : auth.user.id,
+      performed_by: shouldAutoApply ? 'SYSTEM' : auth.user.id,
       rider_id,
       event_id: eventId,
-      reason: approvalMode === 'AUTO' ? 'AUTO mode: status applied' : 'Status update submitted',
+      reason: shouldAutoApply
+        ? participation_status === 'ACTIVE'
+          ? 'ACTIVE status auto-applied'
+          : 'AUTO mode: status applied'
+        : 'Status update submitted',
     },
   ])
 

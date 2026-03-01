@@ -75,16 +75,34 @@ export default function JCPage() {
   const [safetyChecks, setSafetyChecks] = useState<Record<string, Record<string, boolean>>>({})
   const [penaltiesByRider, setPenaltiesByRider] = useState<Record<string, Set<string>>>({})
   const [penaltyRules, setPenaltyRules] = useState<PenaltyRule[]>([])
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [warningMessage, setWarningMessage] = useState<string | null>(null)
 
-  const apiFetch = async (url: string, options: RequestInit = {}) => {
+  const getToken = async () => {
     const { data } = await supabase.auth.getSession()
-    const token = data.session?.access_token
-    const headers: Record<string, string> = {}
+    if (data.session?.access_token) return data.session.access_token
+    const refreshed = await supabase.auth.refreshSession()
+    return refreshed.data.session?.access_token ?? null
+  }
+
+  const apiFetch = async (url: string, options: RequestInit = {}, retryUnauthorized = true) => {
+    const token = await getToken()
+    const headers: Record<string, string> = {
+      ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
+      ...((options.headers ?? {}) as Record<string, string>),
+    }
     if (token) headers.Authorization = `Bearer ${token}`
-    if (!(options.body instanceof FormData)) headers['Content-Type'] = 'application/json'
     const res = await fetch(url, { ...options, headers })
     const json = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(json?.error || 'Request failed')
+    if (!res.ok) {
+      if (res.status === 401 && retryUnauthorized) {
+        return apiFetch(url, options, false)
+      }
+      if (res.status === 401) {
+        throw new Error('Session login habis. Silakan login ulang.')
+      }
+      throw new Error(json?.error || 'Request failed')
+    }
     return json
   }
 
@@ -92,6 +110,7 @@ export default function JCPage() {
     const loadMotos = async () => {
       if (!eventId) return
       setLoading(true)
+      setErrorMessage(null)
       try {
         const [motoRes, catRes, flagRes, safetyRes, ruleRes] = await Promise.all([
           fetch(`/api/motos?event_id=${eventId}`),
@@ -135,6 +154,8 @@ export default function JCPage() {
         if (!selectedMotoId && sortedMotos.length) {
           setSelectedMotoId(sortedMotos[0].id)
         }
+      } catch (err: unknown) {
+        setErrorMessage(err instanceof Error ? err.message : 'Gagal memuat data JC.')
       } finally {
         setLoading(false)
       }
@@ -146,6 +167,7 @@ export default function JCPage() {
   const loadMoto = async (silent = false) => {
     if (!selectedMotoId || !eventId) return
     if (!silent) setLoading(true)
+    if (!silent) setErrorMessage(null)
     try {
       const [lockRes, riderRes, statusRes, safetyRes, penaltiesRes] = await Promise.all([
         apiFetch(`/api/jury/motos/${selectedMotoId}/lock-status`),
@@ -205,6 +227,10 @@ export default function JCPage() {
       }
       setPenaltiesByRider(penaltyMap)
       setLastUpdated(new Date().toLocaleTimeString())
+    } catch (err: unknown) {
+      if (!silent) {
+        setErrorMessage(err instanceof Error ? err.message : 'Gagal memuat data moto.')
+      }
     } finally {
       if (!silent) setLoading(false)
     }
@@ -243,6 +269,7 @@ export default function JCPage() {
   const selectedCategoryLabel = selectedMoto
     ? categoryLabel.get(selectedMoto.category_id ?? '') ?? 'Unknown Category'
     : 'Kategori'
+  const hasSafetyRequirements = safetyRequirements.length > 0
 
   const riderList = useMemo(() => {
     const sorted = [...riders].sort((a, b) => {
@@ -290,13 +317,13 @@ export default function JCPage() {
   const applySafetyPenalty = async (riderId: string, requirement: SafetyRequirement) => {
     const ruleCode = requirement.penalty_code?.trim()
     if (!ruleCode) {
-      throw new Error(`Penalty rule missing for ${requirement.label}`)
+      return { applied: false as const, reason: `mapping penalty ${requirement.label} belum diset` }
     }
     if (!penaltyRuleCodes.has(ruleCode)) {
-      throw new Error(`Penalty rule not configured: ${ruleCode}`)
+      return { applied: false as const, reason: `penalty code ${ruleCode} belum ada` }
     }
     const existing = penaltiesByRider[riderId]
-    if (existing?.has(ruleCode)) return
+    if (existing?.has(ruleCode)) return { applied: true as const, reason: null }
     await apiFetch(`/api/jury/riders/${riderId}/penalties`, {
       method: 'POST',
       body: JSON.stringify({
@@ -314,31 +341,40 @@ export default function JCPage() {
       next[riderId] = set
       return next
     })
+    return { applied: true as const, reason: null }
   }
 
-  const readyCount = useMemo(() => {
-    return riderList.filter((r) => statuses[r.id]?.participation_status === 'ACTIVE' && isSafetyOk(r.id)).length
+  const activeCount = useMemo(() => {
+    return riderList.filter((r) => statuses[r.id]?.participation_status === 'ACTIVE').length
+  }, [riderList, statuses, safetyChecks])
+  const warningCount = useMemo(() => {
+    return riderList.filter((r) => statuses[r.id]?.participation_status === 'ACTIVE' && !isSafetyOk(r.id)).length
   }, [riderList, statuses, safetyChecks])
 
   const handleSaveStatus = async (riderId: string, status: StatusRow['participation_status'], order: number) => {
     if (!selectedMotoId) return
     if (!selectedMotoLive || locked) return
     setSaving(true)
+    setWarningMessage(null)
     try {
       setStatuses((prev) => ({
         ...prev,
         [riderId]: { rider_id: riderId, participation_status: status, registration_order: order },
       }))
       if (status === 'ACTIVE') {
+        const missingPenaltyReasons = new Set<string>()
         for (const req of requiredSafety) {
           if (!safetyChecks[riderId]?.[req.id]) {
-            try {
-              await applySafetyPenalty(riderId, req)
-            } catch (err: unknown) {
-              alert(err instanceof Error ? err.message : 'Penalty rule not configured.')
-              return
+            const res = await applySafetyPenalty(riderId, req)
+            if (!res.applied && res.reason) {
+              missingPenaltyReasons.add(res.reason)
             }
           }
+        }
+        if (missingPenaltyReasons.size > 0) {
+          setWarningMessage(
+            `Rider tetap lanjut dengan WARNING. Auto-penalty dilewati: ${Array.from(missingPenaltyReasons).join(', ')}.`
+          )
         }
       }
       if (status === 'DNS') {
@@ -347,7 +383,7 @@ export default function JCPage() {
           body: JSON.stringify({ results: [{ rider_id: riderId, result_status: 'DNS', finish_order: null }] }),
         })
       } else {
-        if (!flags.absent_enabled) return
+        if (status === 'ABSENT' && !flags.absent_enabled) return
         await apiFetch(`/api/jury/events/${eventId}/rider-status`, {
           method: 'POST',
           body: JSON.stringify({
@@ -367,19 +403,18 @@ export default function JCPage() {
   const handleAllReady = async () => {
     if (!selectedMotoId) return
     if (!selectedMotoLive || locked) return
-    if (!flags.absent_enabled) return
     setSaving(true)
+    setWarningMessage(null)
     try {
+      const missingPenaltyReasons = new Set<string>()
       for (const r of riderList) {
         const current = statuses[r.id]?.participation_status
         if (current === 'ABSENT') continue
         for (const req of requiredSafety) {
           if (!safetyChecks[r.id]?.[req.id]) {
-            try {
-              await applySafetyPenalty(r.id, req)
-            } catch (err: unknown) {
-              alert(err instanceof Error ? err.message : 'Penalty rule not configured.')
-              return
+            const res = await applySafetyPenalty(r.id, req)
+            if (!res.applied && res.reason) {
+              missingPenaltyReasons.add(res.reason)
             }
           }
         }
@@ -393,6 +428,11 @@ export default function JCPage() {
           }),
         })
       }
+      if (missingPenaltyReasons.size > 0) {
+        setWarningMessage(
+          `Sebagian rider lanjut dengan WARNING. Auto-penalty dilewati: ${Array.from(missingPenaltyReasons).join(', ')}.`
+        )
+      }
       await loadMoto(true)
     } finally {
       setSaving(false)
@@ -405,7 +445,7 @@ export default function JCPage() {
     riderList.every((r) => {
       const status = statuses[r.id]?.participation_status
       if (status === 'ABSENT') return true
-      if (status === 'ACTIVE' && isSafetyOk(r.id)) return true
+      if (status === 'ACTIVE') return true
       return false
     })
 
@@ -417,7 +457,8 @@ export default function JCPage() {
           <div className="jc-header-row" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <div style={{ fontSize: 28, fontWeight: 900 }}>Jury Start</div>
             <div style={{ marginLeft: 'auto', fontWeight: 700 }}>
-              {selectedCategoryLabel} - {selectedMoto?.moto_name ?? '-'} | Ready: {readyCount}/{summary.total}
+              {selectedCategoryLabel} - {selectedMoto?.moto_name ?? '-'} | Ready: {activeCount}/{summary.total}
+              {warningCount > 0 ? ` | Warn: ${warningCount}` : ''}
             </div>
             <select
               value={selectedMotoId}
@@ -444,6 +485,21 @@ export default function JCPage() {
           </div>
 
           <div style={{ fontWeight: 700, color: '#333' }}>Safety checklist sebelum race start.</div>
+          {!hasSafetyRequirements && (
+            <div
+              style={{
+                padding: '8px 12px',
+                borderRadius: 10,
+                border: '2px solid #f59e0b',
+                background: '#fef3c7',
+                color: '#92400e',
+                fontWeight: 800,
+                fontSize: 12,
+              }}
+            >
+              Safety checklist belum diset untuk event ini. Atur di Admin {'>'} Event {'>'} Penalties {'>'} Safety Checklist Mapping.
+            </div>
+          )}
         </div>
 
         {bannerDisabled && (
@@ -458,6 +514,34 @@ export default function JCPage() {
             }}
           >
             Moto masih {selectedMoto?.status ?? 'UPCOMING'}. Input hanya bisa saat LIVE.
+          </div>
+        )}
+        {errorMessage && (
+          <div
+            style={{
+              padding: '10px 14px',
+              borderRadius: 12,
+              border: '2px solid #b91c1c',
+              background: '#fee2e2',
+              color: '#7f1d1d',
+              fontWeight: 800,
+            }}
+          >
+            {errorMessage}
+          </div>
+        )}
+        {warningMessage && (
+          <div
+            style={{
+              padding: '10px 14px',
+              borderRadius: 12,
+              border: '2px solid #f59e0b',
+              background: '#fef3c7',
+              color: '#92400e',
+              fontWeight: 800,
+            }}
+          >
+            {warningMessage}
           </div>
         )}
 
@@ -522,7 +606,7 @@ export default function JCPage() {
                 }
               }
             }}
-            disabled={saving || bannerDisabled || locked}
+            disabled={saving || bannerDisabled || locked || !hasSafetyRequirements}
             style={{
               padding: '10px 14px',
               borderRadius: 999,
@@ -708,7 +792,7 @@ export default function JCPage() {
                   <button
                     type="button"
                     onClick={() => handleSaveStatus(r.id, 'ABSENT', r.gate_position ?? 0)}
-                    disabled={statusDisabled}
+                    disabled={statusDisabled || !flags.absent_enabled}
                     style={{
                       padding: '12px 14px',
                       borderRadius: 999,

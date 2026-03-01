@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import CheckerTopbar from '../../components/CheckerTopbar'
 import { isMotoLive } from '../../lib/motoStatus'
@@ -17,33 +17,59 @@ type MotoItem = {
   moto_name: string
   moto_order: number
   status: string
+  category_id?: string
+}
+
+type CategoryItem = {
+  id: string
+  label: string
 }
 
 export default function JCSelectorPage() {
   const router = useRouter()
   const [events, setEvents] = useState<EventItem[]>([])
   const [motos, setMotos] = useState<MotoItem[]>([])
+  const [categories, setCategories] = useState<CategoryItem[]>([])
   const [eventId, setEventId] = useState('')
   const [motoId, setMotoId] = useState('')
   const [singleLiveEventId, setSingleLiveEventId] = useState<string | null>(null)
   const [didAutoRedirect, setDidAutoRedirect] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const categoryMap = useMemo(() => new Map(categories.map((c) => [c.id, c.label])), [categories])
 
-  const apiFetch = async (url: string, options: RequestInit = {}) => {
+  const getToken = async () => {
     const { data } = await supabase.auth.getSession()
-    const token = data.session?.access_token
-    const headers: Record<string, string> = {}
+    if (data.session?.access_token) return data.session.access_token
+    const refreshed = await supabase.auth.refreshSession()
+    return refreshed.data.session?.access_token ?? null
+  }
+
+  const apiFetch = async (url: string, options: RequestInit = {}, retryUnauthorized = true) => {
+    const token = await getToken()
+    const headers: Record<string, string> = {
+      ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
+      ...((options.headers ?? {}) as Record<string, string>),
+    }
     if (token) headers.Authorization = `Bearer ${token}`
-    if (!(options.body instanceof FormData)) headers['Content-Type'] = 'application/json'
     const res = await fetch(url, { ...options, headers })
     const json = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(json?.error || 'Request failed')
+    if (!res.ok) {
+      if (res.status === 401 && retryUnauthorized) {
+        return apiFetch(url, options, false)
+      }
+      if (res.status === 401) {
+        throw new Error('Session login habis. Silakan login ulang.')
+      }
+      throw new Error(json?.error || 'Request failed')
+    }
     return json
   }
 
   useEffect(() => {
     const loadEvents = async () => {
       setLoading(true)
+      setErrorMessage(null)
       try {
         const res = await apiFetch('/api/jury/events?status=LIVE,UPCOMING')
         const list = (res.data ?? []) as EventItem[]
@@ -53,6 +79,8 @@ export default function JCSelectorPage() {
         if (!eventId && list.length) {
           setEventId((liveEvents[0] ?? list[0]).id)
         }
+      } catch (err: unknown) {
+        setErrorMessage(err instanceof Error ? err.message : 'Gagal memuat event JC.')
       } finally {
         setLoading(false)
       }
@@ -65,10 +93,16 @@ export default function JCSelectorPage() {
     const loadMotos = async () => {
       if (!eventId) return
       setLoading(true)
+      setErrorMessage(null)
       try {
-        const motoRes = await fetch(`/api/motos?event_id=${eventId}`)
+        const [motoRes, categoryRes] = await Promise.all([
+          fetch(`/api/motos?event_id=${eventId}`),
+          fetch(`/api/events/${eventId}/categories`),
+        ])
         const motoJson = await motoRes.json()
+        const categoryJson = await categoryRes.json()
         const list = (motoJson.data ?? []) as MotoItem[]
+        setCategories((categoryJson.data ?? []) as CategoryItem[])
         list.sort((a, b) => a.moto_order - b.moto_order)
         setMotos(list)
         const liveMotos = list.filter((m) => isMotoLive(m.status))
@@ -84,6 +118,8 @@ export default function JCSelectorPage() {
           setDidAutoRedirect(true)
           router.replace(`/jc/${eventId}/${liveMotos[0].id}`)
         }
+      } catch (err: unknown) {
+        setErrorMessage(err instanceof Error ? err.message : 'Gagal memuat moto.')
       } finally {
         setLoading(false)
       }
@@ -109,6 +145,11 @@ export default function JCSelectorPage() {
 
         <section className="mx-auto w-full max-w-[620px] rounded-[1.5rem] border border-slate-200 bg-white/95 p-5 shadow-[0_16px_36px_rgba(15,23,42,0.12)] sm:p-6">
           <div className="grid gap-4">
+            {errorMessage && (
+              <div className="rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">
+                {errorMessage}
+              </div>
+            )}
             <div className="grid gap-2">
               <label className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">Event</label>
               <select value={eventId} onChange={(e) => setEventId(e.target.value)} className="public-filter">
@@ -125,7 +166,7 @@ export default function JCSelectorPage() {
               <select value={motoId} onChange={(e) => setMotoId(e.target.value)} className="public-filter">
                 {motos.map((m) => (
                   <option key={m.id} value={m.id}>
-                    {m.moto_order}. {m.moto_name} - {m.status}
+                    {m.moto_order}. {categoryMap.get(m.category_id ?? '') ?? 'Category'} - {m.moto_name} - {m.status}
                   </option>
                 ))}
               </select>

@@ -64,6 +64,7 @@ export default function RaceDirectorApprovalPage() {
     Array<{
       moto_id: string
       moto_name: string
+      category_label?: string
       status: string
       total: number
       ready: number
@@ -364,7 +365,7 @@ export default function RaceDirectorApprovalPage() {
                     fontWeight: 900,
                   }}
                 >
-                  <span>{g.moto_name}</span>
+                  <span>{g.category_label ? `${g.category_label} - ${g.moto_name}` : g.moto_name}</span>
                   <span>
                     {g.status}
                     {g.warnings && g.warnings > 0 ? ` (WARN ${g.warnings})` : ''}
