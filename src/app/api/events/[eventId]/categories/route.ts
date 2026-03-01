@@ -3,14 +3,48 @@ import { adminClient, requireAdmin } from '../../../../../lib/auth'
 
 export async function GET(_: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params
-  const { data, error } = await adminClient
+  const { data: categories, error } = await adminClient
     .from('categories')
     .select('id, year, year_min, year_max, capacity, gender, label, enabled')
     .eq('event_id', eventId)
     .order('year_min', { ascending: true })
     .order('gender', { ascending: true })
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-  return NextResponse.json({ data: data ?? [] })
+
+  if (!categories || categories.length === 0) {
+    return NextResponse.json({ data: [] })
+  }
+
+  const { data: existingItems, error: existingError } = await adminClient
+    .from('registration_items')
+    .select('primary_category_id, extra_category_id, status, registrations!inner(event_id)')
+    .eq('registrations.event_id', eventId)
+    .in('status', ['PENDING', 'APPROVED'])
+  if (existingError) return NextResponse.json({ error: existingError.message }, { status: 400 })
+
+  const filledCounts = new Map<string, number>()
+  for (const row of existingItems ?? []) {
+    const primaryId = row.primary_category_id as string | null
+    const extraId = row.extra_category_id as string | null
+    if (primaryId) filledCounts.set(primaryId, (filledCounts.get(primaryId) ?? 0) + 1)
+    if (extraId) filledCounts.set(extraId, (filledCounts.get(extraId) ?? 0) + 1)
+  }
+
+  const data = categories.map((category) => {
+    const rawCapacity = category.capacity
+    const capacity = typeof rawCapacity === 'number' && Number.isFinite(rawCapacity) ? rawCapacity : null
+    const filled = filledCounts.get(category.id) ?? 0
+    const remaining = capacity == null ? null : Math.max(0, capacity - filled)
+    const is_full = capacity == null ? false : filled >= capacity
+    return {
+      ...category,
+      filled,
+      remaining,
+      is_full,
+    }
+  })
+
+  return NextResponse.json({ data })
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ eventId: string }> }) {

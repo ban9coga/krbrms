@@ -8,6 +8,10 @@ type CategoryItem = {
   year: number
   year_min?: number
   year_max?: number
+  capacity?: number | null
+  filled?: number
+  remaining?: number | null
+  is_full?: boolean
   gender: 'BOY' | 'GIRL' | 'MIX'
   label: string
   enabled?: boolean
@@ -122,9 +126,16 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     return birthYear >= min && birthYear <= max
   }
 
+  const isCategoryFull = (category: CategoryItem) => {
+    if (category.is_full === true) return true
+    if (typeof category.capacity !== 'number') return false
+    if (typeof category.remaining !== 'number') return false
+    return category.remaining <= 0
+  }
+
   const computePrimaryCategory = (birthYear: number | null, gender: 'BOY' | 'GIRL') => {
     if (!birthYear) return null
-    const candidates = categories.filter((c) => inRange(c, birthYear))
+    const candidates = categories.filter((c) => inRange(c, birthYear) && !isCategoryFull(c))
     const genderMatch = candidates.filter((c) => c.gender === gender)
     if (genderMatch.length > 0) {
       return genderMatch.sort((a, b) => (a.year_max ?? a.year) - (b.year_max ?? b.year))[0] ?? null
@@ -169,6 +180,12 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     const birthYear = rider.dateOfBirth ? new Date(rider.dateOfBirth).getUTCFullYear() : null
     return !computePrimaryCategory(birthYear, rider.gender)
   })
+  const hasFullExtraCategory = riders.some((rider) => {
+    if (!rider.extraCategoryId) return false
+    const category = categories.find((c) => c.id === rider.extraCategoryId)
+    if (!category) return true
+    return isCategoryFull(category)
+  })
 
   const handleSubmit = async () => {
     setSuccess(null)
@@ -195,7 +212,11 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
       return
     }
     if (hasMissingPrimaryCategory) {
-      alert('Kategori otomatis belum ditemukan untuk beberapa rider. Cek tanggal lahir/gender atau aktifkan kategori event yang sesuai.')
+      alert('Kategori otomatis belum tersedia untuk beberapa rider (range usia/gender tidak cocok atau kuota kategori penuh).')
+      return
+    }
+    if (hasFullExtraCategory) {
+      alert('Ada kategori tambahan yang kuotanya sudah penuh. Pilih kategori tambahan lain.')
       return
     }
 
@@ -331,6 +352,13 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
           const birthYear = rider.dateOfBirth ? new Date(rider.dateOfBirth).getUTCFullYear() : null
           const primaryCategory = computePrimaryCategory(birthYear, rider.gender)
           const extras = extraCategoryOptions(birthYear, rider.gender, primaryCategory)
+          const hasMatchedFullCategory =
+            !primaryCategory &&
+            birthYear != null &&
+            categories.some(
+              (c) => inRange(c, birthYear) && (c.gender === rider.gender || c.gender === 'MIX') && isCategoryFull(c)
+            )
+          const extrasAvailable = extras.some((cat) => !isCategoryFull(cat))
           return (
             <section key={`rider-${idx}`} className={panelClass}>
               <div className="mb-3 flex items-center justify-between gap-3">
@@ -405,7 +433,9 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                   </div>
                   {!primaryCategory && (
                     <div className="mt-2 text-xs font-semibold text-amber-300">
-                      Tanggal lahir tidak masuk range kategori aktif event ini.
+                      {hasMatchedFullCategory
+                        ? 'Kategori untuk rider ini tersedia, tetapi kuotanya sudah penuh.'
+                        : 'Tanggal lahir tidak masuk range kategori aktif event ini.'}
                     </div>
                   )}
                 </div>
@@ -418,11 +448,16 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                   >
                     <option value="">Tambah Kategori (opsional)</option>
                     {extras.map((cat) => (
-                      <option key={cat.id} value={cat.id}>
-                        {cat.label}
+                      <option key={cat.id} value={cat.id} disabled={isCategoryFull(cat)}>
+                        {cat.label}{isCategoryFull(cat) ? ' (Kuota Penuh)' : ''}
                       </option>
                     ))}
                   </select>
+                )}
+                {extras.length > 0 && !extrasAvailable && (
+                  <div className="text-xs font-semibold text-amber-300">
+                    Semua opsi kategori tambahan saat ini penuh.
+                  </div>
                 )}
 
                 <div className="grid gap-3 sm:grid-cols-[1fr_120px]">
