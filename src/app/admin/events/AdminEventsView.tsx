@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../../lib/supabaseClient'
 
 type EventItem = {
@@ -43,7 +43,7 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
     return json
   }
 
-  const loadEvents = async () => {
+  const loadEvents = useCallback(async () => {
     setLoading(true)
     try {
       const json = await apiFetch('/api/events')
@@ -51,11 +51,11 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     loadEvents()
-  }, [])
+  }, [loadEvents])
 
   const handleCreate = async () => {
     if (!form.name.trim() || !form.event_date) {
@@ -134,12 +134,21 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
     }
   }
 
+  const filteredEvents = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return events
+    return events.filter((event) => {
+      const haystack = `${event.name} ${event.location ?? ''} ${event.event_date}`.toLowerCase()
+      return haystack.includes(q)
+    })
+  }, [events, query])
+
   return (
     <div style={{ maxWidth: 980 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'end', gap: 12 }}>
         <div>
-          <h1 style={{ fontSize: 28, fontWeight: 950, margin: 0 }}>Events</h1>
-          <div style={{ marginTop: 8, color: '#333', fontWeight: 700 }}>
+          <h1 style={{ fontSize: 28, fontWeight: 950, margin: 0, color: '#f8fafc' }}>{showCreate ? 'Events' : 'Events Snapshot'}</h1>
+          <div style={{ marginTop: 8, color: '#cbd5e1', fontWeight: 700 }}>
             Status event hanya untuk tampilan publik (Coming Soon / Ongoing / Completed).
           </div>
         </div>
@@ -148,9 +157,9 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
           style={{
             padding: '10px 12px',
             borderRadius: 12,
-            border: '2px solid #111',
-            background: '#fff',
-            color: '#111',
+            border: '1px solid rgba(148,163,184,0.38)',
+            background: 'rgba(15,23,42,0.72)',
+            color: '#f8fafc',
             fontWeight: 900,
             textDecoration: 'none',
           }}
@@ -163,8 +172,8 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
         <div
           style={{
             marginTop: 18,
-            background: '#fff',
-            border: '2px solid #111',
+            background: '#ffffff',
+            border: '1px solid #cbd5e1',
             borderRadius: 16,
             padding: 16,
           }}
@@ -175,13 +184,13 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
               placeholder="Event Name"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
-              style={{ padding: 12, borderRadius: 12, border: '2px solid #111' }}
+              style={{ padding: 12, borderRadius: 12, border: '1px solid #cbd5e1' }}
             />
             <input
               placeholder="Location"
               value={form.location}
               onChange={(e) => setForm({ ...form, location: e.target.value })}
-              style={{ padding: 12, borderRadius: 12, border: '2px solid #111' }}
+              style={{ padding: 12, borderRadius: 12, border: '1px solid #cbd5e1' }}
             />
             <div style={{ display: 'grid', gap: 8 }}>
               <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
@@ -191,7 +200,7 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
                 type="date"
                 value={form.event_date}
                 onChange={(e) => setForm({ ...form, event_date: e.target.value })}
-                style={{ padding: 12, borderRadius: 12, border: '2px solid #111' }}
+                style={{ padding: 12, borderRadius: 12, border: '1px solid #cbd5e1' }}
               />
             </div>
             <div style={{ display: 'grid', gap: 8 }}>
@@ -201,7 +210,7 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
               <select
                 value={form.status}
                 onChange={(e) => setForm({ ...form, status: e.target.value as EventItem['status'] })}
-                style={{ padding: 12, borderRadius: 12, border: '2px solid #111' }}
+                style={{ padding: 12, borderRadius: 12, border: '1px solid #cbd5e1' }}
               >
                 <option value="UPCOMING">UPCOMING</option>
                 <option value="LIVE">LIVE</option>
@@ -216,9 +225,10 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
               style={{
                 padding: 12,
                 borderRadius: 14,
-                border: '2px solid #111',
-                background: '#2ecc71',
-                fontWeight: 950,
+                border: '1px solid #fb7185',
+                background: '#f43f5e',
+                color: '#fff1f2',
+                fontWeight: 900,
                 cursor: 'pointer',
               }}
             >
@@ -230,7 +240,7 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
 
       <div style={{ marginTop: 18, display: 'grid', gap: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <div style={{ fontWeight: 950, fontSize: 18 }}>Event List</div>
+          <div style={{ fontWeight: 950, fontSize: 18, color: '#e2e8f0' }}>Event List</div>
           <button
             type="button"
             onClick={loadEvents}
@@ -238,8 +248,9 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
             style={{
               padding: '10px 12px',
               borderRadius: 12,
-              border: '2px solid #111',
-              background: '#fff',
+              border: '1px solid rgba(148,163,184,0.38)',
+              background: 'rgba(15,23,42,0.72)',
+              color: '#f8fafc',
               fontWeight: 900,
               cursor: 'pointer',
             }}
@@ -251,29 +262,17 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
           placeholder="Cari event (nama / lokasi / tanggal)"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          style={{ padding: 12, borderRadius: 12, border: '2px solid #111' }}
+          style={{ padding: 12, borderRadius: 12, border: '1px solid #334155', background: '#0f172a', color: '#f8fafc' }}
         />
       </div>
 
-      {(() => {
-        const q = query.trim().toLowerCase()
-        const filtered = q
-          ? events.filter((event) => {
-              const hay = `${event.name} ${event.location ?? ''} ${event.event_date}`.toLowerCase()
-              return hay.includes(q)
-            })
-          : events
-        const safeFiltered: EventItem[] = filtered.filter(Boolean) as EventItem[]
-        return (
       <div style={{ marginTop: 12, display: 'grid', gap: 12 }}>
-        {safeFiltered.map((ev: EventItem) => {
-          if (!ev) return null
-          return (
+        {filteredEvents.map((ev) => (
           <div
             key={ev.id}
             style={{
               padding: 14,
-              border: '2px solid #111',
+              border: '1px solid #cbd5e1',
               borderRadius: 16,
               background: '#fff',
               display: 'grid',
@@ -288,8 +287,8 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
                     Hidden from public
                   </div>
                 )}
-                <div style={{ marginTop: 2, color: '#333', fontWeight: 700 }}>
-                  {ev.location || '-'} • {ev.event_date}
+                <div style={{ marginTop: 2, color: '#334155', fontWeight: 700 }}>
+                  {ev.location || '-'} | {ev.event_date}
                 </div>
               </div>
               <div style={{ display: 'grid', gap: 8, justifyItems: 'end' }}>
@@ -299,7 +298,7 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
                   style={{
                     padding: '8px 10px',
                     borderRadius: 12,
-                    border: '2px solid #111',
+                    border: '1px solid #cbd5e1',
                     background: '#fff',
                     fontWeight: 900,
                   }}
@@ -314,7 +313,7 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
                   style={{
                     padding: '8px 10px',
                     borderRadius: 12,
-                    border: '2px solid #111',
+                    border: '1px solid #cbd5e1',
                     background: ev.is_public === false ? '#ffe1e1' : '#fff',
                     fontWeight: 900,
                     cursor: 'pointer',
@@ -331,11 +330,11 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
                 style={{
                   padding: '8px 12px',
                   borderRadius: 12,
-                  border: '2px solid #111',
-                  background: '#2ecc71',
-                  fontWeight: 950,
+                  border: '1px solid #fb7185',
+                  background: '#f43f5e',
+                  color: '#fff1f2',
+                  fontWeight: 900,
                   textDecoration: 'none',
-                  color: '#111',
                 }}
               >
                 Manage Event
@@ -346,7 +345,7 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
                 style={{
                   padding: '8px 12px',
                   borderRadius: 12,
-                  border: '2px solid #111',
+                  border: '1px solid #cbd5e1',
                   background: '#fff',
                   fontWeight: 900,
                   cursor: 'pointer',
@@ -360,39 +359,40 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
                 style={{
                   padding: '8px 12px',
                   borderRadius: 12,
-                  border: '2px solid #b40000',
-                  background: '#ffd7d7',
-                  color: '#b40000',
-                  fontWeight: 950,
+                  border: '1px solid #fca5a5',
+                  background: '#ffe4e6',
+                  color: '#be123c',
+                  fontWeight: 900,
                   cursor: 'pointer',
                 }}
               >
                 Delete
               </button>
-              <a
+              <Link
                 href={`/event/${ev.id}`}
                 style={{
                   padding: '8px 12px',
                   borderRadius: 12,
-                  border: '2px solid #111',
+                  border: '1px solid #cbd5e1',
                   background: '#fff',
                   fontWeight: 900,
                   textDecoration: 'none',
-                  color: '#111',
+                  color: '#111827',
                 }}
               >
                 Public Page
-              </a>
+              </Link>
             </div>
-            </div>
-        )})}
-        {!loading && filtered.length === 0 && (
+          </div>
+        ))}
+        {!loading && filteredEvents.length === 0 && (
           <div
             style={{
               padding: 16,
               borderRadius: 16,
-              border: '2px dashed #111',
-              background: '#fff',
+              border: '1px dashed rgba(148,163,184,0.6)',
+              background: 'rgba(15,23,42,0.72)',
+              color: '#cbd5e1',
               fontWeight: 800,
             }}
           >
@@ -400,9 +400,6 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
           </div>
         )}
       </div>
-        )
-      })()}
     </div>
   )
 }
-

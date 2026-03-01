@@ -106,16 +106,16 @@ export default function AdminUsersPage() {
   if (!isSuperAdmin) {
     return (
       <div style={{ maxWidth: 680 }}>
-        <h1 style={{ fontSize: 26, fontWeight: 950, margin: 0 }}>Users / Roles</h1>
-        <p style={{ marginTop: 8, color: '#333', fontWeight: 700 }}>Akses ditolak.</p>
+        <h1 style={{ fontSize: 26, fontWeight: 950, margin: 0, color: '#f8fafc' }}>Users / Roles</h1>
+        <p style={{ marginTop: 8, color: '#cbd5e1', fontWeight: 700 }}>Akses ditolak.</p>
       </div>
     )
   }
 
   return (
     <div style={{ maxWidth: 980 }}>
-      <h1 style={{ fontSize: 26, fontWeight: 950, margin: 0 }}>Users / Roles</h1>
-      <p style={{ marginTop: 8, color: '#333', fontWeight: 700 }}>
+      <h1 style={{ fontSize: 26, fontWeight: 950, margin: 0, color: '#f8fafc' }}>Users / Roles</h1>
+      <p style={{ marginTop: 8, color: '#cbd5e1', fontWeight: 700 }}>
         Buat akun untuk admin, juri, atau race control.
       </p>
 
@@ -197,7 +197,7 @@ export default function AdminUsersPage() {
       </div>
 
       <div style={{ marginTop: 18, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-        <div style={{ fontWeight: 900 }}>User List</div>
+        <div style={{ fontWeight: 900, color: '#e2e8f0' }}>User List</div>
         <button
           type="button"
           onClick={() => loadUsers(page)}

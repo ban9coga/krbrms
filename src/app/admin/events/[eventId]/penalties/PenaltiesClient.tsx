@@ -440,7 +440,7 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
                   <option value="">-- Not linked --</option>
                   {rules.map((rule) => (
                     <option key={rule.id} value={rule.code}>
-                      {rule.code} â€¢ {rule.penalty_point} pts
+                      {rule.code} | {rule.penalty_point} pts
                     </option>
                   ))}
                 </select>

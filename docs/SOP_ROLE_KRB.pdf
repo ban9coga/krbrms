@@ -1,0 +1,584 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [ 4 0 R 6 0 R 8 0 R 10 0 R 12 0 R ] /Count 5 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>
+endobj
+5 0 obj
+<< /Length 1868 >>
+stream
+BT
+/F1 11 Tf
+50 782 Td
+(SOP OPERASIONAL PER ROLE - KRB RACE MANAGEMENT SYSTEM) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Tanggal update: 1 Maret 2026 \(WIB\)) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Dokumen ini jadi acuan tugas, batas tanggung jawab, dan alur kerja tiap role di KRB RMS.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(1. DAFTAR ROLE AKTIF) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(- `super_admin`) Tj
+0 -14 Td
+(- `admin`) Tj
+0 -14 Td
+(- `race_control`) Tj
+0 -14 Td
+(- `CHECKER` \(alias operasional: `JURY_START`\)) Tj
+0 -14 Td
+(- `FINISHER` \(alias operasional: `JURY_FINISH`\)) Tj
+0 -14 Td
+(- `RACE_DIRECTOR`) Tj
+0 -14 Td
+(- `MC`) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(2. SOP PER ROLE) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(2.1 SUPER ADMIN) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Tujuan:) Tj
+0 -14 Td
+(- Menjaga integritas akun, role, dan akses sistem.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Akses utama:) Tj
+0 -14 Td
+(- `/admin/users`) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Tugas harian:) Tj
+0 -14 Td
+(1. Buat akun baru staff.) Tj
+0 -14 Td
+(2. Set role user sesuai fungsi lapangan.) Tj
+0 -14 Td
+(3. Ubah role jika ada rotasi personel.) Tj
+0 -14 Td
+(4. Hapus/nonaktifkan akun yang tidak dipakai.) Tj
+0 -14 Td
+(5. Audit akses berisiko tinggi \(super admin, director\).) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Checklist sebelum race:) Tj
+0 -14 Td
+(1. Pastikan semua user inti sudah bisa login.) Tj
+0 -14 Td
+(2. Pastikan role mapping sudah benar.) Tj
+0 -14 Td
+(3. Verifikasi tidak ada akun ganda untuk personel yang sama.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Checklist saat race:) Tj
+0 -14 Td
+(1. Standby untuk issue login dan hak akses.) Tj
+0 -14 Td
+(2. Tindak cepat reset akses bila ada pergantian operator.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Checklist setelah race:) Tj
+0 -14 Td
+(1. Cabut akses temporer.) Tj
+0 -14 Td
+(2. Review akun yang tidak lagi dibutuhkan.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(2.2 ADMIN) Tj
+0 -14 Td
+() Tj
+ET
+endstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 2165 >>
+stream
+BT
+/F1 11 Tf
+50 782 Td
+() Tj
+0 -14 Td
+(Tujuan:) Tj
+0 -14 Td
+(- Menyiapkan event end-to-end sampai data siap dipakai tim operasional.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Akses utama:) Tj
+0 -14 Td
+(- `/admin`) Tj
+0 -14 Td
+(- `/admin/events`) Tj
+0 -14 Td
+(- `/admin/events/[eventId]/registrations`) Tj
+0 -14 Td
+(- `/admin/events/[eventId]/riders`) Tj
+0 -14 Td
+(- `/admin/events/[eventId]/categories`) Tj
+0 -14 Td
+(- `/admin/events/[eventId]/live-draw`) Tj
+0 -14 Td
+(- `/admin/events/[eventId]/motos`) Tj
+0 -14 Td
+(- `/admin/events/[eventId]/schedule`) Tj
+0 -14 Td
+(- `/admin/events/[eventId]/results`) Tj
+0 -14 Td
+(- `/admin/events/[eventId]/penalties`) Tj
+0 -14 Td
+(- `/admin/events/[eventId]/settings`) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Tugas harian:) Tj
+0 -14 Td
+(1. Buat dan update event.) Tj
+0 -14 Td
+(2. Set kategori, quota, price, dan pengaturan event.) Tj
+0 -14 Td
+(3. Verifikasi pendaftaran publik.) Tj
+0 -14 Td
+(4. Approve/reject registrasi sesuai data dokumen.) Tj
+0 -14 Td
+(5. Sinkron rider dan category assignment.) Tj
+0 -14 Td
+(6. Siapkan moto \(draw, pembagian, urutan start\).) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Checklist sebelum race:) Tj
+0 -14 Td
+(1. Semua kategori aktif dan benar.) Tj
+0 -14 Td
+(2. Quota sudah sesuai kebijakan event.) Tj
+0 -14 Td
+(3. Data rider bersih \(plate unik, DOB valid, gender valid\).) Tj
+0 -14 Td
+(4. Motos dan schedule siap dipakai checker/finisher.) Tj
+0 -14 Td
+(5. Event status publik sesuai \(`UPCOMING`/`LIVE`/`FINISHED`\).) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Checklist saat race:) Tj
+0 -14 Td
+(1. Pantau perubahan data darurat dari lapangan.) Tj
+0 -14 Td
+(2. Hindari perubahan struktur besar saat event live.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Checklist setelah race:) Tj
+0 -14 Td
+(1. Finalisasi data hasil.) Tj
+0 -14 Td
+(2. Rapikan data yang tidak valid/duplikat.) Tj
+0 -14 Td
+(3. Siapkan event archive.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(2.3 RACE CONTROL) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Tujuan:) Tj
+0 -14 Td
+(- Mengontrol jalannya moto dan antrian operasional race day.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Akses utama:) Tj
+0 -14 Td
+(- `/race-control`) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Tugas harian:) Tj
+0 -14 Td
+(1. Pantau queue rider per moto.) Tj
+ET
+endstream
+endobj
+8 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 9 0 R >>
+endobj
+9 0 obj
+<< /Length 1948 >>
+stream
+BT
+/F1 11 Tf
+50 782 Td
+(2. Koordinasi timing start antar tim.) Tj
+0 -14 Td
+(3. Pastikan moto berjalan sesuai urutan event.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Checklist sebelum race:) Tj
+0 -14 Td
+(1. Event dan moto live sesuai jadwal.) Tj
+0 -14 Td
+(2. Komunikasi dengan checker dan finisher siap.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Checklist saat race:) Tj
+0 -14 Td
+(1. Monitor kelancaran flow per moto.) Tj
+0 -14 Td
+(2. Eskalasi ke director jika ada konflik aturan.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Checklist setelah race:) Tj
+0 -14 Td
+(1. Konfirmasi seluruh moto selesai dan status sinkron.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(2.4 CHECKER \(JURY START\)) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Tujuan:) Tj
+0 -14 Td
+(- Validasi rider di gate dan menjalankan proses start.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Akses utama:) Tj
+0 -14 Td
+(- `/jc`) Tj
+0 -14 Td
+(- `/jc/[eventId]/[motoId]`) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Tugas harian:) Tj
+0 -14 Td
+(1. Pilih event dan moto aktif di gate selector.) Tj
+0 -14 Td
+(2. Cek kesiapan rider di gate.) Tj
+0 -14 Td
+(3. Verifikasi identitas plate sebelum start.) Tj
+0 -14 Td
+(4. Jalankan start sesuai lane dan urutan yang berlaku.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Checklist sebelum race:) Tj
+0 -14 Td
+(1. Event `LIVE` dan moto target `LIVE`.) Tj
+0 -14 Td
+(2. Daftar rider moto terload penuh.) Tj
+0 -14 Td
+(3. Jalur komunikasi ke race control aktif.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Checklist saat race:) Tj
+0 -14 Td
+(1. Hindari start jika ada mismatch rider.) Tj
+0 -14 Td
+(2. Catat isu gate/safety untuk review penalties bila perlu.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Checklist setelah race:) Tj
+0 -14 Td
+(1. Pastikan moto status berpindah sesuai flow.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(2.5 FINISHER \(JURY FINISH\)) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Tujuan:) Tj
+0 -14 Td
+(- Mencatat urutan finish dan menjaga akurasi hasil awal.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Akses utama:) Tj
+0 -14 Td
+(- `/jury/finish`) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Tugas harian:) Tj
+ET
+endstream
+endobj
+10 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 11 0 R >>
+endobj
+11 0 obj
+<< /Length 1954 >>
+stream
+BT
+/F1 11 Tf
+50 782 Td
+(1. Pilih event dan moto.) Tj
+0 -14 Td
+(2. Input urutan finish rider.) Tj
+0 -14 Td
+(3. Validasi no plate dan rider sebelum submit.) Tj
+0 -14 Td
+(4. Koreksi cepat jika ada mismatch input.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Checklist sebelum race:) Tj
+0 -14 Td
+(1. Moto aktif sudah sesuai dari race control/checker.) Tj
+0 -14 Td
+(2. List rider finish siap dimonitor.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Checklist saat race:) Tj
+0 -14 Td
+(1. Input hasil finish secepat mungkin.) Tj
+0 -14 Td
+(2. Pastikan tidak ada rider missing atau plate salah.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Checklist setelah race:) Tj
+0 -14 Td
+(1. Kunci data hasil awal untuk review director.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(2.6 RACE DIRECTOR) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Tujuan:) Tj
+0 -14 Td
+(- Pengambil keputusan final hasil race dan penalty.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Akses utama:) Tj
+0 -14 Td
+(- `/race-director/approval`) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Tugas harian:) Tj
+0 -14 Td
+(1. Review hasil moto dari tim finish.) Tj
+0 -14 Td
+(2. Review penalty/protes/override.) Tj
+0 -14 Td
+(3. Set keputusan approve/reject/override.) Tj
+0 -14 Td
+(4. Lock atau unlock moto sesuai kebutuhan governance.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Checklist sebelum race:) Tj
+0 -14 Td
+(1. Rule penalty dan aturan event sudah jelas.) Tj
+0 -14 Td
+(2. Jalur eskalasi ke race control aktif.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Checklist saat race:) Tj
+0 -14 Td
+(1. Fokus ke kasus khusus: protes, pelanggaran, konflik data.) Tj
+0 -14 Td
+(2. Pastikan setiap keputusan punya alasan operasional.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Checklist setelah race:) Tj
+0 -14 Td
+(1. Final approve hasil resmi event.) Tj
+0 -14 Td
+(2. Tutup seluruh tiket keputusan terbuka.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(2.7 MC) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Tujuan:) Tj
+0 -14 Td
+(- Menyampaikan informasi live ke penonton/publik.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Akses utama:) Tj
+0 -14 Td
+(- `/mc/[eventId]`) Tj
+0 -14 Td
+() Tj
+ET
+endstream
+endobj
+12 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 13 0 R >>
+endobj
+13 0 obj
+<< /Length 1853 >>
+stream
+BT
+/F1 11 Tf
+50 782 Td
+(Tugas harian:) Tj
+0 -14 Td
+(1. Tampilkan event live dan update info rider.) Tj
+0 -14 Td
+(2. Ikuti data resmi yang sudah berjalan di sistem.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Checklist sebelum race:) Tj
+0 -14 Td
+(1. Event ID yang dipakai MC benar.) Tj
+0 -14 Td
+(2. Tampilan live sudah sinkron dengan status event.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Checklist saat race:) Tj
+0 -14 Td
+(1. Hindari mengumumkan hasil yang belum final approval.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Checklist setelah race:) Tj
+0 -14 Td
+(1. Pastikan hasil final yang dibacakan sesuai sistem.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(3. ALUR OPERASIONAL END-TO-END) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(1. `Admin` siapkan event, kategori, rider, draw, moto, schedule.) Tj
+0 -14 Td
+(2. `Race Control` buka operasional race day dan koordinasi flow.) Tj
+0 -14 Td
+(3. `Checker` jalankan validasi gate dan proses start.) Tj
+0 -14 Td
+(4. `Finisher` input urutan finish moto.) Tj
+0 -14 Td
+(5. `Race Director` review dan finalisasi keputusan.) Tj
+0 -14 Td
+(6. `MC` umumkan update live sesuai status resmi.) Tj
+0 -14 Td
+(7. `Super Admin` standby untuk kontrol akses sepanjang event.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(4. ATURAN ESKALASI SINGKAT) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(- Isu login/akses -> `super_admin`.) Tj
+0 -14 Td
+(- Isu data registrasi/rider/kategori -> `admin`.) Tj
+0 -14 Td
+(- Isu flow race lapangan -> `race_control`.) Tj
+0 -14 Td
+(- Isu hasil, protest, penalty, override -> `RACE_DIRECTOR`.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(5. CATATAN IMPLEMENTASI) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(- Jangan ubah data fundamental saat race live kecuali darurat.) Tj
+0 -14 Td
+(- Setiap perubahan krusial harus bisa dilacak \(siapa, kapan, kenapa\).) Tj
+0 -14 Td
+(- Gunakan role sesuai kebutuhan, jangan pakai akun lintas role saat operasi.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+() Tj
+ET
+endstream
+endobj
+xref
+0 14
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000143 00000 n 
+0000000213 00000 n 
+0000000339 00000 n 
+0000002258 00000 n 
+0000002384 00000 n 
+0000004600 00000 n 
+0000004726 00000 n 
+0000006725 00000 n 
+0000006853 00000 n 
+0000008859 00000 n 
+0000008987 00000 n 
+trailer
+<< /Size 14 /Root 1 0 R >>
+startxref
+10892
+%%EOF

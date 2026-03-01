@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
@@ -15,6 +16,19 @@ const BRAND = {
   short: 'KRB',
 }
 
+const formatRoleLabel = (role: string | null) => {
+  if (!role) return 'Unknown'
+  const normalized = role.toUpperCase()
+  if (normalized === 'SUPER_ADMIN') return 'Super Admin'
+  if (normalized === 'ADMIN') return 'Admin'
+  if (normalized === 'RACE_CONTROL') return 'Race Control'
+  if (normalized === 'RACE_DIRECTOR') return 'Race Director'
+  if (normalized === 'CHECKER' || normalized === 'JURY_START') return 'Jury Start'
+  if (normalized === 'FINISHER' || normalized === 'JURY_FINISH') return 'Jury Finish'
+  if (normalized === 'MC') return 'MC'
+  return role.replace(/_/g, ' ')
+}
+
 const GlobalNav: NavItem[] = [
   { label: 'Dashboard', href: '/admin' },
   { label: 'Events', href: '/admin/events' },
@@ -28,7 +42,6 @@ const EventNav = (eventId: string): NavItem[] => [
   { label: 'Motos', href: `/admin/events/${eventId}/motos` },
   { label: 'Race Schedule', href: `/admin/events/${eventId}/schedule` },
   { label: 'Results Summary', href: `/admin/events/${eventId}/results` },
-  { label: 'Live Display', href: `/admin/events/${eventId}/display` },
   { label: 'Penalties', href: `/admin/events/${eventId}/penalties` },
   { label: 'Event Settings', href: `/admin/events/${eventId}/settings` },
 ]
@@ -52,12 +65,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [collapsed, setCollapsed] = useState(false)
   const [eventName, setEventName] = useState<string | null>(null)
   const [userRole, setUserRole] = useState<string | null>(null)
+  const [userEmail, setUserEmail] = useState<string | null>(null)
   const [eventMenuOpen, setEventMenuOpen] = useState(true)
 
   const eventId = useMemo(() => extractEventId(pathname), [pathname])
   const eventNav = useMemo(() => (eventId ? EventNav(eventId) : []), [eventId])
   const globalNav = useMemo(() => {
-    if (userRole === 'super_admin') {
+    if ((userRole ?? '').toLowerCase() === 'super_admin') {
       return [...GlobalNav, { label: 'Users', href: '/admin/users' }]
     }
     return GlobalNav
@@ -76,12 +90,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   useEffect(() => {
     const loadRole = async () => {
       const { data } = await supabase.auth.getUser()
-      const meta = (data.user?.user_metadata ?? {}) as Record<string, unknown>
-      const appMeta = (data.user?.app_metadata ?? {}) as Record<string, unknown>
+      const user = data.user
+      const meta = (user?.user_metadata ?? {}) as Record<string, unknown>
+      const appMeta = (user?.app_metadata ?? {}) as Record<string, unknown>
       const role =
         (typeof meta.role === 'string' ? meta.role : null) ||
         (typeof appMeta.role === 'string' ? appMeta.role : null)
       setUserRole(role)
+      setUserEmail(user?.email ?? null)
     }
     loadRole()
   }, [])
@@ -106,7 +122,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }, [])
 
   useEffect(() => {
-    const load = async () => {
+    const loadEvent = async () => {
       if (!eventId) {
         setEventName(null)
         return
@@ -123,7 +139,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         setEventName(null)
       }
     }
-    load()
+    loadEvent()
   }, [eventId])
 
   useEffect(() => {
@@ -136,7 +152,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     router.push('/login')
   }
 
-  const sidebarWidth = collapsed ? 78 : 280
+  const sidebarWidth = collapsed ? 86 : 292
+  const topbarHeight = 56
 
   const SidebarContent = (
     <div
@@ -145,26 +162,27 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         display: 'flex',
         flexDirection: 'column',
         padding: '14px 12px',
-        gap: '12px',
+        gap: 12,
+        color: '#e2e8f0',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <img
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <Image
           src="/krb-logo.png"
           alt="KRB"
+          width={40}
+          height={40}
           style={{
-            width: 40,
-            height: 40,
             borderRadius: 12,
-            border: '2px solid #111',
+            border: '1px solid rgba(148,163,184,0.36)',
             background: '#fff',
             objectFit: 'contain',
           }}
         />
         {!collapsed && (
-          <div style={{ display: 'grid', lineHeight: 1.1 }}>
+          <div style={{ display: 'grid', lineHeight: 1.12 }}>
             <div style={{ fontWeight: 900, letterSpacing: '0.02em' }}>{BRAND.short}</div>
-            <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.85 }}>{BRAND.name}</div>
+            <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.84 }}>{BRAND.name}</div>
           </div>
         )}
       </div>
@@ -177,13 +195,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             width: '100%',
             padding: '10px 12px',
             borderRadius: 12,
-            border: '2px solid #111',
-            background: collapsed ? '#fff' : '#2ecc71',
-            fontWeight: 900,
+            border: '1px solid rgba(148,163,184,0.36)',
+            background: collapsed ? 'rgba(15,23,42,0.72)' : '#f43f5e',
+            color: '#f8fafc',
+            fontWeight: 800,
             cursor: 'pointer',
           }}
         >
-          {collapsed ? '>' : 'Collapse'}
+          {collapsed ? 'Expand' : 'Collapse'}
         </button>
       )}
 
@@ -196,16 +215,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               href={item.href}
               style={{
                 textDecoration: 'none',
-                color: '#111',
+                color: '#e2e8f0',
               }}
             >
               <div
                 style={{
                   padding: '10px 12px',
                   borderRadius: 12,
-                  border: '2px solid #111',
-                  background: active ? '#2ecc71' : '#fff',
-                  fontWeight: 900,
+                  border: '1px solid rgba(148,163,184,0.32)',
+                  background: active ? '#f43f5e' : 'rgba(15,23,42,0.75)',
+                  color: '#f8fafc',
+                  fontWeight: 800,
                   textAlign: collapsed ? 'center' : 'left',
                 }}
                 title={collapsed ? item.label : undefined}
@@ -226,30 +246,28 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               width: '100%',
               padding: '10px 12px',
               borderRadius: 12,
-              border: '2px solid #111',
-              background: '#fff',
-              fontWeight: 900,
+              border: '1px solid rgba(148,163,184,0.32)',
+              background: 'rgba(15,23,42,0.75)',
+              color: '#f8fafc',
+              fontWeight: 800,
               cursor: 'pointer',
             }}
           >
-            {collapsed ? (eventMenuOpen ? 'EV-' : 'EV+') : eventMenuOpen ? 'Event Menu ▾' : 'Event Menu ▸'}
+            {collapsed ? (eventMenuOpen ? 'EV-' : 'EV+') : eventMenuOpen ? 'Event Menu Open' : 'Event Menu Closed'}
           </button>
           {eventMenuOpen && (
             <div style={{ display: 'grid', gap: 8 }}>
               {eventNav.map((item) => {
                 const active = isActivePath(pathname, item.href)
                 return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    style={{ textDecoration: 'none', color: '#111' }}
-                  >
+                  <Link key={item.href} href={item.href} style={{ textDecoration: 'none', color: '#e2e8f0' }}>
                     <div
                       style={{
                         padding: '10px 12px',
                         borderRadius: 12,
-                        border: '2px solid #111',
-                        background: active ? '#2ecc71' : '#fff',
+                        border: '1px solid rgba(148,163,184,0.32)',
+                        background: active ? '#f43f5e' : 'rgba(15,23,42,0.75)',
+                        color: '#f8fafc',
                         fontWeight: 800,
                         textAlign: collapsed ? 'center' : 'left',
                       }}
@@ -269,14 +287,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     </div>
   )
 
-  const topbarHeight = 56
-
   return (
     <div
       style={{
         minHeight: '100vh',
-        background: '#eaf7ee',
-        color: '#111',
+        background: 'linear-gradient(180deg, #020817 0%, #041030 45%, #030712 100%)',
+        color: '#e2e8f0',
         paddingTop: topbarHeight,
       }}
     >
@@ -287,8 +303,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           left: 0,
           right: 0,
           zIndex: 25,
-          background: '#fff',
-          borderBottom: '2px solid #111',
+          background: 'rgba(2,6,23,0.88)',
+          borderBottom: '1px solid rgba(148,163,184,0.28)',
+          backdropFilter: 'blur(8px)',
           height: topbarHeight,
           padding: '0 16px',
           display: 'flex',
@@ -299,26 +316,50 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       >
         <div
           style={{
-            fontWeight: 900,
-            padding: '6px 10px',
+            fontWeight: 800,
+            fontSize: 12,
+            letterSpacing: '0.09em',
+            textTransform: 'uppercase',
+            padding: '7px 12px',
             borderRadius: 999,
-            background: eventId ? '#bfead2' : '#eaf7ee',
-            border: '2px solid #111',
+            color: '#f8fafc',
+            background: eventId ? 'rgba(244,63,94,0.24)' : 'rgba(15,23,42,0.8)',
+            border: '1px solid rgba(148,163,184,0.34)',
           }}
         >
           {eventId ? `Event: ${eventName ?? '...'}` : 'Admin'}
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div
+            style={{
+              padding: '7px 12px',
+              borderRadius: 999,
+              border: '1px solid rgba(148,163,184,0.34)',
+              background: 'rgba(15,23,42,0.75)',
+              color: '#cbd5e1',
+              fontWeight: 800,
+              fontSize: 12,
+              maxWidth: isMobile ? 150 : 360,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+            title={userEmail ?? undefined}
+          >
+            {formatRoleLabel(userRole)} {userEmail ? `| ${userEmail}` : ''}
+          </div>
           <button
             type="button"
             onClick={handleLogout}
             style={{
-              padding: '8px 12px',
+              padding: '8px 13px',
               borderRadius: 12,
-              border: '2px solid #b40000',
-              background: '#ffd7d7',
-              color: '#b40000',
-              fontWeight: 900,
+              border: '1px solid rgba(251,113,133,0.55)',
+              background: '#f43f5e',
+              color: '#fff1f2',
+              fontWeight: 800,
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
               cursor: 'pointer',
             }}
           >
@@ -333,8 +374,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             position: 'sticky',
             top: 0,
             zIndex: 20,
-            background: 'rgba(255,255,255,0.92)',
-            borderBottom: '2px solid #111',
+            background: 'rgba(2,6,23,0.92)',
+            borderBottom: '1px solid rgba(148,163,184,0.28)',
             padding: '12px 14px',
             display: 'flex',
             alignItems: 'center',
@@ -348,15 +389,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             style={{
               padding: '10px 12px',
               borderRadius: 12,
-              border: '2px solid #111',
-              background: '#2ecc71',
-              fontWeight: 900,
+              border: '1px solid rgba(148,163,184,0.32)',
+              background: '#f43f5e',
+              color: '#fff1f2',
+              fontWeight: 800,
               cursor: 'pointer',
             }}
           >
             Menu
           </button>
-          <div style={{ fontWeight: 900, textAlign: 'right' }}>
+          <div style={{ fontWeight: 800, color: '#f8fafc', textAlign: 'right' }}>
             {eventId ? eventName ?? 'Event' : 'Admin'}
           </div>
         </div>
@@ -373,8 +415,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               position: 'fixed',
               top: topbarHeight,
               left: 0,
-              borderRight: '2px solid #111',
-              background: '#fff',
+              borderRight: '1px solid rgba(148,163,184,0.25)',
+              background: 'rgba(15,23,42,0.82)',
+              backdropFilter: 'blur(8px)',
             }}
           >
             {SidebarContent}
@@ -390,7 +433,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 position: 'fixed',
                 inset: 0,
                 zIndex: 30,
-                background: 'rgba(0,0,0,0.35)',
+                background: 'rgba(0,0,0,0.45)',
               }}
             />
             <aside
@@ -402,8 +445,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 width: 310,
                 maxWidth: '90vw',
                 zIndex: 40,
-                background: '#fff',
-                borderRight: '2px solid #111',
+                background: 'rgba(15,23,42,0.95)',
+                borderRight: '1px solid rgba(148,163,184,0.28)',
                 transform: sidebarOpen ? 'translateX(0)' : 'translateX(-110%)',
                 transition: 'transform 180ms ease',
               }}
@@ -415,9 +458,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   style={{
                     padding: '10px 12px',
                     borderRadius: 12,
-                    border: '2px solid #111',
-                    background: '#fff',
-                    fontWeight: 900,
+                    border: '1px solid rgba(148,163,184,0.32)',
+                    background: 'rgba(15,23,42,0.8)',
+                    color: '#f8fafc',
+                    fontWeight: 800,
                     cursor: 'pointer',
                   }}
                 >
@@ -432,8 +476,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <main
           style={{
             flex: 1,
-            padding: '20px',
+            padding: '24px 20px',
             marginLeft: isMobile ? 0 : sidebarWidth,
+            color: '#0f172a',
           }}
         >
           {children}
@@ -442,4 +487,3 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     </div>
   )
 }
-

@@ -51,14 +51,28 @@ export default function AdminDashboardPage() {
   }, [])
 
   return (
-    <div style={{ maxWidth: 980 }}>
-      <h1 style={{ fontSize: 28, fontWeight: 950, margin: 0 }}>Admin Dashboard</h1>
-      <div style={{ marginTop: 8, color: '#333', fontWeight: 700 }}>
-        {email ? `Signed in as ${email}` : 'Signed in'} {role ? `• role: ${role}` : ''}
-      </div>
+    <div style={{ maxWidth: 1080 }}>
+      <section className="public-hero">
+        <p
+          style={{
+            margin: 0,
+            fontSize: 12,
+            fontWeight: 900,
+            letterSpacing: '0.16em',
+            textTransform: 'uppercase',
+            color: '#fda4af',
+          }}
+        >
+          Admin Console
+        </p>
+        <h1 style={{ margin: '8px 0 0 0', fontSize: 38, fontWeight: 950, color: '#f8fafc' }}>Admin Dashboard</h1>
+        <div style={{ marginTop: 8, color: '#cbd5e1', fontWeight: 700 }}>
+          {email ? `Signed in as ${email}` : 'Signed in'} {role ? `| role: ${role}` : ''}
+        </div>
+      </section>
 
       <div style={{ marginTop: 18, display: 'grid', gap: 12 }}>
-        <div style={{ fontWeight: 950, fontSize: 18 }}>Dashboard KPI</div>
+        <div style={{ fontWeight: 950, fontSize: 18, color: '#e2e8f0' }}>Dashboard KPI</div>
         {metricsError ? (
           <div
             style={{
@@ -119,7 +133,7 @@ export default function AdminDashboardPage() {
         )}
       </div>
 
-      <div style={{ marginTop: 24 }}>
+      <div style={{ marginTop: 24, marginBottom: 24 }}>
         <AdminEventsView showCreate={false} />
       </div>
     </div>

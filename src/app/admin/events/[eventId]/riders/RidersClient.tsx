@@ -390,11 +390,11 @@ export default function RidersClient({ eventId }: { eventId: string }) {
   }
 
   return (
-    <div style={{ maxWidth: 980 }}>
+    <div style={{ maxWidth: 980, color: '#e2e8f0' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'end', gap: 12 }}>
         <div>
-          <h1 style={{ fontSize: 26, fontWeight: 950, margin: 0 }}>Riders</h1>
-          <div style={{ marginTop: 8, color: '#333', fontWeight: 700 }}>
+          <h1 style={{ fontSize: 26, fontWeight: 950, margin: 0, color: '#f8fafc' }}>Riders</h1>
+          <div style={{ marginTop: 8, color: '#cbd5e1', fontWeight: 700 }}>
             Tahun lahir dibatasi 2016 - 2025. Plate unik per event (contoh: 12, 12A, 7B).
           </div>
         </div>
@@ -407,6 +407,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
             borderRadius: 12,
             border: '2px dashed #111',
             background: '#fff',
+            color: '#0f172a',
             fontWeight: 900,
           }}
         >
@@ -421,6 +422,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
           border: '2px solid #111',
           borderRadius: 16,
           padding: 16,
+          color: '#0f172a',
         }}
       >
         <div style={{ fontWeight: 950, fontSize: 18 }}>Add Rider</div>
@@ -474,13 +476,13 @@ export default function RidersClient({ eventId }: { eventId: string }) {
               placeholder="Plate Number (angka)"
               value={form.plate_number}
               onChange={(e) => setForm({ ...form, plate_number: e.target.value.replace(/[^\d]/g, '') })}
-              style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 900 }}
+              style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 900, color: '#0f172a' }}
             />
             <input
               placeholder="Suffix (opsional, A-Z)"
               value={form.plate_suffix}
               onChange={(e) => setForm({ ...form, plate_suffix: e.target.value.toUpperCase().slice(0, 1) })}
-              style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 900 }}
+              style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 900, color: '#0f172a' }}
             />
           </div>
           <input
@@ -529,7 +531,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
       </div>
 
       <div style={{ marginTop: 16, display: 'grid', gap: 10 }}>
-        <div style={{ fontWeight: 900 }}>Pilih Kategori</div>
+        <div style={{ fontWeight: 900, color: '#e2e8f0' }}>Pilih Kategori</div>
         {categories.length === 0 && (
           <div
             style={{
@@ -537,6 +539,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
               borderRadius: 12,
               border: '2px dashed #111',
               background: '#fff',
+              color: '#0f172a',
               fontWeight: 800,
             }}
           >
@@ -557,6 +560,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
                 borderRadius: 12,
                 border: '2px solid #111',
                 background: selectedCategory === c.id ? '#2ecc71' : '#fff',
+                color: '#0f172a',
                 fontWeight: 900,
                 cursor: 'pointer',
                 textAlign: 'left',
@@ -576,7 +580,15 @@ export default function RidersClient({ eventId }: { eventId: string }) {
             setPage(1)
             setQuery(e.target.value)
           }}
-          style={{ padding: 12, borderRadius: 12, border: '2px solid #111', background: '#fff', flex: 1, minWidth: 220 }}
+          style={{
+            padding: 12,
+            borderRadius: 12,
+            border: '2px solid #111',
+            background: '#fff',
+            color: '#0f172a',
+            flex: 1,
+            minWidth: 220,
+          }}
         />
         <div
           style={{
@@ -584,6 +596,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
             borderRadius: 12,
             border: '2px dashed #111',
             background: '#fff',
+            color: '#0f172a',
             fontWeight: 900,
           }}
         >
@@ -593,18 +606,45 @@ export default function RidersClient({ eventId }: { eventId: string }) {
 
       <div style={{ marginTop: 12, display: 'grid', gap: 10 }}>
         {!selectedCategory && (
-          <div style={{ padding: 14, border: '2px dashed #111', borderRadius: 16, background: '#fff', fontWeight: 900 }}>
+          <div
+            style={{
+              padding: 14,
+              border: '2px dashed #111',
+              borderRadius: 16,
+              background: '#fff',
+              color: '#0f172a',
+              fontWeight: 900,
+            }}
+          >
             Pilih kategori untuk melihat daftar rider.
           </div>
         )}
         {loading && (
-          <div style={{ padding: 14, border: '2px dashed #111', borderRadius: 16, background: '#fff', fontWeight: 900 }}>
+          <div
+            style={{
+              padding: 14,
+              border: '2px dashed #111',
+              borderRadius: 16,
+              background: '#fff',
+              color: '#0f172a',
+              fontWeight: 900,
+            }}
+          >
             Loading...
           </div>
         )}
 
         {!loading && selectedCategory && riders.length === 0 && (
-          <div style={{ padding: 14, border: '2px dashed #111', borderRadius: 16, background: '#fff', fontWeight: 900 }}>
+          <div
+            style={{
+              padding: 14,
+              border: '2px dashed #111',
+              borderRadius: 16,
+              background: '#fff',
+              color: '#0f172a',
+              fontWeight: 900,
+            }}
+          >
             Belum ada rider.
           </div>
         )}
@@ -621,6 +661,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
               borderRadius: 16,
               border: '2px solid #111',
               background: '#fff',
+              color: '#0f172a',
             }}
           >
             <div
@@ -677,6 +718,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
                   borderRadius: 12,
                   border: '2px solid #111',
                   background: '#fff',
+                  color: '#0f172a',
                   fontWeight: 900,
                   whiteSpace: 'nowrap',
                   cursor: 'pointer',
@@ -693,6 +735,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
                   borderRadius: 12,
                   border: '2px solid #111',
                   background: eventStatus === 'LIVE' ? '#eee' : '#ffe1e1',
+                  color: '#0f172a',
                   fontWeight: 900,
                   whiteSpace: 'nowrap',
                   cursor: eventStatus === 'LIVE' ? 'not-allowed' : 'pointer',
@@ -715,13 +758,14 @@ export default function RidersClient({ eventId }: { eventId: string }) {
             borderRadius: 12,
             border: '2px solid #111',
             background: page <= 1 ? '#eee' : '#fff',
+            color: '#0f172a',
             fontWeight: 900,
             cursor: page <= 1 ? 'not-allowed' : 'pointer',
           }}
         >
           Prev
         </button>
-        <div style={{ fontWeight: 900 }}>
+        <div style={{ fontWeight: 900, color: '#e2e8f0' }}>
           Page {page} / {totalPages}
         </div>
         <button
@@ -733,6 +777,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
             borderRadius: 12,
             border: '2px solid #111',
             background: page >= totalPages ? '#eee' : '#fff',
+            color: '#0f172a',
             fontWeight: 900,
             cursor: page >= totalPages ? 'not-allowed' : 'pointer',
           }}
@@ -763,6 +808,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
               padding: 16,
               display: 'grid',
               gap: 12,
+              color: '#0f172a',
             }}
           >
             <div style={{ fontWeight: 950, fontSize: 18 }}>Edit Rider</div>
@@ -883,28 +929,30 @@ export default function RidersClient({ eventId }: { eventId: string }) {
               <button
                 type="button"
                 onClick={closeEdit}
-                style={{
-                  padding: '10px 12px',
-                  borderRadius: 12,
-                  border: '2px solid #111',
-                  background: '#fff',
-                  fontWeight: 900,
-                }}
-              >
+                  style={{
+                    padding: '10px 12px',
+                    borderRadius: 12,
+                    border: '2px solid #111',
+                    background: '#fff',
+                    color: '#0f172a',
+                    fontWeight: 900,
+                  }}
+                >
                 Batal
               </button>
               <button
                 type="button"
                 onClick={handleUpdate}
                 disabled={saving}
-                style={{
-                  padding: '10px 12px',
-                  borderRadius: 12,
-                  border: '2px solid #111',
-                  background: '#2ecc71',
-                  fontWeight: 900,
-                  cursor: 'pointer',
-                }}
+                  style={{
+                    padding: '10px 12px',
+                    borderRadius: 12,
+                    border: '2px solid #111',
+                    background: '#2ecc71',
+                    color: '#0f172a',
+                    fontWeight: 900,
+                    cursor: 'pointer',
+                  }}
               >
                 {saving ? 'Saving...' : 'Simpan'}
               </button>
