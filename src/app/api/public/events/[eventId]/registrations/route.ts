@@ -117,7 +117,7 @@ const rollbackRegistration = async (registrationId: string, uploadedPaths: strin
 const createBaseRegistration = async (eventId: string, payload: RegistrationPayload) => {
   const { community_name, contact_name, contact_phone, contact_email, items } = payload
   if (!contact_name || !contact_phone || !Array.isArray(items) || items.length === 0) {
-    return { error: 'Missing required fields' as const }
+    return { error: 'Missing required fields' }
   }
 
   const { data: settingsRow, error: settingsError } = await adminClient
@@ -126,7 +126,7 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
     .eq('event_id', eventId)
     .maybeSingle()
 
-  if (settingsError) return { error: settingsError.message as const }
+  if (settingsError) return { error: settingsError.message }
   const requireJerseySize = Boolean(settingsRow?.require_jersey_size)
 
   const categoryIds = new Set<string>()
@@ -140,7 +140,7 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
     .select('id, event_id, year, year_min, year_max, capacity, gender, label')
     .in('id', Array.from(categoryIds))
 
-  if (catError) return { error: catError.message as const }
+  if (catError) return { error: catError.message }
   const categoryMap = new Map((categories ?? []).map((c) => [c.id, c]))
 
   const preparedItems: PreparedItem[] = items.map((item) => {
@@ -197,7 +197,7 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
 
   const invalid = preparedItems.find((item) => 'error' in item)
   if (invalid && 'error' in invalid) {
-    return { error: invalid.error as const }
+    return { error: invalid.error }
   }
 
   const validItems = preparedItems.filter(
@@ -214,7 +214,7 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
       .select('primary_category_id, extra_category_id, status, registrations!inner(event_id)')
       .eq('registrations.event_id', eventId)
       .in('status', ['PENDING', 'APPROVED'])
-    if (existingError) return { error: existingError.message as const }
+    if (existingError) return { error: existingError.message }
 
     const currentCounts = new Map<string, number>()
     for (const row of existingItems ?? []) {
@@ -239,7 +239,7 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
       if (!capInfo || capInfo.capacity == null) continue
       const current = currentCounts.get(catId) ?? 0
       if (current + addCount > capInfo.capacity) {
-        return { error: `Kuota kategori "${capInfo.label}" penuh.` as const }
+        return { error: `Kuota kategori "${capInfo.label}" penuh.` }
       }
     }
   }
@@ -259,7 +259,7 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
     })
     .select('id, total_amount')
     .single()
-  if (regError || !registration) return { error: regError?.message || 'Failed creating registration' as const }
+  if (regError || !registration) return { error: regError?.message || 'Failed creating registration' }
 
   const { data: itemRows, error: itemError } = await adminClient
     .from('registration_items')
@@ -272,7 +272,7 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
     )
     .select('id')
 
-  if (itemError || !itemRows) return { error: itemError?.message || 'Failed creating registration items' as const }
+  if (itemError || !itemRows) return { error: itemError?.message || 'Failed creating registration items' }
   return {
     registration: registration as RegistrationRow,
     itemRows: itemRows as RegistrationItemRow[],
