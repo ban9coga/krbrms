@@ -14,11 +14,29 @@ type CategoryItem = {
   enabled: boolean
 }
 
+type CreateDraft = {
+  label: string
+  year_min: string
+  year_max: string
+  gender: CategoryItem['gender']
+  capacity: string
+}
+
+const initialDraft = (): CreateDraft => ({
+  label: '',
+  year_min: '',
+  year_max: '',
+  gender: 'BOY',
+  capacity: '',
+})
+
 export default function CategoriesClient({ eventId }: { eventId: string }) {
   const [categories, setCategories] = useState<CategoryItem[]>([])
   const [loading, setLoading] = useState(false)
   const [savingId, setSavingId] = useState<string | null>(null)
   const [syncing, setSyncing] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [createDraft, setCreateDraft] = useState<CreateDraft>(initialDraft())
   const [editMap, setEditMap] = useState<
     Record<string, { year_min: string; year_max: string; label: string; capacity: string; gender: CategoryItem['gender'] }>
   >({})
@@ -131,11 +149,56 @@ export default function CategoriesClient({ eventId }: { eventId: string }) {
     }
   }
 
+  const createCategory = async () => {
+    const label = createDraft.label.trim()
+    const yearMin = Number(createDraft.year_min)
+    const yearMax = Number(createDraft.year_max)
+    const capacityValue = createDraft.capacity.trim() === '' ? null : Number(createDraft.capacity)
+
+    if (!label) {
+      alert('Label wajib diisi.')
+      return
+    }
+    if (!Number.isFinite(yearMin) || !Number.isFinite(yearMax)) {
+      alert('Year range tidak valid.')
+      return
+    }
+    if (yearMin > yearMax) {
+      alert('Year min tidak boleh lebih besar dari year max.')
+      return
+    }
+    if (capacityValue !== null && (!Number.isFinite(capacityValue) || capacityValue < 0)) {
+      alert('Quota tidak valid.')
+      return
+    }
+
+    setCreating(true)
+    try {
+      await apiFetch(`/api/events/${eventId}/categories`, {
+        method: 'POST',
+        body: JSON.stringify({
+          label,
+          year_min: yearMin,
+          year_max: yearMax,
+          gender: createDraft.gender,
+          capacity: capacityValue,
+          enabled: true,
+        }),
+      })
+      setCreateDraft(initialDraft())
+      await load()
+    } catch (err: unknown) {
+      alert(getErrorMessage(err))
+    } finally {
+      setCreating(false)
+    }
+  }
+
   return (
     <div style={{ maxWidth: 980 }}>
       <h1 style={{ fontSize: 26, fontWeight: 950, margin: 0 }}>Categories</h1>
       <div style={{ marginTop: 8, color: '#333', fontWeight: 700 }}>
-        Categories dibuat otomatis dari tahun lahir & gender.
+        Categories bisa dibuat manual, lalu disesuaikan dari data rider jika diperlukan.
       </div>
       <div style={{ marginTop: 10 }}>
         <button
@@ -152,6 +215,73 @@ export default function CategoriesClient({ eventId }: { eventId: string }) {
           }}
         >
           {syncing ? 'Syncing...' : 'Sync Categories from Riders'}
+        </button>
+      </div>
+
+      <div
+        style={{
+          marginTop: 14,
+          padding: 14,
+          borderRadius: 16,
+          border: '2px solid #111',
+          background: '#fff',
+          display: 'grid',
+          gap: 8,
+        }}
+      >
+        <div style={{ fontWeight: 900 }}>Tambah Category</div>
+        <input
+          placeholder="Label (contoh: 2023 Boys)"
+          value={createDraft.label}
+          onChange={(e) => setCreateDraft((prev) => ({ ...prev, label: e.target.value }))}
+          style={{ padding: 8, borderRadius: 8, border: '1px solid #111' }}
+        />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+          <input
+            placeholder="Year min"
+            value={createDraft.year_min}
+            onChange={(e) => setCreateDraft((prev) => ({ ...prev, year_min: e.target.value }))}
+            style={{ padding: 8, borderRadius: 8, border: '1px solid #111' }}
+          />
+          <input
+            placeholder="Year max"
+            value={createDraft.year_max}
+            onChange={(e) => setCreateDraft((prev) => ({ ...prev, year_max: e.target.value }))}
+            style={{ padding: 8, borderRadius: 8, border: '1px solid #111' }}
+          />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+          <select
+            value={createDraft.gender}
+            onChange={(e) => setCreateDraft((prev) => ({ ...prev, gender: e.target.value as CategoryItem['gender'] }))}
+            style={{ padding: 8, borderRadius: 8, border: '1px solid #111' }}
+          >
+            <option value="BOY">BOY</option>
+            <option value="GIRL">GIRL</option>
+            <option value="MIX">MIX</option>
+          </select>
+          <input
+            placeholder="Quota (kosong = unlimited)"
+            value={createDraft.capacity}
+            onChange={(e) => setCreateDraft((prev) => ({ ...prev, capacity: e.target.value }))}
+            style={{ padding: 8, borderRadius: 8, border: '1px solid #111' }}
+          />
+        </div>
+        <button
+          type="button"
+          onClick={createCategory}
+          disabled={creating}
+          style={{
+            padding: '8px 12px',
+            borderRadius: 12,
+            border: '2px solid #111',
+            background: '#d7ecff',
+            fontWeight: 900,
+            cursor: 'pointer',
+            width: 'fit-content',
+          }}
+        >
+          {creating ? 'Creating...' : 'Tambah Category'}
         </button>
       </div>
 

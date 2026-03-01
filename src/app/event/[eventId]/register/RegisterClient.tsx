@@ -10,6 +10,7 @@ type CategoryItem = {
   year_max?: number
   gender: 'BOY' | 'GIRL' | 'MIX'
   label: string
+  enabled?: boolean
 }
 
 type RiderForm = {
@@ -78,7 +79,8 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
       try {
         const res = await fetch(`/api/events/${eventId}/categories`)
         const json = await res.json()
-        setCategories(json?.data ?? [])
+        const list = (json?.data ?? []) as CategoryItem[]
+        setCategories(list.filter((item) => item.enabled !== false))
       } catch {
         setCategories([])
       }
