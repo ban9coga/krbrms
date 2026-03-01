@@ -19,13 +19,6 @@ type CategoryItem = {
   gender?: 'BOY' | 'GIRL' | 'MIX'
 }
 
-type PenaltyRule = {
-  code: string
-  description: string | null
-  penalty_point: number
-  applies_to_stage: string
-}
-
 type MotoItem = {
   id: string
   moto_name: string
@@ -53,7 +46,6 @@ export default function JuryFinishPage() {
   const [eventId, setEventId] = useState('')
   const [categories, setCategories] = useState<CategoryItem[]>([])
   const [motos, setMotos] = useState<MotoItem[]>([])
-  const [rules, setRules] = useState<PenaltyRule[]>([])
   const [selectedMotoId, setSelectedMotoId] = useState('')
   const [riders, setRiders] = useState<RiderItem[]>([])
   const [role, setRole] = useState<string | null>(null)
@@ -109,14 +101,12 @@ export default function JuryFinishPage() {
   useEffect(() => {
     const loadAll = async () => {
       if (!eventId) return
-      const [motoRes, catRes, ruleRes] = await Promise.all([
+      const [motoRes, catRes] = await Promise.all([
         fetch(`/api/motos?event_id=${eventId}`),
         fetch(`/api/events/${eventId}/categories`),
-        apiFetch(`/api/jury/events/${eventId}/penalties`),
       ])
       const motoJson = await motoRes.json()
       const catJson = await catRes.json()
-      setRules((ruleRes.data ?? []) as PenaltyRule[])
       const catRows = (catJson.data ?? []) as CategoryItem[]
       setCategories(catRows)
       const yearMap = new Map<string, number>()
@@ -136,13 +126,15 @@ export default function JuryFinishPage() {
         return a.moto_order - b.moto_order
       })
       setMotos(sortedMotos)
-      if (!selectedMotoId && sortedMotos.length) {
+      const selectedStillExists = sortedMotos.some((m) => m.id === selectedMotoId)
+      if (!selectedStillExists && sortedMotos.length) {
         const liveMoto = sortedMotos.find((m) => isMotoLive(m.status))
         setSelectedMotoId((liveMoto ?? sortedMotos[0]).id)
       }
     }
     loadAll()
-  }, [eventId, selectedMotoId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventId])
 
   useEffect(() => {
     const loadLock = async () => {
@@ -155,7 +147,7 @@ export default function JuryFinishPage() {
 
   useEffect(() => {
     const loadRiders = async () => {
-      if (!selectedMotoId) {
+      if (!eventId || !selectedMotoId) {
         setRiders([])
         setFinishOrder([])
         setDnfRiders([])
@@ -194,9 +186,7 @@ export default function JuryFinishPage() {
       }
     }
     loadRiders()
-    // Keep dependency size stable during Fast Refresh; selectedMotoId is the effective trigger here.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedMotoId])
+  }, [eventId, selectedMotoId])
 
   const categoryLabel = useMemo(() => {
     const map = new Map<string, string>()
@@ -399,7 +389,14 @@ export default function JuryFinishPage() {
           <div className="grid gap-3 md:grid-cols-2">
             <div className="grid gap-2">
               <label className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">Event LIVE</label>
-              <select value={eventId} onChange={(e) => setEventId(e.target.value)} className="public-filter">
+              <select
+                value={eventId}
+                onChange={(e) => {
+                  setEventId(e.target.value)
+                  setSelectedMotoId('')
+                }}
+                className="public-filter"
+              >
                 {events.length === 0 && <option value="">Belum ada event LIVE</option>}
                 {events.map((ev) => (
                   <option key={ev.id} value={ev.id}>
@@ -555,24 +552,6 @@ export default function JuryFinishPage() {
                 </div>
               </div>
 
-              {false && (
-                <div className="mt-2 border-t border-dashed border-slate-300 pt-3">
-                  <div className="mb-2 text-xs font-extrabold uppercase tracking-[0.15em] text-slate-500">Penalty Checklist</div>
-                  <div className="grid gap-2">
-                    {rules.map((p) => (
-                      <label key={p.code} className="flex items-center gap-2 text-xs font-semibold text-slate-600">
-                        <input type="checkbox" disabled />
-                        <span>
-                          {p.description || p.code} ({p.penalty_point} pts, {p.applies_to_stage})
-                        </span>
-                      </label>
-                    ))}
-                    {rules.length === 0 && (
-                      <div className="text-xs font-semibold text-slate-500">Penalty rules belum diatur.</div>
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
           </aside>
         </div>

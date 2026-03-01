@@ -10,9 +10,15 @@ type CheckerTopbarProps = {
 }
 
 const normalizeRole = (value: string) => {
-  if (value === 'jury_start') return 'CHECKER'
-  if (value === 'jury_finish') return 'FINISHER'
-  return value
+  const upper = String(value ?? '').trim().toUpperCase()
+  if (upper === 'JURY_START') return 'CHECKER'
+  if (upper === 'JURY_FINISH') return 'FINISHER'
+  if (upper === 'RACE_CONTROL') return 'RACE_CONTROL'
+  if (upper === 'RACE_DIRECTOR') return 'RACE_DIRECTOR'
+  if (upper === 'SUPER_ADMIN') return 'SUPER_ADMIN'
+  if (upper === 'ADMIN') return 'ADMIN'
+  if (upper === 'CHECKER' || upper === 'FINISHER') return upper
+  return upper
 }
 
 const roleLabel = (value: string) => {
@@ -20,10 +26,19 @@ const roleLabel = (value: string) => {
   if (role === 'CHECKER') return 'Checker'
   if (role === 'FINISHER') return 'Finisher'
   if (role === 'RACE_DIRECTOR') return 'Race Director'
-  if (role === 'race_control') return 'Race Control'
-  if (role === 'super_admin') return 'Super Admin'
-  if (role === 'admin') return 'Admin'
+  if (role === 'RACE_CONTROL') return 'Race Control'
+  if (role === 'SUPER_ADMIN') return 'Super Admin'
+  if (role === 'ADMIN') return 'Admin'
   return role || 'Unknown'
+}
+
+const roleHomeHref = (value: string) => {
+  const role = normalizeRole(value)
+  if (role === 'FINISHER') return '/jury/finish'
+  if (role === 'RACE_DIRECTOR') return '/race-director/approval'
+  if (role === 'RACE_CONTROL') return '/race-control'
+  if (role === 'SUPER_ADMIN' || role === 'ADMIN') return '/admin'
+  return '/jc'
 }
 
 const displayName = (user: {
@@ -45,7 +60,7 @@ const displayName = (user: {
 export default function CheckerTopbar({ title = 'Checker Control' }: CheckerTopbarProps) {
   const router = useRouter()
   const [name, setName] = useState('User')
-  const [role, setRole] = useState('Unknown')
+  const [roleKey, setRoleKey] = useState('')
 
   useEffect(() => {
     const loadUser = async () => {
@@ -59,7 +74,7 @@ export default function CheckerTopbar({ title = 'Checker Control' }: CheckerTopb
         (typeof appMeta.role === 'string' ? appMeta.role : '') ||
         ''
       setName(displayName(user))
-      setRole(roleLabel(rawRole))
+      setRoleKey(rawRole)
     }
     loadUser()
   }, [])
@@ -74,7 +89,7 @@ export default function CheckerTopbar({ title = 'Checker Control' }: CheckerTopb
     <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur">
       <div className="w-full px-4 py-3 md:px-6">
         <div className="flex items-center justify-between gap-4">
-          <Link href="/jc" className="flex min-w-0 items-center gap-3">
+          <Link href={roleHomeHref(roleKey)} className="flex min-w-0 items-center gap-3">
             <img src="/krb-logo.png" alt="KRB Logo" className="h-10 w-10 rounded-lg object-contain" />
             <div className="min-w-0">
               <div className="truncate text-base font-black tracking-tight text-slate-900">{title}</div>
@@ -86,7 +101,7 @@ export default function CheckerTopbar({ title = 'Checker Control' }: CheckerTopb
 
           <div className="flex items-center gap-2 sm:gap-3">
             <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-right">
-              <div className="text-xs font-extrabold uppercase tracking-[0.1em] text-slate-500">{role}</div>
+              <div className="text-xs font-extrabold uppercase tracking-[0.1em] text-slate-500">{roleLabel(roleKey)}</div>
               <div className="max-w-[140px] truncate text-sm font-bold text-slate-900 sm:max-w-[220px]">{name}</div>
             </div>
             <button
