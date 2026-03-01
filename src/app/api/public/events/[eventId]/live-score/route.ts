@@ -202,8 +202,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     batchMap.set(parsed.batchIndex, entry)
   }
 
-  const batches = Array.from(batchMap.entries())
-    .filter(([, entry]) => entry.moto1)
+  const batchEntries = Array.from(batchMap.entries()).filter(([, entry]) => entry.moto1)
+  const hasMultipleBatches = batchEntries.length > 1
+
+  const batches = batchEntries
     .map(([batchIndex, entry]) => {
       const moto1 = entry.moto1 as MotoRow
       const moto2 = entry.moto2 ?? null
@@ -302,6 +304,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       )
 
       const classForRank = (rank: number | null | undefined) => {
+        if (!hasMultipleBatches) return null
         if (!rank) return null
         if (rank >= 1 && rank <= 4) return 'QUARTER FINAL'
         if (rank === 5) return 'FINAL ACADEMY'
