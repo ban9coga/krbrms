@@ -28,8 +28,6 @@ type RiderForm = {
 
 const DEFAULT_BASE_PRICE = 250000
 const DEFAULT_EXTRA_PRICE = 150000
-const DEFAULT_FFA_MIN_YEAR = 2017
-const DEFAULT_FFA_MAX_YEAR = 2017
 
 const formatRupiah = (value: number) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value)
@@ -58,8 +56,6 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   const [riders, setRiders] = useState<RiderForm[]>([initialRider()])
   const [basePrice, setBasePrice] = useState(DEFAULT_BASE_PRICE)
   const [extraPrice, setExtraPrice] = useState(DEFAULT_EXTRA_PRICE)
-  const [ffaMinYear, setFfaMinYear] = useState(DEFAULT_FFA_MIN_YEAR)
-  const [ffaMaxYear, setFfaMaxYear] = useState(DEFAULT_FFA_MAX_YEAR)
   const [requireJerseySize, setRequireJerseySize] = useState(false)
   const [bankName, setBankName] = useState('')
   const [accountName, setAccountName] = useState('')
@@ -95,18 +91,12 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         const data = json?.data ?? null
         const base = Number(data?.base_price)
         const extra = Number(data?.extra_price)
-        const ffaMin = Number(data?.ffa_mix_min_year)
-        const ffaMax = Number(data?.ffa_mix_max_year)
         setRequireJerseySize(Boolean(data?.require_jersey_size))
         setBasePrice(Number.isFinite(base) && base > 0 ? base : DEFAULT_BASE_PRICE)
         setExtraPrice(Number.isFinite(extra) && extra >= 0 ? extra : DEFAULT_EXTRA_PRICE)
-        setFfaMinYear(Number.isFinite(ffaMin) ? ffaMin : DEFAULT_FFA_MIN_YEAR)
-        setFfaMaxYear(Number.isFinite(ffaMax) ? ffaMax : DEFAULT_FFA_MAX_YEAR)
       } catch {
         setBasePrice(DEFAULT_BASE_PRICE)
         setExtraPrice(DEFAULT_EXTRA_PRICE)
-        setFfaMinYear(DEFAULT_FFA_MIN_YEAR)
-        setFfaMaxYear(DEFAULT_FFA_MAX_YEAR)
         setRequireJerseySize(false)
       }
     }
@@ -237,66 +227,40 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         }
       })
 
-      const regRes = await fetch(`/api/public/events/${eventId}/registrations`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const submitForm = new FormData()
+      submitForm.append(
+        'payload',
+        JSON.stringify({
           community_name: communityName || null,
           contact_name: contactName,
           contact_phone: contactPhone,
           contact_email: contactEmail || null,
           items,
-        }),
+        })
+      )
+
+      riders.forEach((rider, idx) => {
+        if (rider.photo instanceof File) {
+          submitForm.append(`rider_photo_${idx}`, rider.photo)
+        }
+        if (rider.docKk instanceof File) {
+          submitForm.append(`rider_doc_${idx}`, rider.docKk)
+        }
       })
-      const regJson = await parseJson(regRes)
-      if (!regRes.ok) throw new Error(regJson?.error || regJson?._raw || 'Gagal membuat pendaftaran')
 
-      const registrationId = regJson.data.registration.id as string
-      const itemRows = regJson.data.items as Array<{ id: string }>
-
-      for (let idx = 0; idx < riders.length; idx++) {
-        const rider = riders[idx]
-        const itemId = itemRows[idx]?.id
-        if (rider.photo && itemId) {
-          const form = new FormData()
-          form.append('file', rider.photo)
-          form.append('registration_item_id', itemId)
-          const res = await fetch(`/api/public/events/${eventId}/registrations/${registrationId}/photo`, {
-            method: 'POST',
-            body: form,
-          })
-          if (!res.ok) {
-            const json = await parseJson(res)
-            throw new Error(json?.error || json?._raw || 'Upload foto gagal')
-          }
-        }
-        if (rider.docKk && itemId) {
-          const form = new FormData()
-          form.append('file', rider.docKk)
-          form.append('document_type', 'KK')
-          form.append('registration_item_id', itemId)
-          const res = await fetch(`/api/public/events/${eventId}/registrations/${registrationId}/documents`, {
-            method: 'POST',
-            body: form,
-          })
-          if (!res.ok) {
-            const json = await parseJson(res)
-            throw new Error(json?.error || json?._raw || 'Upload dokumen gagal')
-          }
-        }
+      if (paymentProof instanceof File) {
+        submitForm.append('payment_proof', paymentProof)
       }
+      submitForm.append('bank_name', bankName)
+      submitForm.append('account_name', accountName)
+      submitForm.append('account_number', accountNumber)
 
-      const paymentForm = new FormData()
-      paymentForm.append('file', paymentProof)
-      paymentForm.append('bank_name', bankName)
-      paymentForm.append('account_name', accountName)
-      paymentForm.append('account_number', accountNumber)
-      const payRes = await fetch(`/api/public/events/${eventId}/registrations/${registrationId}/payment`, {
+      const submitRes = await fetch(`/api/public/events/${eventId}/registrations`, {
         method: 'POST',
-        body: paymentForm,
+        body: submitForm,
       })
-      const payJson = await parseJson(payRes)
-      if (!payRes.ok) throw new Error(payJson?.error || payJson?._raw || 'Upload pembayaran gagal')
+      const submitJson = await parseJson(submitRes)
+      if (!submitRes.ok) throw new Error(submitJson?.error || submitJson?._raw || 'Gagal membuat pendaftaran')
 
       setSuccess('Pendaftaran berhasil. Admin akan memverifikasi data & pembayaran.')
       setRiders([initialRider()])

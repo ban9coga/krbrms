@@ -30,9 +30,28 @@ type PreparedItem =
       price: number
     }
 
+type RegistrationPayload = {
+  community_name?: string | null
+  contact_name?: string
+  contact_phone?: string
+  contact_email?: string | null
+  items?: RegistrationItemInput[]
+}
+
+type RegistrationRow = {
+  id: string
+  total_amount: number
+}
+
+type RegistrationItemRow = {
+  id: string
+}
+
 const BASE_PRICE = 250000
 const EXTRA_PRICE = 150000
+const BUCKET = process.env.NEXT_PUBLIC_REGISTRATION_BUCKET || 'registration-docs'
 const JERSEY_SIZES = new Set(['XS', 'S', 'M', 'L', 'XL'])
+const DOCUMENT_TYPE = 'KK'
 
 const toYear = (dateString: string) => {
   const d = new Date(dateString)
@@ -40,27 +59,65 @@ const toYear = (dateString: string) => {
   return d.getUTCFullYear()
 }
 
-export async function POST(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
-  const { eventId } = await params
-  const body = await req.json().catch(() => null)
-  if (!body) return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
+const toStringOrNull = (value: FormDataEntryValue | null) => {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
+}
 
-  const {
-    community_name,
-    contact_name,
-    contact_phone,
-    contact_email,
-    items,
-  }: {
-    community_name?: string
-    contact_name?: string
-    contact_phone?: string
-    contact_email?: string
-    items?: RegistrationItemInput[]
-  } = body
+const parseRequest = async (req: Request) => {
+  const contentType = req.headers.get('content-type') ?? ''
+  if (contentType.toLowerCase().includes('multipart/form-data')) {
+    const formData = await req.formData()
+    const rawPayload = formData.get('payload')
+    if (typeof rawPayload !== 'string') {
+      return { payload: null, formData, isMultipart: true as const }
+    }
+    try {
+      const payload = JSON.parse(rawPayload) as RegistrationPayload
+      return { payload, formData, isMultipart: true as const }
+    } catch {
+      return { payload: null, formData, isMultipart: true as const }
+    }
+  }
 
+  const payload = (await req.json().catch(() => null)) as RegistrationPayload | null
+  return { payload, formData: null, isMultipart: false as const }
+}
+
+const getExt = (fileName: string, fallback: string) => {
+  const fromName = fileName.includes('.') ? fileName.split('.').pop()?.toLowerCase() : null
+  const safe = fromName?.replace(/[^a-z0-9]/g, '')
+  return safe && safe.length > 0 ? safe : fallback
+}
+
+const uploadFile = async (path: string, file: File, fallbackType: string) => {
+  const buffer = Buffer.from(await file.arrayBuffer())
+  const { error } = await adminClient.storage.from(BUCKET).upload(path, buffer, {
+    contentType: file.type || fallbackType,
+    upsert: true,
+  })
+  if (error) throw new Error(error.message)
+}
+
+const rollbackRegistration = async (registrationId: string, uploadedPaths: string[]) => {
+  if (uploadedPaths.length > 0) {
+    const { error: removeError } = await adminClient.storage.from(BUCKET).remove(uploadedPaths)
+    if (removeError) {
+      console.error('[registration] failed removing uploaded files during rollback:', removeError.message)
+    }
+  }
+
+  const { error: deleteError } = await adminClient.from('registrations').delete().eq('id', registrationId)
+  if (deleteError) {
+    console.error('[registration] failed deleting registration during rollback:', deleteError.message)
+  }
+}
+
+const createBaseRegistration = async (eventId: string, payload: RegistrationPayload) => {
+  const { community_name, contact_name, contact_phone, contact_email, items } = payload
   if (!contact_name || !contact_phone || !Array.isArray(items) || items.length === 0) {
-    return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    return { error: 'Missing required fields' as const }
   }
 
   const { data: settingsRow, error: settingsError } = await adminClient
@@ -69,7 +126,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     .eq('event_id', eventId)
     .maybeSingle()
 
-  if (settingsError) return NextResponse.json({ error: settingsError.message }, { status: 400 })
+  if (settingsError) return { error: settingsError.message as const }
   const requireJerseySize = Boolean(settingsRow?.require_jersey_size)
 
   const categoryIds = new Set<string>()
@@ -83,10 +140,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     .select('id, event_id, year, year_min, year_max, capacity, gender, label')
     .in('id', Array.from(categoryIds))
 
-  if (catError) return NextResponse.json({ error: catError.message }, { status: 400 })
+  if (catError) return { error: catError.message as const }
   const categoryMap = new Map((categories ?? []).map((c) => [c.id, c]))
-
-  // range validation handled per category
 
   const preparedItems: PreparedItem[] = items.map((item) => {
     const birthYear = toYear(item.date_of_birth ?? '')
@@ -105,6 +160,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     if (!birthYear) return { error: 'Invalid date_of_birth' }
     if (primary && primary.event_id !== eventId) return { error: 'Invalid primary category' }
     if (extra && extra.event_id !== eventId) return { error: 'Invalid extra category' }
+
     const primaryMin = primary ? (primary.year_min ?? primary.year) : null
     const primaryMax = primary ? (primary.year_max ?? primary.year) : null
     if (primary && (birthYear < primaryMin || birthYear > primaryMax)) {
@@ -141,8 +197,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
 
   const invalid = preparedItems.find((item) => 'error' in item)
   if (invalid && 'error' in invalid) {
-    return NextResponse.json({ error: invalid.error }, { status: 400 })
+    return { error: invalid.error as const }
   }
+
+  const validItems = preparedItems.filter(
+    (item): item is Exclude<PreparedItem, { error: string }> => !('error' in item)
+  )
 
   const capacityMap = new Map(
     (categories ?? []).map((c) => [c.id, { capacity: c.capacity as number | null, label: c.label as string }])
@@ -154,7 +214,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       .select('primary_category_id, extra_category_id, status, registrations!inner(event_id)')
       .eq('registrations.event_id', eventId)
       .in('status', ['PENDING', 'APPROVED'])
-    if (existingError) return NextResponse.json({ error: existingError.message }, { status: 400 })
+    if (existingError) return { error: existingError.message as const }
 
     const currentCounts = new Map<string, number>()
     for (const row of existingItems ?? []) {
@@ -165,8 +225,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     }
 
     const addCounts = new Map<string, number>()
-    for (const item of preparedItems) {
-      if ('error' in item) continue
+    for (const item of validItems) {
       if (item.primary_category_id) {
         addCounts.set(item.primary_category_id, (addCounts.get(item.primary_category_id) ?? 0) + 1)
       }
@@ -180,15 +239,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       if (!capInfo || capInfo.capacity == null) continue
       const current = currentCounts.get(catId) ?? 0
       if (current + addCount > capInfo.capacity) {
-        return NextResponse.json({ error: `Kuota kategori "${capInfo.label}" penuh.` }, { status: 400 })
+        return { error: `Kuota kategori "${capInfo.label}" penuh.` as const }
       }
     }
   }
 
-  const pricedItems = preparedItems.filter(
-    (item): item is Extract<PreparedItem, { price: number }> => 'price' in item
-  )
-  const totalAmount = pricedItems.reduce((sum, item) => sum + item.price, 0)
+  const totalAmount = validItems.reduce((sum, item) => sum + item.price, 0)
 
   const { data: registration, error: regError } = await adminClient
     .from('registrations')
@@ -201,23 +257,131 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       total_amount: totalAmount,
       status: 'PENDING',
     })
-    .select('*')
+    .select('id, total_amount')
     .single()
-
-  if (regError) return NextResponse.json({ error: regError.message }, { status: 400 })
+  if (regError || !registration) return { error: regError?.message || 'Failed creating registration' as const }
 
   const { data: itemRows, error: itemError } = await adminClient
     .from('registration_items')
     .insert(
-      preparedItems.map((item) => ({
+      validItems.map((item) => ({
         ...item,
         registration_id: registration.id,
         status: 'PENDING',
       }))
     )
-    .select('*')
+    .select('id')
 
-  if (itemError) return NextResponse.json({ error: itemError.message }, { status: 400 })
+  if (itemError || !itemRows) return { error: itemError?.message || 'Failed creating registration items' as const }
+  return {
+    registration: registration as RegistrationRow,
+    itemRows: itemRows as RegistrationItemRow[],
+  }
+}
 
-  return NextResponse.json({ data: { registration, items: itemRows } })
+export const runtime = 'nodejs'
+
+export async function POST(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  const { eventId } = await params
+  const { payload, formData, isMultipart } = await parseRequest(req)
+  if (!payload) return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
+
+  const created = await createBaseRegistration(eventId, payload)
+  if ('error' in created) {
+    return NextResponse.json({ error: created.error }, { status: 400 })
+  }
+
+  const { registration, itemRows } = created
+
+  if (!isMultipart || !formData) {
+    return NextResponse.json({ data: { registration, items: itemRows } })
+  }
+
+  const uploadedPaths: string[] = []
+
+  try {
+    const paymentProof = formData.get('payment_proof')
+    if (!(paymentProof instanceof File)) {
+      throw new Error('Payment proof is required')
+    }
+
+    const bankName = toStringOrNull(formData.get('bank_name'))
+    const accountName = toStringOrNull(formData.get('account_name'))
+    const accountNumber = toStringOrNull(formData.get('account_number'))
+
+    const docsToInsert = await Promise.all(
+      itemRows.map(async (itemRow, idx) => {
+        const photoFile = formData.get(`rider_photo_${idx}`)
+        const docFile = formData.get(`rider_doc_${idx}`)
+        if (!(photoFile instanceof File)) {
+          throw new Error(`Photo wajib untuk rider #${idx + 1}`)
+        }
+        if (!(docFile instanceof File)) {
+          throw new Error(`Dokumen KK/Akte wajib untuk rider #${idx + 1}`)
+        }
+
+        const photoExt = getExt(photoFile.name, 'jpg')
+        const docExt = getExt(docFile.name, 'bin')
+        const photoPath = `${eventId}/${registration.id}/${itemRow.id}-photo-${Date.now()}-${idx}.${photoExt}`
+        const docPath = `${eventId}/${registration.id}/${itemRow.id}-${DOCUMENT_TYPE}-${Date.now()}-${idx}.${docExt}`
+
+        await Promise.all([
+          uploadFile(photoPath, photoFile, 'image/jpeg'),
+          uploadFile(docPath, docFile, 'application/octet-stream'),
+        ])
+        uploadedPaths.push(photoPath, docPath)
+
+        const { error: updatePhotoError } = await adminClient
+          .from('registration_items')
+          .update({ photo_url: photoPath })
+          .eq('id', itemRow.id)
+          .eq('registration_id', registration.id)
+
+        if (updatePhotoError) throw new Error(updatePhotoError.message)
+
+        return {
+          registration_id: registration.id,
+          registration_item_id: itemRow.id,
+          document_type: DOCUMENT_TYPE,
+          file_url: docPath,
+        }
+      })
+    )
+
+    const { error: docsError } = await adminClient.from('registration_documents').insert(docsToInsert)
+    if (docsError) throw new Error(docsError.message)
+
+    const paymentExt = getExt(paymentProof.name, 'bin')
+    const paymentPath = `${eventId}/${registration.id}/payment-${Date.now()}.${paymentExt}`
+    await uploadFile(paymentPath, paymentProof, 'application/octet-stream')
+    uploadedPaths.push(paymentPath)
+
+    const { data: payment, error: paymentError } = await adminClient
+      .from('registration_payments')
+      .insert({
+        registration_id: registration.id,
+        amount: registration.total_amount,
+        bank_name: bankName,
+        account_name: accountName,
+        account_number: accountNumber,
+        proof_url: paymentPath,
+        status: 'PENDING',
+        payment_method: 'MANUAL_TRANSFER',
+      })
+      .select('*')
+      .single()
+    if (paymentError) throw new Error(paymentError.message)
+
+    return NextResponse.json({
+      data: {
+        registration,
+        items: itemRows,
+        payment,
+      },
+    })
+  } catch (error) {
+    await rollbackRegistration(registration.id, uploadedPaths)
+    const message = error instanceof Error ? error.message : 'Failed submitting registration'
+    return NextResponse.json({ error: message }, { status: 400 })
+  }
 }
