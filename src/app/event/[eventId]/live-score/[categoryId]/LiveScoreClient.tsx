@@ -27,7 +27,8 @@ type Row = {
 type Batch = {
   batch_index: number
   moto1_id: string
-  moto2_id: string
+  moto2_id: string | null
+  moto3_id?: string | null
   rows: Row[]
 }
 
@@ -56,30 +57,33 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
   const [sortMode, setSortMode] = useState<'GATE' | 'RANK'>('RANK')
   const [refreshing, setRefreshing] = useState(false)
 
+  const loadLiveScore = async () => {
+    const res = await fetch(
+      `/api/public/events/${eventId}/live-score?category_id=${encodeURIComponent(categoryId)}&include_upcoming=1`
+    )
+    const json = await res.json()
+    setCategoryLabel(json.data?.category ?? '')
+    setBatches(json.data?.batches ?? [])
+    setStages(json.data?.stages ?? [])
+  }
+
   useEffect(() => {
     const load = async () => {
       setLoading(true)
       try {
-        const res = await fetch(`/api/public/events/${eventId}/live-score?category_id=${encodeURIComponent(categoryId)}`)
-        const json = await res.json()
-        setCategoryLabel(json.data?.category ?? '')
-        setBatches(json.data?.batches ?? [])
-        setStages(json.data?.stages ?? [])
+        await loadLiveScore()
       } finally {
         setLoading(false)
       }
     }
     load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId, categoryId])
 
   const refresh = async () => {
     setRefreshing(true)
     try {
-      const res = await fetch(`/api/public/events/${eventId}/live-score?category_id=${encodeURIComponent(categoryId)}`)
-      const json = await res.json()
-      setCategoryLabel(json.data?.category ?? '')
-      setBatches(json.data?.batches ?? [])
-      setStages(json.data?.stages ?? [])
+      await loadLiveScore()
     } finally {
       setRefreshing(false)
     }
@@ -176,7 +180,7 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                   </span>
                 </div>
                 <div className="public-table-wrap">
-                  <table className="public-table">
+                  <table className="public-table min-w-[980px] text-[11px] sm:text-xs md:text-sm">
                     <thead>
                       <tr>
                         {[
@@ -195,7 +199,7 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                           'Rank',
                           'Class',
                         ].map((h) => (
-                          <th key={h}>{h}</th>
+                          <th key={h} className="whitespace-nowrap">{h}</th>
                         ))}
                       </tr>
                     </thead>
@@ -206,16 +210,16 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                           <td>{row.gate_moto2 ?? '-'}</td>
                           <td>{row.gate_moto3 ?? '-'}</td>
                           <td>{riderPhotoCell(row.name, row.no_plate, row.photo_thumbnail_url)}</td>
-                          <td className="font-extrabold text-slate-900">{row.name}</td>
+                          <td className="whitespace-nowrap font-extrabold text-slate-900">{row.name}</td>
                           <td>{row.no_plate}</td>
-                          <td>{row.club || '-'}</td>
+                          <td className="whitespace-nowrap">{row.club || '-'}</td>
                           <td>{row.point_moto1 ?? '-'}</td>
                           <td>{row.point_moto2 ?? '-'}</td>
                           <td>{row.point_moto3 ?? '-'}</td>
                           <td className="font-extrabold text-rose-600">{row.penalty_total ?? '-'}</td>
                           <td className="font-extrabold text-sky-700">{row.total_point ?? '-'}</td>
                           <td className="font-extrabold text-emerald-700">{row.rank_point ?? '-'}</td>
-                          <td>{row.class_label || '-'}</td>
+                          <td className="whitespace-nowrap">{row.class_label || '-'}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -237,11 +241,11 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                   </span>
                 </div>
                 <div className="public-table-wrap">
-                  <table className="public-table">
+                  <table className="public-table min-w-[760px] text-[11px] sm:text-xs md:text-sm">
                     <thead>
                       <tr>
                         {['Gate', 'Foto', 'Nama Peserta', 'No Plat', 'Komunitas', 'Point', 'Status'].map((h) => (
-                          <th key={h}>{h}</th>
+                          <th key={h} className="whitespace-nowrap">{h}</th>
                         ))}
                       </tr>
                     </thead>
@@ -250,11 +254,11 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                         <tr key={row.rider_id}>
                           <td>{row.gate ?? '-'}</td>
                           <td>{riderPhotoCell(row.name, row.no_plate, row.photo_thumbnail_url)}</td>
-                          <td className="font-extrabold text-slate-900">{row.name}</td>
+                          <td className="whitespace-nowrap font-extrabold text-slate-900">{row.name}</td>
                           <td>{row.no_plate}</td>
-                          <td>{row.club || '-'}</td>
+                          <td className="whitespace-nowrap">{row.club || '-'}</td>
                           <td className="font-extrabold text-sky-700">{row.point ?? '-'}</td>
-                          <td className="font-extrabold">{row.status}</td>
+                          <td className="whitespace-nowrap font-extrabold">{row.status}</td>
                         </tr>
                       ))}
                     </tbody>
