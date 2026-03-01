@@ -40,6 +40,7 @@ type CategoryItem = {
   id: string
   label: string
   year?: number
+  enabled?: boolean
 }
 
 type RiderItem = {
@@ -64,6 +65,7 @@ export default function RaceDirectorApprovalPage() {
     Array<{
       moto_id: string
       moto_name: string
+      category_id?: string | null
       category_label?: string
       status: string
       total: number
@@ -72,7 +74,9 @@ export default function RaceDirectorApprovalPage() {
       warnings?: number
     }>
   >([])
+  const [gateCategoryId, setGateCategoryId] = useState<string>('ALL')
   const [openCategoryId, setOpenCategoryId] = useState<string | null>(null)
+  const [showAuditLogs, setShowAuditLogs] = useState(false)
   const [auditLogs, setAuditLogs] = useState<
     Array<{
       id: string
@@ -179,12 +183,32 @@ export default function RaceDirectorApprovalPage() {
   }, [eventId])
 
   const categoriesSorted = useMemo(() => {
-    return [...categories].sort((a, b) => {
+    return categories
+      .filter((c) => c.enabled !== false)
+      .sort((a, b) => {
       const ay = typeof a.year === 'number' ? a.year : 0
       const by = typeof b.year === 'number' ? b.year : 0
       return by - ay
     })
   }, [categories])
+
+  const enabledCategoryIds = useMemo(() => {
+    return new Set(categories.filter((c) => c.enabled !== false).map((c) => c.id))
+  }, [categories])
+
+  useEffect(() => {
+    if (gateCategoryId === 'ALL') return
+    const exists = categories.some((c) => c.id === gateCategoryId && c.enabled !== false)
+    if (!exists) setGateCategoryId('ALL')
+  }, [categories, gateCategoryId])
+
+  const filteredGateStatus = useMemo(() => {
+    const enabledOnly = gateStatus.filter(
+      (row) => typeof row.category_id === 'string' && enabledCategoryIds.has(row.category_id)
+    )
+    if (gateCategoryId === 'ALL') return enabledOnly
+    return enabledOnly.filter((row) => row.category_id === gateCategoryId)
+  }, [gateStatus, gateCategoryId, enabledCategoryIds])
 
   const motosByCategory = useMemo(() => {
     const grouped = new Map<string, MotoRow[]>()
@@ -342,9 +366,28 @@ export default function RaceDirectorApprovalPage() {
           </div>
           <div className="public-panel-light">
             <div style={{ fontSize: 12, fontWeight: 800, color: '#333' }}>Gate Status</div>
+            <div style={{ marginTop: 8 }}>
+              <select
+                value={gateCategoryId}
+                onChange={(e) => setGateCategoryId(e.target.value)}
+                className="public-filter"
+                style={{ width: '100%' }}
+              >
+                <option value="ALL">Semua Kategori</option>
+                {categoriesSorted.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.label}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div style={{ marginTop: 8, display: 'grid', gap: 6 }}>
-              {gateStatus.length === 0 && <div style={{ fontSize: 12, color: '#333' }}>No data.</div>}
-              {gateStatus.map((g) => (
+              {filteredGateStatus.length === 0 && (
+                <div style={{ fontSize: 12, color: '#333' }}>
+                  {gateCategoryId === 'ALL' ? 'No data.' : 'Belum ada moto untuk kategori ini.'}
+                </div>
+              )}
+              {filteredGateStatus.map((g) => (
                 <div
                   key={g.moto_id}
                   style={{
@@ -365,7 +408,7 @@ export default function RaceDirectorApprovalPage() {
                     fontWeight: 900,
                   }}
                 >
-                  <span>{g.category_label ? `${g.category_label} - ${g.moto_name}` : g.moto_name}</span>
+                  <span>{gateCategoryId === 'ALL' ? `${g.category_label ?? 'Category'} - ${g.moto_name}` : g.moto_name}</span>
                   <span>
                     {g.status}
                     {g.warnings && g.warnings > 0 ? ` (WARN ${g.warnings})` : ''}
@@ -682,33 +725,53 @@ export default function RaceDirectorApprovalPage() {
           </section>
 
           <section className="public-panel-light">
-            <div style={{ fontWeight: 900, fontSize: 18 }}>Audit Log (Last 100)</div>
-            {auditLogs.length === 0 && <div style={{ marginTop: 8 }}>No audit entries.</div>}
-            <div style={{ marginTop: 10, display: 'grid', gap: 10 }}>
-              {auditLogs.map((log) => (
-                <div
-                  key={log.id}
-                  style={{
-                    border: '2px solid #111',
-                    borderRadius: 12,
-                    background: '#fff',
-                    padding: 12,
-                    display: 'grid',
-                    gap: 4,
-                  }}
-                >
-                  <div style={{ fontWeight: 900 }}>
-                    {new Date(log.created_at).toLocaleString()} - {log.action_type}
-                  </div>
-                  <div style={{ fontSize: 12, color: '#333' }}>
-                    By: {log.performed_by}
-                    {log.rider_id ? ` - Rider: ${log.rider_id}` : ''}
-                    {log.moto_id ? ` - Moto: ${log.moto_id}` : ''}
-                  </div>
-                  {log.reason && <div style={{ fontSize: 12, color: '#333' }}>Reason: {log.reason}</div>}
-                </div>
-              ))}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+              <div style={{ fontWeight: 900, fontSize: 18 }}>Audit Log (Last 100)</div>
+              <button
+                type="button"
+                onClick={() => setShowAuditLogs((prev) => !prev)}
+                style={{
+                  padding: '6px 10px',
+                  borderRadius: 10,
+                  border: '2px solid #111',
+                  background: '#fff',
+                  fontWeight: 900,
+                  cursor: 'pointer',
+                }}
+              >
+                {showAuditLogs ? 'Sembunyikan' : 'Tampilkan'}
+              </button>
             </div>
+            {showAuditLogs && (
+              <>
+                {auditLogs.length === 0 && <div style={{ marginTop: 8 }}>No audit entries.</div>}
+                <div style={{ marginTop: 10, display: 'grid', gap: 10 }}>
+                  {auditLogs.map((log) => (
+                    <div
+                      key={log.id}
+                      style={{
+                        border: '2px solid #111',
+                        borderRadius: 12,
+                        background: '#fff',
+                        padding: 12,
+                        display: 'grid',
+                        gap: 4,
+                      }}
+                    >
+                      <div style={{ fontWeight: 900 }}>
+                        {new Date(log.created_at).toLocaleString()} - {log.action_type}
+                      </div>
+                      <div style={{ fontSize: 12, color: '#333' }}>
+                        By: {log.performed_by}
+                        {log.rider_id ? ` - Rider: ${log.rider_id}` : ''}
+                        {log.moto_id ? ` - Moto: ${log.moto_id}` : ''}
+                      </div>
+                      {log.reason && <div style={{ fontSize: 12, color: '#333' }}>Reason: {log.reason}</div>}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </section>
         </div>
       </main>

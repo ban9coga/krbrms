@@ -141,6 +141,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     return {
       moto_id: m.id,
       moto_name: m.moto_name,
+      category_id: m.category_id ?? null,
       category_label: categoryLabelMap.get(m.category_id ?? '') ?? 'Category',
       status,
       total,
