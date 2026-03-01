@@ -10,7 +10,7 @@ type RegistrationItemInput = {
   club?: string | null
   primary_category_id?: string | null
   extra_category_id?: string | null
-  requested_plate_number?: number | null
+  requested_plate_number?: string | null
   requested_plate_suffix?: string | null
 }
 
@@ -25,7 +25,7 @@ type PreparedItem =
       club: string | null
       primary_category_id: string | null
       extra_category_id: string | null
-      requested_plate_number: number | null
+      requested_plate_number: string | null
       requested_plate_suffix: string | null
       price: number
     }
@@ -57,6 +57,14 @@ const toYear = (dateString: string) => {
   const d = new Date(dateString)
   if (Number.isNaN(d.getTime())) return null
   return d.getUTCFullYear()
+}
+
+const normalizePlateNumber = (value: unknown) => {
+  if (value === undefined || value === null) return null
+  const raw = String(value).trim()
+  if (!raw) return null
+  if (!/^\d+$/.test(raw)) return null
+  return raw
 }
 
 const inRange = (category: { year: number; year_min?: number | null; year_max?: number | null }, birthYear: number) => {
@@ -217,11 +225,8 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
       return { error: 'Gender not eligible for extra category' }
     }
 
-    const requestedPlateNumber = item.requested_plate_number ?? null
-    if (
-      requestedPlateNumber !== null &&
-      (!Number.isInteger(requestedPlateNumber) || requestedPlateNumber <= 0)
-    ) {
+    const requestedPlateNumber = normalizePlateNumber(item.requested_plate_number)
+    if (item.requested_plate_number != null && !requestedPlateNumber) {
       return { error: 'Invalid requested plate number' }
     }
 

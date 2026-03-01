@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ClipboardEvent, type DragEvent } from 'react'
 import { supabase } from '../../../../../lib/supabaseClient'
 
 type CategoryItem = {
@@ -21,7 +21,7 @@ type RiderItem = {
   date_of_birth: string
   birth_year?: number
   gender: 'BOY' | 'GIRL'
-  plate_number: number
+  plate_number: string
   plate_suffix?: string | null
   no_plate_display: string
   club?: string | null
@@ -105,6 +105,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
   })
 
   const [photoFile, setPhotoFile] = useState<File | null>(null)
+  const [dragActiveKey, setDragActiveKey] = useState<string | null>(null)
   const photoPreview = useMemo(() => (photoFile ? URL.createObjectURL(photoFile) : null), [photoFile])
   const [editing, setEditing] = useState<RiderItem | null>(null)
   const [editForm, setEditForm] = useState({
@@ -126,6 +127,53 @@ export default function RidersClient({ eventId }: { eventId: string }) {
       if (photoPreview) URL.revokeObjectURL(photoPreview)
     }
   }, [photoPreview])
+
+  const pickAcceptedImageFile = (files: FileList | null | undefined) => {
+    if (!files) return null
+    for (const file of Array.from(files)) {
+      if (file.type.startsWith('image/')) return file
+    }
+    return null
+  }
+
+  const onDropZoneOver = (key: string, e: DragEvent<HTMLElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragActiveKey(key)
+  }
+
+  const onDropZoneLeave = (key: string, e: DragEvent<HTMLElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (dragActiveKey === key) setDragActiveKey(null)
+  }
+
+  const onDropZoneDrop = (key: string, e: DragEvent<HTMLElement>, onFile: (file: File | null) => void) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragActiveKey(null)
+    const file = pickAcceptedImageFile(e.dataTransfer?.files)
+    if (file) onFile(file)
+  }
+
+  const onDropZonePaste = (e: ClipboardEvent<HTMLElement>, onFile: (file: File | null) => void) => {
+    const file = pickAcceptedImageFile(e.clipboardData?.files)
+    if (!file) return
+    e.preventDefault()
+    onFile(file)
+  }
+
+  const dropZoneStyle = (key: string) => ({
+    display: 'flex',
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+    gap: 10,
+    padding: 12,
+    borderRadius: 12,
+    border: dragActiveKey === key ? '2px solid #e11d48' : '2px solid #111',
+    background: dragActiveKey === key ? '#ffe4e6' : '#fff',
+    cursor: 'pointer',
+  })
 
   const apiFetch = async (url: string, options: RequestInit = {}) => {
     const { data } = await supabase.auth.getSession()
@@ -207,7 +255,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
         jersey_size: form.jersey_size || null,
         date_of_birth: form.date_of_birth,
         gender: form.gender,
-        plate_number: Number(form.plate_number),
+        plate_number: form.plate_number.trim(),
         plate_suffix: form.plate_suffix.trim().toUpperCase() || null,
         club: form.club.trim() || null,
       }
@@ -273,7 +321,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
       jersey_size: rider.jersey_size ?? '',
       date_of_birth: rider.date_of_birth ?? '',
       gender: rider.gender,
-      plate_number: String(rider.plate_number ?? ''),
+      plate_number: rider.plate_number ?? '',
       plate_suffix: rider.plate_suffix ?? '',
       club: rider.club ?? '',
     })
@@ -317,7 +365,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
       }
 
       if (eventStatus !== 'LIVE') {
-        payload.plate_number = Number(editForm.plate_number)
+        payload.plate_number = editForm.plate_number.trim()
         payload.plate_suffix = editForm.plate_suffix.trim().toUpperCase() || null
       }
 
@@ -496,12 +544,41 @@ export default function RidersClient({ eventId }: { eventId: string }) {
             <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
               Rider Photo (auto resize)
             </div>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)}
-              style={{ padding: 12, borderRadius: 12, border: '2px solid #111', background: '#fff' }}
-            />
+            <label
+              tabIndex={0}
+              onDragEnter={(e) => onDropZoneOver('add-photo', e)}
+              onDragOver={(e) => onDropZoneOver('add-photo', e)}
+              onDragLeave={(e) => onDropZoneLeave('add-photo', e)}
+              onDrop={(e) => onDropZoneDrop('add-photo', e, setPhotoFile)}
+              onPaste={(e) => onDropZonePaste(e, setPhotoFile)}
+              style={dropZoneStyle('add-photo')}
+            >
+              <span style={{ fontWeight: 700, color: '#334155', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {photoFile ? photoFile.name : 'Pilih file foto'}
+              </span>
+              <span
+                style={{
+                  padding: '6px 10px',
+                  borderRadius: 10,
+                  border: '2px solid #111',
+                  fontWeight: 900,
+                  fontSize: 11,
+                  letterSpacing: '0.06em',
+                  textTransform: 'uppercase',
+                  color: '#0f172a',
+                  flexShrink: 0,
+                }}
+              >
+                Browse
+              </span>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)}
+                style={{ display: 'none' }}
+              />
+            </label>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>Bisa drag & drop atau paste (Ctrl+V).</div>
             {photoPreview && (
               <img
                 src={photoPreview}
@@ -878,7 +955,45 @@ export default function RidersClient({ eventId }: { eventId: string }) {
               onChange={(e) => setEditForm({ ...editForm, club: e.target.value })}
               style={{ padding: 12, borderRadius: 12, border: '2px solid #111' }}
             />
-            <input type="file" accept="image/*" onChange={(e) => setEditPhotoFile(e.target.files?.[0] ?? null)} />
+            <div style={{ display: 'grid', gap: 8 }}>
+              <label
+                tabIndex={0}
+                onDragEnter={(e) => onDropZoneOver('edit-photo', e)}
+                onDragOver={(e) => onDropZoneOver('edit-photo', e)}
+                onDragLeave={(e) => onDropZoneLeave('edit-photo', e)}
+                onDrop={(e) => onDropZoneDrop('edit-photo', e, setEditPhotoFile)}
+                onPaste={(e) => onDropZonePaste(e, setEditPhotoFile)}
+                style={dropZoneStyle('edit-photo')}
+              >
+                <span style={{ fontWeight: 700, color: '#334155', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {editPhotoFile ? editPhotoFile.name : 'Ganti foto rider'}
+                </span>
+                <span
+                  style={{
+                    padding: '6px 10px',
+                    borderRadius: 10,
+                    border: '2px solid #111',
+                    fontWeight: 900,
+                    fontSize: 11,
+                    letterSpacing: '0.06em',
+                    textTransform: 'uppercase',
+                    color: '#0f172a',
+                    flexShrink: 0,
+                  }}
+                >
+                  Browse
+                </span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setEditPhotoFile(e.target.files?.[0] ?? null)}
+                  style={{ display: 'none' }}
+                />
+              </label>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>
+                Bisa drag & drop atau paste (Ctrl+V).
+              </div>
+            </div>
             {editPhotoFile && (
               <div style={{ fontWeight: 800, fontSize: 12 }}>
                 Upload Foto: {editPhotoStatus === 'uploading'

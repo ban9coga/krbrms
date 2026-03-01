@@ -13,6 +13,14 @@ const suggestSuffix = (used: (string | null)[]) => {
   return null
 }
 
+const normalizePlateNumber = (value: unknown) => {
+  if (value === undefined || value === null) return null
+  const raw = String(value).trim()
+  if (!raw) return null
+  if (!/^\d+$/.test(raw)) return null
+  return raw
+}
+
 const resolveCategory = async (
   eventId: string,
   birthYear: number,
@@ -170,9 +178,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'date_of_birth must be YYYY-MM-DD' }, { status: 400 })
   }
 
-  const plateNumber = typeof plate_number === 'number' ? plate_number : Number(plate_number)
-  if (!Number.isFinite(plateNumber)) {
-    return NextResponse.json({ error: 'plate_number must be a number' }, { status: 400 })
+  const plateNumber = normalizePlateNumber(plate_number)
+  if (!plateNumber) {
+    return NextResponse.json({ error: 'plate_number must contain digits only' }, { status: 400 })
   }
 
   if (gender !== 'BOY' && gender !== 'GIRL') {
@@ -191,10 +199,11 @@ export async function POST(req: Request) {
     )
   }
 
-  const normalizedSuffix =
-    typeof plate_suffix === 'string' && plate_suffix.trim()
-      ? plate_suffix.trim().toUpperCase()
-      : null
+  const suffixRaw = typeof plate_suffix === 'string' ? plate_suffix.trim().toUpperCase() : ''
+  const normalizedSuffix = suffixRaw ? suffixRaw[0] : null
+  if (normalizedSuffix && !/^[A-Z]$/.test(normalizedSuffix)) {
+    return NextResponse.json({ error: 'plate_suffix must be A-Z' }, { status: 400 })
+  }
 
   const { data: existingPlates } = await adminClient
     .from('riders')

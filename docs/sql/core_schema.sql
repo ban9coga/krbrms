@@ -91,10 +91,10 @@ create table if not exists riders (
   date_of_birth date not null,
   birth_year int generated always as (extract(year from date_of_birth)::int) stored,
   gender gender_type not null,
-  plate_number int not null,
+  plate_number text not null,
   plate_suffix char(1),
   no_plate_display text generated always as (
-    plate_number::text || coalesce(plate_suffix::text, '')
+    plate_number || coalesce(plate_suffix::text, '')
   ) stored,
   club text,
   photo_url text,
@@ -102,6 +102,7 @@ create table if not exists riders (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint ck_rider_gender check (gender in ('BOY','GIRL')),
+  constraint ck_plate_number check (plate_number ~ '^[0-9]+$'),
   constraint ck_plate_suffix check (plate_suffix is null or plate_suffix ~ '^[A-Z]$'),
   constraint ck_rider_jersey_size check (jersey_size is null or jersey_size in ('XS','S','M','L','XL')),
   constraint ck_birth_year check (
@@ -241,7 +242,7 @@ create table if not exists registration_items (
   club text,
   primary_category_id uuid references categories(id) on delete set null,
   extra_category_id uuid references categories(id) on delete set null,
-  requested_plate_number int,
+  requested_plate_number text,
   requested_plate_suffix char(1),
   photo_url text,
   price int not null default 0,
@@ -251,7 +252,7 @@ create table if not exists registration_items (
   constraint ck_registration_items_gender check (gender in ('BOY','GIRL')),
   constraint ck_registration_items_price check (price >= 0),
   constraint ck_registration_items_requested_plate_number check (
-    requested_plate_number is null or requested_plate_number > 0
+    requested_plate_number is null or requested_plate_number ~ '^[0-9]+$'
   ),
   constraint ck_registration_items_requested_plate_suffix check (
     requested_plate_suffix is null or requested_plate_suffix ~ '^[A-Z]$'

@@ -16,7 +16,7 @@ type RiderItem = {
   id: string
   name: string
   no_plate_display: string
-  plate_number?: number
+  plate_number?: string
   plate_suffix?: string | null
 }
 

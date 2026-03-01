@@ -20,7 +20,7 @@ type RegistrationItem = {
   club: string | null
   primary_category_id: string | null
   extra_category_id: string | null
-  requested_plate_number: number | null
+  requested_plate_number: string | null
   requested_plate_suffix: string | null
   photo_url?: string | null
   price: number
@@ -60,6 +60,7 @@ const formatRupiah = (value: number) =>
 
 export default function RegistrationsClient({ eventId }: { eventId: string }) {
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [registrations, setRegistrations] = useState<RegistrationRow[]>([])
   const [categories, setCategories] = useState<CategoryItem[]>([])
   const [savingId, setSavingId] = useState<string | null>(null)
@@ -69,21 +70,38 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
 
   const categoryMap = useMemo(() => new Map(categories.map((c) => [c.id, c.label])), [categories])
 
-  const apiFetch = async (url: string, options: RequestInit = {}) => {
+  const getToken = async () => {
     const { data } = await supabase.auth.getSession()
-    const token = data.session?.access_token
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (data.session?.access_token) return data.session.access_token
+    const refreshed = await supabase.auth.refreshSession()
+    return refreshed.data.session?.access_token ?? null
+  }
+
+  const apiFetch = async <T = unknown>(url: string, options: RequestInit = {}, retryUnauthorized = true): Promise<T> => {
+    const token = await getToken()
+    const headers: Record<string, string> = {
+      ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
+      ...((options.headers ?? {}) as Record<string, string>),
+    }
     if (token) headers.Authorization = `Bearer ${token}`
     const res = await fetch(url, { ...options, headers })
     const json = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(json?.error || 'Request failed')
-    return json
+    if (!res.ok) {
+      if (res.status === 401 && retryUnauthorized) {
+        return apiFetch<T>(url, options, false)
+      }
+      if (res.status === 401) {
+        throw new Error('Session login habis. Silakan login ulang.')
+      }
+      throw new Error(json?.error || 'Request failed')
+    }
+    return json as T
   }
 
   const resolveFileUrl = async (pathOrUrl: string) => {
     if (!pathOrUrl) return null
     if (pathOrUrl.startsWith('http')) return pathOrUrl
-    const res = await apiFetch('/api/admin/storage/signed-url', {
+    const res = await apiFetch<{ data?: { signedUrl?: string | null } }>('/api/admin/storage/signed-url', {
       method: 'POST',
       body: JSON.stringify({ path: pathOrUrl }),
     })
@@ -102,13 +120,17 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
 
   const load = async () => {
     setLoading(true)
+    setError(null)
     try {
       const [catRes, regRes] = await Promise.all([
         fetch(`/api/events/${eventId}/categories`).then((r) => r.json()),
-        apiFetch(`/api/admin/events/${eventId}/registrations`),
+        apiFetch<{ data: RegistrationRow[] }>(`/api/admin/events/${eventId}/registrations`),
       ])
       setCategories(catRes?.data ?? [])
       setRegistrations(regRes?.data ?? [])
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Gagal memuat registrations'
+      setError(message)
     } finally {
       setLoading(false)
     }
@@ -124,8 +146,8 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
     setPlateInputs((prev) => ({
       ...prev,
       [itemId]: {
-        number: field === 'number' ? value : prev[itemId]?.number ?? '',
-        suffix: field === 'suffix' ? value.toUpperCase() : prev[itemId]?.suffix ?? '',
+        number: field === 'number' ? value.replace(/[^\d]/g, '') : prev[itemId]?.number ?? '',
+        suffix: field === 'suffix' ? value.toUpperCase().slice(0, 1) : prev[itemId]?.suffix ?? '',
       },
     }))
   }
@@ -138,7 +160,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
       const items = registration.registration_items.map((item) => ({
         id: item.id,
         plate_number: plateInputs[item.id]?.number
-          ? Number(plateInputs[item.id]?.number)
+          ? plateInputs[item.id]?.number
           : item.requested_plate_number,
         plate_suffix: plateInputs[item.id]?.suffix || item.requested_plate_suffix || null,
       }))
@@ -206,6 +228,20 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
           <option value="REJECTED">Rejected</option>
         </select>
       </div>
+      {error && (
+        <div
+          style={{
+            padding: 12,
+            borderRadius: 12,
+            border: '2px solid #b40000',
+            background: '#ffd7d7',
+            color: '#b40000',
+            fontWeight: 900,
+          }}
+        >
+          {error}
+        </div>
+      )}
       {registrations.length === 0 && <div>Belum ada pendaftaran.</div>}
       {registrations
         .filter((r) => (filterStatus === 'ALL' ? true : r.status === filterStatus))
@@ -337,6 +373,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                       placeholder="Plate Number"
                       value={plateInputs[item.id]?.number ?? item.requested_plate_number ?? ''}
                       onChange={(e) => handlePlateChange(item.id, 'number', e.target.value)}
+                      inputMode="numeric"
                       style={{ padding: 8, borderRadius: 8, border: '1px solid #111' }}
                     />
                     <input

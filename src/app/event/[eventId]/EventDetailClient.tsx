@@ -267,12 +267,14 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                       Live Board
                     </Link>
                   )}
-                  <Link
-                    href={`/event/${event.id}/register`}
-                    className="inline-flex items-center rounded-xl border border-slate-300/40 bg-white/10 px-5 py-3 text-sm font-extrabold uppercase tracking-wide text-white transition-colors hover:bg-white/20"
-                  >
-                    Register Rider
-                  </Link>
+                  {event.status !== 'LIVE' && (
+                    <Link
+                      href={`/event/${event.id}/register`}
+                      className="inline-flex items-center rounded-xl bg-rose-500 px-5 py-3 text-sm font-extrabold uppercase tracking-wide text-white transition-colors hover:bg-rose-400"
+                    >
+                      Register Rider
+                    </Link>
+                  )}
                 </div>
               </div>
             </section>

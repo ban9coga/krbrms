@@ -13,6 +13,23 @@ const suggestSuffix = (used: (string | null)[]) => {
   return null
 }
 
+const normalizePlateNumber = (value: unknown) => {
+  if (value === undefined || value === null) return null
+  const raw = String(value).trim()
+  if (!raw) return null
+  if (!/^\d+$/.test(raw)) return null
+  return raw
+}
+
+const normalizePlateSuffix = (value: unknown) => {
+  if (typeof value !== 'string') return null
+  const raw = value.trim().toUpperCase()
+  if (!raw) return null
+  const suffix = raw[0]
+  if (!/^[A-Z]$/.test(suffix)) return null
+  return suffix
+}
+
 const resolveCategory = async (
   eventId: string,
   birthYear: number,
@@ -112,14 +129,20 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ riderI
   }
 
   const hasPlateNumber = Object.prototype.hasOwnProperty.call(body ?? {}, 'plate_number')
-  const nextPlateNumber = hasPlateNumber ? Number(plate_number) : rider.plate_number
+  const nextPlateNumber = hasPlateNumber
+    ? normalizePlateNumber(plate_number)
+    : normalizePlateNumber(rider.plate_number)
+  if (!nextPlateNumber) {
+    return NextResponse.json({ error: 'plate_number must contain digits only' }, { status: 400 })
+  }
 
   const hasPlateSuffix = Object.prototype.hasOwnProperty.call(body ?? {}, 'plate_suffix')
   const nextPlateSuffix = hasPlateSuffix
-    ? typeof plate_suffix === 'string' && plate_suffix.trim()
-      ? plate_suffix.trim().toUpperCase()
-      : null
-    : rider.plate_suffix
+    ? normalizePlateSuffix(plate_suffix)
+    : normalizePlateSuffix(rider.plate_suffix)
+  if (hasPlateSuffix && typeof plate_suffix === 'string' && plate_suffix.trim().length > 0 && !nextPlateSuffix) {
+    return NextResponse.json({ error: 'plate_suffix must be A-Z' }, { status: 400 })
+  }
 
   if (hasPlateNumber || hasPlateSuffix) {
     const { data: existingPlates } = await adminClient

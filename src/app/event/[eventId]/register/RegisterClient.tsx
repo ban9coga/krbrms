@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ClipboardEvent, type DragEvent } from 'react'
 import MarketingTopbar from '../../../../components/MarketingTopbar'
 
 type CategoryItem = {
@@ -66,6 +66,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   const [accountName, setAccountName] = useState('')
   const [accountNumber, setAccountNumber] = useState('')
   const [paymentProof, setPaymentProof] = useState<File | null>(null)
+  const [dragActiveKey, setDragActiveKey] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState<string | null>(null)
 
@@ -240,8 +241,8 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
           gender: r.gender,
           club: r.club || null,
           extra_category_id: r.extraCategoryId || null,
-          requested_plate_number: r.requestedPlateNumber ? Number(r.requestedPlateNumber) : null,
-          requested_plate_suffix: r.requestedPlateSuffix || null,
+          requested_plate_number: r.requestedPlateNumber.trim() || null,
+          requested_plate_suffix: r.requestedPlateSuffix.trim().toUpperCase().slice(0, 1) || null,
         }
       })
 
@@ -303,6 +304,56 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     'w-full rounded-xl border border-slate-600 bg-slate-950/70 px-3 py-3 text-sm font-medium text-slate-100 placeholder:text-slate-400 focus:border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-400/30'
   const filePickerClass =
     'flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-slate-600 bg-slate-950/70 px-3 py-2.5 transition-colors hover:border-rose-400/70'
+
+  const pickAcceptedFile = (files: FileList | null | undefined, allowPdf: boolean) => {
+    if (!files) return null
+    for (const file of Array.from(files)) {
+      const lowerName = file.name.toLowerCase()
+      const isImage = file.type.startsWith('image/')
+      const isPdf = file.type === 'application/pdf' || lowerName.endsWith('.pdf')
+      if (isImage || (allowPdf && isPdf)) return file
+    }
+    return null
+  }
+
+  const onDropZoneOver = (key: string, e: DragEvent<HTMLElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragActiveKey(key)
+  }
+
+  const onDropZoneLeave = (key: string, e: DragEvent<HTMLElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (dragActiveKey === key) setDragActiveKey(null)
+  }
+
+  const onDropZoneDrop = (
+    key: string,
+    e: DragEvent<HTMLElement>,
+    onFile: (file: File | null) => void,
+    allowPdf = false
+  ) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragActiveKey(null)
+    const file = pickAcceptedFile(e.dataTransfer?.files, allowPdf)
+    if (file) onFile(file)
+  }
+
+  const onDropZonePaste = (
+    e: ClipboardEvent<HTMLElement>,
+    onFile: (file: File | null) => void,
+    allowPdf = false
+  ) => {
+    const file = pickAcceptedFile(e.clipboardData?.files, allowPdf)
+    if (!file) return
+    e.preventDefault()
+    onFile(file)
+  }
+
+  const dropZoneClass = (key: string) =>
+    `${filePickerClass} ${dragActiveKey === key ? 'border-rose-400 bg-rose-500/10' : ''}`
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#020817_0%,#041030_45%,#030712_100%)] text-slate-100">
@@ -463,13 +514,14 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                 <div className="grid gap-3 sm:grid-cols-[1fr_120px]">
                   <input
                     value={rider.requestedPlateNumber}
-                    onChange={(e) => updateRider(idx, { requestedPlateNumber: e.target.value })}
+                    onChange={(e) => updateRider(idx, { requestedPlateNumber: e.target.value.replace(/[^\d]/g, '') })}
                     placeholder="Nomor Plate (wajib)"
+                    inputMode="numeric"
                     className={fieldClass}
                   />
                   <input
                     value={rider.requestedPlateSuffix}
-                    onChange={(e) => updateRider(idx, { requestedPlateSuffix: e.target.value.toUpperCase() })}
+                    onChange={(e) => updateRider(idx, { requestedPlateSuffix: e.target.value.toUpperCase().slice(0, 1) })}
                     placeholder="Suffix"
                     className={fieldClass}
                   />
@@ -478,7 +530,15 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                 <div className="grid gap-3 md:grid-cols-2">
                   <div className="grid gap-2">
                     <label className="text-sm font-bold text-slate-200">Upload Foto Rider (wajib)</label>
-                    <label className={filePickerClass}>
+                    <label
+                      className={dropZoneClass(`photo-${idx}`)}
+                      tabIndex={0}
+                      onDragEnter={(e) => onDropZoneOver(`photo-${idx}`, e)}
+                      onDragOver={(e) => onDropZoneOver(`photo-${idx}`, e)}
+                      onDragLeave={(e) => onDropZoneLeave(`photo-${idx}`, e)}
+                      onDrop={(e) => onDropZoneDrop(`photo-${idx}`, e, (file) => updateRider(idx, { photo: file }), false)}
+                      onPaste={(e) => onDropZonePaste(e, (file) => updateRider(idx, { photo: file }), false)}
+                    >
                       <span className="truncate text-sm font-semibold text-slate-200">
                         {rider.photo ? rider.photo.name : 'Pilih file foto'}
                       </span>
@@ -492,10 +552,19 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                         className="hidden"
                       />
                     </label>
+                    <div className="text-[11px] font-semibold text-slate-400">Bisa drag & drop atau paste (Ctrl+V).</div>
                   </div>
                   <div className="grid gap-2">
                     <label className="text-sm font-bold text-slate-200">Upload KK / Akte Kelahiran (wajib)</label>
-                    <label className={filePickerClass}>
+                    <label
+                      className={dropZoneClass(`doc-${idx}`)}
+                      tabIndex={0}
+                      onDragEnter={(e) => onDropZoneOver(`doc-${idx}`, e)}
+                      onDragOver={(e) => onDropZoneOver(`doc-${idx}`, e)}
+                      onDragLeave={(e) => onDropZoneLeave(`doc-${idx}`, e)}
+                      onDrop={(e) => onDropZoneDrop(`doc-${idx}`, e, (file) => updateRider(idx, { docKk: file }), true)}
+                      onPaste={(e) => onDropZonePaste(e, (file) => updateRider(idx, { docKk: file }), true)}
+                    >
                       <span className="truncate text-sm font-semibold text-slate-200">
                         {rider.docKk ? rider.docKk.name : 'Pilih dokumen KK/Akte'}
                       </span>
@@ -509,6 +578,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                         className="hidden"
                       />
                     </label>
+                    <div className="text-[11px] font-semibold text-slate-400">Bisa drag & drop atau paste (Ctrl+V).</div>
                   </div>
                 </div>
               </div>
@@ -555,7 +625,15 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                 Total akan muncul setelah kontak & data rider lengkap.
               </div>
             )}
-            <label className={filePickerClass}>
+            <label
+              className={dropZoneClass('payment-proof')}
+              tabIndex={0}
+              onDragEnter={(e) => onDropZoneOver('payment-proof', e)}
+              onDragOver={(e) => onDropZoneOver('payment-proof', e)}
+              onDragLeave={(e) => onDropZoneLeave('payment-proof', e)}
+              onDrop={(e) => onDropZoneDrop('payment-proof', e, setPaymentProof, true)}
+              onPaste={(e) => onDropZonePaste(e, setPaymentProof, true)}
+            >
               <span className="truncate text-sm font-semibold text-slate-200">
                 {paymentProof ? paymentProof.name : 'Upload bukti pembayaran'}
               </span>
@@ -569,6 +647,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                 className="hidden"
               />
             </label>
+            <div className="text-[11px] font-semibold text-slate-400">Bisa drag & drop atau paste (Ctrl+V).</div>
           </div>
         </section>
 
