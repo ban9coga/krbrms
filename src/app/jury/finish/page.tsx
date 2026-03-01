@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { supabase } from '../../../lib/supabaseClient'
 import { isMotoLive } from '../../../lib/motoStatus'
+import CheckerTopbar from '../../../components/CheckerTopbar'
 
 type EventItem = {
   id: string
@@ -49,7 +49,6 @@ const VIBRATE_MS = 30
 const LONG_PRESS_MS = 800
 
 export default function JuryFinishPage() {
-  const router = useRouter()
   const [events, setEvents] = useState<EventItem[]>([])
   const [eventId, setEventId] = useState('')
   const [categories, setCategories] = useState<CategoryItem[]>([])
@@ -82,12 +81,6 @@ export default function JuryFinishPage() {
     const json = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(json?.error || 'Request failed')
     return json
-  }
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut()
-    document.cookie = 'sb-access-token=; Path=/; Max-Age=0'
-    router.push('/login')
   }
 
   useEffect(() => {
@@ -201,6 +194,8 @@ export default function JuryFinishPage() {
       }
     }
     loadRiders()
+    // Keep dependency size stable during Fast Refresh; selectedMotoId is the effective trigger here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMotoId])
 
   const categoryLabel = useMemo(() => {
@@ -327,7 +322,7 @@ export default function JuryFinishPage() {
       setHasSubmitted(true)
       if (selectedMoto) {
         const catLabel = categoryLabel.get(selectedMoto.category_id ?? '') ?? 'Unknown Category'
-        alert(`Submitted: ${catLabel} • ${selectedMoto.moto_name}`)
+        alert(`Submitted: ${catLabel} | ${selectedMoto.moto_name}`)
       } else {
         alert('Submit completed.')
       }
@@ -382,111 +377,73 @@ export default function JuryFinishPage() {
   }
 
   return (
-    <div className="jury-finish">
-      <div className="jury-container">
-        <div className="jf-header" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <h1 style={{ fontSize: 28, fontWeight: 900, margin: 0 }}>Jury Finish</h1>
-            <button
-              type="button"
-              onClick={handleLogout}
-              style={{
-                padding: '8px 12px',
-                borderRadius: 12,
-                border: '2px solid #b91c1c',
-                background: '#fee2e2',
-                color: '#7f1d1d',
-                fontWeight: 800,
-                cursor: 'pointer',
-              }}
-            >
-              Logout
-            </button>
+    <div className="public-page">
+      <CheckerTopbar title="Jury Finish Panel" />
+      <main className="public-main max-w-[1500px]">
+        <section className="public-hero">
+          <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-rose-500/15 blur-3xl" />
+          <div className="pointer-events-none absolute -top-24 right-0 h-72 w-72 rounded-full bg-sky-400/15 blur-3xl" />
+          <div className="relative z-10 grid gap-2">
+            <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-rose-300">Jury Finish</p>
+            <h1 className="text-3xl font-black tracking-tight text-white md:text-5xl">Live Finish Input</h1>
+            <p className="max-w-2xl text-sm font-semibold text-slate-200 sm:text-base">
+              Tap rider untuk finish. Tahan 800ms untuk DNF.
+            </p>
+            <p className="text-xs font-semibold text-slate-300">
+              {selectedCategoryLabel ?? 'Pilih moto'} | {selectedMoto?.moto_name ?? '-'}
+            </p>
           </div>
-          <div style={{ minWidth: 220 }}>
-            <div style={{ fontSize: 12, color: '#444', fontWeight: 700, marginTop: 4 }}>
-              {selectedCategoryLabel ?? 'Pilih moto'} - {selectedMoto?.moto_name ?? '-'}
+        </section>
+
+        <section className="public-panel-light">
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid gap-2">
+              <label className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">Event LIVE</label>
+              <select value={eventId} onChange={(e) => setEventId(e.target.value)} className="public-filter">
+                {events.length === 0 && <option value="">Belum ada event LIVE</option>}
+                {events.map((ev) => (
+                  <option key={ev.id} value={ev.id}>
+                    {ev.name} - {ev.status}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="grid gap-2">
+              <label className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">Moto</label>
+              <select value={selectedMotoId} onChange={(e) => setSelectedMotoId(e.target.value)} className="public-filter">
+                {motos.length === 0 && <option value="">Belum ada moto/batch</option>}
+                {motos.map((m) => (
+                  <option key={m.id} value={m.id} disabled={!isMotoLive(m.status)}>
+                    {m.moto_order}. {m.moto_name} - {categoryLabel.get(m.category_id ?? '') ?? 'Unknown'} - {m.status}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <select
-              value={selectedMotoId}
-              onChange={(e) => setSelectedMotoId(e.target.value)}
-              style={{
-                padding: '10px 14px',
-                borderRadius: 12,
-                border: '2px solid #111',
-                background: '#fff',
-                color: '#111',
-                fontWeight: 800,
-              }}
-            >
-              {motos.length === 0 && <option value="">Belum ada moto/batch</option>}
-              {motos.map((m) => (
-                <option key={m.id} value={m.id} disabled={!isMotoLive(m.status)}>
-                  {m.moto_order}. {m.moto_name} - {categoryLabel.get(m.category_id ?? '') ?? 'Unknown'} - {m.status}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
+        </section>
 
         {events.length === 0 && (
-          <div
-            style={{
-              marginTop: 16,
-              borderRadius: 12,
-              border: '2px solid #b91c1c',
-              background: '#fee2e2',
-              color: '#7f1d1d',
-              padding: '10px 14px',
-              fontWeight: 800,
-            }}
-          >
+          <section className="rounded-xl border border-rose-300 bg-rose-100 px-4 py-3 text-sm font-bold text-rose-800">
             Tidak ada event LIVE untuk Jury Finish. Set event ke LIVE dulu.
-          </div>
+          </section>
         )}
         {events.length === 0 && (
-          <div style={{ fontSize: 12, color: '#444', marginTop: 6 }}>
-            Admin: ubah status event ke LIVE agar Jury Finish aktif.
-          </div>
+          <div className="text-xs font-semibold text-slate-500">Admin: ubah status event ke LIVE agar Jury Finish aktif.</div>
         )}
         {motoLocked && (
-          <div
-            style={{
-              marginTop: 16,
-              borderRadius: 12,
-              border: '2px solid #b91c1c',
-              background: '#fee2e2',
-              color: '#7f1d1d',
-              padding: '10px 14px',
-              fontWeight: 800,
-            }}
-          >
+          <section className="rounded-xl border border-rose-300 bg-rose-100 px-4 py-3 text-sm font-bold text-rose-800">
             MOTO LOCKED - input disabled.
-          </div>
+          </section>
         )}
         {selectedMoto && !selectedMotoLive && (
-          <div
-            style={{
-              marginTop: 16,
-              borderRadius: 12,
-              border: '2px solid #b91c1c',
-              background: '#fee2e2',
-              color: '#7f1d1d',
-              padding: '10px 14px',
-              fontWeight: 800,
-            }}
-          >
+          <section className="rounded-xl border border-rose-300 bg-rose-100 px-4 py-3 text-sm font-bold text-rose-800">
             Moto masih {selectedMoto.status}. Input hanya bisa saat LIVE.
-          </div>
+          </section>
         )}
 
         <div className="layout-grid">
-          <section className="panel">
-            <div style={{ marginBottom: 12, fontSize: 12, fontWeight: 800, letterSpacing: '0.15em', color: '#444' }}>
-              INPUT GRID
-            </div>
+          <section className="public-panel-light">
+            <div className="mb-3 text-xs font-extrabold uppercase tracking-[0.15em] text-slate-500">Input Grid</div>
             <div className="input-grid">
               {availableRiders.map((r) => (
                 <button
@@ -499,10 +456,10 @@ export default function JuryFinishPage() {
                   style={{
                     height: 120,
                     borderRadius: 16,
-                    border: '2px solid #111',
+                    border: '2px solid #0f172a',
                     borderBottomWidth: 4,
-                    background: '#fff',
-                    color: '#111',
+                    background: '#ffffff',
+                    color: '#0f172a',
                     fontWeight: 900,
                     fontSize: 44,
                     display: 'flex',
@@ -515,39 +472,20 @@ export default function JuryFinishPage() {
                   }}
                 >
                   <div style={{ lineHeight: 1 }}>{r.no_plate_display}</div>
-                  <div style={{ marginTop: 6, fontSize: 12, fontWeight: 700, color: '#444' }}>{r.name}</div>
+                  <div style={{ marginTop: 6, fontSize: 12, fontWeight: 700, color: '#475569' }}>{r.name}</div>
                 </button>
               ))}
               {availableRiders.length === 0 && (
-                <div
-                  style={{
-                    gridColumn: '1 / -1',
-                    borderRadius: 12,
-                    border: '1px solid #111',
-                    background: '#fff',
-                    padding: 16,
-                    textAlign: 'center',
-                    fontSize: 12,
-                    color: '#444',
-                  }}
-                >
-                  {selectedMotoLive
-                    ? 'Tidak ada rider yang tersisa di grid.'
-                    : 'Pilih moto LIVE terlebih dahulu.'}
+                <div className="col-span-full rounded-xl border border-slate-300 bg-white px-4 py-4 text-center text-sm font-semibold text-slate-500">
+                  {selectedMotoLive ? 'Tidak ada rider yang tersisa di grid.' : 'Pilih moto LIVE terlebih dahulu.'}
                 </div>
               )}
             </div>
-            <div style={{ marginTop: 10, fontSize: 11, color: '#444' }}>
-              Tap = Finish. Long press 800ms = DNF.
-            </div>
+            <div className="mt-2 text-xs font-semibold text-slate-500">Tap = Finish. Long press 800ms = DNF.</div>
 
-            <div style={{ marginTop: 16, borderTop: '2px dashed #111', paddingTop: 16 }}>
-              <div
-                style={{ marginBottom: 12, fontSize: 12, fontWeight: 800, letterSpacing: '0.15em', color: '#444' }}
-              >
-                STARTER LIST
-              </div>
-              <div style={{ display: 'grid', gap: 8 }}>
+            <div className="mt-4 border-t border-dashed border-slate-300 pt-4">
+              <div className="mb-3 text-xs font-extrabold uppercase tracking-[0.15em] text-slate-500">Starter List</div>
+              <div className="grid gap-2">
                 {riders.map((r) => {
                   const startStatus = participationByRider[r.id]
                   const status = finishOrder.includes(r.id)
@@ -559,41 +497,18 @@ export default function JuryFinishPage() {
                     : startStatus === 'ABSENT'
                     ? 'ABSENT'
                     : 'READY'
-                  const badgeStyle =
+                  const badgeClass =
                     status === 'READY'
-                      ? { borderColor: '#111', color: '#111' }
-                      : status === 'DNF'
-                      ? { borderColor: '#b91c1c', color: '#7f1d1d' }
-                      : status === 'DNS' || status === 'ABSENT'
-                      ? { borderColor: '#b91c1c', color: '#7f1d1d' }
-                      : { borderColor: '#15803d', color: '#14532d' }
+                      ? 'border-slate-300 text-slate-700'
+                      : status === 'FINISH'
+                      ? 'border-emerald-300 text-emerald-800'
+                      : 'border-rose-300 text-rose-800'
                   return (
-                    <div
-                      key={r.id}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        borderRadius: 12,
-                        border: '1px solid #111',
-                        background: '#fff',
-                        padding: '8px 10px',
-                        fontSize: 12,
-                      }}
-                    >
-                      <div style={{ fontWeight: 700 }}>
+                    <div key={r.id} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+                      <div className="font-semibold text-slate-700">
                         {r.no_plate_display} - {r.name}
                       </div>
-                      <span
-                        style={{
-                          borderRadius: 999,
-                          border: '1px solid',
-                          padding: '2px 8px',
-                          fontWeight: 800,
-                          fontSize: 10,
-                          ...badgeStyle,
-                        }}
-                      >
+                      <span className={`rounded-full border px-2 py-0.5 text-[10px] font-extrabold tracking-[0.08em] ${badgeClass}`}>
                         {status}
                       </span>
                     </div>
@@ -603,161 +518,97 @@ export default function JuryFinishPage() {
             </div>
           </section>
 
-          <aside className="panel">
-            <div style={{ marginBottom: 12, fontSize: 12, fontWeight: 800, letterSpacing: '0.15em', color: '#444' }}>
-              LIVE RESULT
-            </div>
-            <div style={{ display: 'grid', gap: 12 }}>
-              <div style={{ borderRadius: 12, border: '1px solid #111', background: '#fff', padding: 12 }}>
-                <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#444' }}>
-                  Finish Order
-                </div>
-                <div style={{ marginTop: 8, display: 'grid', gap: 6 }}>
+          <aside className="public-panel-light">
+            <div className="mb-3 text-xs font-extrabold uppercase tracking-[0.15em] text-slate-500">Live Result</div>
+            <div className="grid gap-3">
+              <div className="rounded-xl border border-slate-200 bg-white p-3">
+                <div className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-slate-500">Finish Order</div>
+                <div className="mt-2 grid gap-1.5">
                   {finishSequence.map((f) => {
                     const rider = riders.find((r) => r.id === f.id)
                     const penalty = penaltiesByRider[f.id] ?? 0
                     return (
-                      <div key={f.id} style={{ fontSize: 12, fontWeight: 700 }}>
+                      <div key={f.id} className="text-sm font-semibold text-slate-700">
                         {f.position}. {rider?.no_plate_display} - {rider?.name}
                         {penalty ? ` (+${penalty})` : ''}
                       </div>
                     )
                   })}
-                  {finishSequence.length === 0 && <div style={{ fontSize: 12, color: '#444' }}>Belum ada hasil.</div>}
+                  {finishSequence.length === 0 && <div className="text-sm font-semibold text-slate-500">Belum ada hasil.</div>}
                 </div>
               </div>
 
-              <div style={{ borderRadius: 12, border: '1px solid #111', background: '#fff', padding: 12 }}>
-                <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#444' }}>
-                  DNF
-                </div>
-                <div style={{ marginTop: 8, display: 'grid', gap: 6 }}>
+              <div className="rounded-xl border border-slate-200 bg-white p-3">
+                <div className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-slate-500">DNF</div>
+                <div className="mt-2 grid gap-1.5">
                   {dnfRiders.map((id) => {
                     const rider = riders.find((r) => r.id === id)
                     const penalty = penaltiesByRider[id] ?? 0
                     return (
-                      <div key={id} style={{ fontSize: 12, fontWeight: 700, color: '#b91c1c' }}>
+                      <div key={id} className="text-sm font-semibold text-rose-700">
                         {rider?.no_plate_display} - {rider?.name}
                         {penalty ? ` (+${penalty})` : ''}
                       </div>
                     )
                   })}
-                  {dnfRiders.length === 0 && <div style={{ fontSize: 12, color: '#444' }}>Kosong.</div>}
+                  {dnfRiders.length === 0 && <div className="text-sm font-semibold text-slate-500">Kosong.</div>}
                 </div>
               </div>
-            </div>
 
-            {false && (
-              <div style={{ marginTop: 16, borderTop: '2px dashed #111', paddingTop: 16 }}>
-                <div style={{ marginBottom: 10, fontSize: 12, fontWeight: 800, letterSpacing: '0.15em', color: '#444' }}>
-                  PENALTY CHECKLIST
+              {false && (
+                <div className="mt-2 border-t border-dashed border-slate-300 pt-3">
+                  <div className="mb-2 text-xs font-extrabold uppercase tracking-[0.15em] text-slate-500">Penalty Checklist</div>
+                  <div className="grid gap-2">
+                    {rules.map((p) => (
+                      <label key={p.code} className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+                        <input type="checkbox" disabled />
+                        <span>
+                          {p.description || p.code} ({p.penalty_point} pts, {p.applies_to_stage})
+                        </span>
+                      </label>
+                    ))}
+                    {rules.length === 0 && (
+                      <div className="text-xs font-semibold text-slate-500">Penalty rules belum diatur.</div>
+                    )}
+                  </div>
                 </div>
-                <div style={{ display: 'grid', gap: 6 }}>
-                  {rules.map((p) => (
-                    <label
-                      key={p.code}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        fontSize: 12,
-                        fontWeight: 700,
-                      }}
-                    >
-                      <input type="checkbox" disabled />
-                      <span>
-                        {p.description || p.code} ({p.penalty_point} pts, {p.applies_to_stage})
-                      </span>
-                    </label>
-                  ))}
-                  {rules.length === 0 && (
-                    <div style={{ fontSize: 12, color: '#444' }}>Penalty rules belum diatur.</div>
-                  )}
-                </div>
-              </div>
-            )}
+              )}
+            </div>
           </aside>
         </div>
 
-        <div className="jf-footer" style={{ marginTop: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+        <div className="jf-footer mt-2 flex items-center justify-between gap-3">
           <button
             type="button"
             onClick={handleUndo}
             disabled={actions.length === 0 || hasSubmitted || motoLocked}
-            style={{
-              width: '100%',
-              borderRadius: 16,
-              border: '2px solid #111',
-              background: '#fff',
-              padding: '14px 18px',
-              fontSize: 18,
-              fontWeight: 900,
-              color: '#111',
-              cursor: actions.length === 0 || hasSubmitted || motoLocked ? 'not-allowed' : 'pointer',
-            }}
+            className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-extrabold uppercase tracking-[0.1em] text-slate-800 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            UNDO
+            Undo
           </button>
           <button
             type="button"
             onClick={handleResetResults}
             disabled={!hasSubmitted || saving || role === 'RACE_DIRECTOR' || motoLocked}
-            style={{
-              width: '100%',
-              borderRadius: 16,
-              border: '2px solid #111',
-              background: '#fff7d6',
-              padding: '14px 18px',
-              fontSize: 18,
-              fontWeight: 900,
-              color: '#111',
-              cursor: !hasSubmitted || saving || role === 'RACE_DIRECTOR' || motoLocked ? 'not-allowed' : 'pointer',
-            }}
+            className="w-full rounded-xl border border-amber-300 bg-amber-100 px-4 py-3 text-sm font-extrabold uppercase tracking-[0.1em] text-amber-800 transition-colors hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            RESET RESULT
+            Reset Result
           </button>
           <button
             type="button"
             onClick={handleSubmitHeat}
             disabled={hasSubmitted || saving || role === 'RACE_DIRECTOR' || motoLocked || !selectedMotoLive}
-            style={{
-              width: '100%',
-              borderRadius: 16,
-              border: '2px solid #15803d',
-              background: '#22c55e',
-              padding: '14px 18px',
-              fontSize: 18,
-              fontWeight: 900,
-              color: '#111',
-              cursor: hasSubmitted || saving || role === 'RACE_DIRECTOR' || motoLocked || !selectedMotoLive ? 'not-allowed' : 'pointer',
-            }}
+            className="w-full rounded-xl border border-emerald-300 bg-emerald-500 px-4 py-3 text-sm font-extrabold uppercase tracking-[0.1em] text-white transition-colors hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {saving ? 'SUBMITTING...' : 'SUBMIT RESULT'}
+            {saving ? 'Submitting...' : 'Submit Result'}
           </button>
         </div>
-      </div>
+      </main>
       <style jsx>{`
-        .jury-finish {
-          min-height: 100vh;
-          background: #fff7d6;
-          color: #111;
-        }
-        .jury-container {
-          max-width: 1400px;
-          margin: 0 auto;
-          padding: 24px;
-        }
         .layout-grid {
-          margin-top: 24px;
           display: grid;
           gap: 16px;
           grid-template-columns: 1fr;
-        }
-        .panel {
-          border-radius: 16px;
-          border: 2px solid #111;
-          background: #fff;
-          padding: 16px;
         }
         .input-grid {
           display: grid;
@@ -766,33 +617,29 @@ export default function JuryFinishPage() {
         }
         @media (min-width: 1024px) {
           .layout-grid {
-            grid-template-columns: 20% 55% 25%;
+            grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
           }
           .input-grid {
             grid-template-columns: repeat(3, minmax(0, 1fr));
           }
         }
         @media (max-width: 640px) {
-          .jury-container {
-            padding: 12px;
-          }
-          .jf-header {
-            flex-direction: column;
-            align-items: flex-start;
-          }
           .jf-footer {
             position: sticky;
             bottom: 8px;
-            background: #fff7d6;
-            padding: 8px 0;
+            background: rgba(241, 245, 249, 0.92);
+            backdrop-filter: blur(6px);
+            padding: 8px;
+            border-radius: 14px;
+            border: 1px solid rgba(148, 163, 184, 0.35);
             flex-direction: column;
           }
           .jf-footer > button {
-            width: 100% !important;
+            width: 100%;
           }
           .input-grid > button {
-            height: 140px !important;
-            font-size: 52px !important;
+            height: 136px !important;
+            font-size: 48px !important;
           }
         }
       `}</style>
