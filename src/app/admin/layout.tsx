@@ -29,6 +29,30 @@ const formatRoleLabel = (role: string | null) => {
   return role.replace(/_/g, ' ')
 }
 
+const normalizeRole = (role: string | null) => {
+  if (!role) return ''
+  const upper = role.toUpperCase()
+  if (upper === 'JURY_START') return 'CHECKER'
+  if (upper === 'JURY_FINISH') return 'FINISHER'
+  return upper
+}
+
+const isAdminRole = (role: string | null) => {
+  const normalized = normalizeRole(role)
+  return normalized === 'ADMIN' || normalized === 'SUPER_ADMIN'
+}
+
+const roleHome = (role: string | null) => {
+  const normalized = normalizeRole(role)
+  if (normalized === 'RACE_DIRECTOR') return '/race-director/approval'
+  if (normalized === 'FINISHER') return '/jury/finish'
+  if (normalized === 'CHECKER') return '/jc'
+  if (normalized === 'RACE_CONTROL') return '/race-control'
+  if (normalized === 'MC') return '/mc'
+  if (normalized === 'ADMIN' || normalized === 'SUPER_ADMIN') return '/admin'
+  return '/login'
+}
+
 const GlobalNav: NavItem[] = [
   { label: 'Dashboard', href: '/admin' },
   { label: 'Events', href: '/admin/events' },
@@ -66,6 +90,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [eventName, setEventName] = useState<string | null>(null)
   const [userRole, setUserRole] = useState<string | null>(null)
   const [userEmail, setUserEmail] = useState<string | null>(null)
+  const [authorized, setAuthorized] = useState(false)
+  const [authChecked, setAuthChecked] = useState(false)
   const [eventMenuOpen, setEventMenuOpen] = useState(true)
 
   const eventId = useMemo(() => extractEventId(pathname), [pathname])
@@ -91,16 +117,32 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     const loadRole = async () => {
       const { data } = await supabase.auth.getUser()
       const user = data.user
+      if (!user) {
+        setAuthorized(false)
+        setAuthChecked(true)
+        router.replace('/login')
+        return
+      }
       const meta = (user?.user_metadata ?? {}) as Record<string, unknown>
       const appMeta = (user?.app_metadata ?? {}) as Record<string, unknown>
       const role =
         (typeof meta.role === 'string' ? meta.role : null) ||
         (typeof appMeta.role === 'string' ? appMeta.role : null)
+      if (!isAdminRole(role)) {
+        setUserRole(role)
+        setUserEmail(user.email ?? null)
+        setAuthorized(false)
+        setAuthChecked(true)
+        router.replace(roleHome(role))
+        return
+      }
       setUserRole(role)
       setUserEmail(user?.email ?? null)
+      setAuthorized(true)
+      setAuthChecked(true)
     }
     loadRole()
-  }, [])
+  }, [router])
 
   useEffect(() => {
     window.localStorage.setItem('krb_admin_sidebar_collapsed', collapsed ? '1' : '0')
@@ -122,6 +164,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }, [])
 
   useEffect(() => {
+    if (!authorized) return
     const loadEvent = async () => {
       if (!eventId) {
         setEventName(null)
@@ -140,7 +183,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       }
     }
     loadEvent()
-  }, [eventId])
+  }, [eventId, authorized])
 
   useEffect(() => {
     setSidebarOpen(false)
@@ -286,6 +329,25 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <div style={{ flex: 1 }} />
     </div>
   )
+
+  if (!authChecked) {
+    return (
+      <div
+        style={{
+          minHeight: '100vh',
+          display: 'grid',
+          placeItems: 'center',
+          background: 'linear-gradient(180deg, #020817 0%, #041030 45%, #030712 100%)',
+          color: '#e2e8f0',
+          fontWeight: 800,
+        }}
+      >
+        Checking access...
+      </div>
+    )
+  }
+
+  if (!authorized) return null
 
   return (
     <div

@@ -12,6 +12,23 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
+  const normalizeRole = (value: string) => {
+    const upper = value.toUpperCase()
+    if (upper === 'JURY_START') return 'CHECKER'
+    if (upper === 'JURY_FINISH') return 'FINISHER'
+    return upper
+  }
+
+  const roleHome = (role: string) => {
+    if (role === 'RACE_DIRECTOR') return '/race-director/approval'
+    if (role === 'FINISHER') return '/jury/finish'
+    if (role === 'CHECKER') return '/jc'
+    if (role === 'RACE_CONTROL') return '/race-control'
+    if (role === 'MC') return '/mc'
+    if (role === 'ADMIN' || role === 'SUPER_ADMIN') return '/admin'
+    return '/dashboard'
+  }
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setErrorMessage(null)
@@ -34,18 +51,7 @@ export default function LoginPage() {
     const meta = (user?.user_metadata ?? {}) as Record<string, unknown>
     const appMeta = (user?.app_metadata ?? {}) as Record<string, unknown>
     const role = (typeof meta.role === 'string' ? meta.role : '') || (typeof appMeta.role === 'string' ? appMeta.role : '') || ''
-    const normalized = role === 'jury_start' ? 'CHECKER' : role === 'jury_finish' ? 'FINISHER' : role
-
-    const target =
-      normalized === 'RACE_DIRECTOR'
-        ? '/race-director/approval'
-        : normalized === 'FINISHER'
-        ? '/jury/finish'
-        : normalized === 'CHECKER'
-        ? '/jc'
-        : normalized === 'race_control'
-        ? '/race-control'
-        : '/admin'
+    const target = roleHome(normalizeRole(role))
 
     window.location.href = target
   }

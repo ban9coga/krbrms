@@ -1,0 +1,334 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [ 4 0 R 6 0 R 8 0 R ] /Count 3 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>
+endobj
+5 0 obj
+<< /Length 2464 >>
+stream
+BT
+/F1 11 Tf
+50 782 Td
+(CHECKLIST UAT KRB RMS \(TEST SATU PER SATU\)) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Tanggal: ____________) Tj
+0 -14 Td
+(Event: ____________) Tj
+0 -14 Td
+(PIC Test: ____________) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Cara pakai:) Tj
+0 -14 Td
+(- Jalankan dari atas ke bawah.) Tj
+0 -14 Td
+(- Tiap item isi status: `PASS` / `FAIL` / `BLOCKED`.) Tj
+0 -14 Td
+(- Jika `FAIL`, tulis bukti singkat di kolom catatan.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(1. PRE-FLIGHT) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(- [ ] 1.1 Aplikasi bisa diakses tanpa error \(`/`, `/login`, `/admin`\)) Tj
+0 -14 Td
+(- [ ] 1.2 Semua role test tersedia \(super_admin, admin, race_control, CHECKER, FINISHER,) Tj
+0 -14 Td
+(RACE_DIRECTOR, MC\)) Tj
+0 -14 Td
+(- [ ] 1.3 Storage foto/dokumen bisa upload) Tj
+0 -14 Td
+(- [ ] 1.4 Build terakhir sukses \(local/vercel\)) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(2. PUBLIC FLOW \(LANDING -> EVENT -> REGISTER\)) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(- [ ] 2.1 Landing menampilkan daftar event publik) Tj
+0 -14 Td
+(- [ ] 2.2 Klik event membuka halaman detail event yang benar) Tj
+0 -14 Td
+(- [ ] 2.3 Tombol register mengarah ke `/event/[eventId]/register`) Tj
+0 -14 Td
+(- [ ] 2.4 Form rider wajib \(nama, DOB, gender, plate\) tervalidasi) Tj
+0 -14 Td
+(- [ ] 2.5 Kategori otomatis terdeteksi dari DOB + gender \(jika kategori tersedia\)) Tj
+0 -14 Td
+(- [ ] 2.6 Upload foto rider berhasil) Tj
+0 -14 Td
+(- [ ] 2.7 Upload dokumen KK/Akte berhasil) Tj
+0 -14 Td
+(- [ ] 2.8 Submit registrasi berhasil dan ada nomor/ID registrasi) Tj
+0 -14 Td
+(- [ ] 2.9 Anti duplikasi plate bekerja \(muncul warning/saran suffix\)) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(3. ADMIN - SETUP EVENT) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(- [ ] 3.1 Admin login berhasil) Tj
+0 -14 Td
+(- [ ] 3.2 Buat event baru berhasil) Tj
+0 -14 Td
+(- [ ] 3.3 Buat kategori \(label, gender, year range, quota\) berhasil) Tj
+0 -14 Td
+(- [ ] 3.4 Buat/cek moto berhasil) Tj
+0 -14 Td
+(- [ ] 3.5 Schedule race tersimpan) Tj
+0 -14 Td
+(- [ ] 3.6 Settings event tersimpan \(harga, rules, modul\)) Tj
+0 -14 Td
+(- [ ] 3.7 Event status bisa diubah \(`UPCOMING` -> `LIVE` -> `FINISHED`\)) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(4. ADMIN - REGISTRATIONS & RIDERS) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(- [ ] 4.1 Daftar registrasi tampil) Tj
+0 -14 Td
+(- [ ] 4.2 Detail file bukti bisa dibuka) Tj
+0 -14 Td
+(- [ ] 4.3 Approve registrasi membuat rider di event) Tj
+0 -14 Td
+(- [ ] 4.4 Reject registrasi menyimpan alasan) Tj
+ET
+endstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 2285 >>
+stream
+BT
+/F1 11 Tf
+50 782 Td
+(- [ ] 4.5 Halaman riders: tambah rider manual berhasil) Tj
+0 -14 Td
+(- [ ] 4.6 Halaman riders: edit rider berhasil) Tj
+0 -14 Td
+(- [ ] 4.7 Halaman riders: hapus rider \(saat event belum LIVE\) berhasil) Tj
+0 -14 Td
+(- [ ] 4.8 Warna font form/admin terbaca jelas \(tidak pudar\)) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(5. CHECKER \(JURY START\)) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(- [ ] 5.1 Login role CHECKER berhasil) Tj
+0 -14 Td
+(- [ ] 5.2 Topbar menampilkan user/role yang benar) Tj
+0 -14 Td
+(- [ ] 5.3 Gate selector menampilkan event LIVE) Tj
+0 -14 Td
+(- [ ] 5.4 Jika hanya 1 event LIVE + 1 moto LIVE, auto-redirect berjalan) Tj
+0 -14 Td
+(- [ ] 5.5 Pilih moto manual berjalan normal) Tj
+0 -14 Td
+(- [ ] 5.6 Data rider di gate sesuai moto) Tj
+0 -14 Td
+(- [ ] 5.7 Aksi checker \(start/ready/check\) tersimpan) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(6. FINISHER \(JURY FINISH\)) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(- [ ] 6.1 Login role FINISHER berhasil) Tj
+0 -14 Td
+(- [ ] 6.2 Event + moto terload benar) Tj
+0 -14 Td
+(- [ ] 6.3 Input urutan finish bisa disimpan) Tj
+0 -14 Td
+(- [ ] 6.4 Ganti event tidak membawa data stale dari event sebelumnya) Tj
+0 -14 Td
+(- [ ] 6.5 Refresh data rider hasil berfungsi) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(7. RACE DIRECTOR) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(- [ ] 7.1 Login role RACE_DIRECTOR berhasil) Tj
+0 -14 Td
+(- [ ] 7.2 Daftar approval tampil) Tj
+0 -14 Td
+(- [ ] 7.3 Approve hasil moto berhasil) Tj
+0 -14 Td
+(- [ ] 7.4 Reject/override penalty berhasil) Tj
+0 -14 Td
+(- [ ] 7.5 Lock/unlock moto sesuai rule berjalan) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(8. RACE CONTROL) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(- [ ] 8.1 Login role race_control berhasil) Tj
+0 -14 Td
+(- [ ] 8.2 Queue/flow race tampil sesuai event LIVE) Tj
+0 -14 Td
+(- [ ] 8.3 Perubahan status dari checker/finisher terbaca di race control) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(9. MC / PUBLIC DISPLAY) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(- [ ] 9.1 Login role MC berhasil) Tj
+0 -14 Td
+(- [ ] 9.2 Halaman MC menampilkan event yang dipilih) Tj
+0 -14 Td
+(- [ ] 9.3 Live result tampil update sesuai data terbaru) Tj
+0 -14 Td
+(- [ ] 9.4 Daftar rider bersiap tampil sesuai urutan) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(10. SECURITY & ROLE ACCESS) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+() Tj
+ET
+endstream
+endobj
+8 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 9 0 R >>
+endobj
+9 0 obj
+<< /Length 1428 >>
+stream
+BT
+/F1 11 Tf
+50 782 Td
+(- [ ] 10.1 Super Admin bisa akses `/admin/users`) Tj
+0 -14 Td
+(- [ ] 10.2 Admin tidak bisa akses endpoint khusus super admin \(jika dibatasi\)) Tj
+0 -14 Td
+(- [ ] 10.3 Role non-admin tidak bisa akses halaman admin) Tj
+0 -14 Td
+(- [ ] 10.4 Logout menghapus session dan redirect ke login) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(11. REGRESSION CEPAT) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(- [ ] 11.1 Tidak ada console error di halaman utama role-role inti) Tj
+0 -14 Td
+(- [ ] 11.2 Tidak ada teks karakter rusak \(encoding aneh\)) Tj
+0 -14 Td
+(- [ ] 11.3 Tombol navigasi utama tidak dead-link) Tj
+0 -14 Td
+(- [ ] 11.4 Build `npm run build` sukses setelah perubahan) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(12. LOG HASIL TEST) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(| ID | Skenario | Status | Catatan Bug | PIC | Timestamp |) Tj
+0 -14 Td
+(|---|---|---|---|---|---|) Tj
+0 -14 Td
+(| | | PASS/FAIL/BLOCKED | | | |) Tj
+0 -14 Td
+(| | | PASS/FAIL/BLOCKED | | | |) Tj
+0 -14 Td
+(| | | PASS/FAIL/BLOCKED | | | |) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(13. KEPUTUSAN SIMULASI) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(- [ ] GO \(siap operasional\)) Tj
+0 -14 Td
+(- [ ] NO GO \(perlu perbaikan dulu\)) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Catatan final:) Tj
+0 -14 Td
+(__________________________________________________________________) Tj
+0 -14 Td
+(__________________________________________________________________) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+() Tj
+ET
+endstream
+endobj
+xref
+0 10
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000129 00000 n 
+0000000199 00000 n 
+0000000325 00000 n 
+0000002840 00000 n 
+0000002966 00000 n 
+0000005302 00000 n 
+0000005428 00000 n 
+trailer
+<< /Size 10 /Root 1 0 R >>
+startxref
+6907
+%%EOF
