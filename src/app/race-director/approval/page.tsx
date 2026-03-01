@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import CheckerTopbar from '../../../components/CheckerTopbar'
 import { supabase } from '../../../lib/supabaseClient'
 
 type StatusUpdate = {
@@ -49,7 +49,6 @@ type RiderItem = {
 }
 
 export default function RaceDirectorApprovalPage() {
-  const router = useRouter()
   const [eventId, setEventId] = useState('')
   const [events, setEvents] = useState<EventItem[]>([])
   const [categories, setCategories] = useState<CategoryItem[]>([])
@@ -95,12 +94,6 @@ export default function RaceDirectorApprovalPage() {
     const json = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(json?.error || 'Request failed')
     return json
-  }
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut()
-    document.cookie = 'sb-access-token=; Path=/; Max-Age=0'
-    router.push('/login')
   }
 
   useEffect(() => {
@@ -183,12 +176,6 @@ export default function RaceDirectorApprovalPage() {
     }
     load()
   }, [eventId])
-
-  const categoryLabel = useMemo(() => {
-    const map = new Map<string, string>()
-    for (const c of categories) map.set(c.id, c.label)
-    return map
-  }, [categories])
 
   const categoriesSorted = useMemo(() => {
     return [...categories].sort((a, b) => {
@@ -278,59 +265,35 @@ export default function RaceDirectorApprovalPage() {
   }
 
   return (
-    <div className="rd-page" style={{ minHeight: '100vh', background: '#eaf7ee', color: '#111', padding: 16 }}>
-      <div className="rd-container" style={{ maxWidth: 1080, margin: '0 auto', display: 'grid', gap: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <div>
-            <h1 style={{ fontSize: 26, fontWeight: 950, margin: 0 }}>Race Director</h1>
-            <div style={{ marginTop: 4, color: '#333', fontWeight: 700 }}>
+    <div className="public-page">
+      <CheckerTopbar title="Race Director Panel" />
+      <main className="public-main max-w-[1500px]">
+        <section className="public-hero">
+          <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-rose-500/15 blur-3xl" />
+          <div className="pointer-events-none absolute -top-24 right-0 h-72 w-72 rounded-full bg-sky-400/15 blur-3xl" />
+          <div className="relative z-10 grid gap-2">
+            <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-rose-300">Race Director</p>
+            <h1 className="text-3xl font-black tracking-tight text-white md:text-5xl">Approval & Lock Control</h1>
+            <p className="max-w-2xl text-sm font-semibold text-slate-200 sm:text-base">
               Approvals, locking, and audit.
-            </div>
+            </p>
           </div>
-          <button
-            type="button"
-            onClick={handleLogout}
-            style={{
-              padding: '8px 12px',
-              borderRadius: 12,
-              border: '2px solid #b40000',
-              background: '#ffd7d7',
-              color: '#b40000',
-              fontWeight: 900,
-              cursor: 'pointer',
-            }}
-          >
-            Logout
-          </button>
-        </div>
+        </section>
 
-        <div
-          style={{
-            background: '#fff',
-            border: '2px solid #111',
-            borderRadius: 16,
-            padding: 14,
-            display: 'grid',
-            gap: 10,
-          }}
-        >
-          <div style={{ display: 'grid', gap: 8 }}>
-            <select
-              value={eventId}
-              onChange={(e) => setEventId(e.target.value)}
-              style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 900 }}
-            >
+        <section className="public-panel-light">
+          <div className="grid gap-3">
+            <select value={eventId} onChange={(e) => setEventId(e.target.value)} className="public-filter">
               {events.map((ev) => (
                 <option key={ev.id} value={ev.id}>
                   {ev.name} - {ev.status}
                 </option>
               ))}
             </select>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <div className="flex flex-wrap items-center gap-2">
               <select
                 value={approvalMode}
                 onChange={(e) => setApprovalMode(e.target.value as 'AUTO' | 'DIRECTOR')}
-                style={{ padding: 10, borderRadius: 12, border: '2px solid #111', fontWeight: 900 }}
+                className="public-filter max-w-[220px]"
               >
                 <option value="AUTO">AUTO</option>
                 <option value="DIRECTOR">DIRECTOR</option>
@@ -338,58 +301,45 @@ export default function RaceDirectorApprovalPage() {
               <button
                 type="button"
                 onClick={handleSaveMode}
-                style={{
-                  padding: '10px 12px',
-                  borderRadius: 12,
-                  border: '2px solid #111',
-                  background: '#2ecc71',
-                  fontWeight: 900,
-                  cursor: 'pointer',
-                }}
+                className="inline-flex items-center justify-center rounded-xl border border-emerald-300 bg-emerald-100 px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.1em] text-emerald-800 transition-colors hover:bg-emerald-200"
               >
                 Save Mode
               </button>
               <div
-                style={{
-                  padding: '6px 10px',
-                  borderRadius: 999,
-                  border: '2px solid #111',
-                  background: approvalMode === 'AUTO' ? '#bfead2' : '#ffe9a8',
-                  fontWeight: 900,
-                  fontSize: 12,
-                }}
+                className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-extrabold uppercase tracking-[0.12em] ${
+                  approvalMode === 'AUTO'
+                    ? 'border-emerald-300 bg-emerald-100 text-emerald-800'
+                    : 'border-amber-300 bg-amber-100 text-amber-800'
+                }`}
               >
                 {approvalMode === 'AUTO' ? 'AUTO APPROVAL MODE' : 'DIRECTOR APPROVAL'}
               </div>
             </div>
           </div>
-        </div>
+        </section>
 
-        {loading && <div style={{ fontWeight: 900 }}>Loading...</div>}
+        {loading && (
+          <div className="public-panel-light">
+            <div className="text-sm font-extrabold uppercase tracking-[0.12em] text-slate-600">Loading...</div>
+          </div>
+        )}
 
-        <div
-          className="rd-summary-grid"
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-            gap: 12,
-          }}
-        >
-          <div style={{ border: '2px solid #111', borderRadius: 14, background: '#fff', padding: 12 }}>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="public-panel-light">
             <div style={{ fontSize: 12, fontWeight: 800, color: '#333' }}>Pending Status</div>
             <div style={{ fontSize: 22, fontWeight: 950 }}>{statusUpdates.length}</div>
           </div>
-          <div style={{ border: '2px solid #111', borderRadius: 14, background: '#fff', padding: 12 }}>
+          <div className="public-panel-light">
             <div style={{ fontSize: 12, fontWeight: 800, color: '#333' }}>Pending Penalties</div>
             <div style={{ fontSize: 22, fontWeight: 950 }}>{penalties.length}</div>
           </div>
-          <div style={{ border: '2px solid #111', borderRadius: 14, background: '#fff', padding: 12 }}>
+          <div className="public-panel-light">
             <div style={{ fontSize: 12, fontWeight: 800, color: '#333' }}>Locked Motos</div>
             <div style={{ fontSize: 22, fontWeight: 950 }}>
               {Object.values(lockedMap).filter(Boolean).length}
             </div>
           </div>
-          <div style={{ border: '2px solid #111', borderRadius: 14, background: '#fff', padding: 12 }}>
+          <div className="public-panel-light">
             <div style={{ fontSize: 12, fontWeight: 800, color: '#333' }}>Gate Status</div>
             <div style={{ marginTop: 8, display: 'grid', gap: 6 }}>
               {gateStatus.length === 0 && <div style={{ fontSize: 12, color: '#333' }}>No data.</div>}
@@ -418,7 +368,7 @@ export default function RaceDirectorApprovalPage() {
                   <span>
                     {g.status}
                     {g.warnings && g.warnings > 0 ? ` (WARN ${g.warnings})` : ''}
-                    {' • '}
+                    {' | '}
                     {g.ready}/{g.total}
                   </span>
                 </div>
@@ -427,21 +377,14 @@ export default function RaceDirectorApprovalPage() {
           </div>
         </div>
 
-        <div style={{ display: 'grid', gap: 16 }}>
-          <section
-            style={{
-              border: '2px solid #111',
-              borderRadius: 16,
-              background: '#fff',
-              padding: 14,
-            }}
-          >
+        <div className="grid gap-4">
+          <section className="public-panel-light">
             <div style={{ fontWeight: 900, fontSize: 18 }}>Status Updates</div>
             {statusUpdates.length === 0 && <div style={{ marginTop: 8 }}>No pending status updates.</div>}
             <div style={{ marginTop: 10, display: 'grid', gap: 10 }}>
               {sortedStatusUpdates.map((u) => {
                 const rider = riderMap[u.rider_id]
-                const riderLabel = rider ? `${rider.no_plate_display} · ${rider.name}` : u.rider_id
+                const riderLabel = rider ? `${rider.no_plate_display} - ${rider.name}` : u.rider_id
                 const statusBadge =
                   u.proposed_status === 'ABSENT'
                     ? '#fee2e2'
@@ -518,20 +461,13 @@ export default function RaceDirectorApprovalPage() {
             </div>
           </section>
 
-          <section
-            style={{
-              border: '2px solid #111',
-              borderRadius: 16,
-              background: '#fff',
-              padding: 14,
-            }}
-          >
+          <section className="public-panel-light">
             <div style={{ fontWeight: 900, fontSize: 18 }}>Penalty Approvals</div>
             {penalties.length === 0 && <div style={{ marginTop: 8 }}>No pending penalties.</div>}
             <div style={{ marginTop: 10, display: 'grid', gap: 10 }}>
               {sortedPenalties.map((p) => {
                 const rider = riderMap[p.rider_id]
-                const riderLabel = rider ? `${rider.no_plate_display} · ${rider.name}` : p.rider_id
+                const riderLabel = rider ? `${rider.no_plate_display} - ${rider.name}` : p.rider_id
                 return (
                 <div
                   key={p.id}
@@ -590,14 +526,7 @@ export default function RaceDirectorApprovalPage() {
             </div>
           </section>
 
-          <section
-            style={{
-              border: '2px solid #111',
-              borderRadius: 16,
-              background: '#fff',
-              padding: 14,
-            }}
-          >
+          <section className="public-panel-light">
             <div style={{ fontWeight: 900, fontSize: 18 }}>Moto Locking</div>
             {motos.length === 0 && <div style={{ marginTop: 8 }}>No motos.</div>}
             <div style={{ marginTop: 10, display: 'grid', gap: 10 }}>
@@ -630,7 +559,7 @@ export default function RaceDirectorApprovalPage() {
                         textAlign: 'left',
                       }}
                     >
-                      {cat.label} {isOpen ? '▼' : '▶'}
+                      {cat.label} {isOpen ? 'v' : '>'}
                     </button>
                     {isOpen && (
                       <div style={{ display: 'grid', gap: 8 }}>
@@ -751,14 +680,7 @@ export default function RaceDirectorApprovalPage() {
             </div>
           </section>
 
-          <section
-            style={{
-              border: '2px solid #111',
-              borderRadius: 16,
-              background: '#fff',
-              padding: 14,
-            }}
-          >
+          <section className="public-panel-light">
             <div style={{ fontWeight: 900, fontSize: 18 }}>Audit Log (Last 100)</div>
             {auditLogs.length === 0 && <div style={{ marginTop: 8 }}>No audit entries.</div>}
             <div style={{ marginTop: 10, display: 'grid', gap: 10 }}>
@@ -788,18 +710,9 @@ export default function RaceDirectorApprovalPage() {
             </div>
           </section>
         </div>
-      </div>
+      </main>
       <style jsx>{`
         @media (max-width: 640px) {
-          .rd-page {
-            padding: 10px;
-          }
-          .rd-container {
-            gap: 12px;
-          }
-          .rd-summary-grid {
-            grid-template-columns: 1fr;
-          }
           .rd-action-grid {
             grid-template-columns: 1fr;
           }
@@ -808,4 +721,5 @@ export default function RaceDirectorApprovalPage() {
     </div>
   )
 }
+
 
