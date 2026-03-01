@@ -56,6 +56,7 @@ const roleHome = (role: string | null) => {
 const GlobalNav: NavItem[] = [
   { label: 'Dashboard', href: '/admin' },
   { label: 'Events', href: '/admin/events' },
+  { label: 'UAT Checklist', href: '/admin/uat-checklist' },
 ]
 
 const EventNav = (eventId: string): NavItem[] => [

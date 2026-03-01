@@ -27,10 +27,10 @@ export default function HeroRace() {
                 LIHAT EVENT
               </Link>
               <Link
-                href="/dashboard#ongoing-events"
+                href="/dashboard#live-results"
                 className="inline-flex w-full justify-center rounded-2xl border border-slate-200/30 bg-slate-900/20 px-8 py-3 text-base font-bold tracking-[0.12em] text-white transition-colors duration-200 hover:border-slate-100/50 hover:bg-slate-900/40 sm:w-auto sm:px-10 sm:py-4 sm:tracking-[0.15em]"
               >
-                ONGOING EVENTS
+                LIVE RESULTS
               </Link>
             </div>
           </div>

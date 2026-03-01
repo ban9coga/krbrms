@@ -8,7 +8,7 @@ import { supabase } from '../lib/supabaseClient'
 const navItems = [
   { href: '/', label: 'Home' },
   { href: '/dashboard', label: 'Events' },
-  { href: '/dashboard#ongoing-events', label: 'Ongoing Events' },
+  { href: '/dashboard#live-results', label: 'Live Results' },
 ]
 
 const normalizeRole = (value: string | null) => {
@@ -161,4 +161,3 @@ export default function PublicTopbar() {
     </header>
   )
 }
-

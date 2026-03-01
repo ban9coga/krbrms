@@ -8,7 +8,7 @@ import { supabase } from '../lib/supabaseClient'
 const navItems = [
   { href: '/', label: 'Home' },
   { href: '/dashboard', label: 'Events' },
-  { href: '/dashboard#ongoing-events', label: 'Ongoing Events' },
+  { href: '/dashboard#live-results', label: 'Live Results' },
 ]
 
 type MarketingTopbarProps = {
@@ -169,4 +169,3 @@ export default function MarketingTopbar({ showNav = true, showLoginButton = true
     </header>
   )
 }
-

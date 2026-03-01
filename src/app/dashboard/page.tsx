@@ -55,8 +55,8 @@ export default async function DashboardPage() {
               </p>
 
               <div className="mx-auto mt-8 grid max-w-[1120px] gap-6 sm:mt-10 md:gap-8">
-                <div id="ongoing-events" className="rounded-3xl border border-slate-700/70 bg-slate-900/55 p-4 backdrop-blur-sm sm:p-6">
-                  <h2 className="mb-4 text-2xl font-bold text-white">Ongoing Events</h2>
+                <div id="live-results" className="rounded-3xl border border-slate-700/70 bg-slate-900/55 p-4 backdrop-blur-sm sm:p-6">
+                  <h2 className="mb-4 text-2xl font-bold text-white">Live Results</h2>
                   {ongoingEvents.length === 0 && (
                     <p className="pb-2 text-sm font-semibold text-slate-300">Belum ada event yang sedang berlangsung.</p>
                   )}
