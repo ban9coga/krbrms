@@ -253,10 +253,10 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                 <div className="flex flex-wrap gap-3">
                   {event.status !== 'UPCOMING' && (
                     <Link
-                      href={`/event/${event.id}/results`}
+                      href={`/event/${event.id}#race-categories`}
                       className="inline-flex items-center rounded-xl bg-rose-500 px-5 py-3 text-sm font-extrabold uppercase tracking-wide text-white transition-colors hover:bg-rose-400"
                     >
-                      View Results
+                      Race Categories
                     </Link>
                   )}
                   {event.status !== 'UPCOMING' && (
@@ -279,9 +279,12 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
               </div>
             </section>
 
-            <section className="rounded-[1.5rem] border border-slate-800 bg-slate-900 px-4 py-5 text-slate-100 shadow-[0_20px_40px_rgba(2,6,23,0.2)] sm:px-6">
+            <section
+              id="race-categories"
+              className="rounded-[1.5rem] border border-slate-800 bg-slate-900 px-4 py-5 text-slate-100 shadow-[0_20px_40px_rgba(2,6,23,0.2)] sm:px-6"
+            >
               <div className="mb-4 flex items-center gap-2">
-                <h2 className="text-2xl font-black tracking-tight text-white">Live Results</h2>
+                <h2 className="text-2xl font-black tracking-tight text-white">Race Categories</h2>
                 {event.status !== 'LIVE' && <StatusBadge label="Locked" />}
               </div>
 
@@ -393,10 +396,10 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                                 )}
 
                                 <Link
-                                  href={`/event/${eventId}/results`}
+                                  href={`/event/${eventId}#race-categories`}
                                   className="inline-flex w-fit items-center rounded-lg border border-slate-500 px-3 py-2 text-xs font-extrabold uppercase tracking-wide text-white transition-colors hover:bg-slate-800"
                                 >
-                                  Lihat semua hasil
+                                  Kembali ke race categories
                                 </Link>
 
                                 <div className="mt-1 text-sm font-extrabold uppercase tracking-wide text-slate-300">

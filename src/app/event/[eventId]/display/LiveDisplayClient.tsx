@@ -15,6 +15,7 @@ type Row = {
   name: string
   no_plate: string
   club: string
+  photo_thumbnail_url?: string | null
   point_moto1: number | null
   point_moto2: number | null
   point_moto3: number | null
@@ -27,7 +28,7 @@ type Row = {
 type Batch = {
   batch_index: number
   moto1_id: string
-  moto2_id: string
+  moto2_id: string | null
   moto3_id?: string | null
   rows: Row[]
 }
@@ -47,23 +48,10 @@ type MotoItem = {
 
 type Mode = 'LINEUP' | 'RESULTS' | 'WINNERS'
 
-const parseMotoIndex = (name?: string | null) => {
-  if (!name) return null
-  const match = name.match(/moto\s*(\d+)/i)
-  if (!match) return null
-  return Number(match[1])
-}
-
 const gateByMoto = (row: Row, motoIndex: number) => {
   if (motoIndex === 1) return row.gate_moto1
   if (motoIndex === 2) return row.gate_moto2
   return row.gate_moto3
-}
-
-const pointByMoto = (row: Row, motoIndex: number) => {
-  if (motoIndex === 1) return row.point_moto1
-  if (motoIndex === 2) return row.point_moto2
-  return row.point_moto3
 }
 
 const modeOptions: Mode[] = ['LINEUP', 'RESULTS', 'WINNERS']
@@ -125,7 +113,9 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
 
   const fetchLiveScore = async (id: string) => {
     if (!id) return
-    const res = await fetch(`/api/public/events/${eventId}/live-score?category_id=${encodeURIComponent(id)}`)
+    const res = await fetch(
+      `/api/public/events/${eventId}/live-score?category_id=${encodeURIComponent(id)}&include_upcoming=1`
+    )
     const json = await res.json()
     const data = (json?.data ?? {}) as LiveScorePayload
     setCategoryLabel(data.category ?? '')
@@ -159,8 +149,6 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
   }, [categoryId, eventId])
 
   const hasData = useMemo(() => batches.some((batch) => batch.rows.length > 0), [batches])
-  const activeMotoIndex = useMemo(() => parseMotoIndex(activeMoto?.moto_name), [activeMoto])
-
   const activeBatch = useMemo(() => {
     if (!activeMoto) return null
     return batches.find((b) => b.moto1_id === activeMoto.id || b.moto2_id === activeMoto.id || b.moto3_id === activeMoto.id) ?? null
@@ -181,36 +169,68 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
     })
   }, [batchView])
 
-  const nextUp = useMemo(() => {
-    if (!activeBatch || !activeMotoIndex) return null
-    const rows = [...activeBatch.rows].sort(
-      (a, b) => (gateByMoto(a, activeMotoIndex) ?? 9999) - (gateByMoto(b, activeMotoIndex) ?? 9999)
-    )
-    const isPending = (row: Row) => pointByMoto(row, activeMotoIndex) == null
-    return rows.find(isPending) ?? null
-  }, [activeBatch, activeMotoIndex])
+  const queueTarget = useMemo(() => {
+    const sortedBatches = [...batches].sort((a, b) => a.batch_index - b.batch_index)
+    if (sortedBatches.length === 0) return null
+
+    if (sortedBatches.length === 1) {
+      const batch = sortedBatches[0]
+      const hasMoto2Gate = batch.rows.some((row) => row.gate_moto2 != null)
+      const motoIndex = hasMoto2Gate ? 2 : 1
+      return {
+        batch,
+        motoIndex,
+        label: `Batch ${batch.batch_index} - Moto ${motoIndex}`,
+      }
+    }
+
+    const currentBatch = activeBatch ?? sortedBatches[0]
+    const nextBatch = sortedBatches.find((batch) => batch.batch_index > currentBatch.batch_index) ?? sortedBatches[0]
+    return {
+      batch: nextBatch,
+      motoIndex: 1 as const,
+      label: `Batch ${nextBatch.batch_index} - Moto 1`,
+    }
+  }, [batches, activeBatch])
 
   const prepareQueue = useMemo(() => {
-    if (!activeMotoIndex) return []
-    const sourceBatch = activeBatch ?? batchView[0] ?? null
-    if (!sourceBatch) return []
-
-    const sorted = [...sourceBatch.rows].sort(
-      (a, b) => (gateByMoto(a, activeMotoIndex) ?? 9999) - (gateByMoto(b, activeMotoIndex) ?? 9999)
+    if (!queueTarget) return []
+    const sorted = [...queueTarget.batch.rows].sort(
+      (a, b) => (gateByMoto(a, queueTarget.motoIndex) ?? 9999) - (gateByMoto(b, queueTarget.motoIndex) ?? 9999)
     )
 
     return sorted
-      .filter((row) => pointByMoto(row, activeMotoIndex) == null)
-      .slice(0, 8)
+      .filter((row) => gateByMoto(row, queueTarget.motoIndex) != null)
       .map((row, index) => ({
         queue: index + 1,
         rider_id: row.rider_id,
-        gate: gateByMoto(row, activeMotoIndex),
+        gate: gateByMoto(row, queueTarget.motoIndex),
         no_plate: row.no_plate,
         name: row.name,
         club: row.club,
+        photo_thumbnail_url: row.photo_thumbnail_url ?? null,
       }))
-  }, [activeBatch, activeMotoIndex, batchView])
+  }, [queueTarget])
+
+  const nextUp = useMemo(() => prepareQueue[0] ?? null, [prepareQueue])
+
+  const riderPhotoCell = (name: string, noPlate: string, photoUrl?: string | null) => {
+    if (photoUrl) {
+      return (
+        <img
+          src={photoUrl}
+          alt={name}
+          className="h-9 w-9 rounded-full border border-slate-300 object-cover"
+          loading="lazy"
+        />
+      )
+    }
+    return (
+      <div className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-300 bg-slate-100 text-[10px] font-black text-slate-700">
+        {noPlate || '-'}
+      </div>
+    )
+  }
 
   return (
     <div className="public-page overflow-x-hidden">
@@ -275,7 +295,7 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
                 </span>
                 <span>{nextUp.name}</span>
                 <span>No: {nextUp.no_plate}</span>
-                <span>Gate {activeMotoIndex ? gateByMoto(nextUp, activeMotoIndex) ?? '-' : '-'}</span>
+                <span>Gate {nextUp.gate ?? '-'}</span>
               </div>
             )}
           </div>
@@ -296,7 +316,7 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
                     <table className="public-table" style={{ minWidth: 900 }}>
                       <thead>
                         <tr>
-                          {['Gate M1', 'Gate M2', 'Gate M3', 'Nama Peserta', 'No Plat', 'Komunitas'].map((h) => (
+                          {['Gate M1', 'Gate M2', 'Gate M3', 'Foto', 'Nama Peserta', 'No Plat', 'Komunitas'].map((h) => (
                             <th key={h}>{h}</th>
                           ))}
                         </tr>
@@ -307,6 +327,7 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
                             <td>{row.gate_moto1 ?? '-'}</td>
                             <td>{row.gate_moto2 ?? '-'}</td>
                             <td>{row.gate_moto3 ?? '-'}</td>
+                            <td>{riderPhotoCell(row.name, row.no_plate, row.photo_thumbnail_url)}</td>
                             <td className="font-extrabold text-slate-900">{row.name}</td>
                             <td>{row.no_plate}</td>
                             <td>{row.club || '-'}</td>
@@ -339,6 +360,7 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
                               'Gate M1',
                               'Gate M2',
                               'Gate M3',
+                              'Foto',
                               'Nama Peserta',
                               'No Plat',
                               'Point M1',
@@ -359,6 +381,7 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
                               <td>{row.gate_moto1 ?? '-'}</td>
                               <td>{row.gate_moto2 ?? '-'}</td>
                               <td>{row.gate_moto3 ?? '-'}</td>
+                              <td>{riderPhotoCell(row.name, row.no_plate, row.photo_thumbnail_url)}</td>
                               <td className="font-extrabold text-slate-900">{row.name}</td>
                               <td>{row.no_plate}</td>
                               <td>{row.point_moto1 ?? '-'}</td>
@@ -381,7 +404,7 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
             <section className="public-panel-light">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <h2 className="text-lg font-black uppercase tracking-[0.08em] text-slate-900">Rider Bersiap</h2>
-                <span className="public-chip">{activeMoto?.moto_name ?? 'Queue'}</span>
+                <span className="public-chip">{queueTarget?.label ?? activeMoto?.moto_name ?? 'Queue'}</span>
               </div>
 
               {prepareQueue.length === 0 ? (
@@ -393,7 +416,7 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
                   <table className="public-table" style={{ minWidth: 760 }}>
                     <thead>
                       <tr>
-                        {['Antrian', 'Gate', 'No Plat', 'Nama Peserta', 'Komunitas'].map((h) => (
+                        {['Antrian', 'Gate', 'Foto', 'No Plat', 'Nama Peserta', 'Komunitas'].map((h) => (
                           <th key={h}>{h}</th>
                         ))}
                       </tr>
@@ -403,6 +426,7 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
                         <tr key={`prepare-${row.rider_id}`}>
                           <td className="font-extrabold text-rose-600">{row.queue}</td>
                           <td>{row.gate ?? '-'}</td>
+                          <td>{riderPhotoCell(row.name, row.no_plate, row.photo_thumbnail_url)}</td>
                           <td>{row.no_plate}</td>
                           <td className="font-extrabold text-slate-900">{row.name}</td>
                           <td>{row.club || '-'}</td>
@@ -430,8 +454,9 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
                   {batch.winners.map((row, index) => (
                     <div
                       key={row.rider_id}
-                      className="grid gap-1 rounded-xl border border-slate-600 bg-slate-950/70 px-4 py-3 text-slate-100 sm:grid-cols-[1fr_auto] sm:items-center"
+                      className="grid gap-2 rounded-xl border border-slate-600 bg-slate-950/70 px-4 py-3 text-slate-100 sm:grid-cols-[40px_1fr_auto] sm:items-center"
                     >
+                      <div>{riderPhotoCell(row.name, row.no_plate, row.photo_thumbnail_url)}</div>
                       <div className="text-base font-black">
                         {index + 1}. {row.name}
                       </div>

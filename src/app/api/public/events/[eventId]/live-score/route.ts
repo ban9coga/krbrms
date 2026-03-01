@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../../lib/auth'
-import { isMotoPublicVisible } from '../../../../../../lib/motoStatus'
+import { isMotoPublicVisible, isMotoUpcoming } from '../../../../../../lib/motoStatus'
 
 type MotoRow = {
   id: string
@@ -28,6 +28,7 @@ type RiderRow = {
   name: string
   no_plate_display: string
   club: string | null
+  photo_thumbnail_url?: string | null
 }
 
 type StageRow = {
@@ -36,6 +37,7 @@ type StageRow = {
   name: string
   no_plate: string
   club: string | null
+  photo_thumbnail_url?: string | null
   point: number | null
   status: 'FINISH' | 'DNF' | 'DNS' | 'PENDING'
 }
@@ -56,7 +58,7 @@ const shuffle = <T,>(items: T[]) => {
 }
 
 const parseBatchKey = (name: string) => {
-  const match = name.match(/moto\s*(\d+)\s*-\s*batch\s*(\d+)/i)
+  const match = name.match(/moto\s*(\d+)\s*(?:-\s*)?batch\s*(\d+)/i)
   if (!match) return null
   return { motoIndex: Number(match[1]), batchIndex: Number(match[2]) }
 }
@@ -65,6 +67,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const { eventId } = await params
   const { searchParams } = new URL(req.url)
   const categoryId = searchParams.get('category_id')
+  const includeUpcoming = ['1', 'true', 'yes'].includes(
+    (searchParams.get('include_upcoming') ?? '').toLowerCase()
+  )
   if (!categoryId) return NextResponse.json({ error: 'category_id required' }, { status: 400 })
 
   const { data: category, error: catError } = await adminClient
@@ -83,7 +88,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     .eq('category_id', categoryId)
     .order('moto_order', { ascending: true })
   if (motoError) return NextResponse.json({ error: motoError.message }, { status: 400 })
-  const motoRows = ((motos ?? []) as MotoRow[]).filter((m) => isMotoPublicVisible(m.status, m.is_published))
+  const motoRows = ((motos ?? []) as MotoRow[]).filter((m) => {
+    if (isMotoPublicVisible(m.status, m.is_published)) return true
+    if (includeUpcoming && isMotoUpcoming(m.status)) return true
+    return false
+  })
 
   const motoIds = motoRows.map((m) => m.id)
   if (motoIds.length === 0) return NextResponse.json({ data: { batches: [], category: category.label } })
@@ -176,7 +185,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   }
   const { data: riders, error: riderError } = await adminClient
     .from('riders')
-    .select('id, name, no_plate_display, club')
+    .select('id, name, no_plate_display, club, photo_thumbnail_url')
     .in('id', riderIds)
   if (riderError) return NextResponse.json({ error: riderError.message }, { status: 400 })
   const riderRows = (riders ?? []) as RiderRow[]
@@ -194,13 +203,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   }
 
   const batches = Array.from(batchMap.entries())
-    .filter(([, entry]) => entry.moto1 && entry.moto2)
+    .filter(([, entry]) => entry.moto1)
     .map(([batchIndex, entry]) => {
       const moto1 = entry.moto1 as MotoRow
-      const moto2 = entry.moto2 as MotoRow
+      const moto2 = entry.moto2 ?? null
       const moto3 = entry.moto3 ?? null
       const gates1 = gateRows.filter((g) => g.moto_id === moto1.id)
-      const gates2 = gateRows.filter((g) => g.moto_id === moto2.id)
+      const gates2 = moto2 ? gateRows.filter((g) => g.moto_id === moto2.id) : []
       const gates3 = moto3 ? gateRows.filter((g) => g.moto_id === moto3.id) : []
       const gate1Map = new Map(gates1.map((g) => [g.rider_id, g.gate_position]))
       const gate2Map = new Map(gates2.map((g) => [g.rider_id, g.gate_position]))
@@ -212,7 +221,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       const rows = riderIdsInBatch.map((riderId) => {
         const rider = riderMap.get(riderId)
         const moto1Result = resultRows.find((r) => r.moto_id === moto1.id && r.rider_id === riderId)
-        const moto2Result = resultRows.find((r) => r.moto_id === moto2.id && r.rider_id === riderId)
+        const moto2Result = moto2
+          ? resultRows.find((r) => r.moto_id === moto2.id && r.rider_id === riderId)
+          : null
         const moto3Result = moto3
           ? resultRows.find((r) => r.moto_id === moto3.id && r.rider_id === riderId)
           : null
@@ -245,12 +256,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
             ? 'DQ'
             : riderStatus === 'ABSENT'
             ? 'DNS'
-            : moto1Result?.result_status === 'DNS' || moto2Result?.result_status === 'DNS'
+            : moto1Result?.result_status === 'DNS' || (moto2 ? moto2Result?.result_status === 'DNS' : false)
             ? 'DNS'
-            : moto3Result?.result_status === 'DNF' || moto2Result?.result_status === 'DNF' || moto1Result?.result_status === 'DNF'
+            : moto3Result?.result_status === 'DNF' ||
+              (moto2 ? moto2Result?.result_status === 'DNF' : false) ||
+              moto1Result?.result_status === 'DNF'
             ? 'DNF'
             : moto1Result?.result_status === 'FINISH' &&
-              moto2Result?.result_status === 'FINISH' &&
+              (!moto2 || moto2Result?.result_status === 'FINISH') &&
               (!moto3 || moto3Result?.result_status === 'FINISH')
             ? 'FINISHED'
             : 'DNS'
@@ -262,6 +275,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
           name: rider?.name ?? '-',
           no_plate: rider?.no_plate_display ?? '-',
           club: rider?.club ?? '-',
+          photo_thumbnail_url: rider?.photo_thumbnail_url ?? null,
           point_moto1: point1,
           point_moto2: point2,
           point_moto3: point3,
@@ -307,15 +321,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         })
         .sort((a, b) => (a.gate_moto1 ?? 9999) - (b.gate_moto1 ?? 9999))
 
+      const resolvedMotoStatus = (moto3?.status ?? moto2?.status ?? moto1.status ?? '').toUpperCase()
       return {
         batch_index: batchIndex,
         moto1_id: moto1.id,
-        moto2_id: moto2.id,
+        moto2_id: moto2?.id ?? null,
         moto3_id: moto3?.id ?? null,
-        moto_status: moto2.status ?? moto1.status ?? null,
-        isProvisional: ['PROVISIONAL'].includes((moto2.status ?? moto1.status ?? '').toUpperCase()),
-        isUnderReview: ['PROTEST_REVIEW'].includes((moto2.status ?? moto1.status ?? '').toUpperCase()),
-        isOfficial: ['LOCKED'].includes((moto2.status ?? moto1.status ?? '').toUpperCase()),
+        moto_status: resolvedMotoStatus || null,
+        isProvisional: resolvedMotoStatus === 'PROVISIONAL',
+        isUnderReview: resolvedMotoStatus === 'PROTEST_REVIEW',
+        isOfficial: resolvedMotoStatus === 'LOCKED',
         rows: ordered,
       }
     })
@@ -344,6 +359,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         name: rider?.name ?? '-',
         no_plate: rider?.no_plate_display ?? '-',
         club: rider?.club ?? '-',
+        photo_thumbnail_url: rider?.photo_thumbnail_url ?? null,
         point: pointForResult(res),
         status,
       }

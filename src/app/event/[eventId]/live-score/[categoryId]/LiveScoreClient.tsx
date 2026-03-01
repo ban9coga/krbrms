@@ -14,6 +14,7 @@ type Row = {
   name: string
   no_plate: string
   club: string
+  photo_thumbnail_url?: string | null
   point_moto1: number | null
   point_moto2: number | null
   point_moto3: number | null
@@ -36,6 +37,7 @@ type StageRow = {
   name: string
   no_plate: string
   club: string | null
+  photo_thumbnail_url?: string | null
   point: number | null
   status: 'FINISH' | 'DNF' | 'DNS' | 'PENDING'
 }
@@ -91,6 +93,24 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId, categoryId])
 
+  const riderPhotoCell = (name: string, noPlate: string, photoUrl?: string | null) => {
+    if (photoUrl) {
+      return (
+        <img
+          src={photoUrl}
+          alt={name}
+          className="h-9 w-9 rounded-full border border-slate-300 object-cover"
+          loading="lazy"
+        />
+      )
+    }
+    return (
+      <div className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-300 bg-slate-100 text-[10px] font-black text-slate-700">
+        {noPlate || '-'}
+      </div>
+    )
+  }
+
   return (
     <div className="public-page">
       <PublicTopbar />
@@ -101,10 +121,10 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
           <div className="relative z-10 flex flex-wrap items-start justify-between gap-4">
             <div className="grid gap-2">
               <Link
-                href={`/event/${eventId}/results`}
+                href={`/event/${eventId}#race-categories`}
                 className="inline-flex w-fit items-center rounded-full border border-white/30 bg-white/10 px-3 py-1.5 text-xs font-extrabold uppercase tracking-[0.12em] text-white transition-colors hover:bg-white/20"
               >
-                Back to Results
+                Back to Race Categories
               </Link>
               <h1 className="text-3xl font-black tracking-tight text-white md:text-5xl">Live Score</h1>
               <p className="text-sm font-semibold text-slate-200 sm:text-base">{categoryLabel || 'Category'}</p>
@@ -163,6 +183,7 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                           'Gate M1',
                           'Gate M2',
                           'Gate M3',
+                          'Foto',
                           'Nama Peserta',
                           'No Plat',
                           'Komunitas',
@@ -184,6 +205,7 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                           <td>{row.gate_moto1 ?? '-'}</td>
                           <td>{row.gate_moto2 ?? '-'}</td>
                           <td>{row.gate_moto3 ?? '-'}</td>
+                          <td>{riderPhotoCell(row.name, row.no_plate, row.photo_thumbnail_url)}</td>
                           <td className="font-extrabold text-slate-900">{row.name}</td>
                           <td>{row.no_plate}</td>
                           <td>{row.club || '-'}</td>
@@ -218,7 +240,7 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                   <table className="public-table">
                     <thead>
                       <tr>
-                        {['Gate', 'Nama Peserta', 'No Plat', 'Komunitas', 'Point', 'Status'].map((h) => (
+                        {['Gate', 'Foto', 'Nama Peserta', 'No Plat', 'Komunitas', 'Point', 'Status'].map((h) => (
                           <th key={h}>{h}</th>
                         ))}
                       </tr>
@@ -227,6 +249,7 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                       {stage.rows.map((row) => (
                         <tr key={row.rider_id}>
                           <td>{row.gate ?? '-'}</td>
+                          <td>{riderPhotoCell(row.name, row.no_plate, row.photo_thumbnail_url)}</td>
                           <td className="font-extrabold text-slate-900">{row.name}</td>
                           <td>{row.no_plate}</td>
                           <td>{row.club || '-'}</td>
