@@ -25,6 +25,8 @@ export default function JCSelectorPage() {
   const [motos, setMotos] = useState<MotoItem[]>([])
   const [eventId, setEventId] = useState('')
   const [motoId, setMotoId] = useState('')
+  const [singleLiveEventId, setSingleLiveEventId] = useState<string | null>(null)
+  const [didAutoRedirect, setDidAutoRedirect] = useState(false)
   const [loading, setLoading] = useState(false)
 
   const apiFetch = async (url: string, options: RequestInit = {}) => {
@@ -44,8 +46,13 @@ export default function JCSelectorPage() {
       setLoading(true)
       try {
         const res = await apiFetch('/api/jury/events?status=LIVE,UPCOMING')
-        setEvents(res.data ?? [])
-        if (!eventId && res.data?.length) setEventId(res.data[0].id)
+        const list = (res.data ?? []) as EventItem[]
+        setEvents(list)
+        const liveEvents = list.filter((ev) => String(ev.status).toUpperCase() === 'LIVE')
+        setSingleLiveEventId(liveEvents.length === 1 ? liveEvents[0].id : null)
+        if (!eventId && list.length) {
+          setEventId((liveEvents[0] ?? list[0]).id)
+        }
       } finally {
         setLoading(false)
       }
@@ -64,16 +71,25 @@ export default function JCSelectorPage() {
         const list = (motoJson.data ?? []) as MotoItem[]
         list.sort((a, b) => a.moto_order - b.moto_order)
         setMotos(list)
+        const liveMotos = list.filter((m) => isMotoLive(m.status))
         if (!motoId && list.length) {
-          const live = list.find((m) => isMotoLive(m.status))
-          setMotoId((live ?? list[0]).id)
+          setMotoId((liveMotos[0] ?? list[0]).id)
+        }
+        if (
+          !didAutoRedirect &&
+          singleLiveEventId &&
+          eventId === singleLiveEventId &&
+          liveMotos.length === 1
+        ) {
+          setDidAutoRedirect(true)
+          router.replace(`/jc/${eventId}/${liveMotos[0].id}`)
         }
       } finally {
         setLoading(false)
       }
     }
     loadMotos()
-  }, [eventId, motoId])
+  }, [didAutoRedirect, eventId, motoId, router, singleLiveEventId])
 
   return (
     <div className="public-page">
