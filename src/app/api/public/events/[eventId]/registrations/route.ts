@@ -59,6 +59,36 @@ const toYear = (dateString: string) => {
   return d.getUTCFullYear()
 }
 
+const inRange = (category: { year: number; year_min?: number | null; year_max?: number | null }, birthYear: number) => {
+  const min = category.year_min ?? category.year
+  const max = category.year_max ?? category.year
+  return birthYear >= min && birthYear <= max
+}
+
+const resolvePrimaryCategory = (
+  categories: Array<{
+    id: string
+    year: number
+    year_min?: number | null
+    year_max?: number | null
+    gender: 'BOY' | 'GIRL' | 'MIX'
+  }>,
+  birthYear: number,
+  gender: 'BOY' | 'GIRL'
+) => {
+  const candidates = categories.filter((category) => inRange(category, birthYear))
+  const genderMatch = candidates.filter((category) => category.gender === gender)
+  if (genderMatch.length > 0) {
+    return (
+      genderMatch.sort(
+        (a, b) => (a.year_max ?? a.year) - (b.year_max ?? b.year)
+      )[0] ?? null
+    )
+  }
+  const mix = candidates.filter((category) => category.gender === 'MIX')
+  return mix.sort((a, b) => (a.year_max ?? a.year) - (b.year_max ?? b.year))[0] ?? null
+}
+
 const toStringOrNull = (value: FormDataEntryValue | null) => {
   if (typeof value !== 'string') return null
   const trimmed = value.trim()
@@ -122,30 +152,47 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
 
   const { data: settingsRow, error: settingsError } = await adminClient
     .from('event_settings')
-    .select('require_jersey_size')
+    .select('require_jersey_size, base_price, extra_price')
     .eq('event_id', eventId)
     .maybeSingle()
 
   if (settingsError) return { error: settingsError.message }
   const requireJerseySize = Boolean(settingsRow?.require_jersey_size)
-
-  const categoryIds = new Set<string>()
-  for (const item of items) {
-    if (item.primary_category_id) categoryIds.add(item.primary_category_id)
-    if (item.extra_category_id) categoryIds.add(item.extra_category_id)
-  }
+  const basePriceRaw = Number(settingsRow?.base_price)
+  const extraPriceRaw = Number(settingsRow?.extra_price)
+  const basePrice = Number.isFinite(basePriceRaw) && basePriceRaw > 0 ? basePriceRaw : BASE_PRICE
+  const extraPrice = Number.isFinite(extraPriceRaw) && extraPriceRaw >= 0 ? extraPriceRaw : EXTRA_PRICE
 
   const { data: categories, error: catError } = await adminClient
     .from('categories')
-    .select('id, event_id, year, year_min, year_max, capacity, gender, label')
-    .in('id', Array.from(categoryIds))
+    .select('id, event_id, year, year_min, year_max, capacity, gender, label, enabled')
+    .eq('event_id', eventId)
+    .eq('enabled', true)
 
   if (catError) return { error: catError.message }
+  const eventCategories = (categories ?? []) as Array<{
+    id: string
+    event_id: string
+    year: number
+    year_min?: number | null
+    year_max?: number | null
+    capacity?: number | null
+    gender: 'BOY' | 'GIRL' | 'MIX'
+    label: string
+  }>
+  if (eventCategories.length === 0) {
+    return { error: 'Kategori event belum tersedia.' }
+  }
+
   const categoryMap = new Map((categories ?? []).map((c) => [c.id, c]))
 
   const preparedItems: PreparedItem[] = items.map((item) => {
     const birthYear = toYear(item.date_of_birth ?? '')
-    const primary = item.primary_category_id ? categoryMap.get(item.primary_category_id) : null
+    if (!birthYear) return { error: 'Invalid date_of_birth' }
+
+    const primary = resolvePrimaryCategory(eventCategories, birthYear, item.gender)
+    if (!primary) return { error: 'No matching category for rider' }
+
     const extra = item.extra_category_id ? categoryMap.get(item.extra_category_id) : null
 
     if (!item.rider_name || !item.rider_nickname || !item.date_of_birth || !item.gender) {
@@ -157,18 +204,9 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
     if (item.jersey_size && !JERSEY_SIZES.has(item.jersey_size)) {
       return { error: 'Invalid jersey size' }
     }
-    if (!birthYear) return { error: 'Invalid date_of_birth' }
-    if (primary && primary.event_id !== eventId) return { error: 'Invalid primary category' }
+    if (item.extra_category_id && !extra) return { error: 'Invalid extra category' }
     if (extra && extra.event_id !== eventId) return { error: 'Invalid extra category' }
-
-    const primaryMin = primary ? (primary.year_min ?? primary.year) : null
-    const primaryMax = primary ? (primary.year_max ?? primary.year) : null
-    if (primary && (birthYear < primaryMin || birthYear > primaryMax)) {
-      return { error: 'Birth year not eligible for selected category' }
-    }
-    if (primary && primary.gender !== 'MIX' && primary.gender !== item.gender) {
-      return { error: 'Gender not eligible for selected category' }
-    }
+    if (extra && extra.id === primary.id) return { error: 'Extra category must differ from primary category' }
 
     const extraMin = extra ? (extra.year_min ?? extra.year) : null
     const extraMax = extra ? (extra.year_max ?? extra.year) : null
@@ -179,7 +217,21 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
       return { error: 'Gender not eligible for extra category' }
     }
 
-    const price = BASE_PRICE + (extra ? EXTRA_PRICE : 0)
+    const requestedPlateNumber = item.requested_plate_number ?? null
+    if (
+      requestedPlateNumber !== null &&
+      (!Number.isInteger(requestedPlateNumber) || requestedPlateNumber <= 0)
+    ) {
+      return { error: 'Invalid requested plate number' }
+    }
+
+    const suffixRaw = item.requested_plate_suffix?.trim().toUpperCase() ?? null
+    const requestedPlateSuffix = suffixRaw && suffixRaw.length > 0 ? suffixRaw[0] : null
+    if (requestedPlateSuffix && !/^[A-Z]$/.test(requestedPlateSuffix)) {
+      return { error: 'Invalid requested plate suffix' }
+    }
+
+    const price = basePrice + (extra ? extraPrice : 0)
     return {
       rider_name: item.rider_name,
       rider_nickname: item.rider_nickname ?? null,
@@ -187,10 +239,10 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
       date_of_birth: item.date_of_birth,
       gender: item.gender,
       club: item.club ?? null,
-      primary_category_id: item.primary_category_id ?? null,
-      extra_category_id: item.extra_category_id ?? null,
-      requested_plate_number: item.requested_plate_number ?? null,
-      requested_plate_suffix: item.requested_plate_suffix ?? null,
+      primary_category_id: primary.id,
+      extra_category_id: extra?.id ?? null,
+      requested_plate_number: requestedPlateNumber,
+      requested_plate_suffix: requestedPlateSuffix,
       price,
     }
   })

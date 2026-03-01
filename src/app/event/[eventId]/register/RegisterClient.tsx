@@ -63,7 +63,6 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   const [paymentProof, setPaymentProof] = useState<File | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState<string | null>(null)
-  const [activeStep, setActiveStep] = useState(1)
 
   useEffect(() => {
     const load = async () => {
@@ -107,7 +106,6 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
 
   const addRider = () => {
     setRiders((prev) => [...prev, initialRider()])
-    setActiveStep(2)
   }
 
   const removeRider = (index: number) =>
@@ -133,10 +131,15 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     return mix.sort((a, b) => (a.year_max ?? a.year) - (b.year_max ?? b.year))[0] ?? null
   }
 
-  const extraCategoryOptions = (birthYear: number | null, gender: 'BOY' | 'GIRL') => {
+  const extraCategoryOptions = (
+    birthYear: number | null,
+    gender: 'BOY' | 'GIRL',
+    primaryCategory: CategoryItem | null
+  ) => {
     const options: CategoryItem[] = []
-    if (!birthYear) return options
+    if (!birthYear || !primaryCategory) return options
     return categories.filter((c) => {
+      if (c.id === primaryCategory.id) return false
       const max = c.year_max ?? c.year
       if (max >= birthYear) return false
       if (c.gender === 'MIX') return true
@@ -149,9 +152,6 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   }, [riders, basePrice, extraPrice])
 
   const hasContact = contactName.trim() && contactPhone.trim()
-  const hasRiderData = riders.some(
-    (r) => r.name || r.nickname || r.dateOfBirth || r.requestedPlateNumber || r.photo || r.docKk
-  )
   const ridersComplete = riders.every(
     (r) =>
       r.name &&
@@ -163,16 +163,10 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
       r.docKk
   )
   const showTotal = Boolean(hasContact && ridersComplete)
-  const hasPayment = paymentProof !== null
-  useEffect(() => {
-    if (hasPayment) {
-      setActiveStep(3)
-    } else if (hasRiderData) {
-      setActiveStep(2)
-    } else if (hasContact) {
-      setActiveStep(1)
-    }
-  }, [hasContact, hasRiderData, hasPayment])
+  const hasMissingPrimaryCategory = riders.some((rider) => {
+    const birthYear = rider.dateOfBirth ? new Date(rider.dateOfBirth).getUTCFullYear() : null
+    return !computePrimaryCategory(birthYear, rider.gender)
+  })
 
   const handleSubmit = async () => {
     setSuccess(null)
@@ -198,6 +192,10 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
       alert('Lengkapi data rider. Wajib: nama, panggilan, nomor plate, foto rider, KK/Akte, dan ukuran jersey (jika diwajibkan).')
       return
     }
+    if (hasMissingPrimaryCategory) {
+      alert('Kategori otomatis belum ditemukan untuk beberapa rider. Cek tanggal lahir/gender atau aktifkan kategori event yang sesuai.')
+      return
+    }
 
     setSubmitting(true)
     try {
@@ -211,8 +209,6 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
       }
 
       const items = riders.map((r) => {
-        const birthYear = r.dateOfBirth ? new Date(r.dateOfBirth).getUTCFullYear() : null
-        const primary = computePrimaryCategory(birthYear, r.gender)
         return {
           rider_name: r.name,
           rider_nickname: r.nickname || null,
@@ -220,7 +216,6 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
           date_of_birth: r.dateOfBirth,
           gender: r.gender,
           club: r.club || null,
-          primary_category_id: primary?.id ?? null,
           extra_category_id: r.extraCategoryId || null,
           requested_plate_number: r.requestedPlateNumber ? Number(r.requestedPlateNumber) : null,
           requested_plate_suffix: r.requestedPlateSuffix || null,
@@ -301,31 +296,6 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         </section>
 
         <section className={panelClass}>
-          <div className="mb-3 text-sm font-extrabold uppercase tracking-[0.12em] text-slate-300">Progress</div>
-          <div className="grid gap-2 sm:grid-cols-3">
-            {[
-              { id: 1, label: 'Kontak' },
-              { id: 2, label: 'Data Rider' },
-              { id: 3, label: 'Pembayaran' },
-            ].map((step) => {
-              const active = activeStep >= step.id
-              return (
-                <div
-                  key={step.id}
-                  className={`rounded-full border px-3 py-2 text-center text-sm font-bold transition-colors ${
-                    active
-                      ? 'border-rose-300/60 bg-rose-500/20 text-rose-100'
-                      : 'border-slate-600 bg-slate-900/70 text-slate-300'
-                  }`}
-                >
-                  {step.id}. {step.label}
-                </div>
-              )
-            })}
-          </div>
-        </section>
-
-        <section className={panelClass}>
           <div className="mb-3 text-sm font-extrabold uppercase tracking-[0.12em] text-slate-300">Kontak & Komunitas</div>
           <div className="grid gap-3 md:grid-cols-2">
             <input
@@ -358,7 +328,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         {riders.map((rider, idx) => {
           const birthYear = rider.dateOfBirth ? new Date(rider.dateOfBirth).getUTCFullYear() : null
           const primaryCategory = computePrimaryCategory(birthYear, rider.gender)
-          const extras = extraCategoryOptions(birthYear, rider.gender)
+          const extras = extraCategoryOptions(birthYear, rider.gender, primaryCategory)
           return (
             <section key={`rider-${idx}`} className={panelClass}>
               <div className="mb-3 flex items-center justify-between gap-3">
@@ -431,6 +401,11 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                   <div className="mt-1 text-xs font-semibold text-slate-400">
                     Pilih tanggal lahir & gender agar kategori terdeteksi otomatis.
                   </div>
+                  {!primaryCategory && (
+                    <div className="mt-2 text-xs font-semibold text-amber-300">
+                      Tanggal lahir tidak masuk range kategori aktif event ini.
+                    </div>
+                  )}
                 </div>
 
                 {extras.length > 0 && (
