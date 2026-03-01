@@ -253,14 +253,6 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                 <div className="flex flex-wrap gap-3">
                   {event.status !== 'UPCOMING' && (
                     <Link
-                      href={`/event/${event.id}#race-categories`}
-                      className="inline-flex items-center rounded-xl bg-rose-500 px-5 py-3 text-sm font-extrabold uppercase tracking-wide text-white transition-colors hover:bg-rose-400"
-                    >
-                      Race Categories
-                    </Link>
-                  )}
-                  {event.status !== 'UPCOMING' && (
-                    <Link
                       href={`/event/${event.id}/display`}
                       className="inline-flex items-center rounded-xl border border-emerald-300/60 bg-emerald-500/20 px-5 py-3 text-sm font-extrabold uppercase tracking-wide text-emerald-100 transition-colors hover:bg-emerald-500/35"
                     >
