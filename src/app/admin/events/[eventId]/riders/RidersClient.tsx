@@ -578,17 +578,10 @@ export default function RidersClient({ eventId }: { eventId: string }) {
       return
     }
 
-    const printWindow = window.open('', '_blank', 'noopener,noreferrer')
-    if (!printWindow) {
-      alert('Popup diblokir browser. Izinkan popup untuk export PDF.')
-      return
-    }
-
     setExportingPdf(true)
     try {
       const exportRows = await fetchExportRows()
       if (exportRows.length === 0) {
-        printWindow.close()
         alert('Tidak ada data rider untuk diexport.')
         return
       }
@@ -654,15 +647,44 @@ export default function RidersClient({ eventId }: { eventId: string }) {
         </html>
       `
 
-      printWindow.document.open()
-      printWindow.document.write(html)
-      printWindow.document.close()
-      printWindow.focus()
+      const iframe = document.createElement('iframe')
+      iframe.style.position = 'fixed'
+      iframe.style.right = '0'
+      iframe.style.bottom = '0'
+      iframe.style.width = '0'
+      iframe.style.height = '0'
+      iframe.style.border = '0'
+      iframe.style.visibility = 'hidden'
+      document.body.appendChild(iframe)
+
+      const printWindow = iframe.contentWindow
+      const printDoc = iframe.contentDocument || printWindow?.document
+      if (!printWindow || !printDoc) {
+        document.body.removeChild(iframe)
+        throw new Error('Gagal membuka preview PDF.')
+      }
+
+      printDoc.open()
+      printDoc.write(html)
+      printDoc.close()
+
+      const cleanup = () => {
+        setTimeout(() => {
+          try {
+            document.body.removeChild(iframe)
+          } catch {
+            // no-op
+          }
+        }, 600)
+      }
+
+      printWindow.onafterprint = cleanup
       setTimeout(() => {
+        printWindow.focus()
         printWindow.print()
+        cleanup()
       }, 350)
     } catch (err: unknown) {
-      printWindow.close()
       alert(err instanceof Error ? err.message : 'Gagal export PDF rider.')
     } finally {
       setExportingPdf(false)

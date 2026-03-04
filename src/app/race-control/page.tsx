@@ -187,7 +187,7 @@ export default function RaceControlPage() {
                 WebkitOverflowScrolling: 'touch',
               }}
             >
-              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 600 }}>
+              <table className="table-striped" style={{ width: '100%', borderCollapse: 'collapse', minWidth: 600 }}>
                 <thead>
                   <tr style={{ background: '#f5f5f5', textAlign: 'left' }}>
                     {['Gate', 'Nama', 'No Plat', 'Komunitas'].map((h) => (

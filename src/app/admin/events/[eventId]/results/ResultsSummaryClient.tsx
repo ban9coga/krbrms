@@ -475,7 +475,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
                 WebkitOverflowScrolling: 'touch',
               }}
             >
-              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 860 }}>
+              <table className="table-striped" style={{ width: '100%', borderCollapse: 'collapse', minWidth: 860 }}>
                 <thead>
                   <tr style={{ background: '#f5f5f5', textAlign: 'left' }}>
                     {[

@@ -202,7 +202,7 @@ export default function LivePreviewSection() {
                 Geser kiri/kanan untuk lihat semua kolom.
               </div>
               <div className="table-scroll-x">
-                <table className="w-full min-w-[640px] border-collapse">
+                <table className="table-striped w-full min-w-[640px] border-collapse">
                   <thead>
                     <tr className="border-b border-slate-700">
                       <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-300 sm:px-4">
