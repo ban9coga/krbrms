@@ -90,6 +90,7 @@ export default function RaceDirectorApprovalPage() {
     decision: 'APPROVE' | 'REJECT'
     reason: string
   } | null>(null)
+  const [decisionSubmitting, setDecisionSubmitting] = useState(false)
   const [auditLogs, setAuditLogs] = useState<
     Array<{
       id: string
@@ -264,7 +265,7 @@ export default function RaceDirectorApprovalPage() {
     }, 5000)
     const heavyTimer = setInterval(() => {
       void loadEventData({ silent: true, includeHeavy: true })
-    }, 45000)
+    }, 20000)
     return () => {
       clearInterval(lightTimer)
       clearInterval(heavyTimer)
@@ -290,6 +291,12 @@ export default function RaceDirectorApprovalPage() {
     const exists = categories.some((c) => c.id === gateCategoryId && c.enabled !== false)
     if (!exists) setGateCategoryId('ALL')
   }, [categories, gateCategoryId])
+
+  useEffect(() => {
+    if (gateCategoryId !== 'ALL') return
+    const firstEnabled = categoriesSorted[0]
+    if (firstEnabled?.id) setGateCategoryId(firstEnabled.id)
+  }, [gateCategoryId, categoriesSorted])
 
   const filteredGateStatus = useMemo(() => {
     const enabledOnly = gateStatus.filter(
@@ -338,7 +345,8 @@ export default function RaceDirectorApprovalPage() {
   }
 
   const handleSubmitDecision = async () => {
-    if (!decisionModal) return
+    if (!decisionModal || decisionSubmitting) return
+    setDecisionSubmitting(true)
     const payloadReason = decisionModal.reason.trim()
     try {
       if (decisionModal.type === 'status') {
@@ -363,17 +371,19 @@ export default function RaceDirectorApprovalPage() {
       const refreshed = await loadEventData({ silent: true, includeHeavy: false })
       setDecisionModal(null)
       if (refreshed) {
-        showNotice(
-          'success',
-          `${decisionModal.type === 'status' ? 'Status' : 'Penalty'} ${
-            decisionModal.decision === 'APPROVE' ? 'approved' : 'rejected'
-          }.`
-        )
+      showNotice(
+        'success',
+        `${decisionModal.type === 'status' ? 'Status' : 'Penalty'} ${
+          decisionModal.decision === 'APPROVE' ? 'disetujui' : 'ditolak'
+        }.`
+      )
       } else {
         showNotice('error', 'Keputusan tersimpan, tapi refresh data gagal.')
       }
     } catch (err: unknown) {
       showNotice('error', getErrorMessage(err))
+    } finally {
+      setDecisionSubmitting(false)
     }
   }
 
@@ -384,7 +394,7 @@ export default function RaceDirectorApprovalPage() {
         body: JSON.stringify({ event_id: eventId, approval_mode: approvalMode }),
       })
       const refreshed = await loadEventData({ silent: true, includeHeavy: false })
-      showNotice(refreshed ? 'success' : 'error', refreshed ? 'Approval mode updated.' : 'Mode tersimpan, refresh gagal.')
+      showNotice(refreshed ? 'success' : 'error', refreshed ? 'Mode approval diperbarui.' : 'Mode tersimpan, refresh gagal.')
     } catch (err: unknown) {
       showNotice('error', getErrorMessage(err))
     }
@@ -406,7 +416,7 @@ export default function RaceDirectorApprovalPage() {
       const refreshed = await loadEventData({ silent: true, includeHeavy: false })
       showNotice(
         refreshed ? 'success' : 'error',
-        refreshed ? (lock ? 'Moto locked.' : 'Moto unlocked.') : 'Status moto tersimpan, refresh gagal.'
+        refreshed ? (lock ? 'Moto dikunci.' : 'Moto dibuka kembali.') : 'Status moto tersimpan, refresh gagal.'
       )
     } catch (err: unknown) {
       showNotice('error', getErrorMessage(err))
@@ -415,7 +425,7 @@ export default function RaceDirectorApprovalPage() {
 
   const handleManualRefresh = async () => {
     const ok = await loadEventData({ silent: true, includeHeavy: true, showRefreshing: true, notifyOnError: true })
-    if (ok) showNotice('success', 'Data updated.')
+    if (ok) showNotice('success', 'Data diperbarui.')
   }
 
   return (
@@ -427,9 +437,9 @@ export default function RaceDirectorApprovalPage() {
           <div className="pointer-events-none absolute -top-24 right-0 h-72 w-72 rounded-full bg-sky-400/15 blur-3xl" />
           <div className="relative z-10 grid gap-2">
             <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-rose-300">Race Director</p>
-            <h1 className="text-3xl font-black tracking-tight text-white md:text-5xl">Approval & Lock Control</h1>
+            <h1 className="text-3xl font-black tracking-tight text-white md:text-5xl">Kontrol Approval & Kunci Moto</h1>
             <p className="max-w-2xl text-sm font-semibold text-slate-200 sm:text-base">
-              Approvals, locking, and audit.
+              Approval status/penalty, penguncian moto, dan audit.
             </p>
           </div>
         </section>
@@ -457,7 +467,7 @@ export default function RaceDirectorApprovalPage() {
                 onClick={handleSaveMode}
                 className="inline-flex items-center justify-center rounded-xl border border-emerald-300 bg-emerald-100 px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.1em] text-emerald-800 transition-colors hover:bg-emerald-200"
               >
-                Save Mode
+                Simpan Mode
               </button>
               <button
                 type="button"
@@ -465,7 +475,7 @@ export default function RaceDirectorApprovalPage() {
                 disabled={loading || refreshing || !eventId}
                 className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.1em] text-slate-800 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {refreshing ? 'Refreshing...' : 'Refresh'}
+                {refreshing ? 'Memuat...' : 'Segarkan'}
               </button>
               <div
                 className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-extrabold uppercase tracking-[0.12em] ${
@@ -474,10 +484,10 @@ export default function RaceDirectorApprovalPage() {
                     : 'border-amber-300 bg-amber-100 text-amber-800'
                 }`}
               >
-                {approvalMode === 'AUTO' ? 'AUTO APPROVAL MODE' : 'DIRECTOR APPROVAL'}
+                {approvalMode === 'AUTO' ? 'MODE AUTO APPROVAL' : 'MODE APPROVAL DIRECTOR'}
               </div>
               <div className="inline-flex items-center rounded-full border border-slate-300 bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
-                Last sync: {lastSyncAt ?? '-'}
+                Sinkron: {lastSyncAt ?? '-'}
               </div>
             </div>
           </div>
@@ -498,7 +508,7 @@ export default function RaceDirectorApprovalPage() {
                 onClick={() => setActionNotice(null)}
                 className="rounded-full border border-current px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-[0.08em]"
               >
-                Close
+                Tutup
               </button>
             </div>
           </section>
@@ -506,7 +516,7 @@ export default function RaceDirectorApprovalPage() {
 
         {loading && (
           <div className="public-panel-light">
-            <div className="text-sm font-extrabold uppercase tracking-[0.12em] text-slate-600">Loading...</div>
+            <div className="text-sm font-extrabold uppercase tracking-[0.12em] text-slate-600">Memuat...</div>
           </div>
         )}
 
@@ -545,7 +555,7 @@ export default function RaceDirectorApprovalPage() {
             <div style={{ marginTop: 8, display: 'grid', gap: 6 }}>
               {filteredGateStatus.length === 0 && (
                 <div style={{ fontSize: 12, color: '#333' }}>
-                  {gateCategoryId === 'ALL' ? 'No data.' : 'Belum ada moto untuk kategori ini.'}
+                  {gateCategoryId === 'ALL' ? 'Belum ada data.' : 'Belum ada moto untuk kategori ini.'}
                 </div>
               )}
               {filteredGateStatus.map((g) => (
@@ -585,7 +595,7 @@ export default function RaceDirectorApprovalPage() {
         <div className="grid gap-4">
           <section className="public-panel-light">
             <div style={{ fontWeight: 900, fontSize: 18 }}>Status Updates</div>
-            {statusUpdates.length === 0 && <div style={{ marginTop: 8 }}>No pending status updates.</div>}
+            {statusUpdates.length === 0 && <div style={{ marginTop: 8 }}>Tidak ada status pending.</div>}
             <div style={{ marginTop: 10, display: 'grid', gap: 10 }}>
               {sortedStatusUpdates.map((u) => {
                 const rider = riderMap[u.rider_id]
@@ -623,11 +633,7 @@ export default function RaceDirectorApprovalPage() {
                       {u.proposed_status}
                     </span>
                     <span style={{ fontSize: 12, color: '#333' }}>{timeAgo(u.created_at)}</span>
-                    <span style={{ fontSize: 12, color: '#666' }}>
-                      {new Date(u.created_at).toLocaleString()}
-                    </span>
                   </div>
-                  <div style={{ fontSize: 11, color: '#666' }}>Rider ID: {u.rider_id}</div>
                   <div
                     className="rd-action-grid"
                     style={{ display: 'grid', gap: 8, marginTop: 6, gridTemplateColumns: '1fr 1fr' }}
@@ -644,7 +650,7 @@ export default function RaceDirectorApprovalPage() {
                         cursor: approvalMode === 'AUTO' ? 'not-allowed' : 'pointer',
                       }}
                     >
-                      Approve
+                      Setujui
                     </button>
                     <button
                       disabled={approvalMode === 'AUTO'}
@@ -658,7 +664,7 @@ export default function RaceDirectorApprovalPage() {
                         cursor: approvalMode === 'AUTO' ? 'not-allowed' : 'pointer',
                       }}
                     >
-                      Reject
+                      Tolak
                     </button>
                   </div>
                 </div>
@@ -667,8 +673,8 @@ export default function RaceDirectorApprovalPage() {
           </section>
 
           <section className="public-panel-light">
-            <div style={{ fontWeight: 900, fontSize: 18 }}>Penalty Approvals</div>
-            {penalties.length === 0 && <div style={{ marginTop: 8 }}>No pending penalties.</div>}
+            <div style={{ fontWeight: 900, fontSize: 18 }}>Approval Penalty</div>
+            {penalties.length === 0 && <div style={{ marginTop: 8 }}>Tidak ada penalty pending.</div>}
             <div style={{ marginTop: 10, display: 'grid', gap: 10 }}>
               {sortedPenalties.map((p) => {
                 const rider = riderMap[p.rider_id]
@@ -690,9 +696,7 @@ export default function RaceDirectorApprovalPage() {
                   {p.note && <div style={{ fontSize: 12, color: '#333' }}>Note: {p.note}</div>}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontSize: 12, color: '#333' }}>{timeAgo(p.created_at)}</span>
-                    <span style={{ fontSize: 12, color: '#666' }}>{new Date(p.created_at).toLocaleString()}</span>
                   </div>
-                  <div style={{ fontSize: 11, color: '#666' }}>Rider ID: {p.rider_id}</div>
                   <div
                     className="rd-action-grid"
                     style={{ display: 'grid', gap: 8, marginTop: 6, gridTemplateColumns: '1fr 1fr' }}
@@ -709,7 +713,7 @@ export default function RaceDirectorApprovalPage() {
                         cursor: approvalMode === 'AUTO' ? 'not-allowed' : 'pointer',
                       }}
                     >
-                      Approve
+                      Setujui
                     </button>
                     <button
                       disabled={approvalMode === 'AUTO'}
@@ -723,7 +727,7 @@ export default function RaceDirectorApprovalPage() {
                         cursor: approvalMode === 'AUTO' ? 'not-allowed' : 'pointer',
                       }}
                     >
-                      Reject
+                      Tolak
                     </button>
                   </div>
                 </div>
@@ -733,7 +737,7 @@ export default function RaceDirectorApprovalPage() {
 
           <section className="public-panel-light">
             <div style={{ fontWeight: 900, fontSize: 18 }}>Moto Locking</div>
-            {motos.length === 0 && <div style={{ marginTop: 8 }}>No motos.</div>}
+            {motos.length === 0 && <div style={{ marginTop: 8 }}>Tidak ada moto.</div>}
             <div style={{ marginTop: 10, display: 'grid', gap: 10 }}>
               {categoriesSorted.map((cat) => {
                 const list = motosByCategory.get(cat.id) ?? []
@@ -822,14 +826,14 @@ export default function RaceDirectorApprovalPage() {
                                     width: 'fit-content',
                                   }}
                                 >
-                                  Race in progress
+                                  Race sedang berjalan
                                 </div>
                               )}
                               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                                 {showLockDisabled && (
                                   <button
                                     disabled
-                                    title="Moto must be LIVE/PROVISIONAL before locking."
+                                    title="Moto harus LIVE/PROVISIONAL sebelum bisa dikunci."
                                     style={{
                                       padding: '8px 12px',
                                       borderRadius: 10,
@@ -839,7 +843,7 @@ export default function RaceDirectorApprovalPage() {
                                       cursor: 'not-allowed',
                                     }}
                                   >
-                                    Lock
+                                    Kunci
                                   </button>
                                 )}
                                 {canLock && (
@@ -854,7 +858,7 @@ export default function RaceDirectorApprovalPage() {
                                       cursor: 'pointer',
                                     }}
                                   >
-                                    Lock
+                                    Kunci
                                   </button>
                                 )}
                                 {canUnlock && (
@@ -870,7 +874,7 @@ export default function RaceDirectorApprovalPage() {
                                       cursor: 'pointer',
                                     }}
                                   >
-                                    Unlock
+                                    Buka Kunci
                                   </button>
                                 )}
                               </div>
@@ -905,7 +909,7 @@ export default function RaceDirectorApprovalPage() {
             </div>
             {showAuditLogs && (
               <>
-                {auditLogs.length === 0 && <div style={{ marginTop: 8 }}>No audit entries.</div>}
+                {auditLogs.length === 0 && <div style={{ marginTop: 8 }}>Belum ada log audit.</div>}
                 <div style={{ marginTop: 10, display: 'grid', gap: 10 }}>
                   {auditLogs.map((log) => (
                     <div
@@ -923,11 +927,11 @@ export default function RaceDirectorApprovalPage() {
                         {new Date(log.created_at).toLocaleString()} - {log.action_type}
                       </div>
                       <div style={{ fontSize: 12, color: '#333' }}>
-                        By: {log.performed_by}
+                        Oleh: {log.performed_by}
                         {log.rider_id ? ` - Rider: ${log.rider_id}` : ''}
                         {log.moto_id ? ` - Moto: ${log.moto_id}` : ''}
                       </div>
-                      {log.reason && <div style={{ fontSize: 12, color: '#333' }}>Reason: {log.reason}</div>}
+                      {log.reason && <div style={{ fontSize: 12, color: '#333' }}>Alasan: {log.reason}</div>}
                     </div>
                   ))}
                 </div>
@@ -940,9 +944,9 @@ export default function RaceDirectorApprovalPage() {
         <div className="fixed inset-0 z-[80] grid place-items-center bg-slate-900/55 p-4">
           <div className="w-full max-w-[560px] rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl">
             <div className="grid gap-2">
-              <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Decision Note</p>
+              <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Catatan Keputusan</p>
               <h2 className="text-xl font-black text-slate-900">
-                {decisionModal.decision === 'APPROVE' ? 'Approve' : 'Reject'}{' '}
+                {decisionModal.decision === 'APPROVE' ? 'Setujui' : 'Tolak'}{' '}
                 {decisionModal.type === 'status' ? 'Status' : 'Penalty'}
               </h2>
               <p className="text-sm font-semibold text-slate-600">
@@ -950,13 +954,14 @@ export default function RaceDirectorApprovalPage() {
               </p>
             </div>
             <div className="mt-4 grid gap-2">
-              <label className="text-xs font-extrabold uppercase tracking-[0.1em] text-slate-500">Reason (optional)</label>
+              <label className="text-xs font-extrabold uppercase tracking-[0.1em] text-slate-500">Alasan (opsional)</label>
               <textarea
                 value={decisionModal.reason}
                 onChange={(e) =>
                   setDecisionModal((prev) => (prev ? { ...prev, reason: e.target.value } : prev))
                 }
                 rows={4}
+                disabled={decisionSubmitting}
                 className="w-full resize-y rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 outline-none ring-0 focus:border-slate-500"
                 placeholder="Contoh: rider tidak hadir di gate, bukti dari checker..."
               />
@@ -965,20 +970,24 @@ export default function RaceDirectorApprovalPage() {
               <button
                 type="button"
                 onClick={() => setDecisionModal(null)}
+                disabled={decisionSubmitting}
                 className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.1em] text-slate-700 transition-colors hover:bg-slate-100"
               >
-                Cancel
+                Batal
               </button>
               <button
                 type="button"
                 onClick={handleSubmitDecision}
+                disabled={decisionSubmitting}
                 className={`rounded-xl border px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.1em] transition-colors ${
                   decisionModal.decision === 'APPROVE'
                     ? 'border-emerald-300 bg-emerald-500 text-white hover:bg-emerald-400'
                     : 'border-rose-300 bg-rose-500 text-white hover:bg-rose-400'
                 }`}
               >
-                Confirm {decisionModal.decision === 'APPROVE' ? 'Approve' : 'Reject'}
+                {decisionSubmitting
+                  ? 'Memproses...'
+                  : `Konfirmasi ${decisionModal.decision === 'APPROVE' ? 'Setujui' : 'Tolak'}`}
               </button>
             </div>
           </div>
