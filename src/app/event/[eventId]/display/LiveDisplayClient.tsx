@@ -261,7 +261,7 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
   }
 
   return (
-    <div className="public-page overflow-x-hidden !bg-slate-100 !text-slate-900">
+    <div className="public-page !bg-slate-100 !text-slate-900">
       <PublicTopbar theme="dark" />
       <main className="public-main max-w-[1500px]">
         <section className="public-hero border border-slate-200 !bg-white shadow-xl">
