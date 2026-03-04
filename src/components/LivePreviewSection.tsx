@@ -202,7 +202,7 @@ export default function LivePreviewSection() {
                 Geser kiri/kanan untuk lihat semua kolom.
               </div>
               <div className="table-scroll-x">
-                <table className="table-striped w-full min-w-[640px] border-collapse">
+                <table className="w-full min-w-[640px] border-collapse">
                   <thead>
                     <tr className="border-b border-slate-700">
                       <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-300 sm:px-4">
@@ -224,28 +224,30 @@ export default function LivePreviewSection() {
                   </thead>
                   <tbody>
                     {loading ? (
-                      <tr className="border-b border-slate-700/60">
+                      <tr className="border-b border-slate-700/60 bg-slate-900/55">
                         <td colSpan={5} className="px-4 py-6 text-center text-sm font-semibold text-slate-300">
                           Loading live data...
                         </td>
                       </tr>
                     ) : error ? (
-                      <tr className="border-b border-slate-700/60">
+                      <tr className="border-b border-slate-700/60 bg-slate-900/55">
                         <td colSpan={5} className="px-4 py-6 text-center text-sm font-semibold text-rose-300">
                           {error}
                         </td>
                       </tr>
                     ) : rows.length === 0 ? (
-                      <tr className="border-b border-slate-700/60">
+                      <tr className="border-b border-slate-700/60 bg-slate-900/55">
                         <td colSpan={5} className="px-4 py-6 text-center text-sm font-semibold text-slate-300">
                           {emptyLabel}
                         </td>
                       </tr>
                     ) : (
-                      rows.map((row) => (
+                      rows.map((row, idx) => (
                         <tr
                           key={`${row.position}-${row.riderName}`}
-                          className="border-b border-slate-700/60 transition-colors duration-200 hover:bg-slate-700/40"
+                          className={`border-b border-slate-700/60 transition-colors duration-200 hover:bg-slate-700/55 ${
+                            idx % 2 === 0 ? 'bg-slate-900/45' : 'bg-slate-800/45'
+                          }`}
                         >
                           <td className="px-3 py-3 text-sm font-semibold text-white sm:px-4 sm:py-4">{row.position}</td>
                           <td className="px-3 py-3 text-sm font-medium text-slate-100 sm:px-4 sm:py-4">{row.riderName}</td>
