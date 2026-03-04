@@ -50,6 +50,9 @@ type RiderItem = {
   no_plate_display: string
 }
 
+const normalizeRole = (value: string | null | undefined) => String(value ?? '').trim().toUpperCase()
+const getErrorMessage = (err: unknown) => (err instanceof Error ? err.message : 'Request failed')
+
 export default function RaceDirectorApprovalPage() {
   const [eventId, setEventId] = useState('')
   const [events, setEvents] = useState<EventItem[]>([])
@@ -80,6 +83,13 @@ export default function RaceDirectorApprovalPage() {
   const [gateCategoryId, setGateCategoryId] = useState<string>('ALL')
   const [openCategoryId, setOpenCategoryId] = useState<string | null>(null)
   const [showAuditLogs, setShowAuditLogs] = useState(false)
+  const [actionNotice, setActionNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const [decisionModal, setDecisionModal] = useState<{
+    type: 'status' | 'penalty'
+    id: string
+    decision: 'APPROVE' | 'REJECT'
+    reason: string
+  } | null>(null)
   const [auditLogs, setAuditLogs] = useState<
     Array<{
       id: string
@@ -92,6 +102,7 @@ export default function RaceDirectorApprovalPage() {
     }>
   >([])
   const isFetchingRef = useRef(false)
+  const noticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const apiFetch = useCallback(async (url: string, options: RequestInit = {}) => {
     const { data } = await supabase.auth.getSession()
@@ -105,14 +116,32 @@ export default function RaceDirectorApprovalPage() {
     return json
   }, [])
 
+  const showNotice = useCallback((type: 'success' | 'error', message: string) => {
+    setActionNotice({ type, message })
+    if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current)
+    noticeTimerRef.current = setTimeout(() => {
+      setActionNotice(null)
+    }, 4200)
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current)
+    }
+  }, [])
+
   useEffect(() => {
     const loadEvents = async () => {
-      const res = await apiFetch('/api/jury/events?status=LIVE,UPCOMING')
-      const rows = (res.data ?? []) as EventItem[]
-      setEvents(rows)
-      if (!eventId && rows.length) {
-        const live = rows.find((ev) => String(ev.status).toUpperCase() === 'LIVE')
-        setEventId((live ?? rows[0]).id)
+      try {
+        const res = await apiFetch('/api/jury/events?status=LIVE,UPCOMING')
+        const rows = (res.data ?? []) as EventItem[]
+        setEvents(rows)
+        if (!eventId && rows.length) {
+          const live = rows.find((ev) => String(ev.status).toUpperCase() === 'LIVE')
+          setEventId((live ?? rows[0]).id)
+        }
+      } catch (err: unknown) {
+        showNotice('error', getErrorMessage(err))
       }
     }
     loadEvents()
@@ -127,17 +156,27 @@ export default function RaceDirectorApprovalPage() {
       const r =
         (typeof meta.role === 'string' ? meta.role : null) ||
         (typeof appMeta.role === 'string' ? appMeta.role : null)
-      setRole(r)
+      setRole(normalizeRole(r))
     }
     loadRole()
   }, [])
 
   const loadEventData = useCallback(
-    async (silent = false) => {
-      if (!eventId || isFetchingRef.current) return
+    async ({
+      silent = false,
+      includeHeavy = true,
+      showRefreshing = false,
+      notifyOnError = false,
+    }: {
+      silent?: boolean
+      includeHeavy?: boolean
+      showRefreshing?: boolean
+      notifyOnError?: boolean
+    } = {}) => {
+      if (!eventId || isFetchingRef.current) return false
       isFetchingRef.current = true
-      if (silent) setRefreshing(true)
-      else setLoading(true)
+      if (!silent) setLoading(true)
+      if (showRefreshing) setRefreshing(true)
       try {
         const fetchAllRiders = async () => {
           const all: RiderItem[] = []
@@ -161,22 +200,22 @@ export default function RaceDirectorApprovalPage() {
           return map
         }
 
-        const [approvalRes, modeRes, motoRes, auditRes, lockRes, catRes, gateRes, riderRes] = await Promise.all([
+        const [approvalRes, modeRes, motoRes, lockRes, catRes, gateRes, auditRes, riderRes] = await Promise.all([
           apiFetch(`/api/race-director/approvals?event_id=${eventId}`),
           apiFetch(`/api/race-director/mode?event_id=${eventId}`),
           fetch(`/api/motos?event_id=${eventId}`),
-          apiFetch(`/api/race-director/audit?event_id=${eventId}`),
           apiFetch(`/api/jury/events/${eventId}/locks`),
           fetch(`/api/events/${eventId}/categories`),
           apiFetch(`/api/race-director/events/${eventId}/gate-status`),
-          fetchAllRiders(),
+          includeHeavy ? apiFetch(`/api/race-director/audit?event_id=${eventId}`) : Promise.resolve(null),
+          includeHeavy ? fetchAllRiders() : Promise.resolve(null),
         ])
+
         setStatusUpdates(approvalRes.status_updates ?? [])
         setPenalties(approvalRes.penalties ?? [])
         setApprovalMode((modeRes.data?.approval_mode as 'AUTO' | 'DIRECTOR') ?? 'AUTO')
         const motoJson = await motoRes.json()
         setMotos(motoJson.data ?? [])
-        setAuditLogs(auditRes.data ?? [])
         const lockList = (lockRes.data ?? []) as Array<{ moto_id: string }>
         const map: Record<string, boolean> = {}
         for (const row of lockList) map[row.moto_id] = true
@@ -184,27 +223,52 @@ export default function RaceDirectorApprovalPage() {
         const catJson = await catRes.json()
         setCategories((catJson.data ?? []) as CategoryItem[])
         setGateStatus(gateRes.data ?? [])
-        setRiderMap(riderRes ?? {})
+        if (includeHeavy) {
+          setAuditLogs(
+            (auditRes as {
+              data?: Array<{
+                id: string
+                action_type: string
+                performed_by: string
+                rider_id: string | null
+                moto_id: string | null
+                reason: string | null
+                created_at: string
+              }>
+            } | null)?.data ?? []
+          )
+          setRiderMap((riderRes as Record<string, RiderItem> | null) ?? {})
+        }
         setLastSyncAt(new Date().toLocaleTimeString())
+        return true
+      } catch (err: unknown) {
+        if (notifyOnError) showNotice('error', getErrorMessage(err))
+        return false
       } finally {
-        if (silent) setRefreshing(false)
-        else setLoading(false)
+        if (!silent) setLoading(false)
+        if (showRefreshing) setRefreshing(false)
         isFetchingRef.current = false
       }
     },
-    [apiFetch, eventId]
+    [apiFetch, eventId, showNotice]
   )
 
   useEffect(() => {
-    loadEventData(false)
+    void loadEventData({ silent: false, includeHeavy: true, notifyOnError: true })
   }, [loadEventData])
 
   useEffect(() => {
     if (!eventId) return
-    const timer = setInterval(() => {
-      loadEventData(true)
+    const lightTimer = setInterval(() => {
+      void loadEventData({ silent: true, includeHeavy: false })
     }, 5000)
-    return () => clearInterval(timer)
+    const heavyTimer = setInterval(() => {
+      void loadEventData({ silent: true, includeHeavy: true })
+    }, 45000)
+    return () => {
+      clearInterval(lightTimer)
+      clearInterval(heavyTimer)
+    }
   }, [eventId, loadEventData])
 
   const categoriesSorted = useMemo(() => {
@@ -268,28 +332,62 @@ export default function RaceDirectorApprovalPage() {
     return `${sec}s ago`
   }
 
-  const handleDecision = async (type: 'status' | 'penalty', id: string, decision: 'APPROVE' | 'REJECT') => {
-    const reason = prompt('Reason (optional):') ?? ''
-    if (type === 'status') {
-      await apiFetch('/api/race-director/approvals/status', {
-        method: 'POST',
-        body: JSON.stringify({ update_id: id, decision, reason }),
-      })
-    } else {
-      await apiFetch('/api/race-director/approvals/penalty', {
-        method: 'POST',
-        body: JSON.stringify({ penalty_id: id, decision, reason }),
-      })
+  const openDecisionModal = (type: 'status' | 'penalty', id: string, decision: 'APPROVE' | 'REJECT') => {
+    if (approvalMode === 'AUTO') return
+    setDecisionModal({ type, id, decision, reason: '' })
+  }
+
+  const handleSubmitDecision = async () => {
+    if (!decisionModal) return
+    const payloadReason = decisionModal.reason.trim()
+    try {
+      if (decisionModal.type === 'status') {
+        await apiFetch('/api/race-director/approvals/status', {
+          method: 'POST',
+          body: JSON.stringify({
+            update_id: decisionModal.id,
+            decision: decisionModal.decision,
+            reason: payloadReason || null,
+          }),
+        })
+      } else {
+        await apiFetch('/api/race-director/approvals/penalty', {
+          method: 'POST',
+          body: JSON.stringify({
+            penalty_id: decisionModal.id,
+            decision: decisionModal.decision,
+            reason: payloadReason || null,
+          }),
+        })
+      }
+      const refreshed = await loadEventData({ silent: true, includeHeavy: false })
+      setDecisionModal(null)
+      if (refreshed) {
+        showNotice(
+          'success',
+          `${decisionModal.type === 'status' ? 'Status' : 'Penalty'} ${
+            decisionModal.decision === 'APPROVE' ? 'approved' : 'rejected'
+          }.`
+        )
+      } else {
+        showNotice('error', 'Keputusan tersimpan, tapi refresh data gagal.')
+      }
+    } catch (err: unknown) {
+      showNotice('error', getErrorMessage(err))
     }
-    await loadEventData(true)
   }
 
   const handleSaveMode = async () => {
-    await apiFetch('/api/race-director/mode', {
-      method: 'PATCH',
-      body: JSON.stringify({ event_id: eventId, approval_mode: approvalMode }),
-    })
-    await loadEventData(true)
+    try {
+      await apiFetch('/api/race-director/mode', {
+        method: 'PATCH',
+        body: JSON.stringify({ event_id: eventId, approval_mode: approvalMode }),
+      })
+      const refreshed = await loadEventData({ silent: true, includeHeavy: false })
+      showNotice(refreshed ? 'success' : 'error', refreshed ? 'Approval mode updated.' : 'Mode tersimpan, refresh gagal.')
+    } catch (err: unknown) {
+      showNotice('error', getErrorMessage(err))
+    }
   }
 
   const handleLock = async (motoId: string, lock: boolean) => {
@@ -299,16 +397,25 @@ export default function RaceDirectorApprovalPage() {
       )
       if (!ok) return
     }
-    const targetStatus = lock ? 'LOCKED' : 'PROVISIONAL'
-    await apiFetch(`/api/motos/${motoId}/status`, {
-      method: 'POST',
-      body: JSON.stringify({ status: targetStatus }),
-    })
-    await loadEventData(true)
+    try {
+      const targetStatus = lock ? 'LOCKED' : 'PROVISIONAL'
+      await apiFetch(`/api/motos/${motoId}/status`, {
+        method: 'POST',
+        body: JSON.stringify({ status: targetStatus }),
+      })
+      const refreshed = await loadEventData({ silent: true, includeHeavy: false })
+      showNotice(
+        refreshed ? 'success' : 'error',
+        refreshed ? (lock ? 'Moto locked.' : 'Moto unlocked.') : 'Status moto tersimpan, refresh gagal.'
+      )
+    } catch (err: unknown) {
+      showNotice('error', getErrorMessage(err))
+    }
   }
 
   const handleManualRefresh = async () => {
-    await loadEventData(true)
+    const ok = await loadEventData({ silent: true, includeHeavy: true, showRefreshing: true, notifyOnError: true })
+    if (ok) showNotice('success', 'Data updated.')
   }
 
   return (
@@ -375,6 +482,27 @@ export default function RaceDirectorApprovalPage() {
             </div>
           </div>
         </section>
+
+        {actionNotice && (
+          <section
+            className={`rounded-xl border px-4 py-3 text-sm font-bold ${
+              actionNotice.type === 'error'
+                ? 'border-rose-300 bg-rose-100 text-rose-800'
+                : 'border-emerald-300 bg-emerald-100 text-emerald-800'
+            }`}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <span>{actionNotice.message}</span>
+              <button
+                type="button"
+                onClick={() => setActionNotice(null)}
+                className="rounded-full border border-current px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-[0.08em]"
+              >
+                Close
+              </button>
+            </div>
+          </section>
+        )}
 
         {loading && (
           <div className="public-panel-light">
@@ -506,7 +634,7 @@ export default function RaceDirectorApprovalPage() {
                   >
                     <button
                       disabled={approvalMode === 'AUTO'}
-                      onClick={() => handleDecision('status', u.id, 'APPROVE')}
+                      onClick={() => openDecisionModal('status', u.id, 'APPROVE')}
                       style={{
                         padding: '8px 12px',
                         borderRadius: 10,
@@ -520,7 +648,7 @@ export default function RaceDirectorApprovalPage() {
                     </button>
                     <button
                       disabled={approvalMode === 'AUTO'}
-                      onClick={() => handleDecision('status', u.id, 'REJECT')}
+                      onClick={() => openDecisionModal('status', u.id, 'REJECT')}
                       style={{
                         padding: '8px 12px',
                         borderRadius: 10,
@@ -571,7 +699,7 @@ export default function RaceDirectorApprovalPage() {
                   >
                     <button
                       disabled={approvalMode === 'AUTO'}
-                      onClick={() => handleDecision('penalty', p.id, 'APPROVE')}
+                      onClick={() => openDecisionModal('penalty', p.id, 'APPROVE')}
                       style={{
                         padding: '8px 12px',
                         borderRadius: 10,
@@ -585,7 +713,7 @@ export default function RaceDirectorApprovalPage() {
                     </button>
                     <button
                       disabled={approvalMode === 'AUTO'}
-                      onClick={() => handleDecision('penalty', p.id, 'REJECT')}
+                      onClick={() => openDecisionModal('penalty', p.id, 'REJECT')}
                       style={{
                         padding: '8px 12px',
                         borderRadius: 10,
@@ -643,7 +771,7 @@ export default function RaceDirectorApprovalPage() {
                         {list.map((m) => {
                           const status = (m.status ?? '').toUpperCase()
                           const isLocked = status === 'LOCKED'
-                          const canUnlock = isLocked && role === 'super_admin'
+                          const canUnlock = isLocked && role === 'SUPER_ADMIN'
                           const canLock = status === 'PROVISIONAL' || status === 'PROTEST_REVIEW'
                           const showLockDisabled = status === 'UPCOMING'
                           return (
@@ -808,6 +936,54 @@ export default function RaceDirectorApprovalPage() {
           </section>
         </div>
       </main>
+      {decisionModal && (
+        <div className="fixed inset-0 z-[80] grid place-items-center bg-slate-900/55 p-4">
+          <div className="w-full max-w-[560px] rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl">
+            <div className="grid gap-2">
+              <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Decision Note</p>
+              <h2 className="text-xl font-black text-slate-900">
+                {decisionModal.decision === 'APPROVE' ? 'Approve' : 'Reject'}{' '}
+                {decisionModal.type === 'status' ? 'Status' : 'Penalty'}
+              </h2>
+              <p className="text-sm font-semibold text-slate-600">
+                Tambahkan alasan (opsional) lalu konfirmasi aksi.
+              </p>
+            </div>
+            <div className="mt-4 grid gap-2">
+              <label className="text-xs font-extrabold uppercase tracking-[0.1em] text-slate-500">Reason (optional)</label>
+              <textarea
+                value={decisionModal.reason}
+                onChange={(e) =>
+                  setDecisionModal((prev) => (prev ? { ...prev, reason: e.target.value } : prev))
+                }
+                rows={4}
+                className="w-full resize-y rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 outline-none ring-0 focus:border-slate-500"
+                placeholder="Contoh: rider tidak hadir di gate, bukti dari checker..."
+              />
+            </div>
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDecisionModal(null)}
+                className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.1em] text-slate-700 transition-colors hover:bg-slate-100"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSubmitDecision}
+                className={`rounded-xl border px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.1em] transition-colors ${
+                  decisionModal.decision === 'APPROVE'
+                    ? 'border-emerald-300 bg-emerald-500 text-white hover:bg-emerald-400'
+                    : 'border-rose-300 bg-rose-500 text-white hover:bg-rose-400'
+                }`}
+              >
+                Confirm {decisionModal.decision === 'APPROVE' ? 'Approve' : 'Reject'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <style jsx>{`
         @media (max-width: 640px) {
           .rd-action-grid {
