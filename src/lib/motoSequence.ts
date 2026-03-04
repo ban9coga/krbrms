@@ -1,6 +1,7 @@
 type MotoLike = {
   moto_name?: string | null
   moto_order?: number | null
+  category_id?: string | null
 }
 
 type ParsedMoto = {
@@ -19,6 +20,14 @@ export const parseMotoSequence = (name?: string | null): ParsedMoto | null => {
 }
 
 export const compareMotoSequence = (a: MotoLike, b: MotoLike) => {
+  const aCategory = typeof a.category_id === 'string' ? a.category_id : null
+  const bCategory = typeof b.category_id === 'string' ? b.category_id : null
+  if (aCategory && bCategory && aCategory !== bCategory) {
+    const ao = typeof a.moto_order === 'number' ? a.moto_order : 0
+    const bo = typeof b.moto_order === 'number' ? b.moto_order : 0
+    return ao - bo
+  }
+
   const parsedA = parseMotoSequence(a.moto_name)
   const parsedB = parseMotoSequence(b.moto_name)
   if (parsedA && parsedB) {
