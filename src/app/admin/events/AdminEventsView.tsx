@@ -27,6 +27,7 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
     location: '',
     event_date: '',
     status: 'UPCOMING' as EventItem['status'],
+    visibility: 'PUBLIC' as 'PUBLIC' | 'INTERNAL',
   })
 
   const getErrorMessage = (err: unknown) => (err instanceof Error ? err.message : 'Request failed')
@@ -64,8 +65,15 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
     }
     setCreating(true)
     try {
-      await apiFetch('/api/events', { method: 'POST', body: JSON.stringify(form) })
-      setForm({ name: '', location: '', event_date: '', status: 'UPCOMING' })
+      const payload = {
+        name: form.name,
+        location: form.location,
+        event_date: form.event_date,
+        status: form.status,
+        is_public: form.visibility === 'PUBLIC',
+      }
+      await apiFetch('/api/events', { method: 'POST', body: JSON.stringify(payload) })
+      setForm({ name: '', location: '', event_date: '', status: 'UPCOMING', visibility: 'PUBLIC' })
       await loadEvents()
     } catch (err: unknown) {
       alert(getErrorMessage(err))
@@ -217,6 +225,19 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
                 <option value="FINISHED">FINISHED</option>
               </select>
             </div>
+            <div style={{ display: 'grid', gap: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                Event Type
+              </div>
+              <select
+                value={form.visibility}
+                onChange={(e) => setForm({ ...form, visibility: e.target.value as 'PUBLIC' | 'INTERNAL' })}
+                style={{ padding: 12, borderRadius: 12, border: '1px solid #cbd5e1' }}
+              >
+                <option value="PUBLIC">Public Event</option>
+                <option value="INTERNAL">Internal Event</option>
+              </select>
+            </div>
 
             <button
               type="button"
@@ -282,11 +303,21 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: 10 }}>
               <div>
                 <div style={{ fontWeight: 950, fontSize: 18 }}>{ev.name}</div>
-                {ev.is_public === false && (
-                  <div style={{ marginTop: 4, fontSize: 12, fontWeight: 900, color: '#b40000' }}>
-                    Hidden from public
-                  </div>
-                )}
+                <div
+                  style={{
+                    marginTop: 4,
+                    width: 'fit-content',
+                    padding: '3px 8px',
+                    borderRadius: 999,
+                    border: `1px solid ${ev.is_public === false ? '#fca5a5' : '#86efac'}`,
+                    background: ev.is_public === false ? '#fff1f2' : '#f0fdf4',
+                    color: ev.is_public === false ? '#9f1239' : '#166534',
+                    fontSize: 12,
+                    fontWeight: 900,
+                  }}
+                >
+                  {ev.is_public === false ? 'Internal Event' : 'Public Event'}
+                </div>
                 <div style={{ marginTop: 2, color: '#334155', fontWeight: 700 }}>
                   {ev.location || '-'} | {ev.event_date}
                 </div>
