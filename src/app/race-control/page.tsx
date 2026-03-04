@@ -108,6 +108,7 @@ export default function RaceControlPage() {
         minHeight: '100vh',
         background: '#eaf7ee',
         color: '#111',
+        overflowX: 'hidden',
         padding: '24px',
       }}
     >

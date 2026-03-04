@@ -540,6 +540,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           style={{
             flex: 1,
             minWidth: 0,
+            overflowX: 'hidden',
             padding: '24px 20px',
             marginLeft: isMobile ? 0 : sidebarWidth,
             color: '#0f172a',

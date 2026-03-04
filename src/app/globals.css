@@ -10,11 +10,11 @@
 
 @layer components {
   .public-page {
-    @apply min-h-screen bg-slate-100 text-slate-900;
+    @apply min-h-screen overflow-x-hidden bg-slate-100 text-slate-900;
   }
 
   .public-main {
-    @apply mx-auto grid w-full max-w-[1400px] gap-4 px-3 py-5 sm:px-5 md:px-7 md:py-8;
+    @apply mx-auto grid min-w-0 w-full max-w-[1400px] gap-4 px-3 py-5 sm:px-5 md:px-7 md:py-8;
   }
 
   .public-hero {
@@ -22,11 +22,11 @@
   }
 
   .public-panel-dark {
-    @apply rounded-[1.5rem] border border-slate-700/80 bg-slate-900/80 p-4 text-slate-100 shadow-[0_20px_44px_rgba(2,6,23,0.26)] backdrop-blur-sm sm:p-6;
+    @apply min-w-0 overflow-x-hidden rounded-[1.5rem] border border-slate-700/80 bg-slate-900/80 p-4 text-slate-100 shadow-[0_20px_44px_rgba(2,6,23,0.26)] backdrop-blur-sm sm:p-6;
   }
 
   .public-panel-light {
-    @apply rounded-[1.5rem] border border-slate-200 bg-white/90 p-4 shadow-[0_14px_34px_rgba(15,23,42,0.1)] sm:p-6;
+    @apply min-w-0 overflow-x-hidden rounded-[1.5rem] border border-slate-200 bg-white/90 p-4 shadow-[0_14px_34px_rgba(15,23,42,0.1)] sm:p-6;
   }
 
   .public-filter {
@@ -42,7 +42,7 @@
   }
 
   .public-table-wrap {
-    @apply max-w-full overflow-x-auto rounded-2xl border border-slate-200 bg-white/95;
+    @apply w-full max-w-full overflow-x-auto rounded-2xl border border-slate-200 bg-white/95;
     overflow-y: hidden;
     overscroll-behavior-x: contain;
     -webkit-overflow-scrolling: touch;
@@ -50,7 +50,7 @@
   }
 
   .table-scroll-x {
-    @apply max-w-full overflow-x-auto;
+    @apply w-full max-w-full overflow-x-auto;
     overflow-y: hidden;
     overscroll-behavior-x: contain;
     -webkit-overflow-scrolling: touch;
