@@ -465,6 +465,9 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
             <div style={{ padding: '10px 12px', borderBottom: '2px solid #111', fontWeight: 900 }}>
               Batch {batch.batch_index}
             </div>
+            <div className="table-mobile-hint" style={{ margin: '8px 12px 0 12px' }}>
+              Geser kiri/kanan untuk lihat semua kolom.
+            </div>
             <div
               className="table-scroll-x"
               style={{
@@ -472,7 +475,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
                 WebkitOverflowScrolling: 'touch',
               }}
             >
-              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 960 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 860 }}>
                 <thead>
                   <tr style={{ background: '#f5f5f5', textAlign: 'left' }}>
                     {[

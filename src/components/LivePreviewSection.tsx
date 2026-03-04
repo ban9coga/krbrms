@@ -198,6 +198,9 @@ export default function LivePreviewSection() {
             )}
 
             <div className="mx-auto mt-10 w-full rounded-3xl border border-slate-700/70 bg-slate-900/55 p-3 backdrop-blur-sm sm:mt-12 sm:p-5 md:p-7">
+              <div className="table-mobile-hint text-slate-300 before:border-slate-500/70 before:bg-slate-700/60 before:text-slate-200">
+                Geser kiri/kanan untuk lihat semua kolom.
+              </div>
               <div className="table-scroll-x">
                 <table className="w-full min-w-[640px] border-collapse">
                   <thead>

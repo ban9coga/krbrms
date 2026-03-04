@@ -346,8 +346,9 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
                   <h2 className="mb-3 text-lg font-black uppercase tracking-[0.08em] text-slate-900">
                     Batch {batch.batch_index} - Lineup
                   </h2>
+                  <div className="table-mobile-hint">Geser kiri/kanan untuk lihat semua kolom.</div>
                   <div className="public-table-wrap !border-slate-200 !bg-white">
-                    <table className="public-table text-[11px] sm:text-xs md:text-sm" style={{ minWidth: 900 }}>
+                    <table className="public-table text-[11px] sm:text-xs md:text-sm" style={{ minWidth: 820 }}>
                       <thead>
                         <tr className="bg-slate-100 text-left text-[11px] font-black uppercase tracking-[0.12em] text-slate-600">
                           {['Gate M1', 'Gate M2', 'Gate M3', 'Foto', 'Nama Peserta', 'No Plat', 'Komunitas'].map((h) => (
@@ -393,8 +394,9 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
                         Live Update
                       </span>
                     </div>
+                    <div className="table-mobile-hint">Geser kiri/kanan untuk lihat semua kolom.</div>
                     <div className="public-table-wrap !border-slate-200 !bg-white">
-                      <table className="public-table text-[11px] sm:text-xs md:text-sm" style={{ minWidth: 1220 }}>
+                      <table className="public-table text-[11px] sm:text-xs md:text-sm" style={{ minWidth: 1020 }}>
                         <thead>
                           <tr className="bg-slate-100 text-left text-[11px] font-black uppercase tracking-[0.12em] text-slate-600">
                             {[
@@ -462,8 +464,10 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
                   Belum ada rider yang perlu bersiap.
                 </div>
               ) : (
-                <div className="public-table-wrap !border-slate-200 !bg-white">
-                  <table className="public-table text-[11px] sm:text-xs md:text-sm" style={{ minWidth: 760 }}>
+                <>
+                  <div className="table-mobile-hint">Geser kiri/kanan untuk lihat semua kolom.</div>
+                  <div className="public-table-wrap !border-slate-200 !bg-white">
+                    <table className="public-table text-[11px] sm:text-xs md:text-sm" style={{ minWidth: 680 }}>
                     <thead>
                       <tr className="bg-slate-100 text-left text-[11px] font-black uppercase tracking-[0.12em] text-slate-600">
                         {['Antrian', 'Gate', 'Foto', 'No Plat', 'Nama Peserta', 'Komunitas'].map((h) => (
@@ -488,8 +492,9 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
                         </tr>
                       ))}
                     </tbody>
-                  </table>
-                </div>
+                    </table>
+                  </div>
+                </>
               )}
             </section>
           </>

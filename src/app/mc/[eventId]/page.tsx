@@ -144,27 +144,30 @@ export default function McLivePage() {
           )}
 
           {!loading && ranking.length > 0 && (
-            <div className="public-table-wrap">
-              <table className="public-table" style={{ minWidth: 640 }}>
-                <thead>
-                  <tr>
-                    {['Rank', 'Plate', 'Rider', 'Total Point'].map((label) => (
-                      <th key={label}>{label}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {ranking.map((row, idx) => (
-                    <tr key={row.rider_id}>
-                      <td className="font-extrabold text-slate-900">{idx + 1}</td>
-                      <td>{row.plate}</td>
-                      <td className="font-extrabold text-slate-900">{row.rider_name}</td>
-                      <td className="font-extrabold text-sky-700">{row.total_point ?? '-'}</td>
+            <>
+              <div className="table-mobile-hint">Geser kiri/kanan untuk lihat semua kolom.</div>
+              <div className="public-table-wrap">
+                <table className="public-table" style={{ minWidth: 640 }}>
+                  <thead>
+                    <tr>
+                      {['Rank', 'Plate', 'Rider', 'Total Point'].map((label) => (
+                        <th key={label}>{label}</th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {ranking.map((row, idx) => (
+                      <tr key={row.rider_id}>
+                        <td className="font-extrabold text-slate-900">{idx + 1}</td>
+                        <td>{row.plate}</td>
+                        <td className="font-extrabold text-slate-900">{row.rider_name}</td>
+                        <td className="font-extrabold text-sky-700">{row.total_point ?? '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
 
           {error && <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">{error}</div>}

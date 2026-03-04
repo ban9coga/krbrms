@@ -179,8 +179,9 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                     Kualifikasi Moto
                   </span>
                 </div>
+                <div className="table-mobile-hint">Geser kiri/kanan untuk lihat semua kolom.</div>
                 <div className="public-table-wrap">
-                  <table className="public-table min-w-[980px] text-[11px] sm:text-xs md:text-sm">
+                  <table className="public-table min-w-[860px] text-[11px] sm:text-xs md:text-sm">
                     <thead>
                       <tr>
                         {[
@@ -240,8 +241,9 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                     Advanced Stage
                   </span>
                 </div>
+                <div className="table-mobile-hint">Geser kiri/kanan untuk lihat semua kolom.</div>
                 <div className="public-table-wrap">
-                  <table className="public-table min-w-[760px] text-[11px] sm:text-xs md:text-sm">
+                  <table className="public-table min-w-[680px] text-[11px] sm:text-xs md:text-sm">
                     <thead>
                       <tr>
                         {['Gate', 'Foto', 'Nama Peserta', 'No Plat', 'Komunitas', 'Point', 'Status'].map((h) => (

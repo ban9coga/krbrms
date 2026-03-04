@@ -176,6 +176,9 @@ export default function RaceControlPage() {
             <div style={{ background: '#0a7a1f', color: '#fff', padding: '10px 12px', fontWeight: 900 }}>
               {moto.moto_name} • {moto.category_label} • {moto.status}
             </div>
+            <div className="table-mobile-hint" style={{ margin: '8px 12px 0 12px' }}>
+              Geser kiri/kanan untuk lihat semua kolom.
+            </div>
             <div
               className="table-scroll-x"
               style={{
