@@ -176,7 +176,13 @@ export default function RaceControlPage() {
             <div style={{ background: '#0a7a1f', color: '#fff', padding: '10px 12px', fontWeight: 900 }}>
               {moto.moto_name} • {moto.category_label} • {moto.status}
             </div>
-            <div style={{ overflowX: 'auto' }}>
+            <div
+              className="table-scroll-x"
+              style={{
+                overscrollBehaviorX: 'contain',
+                WebkitOverflowScrolling: 'touch',
+              }}
+            >
               <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 600 }}>
                 <thead>
                   <tr style={{ background: '#f5f5f5', textAlign: 'left' }}>

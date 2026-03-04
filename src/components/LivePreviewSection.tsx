@@ -198,7 +198,7 @@ export default function LivePreviewSection() {
             )}
 
             <div className="mx-auto mt-10 w-full rounded-3xl border border-slate-700/70 bg-slate-900/55 p-3 backdrop-blur-sm sm:mt-12 sm:p-5 md:p-7">
-              <div className="overflow-x-auto">
+              <div className="table-scroll-x">
                 <table className="w-full min-w-[640px] border-collapse">
                   <thead>
                     <tr className="border-b border-slate-700">

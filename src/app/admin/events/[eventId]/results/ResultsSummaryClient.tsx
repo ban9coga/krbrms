@@ -465,7 +465,13 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
             <div style={{ padding: '10px 12px', borderBottom: '2px solid #111', fontWeight: 900 }}>
               Batch {batch.batch_index}
             </div>
-            <div style={{ overflowX: 'auto' }}>
+            <div
+              className="table-scroll-x"
+              style={{
+                overscrollBehaviorX: 'contain',
+                WebkitOverflowScrolling: 'touch',
+              }}
+            >
               <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 960 }}>
                 <thead>
                   <tr style={{ background: '#f5f5f5', textAlign: 'left' }}>

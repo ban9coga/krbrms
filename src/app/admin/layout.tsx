@@ -467,7 +467,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
       )}
 
-      <div style={{ display: 'flex' }}>
+      <div style={{ display: 'flex', minWidth: 0 }}>
         {!isMobile && (
           <aside
             style={{
@@ -539,6 +539,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <main
           style={{
             flex: 1,
+            minWidth: 0,
             padding: '24px 20px',
             marginLeft: isMobile ? 0 : sidebarWidth,
             color: '#0f172a',
