@@ -309,27 +309,39 @@ export default function JCPage() {
     [safetyRequirements]
   )
 
-  const penaltyRuleCodes = useMemo(() => new Set(penaltyRules.map((r) => r.code)), [penaltyRules])
+  const penaltyRuleCodeMap = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const rule of penaltyRules) {
+      const code = rule.code?.trim()
+      if (!code) continue
+      map.set(code.toUpperCase(), code)
+    }
+    return map
+  }, [penaltyRules])
 
   const isSafetyOk = (riderId: string) =>
     requiredSafety.every((item) => safetyChecks[riderId]?.[item.id] === true)
 
   const applySafetyPenalty = async (riderId: string, requirement: SafetyRequirement) => {
-    const ruleCode = requirement.penalty_code?.trim()
-    if (!ruleCode) {
+    const rawRuleCode = requirement.penalty_code?.trim()
+    if (!rawRuleCode) {
       return { applied: false as const, reason: `mapping penalty ${requirement.label} belum diset` }
     }
-    if (!penaltyRuleCodes.has(ruleCode)) {
-      return { applied: false as const, reason: `penalty code ${ruleCode} belum ada` }
+    const normalizedRuleCode = rawRuleCode.toUpperCase()
+    const resolvedRuleCode = penaltyRuleCodeMap.get(normalizedRuleCode)
+    if (!resolvedRuleCode) {
+      return { applied: false as const, reason: `penalty code ${rawRuleCode} belum ada` }
     }
     const existing = penaltiesByRider[riderId]
-    if (existing?.has(ruleCode)) return { applied: true as const, reason: null }
+    if (existing && Array.from(existing).some((code) => code.toUpperCase() === normalizedRuleCode)) {
+      return { applied: true as const, reason: null }
+    }
     await apiFetch(`/api/jury/riders/${riderId}/penalties`, {
       method: 'POST',
       body: JSON.stringify({
         event_id: eventId,
         stage: 'MOTO',
-        rule_code: ruleCode,
+        rule_code: resolvedRuleCode,
         note: `Missing ${requirement.label}`,
         moto_id: selectedMotoId,
       }),
@@ -337,7 +349,7 @@ export default function JCPage() {
     setPenaltiesByRider((prev) => {
       const next = { ...prev }
       const set = new Set(next[riderId] ?? [])
-      set.add(ruleCode)
+      set.add(resolvedRuleCode)
       next[riderId] = set
       return next
     })

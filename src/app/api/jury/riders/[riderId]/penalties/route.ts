@@ -3,15 +3,6 @@ import { adminClient } from '../../../../../../lib/auth'
 import { assertMotoEditable, assertMotoNotUnderProtest } from '../../../../../../lib/motoLock'
 import { requireJury } from '../../../../../../services/juryAuth'
 
-const getApprovalMode = async (eventId: string) => {
-  const { data } = await adminClient
-    .from('event_approval_modes')
-    .select('approval_mode')
-    .eq('event_id', eventId)
-    .maybeSingle()
-  return (data?.approval_mode as 'AUTO' | 'DIRECTOR') ?? 'AUTO'
-}
-
 const isLockedMoto = async (motoId?: string | null) => {
   if (!motoId) return false
   const { data } = await adminClient
@@ -57,8 +48,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ riderId
       return NextResponse.json({ error: err instanceof Error ? err.message : 'Moto under protest review.' }, { status: 409 })
     }
   }
-
-  const approvalMode = await getApprovalMode(event_id)
 
   const { data: rule, error: ruleError } = await adminClient
     .from('event_penalty_rules')
@@ -106,22 +95,23 @@ export async function POST(req: Request, { params }: { params: Promise<{ riderId
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
+  const now = new Date().toISOString()
   await adminClient.from('rider_penalty_approvals').insert([
     {
       penalty_id: data.id,
-      approval_status: approvalMode === 'AUTO' ? 'APPROVED' : 'PENDING',
-      approved_by: approvalMode === 'AUTO' ? 'SYSTEM' : null,
-      approved_at: approvalMode === 'AUTO' ? new Date().toISOString() : null,
+      approval_status: 'APPROVED',
+      approved_by: 'SYSTEM',
+      approved_at: now,
     },
   ])
 
   await adminClient.from('audit_log').insert([
     {
       action_type: 'PENALTY_APPROVAL',
-      performed_by: approvalMode === 'AUTO' ? 'SYSTEM' : auth.user.id,
+      performed_by: 'SYSTEM',
       rider_id: riderId,
       event_id,
-      reason: approvalMode === 'AUTO' ? 'AUTO mode: penalty applied' : 'Penalty submitted',
+      reason: 'BMX mode: penalty auto-approved',
     },
   ])
 
