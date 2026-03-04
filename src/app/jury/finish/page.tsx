@@ -156,15 +156,30 @@ export default function JuryFinishPage() {
         setParticipationByRider({})
         return
       }
-      const [res, statusRes] = await Promise.all([
+      const [res, statusRes, resultRes] = await Promise.all([
         apiFetch(`/api/jury/motos/${selectedMotoId}/riders`),
         apiFetch(`/api/jury/events/${eventId}/rider-status`),
+        apiFetch(`/api/jury/motos/${selectedMotoId}/results`),
       ])
       setRiders((res.data ?? []) as RiderItem[])
-      setFinishOrder([])
-      setDnfRiders([])
+      const existingResults = (resultRes.data ?? []) as Array<{
+        rider_id: string
+        finish_order?: number | null
+        result_status?: string | null
+      }>
+      const finishFromServer = [...existingResults]
+        .filter((r) => r.result_status === 'FINISH' && r.finish_order != null)
+        .sort((a, b) => Number(a.finish_order ?? 9999) - Number(b.finish_order ?? 9999))
+        .map((r) => r.rider_id)
+      const dnfFromServer = existingResults
+        .filter((r) => r.result_status === 'DNF')
+        .map((r) => r.rider_id)
+      setFinishOrder(finishFromServer)
+      setDnfRiders(dnfFromServer)
       setActions([])
-      setHasSubmitted(false)
+      const currentMotoStatus = motos.find((m) => m.id === selectedMotoId)?.status
+      const motoIsLive = isMotoLive(currentMotoStatus)
+      setHasSubmitted(!motoIsLive && existingResults.length > 0)
       const statusMap: Record<string, string> = {}
       for (const row of statusRes.data ?? []) {
         if (row?.rider_id && row?.participation_status) {
@@ -186,7 +201,7 @@ export default function JuryFinishPage() {
       }
     }
     loadRiders()
-  }, [eventId, selectedMotoId])
+  }, [eventId, selectedMotoId, motos])
 
   const categoryLabel = useMemo(() => {
     const map = new Map<string, string>()
@@ -310,6 +325,9 @@ export default function JuryFinishPage() {
         body: JSON.stringify({}),
       })
       setHasSubmitted(true)
+      setMotos((prev) =>
+        prev.map((m) => (m.id === selectedMoto.id ? { ...m, status: 'PROVISIONAL' } : m))
+      )
       if (selectedMoto) {
         const catLabel = categoryLabel.get(selectedMoto.category_id ?? '') ?? 'Unknown Category'
         alert(`Submitted: ${catLabel} | ${selectedMoto.moto_name}`)
@@ -334,6 +352,9 @@ export default function JuryFinishPage() {
       setDnfRiders([])
       setActions([])
       setHasSubmitted(false)
+      setMotos((prev) =>
+        prev.map((m) => (m.id === selectedMoto.id ? { ...m, status: 'LIVE' } : m))
+      )
     } finally {
       setSaving(false)
     }

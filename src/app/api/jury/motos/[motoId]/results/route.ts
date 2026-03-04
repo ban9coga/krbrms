@@ -13,6 +13,21 @@ const isLockedMoto = async (motoId: string) => {
   return !!data
 }
 
+export async function GET(req: Request, { params }: { params: Promise<{ motoId: string }> }) {
+  const auth = await requireJury(req, ['FINISHER', 'CHECKER', 'RACE_DIRECTOR', 'super_admin'])
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+  const { motoId } = await params
+  const { data, error } = await adminClient
+    .from('results')
+    .select('rider_id, finish_order, result_status')
+    .eq('moto_id', motoId)
+    .order('finish_order', { ascending: true, nullsFirst: false })
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  return NextResponse.json({ data: data ?? [] })
+}
+
 export async function POST(req: Request, { params }: { params: Promise<{ motoId: string }> }) {
   const auth = await requireJury(req, ['FINISHER', 'CHECKER', 'RACE_DIRECTOR', 'super_admin'])
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
@@ -104,6 +119,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
   const { error } = await adminClient.from('results').upsert(payload, { onConflict: 'moto_id,rider_id' })
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
+  await adminClient
+    .from('motos')
+    .update({ status: 'PROVISIONAL', provisional_at: new Date().toISOString() })
+    .eq('id', motoId)
+
   return NextResponse.json({ ok: true })
 }
 
@@ -134,5 +154,11 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ motoI
 
   const { error } = await adminClient.from('results').delete().eq('moto_id', motoId)
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+
+  await adminClient
+    .from('motos')
+    .update({ status: 'LIVE', provisional_at: null })
+    .eq('id', motoId)
+
   return NextResponse.json({ ok: true })
 }
