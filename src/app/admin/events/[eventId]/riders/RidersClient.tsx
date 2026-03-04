@@ -82,6 +82,8 @@ async function buildResizedBlobs(file: File) {
 export default function RidersClient({ eventId }: { eventId: string }) {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [exporting, setExporting] = useState(false)
+  const [exportingPdf, setExportingPdf] = useState(false)
 
   const [categories, setCategories] = useState<CategoryItem[]>([])
   const [selectedCategory, setSelectedCategory] = useState('')
@@ -92,6 +94,10 @@ export default function RidersClient({ eventId }: { eventId: string }) {
   const [total, setTotal] = useState(0)
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total])
   const [query, setQuery] = useState('')
+  const selectedCategoryLabel = useMemo(
+    () => categories.find((c) => c.id === selectedCategory)?.label ?? '',
+    [categories, selectedCategory]
+  )
 
   const [form, setForm] = useState({
     name: '',
@@ -437,6 +443,232 @@ export default function RidersClient({ eventId }: { eventId: string }) {
     }
   }
 
+  const toCsvCell = (value: string | number | null | undefined) => {
+    const text = value == null ? '' : String(value)
+    return `"${text.replace(/"/g, '""')}"`
+  }
+
+  const toFileSlug = (value: string) => {
+    const slug = value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+    return slug || 'category'
+  }
+
+  const escapeHtml = (value: string | number | null | undefined) => {
+    const text = value == null ? '' : String(value)
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+  }
+
+  const fetchExportRows = async () => {
+    const exportRows: RiderItem[] = []
+    const exportPageSize = 200
+    let currentPage = 1
+    let expectedTotal = 0
+
+    while (true) {
+      const qs = new URLSearchParams({
+        event_id: eventId,
+        category_id: selectedCategory,
+        page: String(currentPage),
+        page_size: String(exportPageSize),
+      })
+      if (query.trim()) qs.set('q', query.trim())
+
+      const res = await fetch(`/api/riders?${qs.toString()}`)
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(json?.error || 'Gagal mengambil data rider untuk export.')
+      }
+
+      const pageRows = (json.data ?? []) as RiderItem[]
+      expectedTotal = Number(json.total ?? 0)
+      exportRows.push(...pageRows)
+
+      if (pageRows.length === 0 || exportRows.length >= expectedTotal) break
+      currentPage += 1
+    }
+
+    return exportRows
+  }
+
+  const handleExportRiders = async () => {
+    if (!eventId) {
+      alert('Event ID tidak valid.')
+      return
+    }
+    if (!selectedCategory) {
+      alert('Pilih kategori terlebih dahulu.')
+      return
+    }
+
+    setExporting(true)
+    try {
+      const exportRows = await fetchExportRows()
+
+      if (exportRows.length === 0) {
+        alert('Tidak ada data rider untuk diexport.')
+        return
+      }
+
+      const header = [
+        'no_plate_display',
+        'plate_number',
+        'plate_suffix',
+        'name',
+        'rider_nickname',
+        'gender',
+        'date_of_birth',
+        'birth_year',
+        'jersey_size',
+        'club',
+        'category',
+      ]
+
+      const lines = [
+        header.join(','),
+        ...exportRows.map((row) =>
+          [
+            toCsvCell(row.no_plate_display),
+            toCsvCell(row.plate_number),
+            toCsvCell(row.plate_suffix ?? ''),
+            toCsvCell(row.name),
+            toCsvCell(row.rider_nickname ?? ''),
+            toCsvCell(row.gender),
+            toCsvCell(row.date_of_birth),
+            toCsvCell(row.birth_year ?? ''),
+            toCsvCell(row.jersey_size ?? ''),
+            toCsvCell(row.club ?? ''),
+            toCsvCell(selectedCategoryLabel || selectedCategory),
+          ].join(',')
+        ),
+      ]
+
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+      const categorySlug = toFileSlug(selectedCategoryLabel || selectedCategory)
+      const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = `riders_${categorySlug}_${stamp}.csv`
+      document.body.appendChild(anchor)
+      anchor.click()
+      document.body.removeChild(anchor)
+      URL.revokeObjectURL(url)
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Gagal export rider.')
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  const handleExportRidersPdf = async () => {
+    if (!eventId) {
+      alert('Event ID tidak valid.')
+      return
+    }
+    if (!selectedCategory) {
+      alert('Pilih kategori terlebih dahulu.')
+      return
+    }
+
+    const printWindow = window.open('', '_blank', 'noopener,noreferrer')
+    if (!printWindow) {
+      alert('Popup diblokir browser. Izinkan popup untuk export PDF.')
+      return
+    }
+
+    setExportingPdf(true)
+    try {
+      const exportRows = await fetchExportRows()
+      if (exportRows.length === 0) {
+        printWindow.close()
+        alert('Tidak ada data rider untuk diexport.')
+        return
+      }
+
+      const title = `Riders - ${selectedCategoryLabel || selectedCategory}`
+      const generatedAt = new Date().toLocaleString('id-ID')
+      const tableRows = exportRows
+        .map(
+          (row, idx) => `
+            <tr>
+              <td>${idx + 1}</td>
+              <td>${escapeHtml(row.no_plate_display)}</td>
+              <td>${escapeHtml(row.name)}</td>
+              <td>${escapeHtml(row.rider_nickname ?? '-')}</td>
+              <td>${escapeHtml(row.gender)}</td>
+              <td>${escapeHtml(row.date_of_birth)}</td>
+              <td>${escapeHtml(row.jersey_size ?? '-')}</td>
+              <td>${escapeHtml(row.club ?? '-')}</td>
+            </tr>
+          `
+        )
+        .join('')
+
+      const html = `
+        <!doctype html>
+        <html>
+          <head>
+            <meta charset="utf-8" />
+            <title>${escapeHtml(title)}</title>
+            <style>
+              body { font-family: Arial, sans-serif; margin: 20px; color: #111827; }
+              h1 { margin: 0 0 8px 0; font-size: 20px; }
+              .meta { margin-bottom: 12px; font-size: 12px; color: #374151; }
+              table { width: 100%; border-collapse: collapse; font-size: 12px; }
+              th, td { border: 1px solid #d1d5db; padding: 6px 8px; text-align: left; }
+              th { background: #f3f4f6; font-weight: 700; }
+              @page { size: A4 portrait; margin: 12mm; }
+            </style>
+          </head>
+          <body>
+            <h1>${escapeHtml(title)}</h1>
+            <div class="meta">
+              Total Rider: ${exportRows.length} | Generated: ${escapeHtml(generatedAt)}${
+                query.trim() ? ` | Filter: ${escapeHtml(query.trim())}` : ''
+              }
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>No</th>
+                  <th>No Plate</th>
+                  <th>Nama Rider</th>
+                  <th>Nickname</th>
+                  <th>Gender</th>
+                  <th>Tanggal Lahir</th>
+                  <th>Jersey</th>
+                  <th>Club</th>
+                </tr>
+              </thead>
+              <tbody>${tableRows}</tbody>
+            </table>
+          </body>
+        </html>
+      `
+
+      printWindow.document.open()
+      printWindow.document.write(html)
+      printWindow.document.close()
+      printWindow.focus()
+      setTimeout(() => {
+        printWindow.print()
+      }, 350)
+    } catch (err: unknown) {
+      printWindow.close()
+      alert(err instanceof Error ? err.message : 'Gagal export PDF rider.')
+    } finally {
+      setExportingPdf(false)
+    }
+  }
+
   return (
     <div style={{ maxWidth: 980, color: '#e2e8f0' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'end', gap: 12 }}>
@@ -667,6 +899,38 @@ export default function RidersClient({ eventId }: { eventId: string }) {
             minWidth: 220,
           }}
         />
+        <button
+          type="button"
+          onClick={handleExportRiders}
+          disabled={exporting || exportingPdf || loading || !selectedCategory}
+          style={{
+            padding: '10px 12px',
+            borderRadius: 12,
+            border: '2px solid #111',
+            background: exporting || exportingPdf || loading || !selectedCategory ? '#eee' : '#dbeafe',
+            color: '#0f172a',
+            fontWeight: 900,
+            cursor: exporting || exportingPdf || loading || !selectedCategory ? 'not-allowed' : 'pointer',
+          }}
+        >
+          {exporting ? 'Exporting CSV...' : 'Export CSV'}
+        </button>
+        <button
+          type="button"
+          onClick={handleExportRidersPdf}
+          disabled={exportingPdf || exporting || loading || !selectedCategory}
+          style={{
+            padding: '10px 12px',
+            borderRadius: 12,
+            border: '2px solid #111',
+            background: exportingPdf || exporting || loading || !selectedCategory ? '#eee' : '#fde68a',
+            color: '#0f172a',
+            fontWeight: 900,
+            cursor: exportingPdf || exporting || loading || !selectedCategory ? 'not-allowed' : 'pointer',
+          }}
+        >
+          {exportingPdf ? 'Preparing PDF...' : 'Export PDF'}
+        </button>
         <div
           style={{
             padding: '10px 12px',
