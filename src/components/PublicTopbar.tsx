@@ -11,6 +11,12 @@ const navItems = [
   { href: '/dashboard#live-results', label: 'Live Results' },
 ]
 
+type PublicTopbarTheme = 'light' | 'dark'
+
+type PublicTopbarProps = {
+  theme?: PublicTopbarTheme
+}
+
 const normalizeRole = (value: string | null) => {
   if (!value) return ''
   const upper = value.toUpperCase()
@@ -42,11 +48,12 @@ const roleHome = (value: string | null) => {
   return '/dashboard'
 }
 
-export default function PublicTopbar() {
+export default function PublicTopbar({ theme = 'light' }: PublicTopbarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [roleKey, setRoleKey] = useState<string | null>(null)
+  const isDark = theme === 'dark'
 
   const panelHref = useMemo(() => roleHome(roleKey), [roleKey])
   const panelLabel = useMemo(() => roleLabel(roleKey), [roleKey])
@@ -81,17 +88,29 @@ export default function PublicTopbar() {
   }
 
   return (
-    <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur">
+    <header
+      className={`sticky top-0 z-50 backdrop-blur ${
+        isDark ? 'border-b border-slate-800 bg-[#0b1633]/95' : 'border-b border-slate-200/80 bg-white/95'
+      }`}
+    >
       <div className="relative w-full px-4 py-3 md:px-6">
         <div className="flex items-center justify-between gap-4">
           <Link href="/" className="flex min-w-0 items-center gap-3">
             <img src="/krb-logo.png" alt="KRB Logo" className="h-10 w-10 rounded-lg object-contain" />
-            <span className="truncate text-sm font-black tracking-tight text-slate-900 sm:text-base md:text-lg">
+            <span
+              className={`truncate text-sm font-black tracking-tight sm:text-base md:text-lg ${
+                isDark ? 'text-slate-100' : 'text-slate-900'
+              }`}
+            >
               Kancang Run Bike Racing Committee
             </span>
           </Link>
 
-          <nav className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-6 text-sm font-semibold text-slate-600 md:flex">
+          <nav
+            className={`absolute left-1/2 hidden -translate-x-1/2 items-center gap-6 text-sm font-semibold md:flex ${
+              isDark ? 'text-slate-300' : 'text-slate-600'
+            }`}
+          >
             {navItems.map((item) => {
               const baseHref = item.href.split('#')[0]
               const active =
@@ -102,7 +121,9 @@ export default function PublicTopbar() {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`transition-colors hover:text-rose-500 ${active ? 'text-rose-500' : ''}`}
+                  className={`transition-colors ${
+                    isDark ? 'hover:text-amber-300' : 'hover:text-rose-500'
+                  } ${active ? (isDark ? 'text-amber-300' : 'text-rose-500') : ''}`}
                 >
                   {item.label}
                 </Link>
@@ -115,7 +136,11 @@ export default function PublicTopbar() {
               <>
                 <Link
                   href={panelHref}
-                  className="max-w-[160px] truncate rounded-full border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-extrabold uppercase tracking-[0.08em] text-slate-700 transition-colors hover:bg-slate-200"
+                  className={`max-w-[160px] truncate rounded-full border px-3 py-2 text-xs font-extrabold uppercase tracking-[0.08em] transition-colors ${
+                    isDark
+                      ? 'border-slate-600 bg-slate-800/70 text-slate-200 hover:bg-slate-700'
+                      : 'border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
                   title={userEmail ?? undefined}
                 >
                   {panelLabel}
@@ -123,7 +148,9 @@ export default function PublicTopbar() {
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="rounded-full bg-rose-500 px-5 py-2 text-sm font-bold text-white transition-colors hover:bg-rose-400"
+                  className={`rounded-full px-5 py-2 text-sm font-bold transition-colors ${
+                    isDark ? 'bg-amber-400 text-slate-900 hover:bg-amber-300' : 'bg-rose-500 text-white hover:bg-rose-400'
+                  }`}
                 >
                   Logout
                 </button>
@@ -131,7 +158,9 @@ export default function PublicTopbar() {
             ) : (
               <Link
                 href="/login"
-                className="rounded-full bg-rose-500 px-5 py-2 text-sm font-bold text-white transition-colors hover:bg-rose-400"
+                className={`rounded-full px-5 py-2 text-sm font-bold transition-colors ${
+                  isDark ? 'bg-amber-400 text-slate-900 hover:bg-amber-300' : 'bg-rose-500 text-white hover:bg-rose-400'
+                }`}
               >
                 Login
               </Link>
@@ -139,7 +168,11 @@ export default function PublicTopbar() {
           </div>
         </div>
 
-        <nav className="mt-3 flex items-center justify-center gap-4 text-sm font-semibold text-slate-600 md:hidden">
+        <nav
+          className={`mt-3 flex items-center justify-center gap-4 text-sm font-semibold md:hidden ${
+            isDark ? 'text-slate-300' : 'text-slate-600'
+          }`}
+        >
           {navItems.map((item) => {
             const baseHref = item.href.split('#')[0]
             const active =
@@ -150,7 +183,9 @@ export default function PublicTopbar() {
               <Link
                 key={`${item.href}-mobile`}
                 href={item.href}
-                className={`transition-colors hover:text-rose-500 ${active ? 'text-rose-500' : ''}`}
+                className={`transition-colors ${
+                  isDark ? 'hover:text-amber-300' : 'hover:text-rose-500'
+                } ${active ? (isDark ? 'text-amber-300' : 'text-rose-500') : ''}`}
               >
                 {item.label}
               </Link>

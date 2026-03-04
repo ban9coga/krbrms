@@ -213,6 +213,34 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
   }, [queueTarget])
 
   const nextUp = useMemo(() => prepareQueue[0] ?? null, [prepareQueue])
+  const trackState = useMemo(() => {
+    if (!activeMoto) {
+      return {
+        label: 'Waiting Feed',
+        dotClass: 'bg-amber-400',
+        textClass: 'text-amber-300',
+      }
+    }
+    if (isMotoLive(activeMoto.status)) {
+      return {
+        label: 'Track Live',
+        dotClass: 'bg-emerald-400 shadow-[0_0_14px_rgba(74,222,128,0.85)]',
+        textClass: 'text-emerald-300',
+      }
+    }
+    if (isMotoUpcoming(activeMoto.status)) {
+      return {
+        label: 'Preparing Gate',
+        dotClass: 'bg-amber-400',
+        textClass: 'text-amber-300',
+      }
+    }
+    return {
+      label: activeMoto.status,
+      dotClass: 'bg-slate-400',
+      textClass: 'text-slate-200',
+    }
+  }, [activeMoto])
 
   const riderPhotoCell = (name: string, noPlate: string, photoUrl?: string | null) => {
     if (photoUrl) {
@@ -220,7 +248,7 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
         <img
           src={photoUrl}
           alt={name}
-          className="h-9 w-9 rounded-full border border-slate-300 object-cover"
+          className="h-9 w-9 rounded-full border border-slate-300 object-cover shadow-sm"
           loading="lazy"
         />
       )
@@ -233,20 +261,24 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
   }
 
   return (
-    <div className="public-page overflow-x-hidden">
-      <PublicTopbar />
+    <div className="public-page overflow-x-hidden !bg-slate-100 !text-slate-900">
+      <PublicTopbar theme="dark" />
       <main className="public-main max-w-[1500px]">
-        <section className="public-hero">
-          <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-rose-500/15 blur-3xl" />
-          <div className="pointer-events-none absolute -top-24 right-0 h-72 w-72 rounded-full bg-sky-400/15 blur-3xl" />
+        <section className="public-hero border border-slate-200 !bg-white shadow-xl">
+          <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-slate-200/30 blur-3xl" />
+          <div className="pointer-events-none absolute -top-24 right-0 h-72 w-72 rounded-full bg-slate-100/30 blur-3xl" />
           <div className="relative z-10 grid gap-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="grid gap-1">
-                <h1 className="text-2xl font-black tracking-tight text-white md:text-4xl">{event?.name ?? 'Live Display'}</h1>
-                <p className="text-sm font-semibold text-slate-200">{categoryLabel || 'Pilih Kategori'}</p>
-                {event?.location && <p className="text-sm font-medium text-slate-300">{event.location}</p>}
+                <h1 className="text-2xl font-black tracking-tight text-slate-900 md:text-4xl">
+                  {event?.name ?? 'Live Display'}
+                </h1>
+                <p className="text-sm font-black uppercase tracking-[0.12em] text-slate-700">
+                  {categoryLabel || 'Pilih Kategori'}
+                </p>
+                {event?.location && <p className="text-sm font-semibold text-slate-500">{event.location}</p>}
                 {activeMoto && (
-                  <p className="text-xs font-extrabold uppercase tracking-[0.12em] text-rose-200">
+                  <p className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">
                     Now: {activeMoto.moto_name} ({activeMoto.status})
                   </p>
                 )}
@@ -255,7 +287,7 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
                 <select
                   value={categoryId}
                   onChange={(e) => setCategoryId(e.target.value)}
-                  className="rounded-xl border border-white/25 bg-white/10 px-3 py-2 text-sm font-semibold text-white outline-none"
+                  className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 outline-none shadow-sm"
                 >
                   {categories.map((c) => (
                     <option key={c.id} value={c.id} className="text-slate-900">
@@ -270,8 +302,8 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
                     onClick={() => setMode(m)}
                     className={`rounded-full border px-3 py-2 text-xs font-extrabold uppercase tracking-[0.12em] transition-colors sm:text-sm ${
                       mode === m
-                        ? 'border-rose-300 bg-rose-500 text-white'
-                        : 'border-white/25 bg-white/10 text-white hover:bg-white/20'
+                        ? 'border-slate-900 bg-slate-900 text-white'
+                        : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400 hover:text-slate-900'
                     }`}
                   >
                     {m === 'LINEUP' ? 'Lineup' : m === 'RESULTS' ? 'Live Results' : 'Winners'}
@@ -281,7 +313,7 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
                   type="button"
                   onClick={refresh}
                   disabled={refreshing}
-                  className="rounded-full border border-emerald-300/70 bg-emerald-50 px-4 py-2 text-xs font-extrabold uppercase tracking-[0.12em] text-emerald-700 transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-70 sm:text-sm"
+                  className="rounded-full border border-amber-300 bg-amber-400 px-4 py-2 text-xs font-extrabold uppercase tracking-[0.12em] text-slate-900 transition-colors hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-70 sm:text-sm"
                 >
                   {refreshing ? 'Refreshing...' : 'Refresh'}
                 </button>
@@ -289,13 +321,13 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
             </div>
 
             {nextUp && (
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-300 bg-amber-50/95 px-4 py-3 text-sm font-bold text-amber-900">
-                <span className="rounded-full border border-amber-300 bg-amber-100 px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.12em]">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-800 shadow-sm">
+                <span className="rounded-full border border-amber-300 bg-amber-200 px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.12em] text-amber-900">
                   Next Up
                 </span>
                 <span>{nextUp.name}</span>
                 <span>No: {nextUp.no_plate}</span>
-                <span>Gate {nextUp.gate ?? '-'}</span>
+                <span className="text-slate-600">Gate {nextUp.gate ?? '-'}</span>
               </div>
             )}
           </div>
@@ -310,27 +342,31 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
             {batchView.map((batch) => {
               const rows = [...batch.rows].sort((a, b) => (a.gate_moto1 ?? 9999) - (b.gate_moto1 ?? 9999))
               return (
-                <article key={batch.batch_index} className="public-panel-dark">
-                  <h2 className="mb-3 text-lg font-black uppercase tracking-[0.08em] text-white">Batch {batch.batch_index} - Lineup</h2>
-                  <div className="public-table-wrap">
-                    <table className="public-table" style={{ minWidth: 900 }}>
+                <article key={batch.batch_index} className="public-panel-light border border-slate-200 bg-white shadow-xl">
+                  <h2 className="mb-3 text-lg font-black uppercase tracking-[0.08em] text-slate-900">
+                    Batch {batch.batch_index} - Lineup
+                  </h2>
+                  <div className="public-table-wrap !border-slate-200 !bg-white">
+                    <table className="public-table text-[11px] sm:text-xs md:text-sm" style={{ minWidth: 900 }}>
                       <thead>
-                        <tr>
+                        <tr className="bg-slate-100 text-left text-[11px] font-black uppercase tracking-[0.12em] text-slate-600">
                           {['Gate M1', 'Gate M2', 'Gate M3', 'Foto', 'Nama Peserta', 'No Plat', 'Komunitas'].map((h) => (
-                            <th key={h}>{h}</th>
+                            <th key={h} className="border-b border-slate-200 px-3 py-3">
+                              {h}
+                            </th>
                           ))}
                         </tr>
                       </thead>
                       <tbody>
                         {rows.map((row) => (
-                          <tr key={row.rider_id}>
-                            <td>{row.gate_moto1 ?? '-'}</td>
-                            <td>{row.gate_moto2 ?? '-'}</td>
-                            <td>{row.gate_moto3 ?? '-'}</td>
-                            <td>{riderPhotoCell(row.name, row.no_plate, row.photo_thumbnail_url)}</td>
-                            <td className="font-extrabold text-slate-900">{row.name}</td>
-                            <td>{row.no_plate}</td>
-                            <td>{row.club || '-'}</td>
+                          <tr key={row.rider_id} className="border-b border-slate-100 text-slate-700">
+                            <td className="px-3 py-2.5">{row.gate_moto1 ?? '-'}</td>
+                            <td className="px-3 py-2.5">{row.gate_moto2 ?? '-'}</td>
+                            <td className="px-3 py-2.5">{row.gate_moto3 ?? '-'}</td>
+                            <td className="px-3 py-2.5">{riderPhotoCell(row.name, row.no_plate, row.photo_thumbnail_url)}</td>
+                            <td className="px-3 py-2.5 font-black italic tracking-wide text-slate-900">{row.name}</td>
+                            <td className="px-3 py-2.5">{row.no_plate}</td>
+                            <td className="px-3 py-2.5">{row.club || '-'}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -348,14 +384,19 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
               {batchView.map((batch) => {
                 const rows = [...batch.rows].sort((a, b) => (a.rank_point ?? 9999) - (b.rank_point ?? 9999))
                 return (
-                  <article key={batch.batch_index} className="public-panel-dark">
-                    <h2 className="mb-3 text-lg font-black uppercase tracking-[0.08em] text-white">
-                      Batch {batch.batch_index} - Live Results
-                    </h2>
-                    <div className="public-table-wrap">
-                      <table className="public-table" style={{ minWidth: 1220 }}>
+                  <article key={batch.batch_index} className="public-panel-light border border-slate-200 bg-white shadow-xl">
+                    <div className="mb-3 flex items-center justify-between gap-2">
+                      <h2 className="text-lg font-black uppercase tracking-[0.08em] text-slate-900">
+                        Batch {batch.batch_index} - Live Results
+                      </h2>
+                      <span className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.12em] text-rose-500">
+                        Live Update
+                      </span>
+                    </div>
+                    <div className="public-table-wrap !border-slate-200 !bg-white">
+                      <table className="public-table text-[11px] sm:text-xs md:text-sm" style={{ minWidth: 1220 }}>
                         <thead>
-                          <tr>
+                          <tr className="bg-slate-100 text-left text-[11px] font-black uppercase tracking-[0.12em] text-slate-600">
                             {[
                               'Gate M1',
                               'Gate M2',
@@ -371,26 +412,33 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
                               'Rank',
                               'Class',
                             ].map((h) => (
-                              <th key={h}>{h}</th>
+                              <th key={h} className="border-b border-slate-200 px-3 py-3">
+                                {h}
+                              </th>
                             ))}
                           </tr>
                         </thead>
                         <tbody>
                           {rows.map((row) => (
-                            <tr key={row.rider_id}>
-                              <td>{row.gate_moto1 ?? '-'}</td>
-                              <td>{row.gate_moto2 ?? '-'}</td>
-                              <td>{row.gate_moto3 ?? '-'}</td>
-                              <td>{riderPhotoCell(row.name, row.no_plate, row.photo_thumbnail_url)}</td>
-                              <td className="font-extrabold text-slate-900">{row.name}</td>
-                              <td>{row.no_plate}</td>
-                              <td>{row.point_moto1 ?? '-'}</td>
-                              <td>{row.point_moto2 ?? '-'}</td>
-                              <td>{row.point_moto3 ?? '-'}</td>
-                              <td className="font-extrabold text-rose-600">{row.penalty_total ?? '-'}</td>
-                              <td className="font-extrabold text-sky-700">{row.total_point ?? '-'}</td>
-                              <td className="font-extrabold text-emerald-700">{row.rank_point ?? '-'}</td>
-                              <td>{row.class_label || '-'}</td>
+                            <tr
+                              key={row.rider_id}
+                              className={`border-b text-slate-700 ${
+                                row.rank_point === 1 ? 'border-amber-300 bg-amber-50/60' : 'border-slate-100'
+                              }`}
+                            >
+                              <td className="px-3 py-2.5">{row.gate_moto1 ?? '-'}</td>
+                              <td className="px-3 py-2.5">{row.gate_moto2 ?? '-'}</td>
+                              <td className="px-3 py-2.5">{row.gate_moto3 ?? '-'}</td>
+                              <td className="px-3 py-2.5">{riderPhotoCell(row.name, row.no_plate, row.photo_thumbnail_url)}</td>
+                              <td className="px-3 py-2.5 font-black italic tracking-wide text-slate-900">{row.name}</td>
+                              <td className="px-3 py-2.5">{row.no_plate}</td>
+                              <td className="px-3 py-2.5 font-extrabold text-slate-700">{row.point_moto1 ?? '-'}</td>
+                              <td className="px-3 py-2.5 font-extrabold text-slate-700">{row.point_moto2 ?? '-'}</td>
+                              <td className="px-3 py-2.5 font-extrabold text-slate-700">{row.point_moto3 ?? '-'}</td>
+                              <td className="px-3 py-2.5 font-extrabold text-rose-500">{row.penalty_total ?? '-'}</td>
+                              <td className="px-3 py-2.5 text-right text-2xl font-black text-slate-900">{row.total_point ?? '-'}</td>
+                              <td className="px-3 py-2.5 font-black text-amber-500">{row.rank_point ?? '-'}</td>
+                              <td className="px-3 py-2.5 text-slate-600">{row.class_label || '-'}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -401,10 +449,12 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
               })}
             </section>
 
-            <section className="public-panel-light">
+            <section className="public-panel-light border border-slate-200 bg-white shadow-xl">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <h2 className="text-lg font-black uppercase tracking-[0.08em] text-slate-900">Rider Bersiap</h2>
-                <span className="public-chip">{queueTarget?.label ?? activeMoto?.moto_name ?? 'Queue'}</span>
+                <span className="public-chip !border-slate-300 !bg-slate-100 !text-slate-700">
+                  {queueTarget?.label ?? activeMoto?.moto_name ?? 'Queue'}
+                </span>
               </div>
 
               {prepareQueue.length === 0 ? (
@@ -412,24 +462,29 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
                   Belum ada rider yang perlu bersiap.
                 </div>
               ) : (
-                <div className="public-table-wrap">
-                  <table className="public-table" style={{ minWidth: 760 }}>
+                <div className="public-table-wrap !border-slate-200 !bg-white">
+                  <table className="public-table text-[11px] sm:text-xs md:text-sm" style={{ minWidth: 760 }}>
                     <thead>
-                      <tr>
+                      <tr className="bg-slate-100 text-left text-[11px] font-black uppercase tracking-[0.12em] text-slate-600">
                         {['Antrian', 'Gate', 'Foto', 'No Plat', 'Nama Peserta', 'Komunitas'].map((h) => (
-                          <th key={h}>{h}</th>
+                          <th key={h} className="border-b border-slate-200 px-3 py-3">
+                            {h}
+                          </th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {prepareQueue.map((row) => (
-                        <tr key={`prepare-${row.rider_id}`}>
-                          <td className="font-extrabold text-rose-600">{row.queue}</td>
-                          <td>{row.gate ?? '-'}</td>
-                          <td>{riderPhotoCell(row.name, row.no_plate, row.photo_thumbnail_url)}</td>
-                          <td>{row.no_plate}</td>
-                          <td className="font-extrabold text-slate-900">{row.name}</td>
-                          <td>{row.club || '-'}</td>
+                      {prepareQueue.map((row, index) => (
+                        <tr
+                          key={`prepare-${row.rider_id}`}
+                          className={`border-b text-slate-700 ${index === 0 ? 'border-amber-200 bg-amber-50/50' : 'border-slate-100'}`}
+                        >
+                          <td className="px-3 py-2.5 font-black text-amber-500">{row.queue}</td>
+                          <td className="px-3 py-2.5">{row.gate ?? '-'}</td>
+                          <td className="px-3 py-2.5">{riderPhotoCell(row.name, row.no_plate, row.photo_thumbnail_url)}</td>
+                          <td className="px-3 py-2.5">{row.no_plate}</td>
+                          <td className="px-3 py-2.5 font-black italic tracking-wide text-slate-900">{row.name}</td>
+                          <td className="px-3 py-2.5">{row.club || '-'}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -443,24 +498,48 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
         {!loading && event?.is_public !== false && hasData && mode === 'WINNERS' && (
           <section className="grid gap-4">
             {winnersByBatch.map((batch) => (
-              <article key={batch.batch_index} className="public-panel-dark">
-                <h2 className="mb-3 text-lg font-black uppercase tracking-[0.08em] text-white">Batch {batch.batch_index} - Winners</h2>
+              <article key={batch.batch_index} className="public-panel-light border border-slate-200 bg-white shadow-xl">
+                <h2 className="mb-3 text-lg font-black uppercase tracking-[0.08em] text-slate-900">
+                  Batch {batch.batch_index} - Winners
+                </h2>
                 <div className="grid gap-3">
                   {batch.winners.length === 0 && (
-                    <div className="rounded-xl border border-dashed border-slate-600 bg-slate-950/50 p-3 text-sm font-semibold text-slate-300">
+                    <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 text-sm font-semibold text-slate-600">
                       Belum ada hasil.
                     </div>
                   )}
                   {batch.winners.map((row, index) => (
                     <div
                       key={row.rider_id}
-                      className="grid gap-2 rounded-xl border border-slate-600 bg-slate-950/70 px-4 py-3 text-slate-100 sm:grid-cols-[40px_1fr_auto] sm:items-center"
+                      className={`grid gap-2 rounded-xl border bg-white px-4 py-3 text-slate-900 shadow-sm sm:grid-cols-[40px_1fr_auto] sm:items-center ${
+                        index === 0
+                          ? 'border-amber-300 ring-2 ring-amber-300/70'
+                          : index === 1
+                          ? 'border-slate-300'
+                          : 'border-amber-200'
+                      }`}
                     >
                       <div>{riderPhotoCell(row.name, row.no_plate, row.photo_thumbnail_url)}</div>
-                      <div className="text-base font-black">
+                      <div className="text-base font-black italic tracking-wide">
                         {index + 1}. {row.name}
                       </div>
-                      <div className="text-sm font-extrabold text-emerald-300">Total: {row.total_point ?? '-'}</div>
+                      <div className="flex items-center gap-2 text-sm font-extrabold">
+                        <span
+                          className={`inline-flex h-7 min-w-7 items-center justify-center rounded-full border px-2 text-xs font-black ${
+                            index === 0
+                              ? 'rotate-[-7deg] border-amber-300 bg-amber-400 text-slate-900'
+                              : 'border-slate-300 bg-slate-100 text-slate-700'
+                          }`}
+                        >
+                          {index + 1}
+                        </span>
+                        <span className="text-slate-800">Total: {row.total_point ?? '-'}</span>
+                        {index === 0 && (
+                          <span className="rounded-full border border-amber-300/70 bg-amber-100 px-2 py-0.5 text-[11px] font-black uppercase tracking-[0.12em] text-amber-700">
+                            Trophy
+                          </span>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -468,6 +547,17 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
             ))}
           </section>
         )}
+
+        <section className="sticky bottom-2 z-30 rounded-2xl border border-slate-800 bg-slate-950/95 px-4 py-3 shadow-xl backdrop-blur">
+          <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+            <div className="flex items-center gap-2 border-l-4 border-amber-400 pl-3">
+              <span className={`h-2.5 w-2.5 rounded-full ${trackState.dotClass} ${isMotoLive(activeMoto?.status) ? 'animate-pulse' : ''}`} />
+              <span className={`font-black uppercase tracking-[0.12em] ${trackState.textClass}`}>{trackState.label}</span>
+            </div>
+            <div className="font-semibold text-slate-300">Moto: {activeMoto?.moto_name ?? '-'}</div>
+            <div className="font-semibold text-slate-300">Kategori: {categoryLabel || '-'}</div>
+          </div>
+        </section>
       </main>
     </div>
   )
