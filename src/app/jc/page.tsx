@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import CheckerTopbar from '../../components/CheckerTopbar'
 import { isMotoLive } from '../../lib/motoStatus'
+import { compareMotoSequence } from '../../lib/motoSequence'
 import { supabase } from '../../lib/supabaseClient'
 
 type EventItem = {
@@ -103,11 +104,13 @@ export default function JCSelectorPage() {
         const categoryJson = await categoryRes.json()
         const list = (motoJson.data ?? []) as MotoItem[]
         setCategories((categoryJson.data ?? []) as CategoryItem[])
-        list.sort((a, b) => a.moto_order - b.moto_order)
+        list.sort(compareMotoSequence)
         setMotos(list)
         const liveMotos = list.filter((m) => isMotoLive(m.status))
-        if (!motoId && list.length) {
+        if (list.length) {
           setMotoId((liveMotos[0] ?? list[0]).id)
+        } else {
+          setMotoId('')
         }
         if (
           !didAutoRedirect &&
@@ -125,7 +128,7 @@ export default function JCSelectorPage() {
       }
     }
     loadMotos()
-  }, [didAutoRedirect, eventId, motoId, router, singleLiveEventId])
+  }, [didAutoRedirect, eventId, router, singleLiveEventId])
 
   return (
     <div className="public-page">

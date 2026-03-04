@@ -5,6 +5,7 @@ import EmptyState from '../../../../components/EmptyState'
 import LoadingState from '../../../../components/LoadingState'
 import PublicTopbar from '../../../../components/PublicTopbar'
 import { getEventById, getEventCategories, type EventItem, type RiderCategory } from '../../../../lib/eventService'
+import { compareMotoSequence } from '../../../../lib/motoSequence'
 import { isMotoLive, isMotoUpcoming } from '../../../../lib/motoStatus'
 
 type Row = {
@@ -103,7 +104,7 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
     const live = data.find((m) => isMotoLive(m.status)) ?? null
     const upcoming = data
       .filter((m) => isMotoUpcoming(m.status))
-      .sort((a, b) => a.moto_order - b.moto_order)[0]
+      .sort(compareMotoSequence)[0]
     const nextActive = live ?? upcoming ?? null
     setActiveMoto(nextActive)
     if (nextActive && nextActive.category_id !== categoryId) {

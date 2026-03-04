@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import CheckerTopbar from '../../../components/CheckerTopbar'
+import { compareMotoSequence } from '../../../lib/motoSequence'
 import { supabase } from '../../../lib/supabaseClient'
 
 type StatusUpdate = {
@@ -56,6 +57,8 @@ export default function RaceDirectorApprovalPage() {
   const [statusUpdates, setStatusUpdates] = useState<StatusUpdate[]>([])
   const [penalties, setPenalties] = useState<PenaltyRow[]>([])
   const [loading, setLoading] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const [lastSyncAt, setLastSyncAt] = useState<string | null>(null)
   const [approvalMode, setApprovalMode] = useState<'AUTO' | 'DIRECTOR'>('AUTO')
   const [motos, setMotos] = useState<MotoRow[]>([])
   const [lockedMap, setLockedMap] = useState<Record<string, boolean>>({})
@@ -88,8 +91,9 @@ export default function RaceDirectorApprovalPage() {
       created_at: string
     }>
   >([])
+  const isFetchingRef = useRef(false)
 
-  const apiFetch = async (url: string, options: RequestInit = {}) => {
+  const apiFetch = useCallback(async (url: string, options: RequestInit = {}) => {
     const { data } = await supabase.auth.getSession()
     const token = data.session?.access_token
     const headers: Record<string, string> = {}
@@ -99,13 +103,17 @@ export default function RaceDirectorApprovalPage() {
     const json = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(json?.error || 'Request failed')
     return json
-  }
+  }, [])
 
   useEffect(() => {
     const loadEvents = async () => {
       const res = await apiFetch('/api/jury/events?status=LIVE,UPCOMING')
-      setEvents(res.data ?? [])
-      if (!eventId && res.data?.length) setEventId(res.data[0].id)
+      const rows = (res.data ?? []) as EventItem[]
+      setEvents(rows)
+      if (!eventId && rows.length) {
+        const live = rows.find((ev) => String(ev.status).toUpperCase() === 'LIVE')
+        setEventId((live ?? rows[0]).id)
+      }
     }
     loadEvents()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -124,10 +132,12 @@ export default function RaceDirectorApprovalPage() {
     loadRole()
   }, [])
 
-  useEffect(() => {
-    const load = async () => {
-      if (!eventId) return
-      setLoading(true)
+  const loadEventData = useCallback(
+    async (silent = false) => {
+      if (!eventId || isFetchingRef.current) return
+      isFetchingRef.current = true
+      if (silent) setRefreshing(true)
+      else setLoading(true)
       try {
         const fetchAllRiders = async () => {
           const all: RiderItem[] = []
@@ -175,12 +185,27 @@ export default function RaceDirectorApprovalPage() {
         setCategories((catJson.data ?? []) as CategoryItem[])
         setGateStatus(gateRes.data ?? [])
         setRiderMap(riderRes ?? {})
+        setLastSyncAt(new Date().toLocaleTimeString())
       } finally {
-        setLoading(false)
+        if (silent) setRefreshing(false)
+        else setLoading(false)
+        isFetchingRef.current = false
       }
-    }
-    load()
-  }, [eventId])
+    },
+    [apiFetch, eventId]
+  )
+
+  useEffect(() => {
+    loadEventData(false)
+  }, [loadEventData])
+
+  useEffect(() => {
+    if (!eventId) return
+    const timer = setInterval(() => {
+      loadEventData(true)
+    }, 5000)
+    return () => clearInterval(timer)
+  }, [eventId, loadEventData])
 
   const categoriesSorted = useMemo(() => {
     return categories
@@ -219,7 +244,7 @@ export default function RaceDirectorApprovalPage() {
       grouped.set(catId, list)
     }
     for (const [key, list] of grouped.entries()) {
-      list.sort((a, b) => a.moto_order - b.moto_order)
+      list.sort(compareMotoSequence)
       grouped.set(key, list)
     }
     return grouped
@@ -256,9 +281,7 @@ export default function RaceDirectorApprovalPage() {
         body: JSON.stringify({ penalty_id: id, decision, reason }),
       })
     }
-    const refreshed = await apiFetch(`/api/race-director/approvals?event_id=${eventId}`)
-    setStatusUpdates(refreshed.status_updates ?? [])
-    setPenalties(refreshed.penalties ?? [])
+    await loadEventData(true)
   }
 
   const handleSaveMode = async () => {
@@ -266,6 +289,7 @@ export default function RaceDirectorApprovalPage() {
       method: 'PATCH',
       body: JSON.stringify({ event_id: eventId, approval_mode: approvalMode }),
     })
+    await loadEventData(true)
   }
 
   const handleLock = async (motoId: string, lock: boolean) => {
@@ -280,13 +304,11 @@ export default function RaceDirectorApprovalPage() {
       method: 'POST',
       body: JSON.stringify({ status: targetStatus }),
     })
-    const lockRes = await apiFetch(`/api/jury/events/${eventId}/locks`)
-    const lockList = (lockRes.data ?? []) as Array<{ moto_id: string }>
-    const map: Record<string, boolean> = {}
-    for (const row of lockList) map[row.moto_id] = true
-    setLockedMap(map)
-    const refreshed = await apiFetch(`/api/motos?event_id=${eventId}`)
-    setMotos(refreshed.data ?? [])
+    await loadEventData(true)
+  }
+
+  const handleManualRefresh = async () => {
+    await loadEventData(true)
   }
 
   return (
@@ -330,6 +352,14 @@ export default function RaceDirectorApprovalPage() {
               >
                 Save Mode
               </button>
+              <button
+                type="button"
+                onClick={handleManualRefresh}
+                disabled={loading || refreshing || !eventId}
+                className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.1em] text-slate-800 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {refreshing ? 'Refreshing...' : 'Refresh'}
+              </button>
               <div
                 className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-extrabold uppercase tracking-[0.12em] ${
                   approvalMode === 'AUTO'
@@ -338,6 +368,9 @@ export default function RaceDirectorApprovalPage() {
                 }`}
               >
                 {approvalMode === 'AUTO' ? 'AUTO APPROVAL MODE' : 'DIRECTOR APPROVAL'}
+              </div>
+              <div className="inline-flex items-center rounded-full border border-slate-300 bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
+                Last sync: {lastSyncAt ?? '-'}
               </div>
             </div>
           </div>

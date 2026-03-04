@@ -168,22 +168,24 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     .limit(1)
     .maybeSingle()
 
-  let nextOrder = (lastOrderRow?.moto_order ?? 0) + 1
+  const baseOrder = lastOrderRow?.moto_order ?? 0
   const batches = chunk(riderIds, batchSize)
   const motoCount = riderIds.length <= 8 ? 3 : 2
+  const orderFor = (motoIndex: number, batchIndex: number) =>
+    baseOrder + (motoIndex - 1) * batches.length + batchIndex + 1
   const motoRecords = batches.flatMap((_, idx) => [
     {
       event_id: eventId,
       category_id: categoryId,
       moto_name: `Moto 1 - Batch ${idx + 1}`,
-      moto_order: nextOrder++,
+      moto_order: orderFor(1, idx),
       status: 'UPCOMING',
     },
     {
       event_id: eventId,
       category_id: categoryId,
       moto_name: `Moto 2 - Batch ${idx + 1}`,
-      moto_order: nextOrder++,
+      moto_order: orderFor(2, idx),
       status: 'UPCOMING',
     },
     ...(motoCount === 3
@@ -192,7 +194,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
             event_id: eventId,
             category_id: categoryId,
             moto_name: `Moto 3 - Batch ${idx + 1}`,
-            moto_order: nextOrder++,
+            moto_order: orderFor(3, idx),
             status: 'UPCOMING',
           },
         ]

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../../../lib/supabaseClient'
+import { compareMotoSequence } from '../../../lib/motoSequence'
 import { isMotoLive } from '../../../lib/motoStatus'
 import CheckerTopbar from '../../../components/CheckerTopbar'
 
@@ -123,7 +124,7 @@ export default function JuryFinishPage() {
         const ag = order[(genderMap.get(a.category_id ?? '') as keyof typeof order) ?? 'MIX'] ?? 9
         const bg = order[(genderMap.get(b.category_id ?? '') as keyof typeof order) ?? 'MIX'] ?? 9
         if (ag !== bg) return ag - bg
-        return a.moto_order - b.moto_order
+        return compareMotoSequence(a, b)
       })
       setMotos(sortedMotos)
       const selectedStillExists = sortedMotos.some((m) => m.id === selectedMotoId)

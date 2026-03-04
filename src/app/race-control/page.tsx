@@ -158,7 +158,7 @@ export default function RaceControlPage() {
 
       <h1 style={{ fontSize: '24px', fontWeight: 800, marginTop: 14 }}>Waiting Zone</h1>
       <p style={{ marginTop: '6px', color: '#333', fontWeight: 700 }}>
-        Urutan batch mengikuti moto order. Tampilkan gate & komunitas untuk pemanggilan.
+        Urutan race mengikuti Moto per Batch (M1-B1, M1-B2, lalu M2-B1, dst). Tampilkan gate & komunitas untuk pemanggilan.
       </p>
 
       {loading && <div style={{ marginTop: 12, fontWeight: 900 }}>Loading...</div>}

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../../lib/auth'
+import { compareMotoSequence } from '../../../../../../lib/motoSequence'
 import { requireJury } from '../../../../../../services/juryAuth'
 
 type MotoRow = {
@@ -58,9 +59,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
 
   if (motoError) return NextResponse.json({ error: motoError.message }, { status: 400 })
 
-  const underReview = (reviewMotos ?? []).length > 0
+  const sortedReviewMotos = [...(reviewMotos ?? [])].sort(compareMotoSequence)
+  const underReview = sortedReviewMotos.length > 0
   if (underReview) {
-    const reviewMoto = (reviewMotos ?? [])[0]
+    const reviewMoto = sortedReviewMotos[0]
     return NextResponse.json({
       data: {
         under_review: true,
@@ -69,7 +71,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     })
   }
 
-  const list = (motos ?? []) as MotoRow[]
+  const list = [...((motos ?? []) as MotoRow[])].sort(compareMotoSequence)
   const currentMoto = pickCurrentMoto(list)
   if (!currentMoto) {
     return NextResponse.json({

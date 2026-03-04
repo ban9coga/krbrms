@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../lib/auth'
+import { compareMotoSequence } from '../../../../../lib/motoSequence'
 
 export async function GET(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params
@@ -102,7 +103,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     }
   }
 
-  const data = motos.map((m) => ({
+  const sortedMotos = [...motos].sort(compareMotoSequence)
+  const data = sortedMotos.map((m) => ({
     ...m,
     gates: gateByMoto.get(m.id) ?? [],
   }))

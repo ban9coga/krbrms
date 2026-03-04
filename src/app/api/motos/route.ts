@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../lib/auth'
+import { compareMotoSequence } from '../../../lib/motoSequence'
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
@@ -16,7 +17,8 @@ export async function GET(req: Request) {
   if (categoryId) query = query.eq('category_id', categoryId)
   const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-  return NextResponse.json({ data })
+  const sorted = [...(data ?? [])].sort(compareMotoSequence)
+  return NextResponse.json({ data: sorted })
 }
 
 export async function POST(req: Request) {

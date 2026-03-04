@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { compareMotoSequence } from '../../../../../lib/motoSequence'
 import { supabase } from '../../../../../lib/supabaseClient'
 
 type CategoryItem = {
@@ -98,7 +99,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       grouped.set(moto.category_id, list)
     }
     for (const list of grouped.values()) {
-      list.sort((a, b) => a.moto_order - b.moto_order)
+      list.sort(compareMotoSequence)
     }
     return grouped
   }, [motos])

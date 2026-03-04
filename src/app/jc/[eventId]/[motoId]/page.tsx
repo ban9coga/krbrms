@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import CheckerTopbar from '../../../../components/CheckerTopbar'
+import { compareMotoSequence } from '../../../../lib/motoSequence'
 import { supabase } from '../../../../lib/supabaseClient'
 import { isMotoLive } from '../../../../lib/motoStatus'
 
@@ -148,7 +149,7 @@ export default function JCPage() {
           const ag = order[(genderMap.get(a.category_id ?? '') as keyof typeof order) ?? 'MIX'] ?? 9
           const bg = order[(genderMap.get(b.category_id ?? '') as keyof typeof order) ?? 'MIX'] ?? 9
           if (ag !== bg) return ag - bg
-          return a.moto_order - b.moto_order
+          return compareMotoSequence(a, b)
         })
         setMotos(sortedMotos)
         if (!selectedMotoId && sortedMotos.length) {
@@ -455,7 +456,7 @@ export default function JCPage() {
   const canGateReady =
     riderList.length > 0 &&
     riderList.every((r) => {
-      const status = statuses[r.id]?.participation_status
+      const status = statuses[r.id]?.participation_status ?? 'ACTIVE'
       if (status === 'ABSENT') return true
       if (status === 'ACTIVE') return true
       return false
@@ -577,6 +578,7 @@ export default function JCPage() {
             }}
           />
           <button
+            className="jc-action-btn jc-primary"
             type="button"
             onClick={handleAllReady}
             disabled={saving || bannerDisabled || locked || !canGateReady}
@@ -593,6 +595,7 @@ export default function JCPage() {
             All Ready
           </button>
           <button
+            className="jc-action-btn"
             type="button"
             onClick={async () => {
               setSafetyChecks((prev) => {
@@ -744,6 +747,7 @@ export default function JCPage() {
                     const checked = safetyChecks[r.id]?.[item.id] === true
                     return (
                       <button
+                        className="jc-action-btn"
                         key={item.id}
                         type="button"
                         onClick={async () => {
@@ -787,6 +791,7 @@ export default function JCPage() {
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
                   <button
+                    className="jc-action-btn jc-primary"
                     type="button"
                     onClick={() => handleSaveStatus(r.id, 'ACTIVE', r.gate_position ?? 0)}
                     disabled={statusDisabled}
@@ -802,6 +807,7 @@ export default function JCPage() {
                     READY
                   </button>
                   <button
+                    className="jc-action-btn"
                     type="button"
                     onClick={() => handleSaveStatus(r.id, 'ABSENT', r.gate_position ?? 0)}
                     disabled={statusDisabled || !flags.absent_enabled}
@@ -823,6 +829,50 @@ export default function JCPage() {
         </div>
       </div>
       <style jsx>{`
+        .jc-page :global(.jc-action-btn) {
+          transition:
+            transform 120ms ease,
+            box-shadow 180ms ease,
+            filter 180ms ease,
+            opacity 180ms ease;
+          will-change: transform;
+        }
+
+        .jc-page :global(.jc-action-btn:hover:not(:disabled)) {
+          transform: translateY(-1px);
+          box-shadow: 0 6px 14px rgba(15, 23, 42, 0.22);
+          filter: brightness(1.03);
+        }
+
+        .jc-page :global(.jc-action-btn:active:not(:disabled)) {
+          transform: translateY(1px) scale(0.98);
+          box-shadow: 0 2px 6px rgba(15, 23, 42, 0.16);
+        }
+
+        .jc-page :global(.jc-action-btn:focus-visible) {
+          outline: 3px solid #38bdf8;
+          outline-offset: 2px;
+        }
+
+        .jc-page :global(.jc-action-btn:disabled) {
+          opacity: 0.66;
+          filter: saturate(0.75);
+        }
+
+        .jc-page :global(.jc-action-btn.jc-primary:not(:disabled)) {
+          animation: jc-pulse 1.9s ease-in-out infinite;
+        }
+
+        @keyframes jc-pulse {
+          0%,
+          100% {
+            box-shadow: 0 0 0 0 rgba(46, 204, 113, 0);
+          }
+          50% {
+            box-shadow: 0 0 0 8px rgba(46, 204, 113, 0.18);
+          }
+        }
+
         @media (max-width: 640px) {
           .jc-container {
             padding: 12px;

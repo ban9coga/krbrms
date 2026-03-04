@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../../lib/auth'
+import { compareMotoSequence } from '../../../../../../lib/motoSequence'
 import { requireJury } from '../../../../../../services/juryAuth'
 
 export async function GET(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
@@ -100,7 +101,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     ridersByMoto.set(row.moto_id, list)
   }
 
-  const data = (motos ?? []).map((m) => {
+  const sortedMotos = [...(motos ?? [])].sort(compareMotoSequence)
+  const data = sortedMotos.map((m) => {
     const riders = ridersByMoto.get(m.id) ?? []
     let ready = 0
     let checked = 0

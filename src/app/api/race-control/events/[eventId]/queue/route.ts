@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../../lib/auth'
+import { compareMotoSequence } from '../../../../../../lib/motoSequence'
 import { requireJury } from '../../../../../../services/juryAuth'
 
 type MotoRow = {
@@ -88,7 +89,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     const ag = genderOrder[categoryGender.get(a.category_id) ?? 'MIX'] ?? 9
     const bg = genderOrder[categoryGender.get(b.category_id) ?? 'MIX'] ?? 9
     if (ag !== bg) return ag - bg
-    return a.moto_order - b.moto_order
+    return compareMotoSequence(a, b)
   })
 
   const data = sortedMotos.map((moto) => {
