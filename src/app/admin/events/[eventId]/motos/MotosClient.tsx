@@ -24,10 +24,33 @@ type MotoItem = {
   provisional_at?: string | null
 }
 
+type GateMotoItem = {
+  id: string
+  moto_name: string
+  moto_order: number
+  status: MotoItem['status']
+  gates: Array<{
+    gate_position: number
+    rider_id: string
+    name: string
+    no_plate_display: string
+  }>
+}
+
+const parseMotoBatch = (motoName: string) => {
+  const match = motoName.match(/moto\s*(\d+)\s*-\s*batch\s*(\d+)/i)
+  if (!match) return { motoNo: 0, batchNo: 0 }
+  return {
+    motoNo: Number(match[1] ?? 0),
+    batchNo: Number(match[2] ?? 0),
+  }
+}
+
 
 export default function MotosClient({ eventId }: { eventId: string }) {
   const [categories, setCategories] = useState<CategoryItem[]>([])
   const [motos, setMotos] = useState<MotoItem[]>([])
+  const [gateOrdersByCategory, setGateOrdersByCategory] = useState<Record<string, GateMotoItem[]>>({})
   const [loading, setLoading] = useState(false)
   const [eventStatus, setEventStatus] = useState<'UPCOMING' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED' | null>(null)
 
@@ -44,6 +67,26 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     return json
   }
 
+  const loadGateOrders = async (categoryIds: string[]) => {
+    if (categoryIds.length === 0) {
+      setGateOrdersByCategory({})
+      return
+    }
+    const entries = await Promise.all(
+      categoryIds.map(async (categoryId) => {
+        const res = await fetch(`/api/events/${eventId}/gate-order?categoryId=${categoryId}`)
+        const json = await res.json().catch(() => ({}))
+        if (!res.ok) return [categoryId, []] as const
+        return [categoryId, (json?.data ?? []) as GateMotoItem[]] as const
+      })
+    )
+    const map: Record<string, GateMotoItem[]> = {}
+    for (const [categoryId, rows] of entries) {
+      map[categoryId] = [...rows].sort(compareMotoSequence)
+    }
+    setGateOrdersByCategory(map)
+  }
+
   const load = async () => {
     if (!eventId) return
     setLoading(true)
@@ -57,7 +100,10 @@ export default function MotosClient({ eventId }: { eventId: string }) {
 
       const motoRes = await fetch(`/api/motos?event_id=${eventId}`)
       const motoJson = await motoRes.json()
-      setMotos(motoJson.data ?? [])
+      const motoRows = (motoJson.data ?? []) as MotoItem[]
+      setMotos(motoRows)
+      const categoryIds = Array.from(new Set(motoRows.map((m) => m.category_id))).filter(Boolean)
+      await loadGateOrders(categoryIds)
     } finally {
       setLoading(false)
     }
@@ -103,6 +149,46 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     }
     return grouped
   }, [motos])
+
+  const printGroups = useMemo(() => {
+    return categoriesSorted
+      .map((category) => {
+        const rows = gateOrdersByCategory[category.id] ?? []
+        if (rows.length === 0) return null
+
+        const batchMap = new Map<number, GateMotoItem[]>()
+        for (const row of rows) {
+          const { batchNo } = parseMotoBatch(row.moto_name)
+          const key = batchNo > 0 ? batchNo : 1
+          const list = batchMap.get(key) ?? []
+          list.push(row)
+          batchMap.set(key, list)
+        }
+
+        const batches = Array.from(batchMap.entries())
+          .sort((a, b) => a[0] - b[0])
+          .map(([batchNo, batchRows]) => ({
+            batchNo,
+            motos: batchRows.sort((a, b) => {
+              const pa = parseMotoBatch(a.moto_name)
+              const pb = parseMotoBatch(b.moto_name)
+              if (pa.motoNo !== pb.motoNo) return pa.motoNo - pb.motoNo
+              return compareMotoSequence(a, b)
+            }),
+          }))
+
+        return {
+          categoryId: category.id,
+          categoryLabel: category.label,
+          batches,
+        }
+      })
+      .filter(Boolean) as Array<{
+      categoryId: string
+      categoryLabel: string
+      batches: Array<{ batchNo: number; motos: GateMotoItem[] }>
+    }>
+  }, [categoriesSorted, gateOrdersByCategory])
 
   const handleUpdateMotoStatus = async (motoId: string, status: MotoItem['status']) => {
     try {
@@ -266,6 +352,101 @@ export default function MotosClient({ eventId }: { eventId: string }) {
           )
         })}
       </div>
+
+      <div style={{ marginTop: 18, display: 'grid', gap: 16 }}>
+        {printGroups.map((group) => (
+          <section
+            key={`print-${group.categoryId}`}
+            className="moto-print-section"
+            style={{
+              padding: 14,
+              borderRadius: 16,
+              border: '2px solid #111',
+              background: '#fff',
+              color: '#0f172a',
+              display: 'grid',
+              gap: 12,
+            }}
+          >
+            <div style={{ fontWeight: 950, fontSize: 18 }}>Daftar Rider Moto - {group.categoryLabel}</div>
+            {group.batches.map((batch) => (
+              <div
+                key={`${group.categoryId}-batch-${batch.batchNo}`}
+                className="moto-print-batch"
+                style={{
+                  padding: 12,
+                  borderRadius: 14,
+                  border: '1px solid #cbd5e1',
+                  background: '#f8fafc',
+                  display: 'grid',
+                  gap: 10,
+                }}
+              >
+                <div style={{ fontWeight: 900 }}>Batch {batch.batchNo}</div>
+                <div style={{ display: 'grid', gap: 10 }}>
+                  {batch.motos.map((moto) => (
+                    <div
+                      key={moto.id}
+                      className="moto-print-card"
+                      style={{
+                        padding: 10,
+                        borderRadius: 12,
+                        border: '1px solid #cbd5e1',
+                        background: '#fff',
+                        display: 'grid',
+                        gap: 6,
+                      }}
+                    >
+                      <div style={{ fontWeight: 900 }}>
+                        {moto.moto_name} | {moto.status}
+                      </div>
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 420 }}>
+                          <thead>
+                            <tr>
+                              <th style={{ textAlign: 'left', padding: '6px 4px', borderBottom: '1px solid #cbd5e1', fontSize: 12 }}>
+                                Gate
+                              </th>
+                              <th style={{ textAlign: 'left', padding: '6px 4px', borderBottom: '1px solid #cbd5e1', fontSize: 12 }}>
+                                No Plate
+                              </th>
+                              <th style={{ textAlign: 'left', padding: '6px 4px', borderBottom: '1px solid #cbd5e1', fontSize: 12 }}>
+                                Nama Rider
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {moto.gates.map((gate) => (
+                              <tr key={`${moto.id}-${gate.rider_id}`}>
+                                <td style={{ padding: '6px 4px', borderBottom: '1px dashed #e2e8f0', fontWeight: 800 }}>
+                                  {gate.gate_position}
+                                </td>
+                                <td style={{ padding: '6px 4px', borderBottom: '1px dashed #e2e8f0', fontWeight: 800 }}>
+                                  {gate.no_plate_display}
+                                </td>
+                                <td style={{ padding: '6px 4px', borderBottom: '1px dashed #e2e8f0', fontWeight: 800 }}>
+                                  {gate.name}
+                                </td>
+                              </tr>
+                            ))}
+                            {moto.gates.length === 0 && (
+                              <tr>
+                                <td colSpan={3} style={{ padding: '8px 4px', color: '#64748b', fontWeight: 700 }}>
+                                  Belum ada rider pada moto ini.
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </section>
+        ))}
+      </div>
       <style>{`
         @media print {
           .no-print {
@@ -275,7 +456,10 @@ export default function MotosClient({ eventId }: { eventId: string }) {
             max-width: none !important;
           }
           .moto-category-card,
-          .moto-row-card {
+          .moto-row-card,
+          .moto-print-section,
+          .moto-print-batch,
+          .moto-print-card {
             break-inside: avoid;
             page-break-inside: avoid;
           }
