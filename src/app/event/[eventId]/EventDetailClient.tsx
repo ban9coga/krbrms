@@ -302,14 +302,16 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                           <div className="relative h-28 overflow-hidden">
                             <div
                               className="absolute inset-0"
-                              style={{ backgroundImage: categoryCoverGradients[idx % categoryCoverGradients.length] }}
+                              style={
+                                eventLogoUrl
+                                  ? {
+                                      backgroundImage: `linear-gradient(140deg,rgba(2,6,23,0.72) 0%,rgba(15,23,42,0.52) 45%,rgba(76,29,149,0.42) 100%), url(${eventLogoUrl})`,
+                                      backgroundSize: 'cover',
+                                      backgroundPosition: 'center',
+                                    }
+                                  : { backgroundImage: categoryCoverGradients[idx % categoryCoverGradients.length] }
+                              }
                             />
-                            {eventLogoUrl && (
-                              <div
-                                className="pointer-events-none absolute right-3 top-3 h-16 w-16 rounded-xl border border-white/20 bg-white/10 bg-contain bg-center bg-no-repeat opacity-90 shadow-[0_8px_20px_rgba(2,6,23,0.35)]"
-                                style={{ backgroundImage: `url(${eventLogoUrl})` }}
-                              />
-                            )}
                             <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/65 via-black/15 to-transparent" />
                             <div className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full border border-white/20" />
                             <div className="absolute left-3 top-3 rounded-full bg-white/20 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.12em] text-white backdrop-blur-sm">
