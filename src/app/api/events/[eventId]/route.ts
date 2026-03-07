@@ -33,15 +33,17 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     .from('events')
     .select('id, name, location, event_date, status, is_public, created_at, updated_at')
     .eq('id', eventId)
-    .single()
+    .limit(1)
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-  if (!auth.ok && data?.is_public === false) {
+  const eventRow = (data ?? [])[0]
+  if (!eventRow) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!auth.ok && eventRow.is_public === false) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
   const formatResult = await getLatestRaceFormatSettings(eventId)
   if (formatResult.error) return NextResponse.json({ error: formatResult.error.message }, { status: 400 })
   const drawMode = normalizeDrawMode(formatResult.data?.draw_mode)
-  return NextResponse.json({ data: { ...(data ?? {}), draw_mode: drawMode } })
+  return NextResponse.json({ data: { ...eventRow, draw_mode: drawMode } })
 }
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
@@ -75,14 +77,17 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ eventI
     }
   }
 
-  const { data: beforeRow } = await adminClient.from('events').select('status').eq('id', eventId).maybeSingle()
+  const { data: beforeRows } = await adminClient.from('events').select('status').eq('id', eventId).limit(1)
+  const beforeRow = (beforeRows ?? [])[0]
   const { data, error } = await adminClient
     .from('events')
     .update({ name, location, event_date, status, is_public })
     .eq('id', eventId)
     .select('*')
-    .single()
+    .limit(1)
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  const updatedEvent = (data ?? [])[0]
+  if (!updatedEvent) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
 
   if (requestedDrawMode) {
     const mergedRaceFormatSettings = {
@@ -123,7 +128,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ eventI
   }
   return NextResponse.json({
     data: {
-      ...data,
+      ...updatedEvent,
       ...(requestedDrawMode ? { draw_mode: requestedDrawMode } : {}),
     },
   })
