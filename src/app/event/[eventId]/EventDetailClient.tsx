@@ -95,6 +95,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
   const formattedDate = eventDate
     ? eventDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
     : null
+  const eventLogoUrl = event?.event_logo_url ?? null
   const daysToEvent =
     eventDate ? Math.ceil((eventDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null
 
@@ -303,6 +304,12 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                               className="absolute inset-0"
                               style={{ backgroundImage: categoryCoverGradients[idx % categoryCoverGradients.length] }}
                             />
+                            {eventLogoUrl && (
+                              <div
+                                className="pointer-events-none absolute right-3 top-3 h-16 w-16 rounded-xl border border-white/20 bg-white/10 bg-contain bg-center bg-no-repeat opacity-90 shadow-[0_8px_20px_rgba(2,6,23,0.35)]"
+                                style={{ backgroundImage: `url(${eventLogoUrl})` }}
+                              />
+                            )}
                             <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/65 via-black/15 to-transparent" />
                             <div className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full border border-white/20" />
                             <div className="absolute left-3 top-3 rounded-full bg-white/20 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.12em] text-white backdrop-blur-sm">
@@ -510,3 +517,5 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
     </div>
   )
 }
+
+

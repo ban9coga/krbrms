@@ -8,6 +8,7 @@ export type EventItem = {
   status: EventStatus
   is_public?: boolean | null
   event_scope?: 'PUBLIC' | 'INTERNAL' | null
+  event_logo_url?: string | null
   created_at?: string | null
   updated_at?: string | null
 }
@@ -169,3 +170,5 @@ export const getMotoResults = async (motoId: string): Promise<LeaderboardRow[]> 
     penalty_total: row.penalty_total,
   }))
 }
+
+

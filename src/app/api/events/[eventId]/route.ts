@@ -21,13 +21,17 @@ const parseRaceFormatSettings = (value: unknown): Record<string, unknown> => {
 const getLatestRaceFormatSettings = async (eventId: string) => {
   const { data, error } = await adminClient
     .from('event_settings')
-    .select('race_format_settings, updated_at')
+    .select('race_format_settings, event_logo_url, updated_at')
     .eq('event_id', eventId)
     .order('updated_at', { ascending: false })
     .limit(1)
   if (error) return { error }
   const row = (data ?? [])[0]
-  return { data: parseRaceFormatSettings(row?.race_format_settings), error: null }
+  return {
+    data: parseRaceFormatSettings(row?.race_format_settings),
+    eventLogoUrl: typeof row?.event_logo_url === 'string' ? row.event_logo_url : null,
+    error: null,
+  }
 }
 
 export async function GET(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
@@ -50,7 +54,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const eventScope = normalizeEventScope(
     formatResult.data?.event_scope ?? (eventRow.is_public === false ? 'INTERNAL' : 'PUBLIC')
   )
-  return NextResponse.json({ data: { ...eventRow, draw_mode: drawMode, event_scope: eventScope } })
+  return NextResponse.json({
+    data: {
+      ...eventRow,
+      draw_mode: drawMode,
+      event_scope: eventScope,
+      event_logo_url: formatResult.eventLogoUrl,
+    },
+  })
 }
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
@@ -165,3 +176,4 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ eventId
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json({ ok: true })
 }
+
