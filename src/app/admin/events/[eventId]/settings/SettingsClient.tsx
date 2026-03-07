@@ -445,7 +445,12 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
       alert('Gate positions tidak valid.')
       return
     }
+    const existingFormat =
+      row?.race_format_settings && typeof row.race_format_settings === 'object' && !Array.isArray(row.race_format_settings)
+        ? (row.race_format_settings as Record<string, unknown>)
+        : {}
     const format = {
+      ...existingFormat,
       moto_per_batch: motoPerBatch,
       gate_positions: gatePositions,
       qualification_enabled: Boolean(form.race_qualification_enabled),

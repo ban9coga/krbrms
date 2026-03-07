@@ -63,7 +63,7 @@ const EventNav = (eventId: string): NavItem[] => [
   { label: 'Registrations', href: `/admin/events/${eventId}/registrations` },
   { label: 'Riders', href: `/admin/events/${eventId}/riders` },
   { label: 'Categories', href: `/admin/events/${eventId}/categories` },
-  { label: 'Live Draw', href: `/admin/events/${eventId}/live-draw` },
+  { label: 'Draw Setup', href: `/admin/events/${eventId}/live-draw` },
   { label: 'Motos', href: `/admin/events/${eventId}/motos` },
   { label: 'Race Schedule', href: `/admin/events/${eventId}/schedule` },
   { label: 'Results Summary', href: `/admin/events/${eventId}/results` },

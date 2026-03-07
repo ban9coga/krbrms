@@ -2,19 +2,44 @@ import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../lib/auth'
 import { computeQualificationAndStore, computeStageAdvances, generateStageMotos } from '../../../../services/advancedRaceAuto'
 
+type DrawMode = 'internal_live_draw' | 'external_draw'
+
+const normalizeDrawMode = (value: unknown): DrawMode =>
+  value === 'external_draw' ? 'external_draw' : 'internal_live_draw'
+
+const parseRaceFormatSettings = (value: unknown): Record<string, unknown> => {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as Record<string, unknown>
+  }
+  return {}
+}
+
+const extractRaceFormatSettings = (eventSettings: unknown) => {
+  if (Array.isArray(eventSettings)) {
+    return parseRaceFormatSettings(eventSettings[0]?.race_format_settings)
+  }
+  if (eventSettings && typeof eventSettings === 'object') {
+    return parseRaceFormatSettings((eventSettings as Record<string, unknown>).race_format_settings)
+  }
+  return {}
+}
+
 export async function GET(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params
   const auth = await requireAdmin(req.headers.get('authorization'))
   const { data, error } = await adminClient
     .from('events')
-    .select('id, name, location, event_date, status, is_public, created_at, updated_at')
+    .select('id, name, location, event_date, status, is_public, created_at, updated_at, event_settings(race_format_settings)')
     .eq('id', eventId)
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   if (!auth.ok && data?.is_public === false) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
-  return NextResponse.json({ data })
+  const eventRow = (data ?? {}) as Record<string, unknown>
+  const drawMode = normalizeDrawMode(extractRaceFormatSettings(eventRow.event_settings).draw_mode)
+  const { event_settings: _eventSettings, ...rest } = eventRow
+  return NextResponse.json({ data: { ...rest, draw_mode: drawMode } })
 }
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
@@ -22,7 +47,36 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ eventI
   if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { eventId } = await params
   const body = await req.json()
-  const { name, location, event_date, status, is_public } = body ?? {}
+  const { name, location, event_date, status, is_public, draw_mode } = body ?? {}
+  const requestedDrawMode = draw_mode == null ? null : normalizeDrawMode(draw_mode)
+  let existingRaceFormatSettings: Record<string, unknown> = {}
+
+  if (requestedDrawMode) {
+    const { data: settingsRow, error: settingsReadError } = await adminClient
+      .from('event_settings')
+      .select('race_format_settings')
+      .eq('event_id', eventId)
+      .maybeSingle()
+    if (settingsReadError) return NextResponse.json({ error: settingsReadError.message }, { status: 400 })
+    existingRaceFormatSettings = parseRaceFormatSettings(settingsRow?.race_format_settings)
+
+    const currentDrawMode = normalizeDrawMode(existingRaceFormatSettings.draw_mode)
+    if (currentDrawMode !== requestedDrawMode) {
+      const { data: existingMoto, error: motoCheckError } = await adminClient
+        .from('motos')
+        .select('id')
+        .eq('event_id', eventId)
+        .limit(1)
+      if (motoCheckError) return NextResponse.json({ error: motoCheckError.message }, { status: 400 })
+      if ((existingMoto ?? []).length > 0) {
+        return NextResponse.json(
+          { error: 'Draw mode cannot be changed after motos are created. Reset motos first.' },
+          { status: 409 }
+        )
+      }
+    }
+  }
+
   const { data: beforeRow } = await adminClient.from('events').select('status').eq('id', eventId).maybeSingle()
   const { data, error } = await adminClient
     .from('events')
@@ -31,6 +85,23 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ eventI
     .select('*')
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+
+  if (requestedDrawMode) {
+    const mergedRaceFormatSettings = {
+      ...existingRaceFormatSettings,
+      draw_mode: requestedDrawMode,
+    }
+    const { error: settingsWriteError } = await adminClient.from('event_settings').upsert(
+      [
+        {
+          event_id: eventId,
+          race_format_settings: mergedRaceFormatSettings,
+        },
+      ],
+      { onConflict: 'event_id' }
+    )
+    if (settingsWriteError) return NextResponse.json({ error: settingsWriteError.message }, { status: 400 })
+  }
 
   if (status === 'LIVE' && beforeRow?.status !== 'LIVE') {
     try {
@@ -52,7 +123,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ eventI
       console.warn('Advanced race auto failed', err)
     }
   }
-  return NextResponse.json({ data })
+  return NextResponse.json({
+    data: {
+      ...data,
+      ...(requestedDrawMode ? { draw_mode: requestedDrawMode } : {}),
+    },
+  })
 }
 
 export async function DELETE(_: Request, { params }: { params: Promise<{ eventId: string }> }) {

@@ -38,6 +38,19 @@ type GateMoto = {
   }>
 }
 
+type DrawMode = 'internal_live_draw' | 'external_draw'
+
+const normalizeDrawMode = (value: unknown): DrawMode =>
+  value === 'external_draw' ? 'external_draw' : 'internal_live_draw'
+
+const normalizePlateToken = (value: string) => value.toUpperCase().replace(/[^0-9A-Z]/g, '')
+
+const parseExternalTokens = (value: string) =>
+  value
+    .split(/[\n,;]+/)
+    .map((item) => normalizePlateToken(item.trim()))
+    .filter(Boolean)
+
 const shuffle = <T,>(input: T[]) => {
   const arr = [...input]
   for (let i = arr.length - 1; i > 0; i -= 1) {
@@ -68,6 +81,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
   const [drawnOrder, setDrawnOrder] = useState<RiderItem[]>([])
   const [batchSize, setBatchSize] = useState(8)
   const [gatePositions, setGatePositions] = useState(8)
+  const [drawMode, setDrawMode] = useState<DrawMode>('internal_live_draw')
   const [rollingName, setRollingName] = useState<string>('Ready')
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [wheelRiders, setWheelRiders] = useState<RiderItem[]>([])
@@ -77,11 +91,64 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
   const [categoryLocked, setCategoryLocked] = useState(false)
   const [lockedMotos, setLockedMotos] = useState<GateMoto[]>([])
   const [openMotoId, setOpenMotoId] = useState<string | null>(null)
+  const [externalOrderText, setExternalOrderText] = useState('')
 
   const batches = useMemo(() => buildBatches(drawnOrder, batchSize), [drawnOrder, batchSize])
   const visibleWheelRiders = wheelRiders.length > 0 ? wheelRiders : riders
 
+  const externalValidation = useMemo(() => {
+    const tokens = parseExternalTokens(externalOrderText)
+    const riderByPlate = new Map<string, RiderItem>()
+    for (const rider of riders) riderByPlate.set(normalizePlateToken(rider.no_plate_display), rider)
+
+    const seenToken = new Set<string>()
+    const usedRiderIds = new Set<string>()
+    const duplicateTokens: string[] = []
+    const unknownTokens: string[] = []
+    const duplicateRiders: string[] = []
+    const orderedRiders: RiderItem[] = []
+
+    for (const token of tokens) {
+      if (seenToken.has(token)) {
+        duplicateTokens.push(token)
+        continue
+      }
+      seenToken.add(token)
+      const rider = riderByPlate.get(token)
+      if (!rider) {
+        unknownTokens.push(token)
+        continue
+      }
+      if (usedRiderIds.has(rider.id)) {
+        duplicateRiders.push(token)
+        continue
+      }
+      usedRiderIds.add(rider.id)
+      orderedRiders.push(rider)
+    }
+
+    const missingRiders = riders.filter((rider) => !usedRiderIds.has(rider.id))
+    const isValid =
+      riders.length > 0 &&
+      orderedRiders.length === riders.length &&
+      unknownTokens.length === 0 &&
+      duplicateTokens.length === 0 &&
+      duplicateRiders.length === 0 &&
+      missingRiders.length === 0
+
+    return {
+      tokens,
+      orderedRiders,
+      duplicateTokens,
+      unknownTokens,
+      duplicateRiders,
+      missingRiders,
+      isValid,
+    }
+  }, [externalOrderText, riders])
+
   useEffect(() => {
+    if (drawMode !== 'internal_live_draw') return
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')
@@ -130,7 +197,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     ctx.fillStyle = '#111'
     ctx.fill()
     ctx.restore()
-  }, [visibleWheelRiders])
+  }, [drawMode, visibleWheelRiders])
 
   const apiFetch = async (url: string, options: RequestInit = {}) => {
     const { data } = await supabase.auth.getSession()
@@ -150,9 +217,10 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       const res = await fetch(`/api/events/${eventId}/categories`)
       const json = await res.json()
       const list = (json?.data ?? []) as CategoryItem[]
-      setCategories(list.filter((c) => c.enabled))
-      if (!selectedCategory && list.length > 0) {
-        setSelectedCategory(list[0].id)
+      const enabledCategories = list.filter((c) => c.enabled)
+      setCategories(enabledCategories)
+      if (!selectedCategory && enabledCategories.length > 0) {
+        setSelectedCategory(enabledCategories[0].id)
       }
     } finally {
       setLoading(false)
@@ -165,11 +233,13 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       const { res, json } = await apiFetch(`/api/events/${eventId}/settings`)
       if (!res.ok) return
       const format = (json?.data?.race_format_settings ?? {}) as Record<string, unknown>
+      setDrawMode(normalizeDrawMode(format.draw_mode))
       const nextGate = typeof format.gate_positions === 'number' ? format.gate_positions : 8
       setGatePositions(nextGate)
       setBatchSize((prev) => {
-        const capped = Math.max(4, Math.min(nextGate, prev))
-        return prev === 8 ? nextGate : capped
+        const maxGate = Math.max(4, nextGate)
+        const capped = Math.max(4, Math.min(maxGate, prev))
+        return prev === 8 ? maxGate : capped
       })
     } catch {
       // ignore settings errors
@@ -191,6 +261,9 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       setHasDrawn(locked)
       setCategoryLocked(locked)
       setLockedMotos([])
+      setExternalOrderText('')
+      setWheelRiders([])
+      setWheelRotation(0)
 
       if (locked) {
         const gateRes = await apiFetch(`/api/events/${eventId}/gate-order?categoryId=${categoryId}`)
@@ -242,9 +315,28 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     window.setTimeout(() => {
       setRollingName(shuffled[index].name)
       setDrawnOrder(shuffled)
-    setDrawing(false)
+      setDrawing(false)
+      setHasDrawn(true)
+    }, 2200)
+  }
+
+  const applyExternalOrder = () => {
+    if (riders.length === 0) {
+      alert('Tidak ada rider di kategori ini.')
+      return
+    }
+    if (categoryLocked) {
+      alert('Kategori ini sudah terkunci. Reset moto dulu jika ingin ubah urutan.')
+      return
+    }
+    if (!externalValidation.isValid) {
+      alert('Urutan external belum valid. Pastikan semua rider terisi tepat satu kali.')
+      return
+    }
+    setDrawnOrder(externalValidation.orderedRiders)
+    setRollingName('External order ready')
     setHasDrawn(true)
-  }, 2200)
+    setSaveState('idle')
   }
 
   const resetDraw = () => {
@@ -255,6 +347,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     setRollingName('Ready')
     setHasDrawn(false)
     setSaveState('idle')
+    setExternalOrderText('')
   }
 
   const resetLockedDraw = async () => {
@@ -276,6 +369,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       setCategoryLocked(false)
       setLockedMotos([])
       setSaveState('idle')
+      setExternalOrderText('')
       await loadRiders(selectedCategory)
       alert('Draw berhasil direset.')
     } catch (err: unknown) {
@@ -286,7 +380,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
 
   const saveAsMoto = async () => {
     if (!selectedCategory || drawnOrder.length === 0) {
-      alert('Lakukan draw terlebih dulu.')
+      alert(drawMode === 'external_draw' ? 'Klik "Gunakan Urutan External" dulu.' : 'Lakukan draw terlebih dulu.')
       return
     }
     setSaveState('saving')
@@ -300,9 +394,10 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
         method: 'POST',
         body: JSON.stringify(payload),
       })
-      if (!res.ok) throw new Error(json?.error || 'Gagal menyimpan Moto dari hasil draw')
+      if (!res.ok) throw new Error(json?.error || 'Gagal menyimpan Moto')
       setSaveState('saved')
-      alert('Moto berhasil dibuat dari hasil Live Draw.')
+      await loadRiders(selectedCategory)
+      alert('Moto berhasil dibuat.')
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Gagal menyimpan hasil draw')
       setSaveState('idle')
@@ -313,10 +408,13 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     <div style={{ maxWidth: 1020 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'end', gap: 12 }}>
         <div>
-          <h1 style={{ fontSize: 26, fontWeight: 950, margin: 0 }}>Live Draw (Manual)</h1>
+          <h1 style={{ fontSize: 26, fontWeight: 950, margin: 0 }}>
+            {drawMode === 'external_draw' ? 'External Draw Setup' : 'Live Draw (Internal)'}
+          </h1>
           <div style={{ marginTop: 8, color: '#333', fontWeight: 700 }}>
-            Draw manual dengan roulette, lalu simpan hasilnya sebagai Moto 1 & Moto 2 (gate Moto 2 otomatis
-            dibalik).
+            {drawMode === 'external_draw'
+              ? 'Hasil draw dari luar sistem. Paste urutan plate Moto 1, validasi, lalu generate moto.'
+              : 'Draw manual dengan roulette, lalu simpan hasilnya sebagai Moto 1 & Moto 2 (gate Moto 2 otomatis dibalik).'}
           </div>
         </div>
       </div>
@@ -332,6 +430,25 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
           gap: 12,
         }}
       >
+        <div style={{ display: 'grid', gap: 8 }}>
+          <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+            Mode
+          </div>
+          <div
+            style={{
+              width: 'fit-content',
+              borderRadius: 999,
+              border: '1px solid #cbd5e1',
+              padding: '6px 10px',
+              fontWeight: 900,
+              background: drawMode === 'external_draw' ? '#fef3c7' : '#dcfce7',
+              color: '#111827',
+            }}
+          >
+            {drawMode === 'external_draw' ? 'External Draw' : 'Internal Live Draw'}
+          </div>
+        </div>
+
         <div style={{ display: 'grid', gap: 8 }}>
           <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
             Pilih Kategori
@@ -356,9 +473,13 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
           <input
             type="number"
             min={4}
-            max={8}
+            max={Math.max(4, gatePositions)}
             value={batchSize}
-            onChange={(e) => setBatchSize(Math.max(4, Math.min(8, Number(e.target.value))))}
+            onChange={(e) => {
+              const next = Number(e.target.value)
+              const maxGate = Math.max(4, gatePositions)
+              setBatchSize(Math.max(4, Math.min(maxGate, next)))
+            }}
             style={{ padding: 12, borderRadius: 12, border: '2px solid #111', maxWidth: 160 }}
           />
         </div>
@@ -373,7 +494,9 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
           }}
         >
           <div style={{ display: 'grid', gap: 6 }}>
-            <div style={{ fontWeight: 900, fontSize: 18 }}>Wheel Spin</div>
+            <div style={{ fontWeight: 900, fontSize: 18 }}>
+              {drawMode === 'external_draw' ? 'External Order' : 'Wheel Spin'}
+            </div>
             <div style={{ fontSize: 18, fontWeight: 900 }}>{rollingName}</div>
             <div style={{ color: '#444', fontWeight: 700 }}>
               Total rider: {riders.length} | Batch: {batches.length}
@@ -414,121 +537,266 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
               </div>
             )}
           </div>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr',
-              alignItems: 'center',
-              justifyItems: 'center',
-              gap: 10,
-            }}
-          >
-            <div style={{ position: 'relative', width: 360, height: 360 }}>
-              <div
-                style={{
-                  position: 'absolute',
-                  top: -6,
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                  width: 0,
-                  height: 0,
-                  borderLeft: '12px solid transparent',
-                  borderRight: '12px solid transparent',
-                  borderBottom: '18px solid #b40000',
-                  zIndex: 3,
-                }}
-              />
-              <canvas
-                ref={canvasRef}
-                width={360}
-                height={360}
-                style={{
-                  width: 360,
-                  height: 360,
-                  borderRadius: '50%',
-                  border: '2px solid #111',
-                  background: '#fff',
-                  transform: `rotate(${wheelRotation}deg)`,
-                  transition: drawing ? 'transform 4.2s cubic-bezier(0.12, 0.6, 0.08, 1)' : 'none',
-                }}
-              />
-            </div>
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                onClick={startDraw}
-                disabled={loading || drawing || riders.length === 0 || hasDrawn}
-                style={{
-                  padding: '12px 16px',
-                  borderRadius: 12,
-                  border: '2px solid #111',
-                  background: drawing || hasDrawn ? '#ddd' : '#2ecc71',
-                  fontWeight: 900,
-                  cursor: drawing || hasDrawn ? 'not-allowed' : 'pointer',
-                }}
-              >
-                {hasDrawn ? 'Draw Terkunci' : 'Start Draw'}
-              </button>
-              <button
-                type="button"
-                onClick={saveAsMoto}
-                disabled={saveState === 'saving' || drawnOrder.length === 0}
-                style={{
-                  padding: '12px 16px',
-                  borderRadius: 12,
-                  border: '2px solid #111',
-                  background: saveState === 'saved' ? '#bfead2' : '#fff',
-                  fontWeight: 900,
-                  cursor: saveState === 'saving' ? 'not-allowed' : 'pointer',
-                }}
-              >
-                {saveState === 'saving' ? 'Saving...' : 'Save as Moto'}
-              </button>
-              <button
-                type="button"
-                onClick={resetDraw}
-                disabled={categoryLocked || drawnOrder.length === 0}
-                style={{
-                  padding: '12px 16px',
-                  borderRadius: 12,
-                  border: '2px solid #111',
-                  background: categoryLocked ? '#eee' : '#fff',
-                  fontWeight: 900,
-                  cursor: categoryLocked ? 'not-allowed' : 'pointer',
-                }}
-              >
-                Reset Draw
-              </button>
-              {categoryLocked && (
+          {drawMode === 'internal_live_draw' ? (
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr',
+                alignItems: 'center',
+                justifyItems: 'center',
+                gap: 10,
+              }}
+            >
+              <div style={{ position: 'relative', width: 360, height: 360 }}>
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: -6,
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    width: 0,
+                    height: 0,
+                    borderLeft: '12px solid transparent',
+                    borderRight: '12px solid transparent',
+                    borderBottom: '18px solid #b40000',
+                    zIndex: 3,
+                  }}
+                />
+                <canvas
+                  ref={canvasRef}
+                  width={360}
+                  height={360}
+                  style={{
+                    width: 360,
+                    height: 360,
+                    borderRadius: '50%',
+                    border: '2px solid #111',
+                    background: '#fff',
+                    transform: `rotate(${wheelRotation}deg)`,
+                    transition: drawing ? 'transform 4.2s cubic-bezier(0.12, 0.6, 0.08, 1)' : 'none',
+                  }}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                 <button
                   type="button"
-                  onClick={resetLockedDraw}
-                  disabled={saveState === 'saving'}
+                  onClick={startDraw}
+                  disabled={loading || drawing || riders.length === 0 || hasDrawn}
                   style={{
                     padding: '12px 16px',
                     borderRadius: 12,
                     border: '2px solid #111',
-                    background: '#ffd6d6',
+                    background: drawing || hasDrawn ? '#ddd' : '#2ecc71',
                     fontWeight: 900,
-                    cursor: 'pointer',
+                    cursor: drawing || hasDrawn ? 'not-allowed' : 'pointer',
                   }}
                 >
-                  Reset Draw (Hapus Moto)
+                  {hasDrawn ? 'Draw Terkunci' : 'Start Draw'}
                 </button>
-              )}
+                <button
+                  type="button"
+                  onClick={saveAsMoto}
+                  disabled={saveState === 'saving' || drawnOrder.length === 0}
+                  style={{
+                    padding: '12px 16px',
+                    borderRadius: 12,
+                    border: '2px solid #111',
+                    background: saveState === 'saved' ? '#bfead2' : '#fff',
+                    fontWeight: 900,
+                    cursor: saveState === 'saving' ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {saveState === 'saving' ? 'Saving...' : 'Save as Moto'}
+                </button>
+                <button
+                  type="button"
+                  onClick={resetDraw}
+                  disabled={categoryLocked || drawnOrder.length === 0}
+                  style={{
+                    padding: '12px 16px',
+                    borderRadius: 12,
+                    border: '2px solid #111',
+                    background: categoryLocked ? '#eee' : '#fff',
+                    fontWeight: 900,
+                    cursor: categoryLocked ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  Reset Draw
+                </button>
+                {categoryLocked && (
+                  <button
+                    type="button"
+                    onClick={resetLockedDraw}
+                    disabled={saveState === 'saving'}
+                    style={{
+                      padding: '12px 16px',
+                      borderRadius: 12,
+                      border: '2px solid #111',
+                      background: '#ffd6d6',
+                      fontWeight: 900,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Reset Draw (Hapus Moto)
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div style={{ display: 'grid', gap: 10 }}>
+              <div style={{ fontWeight: 900 }}>Paste urutan no plate (Moto 1)</div>
+              <div style={{ color: '#334155', fontWeight: 700 }}>
+                Format: satu plate per baris, atau dipisah koma. Contoh: <code>15B</code>, <code>19</code>,{' '}
+                <code>777</code>
+              </div>
+              <textarea
+                value={externalOrderText}
+                onChange={(e) => setExternalOrderText(e.target.value)}
+                rows={8}
+                placeholder={'15B\n19\n777'}
+                style={{
+                  width: '100%',
+                  borderRadius: 12,
+                  border: '2px solid #111',
+                  padding: 12,
+                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+                  fontSize: 14,
+                }}
+              />
+              <div style={{ display: 'grid', gap: 4, fontWeight: 800 }}>
+                <div>Token terbaca: {externalValidation.tokens.length}</div>
+                <div>Rider cocok: {externalValidation.orderedRiders.length}</div>
+                <div style={{ color: externalValidation.isValid ? '#166534' : '#b91c1c' }}>
+                  {externalValidation.isValid ? 'VALID - siap jadi moto' : 'BELUM VALID'}
+                </div>
+                {externalValidation.unknownTokens.length > 0 && (
+                  <div style={{ color: '#b91c1c' }}>
+                    Plate tidak dikenal: {externalValidation.unknownTokens.slice(0, 10).join(', ')}
+                  </div>
+                )}
+                {externalValidation.duplicateTokens.length > 0 && (
+                  <div style={{ color: '#b91c1c' }}>
+                    Plate duplikat: {externalValidation.duplicateTokens.slice(0, 10).join(', ')}
+                  </div>
+                )}
+                {externalValidation.duplicateRiders.length > 0 && (
+                  <div style={{ color: '#b91c1c' }}>
+                    Rider duplikat: {externalValidation.duplicateRiders.slice(0, 10).join(', ')}
+                  </div>
+                )}
+                {externalValidation.missingRiders.length > 0 && (
+                  <div style={{ color: '#b91c1c' }}>
+                    Belum terisi:{' '}
+                    {externalValidation.missingRiders
+                      .slice(0, 8)
+                      .map((rider) => rider.no_plate_display)
+                      .join(', ')}
+                  </div>
+                )}
+              </div>
+              {externalValidation.orderedRiders.length > 0 && (
+                <div style={{ display: 'grid', gap: 6, maxHeight: 220, overflowY: 'auto' }}>
+                  {externalValidation.orderedRiders.map((rider, idx) => (
+                    <div
+                      key={`ext-${rider.id}`}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        gap: 10,
+                        padding: '8px 10px',
+                        borderRadius: 10,
+                        border: '1px solid #ddd',
+                        background: '#fff',
+                        fontWeight: 800,
+                      }}
+                    >
+                      <span>
+                        Gate {idx + 1} - {rider.name}
+                      </span>
+                      <span>{rider.no_plate_display}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={applyExternalOrder}
+                  disabled={loading || categoryLocked || externalValidation.tokens.length === 0}
+                  style={{
+                    padding: '12px 16px',
+                    borderRadius: 12,
+                    border: '2px solid #111',
+                    background: externalValidation.isValid ? '#2ecc71' : '#fef3c7',
+                    fontWeight: 900,
+                    cursor: categoryLocked ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  Gunakan Urutan External
+                </button>
+                <button
+                  type="button"
+                  onClick={saveAsMoto}
+                  disabled={saveState === 'saving' || drawnOrder.length === 0}
+                  style={{
+                    padding: '12px 16px',
+                    borderRadius: 12,
+                    border: '2px solid #111',
+                    background: saveState === 'saved' ? '#bfead2' : '#fff',
+                    fontWeight: 900,
+                    cursor: saveState === 'saving' ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {saveState === 'saving' ? 'Saving...' : 'Save as Moto'}
+                </button>
+                <button
+                  type="button"
+                  onClick={resetDraw}
+                  disabled={categoryLocked}
+                  style={{
+                    padding: '12px 16px',
+                    borderRadius: 12,
+                    border: '2px solid #111',
+                    background: categoryLocked ? '#eee' : '#fff',
+                    fontWeight: 900,
+                    cursor: categoryLocked ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  Reset Draft
+                </button>
+                {categoryLocked && (
+                  <button
+                    type="button"
+                    onClick={resetLockedDraw}
+                    disabled={saveState === 'saving'}
+                    style={{
+                      padding: '12px 16px',
+                      borderRadius: 12,
+                      border: '2px solid #111',
+                      background: '#ffd6d6',
+                      fontWeight: 900,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Reset Draw (Hapus Moto)
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
       <div style={{ marginTop: 18 }}>
         {loading && <div style={{ fontWeight: 800 }}>Memuat data...</div>}
-        {!loading && drawnOrder.length === 0 && (
+        {!loading && drawnOrder.length === 0 && !categoryLocked && (
           <div style={{ color: '#555', fontWeight: 700 }}>
-            {categoryLocked ? 'Hasil draw tersimpan. Lihat gate order di bawah.' : 'Belum ada hasil draw.'}
+            {drawMode === 'external_draw'
+              ? 'Belum ada urutan external yang dipakai.'
+              : 'Belum ada hasil draw.'}
           </div>
         )}
-        {drawnOrder.length > 0 && (
+        {drawnOrder.length > 0 && !categoryLocked && (
           <div style={{ display: 'grid', gap: 14 }}>
             {batches.map((batch) => (
               <div
@@ -602,7 +870,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                     cursor: 'pointer',
                   }}
                 >
-                  {moto.moto_order}. {moto.moto_name} {openMotoId === moto.id ? '▲' : '▼'}
+                  {moto.moto_order}. {moto.moto_name} {openMotoId === moto.id ? '[Hide]' : '[Show]'}
                 </button>
                 {openMotoId === moto.id && (
                   <div style={{ marginTop: 8, display: 'grid', gap: 6 }}>

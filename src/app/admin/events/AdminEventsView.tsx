@@ -11,6 +11,7 @@ type EventItem = {
   event_date: string
   status: 'UPCOMING' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED'
   is_public?: boolean | null
+  draw_mode?: 'internal_live_draw' | 'external_draw' | null
 }
 
 type AdminEventsViewProps = {
@@ -28,6 +29,7 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
     event_date: '',
     status: 'UPCOMING' as EventItem['status'],
     visibility: 'PUBLIC' as 'PUBLIC' | 'INTERNAL',
+    draw_mode: 'internal_live_draw' as NonNullable<EventItem['draw_mode']>,
   })
 
   const getErrorMessage = (err: unknown) => (err instanceof Error ? err.message : 'Request failed')
@@ -71,9 +73,17 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
         event_date: form.event_date,
         status: form.status,
         is_public: form.visibility === 'PUBLIC',
+        draw_mode: form.draw_mode,
       }
       await apiFetch('/api/events', { method: 'POST', body: JSON.stringify(payload) })
-      setForm({ name: '', location: '', event_date: '', status: 'UPCOMING', visibility: 'PUBLIC' })
+      setForm({
+        name: '',
+        location: '',
+        event_date: '',
+        status: 'UPCOMING',
+        visibility: 'PUBLIC',
+        draw_mode: 'internal_live_draw',
+      })
       await loadEvents()
     } catch (err: unknown) {
       alert(getErrorMessage(err))
@@ -135,6 +145,18 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
       await apiFetch(`/api/events/${eventId}`, {
         method: 'PATCH',
         body: JSON.stringify({ is_public: isPublic }),
+      })
+      await loadEvents()
+    } catch (err: unknown) {
+      alert(getErrorMessage(err))
+    }
+  }
+
+  const handleDrawMode = async (eventId: string, drawMode: NonNullable<EventItem['draw_mode']>) => {
+    try {
+      await apiFetch(`/api/events/${eventId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ draw_mode: drawMode }),
       })
       await loadEvents()
     } catch (err: unknown) {
@@ -238,6 +260,24 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
                 <option value="INTERNAL">Internal Event</option>
               </select>
             </div>
+            <div style={{ display: 'grid', gap: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                Draw Mode
+              </div>
+              <select
+                value={form.draw_mode}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    draw_mode: e.target.value as NonNullable<EventItem['draw_mode']>,
+                  })
+                }
+                style={{ padding: 12, borderRadius: 12, border: '1px solid #cbd5e1' }}
+              >
+                <option value="internal_live_draw">Internal Live Draw</option>
+                <option value="external_draw">External Draw (Paste Order)</option>
+              </select>
+            </div>
 
             <button
               type="button"
@@ -321,6 +361,21 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
                 <div style={{ marginTop: 2, color: '#334155', fontWeight: 700 }}>
                   {ev.location || '-'} | {ev.event_date}
                 </div>
+                <div
+                  style={{
+                    marginTop: 6,
+                    width: 'fit-content',
+                    padding: '3px 8px',
+                    borderRadius: 999,
+                    border: '1px solid #cbd5e1',
+                    background: '#f8fafc',
+                    color: '#334155',
+                    fontSize: 12,
+                    fontWeight: 900,
+                  }}
+                >
+                  Draw Mode: {ev.draw_mode === 'external_draw' ? 'External Draw' : 'Internal Live Draw'}
+                </div>
               </div>
               <div style={{ display: 'grid', gap: 8, justifyItems: 'end' }}>
                 <select
@@ -352,6 +407,23 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
                 >
                   {ev.is_public === false ? 'Show on Public' : 'Hide from Public'}
                 </button>
+                <select
+                  value={ev.draw_mode === 'external_draw' ? 'external_draw' : 'internal_live_draw'}
+                  onChange={(e) =>
+                    handleDrawMode(ev.id, e.target.value as NonNullable<EventItem['draw_mode']>)
+                  }
+                  style={{
+                    padding: '8px 10px',
+                    borderRadius: 12,
+                    border: '1px solid #cbd5e1',
+                    background: '#fff',
+                    fontWeight: 900,
+                    minWidth: 190,
+                  }}
+                >
+                  <option value="internal_live_draw">Internal Live Draw</option>
+                  <option value="external_draw">External Draw</option>
+                </select>
               </div>
             </div>
 
