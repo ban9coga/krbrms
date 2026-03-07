@@ -72,6 +72,27 @@ const buildBatches = (riders: RiderItem[], batchSize: number) => {
   return batches
 }
 
+const chunk = <T,>(items: T[], size: number) => {
+  const batches: T[][] = []
+  let cursor = 0
+  while (cursor < items.length) {
+    batches.push(items.slice(cursor, cursor + size))
+    cursor += size
+  }
+  return batches
+}
+
+const sameSet = (a: string[], b: string[]) => {
+  if (a.length !== b.length) return false
+  const setA = new Set(a)
+  const setB = new Set(b)
+  if (setA.size !== setB.size) return false
+  for (const item of setA) {
+    if (!setB.has(item)) return false
+  }
+  return true
+}
+
 export default function LiveDrawClient({ eventId }: { eventId: string }) {
   const [categories, setCategories] = useState<CategoryItem[]>([])
   const [selectedCategory, setSelectedCategory] = useState<string>('')
@@ -92,6 +113,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
   const [lockedMotos, setLockedMotos] = useState<GateMoto[]>([])
   const [openMotoId, setOpenMotoId] = useState<string | null>(null)
   const [externalOrderText, setExternalOrderText] = useState('')
+  const [externalMoto2OrderText, setExternalMoto2OrderText] = useState('')
 
   const batches = useMemo(() => buildBatches(drawnOrder, batchSize), [drawnOrder, batchSize])
   const visibleWheelRiders = wheelRiders.length > 0 ? wheelRiders : riders
@@ -146,6 +168,97 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       isValid,
     }
   }, [externalOrderText, riders])
+
+  const externalMoto2Validation = useMemo(() => {
+    const tokens = parseExternalTokens(externalMoto2OrderText)
+    const isProvided = tokens.length > 0
+    if (!isProvided) {
+      return {
+        isProvided: false,
+        tokens: [] as string[],
+        orderedRiders: [] as RiderItem[],
+        duplicateTokens: [] as string[],
+        unknownTokens: [] as string[],
+        duplicateRiders: [] as string[],
+        missingRiders: [] as RiderItem[],
+        batchMismatch: [] as number[],
+        isValidGlobal: true,
+        isValidForMoto1: true,
+      }
+    }
+
+    const riderByPlate = new Map<string, RiderItem>()
+    for (const rider of riders) riderByPlate.set(normalizePlateToken(rider.no_plate_display), rider)
+
+    const seenToken = new Set<string>()
+    const usedRiderIds = new Set<string>()
+    const duplicateTokens: string[] = []
+    const unknownTokens: string[] = []
+    const duplicateRiders: string[] = []
+    const orderedRiders: RiderItem[] = []
+
+    for (const token of tokens) {
+      if (seenToken.has(token)) {
+        duplicateTokens.push(token)
+        continue
+      }
+      seenToken.add(token)
+      const rider = riderByPlate.get(token)
+      if (!rider) {
+        unknownTokens.push(token)
+        continue
+      }
+      if (usedRiderIds.has(rider.id)) {
+        duplicateRiders.push(token)
+        continue
+      }
+      usedRiderIds.add(rider.id)
+      orderedRiders.push(rider)
+    }
+
+    const missingRiders = riders.filter((rider) => !usedRiderIds.has(rider.id))
+    const isValidGlobal =
+      riders.length > 0 &&
+      orderedRiders.length === riders.length &&
+      unknownTokens.length === 0 &&
+      duplicateTokens.length === 0 &&
+      duplicateRiders.length === 0 &&
+      missingRiders.length === 0
+
+    const moto1Reference = drawnOrder.length > 0 ? drawnOrder : externalValidation.orderedRiders
+    const moto1ReferenceIds = moto1Reference.map((rider) => rider.id)
+    const batchMismatch: number[] = []
+    let isValidForMoto1 = false
+    if (isValidGlobal && moto1ReferenceIds.length === riders.length) {
+      const moto1Batches = chunk(moto1ReferenceIds, batchSize)
+      const moto2Batches = chunk(
+        orderedRiders.map((rider) => rider.id),
+        batchSize
+      )
+      isValidForMoto1 = moto1Batches.length === moto2Batches.length
+      if (isValidForMoto1) {
+        for (let i = 0; i < moto1Batches.length; i += 1) {
+          if (!sameSet(moto1Batches[i], moto2Batches[i] ?? [])) {
+            batchMismatch.push(i + 1)
+            isValidForMoto1 = false
+          }
+        }
+      }
+    }
+
+    return {
+      isProvided: true,
+      tokens,
+      orderedRiders,
+      duplicateTokens,
+      unknownTokens,
+      duplicateRiders,
+      missingRiders,
+      batchMismatch,
+      isValidGlobal,
+      isValidForMoto1,
+    }
+  }, [externalMoto2OrderText, riders, drawnOrder, externalValidation.orderedRiders, batchSize])
 
   useEffect(() => {
     if (drawMode !== 'internal_live_draw') return
@@ -262,6 +375,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       setCategoryLocked(locked)
       setLockedMotos([])
       setExternalOrderText('')
+      setExternalMoto2OrderText('')
       setWheelRiders([])
       setWheelRotation(0)
 
@@ -348,6 +462,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     setHasDrawn(false)
     setSaveState('idle')
     setExternalOrderText('')
+    setExternalMoto2OrderText('')
   }
 
   const resetLockedDraw = async () => {
@@ -370,6 +485,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       setLockedMotos([])
       setSaveState('idle')
       setExternalOrderText('')
+      setExternalMoto2OrderText('')
       await loadRiders(selectedCategory)
       alert('Draw berhasil direset.')
     } catch (err: unknown) {
@@ -383,12 +499,21 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       alert(drawMode === 'external_draw' ? 'Klik "Gunakan Urutan External" dulu.' : 'Lakukan draw terlebih dulu.')
       return
     }
+    if (drawMode === 'external_draw' && externalMoto2Validation.isProvided && !externalMoto2Validation.isValidForMoto1) {
+      alert('Urutan Moto 2 manual belum valid per batch. Cek kembali input Moto 2.')
+      return
+    }
     setSaveState('saving')
     try {
+      const manualMoto2Ids =
+        drawMode === 'external_draw' && externalMoto2Validation.isProvided
+          ? externalMoto2Validation.orderedRiders.map((rider) => rider.id)
+          : []
       const payload = {
         category_id: selectedCategory,
         rider_ids: drawnOrder.map((r) => r.id),
         batch_size: batchSize,
+        ...(manualMoto2Ids.length > 0 ? { rider_ids_moto2: manualMoto2Ids } : {}),
       }
       const { res, json } = await apiFetch(`/api/events/${eventId}/live-draw`, {
         method: 'POST',
@@ -413,7 +538,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
           </h1>
           <div style={{ marginTop: 8, color: '#333', fontWeight: 700 }}>
             {drawMode === 'external_draw'
-              ? 'Hasil draw dari luar sistem. Paste urutan plate Moto 1, validasi, lalu generate moto.'
+              ? 'Hasil draw dari luar sistem. Paste urutan plate Moto 1, opsional Moto 2 manual, lalu generate moto.'
               : 'Draw manual dengan roulette, lalu simpan hasilnya sebagai Moto 1 & Moto 2 (gate Moto 2 otomatis dibalik).'}
           </div>
         </div>
@@ -694,6 +819,54 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                   </div>
                 )}
               </div>
+              <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
+                <div style={{ fontWeight: 900 }}>Urutan no plate Moto 2 (opsional, manual)</div>
+                <div style={{ color: '#334155', fontWeight: 700 }}>
+                  Kosongkan jika ingin otomatis dibalik. Jika diisi, wajib sama rider per batch dengan Moto 1.
+                </div>
+                <textarea
+                  value={externalMoto2OrderText}
+                  onChange={(e) => setExternalMoto2OrderText(e.target.value)}
+                  rows={8}
+                  placeholder={'19\n15B\n777'}
+                  style={{
+                    width: '100%',
+                    borderRadius: 12,
+                    border: '2px solid #111',
+                    padding: 12,
+                    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+                    fontSize: 14,
+                  }}
+                />
+                <div style={{ display: 'grid', gap: 4, fontWeight: 800 }}>
+                  <div>Token Moto 2: {externalMoto2Validation.tokens.length}</div>
+                  <div>
+                    Status Moto 2:{' '}
+                    <span style={{ color: externalMoto2Validation.isValidForMoto1 ? '#166534' : '#b91c1c' }}>
+                      {externalMoto2Validation.isProvided
+                        ? externalMoto2Validation.isValidForMoto1
+                          ? 'VALID MANUAL'
+                          : 'BELUM VALID'
+                        : 'AUTO REVERSE'}
+                    </span>
+                  </div>
+                  {externalMoto2Validation.unknownTokens.length > 0 && (
+                    <div style={{ color: '#b91c1c' }}>
+                      Plate tidak dikenal: {externalMoto2Validation.unknownTokens.slice(0, 10).join(', ')}
+                    </div>
+                  )}
+                  {externalMoto2Validation.duplicateTokens.length > 0 && (
+                    <div style={{ color: '#b91c1c' }}>
+                      Plate duplikat: {externalMoto2Validation.duplicateTokens.slice(0, 10).join(', ')}
+                    </div>
+                  )}
+                  {externalMoto2Validation.batchMismatch.length > 0 && (
+                    <div style={{ color: '#b91c1c' }}>
+                      Batch mismatch: {externalMoto2Validation.batchMismatch.join(', ')}
+                    </div>
+                  )}
+                </div>
+              </div>
               {externalValidation.orderedRiders.length > 0 && (
                 <div style={{ display: 'grid', gap: 6, maxHeight: 220, overflowY: 'auto' }}>
                   {externalValidation.orderedRiders.map((rider, idx) => (
@@ -832,7 +1005,9 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                   ))}
                 </div>
                 <div style={{ marginTop: 8, color: '#444', fontWeight: 700 }}>
-                  Moto 2: urutan gate otomatis dibalik (Gate {batch.riders.length} {'>'} 1).
+                  {drawMode === 'external_draw' && externalMoto2Validation.isProvided
+                    ? 'Moto 2: urutan gate manual sesuai input external.'
+                    : `Moto 2: urutan gate otomatis dibalik (Gate ${batch.riders.length} > 1).`}
                 </div>
                 {batch.riders.length <= 8 && (
                   <div style={{ marginTop: 6, color: '#444', fontWeight: 700 }}>

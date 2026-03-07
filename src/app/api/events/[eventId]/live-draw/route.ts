@@ -39,6 +39,17 @@ const shuffle = <T,>(items: T[]) => {
   return arr
 }
 
+const sameSet = (a: string[], b: string[]) => {
+  if (a.length !== b.length) return false
+  const setA = new Set(a)
+  const setB = new Set(b)
+  if (setA.size !== setB.size) return false
+  for (const item of setA) {
+    if (!setB.has(item)) return false
+  }
+  return true
+}
+
 const loadCategory = async (eventId: string, categoryId: string) => {
   const { data, error } = await adminClient
     .from('categories')
@@ -122,11 +133,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   const body = await req.json().catch(() => ({}))
   const categoryId = body?.category_id as string | undefined
   const riderIds = (body?.rider_ids ?? []) as string[]
+  const riderIdsMoto2 = (body?.rider_ids_moto2 ?? []) as string[]
   const batchSize = Math.max(4, Math.min(8, Number(body?.batch_size ?? 8)))
+  const hasCustomMoto2 = Array.isArray(riderIdsMoto2) && riderIdsMoto2.length > 0
 
   if (!categoryId) return NextResponse.json({ error: 'category_id required' }, { status: 400 })
   if (!Array.isArray(riderIds) || riderIds.length === 0) {
     return NextResponse.json({ error: 'rider_ids required' }, { status: 400 })
+  }
+  if (hasCustomMoto2 && riderIdsMoto2.length !== riderIds.length) {
+    return NextResponse.json({ error: 'rider_ids_moto2 length must match rider_ids' }, { status: 400 })
   }
 
   const category = await loadCategory(eventId, categoryId)
@@ -143,6 +159,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   for (const id of riderIds) {
     if (!allowedIds.has(id)) {
       return NextResponse.json({ error: 'rider_ids contains invalid rider' }, { status: 400 })
+    }
+  }
+  if (hasCustomMoto2) {
+    const uniqueMoto2Ids = new Set(riderIdsMoto2)
+    if (uniqueMoto2Ids.size !== riderIdsMoto2.length) {
+      return NextResponse.json({ error: 'Duplicate rider_ids_moto2 detected' }, { status: 400 })
+    }
+    for (const id of riderIdsMoto2) {
+      if (!allowedIds.has(id)) {
+        return NextResponse.json({ error: 'rider_ids_moto2 contains invalid rider' }, { status: 400 })
+      }
     }
   }
 
@@ -170,6 +197,22 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
 
   const baseOrder = lastOrderRow?.moto_order ?? 0
   const batches = chunk(riderIds, batchSize)
+  const moto2Batches = hasCustomMoto2 ? chunk(riderIdsMoto2, batchSize) : []
+  if (hasCustomMoto2 && moto2Batches.length !== batches.length) {
+    return NextResponse.json({ error: 'rider_ids_moto2 batch shape invalid' }, { status: 400 })
+  }
+  if (hasCustomMoto2) {
+    for (let i = 0; i < batches.length; i += 1) {
+      const moto1Batch = batches[i]
+      const moto2Batch = moto2Batches[i] ?? []
+      if (!sameSet(moto1Batch, moto2Batch)) {
+        return NextResponse.json(
+          { error: `rider_ids_moto2 batch ${i + 1} must contain same riders as moto1 batch ${i + 1}` },
+          { status: 400 }
+        )
+      }
+    }
+  }
   const motoCount = riderIds.length <= 8 ? 3 : 2
   const orderFor = (motoIndex: number, batchIndex: number) =>
     baseOrder + (motoIndex - 1) * batches.length + batchIndex + 1
@@ -214,12 +257,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   const gatePositions: Array<{ moto_id: string; rider_id: string; gate_position: number }> = []
 
   const hasGateTable = await tableExists('moto_gate_positions')
+  if (hasCustomMoto2 && !hasGateTable) {
+    return NextResponse.json({ error: 'Custom Moto 2 order requires moto_gate_positions table' }, { status: 400 })
+  }
 
   batches.forEach((batch, batchIndex) => {
     const base = batchIndex * motoCount
     const moto1 = motoRows[base]
     const moto2 = motoRows[base + 1]
     const moto3 = motoCount === 3 ? motoRows[base + 2] : null
+    const moto2Order = hasCustomMoto2 ? (moto2Batches[batchIndex] ?? []) : [...batch].reverse()
     batch.forEach((riderId, idx) => {
       motoRiders.push({ moto_id: moto1.id, rider_id: riderId })
       motoRiders.push({ moto_id: moto2.id, rider_id: riderId })
@@ -229,8 +276,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       }
     })
     if (hasGateTable) {
-      const reversed = [...batch].reverse()
-      reversed.forEach((riderId, idx) => {
+      moto2Order.forEach((riderId, idx) => {
         gatePositions.push({ moto_id: moto2.id, rider_id: riderId, gate_position: idx + 1 })
       })
       if (moto3) {
