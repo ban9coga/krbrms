@@ -26,7 +26,7 @@ export async function GET(req: Request) {
     .select('updated_at, created_at')
     .order('updated_at', { ascending: false })
     .limit(1)
-    .maybeSingle()
+  const lastEventRow = (lastEvent ?? [])[0]
   if (lastError) return NextResponse.json({ error: lastError.message }, { status: 400 })
 
   return NextResponse.json({
@@ -34,7 +34,7 @@ export async function GET(req: Request) {
       total_riders: riderCount ?? 0,
       total_registrations: regCount ?? 0,
       live_motos: liveMotos ?? 0,
-      last_updated: lastEvent?.updated_at ?? lastEvent?.created_at ?? null,
+      last_updated: lastEventRow?.updated_at ?? lastEventRow?.created_at ?? null,
     },
   })
 }
