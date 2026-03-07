@@ -17,24 +17,37 @@ const fetchEvents = async (status?: EventStatus): Promise<EventItem[]> => {
 }
 
 export default async function DashboardPage() {
-  const [upcomingEvents, ongoingEvents] = await Promise.all([
+  const [upcomingEventsRaw, ongoingEventsRaw] = await Promise.all([
     fetchEvents('UPCOMING'),
     fetchEvents('LIVE'),
   ])
-  const allEvents = [...upcomingEvents, ...ongoingEvents]
+  const allEvents = [...upcomingEventsRaw, ...ongoingEventsRaw]
   const eventIds = allEvents.map((e) => e.id)
-  const settingsMap = new Map<string, { logo?: string | null; slogan?: string | null }>()
+  const settingsMap = new Map<
+    string,
+    { logo?: string | null; slogan?: string | null; event_scope?: 'PUBLIC' | 'INTERNAL' }
+  >()
   if (eventIds.length > 0) {
     const { data: settingsRows } = await adminClient
       .from('event_settings')
-      .select('event_id, event_logo_url, display_theme')
+      .select('event_id, event_logo_url, display_theme, race_format_settings')
       .in('event_id', eventIds)
     for (const row of settingsRows ?? []) {
       const theme = (row.display_theme ?? {}) as Record<string, unknown>
+      const raceFormat = (row.race_format_settings ?? {}) as Record<string, unknown>
       const slogan = typeof theme.slogan === 'string' ? theme.slogan : null
-      settingsMap.set(row.event_id, { logo: row.event_logo_url ?? null, slogan })
+      const eventScope = raceFormat.event_scope === 'INTERNAL' ? 'INTERNAL' : 'PUBLIC'
+      settingsMap.set(row.event_id, { logo: row.event_logo_url ?? null, slogan, event_scope: eventScope })
     }
   }
+  const upcomingEvents = upcomingEventsRaw.map((event) => ({
+    ...event,
+    event_scope: settingsMap.get(event.id)?.event_scope ?? (event.is_public === false ? 'INTERNAL' : 'PUBLIC'),
+  }))
+  const ongoingEvents = ongoingEventsRaw.map((event) => ({
+    ...event,
+    event_scope: settingsMap.get(event.id)?.event_scope ?? (event.is_public === false ? 'INTERNAL' : 'PUBLIC'),
+  }))
 
   return (
     <div style={{ minHeight: '100vh', background: '#f6fbf7', color: '#111' }}>

@@ -3,9 +3,13 @@ import { adminClient, requireAdmin } from '../../../../lib/auth'
 import { computeQualificationAndStore, computeStageAdvances, generateStageMotos } from '../../../../services/advancedRaceAuto'
 
 type DrawMode = 'internal_live_draw' | 'external_draw'
+type EventScope = 'PUBLIC' | 'INTERNAL'
 
 const normalizeDrawMode = (value: unknown): DrawMode =>
   value === 'external_draw' ? 'external_draw' : 'internal_live_draw'
+
+const normalizeEventScope = (value: unknown): EventScope =>
+  value === 'INTERNAL' ? 'INTERNAL' : 'PUBLIC'
 
 const parseRaceFormatSettings = (value: unknown): Record<string, unknown> => {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
@@ -43,7 +47,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const formatResult = await getLatestRaceFormatSettings(eventId)
   if (formatResult.error) return NextResponse.json({ error: formatResult.error.message }, { status: 400 })
   const drawMode = normalizeDrawMode(formatResult.data?.draw_mode)
-  return NextResponse.json({ data: { ...eventRow, draw_mode: drawMode } })
+  const eventScope = normalizeEventScope(
+    formatResult.data?.event_scope ?? (eventRow.is_public === false ? 'INTERNAL' : 'PUBLIC')
+  )
+  return NextResponse.json({ data: { ...eventRow, draw_mode: drawMode, event_scope: eventScope } })
 }
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
@@ -51,8 +58,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ eventI
   if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { eventId } = await params
   const body = await req.json()
-  const { name, location, event_date, status, is_public, draw_mode } = body ?? {}
+  const { name, location, event_date, status, is_public, draw_mode, event_scope } = body ?? {}
   const requestedDrawMode = draw_mode == null ? null : normalizeDrawMode(draw_mode)
+  const requestedEventScope = event_scope == null ? null : normalizeEventScope(event_scope)
   let existingRaceFormatSettings: Record<string, unknown> = {}
   const eventUpdatePayload: Record<string, unknown> = {}
   if (name !== undefined) eventUpdatePayload.name = name
@@ -61,13 +69,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ eventI
   if (status !== undefined) eventUpdatePayload.status = status
   if (is_public !== undefined) eventUpdatePayload.is_public = is_public
 
-  if (requestedDrawMode) {
+  if (requestedDrawMode || requestedEventScope) {
     const formatResult = await getLatestRaceFormatSettings(eventId)
     if (formatResult.error) return NextResponse.json({ error: formatResult.error.message }, { status: 400 })
     existingRaceFormatSettings = formatResult.data ?? {}
 
     const currentDrawMode = normalizeDrawMode(existingRaceFormatSettings.draw_mode)
-    if (currentDrawMode !== requestedDrawMode) {
+    if (requestedDrawMode && currentDrawMode !== requestedDrawMode) {
       const { data: existingMoto, error: motoCheckError } = await adminClient
         .from('motos')
         .select('id')
@@ -102,10 +110,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ eventI
   }
   if (!updatedEvent) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
 
-  if (requestedDrawMode) {
+  if (requestedDrawMode || requestedEventScope) {
     const mergedRaceFormatSettings = {
       ...existingRaceFormatSettings,
-      draw_mode: requestedDrawMode,
+      ...(requestedDrawMode ? { draw_mode: requestedDrawMode } : {}),
+      ...(requestedEventScope ? { event_scope: requestedEventScope } : {}),
     }
     const { error: settingsWriteError } = await adminClient.from('event_settings').upsert(
       [
@@ -143,6 +152,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ eventI
     data: {
       ...updatedEvent,
       ...(requestedDrawMode ? { draw_mode: requestedDrawMode } : {}),
+      ...(requestedEventScope ? { event_scope: requestedEventScope } : {}),
     },
   })
 }

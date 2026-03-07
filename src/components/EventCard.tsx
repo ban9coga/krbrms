@@ -41,6 +41,7 @@ export default function EventCard({
     month: 'short',
     year: 'numeric',
   })
+  const eventScope = event.event_scope === 'INTERNAL' ? 'INTERNAL' : event.is_public === false ? 'INTERNAL' : 'PUBLIC'
 
   return (
     <Link href={`/event/${event.id}`} className="group block text-slate-900 no-underline" aria-label={`Open event ${event.name}`}>
@@ -80,7 +81,7 @@ export default function EventCard({
           <div className="h-px bg-slate-200" />
           <div className="flex items-center justify-between gap-4">
             <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.14em] text-slate-500">
-              {event.is_public === false ? 'Internal Event' : 'Public Event'}
+              {eventScope === 'INTERNAL' ? 'Internal Event' : 'Public Event'}
             </span>
             <span className="inline-flex items-center gap-2 text-sm font-extrabold uppercase tracking-[0.12em] text-rose-500">
               View Event

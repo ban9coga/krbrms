@@ -7,6 +7,7 @@ export type EventItem = {
   event_date: string
   status: EventStatus
   is_public?: boolean | null
+  event_scope?: 'PUBLIC' | 'INTERNAL' | null
   created_at?: string | null
   updated_at?: string | null
 }

@@ -2,9 +2,13 @@ import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../lib/auth'
 
 type DrawMode = 'internal_live_draw' | 'external_draw'
+type EventScope = 'PUBLIC' | 'INTERNAL'
 
 const normalizeDrawMode = (value: unknown): DrawMode =>
   value === 'external_draw' ? 'external_draw' : 'internal_live_draw'
+
+const normalizeEventScope = (value: unknown): EventScope =>
+  value === 'INTERNAL' ? 'INTERNAL' : 'PUBLIC'
 
 const parseRaceFormatSettings = (value: unknown): Record<string, unknown> => {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
@@ -33,6 +37,7 @@ export async function GET(req: Request) {
   const events = (data ?? []) as Array<Record<string, unknown>>
   const eventIds = events.map((row) => String(row.id ?? '')).filter(Boolean)
   const drawModeByEventId = new Map<string, DrawMode>()
+  const eventScopeByEventId = new Map<string, EventScope>()
 
   if (eventIds.length > 0) {
     const { data: settingsRows, error: settingsError } = await adminClient
@@ -47,14 +52,19 @@ export async function GET(req: Request) {
       if (!eventId || drawModeByEventId.has(eventId)) continue
       const settings = parseRaceFormatSettings(row.race_format_settings)
       drawModeByEventId.set(eventId, normalizeDrawMode(settings.draw_mode))
+      if (settings.event_scope === 'INTERNAL' || settings.event_scope === 'PUBLIC') {
+        eventScopeByEventId.set(eventId, normalizeEventScope(settings.event_scope))
+      }
     }
   }
 
   const normalizedData = events.map((row) => {
     const eventId = String(row.id ?? '')
+    const fallbackScope = row.is_public === false ? 'INTERNAL' : 'PUBLIC'
     return {
       ...row,
       draw_mode: drawModeByEventId.get(eventId) ?? 'internal_live_draw',
+      event_scope: eventScopeByEventId.get(eventId) ?? fallbackScope,
     }
   })
 
@@ -65,14 +75,16 @@ export async function POST(req: Request) {
   const auth = await requireAdmin(req.headers.get('authorization'))
   if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const body = await req.json()
-  const { name, location, event_date, status = 'UPCOMING', is_public = true, draw_mode } = body ?? {}
+  const { name, location, event_date, status = 'UPCOMING', is_public, draw_mode, event_scope } = body ?? {}
   const drawMode = normalizeDrawMode(draw_mode)
+  const normalizedIsPublic = is_public === undefined ? true : Boolean(is_public)
+  const eventScope = normalizeEventScope(event_scope ?? (normalizedIsPublic ? 'PUBLIC' : 'INTERNAL'))
   if (!name || !event_date) {
     return NextResponse.json({ error: 'name and event_date required' }, { status: 400 })
   }
   const { data, error } = await adminClient
     .from('events')
-    .insert([{ name, location, event_date, status, is_public }])
+    .insert([{ name, location, event_date, status, is_public: normalizedIsPublic }])
     .select('*')
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
@@ -81,7 +93,7 @@ export async function POST(req: Request) {
     [
       {
         event_id: data.id,
-        race_format_settings: { draw_mode: drawMode },
+        race_format_settings: { draw_mode: drawMode, event_scope: eventScope },
       },
     ],
     { onConflict: 'event_id' }
@@ -91,5 +103,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: settingsError.message }, { status: 400 })
   }
 
-  return NextResponse.json({ data: { ...data, draw_mode: drawMode } })
+  return NextResponse.json({ data: { ...data, draw_mode: drawMode, event_scope: eventScope } })
 }

@@ -11,6 +11,7 @@ type EventItem = {
   event_date: string
   status: 'UPCOMING' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED'
   is_public?: boolean | null
+  event_scope?: 'PUBLIC' | 'INTERNAL' | null
   draw_mode?: 'internal_live_draw' | 'external_draw' | null
 }
 
@@ -72,7 +73,8 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
         location: form.location,
         event_date: form.event_date,
         status: form.status,
-        is_public: form.visibility === 'PUBLIC',
+        is_public: true,
+        event_scope: form.visibility,
         draw_mode: form.draw_mode,
       }
       await apiFetch('/api/events', { method: 'POST', body: JSON.stringify(payload) })
@@ -157,6 +159,18 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
       await apiFetch(`/api/events/${eventId}`, {
         method: 'PATCH',
         body: JSON.stringify({ draw_mode: drawMode }),
+      })
+      await loadEvents()
+    } catch (err: unknown) {
+      alert(getErrorMessage(err))
+    }
+  }
+
+  const handleEventScope = async (eventId: string, eventScope: NonNullable<EventItem['event_scope']>) => {
+    try {
+      await apiFetch(`/api/events/${eventId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ event_scope: eventScope }),
       })
       await loadEvents()
     } catch (err: unknown) {
@@ -328,7 +342,13 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
       </div>
 
       <div style={{ marginTop: 12, display: 'grid', gap: 12 }}>
-        {filteredEvents.map((ev) => (
+        {filteredEvents.map((ev) => {
+          const eventScope = ev.event_scope === 'INTERNAL' ? 'INTERNAL' : 'PUBLIC'
+          const scopeTheme =
+            eventScope === 'INTERNAL'
+              ? { border: '#fca5a5', background: '#fff1f2', color: '#9f1239', label: 'Internal Event' }
+              : { border: '#86efac', background: '#f0fdf4', color: '#166534', label: 'Public Event' }
+          return (
           <div
             key={ev.id}
             style={{
@@ -341,12 +361,27 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: 10 }}>
-              <div>
-                <div style={{ fontWeight: 950, fontSize: 18 }}>{ev.name}</div>
+              <div> 
+                <div style={{ fontWeight: 950, fontSize: 18 }}>{ev.name}</div> 
                 <div
                   style={{
                     marginTop: 4,
                     width: 'fit-content',
+                    padding: '3px 8px',
+                    borderRadius: 999,
+                    border: `1px solid ${scopeTheme.border}`,
+                    background: scopeTheme.background,
+                    color: scopeTheme.color,
+                    fontSize: 12,
+                    fontWeight: 900,
+                  }}
+                >
+                  {scopeTheme.label}
+                </div>
+                <div 
+                  style={{ 
+                    marginTop: 4, 
+                    width: 'fit-content', 
                     padding: '3px 8px',
                     borderRadius: 999,
                     border: `1px solid ${ev.is_public === false ? '#fca5a5' : '#86efac'}`,
@@ -356,7 +391,7 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
                     fontWeight: 900,
                   }}
                 >
-                  {ev.is_public === false ? 'Internal Event' : 'Public Event'}
+                  {ev.is_public === false ? 'Hidden from Public' : 'Shown on Public'}
                 </div>
                 <div style={{ marginTop: 2, color: '#334155', fontWeight: 700 }}>
                   {ev.location || '-'} | {ev.event_date}
@@ -424,10 +459,27 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
                   <option value="internal_live_draw">Internal Live Draw</option>
                   <option value="external_draw">External Draw</option>
                 </select>
+                <select
+                  value={ev.event_scope === 'INTERNAL' ? 'INTERNAL' : 'PUBLIC'}
+                  onChange={(e) =>
+                    handleEventScope(ev.id, e.target.value as NonNullable<EventItem['event_scope']>)
+                  }
+                  style={{
+                    padding: '8px 10px',
+                    borderRadius: 12,
+                    border: '1px solid #cbd5e1',
+                    background: '#fff',
+                    fontWeight: 900,
+                    minWidth: 190,
+                  }}
+                >
+                  <option value="PUBLIC">Public Event Type</option>
+                  <option value="INTERNAL">Internal Event Type</option>
+                </select>
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}> 
               <Link
                 href={`/admin/events/${ev.id}`}
                 style={{
@@ -485,9 +537,10 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
               >
                 Public Page
               </Link>
-            </div>
+            </div> 
           </div>
-        ))}
+          )
+        })}
         {!loading && filteredEvents.length === 0 && (
           <div
             style={{
