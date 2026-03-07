@@ -9,10 +9,11 @@ export async function GET(_: Request, { params }: { params: Promise<{ eventId: s
       'event_id, event_logo_url, sponsor_logo_urls, base_price, extra_price, ffa_mix_min_year, ffa_mix_max_year, require_jersey_size, scoring_rules, display_theme, race_format_settings, created_at, updated_at'
     )
     .eq('event_id', eventId)
-    .maybeSingle()
+    .order('updated_at', { ascending: false })
+    .limit(1)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-  return NextResponse.json({ data: data ?? null })
+  return NextResponse.json({ data: (data ?? [])[0] ?? null })
 }
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
@@ -55,8 +56,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ eventI
       { onConflict: 'event_id' }
     )
     .select('*')
-    .single()
+    .limit(1)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-  return NextResponse.json({ data })
+  return NextResponse.json({ data: (data ?? [])[0] ?? null })
 }

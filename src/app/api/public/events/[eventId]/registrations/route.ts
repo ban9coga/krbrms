@@ -162,12 +162,14 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
     .from('event_settings')
     .select('require_jersey_size, base_price, extra_price')
     .eq('event_id', eventId)
-    .maybeSingle()
+    .order('updated_at', { ascending: false })
+    .limit(1)
 
   if (settingsError) return { error: settingsError.message }
-  const requireJerseySize = Boolean(settingsRow?.require_jersey_size)
-  const basePriceRaw = Number(settingsRow?.base_price)
-  const extraPriceRaw = Number(settingsRow?.extra_price)
+  const latestSettingsRow = (settingsRow ?? [])[0]
+  const requireJerseySize = Boolean(latestSettingsRow?.require_jersey_size)
+  const basePriceRaw = Number(latestSettingsRow?.base_price)
+  const extraPriceRaw = Number(latestSettingsRow?.extra_price)
   const basePrice = Number.isFinite(basePriceRaw) && basePriceRaw > 0 ? basePriceRaw : BASE_PRICE
   const extraPrice = Number.isFinite(extraPriceRaw) && extraPriceRaw >= 0 ? extraPriceRaw : EXTRA_PRICE
 

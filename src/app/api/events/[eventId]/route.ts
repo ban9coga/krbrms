@@ -14,14 +14,16 @@ const parseRaceFormatSettings = (value: unknown): Record<string, unknown> => {
   return {}
 }
 
-const extractRaceFormatSettings = (eventSettings: unknown) => {
-  if (Array.isArray(eventSettings)) {
-    return parseRaceFormatSettings(eventSettings[0]?.race_format_settings)
-  }
-  if (eventSettings && typeof eventSettings === 'object') {
-    return parseRaceFormatSettings((eventSettings as Record<string, unknown>).race_format_settings)
-  }
-  return {}
+const getLatestRaceFormatSettings = async (eventId: string) => {
+  const { data, error } = await adminClient
+    .from('event_settings')
+    .select('race_format_settings, updated_at')
+    .eq('event_id', eventId)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+  if (error) return { error }
+  const row = (data ?? [])[0]
+  return { data: parseRaceFormatSettings(row?.race_format_settings), error: null }
 }
 
 export async function GET(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
@@ -29,17 +31,17 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const auth = await requireAdmin(req.headers.get('authorization'))
   const { data, error } = await adminClient
     .from('events')
-    .select('id, name, location, event_date, status, is_public, created_at, updated_at, event_settings(race_format_settings)')
+    .select('id, name, location, event_date, status, is_public, created_at, updated_at')
     .eq('id', eventId)
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   if (!auth.ok && data?.is_public === false) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
-  const eventRow = (data ?? {}) as Record<string, unknown>
-  const drawMode = normalizeDrawMode(extractRaceFormatSettings(eventRow.event_settings).draw_mode)
-  const { event_settings: _eventSettings, ...rest } = eventRow
-  return NextResponse.json({ data: { ...rest, draw_mode: drawMode } })
+  const formatResult = await getLatestRaceFormatSettings(eventId)
+  if (formatResult.error) return NextResponse.json({ error: formatResult.error.message }, { status: 400 })
+  const drawMode = normalizeDrawMode(formatResult.data?.draw_mode)
+  return NextResponse.json({ data: { ...(data ?? {}), draw_mode: drawMode } })
 }
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
@@ -52,13 +54,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ eventI
   let existingRaceFormatSettings: Record<string, unknown> = {}
 
   if (requestedDrawMode) {
-    const { data: settingsRow, error: settingsReadError } = await adminClient
-      .from('event_settings')
-      .select('race_format_settings')
-      .eq('event_id', eventId)
-      .maybeSingle()
-    if (settingsReadError) return NextResponse.json({ error: settingsReadError.message }, { status: 400 })
-    existingRaceFormatSettings = parseRaceFormatSettings(settingsRow?.race_format_settings)
+    const formatResult = await getLatestRaceFormatSettings(eventId)
+    if (formatResult.error) return NextResponse.json({ error: formatResult.error.message }, { status: 400 })
+    existingRaceFormatSettings = formatResult.data ?? {}
 
     const currentDrawMode = normalizeDrawMode(existingRaceFormatSettings.draw_mode)
     if (currentDrawMode !== requestedDrawMode) {
