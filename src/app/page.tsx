@@ -5,14 +5,47 @@ import MarketingTopbar from '../components/MarketingTopbar'
 import OrganizerCTA from '../components/OrganizerCTA'
 import PerformanceStats from '../components/PerformanceStats'
 import Link from 'next/link'
+import { adminClient } from '../lib/auth'
 
-export default function LandingPage() {
+export const revalidate = 30
+
+type LiveEventItem = {
+  id: string
+  name: string
+  location?: string | null
+}
+
+const getLiveEvent = async (): Promise<LiveEventItem | null> => {
+  const { data, error } = await adminClient
+    .from('events')
+    .select('id, name, location, status, is_public, event_date')
+    .eq('status', 'LIVE')
+    .eq('is_public', true)
+    .order('event_date', { ascending: false })
+    .limit(1)
+
+  if (error) {
+    return null
+  }
+
+  const row = (data ?? [])[0]
+  if (!row) return null
+  return {
+    id: row.id,
+    name: row.name,
+    location: row.location,
+  }
+}
+
+export default async function LandingPage() {
+  const liveEvent = await getLiveEvent()
+
   return (
     <div style={{ minHeight: '100vh', background: '#f6fbf7', color: '#111' }}>
       <MarketingTopbar />
 
       <main>
-        <HeroRace />
+        <HeroRace liveEvent={liveEvent} />
         <LivePreviewSection />
         <CoreFeatures />
         <PerformanceStats />

@@ -1,6 +1,12 @@
 import Link from 'next/link'
 
-export default function HeroRace() {
+type LiveEventItem = {
+  id: string
+  name: string
+  location?: string | null
+}
+
+export default function HeroRace({ liveEvent }: { liveEvent: LiveEventItem | null }) {
   return (
     <section className="w-full bg-slate-100 px-2 py-4 sm:px-4 md:px-6 md:py-8">
       <div className="mx-auto w-full max-w-[1500px]">
@@ -10,6 +16,28 @@ export default function HeroRace() {
           <div className="pointer-events-none absolute right-16 top-1/2 hidden h-56 w-56 -translate-y-1/2 rounded-full border border-rose-200/20 md:block" />
 
           <div className="relative z-10 mx-auto max-w-5xl text-center">
+            <div className="mb-6 flex justify-center">
+              {liveEvent ? (
+                <Link
+                  href={`/event/${liveEvent.id}`}
+                  className="inline-flex max-w-full items-center gap-3 rounded-full border border-emerald-300/40 bg-emerald-500/10 px-4 py-2 text-left text-emerald-100 transition-colors hover:border-emerald-200/60 hover:bg-emerald-500/20"
+                >
+                  <span className="relative inline-flex h-3 w-3 shrink-0">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-300 opacity-75" />
+                    <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-300 shadow-[0_0_12px_rgba(110,231,183,0.95)]" />
+                  </span>
+                  <span className="truncate text-xs font-black tracking-[0.14em] sm:text-sm">
+                    LIVE NOW: {liveEvent.name}
+                  </span>
+                </Link>
+              ) : (
+                <div className="inline-flex items-center gap-2 rounded-full border border-slate-200/30 bg-slate-900/20 px-4 py-2 text-xs font-bold tracking-[0.14em] text-slate-200 sm:text-sm">
+                  <span className="inline-flex h-2 w-2 rounded-full bg-slate-300/80" />
+                  NO LIVE EVENT
+                </div>
+              )}
+            </div>
+
             <h1 className="mt-1 text-4xl font-black leading-[0.95] tracking-tight text-white sm:text-5xl md:mt-2 md:text-6xl lg:text-7xl">
               Real-Time Race
               <span className="mt-2 block text-rose-400">Management System</span>
