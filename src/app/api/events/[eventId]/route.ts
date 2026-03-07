@@ -54,6 +54,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ eventI
   const { name, location, event_date, status, is_public, draw_mode } = body ?? {}
   const requestedDrawMode = draw_mode == null ? null : normalizeDrawMode(draw_mode)
   let existingRaceFormatSettings: Record<string, unknown> = {}
+  const eventUpdatePayload: Record<string, unknown> = {}
+  if (name !== undefined) eventUpdatePayload.name = name
+  if (location !== undefined) eventUpdatePayload.location = location
+  if (event_date !== undefined) eventUpdatePayload.event_date = event_date
+  if (status !== undefined) eventUpdatePayload.status = status
+  if (is_public !== undefined) eventUpdatePayload.is_public = is_public
 
   if (requestedDrawMode) {
     const formatResult = await getLatestRaceFormatSettings(eventId)
@@ -79,14 +85,21 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ eventI
 
   const { data: beforeRows } = await adminClient.from('events').select('status').eq('id', eventId).limit(1)
   const beforeRow = (beforeRows ?? [])[0]
-  const { data, error } = await adminClient
-    .from('events')
-    .update({ name, location, event_date, status, is_public })
-    .eq('id', eventId)
-    .select('*')
-    .limit(1)
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-  const updatedEvent = (data ?? [])[0]
+  let updatedEvent: Record<string, unknown> | null = null
+  if (Object.keys(eventUpdatePayload).length > 0) {
+    const { data, error } = await adminClient
+      .from('events')
+      .update(eventUpdatePayload)
+      .eq('id', eventId)
+      .select('*')
+      .limit(1)
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+    updatedEvent = ((data ?? [])[0] as Record<string, unknown> | undefined) ?? null
+  } else {
+    const { data, error } = await adminClient.from('events').select('*').eq('id', eventId).limit(1)
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+    updatedEvent = ((data ?? [])[0] as Record<string, unknown> | undefined) ?? null
+  }
   if (!updatedEvent) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
 
   if (requestedDrawMode) {
