@@ -176,6 +176,60 @@ export default function MotosClient({ eventId }: { eventId: string }) {
               return compareMotoSequence(a, b)
             }),
           }))
+          .map((batch) => {
+            const motoColumns = batch.motos.map((moto, idx) => {
+              const parsed = parseMotoBatch(moto.moto_name)
+              const motoNo = parsed.motoNo > 0 ? parsed.motoNo : idx + 1
+              return {
+                key: motoNo,
+                label: `M${motoNo}`,
+                moto_name: moto.moto_name,
+                status: moto.status,
+              }
+            })
+
+            const rowMap = new Map<
+              string,
+              {
+                rider_id: string
+                name: string
+                no_plate_display: string
+                gates: Record<number, number>
+              }
+            >()
+
+            for (let i = 0; i < batch.motos.length; i += 1) {
+              const moto = batch.motos[i]
+              const col = motoColumns[i]
+              for (const gate of moto.gates) {
+                const existing = rowMap.get(gate.rider_id)
+                if (existing) {
+                  existing.gates[col.key] = gate.gate_position
+                } else {
+                  rowMap.set(gate.rider_id, {
+                    rider_id: gate.rider_id,
+                    name: gate.name,
+                    no_plate_display: gate.no_plate_display,
+                    gates: { [col.key]: gate.gate_position },
+                  })
+                }
+              }
+            }
+
+            const firstCol = motoColumns[0]?.key
+            const riderRows = Array.from(rowMap.values()).sort((a, b) => {
+              const ga = firstCol ? (a.gates[firstCol] ?? 999) : 999
+              const gb = firstCol ? (b.gates[firstCol] ?? 999) : 999
+              if (ga !== gb) return ga - gb
+              return a.name.localeCompare(b.name)
+            })
+
+            return {
+              batchNo: batch.batchNo,
+              motoColumns,
+              riderRows,
+            }
+          })
 
         return {
           categoryId: category.id,
@@ -186,7 +240,11 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       .filter(Boolean) as Array<{
       categoryId: string
       categoryLabel: string
-      batches: Array<{ batchNo: number; motos: GateMotoItem[] }>
+      batches: Array<{
+        batchNo: number
+        motoColumns: Array<{ key: number; label: string; moto_name: string; status: MotoItem['status'] }>
+        riderRows: Array<{ rider_id: string; name: string; no_plate_display: string; gates: Record<number, number> }>
+      }>
     }>
   }, [categoriesSorted, gateOrdersByCategory])
 
@@ -383,64 +441,62 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                 }}
               >
                 <div style={{ fontWeight: 900 }}>Batch {batch.batchNo}</div>
-                <div style={{ display: 'grid', gap: 10 }}>
-                  {batch.motos.map((moto) => (
-                    <div
-                      key={moto.id}
-                      className="moto-print-card"
-                      style={{
-                        padding: 10,
-                        borderRadius: 12,
-                        border: '1px solid #cbd5e1',
-                        background: '#fff',
-                        display: 'grid',
-                        gap: 6,
-                      }}
-                    >
-                      <div style={{ fontWeight: 900 }}>
-                        {moto.moto_name} | {moto.status}
-                      </div>
-                      <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 420 }}>
-                          <thead>
-                            <tr>
-                              <th style={{ textAlign: 'left', padding: '6px 4px', borderBottom: '1px solid #cbd5e1', fontSize: 12 }}>
-                                Gate
-                              </th>
-                              <th style={{ textAlign: 'left', padding: '6px 4px', borderBottom: '1px solid #cbd5e1', fontSize: 12 }}>
-                                No Plate
-                              </th>
-                              <th style={{ textAlign: 'left', padding: '6px 4px', borderBottom: '1px solid #cbd5e1', fontSize: 12 }}>
-                                Nama Rider
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {moto.gates.map((gate) => (
-                              <tr key={`${moto.id}-${gate.rider_id}`}>
-                                <td style={{ padding: '6px 4px', borderBottom: '1px dashed #e2e8f0', fontWeight: 800 }}>
-                                  {gate.gate_position}
-                                </td>
-                                <td style={{ padding: '6px 4px', borderBottom: '1px dashed #e2e8f0', fontWeight: 800 }}>
-                                  {gate.no_plate_display}
-                                </td>
-                                <td style={{ padding: '6px 4px', borderBottom: '1px dashed #e2e8f0', fontWeight: 800 }}>
-                                  {gate.name}
-                                </td>
-                              </tr>
-                            ))}
-                            {moto.gates.length === 0 && (
-                              <tr>
-                                <td colSpan={3} style={{ padding: '8px 4px', color: '#64748b', fontWeight: 700 }}>
-                                  Belum ada rider pada moto ini.
-                                </td>
-                              </tr>
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  ))}
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>
+                  {batch.motoColumns
+                    .map((col) => `${col.label}: ${col.moto_name} (${col.status})`)
+                    .join(' | ')}
+                </div>
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="moto-print-table" style={{ width: '100%', borderCollapse: 'collapse', minWidth: 560 }}>
+                    <thead>
+                      <tr>
+                        {batch.motoColumns.map((col) => (
+                          <th
+                            key={`${group.categoryId}-batch-${batch.batchNo}-${col.key}`}
+                            style={{ textAlign: 'left', padding: '6px 4px', borderBottom: '1px solid #cbd5e1', fontSize: 12 }}
+                          >
+                            Gate {col.label}
+                          </th>
+                        ))}
+                        <th style={{ textAlign: 'left', padding: '6px 4px', borderBottom: '1px solid #cbd5e1', fontSize: 12 }}>
+                          No Plate
+                        </th>
+                        <th style={{ textAlign: 'left', padding: '6px 4px', borderBottom: '1px solid #cbd5e1', fontSize: 12 }}>
+                          Nama Rider
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {batch.riderRows.map((row) => (
+                        <tr key={`${group.categoryId}-batch-${batch.batchNo}-${row.rider_id}`}>
+                          {batch.motoColumns.map((col) => (
+                            <td
+                              key={`${group.categoryId}-batch-${batch.batchNo}-${row.rider_id}-${col.key}`}
+                              style={{ padding: '6px 4px', borderBottom: '1px dashed #e2e8f0', fontWeight: 800 }}
+                            >
+                              {row.gates[col.key] ?? '-'}
+                            </td>
+                          ))}
+                          <td style={{ padding: '6px 4px', borderBottom: '1px dashed #e2e8f0', fontWeight: 800 }}>
+                            {row.no_plate_display}
+                          </td>
+                          <td style={{ padding: '6px 4px', borderBottom: '1px dashed #e2e8f0', fontWeight: 800 }}>
+                            {row.name}
+                          </td>
+                        </tr>
+                      ))}
+                      {batch.riderRows.length === 0 && (
+                        <tr>
+                          <td
+                            colSpan={batch.motoColumns.length + 2}
+                            style={{ padding: '8px 4px', color: '#64748b', fontWeight: 700 }}
+                          >
+                            Belum ada rider pada batch ini.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             ))}

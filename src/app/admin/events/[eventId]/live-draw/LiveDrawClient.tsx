@@ -114,6 +114,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
   const [openMotoId, setOpenMotoId] = useState<string | null>(null)
   const [externalOrderText, setExternalOrderText] = useState('')
   const [externalMoto2OrderText, setExternalMoto2OrderText] = useState('')
+  const [shareCopied, setShareCopied] = useState(false)
 
   const batches = useMemo(() => buildBatches(drawnOrder, batchSize), [drawnOrder, batchSize])
   const visibleWheelRiders = wheelRiders.length > 0 ? wheelRiders : riders
@@ -529,6 +530,31 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     }
   }
 
+  const publicShareUrl =
+    selectedCategory && typeof window !== 'undefined'
+      ? `${window.location.origin}/event/${eventId}/live-score/${selectedCategory}`
+      : ''
+
+  const handleCopyShareLink = async () => {
+    if (!selectedCategory) {
+      alert('Pilih kategori dulu.')
+      return
+    }
+    if (!publicShareUrl) return
+    try {
+      await navigator.clipboard.writeText(publicShareUrl)
+      setShareCopied(true)
+      window.setTimeout(() => setShareCopied(false), 1500)
+    } catch {
+      window.prompt('Copy link hasil draw:', publicShareUrl)
+    }
+  }
+
+  const handleOpenShareLink = () => {
+    if (!selectedCategory || !publicShareUrl) return
+    window.open(publicShareUrl, '_blank', 'noopener,noreferrer')
+  }
+
   return (
     <div style={{ maxWidth: 1020 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'end', gap: 12 }}>
@@ -541,6 +567,38 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
               ? 'Hasil draw dari luar sistem. Paste urutan plate Moto 1, opsional Moto 2 manual, lalu generate moto.'
               : 'Draw manual dengan roulette, lalu simpan hasilnya sebagai Moto 1 & Moto 2 (gate Moto 2 otomatis dibalik).'}
           </div>
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={handleCopyShareLink}
+            disabled={!selectedCategory}
+            style={{
+              padding: '10px 12px',
+              borderRadius: 12,
+              border: '2px solid #111',
+              background: shareCopied ? '#dcfce7' : '#fff',
+              fontWeight: 900,
+              cursor: selectedCategory ? 'pointer' : 'not-allowed',
+            }}
+          >
+            {shareCopied ? 'Copied' : 'Copy Share Link'}
+          </button>
+          <button
+            type="button"
+            onClick={handleOpenShareLink}
+            disabled={!selectedCategory}
+            style={{
+              padding: '10px 12px',
+              borderRadius: 12,
+              border: '2px solid #111',
+              background: '#fef3c7',
+              fontWeight: 900,
+              cursor: selectedCategory ? 'pointer' : 'not-allowed',
+            }}
+          >
+            Open Public Result
+          </button>
         </div>
       </div>
 
