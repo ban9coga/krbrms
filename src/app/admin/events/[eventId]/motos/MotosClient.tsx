@@ -126,13 +126,34 @@ export default function MotosClient({ eventId }: { eventId: string }) {
   }
 
   return (
-    <div style={{ maxWidth: 980 }}>
+    <div style={{ maxWidth: 980 }} className="motos-print-root">
+      <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
+        <div style={{ marginTop: 2, color: '#475569', fontWeight: 700 }}>
+          Cetak daftar moto: klik tombol, lalu pilih <strong>Save as PDF</strong> di dialog browser.
+        </div>
+        <button
+          type="button"
+          onClick={() => window.print()}
+          style={{
+            padding: '10px 12px',
+            borderRadius: 12,
+            border: '2px solid #111',
+            background: '#fde68a',
+            fontWeight: 900,
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          Cetak / Save PDF
+        </button>
+      </div>
       <h1 style={{ fontSize: 26, fontWeight: 950, margin: 0 }}>Motos</h1>
       <div style={{ marginTop: 8, color: '#333', fontWeight: 700 }}>
         Moto dibuat melalui Live Draw. Di halaman ini hanya untuk melihat dan mengatur status moto.
       </div>
       {eventStatus && eventStatus !== 'LIVE' && (
         <div
+          className="no-print"
           style={{
             marginTop: 10,
             padding: 10,
@@ -149,7 +170,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
 
       <div style={{ marginTop: 16, display: 'grid', gap: 16 }}>
         {loading && (
-          <div style={{ padding: 14, borderRadius: 16, border: '2px dashed #111', background: '#fff', fontWeight: 900 }}>
+          <div className="no-print" style={{ padding: 14, borderRadius: 16, border: '2px dashed #111', background: '#fff', fontWeight: 900 }}>
             Loading...
           </div>
         )}
@@ -166,6 +187,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
           return (
           <div
             key={cat.id}
+            className="moto-category-card"
             style={{
               padding: 14,
               borderRadius: 16,
@@ -182,6 +204,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
               {list.map((m) => (
                 <div
                   key={m.id}
+                  className="moto-row-card"
                   style={{
                     padding: 12,
                     borderRadius: 14,
@@ -206,7 +229,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                       )}
                     </div>
                   </div>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <div className="no-print" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     <select
                       value={m.status}
                       onChange={(e) => handleUpdateMotoStatus(m.id, e.target.value as MotoItem['status'])}
@@ -243,6 +266,21 @@ export default function MotosClient({ eventId }: { eventId: string }) {
           )
         })}
       </div>
+      <style>{`
+        @media print {
+          .no-print {
+            display: none !important;
+          }
+          .motos-print-root {
+            max-width: none !important;
+          }
+          .moto-category-card,
+          .moto-row-card {
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
+        }
+      `}</style>
     </div>
   )
 }
