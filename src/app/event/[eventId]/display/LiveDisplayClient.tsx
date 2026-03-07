@@ -386,7 +386,10 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
               {batchView.map((batch) => {
                 const rows = [...batch.rows].sort((a, b) => (a.rank_point ?? 9999) - (b.rank_point ?? 9999))
                 return (
-                  <article key={batch.batch_index} className="public-panel-light border border-slate-200 bg-white shadow-xl">
+                  <article
+                    key={batch.batch_index}
+                    className="public-panel-light border border-sky-200 bg-gradient-to-b from-sky-50/80 to-white shadow-xl"
+                  >
                     <div className="mb-3 flex items-center justify-between gap-2">
                       <h2 className="text-lg font-black uppercase tracking-[0.08em] text-slate-900">
                         Batch {batch.batch_index} - Live Results
@@ -396,10 +399,10 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
                       </span>
                     </div>
                     <div className="table-mobile-hint">Geser kiri/kanan untuk lihat semua kolom.</div>
-                    <div className="public-table-wrap !border-slate-200 !bg-white">
+                    <div className="public-table-wrap !border-sky-200 !bg-white">
                       <table className="public-table text-[11px] sm:text-xs md:text-sm" style={{ minWidth: 1020 }}>
                         <thead>
-                          <tr className="bg-slate-100 text-left text-[11px] font-black uppercase tracking-[0.12em] text-slate-600">
+                          <tr className="bg-sky-100/90 text-left text-[11px] font-black uppercase tracking-[0.12em] text-slate-700">
                             {[
                               'Gate M1',
                               'Gate M2',
@@ -422,11 +425,15 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
                           </tr>
                         </thead>
                         <tbody>
-                          {rows.map((row) => (
+                          {rows.map((row, rowIndex) => (
                             <tr
                               key={row.rider_id}
                               className={`border-b text-slate-700 ${
-                                row.rank_point === 1 ? 'border-amber-300 bg-amber-50/60' : 'border-slate-100'
+                                row.rank_point === 1
+                                  ? 'border-amber-300 bg-amber-50/60'
+                                  : rowIndex % 2 === 0
+                                  ? 'border-sky-100 bg-sky-50/55'
+                                  : 'border-slate-100 bg-white'
                               }`}
                             >
                               <td className="px-3 py-2.5">{row.gate_moto1 ?? '-'}</td>
