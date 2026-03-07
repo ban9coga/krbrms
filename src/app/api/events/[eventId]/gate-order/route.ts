@@ -2,6 +2,22 @@ import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../lib/auth'
 import { compareMotoSequence } from '../../../../../lib/motoSequence'
 
+const parseMotoMeta = (motoName: string) => {
+  const match = motoName.match(/moto\s*(\d+)\s*-\s*batch\s*(\d+)/i)
+  if (!match) return { motoNo: 0, batchNo: 0 }
+  return {
+    motoNo: Number(match[1] ?? 0),
+    batchNo: Number(match[2] ?? 0),
+  }
+}
+
+const rotateLeft = <T,>(items: T[], step = 1) => {
+  if (items.length <= 1) return [...items]
+  const shift = ((step % items.length) + items.length) % items.length
+  if (shift === 0) return [...items]
+  return [...items.slice(shift), ...items.slice(0, shift)]
+}
+
 export async function GET(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params
   const { searchParams } = new URL(req.url)
@@ -89,8 +105,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
 
     for (const [motoId, list] of temp.entries()) {
       const motoName = motoNameById.get(motoId) ?? ''
-      const shouldReverse = motoName.toLowerCase().includes('moto 2')
-      const ordered = shouldReverse ? [...list].reverse() : list
+      const meta = parseMotoMeta(motoName)
+      let ordered = [...list]
+      if (meta.motoNo === 2) {
+        ordered = [...list].reverse()
+      } else if (meta.motoNo === 3) {
+        ordered = rotateLeft(list, 1)
+      }
       gateByMoto.set(
         motoId,
         ordered.map((r, idx) => ({

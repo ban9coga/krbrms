@@ -57,6 +57,13 @@ const shuffle = <T,>(items: T[]) => {
   return out
 }
 
+const rotateLeft = <T,>(items: T[], step = 1) => {
+  if (items.length <= 1) return [...items]
+  const shift = ((step % items.length) + items.length) % items.length
+  if (shift === 0) return [...items]
+  return [...items.slice(shift), ...items.slice(0, shift)]
+}
+
 const parseBatchKey = (name: string) => {
   const match = name.match(/moto\s*(\d+)\s*(?:-\s*)?batch\s*(\d+)/i)
   if (!match) return null
@@ -134,7 +141,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       if (moto?.moto_name && /moto\s*2\s*-/i.test(moto.moto_name)) {
         ordered = [...baseOrder].reverse()
       } else if (moto?.moto_name && /moto\s*3\s*-/i.test(moto.moto_name)) {
-        ordered = shuffle(baseOrder)
+        // Keep Moto 3 distinct from Moto 1/Moto 2 fallback ordering when possible.
+        ordered = baseOrder.length > 2 ? rotateLeft(baseOrder, 1) : shuffle(baseOrder)
       }
       ordered.forEach((riderId, idx) => {
         insertRows.push({ moto_id: motoId, rider_id: riderId, gate_position: idx + 1 })
