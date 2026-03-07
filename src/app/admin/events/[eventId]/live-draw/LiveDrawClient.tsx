@@ -1069,7 +1069,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                 </div>
                 {batch.riders.length <= 8 && (
                   <div style={{ marginTop: 6, color: '#444', fontWeight: 700 }}>
-                    Moto 3: urutan gate random.
+                    Moto 3: urutan gate random (diupayakan beda dari Moto 1 & Moto 2).
                   </div>
                 )}
               </div>

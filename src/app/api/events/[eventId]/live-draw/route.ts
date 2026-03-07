@@ -39,6 +39,39 @@ const shuffle = <T,>(items: T[]) => {
   return arr
 }
 
+const sameOrder = (a: string[], b: string[]) => {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i += 1) {
+    if (a[i] !== b[i]) return false
+  }
+  return true
+}
+
+const buildMoto3Order = (moto1Order: string[], moto2Order: string[]) => {
+  const base = [...moto1Order]
+  if (base.length <= 1) return base
+
+  // Try several random permutations that differ from Moto 1 and Moto 2.
+  const maxAttempts = Math.max(12, base.length * 4)
+  for (let i = 0; i < maxAttempts; i += 1) {
+    const candidate = shuffle(base)
+    if (!sameOrder(candidate, moto1Order) && !sameOrder(candidate, moto2Order)) {
+      return candidate
+    }
+  }
+
+  // Deterministic fallback: rotate order until it differs from Moto 1 and Moto 2.
+  for (let shift = 1; shift < base.length; shift += 1) {
+    const rotated = [...base.slice(shift), ...base.slice(0, shift)]
+    if (!sameOrder(rotated, moto1Order) && !sameOrder(rotated, moto2Order)) {
+      return rotated
+    }
+  }
+
+  // Edge case (typically 2 riders): only 2 permutations exist, so best effort.
+  return shuffle(base)
+}
+
 const sameSet = (a: string[], b: string[]) => {
   if (a.length !== b.length) return false
   const setA = new Set(a)
@@ -267,6 +300,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     const moto2 = motoRows[base + 1]
     const moto3 = motoCount === 3 ? motoRows[base + 2] : null
     const moto2Order = hasCustomMoto2 ? (moto2Batches[batchIndex] ?? []) : [...batch].reverse()
+    const moto3Order = moto3 ? buildMoto3Order(batch, moto2Order) : null
     batch.forEach((riderId, idx) => {
       motoRiders.push({ moto_id: moto1.id, rider_id: riderId })
       motoRiders.push({ moto_id: moto2.id, rider_id: riderId })
@@ -279,9 +313,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       moto2Order.forEach((riderId, idx) => {
         gatePositions.push({ moto_id: moto2.id, rider_id: riderId, gate_position: idx + 1 })
       })
-      if (moto3) {
-        const randomized = shuffle(batch)
-        randomized.forEach((riderId, idx) => {
+      if (moto3 && moto3Order) {
+        moto3Order.forEach((riderId, idx) => {
           gatePositions.push({ moto_id: moto3.id, rider_id: riderId, gate_position: idx + 1 })
         })
       }
