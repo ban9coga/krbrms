@@ -51,6 +51,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
   const [categories, setCategories] = useState<CategoryItem[]>([])
   const [motos, setMotos] = useState<MotoItem[]>([])
   const [gateOrdersByCategory, setGateOrdersByCategory] = useState<Record<string, GateMotoItem[]>>({})
+  const [hiddenCategoryIds, setHiddenCategoryIds] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [eventStatus, setEventStatus] = useState<'UPCOMING' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED' | null>(null)
 
@@ -269,6 +270,12 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     }
   }
 
+  const toggleCategoryCard = (categoryId: string) => {
+    setHiddenCategoryIds((prev) =>
+      prev.includes(categoryId) ? prev.filter((id) => id !== categoryId) : [...prev, categoryId]
+    )
+  }
+
   return (
     <div style={{ maxWidth: 980 }} className="motos-print-root">
       <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
@@ -328,6 +335,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
         {categoriesSorted.map((cat) => {
           const list = motosByCategory.get(cat.id) ?? []
           if (list.length === 0) return null
+          const isHidden = hiddenCategoryIds.includes(cat.id)
           return (
           <div
             key={cat.id}
@@ -341,71 +349,95 @@ export default function MotosClient({ eventId }: { eventId: string }) {
               gap: 10,
             }}
           >
-            <div style={{ fontWeight: 950, fontSize: 18 }}>
-              {categoryLabel.get(cat.id) ?? `Category ${cat.id}`}
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
+              <div style={{ fontWeight: 950, fontSize: 18 }}>
+                {categoryLabel.get(cat.id) ?? `Category ${cat.id}`}
+              </div>
+              <button
+                type="button"
+                onClick={() => toggleCategoryCard(cat.id)}
+                className="no-print"
+                style={{
+                  padding: '6px 10px',
+                  borderRadius: 999,
+                  border: '2px solid #111',
+                  background: '#f8fafc',
+                  fontWeight: 900,
+                  fontSize: 12,
+                  cursor: 'pointer',
+                }}
+              >
+                {isHidden ? 'Tampilkan' : 'Sembunyikan'}
+              </button>
             </div>
-            <div style={{ display: 'grid', gap: 8 }}>
-              {list.map((m) => (
-                <div
-                  key={m.id}
-                  className="moto-row-card"
-                  style={{
-                    padding: 12,
-                    borderRadius: 14,
-                    border: '2px solid #111',
-                    background: '#eaf7ee',
-                    display: 'grid',
-                    gridTemplateColumns: '1fr auto',
-                    gap: 10,
-                  }}
-                >
-                  <div style={{ display: 'grid', gap: 6 }}>
-                    <div style={{ fontWeight: 900 }}>
-                      {m.moto_order}. {m.moto_name}
+            {isHidden ? (
+              <div style={{ color: '#64748b', fontWeight: 800, fontSize: 13 }}>
+                Card kategori disembunyikan.
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gap: 8 }}>
+                {list.map((m) => (
+                  <div
+                    key={m.id}
+                    className="moto-row-card"
+                    style={{
+                      padding: 12,
+                      borderRadius: 14,
+                      border: '2px solid #111',
+                      background: '#eaf7ee',
+                      display: 'grid',
+                      gridTemplateColumns: '1fr auto',
+                      gap: 10,
+                    }}
+                  >
+                    <div style={{ display: 'grid', gap: 6 }}>
+                      <div style={{ fontWeight: 900 }}>
+                        {m.moto_order}. {m.moto_name}
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontWeight: 800, fontSize: 12 }}>
+                        <span>Status: {m.status}</span>
+                        {m.status === 'PROVISIONAL' && m.provisional_at && (
+                          <span>Provisional: {new Date(m.provisional_at).toLocaleString()}</span>
+                        )}
+                        {m.is_published && m.published_at && (
+                          <span>Published: {new Date(m.published_at).toLocaleString()}</span>
+                        )}
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontWeight: 800, fontSize: 12 }}>
-                      <span>Status: {m.status}</span>
-                      {m.status === 'PROVISIONAL' && m.provisional_at && (
-                        <span>Provisional: {new Date(m.provisional_at).toLocaleString()}</span>
-                      )}
-                      {m.is_published && m.published_at && (
-                        <span>Published: {new Date(m.published_at).toLocaleString()}</span>
-                      )}
+                    <div className="no-print" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <select
+                        value={m.status}
+                        onChange={(e) => handleUpdateMotoStatus(m.id, e.target.value as MotoItem['status'])}
+                        disabled={eventStatus !== 'LIVE'}
+                        style={{ padding: '8px 10px', borderRadius: 12, border: '2px solid #111', fontWeight: 900 }}
+                      >
+                        <option value="UPCOMING">UPCOMING</option>
+                        <option value="LIVE">LIVE</option>
+                        <option value="FINISHED">FINISHED</option>
+                        <option value="PROVISIONAL">PROVISIONAL</option>
+                        <option value="PROTEST_REVIEW">PROTEST_REVIEW</option>
+                        <option value="LOCKED">LOCKED</option>
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => handlePublishMoto(m.id)}
+                        disabled={m.status !== 'LOCKED' || !!m.is_published}
+                        style={{
+                          padding: '8px 12px',
+                          borderRadius: 999,
+                          border: '2px solid #111',
+                          background: m.status === 'LOCKED' && !m.is_published ? '#2ecc71' : '#fff',
+                          fontWeight: 900,
+                          cursor: m.status === 'LOCKED' && !m.is_published ? 'pointer' : 'not-allowed',
+                        }}
+                      >
+                        {m.is_published ? 'Published' : 'Publish'}
+                      </button>
                     </div>
                   </div>
-                  <div className="no-print" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <select
-                      value={m.status}
-                      onChange={(e) => handleUpdateMotoStatus(m.id, e.target.value as MotoItem['status'])}
-                      disabled={eventStatus !== 'LIVE'}
-                      style={{ padding: '8px 10px', borderRadius: 12, border: '2px solid #111', fontWeight: 900 }}
-                    >
-                      <option value="UPCOMING">UPCOMING</option>
-                      <option value="LIVE">LIVE</option>
-                      <option value="FINISHED">FINISHED</option>
-                      <option value="PROVISIONAL">PROVISIONAL</option>
-                      <option value="PROTEST_REVIEW">PROTEST_REVIEW</option>
-                      <option value="LOCKED">LOCKED</option>
-                    </select>
-                    <button
-                      type="button"
-                      onClick={() => handlePublishMoto(m.id)}
-                      disabled={m.status !== 'LOCKED' || !!m.is_published}
-                      style={{
-                        padding: '8px 12px',
-                        borderRadius: 999,
-                        border: '2px solid #111',
-                        background: m.status === 'LOCKED' && !m.is_published ? '#2ecc71' : '#fff',
-                        fontWeight: 900,
-                        cursor: m.status === 'LOCKED' && !m.is_published ? 'pointer' : 'not-allowed',
-                      }}
-                    >
-                      {m.is_published ? 'Published' : 'Publish'}
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
           )
         })}
