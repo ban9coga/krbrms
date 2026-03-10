@@ -253,7 +253,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                 </div>
 
                 <div className="flex flex-wrap gap-3">
-                  {event.status !== 'UPCOMING' && (
+                  {event.status === 'LIVE' && (
                     <Link
                       href={`/event/${event.id}/display`}
                       className="inline-flex items-center rounded-xl border border-emerald-300/60 bg-emerald-500/20 px-5 py-3 text-sm font-extrabold uppercase tracking-wide text-emerald-100 transition-colors hover:bg-emerald-500/35"
@@ -261,7 +261,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                       Live Board
                     </Link>
                   )}
-                  {event.status !== 'LIVE' && (
+                  {event.status === 'UPCOMING' && (
                     <Link
                       href={`/event/${event.id}/register`}
                       className="inline-flex items-center rounded-xl bg-rose-500 px-5 py-3 text-sm font-extrabold uppercase tracking-wide text-white transition-colors hover:bg-rose-400"
