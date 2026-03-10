@@ -279,10 +279,10 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
             >
               <div className="mb-4 flex items-center gap-2">
                 <h2 className="text-2xl font-black tracking-tight text-white">Race Categories</h2>
-                {event.status !== 'LIVE' && <StatusBadge label="Locked" />}
+                {event.status === 'UPCOMING' && <StatusBadge label="Locked" />}
               </div>
 
-              {event.status !== 'LIVE' ? (
+              {event.status === 'UPCOMING' ? (
                 <div className="rounded-2xl border border-dashed border-slate-600 bg-slate-950/40 p-4 text-sm font-semibold text-slate-300">
                   Live results akan muncul saat event LIVE.
                 </div>
@@ -327,7 +327,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                               href={`/event/${eventId}/live-score/${encodeURIComponent(category.id)}`}
                               className="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-extrabold uppercase tracking-[0.12em] text-white transition-colors hover:bg-emerald-500"
                             >
-                              View Live Results
+                              {event.status === 'FINISHED' ? 'View Results' : 'View Live Results'}
                             </Link>
                           </div>
                         </article>
@@ -335,7 +335,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                     </div>
                   )}
 
-                  {liveMotosSorted.length === 0 ? (
+                  {event.status === 'LIVE' && (liveMotosSorted.length === 0 ? (
                     <div className="rounded-2xl border border-dashed border-slate-600 bg-slate-950/40 p-4 text-sm font-semibold text-slate-300">
                       Belum ada moto yang LIVE.
                     </div>
@@ -447,7 +447,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                         )
                       })}
                     </div>
-                  )}
+                  ))}
                 </div>
               )}
             </section>
