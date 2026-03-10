@@ -19,4 +19,11 @@ export const isMotoUnderProtest = (status?: string | null) => normalizeMotoStatu
 export const isMotoLocked = (status?: string | null) => normalizeMotoStatus(status) === 'LOCKED'
 
 export const isMotoPublicVisible = (status?: string | null, isPublished?: boolean | null) =>
-  isMotoLive(status) || (isMotoLocked(status) && isPublished === true)
+  // Publish is used as an "official" marker, not a visibility gate.
+  // In-field flow needs results visible immediately after finisher submit (PROVISIONAL).
+  (void isPublished,
+  isMotoLive(status) ||
+    isMotoProvisional(status) ||
+    isMotoUnderProtest(status) ||
+    isMotoFinished(status) ||
+    isMotoLocked(status))
