@@ -17,11 +17,12 @@ const fetchEvents = async (status?: EventStatus): Promise<EventItem[]> => {
 }
 
 export default async function DashboardPage() {
-  const [upcomingEventsRaw, ongoingEventsRaw] = await Promise.all([
+  const [upcomingEventsRaw, ongoingEventsRaw, finishedEventsRaw] = await Promise.all([
     fetchEvents('UPCOMING'),
     fetchEvents('LIVE'),
+    fetchEvents('FINISHED'),
   ])
-  const allEvents = [...upcomingEventsRaw, ...ongoingEventsRaw]
+  const allEvents = [...upcomingEventsRaw, ...ongoingEventsRaw, ...finishedEventsRaw]
   const eventIds = allEvents.map((e) => e.id)
   const settingsMap = new Map<
     string,
@@ -45,6 +46,10 @@ export default async function DashboardPage() {
     event_scope: settingsMap.get(event.id)?.event_scope ?? (event.is_public === false ? 'INTERNAL' : 'PUBLIC'),
   }))
   const ongoingEvents = ongoingEventsRaw.map((event) => ({
+    ...event,
+    event_scope: settingsMap.get(event.id)?.event_scope ?? (event.is_public === false ? 'INTERNAL' : 'PUBLIC'),
+  }))
+  const finishedEvents = finishedEventsRaw.map((event) => ({
     ...event,
     event_scope: settingsMap.get(event.id)?.event_scope ?? (event.is_public === false ? 'INTERNAL' : 'PUBLIC'),
   }))
@@ -93,6 +98,24 @@ export default async function DashboardPage() {
                   )}
                   <div style={{ display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
                     {upcomingEvents.map((event, idx) => (
+                      <EventCard
+                        key={event.id}
+                        event={event}
+                        index={idx}
+                        logoUrl={settingsMap.get(event.id)?.logo ?? null}
+                        slogan={settingsMap.get(event.id)?.slogan ?? null}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-3xl border border-slate-700/70 bg-slate-900/55 p-4 backdrop-blur-sm sm:p-6">
+                  <h2 className="mb-4 text-2xl font-bold text-white">Finished Events</h2>
+                  {finishedEvents.length === 0 && (
+                    <p className="pb-2 text-sm font-semibold text-slate-300">Belum ada event yang selesai.</p>
+                  )}
+                  <div style={{ display: \"grid\", gap: \"16px\", gridTemplateColumns: \"repeat(auto-fit, minmax(320px, 1fr))\" }}>
+                    {finishedEvents.map((event, idx) => (
                       <EventCard
                         key={event.id}
                         event={event}
