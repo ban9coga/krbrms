@@ -114,7 +114,7 @@ export default async function DashboardPage() {
                   {finishedEvents.length === 0 && (
                     <p className="pb-2 text-sm font-semibold text-slate-300">Belum ada event yang selesai.</p>
                   )}
-                  <div style={{ display: \"grid\", gap: \"16px\", gridTemplateColumns: \"repeat(auto-fit, minmax(320px, 1fr))\" }}>
+                  <div style={{ display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
                     {finishedEvents.map((event, idx) => (
                       <EventCard
                         key={event.id}
