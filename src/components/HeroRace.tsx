@@ -10,21 +10,21 @@ export default function HeroRace({ liveEvent }: { liveEvent: LiveEventItem | nul
   return (
     <section className="w-full bg-slate-100 px-2 py-4 sm:px-4 md:px-6 md:py-8">
       <div className="mx-auto w-full max-w-[1500px]">
-        <div className="relative overflow-hidden rounded-[2rem] bg-[linear-gradient(125deg,#090f1d_0%,#1e293b_42%,#4a0f23_100%)] px-5 py-14 shadow-[0_40px_120px_rgba(15,23,42,0.32)] sm:px-8 sm:py-16 md:rounded-[2.5rem] md:px-14 md:py-24 lg:py-28">
-          <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-rose-500/15 blur-3xl" />
-          <div className="pointer-events-none absolute -top-24 right-0 h-72 w-72 rounded-full bg-sky-400/15 blur-3xl" />
-          <div className="pointer-events-none absolute right-16 top-1/2 hidden h-56 w-56 -translate-y-1/2 rounded-full border border-rose-200/20 md:block" />
+        <div className="relative overflow-hidden rounded-[2rem] bg-[linear-gradient(125deg,#090f1d_0%,#1e293b_42%,#78350f_100%)] px-5 py-14 shadow-[0_40px_120px_rgba(15,23,42,0.32)] sm:px-8 sm:py-16 md:rounded-[2.5rem] md:px-14 md:py-24 lg:py-28">
+          <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-amber-400/15 blur-3xl" />
+          <div className="pointer-events-none absolute -top-24 right-0 h-72 w-72 rounded-full bg-amber-200/10 blur-3xl" />
+          <div className="pointer-events-none absolute right-16 top-1/2 hidden h-56 w-56 -translate-y-1/2 rounded-full border border-amber-200/20 md:block" />
 
           <div className="relative z-10 mx-auto max-w-5xl text-center">
             <div className="mb-6 flex justify-center">
               {liveEvent ? (
                 <Link
                   href={`/event/${liveEvent.id}`}
-                  className="inline-flex max-w-full items-center gap-3 rounded-full border border-emerald-300/40 bg-emerald-500/10 px-4 py-2 text-left text-emerald-100 transition-colors hover:border-emerald-200/60 hover:bg-emerald-500/20"
+                  className="inline-flex max-w-full items-center gap-3 rounded-full border border-amber-300/40 bg-amber-400/10 px-4 py-2 text-left text-amber-100 transition-colors hover:border-amber-200/60 hover:bg-amber-400/20"
                 >
                   <span className="relative inline-flex h-3 w-3 shrink-0">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-300 opacity-75" />
-                    <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-300 shadow-[0_0_12px_rgba(110,231,183,0.95)]" />
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-300 opacity-75" />
+                    <span className="relative inline-flex h-3 w-3 rounded-full bg-amber-300 shadow-[0_0_12px_rgba(251,191,36,0.95)]" />
                   </span>
                   <span className="truncate text-xs font-black tracking-[0.14em] sm:text-sm">
                     LIVE NOW: {liveEvent.name}
@@ -40,7 +40,7 @@ export default function HeroRace({ liveEvent }: { liveEvent: LiveEventItem | nul
 
             <h1 className="mt-1 text-4xl font-black leading-[0.95] tracking-tight text-white sm:text-5xl md:mt-2 md:text-6xl lg:text-7xl">
               <span className="block">
-                <span className="font-black text-rose-400 drop-shadow-[0_16px_50px_rgba(244,63,94,0.35)]">KANCANG</span>{' '}
+                <span className="font-black text-amber-400 drop-shadow-[0_16px_50px_rgba(251,191,36,0.35)]">KANCANG</span>{' '}
                 <span className="font-extrabold text-white/95">Run Bike</span>
               </span>
             </h1>
@@ -56,7 +56,7 @@ export default function HeroRace({ liveEvent }: { liveEvent: LiveEventItem | nul
             <div className="mt-10 flex flex-col items-stretch justify-center gap-3 sm:mt-12 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
               <Link
                 href="/dashboard"
-                className="inline-flex w-full justify-center rounded-2xl bg-rose-500 px-8 py-3 text-base font-bold tracking-[0.12em] text-white transition-colors duration-200 hover:bg-rose-400 sm:w-auto sm:px-10 sm:py-4 sm:tracking-[0.15em]"
+                className="inline-flex w-full justify-center rounded-2xl bg-amber-400 px-8 py-3 text-base font-bold tracking-[0.12em] text-slate-900 transition-colors duration-200 hover:bg-amber-300 sm:w-auto sm:px-10 sm:py-4 sm:tracking-[0.15em]"
               >
                 Eksplor Event
               </Link>
