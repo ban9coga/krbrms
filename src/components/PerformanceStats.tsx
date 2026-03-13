@@ -6,7 +6,7 @@ type StatItem = {
   icon: ReactNode
 }
 
-const statIconClass = 'h-5 w-5 text-rose-300'
+const statIconClass = 'h-5 w-5 text-amber-300'
 
 const RidersIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={statIconClass}>
@@ -62,7 +62,7 @@ export default function PerformanceStats() {
               key={stat.value}
               className="rounded-2xl border border-slate-800/80 bg-slate-900/60 px-4 py-6 backdrop-blur-sm md:px-6 md:py-8"
             >
-              <div className="mx-auto mb-3 inline-flex h-11 w-11 items-center justify-center rounded-full bg-rose-400/15 ring-1 ring-rose-300/25">
+              <div className="mx-auto mb-3 inline-flex h-11 w-11 items-center justify-center rounded-full bg-amber-400/15 ring-1 ring-amber-300/25">
                 {stat.icon}
               </div>
               <div className="text-3xl font-bold text-white sm:text-4xl md:text-5xl">{stat.value}</div>

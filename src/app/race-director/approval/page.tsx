@@ -433,10 +433,10 @@ export default function RaceDirectorApprovalPage() {
       <CheckerTopbar title="Race Director Panel" />
       <main className="public-main max-w-[1500px]">
         <section className="public-hero">
-          <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-rose-500/15 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-amber-400/15 blur-3xl" />
           <div className="pointer-events-none absolute -top-24 right-0 h-72 w-72 rounded-full bg-sky-400/15 blur-3xl" />
           <div className="relative z-10 grid gap-2">
-            <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-rose-300">Race Director</p>
+            <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-amber-300">Race Director</p>
             <h1 className="text-3xl font-black tracking-tight text-white md:text-5xl">Kontrol Approval & Kunci Moto</h1>
             <p className="max-w-2xl text-sm font-semibold text-slate-200 sm:text-base">
               Approval status/penalty, penguncian moto, dan audit.
@@ -497,7 +497,7 @@ export default function RaceDirectorApprovalPage() {
           <section
             className={`rounded-xl border px-4 py-3 text-sm font-bold ${
               actionNotice.type === 'error'
-                ? 'border-rose-300 bg-rose-100 text-rose-800'
+                ? 'border-amber-300 bg-amber-100 text-amber-800'
                 : 'border-emerald-300 bg-emerald-100 text-emerald-800'
             }`}
           >
@@ -982,7 +982,7 @@ export default function RaceDirectorApprovalPage() {
                 className={`rounded-xl border px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.1em] transition-colors ${
                   decisionModal.decision === 'APPROVE'
                     ? 'border-emerald-300 bg-emerald-500 text-white hover:bg-emerald-400'
-                    : 'border-rose-300 bg-rose-500 text-white hover:bg-rose-400'
+                    : 'border-amber-300 bg-amber-400 text-white hover:bg-amber-300'
                 }`}
               >
                 {decisionSubmitting

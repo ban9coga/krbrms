@@ -135,10 +135,10 @@ export default function JCSelectorPage() {
       <CheckerTopbar title="Checker Panel" />
       <main className="public-main">
         <section className="public-hero">
-          <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-rose-500/15 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-amber-400/15 blur-3xl" />
           <div className="pointer-events-none absolute -top-24 right-0 h-72 w-72 rounded-full bg-sky-400/15 blur-3xl" />
           <div className="relative z-10 grid gap-2">
-            <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-rose-300">Jury Control</p>
+            <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-amber-300">Jury Control</p>
             <h1 className="text-3xl font-black tracking-tight text-white md:text-5xl">JC Gate Selector</h1>
             <p className="max-w-2xl text-sm font-semibold text-slate-200 sm:text-base">
               Pilih event dan moto yang akan dikontrol.
@@ -149,7 +149,7 @@ export default function JCSelectorPage() {
         <section className="mx-auto w-full max-w-[620px] rounded-[1.5rem] border border-slate-200 bg-white/95 p-5 shadow-[0_16px_36px_rgba(15,23,42,0.12)] sm:p-6">
           <div className="grid gap-4">
             {errorMessage && (
-              <div className="rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">
+              <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700">
                 {errorMessage}
               </div>
             )}
@@ -179,7 +179,7 @@ export default function JCSelectorPage() {
               type="button"
               disabled={!eventId || !motoId || loading}
               onClick={() => router.push(`/jc/${eventId}/${motoId}`)}
-              className="inline-flex items-center justify-center rounded-xl bg-rose-500 px-4 py-3 text-sm font-extrabold uppercase tracking-[0.12em] text-white transition-colors hover:bg-rose-400 disabled:cursor-not-allowed disabled:bg-rose-300"
+              className="inline-flex items-center justify-center rounded-xl bg-amber-400 px-4 py-3 text-sm font-extrabold uppercase tracking-[0.12em] text-white transition-colors hover:bg-amber-300 disabled:cursor-not-allowed disabled:bg-amber-200"
             >
               {loading ? 'Loading...' : 'Buka Gate Screen'}
             </button>

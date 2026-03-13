@@ -6,7 +6,7 @@ type FeatureItem = {
   icon: ReactNode
 }
 
-const iconClass = 'h-5 w-5 text-rose-300'
+const iconClass = 'h-5 w-5 text-amber-300'
 
 const SpeedIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={iconClass}>
@@ -103,7 +103,7 @@ export default function CoreFeatures() {
               key={feature.title}
               className="rounded-2xl border border-slate-800 bg-slate-900 p-6 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-slate-950/70 md:p-8"
             >
-              <div className="mb-5 inline-flex h-11 w-11 items-center justify-center rounded-full bg-rose-400/15 ring-1 ring-rose-300/25">
+              <div className="mb-5 inline-flex h-11 w-11 items-center justify-center rounded-full bg-amber-400/15 ring-1 ring-amber-300/25">
                 {feature.icon}
               </div>
               <h3 className="text-lg font-semibold text-white md:text-xl">{feature.title}</h3>

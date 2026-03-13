@@ -60,8 +60,8 @@ export default async function DashboardPage() {
 
       <main className="w-full bg-slate-100 px-2 py-4 sm:px-4 md:px-6 md:py-8">
         <section className="mx-auto w-full max-w-[1500px]">
-          <div className="relative overflow-hidden rounded-[2rem] bg-[linear-gradient(125deg,#090f1d_0%,#1e293b_42%,#4a0f23_100%)] px-5 py-10 shadow-[0_40px_120px_rgba(15,23,42,0.32)] sm:px-8 sm:py-12 md:rounded-[2.5rem] md:px-14 md:py-14">
-            <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-rose-500/15 blur-3xl" />
+          <div className="relative overflow-hidden rounded-[2rem] bg-[linear-gradient(125deg,#090f1d_0%,#1e293b_42%,#78350f_100%)] px-5 py-10 shadow-[0_40px_120px_rgba(15,23,42,0.32)] sm:px-8 sm:py-12 md:rounded-[2.5rem] md:px-14 md:py-14">
+            <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-amber-400/15 blur-3xl" />
             <div className="pointer-events-none absolute -top-24 right-0 h-72 w-72 rounded-full bg-sky-400/15 blur-3xl" />
 
             <div className="relative z-10">

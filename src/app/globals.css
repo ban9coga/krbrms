@@ -18,7 +18,7 @@
   }
 
   .public-hero {
-    @apply relative overflow-hidden rounded-[2rem] bg-[linear-gradient(125deg,#090f1d_0%,#1e293b_42%,#4a0f23_100%)] px-5 py-7 shadow-[0_32px_90px_rgba(15,23,42,0.28)] sm:px-8 md:rounded-[2.4rem] md:px-12 md:py-10;
+    @apply relative overflow-hidden rounded-[2rem] bg-[linear-gradient(125deg,#090f1d_0%,#1e293b_42%,#78350f_100%)] px-5 py-7 shadow-[0_32px_90px_rgba(15,23,42,0.28)] sm:px-8 md:rounded-[2.4rem] md:px-12 md:py-10;
   }
 
   .public-panel-dark {
@@ -30,7 +30,7 @@
   }
 
   .public-filter {
-    @apply rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 outline-none transition focus:border-rose-400 focus:ring-2 focus:ring-rose-300/30;
+    @apply rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-300/30;
   }
 
   .public-chip {
@@ -38,7 +38,7 @@
   }
 
   .public-action {
-    @apply inline-flex items-center justify-center rounded-xl bg-rose-500 px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.12em] text-white transition-colors hover:bg-rose-400;
+    @apply inline-flex items-center justify-center rounded-xl bg-amber-400 px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.12em] text-white transition-colors hover:bg-amber-300;
   }
 
   .public-table-wrap {

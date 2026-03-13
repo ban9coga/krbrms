@@ -80,10 +80,10 @@ export default function ResultsClient({ eventId }: { eventId: string }) {
       <PublicTopbar />
       <main className="public-main">
         <section className="public-hero">
-          <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-rose-500/15 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-amber-400/15 blur-3xl" />
           <div className="pointer-events-none absolute -top-24 right-0 h-72 w-72 rounded-full bg-sky-400/15 blur-3xl" />
           <div className="relative z-10 grid gap-3">
-            <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-rose-300">Public Results</p>
+            <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-amber-300">Public Results</p>
             <h1 className="text-3xl font-black tracking-tight text-white md:text-5xl">
               {event ? event.name : 'Event Results'}
             </h1>
@@ -109,7 +109,7 @@ export default function ResultsClient({ eventId }: { eventId: string }) {
                       router.push(`/event/${eventId}/live-score/${encodeURIComponent(category.id)}`)
                     }
                   }}
-                  className="group cursor-pointer overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_14px_30px_rgba(15,23,42,0.1)] transition-all hover:-translate-y-0.5 hover:shadow-[0_18px_36px_rgba(15,23,42,0.14)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-400"
+                  className="group cursor-pointer overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_14px_30px_rgba(15,23,42,0.1)] transition-all hover:-translate-y-0.5 hover:shadow-[0_18px_36px_rgba(15,23,42,0.14)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-400"
                 >
                   <div className="relative h-24 overflow-hidden">
                     <div className="absolute inset-0" style={{ backgroundImage: cardGradients[idx % cardGradients.length] }} />

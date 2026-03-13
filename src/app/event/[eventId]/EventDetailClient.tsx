@@ -176,26 +176,26 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
 
         {event && (
           <div className="grid gap-6">
-            <section className="relative overflow-hidden rounded-[2rem] bg-[linear-gradient(125deg,#090f1d_0%,#1e293b_42%,#4a0f23_100%)] px-5 py-8 shadow-[0_34px_90px_rgba(15,23,42,0.3)] sm:px-8 md:rounded-[2.5rem] md:px-12 md:py-10">
-              <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-rose-500/15 blur-3xl" />
+            <section className="relative overflow-hidden rounded-[2rem] bg-[linear-gradient(125deg,#090f1d_0%,#1e293b_42%,#78350f_100%)] px-5 py-8 shadow-[0_34px_90px_rgba(15,23,42,0.3)] sm:px-8 md:rounded-[2.5rem] md:px-12 md:py-10">
+              <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-amber-400/15 blur-3xl" />
               <div className="pointer-events-none absolute -top-24 right-0 h-72 w-72 rounded-full bg-sky-400/15 blur-3xl" />
               <div className="relative z-10 grid gap-6">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="grid gap-2">
-                    <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-rose-300">Event Detail</p>
+                    <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-amber-300">Event Detail</p>
                     <h1 className="text-3xl font-black leading-tight tracking-tight text-white md:text-5xl">
                       {event.name}
                     </h1>
                     <div className="flex flex-wrap gap-3 text-sm font-semibold text-slate-200 md:text-base">
                       <span className="inline-flex items-center gap-2">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4 text-rose-300">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4 text-amber-300">
                           <path d="M12 20s6-5.2 6-10a6 6 0 1 0-12 0c0 4.8 6 10 6 10z" strokeLinecap="round" />
                           <circle cx="12" cy="10" r="2.3" />
                         </svg>
                         {event.location || '-'}
                       </span>
                       <span className="inline-flex items-center gap-2">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4 text-rose-300">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4 text-amber-300">
                           <rect x="3.5" y="5.5" width="17" height="15" rx="2" />
                           <path d="M7.5 3.5v4M16.5 3.5v4M3.5 10h17" strokeLinecap="round" />
                         </svg>
@@ -225,7 +225,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                     className={`rounded-2xl border p-4 text-left transition-colors ${
                       event.status === 'UPCOMING'
                         ? 'cursor-not-allowed border-slate-600 bg-slate-900/35 text-slate-400'
-                        : 'border-slate-500 bg-slate-900/50 text-white hover:border-rose-300/60'
+                        : 'border-slate-500 bg-slate-900/50 text-white hover:border-amber-300/60'
                     }`}
                   >
                     <p className="text-xs font-bold uppercase tracking-wide text-slate-300">Total Riders</p>
@@ -264,7 +264,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                   {event.status === 'UPCOMING' && (
                     <Link
                       href={`/event/${event.id}/register`}
-                      className="inline-flex items-center rounded-xl bg-rose-500 px-5 py-3 text-sm font-extrabold uppercase tracking-wide text-white transition-colors hover:bg-rose-400"
+                      className="inline-flex items-center rounded-xl bg-amber-400 px-5 py-3 text-sm font-extrabold uppercase tracking-wide text-white transition-colors hover:bg-amber-300"
                     >
                       Register Rider
                     </Link>
@@ -370,7 +370,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                                   {m.moto_order}. {m.moto_name}
                                 </p>
                               </div>
-                              <span className="text-xs font-extrabold uppercase tracking-wide text-rose-300">
+                              <span className="text-xs font-extrabold uppercase tracking-wide text-amber-300">
                                 {isOpen ? 'Hide results' : 'View results'}
                               </span>
                             </button>
@@ -422,7 +422,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                                           key={stage}
                                           className="grid gap-2 rounded-xl border border-slate-700 bg-slate-900/60 p-3"
                                         >
-                                          <div className="text-xs font-extrabold uppercase tracking-wide text-rose-300">
+                                          <div className="text-xs font-extrabold uppercase tracking-wide text-amber-300">
                                             {stage}
                                           </div>
                                           {rows.slice(0, 8).map((r) => (
@@ -506,7 +506,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                     type="button"
                     onClick={loadMore}
                     disabled={loadingMore}
-                    className="mt-4 inline-flex items-center rounded-xl bg-rose-500 px-4 py-2 text-sm font-extrabold uppercase tracking-wide text-white transition-colors hover:bg-rose-400 disabled:cursor-not-allowed disabled:bg-rose-300"
+                    className="mt-4 inline-flex items-center rounded-xl bg-amber-400 px-4 py-2 text-sm font-extrabold uppercase tracking-wide text-white transition-colors hover:bg-amber-300 disabled:cursor-not-allowed disabled:bg-amber-200"
                   >
                     {loadingMore ? 'Loading...' : 'Load More'}
                   </button>

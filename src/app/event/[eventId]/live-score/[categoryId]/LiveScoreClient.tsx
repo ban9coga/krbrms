@@ -120,7 +120,7 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
       <PublicTopbar />
       <main className="public-main">
         <section className="public-hero">
-          <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-rose-500/15 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-amber-400/15 blur-3xl" />
           <div className="pointer-events-none absolute -top-24 right-0 h-72 w-72 rounded-full bg-sky-400/15 blur-3xl" />
           <div className="relative z-10 flex flex-wrap items-start justify-between gap-4">
             <div className="grid gap-2">
@@ -141,7 +141,7 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                   onClick={() => setSortMode(mode)}
                   className={`rounded-full border px-3 py-2 text-xs font-extrabold uppercase tracking-[0.12em] transition-colors sm:text-sm ${
                     sortMode === mode
-                      ? 'border-rose-300 bg-rose-500 text-white'
+                      ? 'border-amber-300 bg-amber-400 text-white'
                       : 'border-white/25 bg-white/10 text-white hover:bg-white/20'
                   }`}
                 >
@@ -217,7 +217,7 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                           <td>{row.point_moto1 ?? '-'}</td>
                           <td>{row.point_moto2 ?? '-'}</td>
                           <td>{row.point_moto3 ?? '-'}</td>
-                          <td className="font-extrabold text-rose-600">{row.penalty_total ?? '-'}</td>
+                          <td className="font-extrabold text-amber-600">{row.penalty_total ?? '-'}</td>
                           <td className="font-extrabold text-sky-700">{row.total_point ?? '-'}</td>
                           <td className="font-extrabold text-emerald-700">{row.rank_point ?? '-'}</td>
                           <td className="whitespace-nowrap">{row.class_label || '-'}</td>

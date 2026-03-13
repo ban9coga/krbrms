@@ -393,10 +393,10 @@ export default function JuryFinishPage() {
       <CheckerTopbar title="Jury Finish Panel" />
       <main className="public-main max-w-[1500px]">
         <section className="public-hero">
-          <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-rose-500/15 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-amber-400/15 blur-3xl" />
           <div className="pointer-events-none absolute -top-24 right-0 h-72 w-72 rounded-full bg-sky-400/15 blur-3xl" />
           <div className="relative z-10 grid gap-2">
-            <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-rose-300">Jury Finish</p>
+            <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-amber-300">Jury Finish</p>
             <h1 className="text-3xl font-black tracking-tight text-white md:text-5xl">Live Finish Input</h1>
             <p className="max-w-2xl text-sm font-semibold text-slate-200 sm:text-base">
               Tap rider untuk finish. Tahan 800ms untuk DNF.
@@ -442,7 +442,7 @@ export default function JuryFinishPage() {
         </section>
 
         {events.length === 0 && (
-          <section className="rounded-xl border border-rose-300 bg-rose-100 px-4 py-3 text-sm font-bold text-rose-800">
+          <section className="rounded-xl border border-amber-300 bg-amber-100 px-4 py-3 text-sm font-bold text-amber-800">
             Tidak ada event LIVE untuk Jury Finish. Set event ke LIVE dulu.
           </section>
         )}
@@ -450,12 +450,12 @@ export default function JuryFinishPage() {
           <div className="text-xs font-semibold text-slate-500">Admin: ubah status event ke LIVE agar Jury Finish aktif.</div>
         )}
         {motoLocked && (
-          <section className="rounded-xl border border-rose-300 bg-rose-100 px-4 py-3 text-sm font-bold text-rose-800">
+          <section className="rounded-xl border border-amber-300 bg-amber-100 px-4 py-3 text-sm font-bold text-amber-800">
             MOTO LOCKED - input disabled.
           </section>
         )}
         {selectedMoto && !selectedMotoLive && (
-          <section className="rounded-xl border border-rose-300 bg-rose-100 px-4 py-3 text-sm font-bold text-rose-800">
+          <section className="rounded-xl border border-amber-300 bg-amber-100 px-4 py-3 text-sm font-bold text-amber-800">
             Moto masih {selectedMoto.status}. Input hanya bisa saat LIVE.
           </section>
         )}
@@ -521,7 +521,7 @@ export default function JuryFinishPage() {
                       ? 'border-slate-300 text-slate-700'
                       : status === 'FINISH'
                       ? 'border-emerald-300 text-emerald-800'
-                      : 'border-rose-300 text-rose-800'
+                      : 'border-amber-300 text-amber-800'
                   return (
                     <div key={r.id} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
                       <div className="font-semibold text-slate-700">
@@ -564,7 +564,7 @@ export default function JuryFinishPage() {
                     const rider = riders.find((r) => r.id === id)
                     const penalty = penaltiesByRider[id] ?? 0
                     return (
-                      <div key={id} className="text-sm font-semibold text-rose-700">
+                      <div key={id} className="text-sm font-semibold text-amber-700">
                         {rider?.no_plate_display} - {rider?.name}
                         {penalty ? ` (+${penalty})` : ''}
                       </div>

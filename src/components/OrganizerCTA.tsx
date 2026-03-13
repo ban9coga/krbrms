@@ -3,7 +3,7 @@ import Link from 'next/link'
 export default function OrganizerCTA() {
   return (
     <section className="relative w-full overflow-hidden bg-[linear-gradient(180deg,#020817_0%,#040b18_100%)] py-16 sm:py-20 md:py-24">
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-rose-500/10 via-transparent to-transparent" />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-amber-400/10 via-transparent to-transparent" />
 
       <div className="relative mx-auto w-full max-w-[1500px] px-2 text-center sm:px-4 md:px-6">
         <div className="mx-auto max-w-4xl rounded-[2rem] border border-slate-800/80 bg-slate-900/40 px-5 py-12 sm:px-8 md:px-12 md:py-16">
@@ -18,7 +18,7 @@ export default function OrganizerCTA() {
           <div className="mt-8 flex flex-col items-stretch justify-center gap-3 sm:mt-10 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
             <Link
               href="/dashboard"
-              className="inline-flex w-full justify-center rounded-xl bg-rose-500 px-8 py-3 text-base font-semibold text-white transition-colors duration-200 hover:bg-rose-400 sm:w-auto sm:px-9 sm:py-4"
+              className="inline-flex w-full justify-center rounded-xl bg-amber-400 px-8 py-3 text-base font-semibold text-white transition-colors duration-200 hover:bg-amber-300 sm:w-auto sm:px-9 sm:py-4"
             >
               Request Demo
             </Link>

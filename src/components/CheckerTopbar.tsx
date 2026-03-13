@@ -107,7 +107,7 @@ export default function CheckerTopbar({ title = 'Checker Control' }: CheckerTopb
             <button
               type="button"
               onClick={handleLogout}
-              className="rounded-full bg-rose-500 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-rose-400"
+              className="rounded-full bg-amber-400 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-amber-300"
             >
               Logout
             </button>

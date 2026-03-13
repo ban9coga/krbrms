@@ -394,7 +394,7 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
                       <h2 className="text-lg font-black uppercase tracking-[0.08em] text-slate-900">
                         Batch {batch.batch_index} - Live Results
                       </h2>
-                      <span className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.12em] text-rose-500">
+                      <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.12em] text-amber-500">
                         Live Update
                       </span>
                     </div>
@@ -445,7 +445,7 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
                               <td className="px-3 py-2.5 font-extrabold text-slate-700">{row.point_moto1 ?? '-'}</td>
                               <td className="px-3 py-2.5 font-extrabold text-slate-700">{row.point_moto2 ?? '-'}</td>
                               <td className="px-3 py-2.5 font-extrabold text-slate-700">{row.point_moto3 ?? '-'}</td>
-                              <td className="px-3 py-2.5 font-extrabold text-rose-500">{row.penalty_total ?? '-'}</td>
+                              <td className="px-3 py-2.5 font-extrabold text-amber-500">{row.penalty_total ?? '-'}</td>
                               <td className="px-3 py-2.5 text-right text-2xl font-black text-slate-900">{row.total_point ?? '-'}</td>
                               <td className="px-3 py-2.5 font-black text-amber-500">{row.rank_point ?? '-'}</td>
                               <td className="px-3 py-2.5 text-slate-600">{row.class_label || '-'}</td>

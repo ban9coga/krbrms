@@ -58,10 +58,10 @@ export default function YearClient({ eventId, year }: { eventId: string; year: s
       <PublicTopbar />
       <main className="public-main">
         <section className="public-hero">
-          <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-rose-500/15 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-amber-400/15 blur-3xl" />
           <div className="pointer-events-none absolute -top-24 right-0 h-72 w-72 rounded-full bg-sky-400/15 blur-3xl" />
           <div className="relative z-10 grid gap-3">
-            <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-rose-300">Results Explorer</p>
+            <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-amber-300">Results Explorer</p>
             <h1 className="text-3xl font-black tracking-tight text-white md:text-5xl">Race Categories {year}</h1>
             <p className="max-w-2xl text-sm font-semibold text-slate-200 sm:text-base">
               Filter category berdasarkan nama dan status race.
@@ -85,7 +85,7 @@ export default function YearClient({ eventId, year }: { eventId: string; year: s
                   onClick={() => setStatusFilter(status)}
                   className={`rounded-full border px-3 py-2 text-xs font-extrabold uppercase tracking-[0.12em] transition-colors sm:text-sm ${
                     statusFilter === status
-                      ? 'border-rose-300 bg-rose-50 text-rose-600'
+                      ? 'border-amber-300 bg-amber-50 text-amber-600'
                       : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-100'
                   }`}
                 >

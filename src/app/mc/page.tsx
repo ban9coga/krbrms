@@ -62,7 +62,7 @@ export default function McHomePage() {
       <PublicTopbar />
       <main className="public-main">
         <section className="public-hero">
-          <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-rose-300">MC Control</p>
+          <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-amber-300">MC Control</p>
           <h1 className="mt-2 text-3xl font-black tracking-tight text-white md:text-4xl">Pilih Event MC</h1>
           <p className="mt-2 text-sm font-semibold text-slate-300">
             Jika hanya ada satu event LIVE, halaman ini akan redirect otomatis.
@@ -115,7 +115,7 @@ export default function McHomePage() {
                   <div className="mt-3">
                     <Link
                       href={`/mc/${event.id}`}
-                      className="inline-flex items-center justify-center rounded-xl bg-rose-500 px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.12em] text-white transition-colors hover:bg-rose-400"
+                      className="inline-flex items-center justify-center rounded-xl bg-amber-400 px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.12em] text-white transition-colors hover:bg-amber-300"
                     >
                       Buka MC Live
                     </Link>
@@ -125,7 +125,7 @@ export default function McHomePage() {
             </div>
           )}
 
-          {error && <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">{error}</div>}
+          {error && <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-700">{error}</div>}
         </section>
       </main>
     </div>

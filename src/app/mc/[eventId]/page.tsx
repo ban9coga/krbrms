@@ -85,13 +85,13 @@ export default function McLivePage() {
 
   if (data?.under_review) {
     return (
-      <div className="grid min-h-screen place-items-center bg-rose-700 px-6 text-center text-white">
+      <div className="grid min-h-screen place-items-center bg-amber-700 px-6 text-center text-white">
         <div className="max-w-3xl">
           <div className="text-4xl font-black uppercase tracking-[0.12em] md:text-6xl">Under Protest Review</div>
-          <div className="mt-4 text-base font-semibold text-rose-100 md:text-xl">
+          <div className="mt-4 text-base font-semibold text-amber-100 md:text-xl">
             {data.review_moto?.moto_name ?? 'Moto sedang di review'}
           </div>
-          <div className="mt-3 text-sm font-semibold text-rose-100/90">Ranking disembunyikan sampai review selesai.</div>
+          <div className="mt-3 text-sm font-semibold text-amber-100/90">Ranking disembunyikan sampai review selesai.</div>
         </div>
       </div>
     )
@@ -103,11 +103,11 @@ export default function McLivePage() {
       <PublicTopbar />
       <main className="public-main max-w-[1100px]">
         <section className="public-hero">
-          <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-rose-500/15 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-amber-400/15 blur-3xl" />
           <div className="pointer-events-none absolute -top-24 right-0 h-72 w-72 rounded-full bg-sky-400/15 blur-3xl" />
           <div className="relative z-10 flex flex-wrap items-start justify-between gap-3">
             <div className="grid gap-1">
-              <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-rose-300">MC Live Board</p>
+              <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-amber-300">MC Live Board</p>
               <h1 className="text-2xl font-black tracking-tight text-white md:text-4xl">
                 {data?.category ?? 'Kategori'} | {data?.batch ?? '-'} | {data?.moto?.moto_name ?? 'Moto'}
               </h1>
@@ -170,7 +170,7 @@ export default function McLivePage() {
             </>
           )}
 
-          {error && <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">{error}</div>}
+          {error && <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-700">{error}</div>}
 
           <div className="mt-3 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
             Last updated: {lastUpdated ?? '-'}

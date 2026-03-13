@@ -122,8 +122,8 @@ export default function PublicTopbar({ theme = 'light' }: PublicTopbarProps) {
                   key={item.href}
                   href={item.href}
                   className={`transition-colors ${
-                    isDark ? 'hover:text-amber-300' : 'hover:text-rose-500'
-                  } ${active ? (isDark ? 'text-amber-300' : 'text-rose-500') : ''}`}
+                    isDark ? 'hover:text-amber-300' : 'hover:text-amber-500'
+                  } ${active ? (isDark ? 'text-amber-300' : 'text-amber-500') : ''}`}
                 >
                   {item.label}
                 </Link>
@@ -149,7 +149,7 @@ export default function PublicTopbar({ theme = 'light' }: PublicTopbarProps) {
                   type="button"
                   onClick={handleLogout}
                   className={`rounded-full px-5 py-2 text-sm font-bold transition-colors ${
-                    isDark ? 'bg-amber-400 text-slate-900 hover:bg-amber-300' : 'bg-rose-500 text-white hover:bg-rose-400'
+                    isDark ? 'bg-amber-400 text-slate-900 hover:bg-amber-300' : 'bg-amber-400 text-white hover:bg-amber-300'
                   }`}
                 >
                   Logout
@@ -159,7 +159,7 @@ export default function PublicTopbar({ theme = 'light' }: PublicTopbarProps) {
               <Link
                 href="/login"
                 className={`rounded-full px-5 py-2 text-sm font-bold transition-colors ${
-                  isDark ? 'bg-amber-400 text-slate-900 hover:bg-amber-300' : 'bg-rose-500 text-white hover:bg-rose-400'
+                  isDark ? 'bg-amber-400 text-slate-900 hover:bg-amber-300' : 'bg-amber-400 text-white hover:bg-amber-300'
                 }`}
               >
                 Login
@@ -184,8 +184,8 @@ export default function PublicTopbar({ theme = 'light' }: PublicTopbarProps) {
                 key={`${item.href}-mobile`}
                 href={item.href}
                 className={`transition-colors ${
-                  isDark ? 'hover:text-amber-300' : 'hover:text-rose-500'
-                } ${active ? (isDark ? 'text-amber-300' : 'text-rose-500') : ''}`}
+                  isDark ? 'hover:text-amber-300' : 'hover:text-amber-500'
+                } ${active ? (isDark ? 'text-amber-300' : 'text-amber-500') : ''}`}
               >
                 {item.label}
               </Link>
