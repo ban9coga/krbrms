@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { randomBytes } from 'crypto'
 import { adminClient } from '../../../../../../lib/auth'
 
 type RegistrationItemInput = {
@@ -41,6 +42,7 @@ type RegistrationPayload = {
 type RegistrationRow = {
   id: string
   total_amount: number
+  upload_token?: string | null
 }
 
 type RegistrationItemRow = {
@@ -305,19 +307,54 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
 
   const totalAmount = validItems.reduce((sum, item) => sum + item.price, 0)
 
-  const { data: registration, error: regError } = await adminClient
-    .from('registrations')
-    .insert({
-      event_id: eventId,
-      community_name: community_name ?? null,
-      contact_name,
-      contact_phone,
-      contact_email: contact_email ?? null,
-      total_amount: totalAmount,
-      status: 'PENDING',
-    })
-    .select('id, total_amount')
-    .single()
+  // Secret token to authorize step-by-step uploads (photo/docs/payment) without login.
+  const uploadToken = randomBytes(32).toString('hex')
+
+  let registration: RegistrationRow | null = null
+  let regError: { message: string } | null = null
+  const insertWithToken = async () => {
+    const { data, error } = await adminClient
+      .from('registrations')
+      .insert({
+        event_id: eventId,
+        community_name: community_name ?? null,
+        contact_name,
+        contact_phone,
+        contact_email: contact_email ?? null,
+        total_amount: totalAmount,
+        status: 'PENDING',
+        upload_token: uploadToken,
+        upload_token_created_at: new Date().toISOString(),
+      })
+      .select('id, total_amount, upload_token')
+      .single()
+    return { data: data as unknown as RegistrationRow | null, error: error as any }
+  }
+  const insertWithoutToken = async () => {
+    const { data, error } = await adminClient
+      .from('registrations')
+      .insert({
+        event_id: eventId,
+        community_name: community_name ?? null,
+        contact_name,
+        contact_phone,
+        contact_email: contact_email ?? null,
+        total_amount: totalAmount,
+        status: 'PENDING',
+      })
+      .select('id, total_amount')
+      .single()
+    return { data: data as unknown as RegistrationRow | null, error: error as any }
+  }
+
+  let regInsert = await insertWithToken()
+  if (regInsert.error && String(regInsert.error.message ?? '').includes('upload_token')) {
+    // DB migration not applied yet: fall back to insert without token.
+    regInsert = await insertWithoutToken()
+  }
+  registration = regInsert.data
+  regError = regInsert.error ? { message: String(regInsert.error.message ?? 'Failed creating registration') } : null
+
   if (regError || !registration) return { error: regError?.message || 'Failed creating registration' }
 
   const { data: itemRows, error: itemError } = await adminClient
@@ -353,7 +390,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   const { registration, itemRows } = created
 
   if (!isMultipart || !formData) {
-    return NextResponse.json({ data: { registration, items: itemRows } })
+    return NextResponse.json({ data: { registration, items: itemRows, upload_token: (registration as any).upload_token ?? null } })
   }
 
   const uploadedPaths: string[] = []
@@ -435,6 +472,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       data: {
         registration,
         items: itemRows,
+        upload_token: (registration as any).upload_token ?? null,
         payment,
       },
     })
