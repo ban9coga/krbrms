@@ -111,7 +111,7 @@ export default function MarketingTopbar({ showNav = true, showLoginButton = true
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`transition-colors hover:text-rose-500 ${isActive(item.href) ? 'text-rose-500' : ''}`}
+                  className={`transition-colors hover:text-amber-500 ${isActive(item.href) ? 'text-amber-500' : ''}`}
                 >
                   {item.label}
                 </Link>
@@ -133,7 +133,7 @@ export default function MarketingTopbar({ showNav = true, showLoginButton = true
                   <button
                     type="button"
                     onClick={handleLogout}
-                    className="rounded-full bg-rose-500 px-5 py-2 text-sm font-bold text-white transition-colors hover:bg-rose-400"
+                    className="rounded-full bg-amber-400 px-5 py-2 text-sm font-bold text-slate-900 transition-colors hover:bg-amber-300"
                   >
                     Logout
                   </button>
@@ -141,7 +141,7 @@ export default function MarketingTopbar({ showNav = true, showLoginButton = true
               ) : (
                 <Link
                   href="/login"
-                  className="rounded-full bg-rose-500 px-5 py-2 text-sm font-bold text-white transition-colors hover:bg-rose-400"
+                  className="rounded-full bg-amber-400 px-5 py-2 text-sm font-bold text-slate-900 transition-colors hover:bg-amber-300"
                 >
                   Login
                 </Link>
@@ -158,7 +158,7 @@ export default function MarketingTopbar({ showNav = true, showLoginButton = true
               <Link
                 key={`${item.href}-mobile`}
                 href={item.href}
-                className={`transition-colors hover:text-rose-500 ${isActive(item.href) ? 'text-rose-500' : ''}`}
+                className={`transition-colors hover:text-amber-500 ${isActive(item.href) ? 'text-amber-500' : ''}`}
               >
                 {item.label}
               </Link>
