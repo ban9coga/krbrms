@@ -39,12 +39,18 @@ export default function HeroRace({ liveEvent }: { liveEvent: LiveEventItem | nul
             </div>
 
             <h1 className="mt-1 text-4xl font-black leading-[0.95] tracking-tight text-white sm:text-5xl md:mt-2 md:text-6xl lg:text-7xl">
-              Real-Time Race
-              <span className="mt-2 block text-rose-400">Management System</span>
+              <span className="block">
+                <span className="font-black text-rose-400 drop-shadow-[0_16px_50px_rgba(244,63,94,0.35)]">KANCANG</span>{' '}
+                <span className="font-extrabold text-white/95">Run Bike</span>
+              </span>
             </h1>
 
-            <p className="mx-auto mt-6 max-w-3xl text-base text-slate-200 sm:text-lg md:mt-8 md:text-xl">
-              Sistem kontrol balap presisi tinggi untuk event pushbike profesional - cepat, akurat, dan transparan.
+            <p className="mx-auto mt-4 max-w-3xl text-base font-semibold tracking-tight text-slate-100 sm:text-lg md:mt-5 md:text-xl">
+              Real-Time Race Management System
+            </p>
+
+            <p className="mx-auto mt-3 max-w-3xl text-sm font-medium leading-relaxed text-slate-200 sm:text-base md:mt-4">
+              Presisi di Setiap Detik, Transparansi di Setiap Garis Finish.
             </p>
 
             <div className="mt-10 flex flex-col items-stretch justify-center gap-3 sm:mt-12 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
@@ -52,13 +58,13 @@ export default function HeroRace({ liveEvent }: { liveEvent: LiveEventItem | nul
                 href="/dashboard"
                 className="inline-flex w-full justify-center rounded-2xl bg-rose-500 px-8 py-3 text-base font-bold tracking-[0.12em] text-white transition-colors duration-200 hover:bg-rose-400 sm:w-auto sm:px-10 sm:py-4 sm:tracking-[0.15em]"
               >
-                LIHAT EVENT
+                Eksplor Event
               </Link>
               <Link
                 href="/dashboard#live-results"
                 className="inline-flex w-full justify-center rounded-2xl border border-slate-200/30 bg-slate-900/20 px-8 py-3 text-base font-bold tracking-[0.12em] text-white transition-colors duration-200 hover:border-slate-100/50 hover:bg-slate-900/40 sm:w-auto sm:px-10 sm:py-4 sm:tracking-[0.15em]"
               >
-                LIVE RESULTS
+                Pantau Live
               </Link>
             </div>
           </div>
