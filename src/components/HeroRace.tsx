@@ -46,7 +46,7 @@ export default function HeroRace({ liveEvent }: { liveEvent: LiveEventItem | nul
             </h1>
 
             <p className="mx-auto mt-4 max-w-3xl text-base font-semibold tracking-tight text-slate-100 sm:text-lg md:mt-5 md:text-xl">
-              Real-Time Race Management System
+              Real-Time Pushbike Race Management System
             </p>
 
             <p className="mx-auto mt-3 max-w-3xl text-sm font-medium leading-relaxed text-slate-200 sm:text-base md:mt-4">
