@@ -20,9 +20,6 @@ export default function PublicBottomBar() {
             </svg>
             <span>@yogafernands</span>
           </a>
-          <a href="mailto:yogafernandes42@gmail.com" className="transition-colors hover:text-white">
-            Contact: yogafernandes42@gmail.com
-          </a>
           <span className="text-slate-400">
             Sistem by <span className="font-semibold text-slate-200">FernTech Studio</span>
           </span>
