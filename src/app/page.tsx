@@ -1,7 +1,6 @@
 import HeroRace from '../components/HeroRace'
 import LivePreviewSection from '../components/LivePreviewSection'
 import MarketingTopbar from '../components/MarketingTopbar'
-import OrganizerCTA from '../components/OrganizerCTA'
 import PerformanceStats from '../components/PerformanceStats'
 import EventCard from '../components/EventCard'
 import Link from 'next/link'
@@ -157,7 +156,6 @@ export default async function LandingPage() {
           </div>
         </section>
         <PerformanceStats />
-        <OrganizerCTA />
       </main>
 
       <footer className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-800/80 bg-slate-950/95 text-slate-200 shadow-[0_-12px_32px_rgba(2,6,23,0.24)] backdrop-blur">
