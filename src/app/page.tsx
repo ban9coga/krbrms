@@ -191,7 +191,7 @@ export default async function LandingPage() {
 
           <div className="mt-8 flex items-center gap-3">
             <a
-              href="https://instagram.com/kancang.runbike"
+              href="https://instagram.com/yogafernands"
               target="_blank"
               rel="noopener noreferrer"
               aria-label="Instagram"
@@ -204,17 +204,17 @@ export default async function LandingPage() {
               </svg>
             </a>
             <a
-              href="https://instagram.com/kancang.runbike"
+              href="https://instagram.com/yogafernands"
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm font-semibold text-slate-300 transition-colors hover:text-white"
             >
-              Instagram
+              @yogafernands
             </a>
           </div>
 
           <p className="mt-6 text-xs text-slate-500">
-            Website by <span className="font-semibold text-slate-300">@yogafernands</span>
+            Website by <span className="font-semibold text-slate-300">Yoga Fernandes</span>
           </p>
         </div>
       </footer>
