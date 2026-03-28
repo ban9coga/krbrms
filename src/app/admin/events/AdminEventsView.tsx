@@ -494,6 +494,20 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
               >
                 Manage Event
               </Link>
+              <Link
+                href={`/admin/events/${ev.id}/settings`}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: 12,
+                  border: '1px solid #cbd5e1',
+                  background: '#fff',
+                  color: '#111827',
+                  fontWeight: 900,
+                  textDecoration: 'none',
+                }}
+              >
+                Event Settings
+              </Link>
               <button
                 type="button"
                 onClick={() => handleEdit(ev)}
