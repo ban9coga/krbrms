@@ -128,7 +128,7 @@ export default function PublicTopbar({ theme = 'light' }: PublicTopbarProps) {
         <div className="flex items-center justify-between gap-4">
           <Link href="/" className="flex min-w-0 items-center gap-3">
             <img
-              src="/platform-logo.webp"
+              src="/platform-logo.png"
               alt="Platform Logo"
               className="h-10 w-10 rounded-lg border border-slate-200 bg-white object-cover object-top p-0.5"
             />

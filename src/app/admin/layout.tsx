@@ -212,7 +212,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <Image
-          src="/platform-logo.webp"
+          src="/platform-logo.png"
           alt="Platform"
           width={40}
           height={40}

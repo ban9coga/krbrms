@@ -72,7 +72,7 @@ export default function LoginPage() {
           <div className="mb-5 flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <img
-                src="/platform-logo.webp"
+                src="/platform-logo.png"
                 alt="Platform Logo"
                 className="h-10 w-10 rounded-lg border border-slate-200 bg-white object-cover object-top p-0.5"
               />
