@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { formatAppRoleLabel } from '../../../../../lib/roles'
 import { supabase } from '../../../../../lib/supabaseClient'
 import type { BusinessSettings } from '../../../../../lib/eventService'
 
@@ -18,6 +19,22 @@ type SettingsRow = {
   race_format_settings: Record<string, unknown>
   business_settings: BusinessSettings
   updated_at?: string | null
+}
+
+type EventStaffAssignmentRow = {
+  id?: string
+  user_id: string
+  email?: string | null
+  global_role?: string
+  role: string
+  is_active: boolean
+  notes?: string | null
+}
+
+type EventStaffUserRow = {
+  id: string
+  email: string | null
+  global_role: string
 }
 
 type AdvancedCategory = {
@@ -97,6 +114,10 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
   const [initialForm, setInitialForm] = useState<string>('')
   const [logoUploading, setLogoUploading] = useState(false)
   const [logoError, setLogoError] = useState<string>('')
+  const [staffLoading, setStaffLoading] = useState(false)
+  const [staffSaving, setStaffSaving] = useState(false)
+  const [staffAssignments, setStaffAssignments] = useState<EventStaffAssignmentRow[]>([])
+  const [availableUsers, setAvailableUsers] = useState<EventStaffUserRow[]>([])
 
   const [form, setForm] = useState({
     event_logo_url: '',
@@ -166,6 +187,22 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
     const json = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(json?.error || 'Gagal upload logo.')
     return json?.url as string
+  }
+
+  const loadStaffAssignments = async () => {
+    if (!eventId) return
+    setStaffLoading(true)
+    try {
+      const res = await apiFetch(`/api/events/${eventId}/staff-roles`)
+      setStaffAssignments((res.data?.assignments ?? []) as EventStaffAssignmentRow[])
+      setAvailableUsers((res.data?.users ?? []) as EventStaffUserRow[])
+    } catch (err) {
+      console.warn(err)
+      setStaffAssignments([])
+      setAvailableUsers([])
+    } finally {
+      setStaffLoading(false)
+    }
   }
 
   const load = async () => {
@@ -272,6 +309,7 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
   useEffect(() => {
     load()
     loadAdvanced()
+    loadStaffAssignments()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
 
@@ -442,6 +480,66 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
       alert(err instanceof Error ? err.message : 'Gagal menyimpan rules.')
     } finally {
       setAdvancedSaving(false)
+    }
+  }
+
+  const addStaffAssignment = () => {
+    setStaffAssignments((prev) => [
+      ...prev,
+      {
+        user_id: '',
+        email: null,
+        global_role: '',
+        role: 'CHECKER',
+        is_active: true,
+        notes: '',
+      },
+    ])
+  }
+
+  const updateStaffAssignment = (index: number, patch: Partial<EventStaffAssignmentRow>) => {
+    setStaffAssignments((prev) =>
+      prev.map((item, idx) => {
+        if (idx !== index) return item
+        const next = { ...item, ...patch }
+        if (patch.user_id) {
+          const matchedUser = availableUsers.find((user) => user.id === patch.user_id)
+          next.email = matchedUser?.email ?? null
+          next.global_role = matchedUser?.global_role ?? ''
+        }
+        return next
+      })
+    )
+  }
+
+  const removeStaffAssignment = (index: number) => {
+    setStaffAssignments((prev) => prev.filter((_, idx) => idx !== index))
+  }
+
+  const saveStaffAssignments = async () => {
+    if (!eventId) return
+    setStaffSaving(true)
+    try {
+      await apiFetch(`/api/events/${eventId}/staff-roles`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          assignments: staffAssignments
+            .filter((item) => item.user_id && item.role)
+            .map((item) => ({
+              id: item.id,
+              user_id: item.user_id,
+              role: item.role,
+              is_active: item.is_active,
+              notes: item.notes ?? null,
+            })),
+        }),
+      })
+      await loadStaffAssignments()
+      alert('Staff assignment tersimpan.')
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Gagal menyimpan staff assignment.')
+    } finally {
+      setStaffSaving(false)
     }
   }
 
@@ -980,6 +1078,132 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
                     />
                     Perlu approval platform untuk keputusan tertentu
                   </label>
+                </div>
+                <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
+                  <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                    Event Staff Assignments
+                  </div>
+                  <div style={{ fontSize: 12, color: '#333', fontWeight: 700 }}>
+                    Assign user ke event ini dengan role per-event. Ini akan menjadi dasar transisi dari role global ke role scoped per event.
+                  </div>
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={addStaffAssignment}
+                      style={{
+                        padding: '10px 12px',
+                        borderRadius: 12,
+                        border: '2px solid #111',
+                        background: '#fff',
+                        fontWeight: 900,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Add Assignment
+                    </button>
+                    <button
+                      type="button"
+                      onClick={saveStaffAssignments}
+                      disabled={staffSaving}
+                      style={{
+                        padding: '10px 12px',
+                        borderRadius: 12,
+                        border: '2px solid #111',
+                        background: '#bfead2',
+                        fontWeight: 900,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {staffSaving ? 'Saving...' : 'Save Assignments'}
+                    </button>
+                  </div>
+                  {staffLoading && (
+                    <div style={{ padding: 12, borderRadius: 12, border: '2px dashed #111', fontWeight: 800 }}>
+                      Loading staff assignments...
+                    </div>
+                  )}
+                  {!staffLoading && staffAssignments.length === 0 && (
+                    <div style={{ padding: 12, borderRadius: 12, border: '2px dashed #111', fontWeight: 800 }}>
+                      Belum ada assignment per-event. Klik Add Assignment untuk mulai.
+                    </div>
+                  )}
+                  {!staffLoading &&
+                    staffAssignments.map((assignment, index) => (
+                      <div
+                        key={assignment.id ?? `assignment-${index}`}
+                        style={{
+                          border: '2px solid #111',
+                          borderRadius: 14,
+                          padding: 12,
+                          display: 'grid',
+                          gap: 10,
+                          background: '#fff',
+                        }}
+                      >
+                        <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr auto', gap: 10 }}>
+                          <select
+                            value={assignment.user_id}
+                            onChange={(e) => updateStaffAssignment(index, { user_id: e.target.value })}
+                            style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                          >
+                            <option value="">Pilih User</option>
+                            {availableUsers.map((user) => (
+                              <option key={user.id} value={user.id}>
+                                {user.email ?? user.id} [{user.global_role || 'NO ROLE'}]
+                              </option>
+                            ))}
+                          </select>
+                          <select
+                            value={assignment.role}
+                            onChange={(e) => updateStaffAssignment(index, { role: e.target.value })}
+                            style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                          >
+                            <option value="SUPER_ADMIN">{formatAppRoleLabel('SUPER_ADMIN')}</option>
+                            <option value="ADMIN">{formatAppRoleLabel('ADMIN')}</option>
+                            <option value="CHECKER">{formatAppRoleLabel('CHECKER')}</option>
+                            <option value="FINISHER">{formatAppRoleLabel('FINISHER')}</option>
+                            <option value="RACE_DIRECTOR">{formatAppRoleLabel('RACE_DIRECTOR')}</option>
+                            <option value="RACE_CONTROL">{formatAppRoleLabel('RACE_CONTROL')}</option>
+                            <option value="MC">{formatAppRoleLabel('MC')}</option>
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => removeStaffAssignment(index)}
+                            style={{
+                              padding: '10px 12px',
+                              borderRadius: 12,
+                              border: '2px solid #b91c1c',
+                              background: '#fee2e2',
+                              color: '#b91c1c',
+                              fontWeight: 900,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'center' }}>
+                          <input
+                            value={assignment.notes ?? ''}
+                            onChange={(e) => updateStaffAssignment(index, { notes: e.target.value })}
+                            placeholder="Notes (optional)"
+                            style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                          />
+                          <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 800 }}>
+                            <input
+                              type="checkbox"
+                              checked={assignment.is_active}
+                              onChange={(e) => updateStaffAssignment(index, { is_active: e.target.checked })}
+                            />
+                            Active
+                          </label>
+                        </div>
+                        <div style={{ fontSize: 12, color: '#333', fontWeight: 700 }}>
+                          Global role: {assignment.global_role ? formatAppRoleLabel(assignment.global_role) : '-'}{' '}
+                          {assignment.email ? `| ${assignment.email}` : ''}
+                        </div>
+                      </div>
+                    ))}
                 </div>
               </>
             )}

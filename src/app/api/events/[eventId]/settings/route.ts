@@ -33,9 +33,9 @@ export async function GET(_: Request, { params }: { params: Promise<{ eventId: s
 }
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
-  const auth = await requireAdmin(req.headers.get('authorization'))
-  if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { eventId } = await params
+  const auth = await requireAdmin(req.headers.get('authorization'), eventId)
+  if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json()
   const {
