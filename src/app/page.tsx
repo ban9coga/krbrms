@@ -164,12 +164,12 @@ export default async function LandingPage() {
         <div className="mx-auto w-full max-w-[1500px] px-4 py-10 sm:px-6 md:px-8">
           <div className="flex flex-col gap-8 md:flex-row md:items-start md:justify-between">
             <div>
-              <div className="text-lg font-extrabold tracking-tight text-white">Kancang Run Bike Racing Committee</div>
+              <div className="text-lg font-extrabold tracking-tight text-white">Pushbike Race Management Platform</div>
               <p className="mt-2 max-w-xl text-sm text-slate-400">
-                Official race management platform for registration, live results, and event control.
+                Platform publik untuk registrasi, live results, race control, dan operasional event pushbike.
               </p>
               <p className="mt-3 text-xs font-semibold text-slate-500">
-                Copyright (c) {new Date().getFullYear()} KRB Race Management System
+                Copyright (c) {new Date().getFullYear()} Pushbike Race Management Platform
               </p>
             </div>
 

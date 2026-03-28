@@ -100,8 +100,13 @@ export default function MarketingTopbar({ showNav = true, showLoginButton = true
         <div className="flex items-center justify-between gap-4">
           <Link href="/" className="flex min-w-0 items-center gap-3">
             <img src="/krb-logo.png" alt="KRB Logo" className="h-10 w-10 rounded-lg object-contain" />
-            <span className="truncate text-sm font-black tracking-tight text-slate-900 sm:text-base md:text-lg">
-              Kancang Run Bike Racing Committee
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-black tracking-tight text-slate-900 sm:text-base md:text-lg">
+                Pushbike Race Management Platform
+              </span>
+              <span className="block truncate text-[11px] font-bold text-slate-500">
+                Public Event, Live Results, and Race Control
+              </span>
             </span>
           </Link>
 

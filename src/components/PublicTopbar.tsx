@@ -138,7 +138,7 @@ Pushbike Race Management Platform
               </span>
               {eventBranding ? (
                 <span className={`block truncate text-[11px] font-bold ${isDark ? 'text-slate-300' : 'text-slate-500'}`}>
-                  {eventBranding.brand} ? {eventBranding.title}
+                  {eventBranding.brand} | {eventBranding.title}
                 </span>
               ) : (
                 <span className={`block truncate text-[11px] font-bold ${isDark ? 'text-slate-300' : 'text-slate-500'}`}>
@@ -191,7 +191,7 @@ Pushbike Race Management Platform
                   type="button"
                   onClick={handleLogout}
                   className={`rounded-full px-5 py-2 text-sm font-bold transition-colors ${
-                    isDark ? 'bg-amber-400 text-slate-900 hover:bg-amber-300' : 'bg-amber-400 text-white hover:bg-amber-300'
+                    isDark ? 'bg-amber-400 text-slate-900 hover:bg-amber-300' : 'bg-amber-400 text-slate-900 hover:bg-amber-300'
                   }`}
                 >
                   Logout
@@ -201,7 +201,7 @@ Pushbike Race Management Platform
               <Link
                 href="/login"
                 className={`rounded-full px-5 py-2 text-sm font-bold transition-colors ${
-                  isDark ? 'bg-amber-400 text-slate-900 hover:bg-amber-300' : 'bg-amber-400 text-white hover:bg-amber-300'
+                  isDark ? 'bg-amber-400 text-slate-900 hover:bg-amber-300' : 'bg-amber-400 text-slate-900 hover:bg-amber-300'
                 }`}
               >
                 Login
