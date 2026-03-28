@@ -1233,38 +1233,113 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
               <>
                 <div style={{ marginTop: 6, fontWeight: 950, fontSize: 18 }}>Display & Race Format</div>
                 <div style={{ marginTop: 10, fontWeight: 900 }}>Display Theme</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div style={{ color: '#475569', fontWeight: 700, fontSize: 13 }}>
+                  Atur warna utama event untuk area publik dan display. Jika belum yakin, biarkan default saja.
+                </div>
+                <div
+                  style={{
+                    marginTop: 10,
+                    padding: 12,
+                    borderRadius: 14,
+                    border: '2px solid #111',
+                    background: '#f8fafc',
+                    display: 'grid',
+                    gap: 10,
+                  }}
+                >
+                  <div style={{ fontWeight: 900, fontSize: 13 }}>Theme Preview</div>
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    {[
+                      { label: 'Primary Accent', color: form.display_primary_color },
+                      { label: 'Dark Surface', color: form.display_secondary_color },
+                      { label: 'Soft Background', color: form.display_header_bg },
+                      { label: 'Light Card', color: form.display_card_bg },
+                    ].map((item) => (
+                      <div key={item.label} style={{ display: 'grid', gap: 6 }}>
+                        <div
+                          style={{
+                            width: 72,
+                            height: 44,
+                            borderRadius: 12,
+                            border: '2px solid #111',
+                            background: item.color || '#ffffff',
+                          }}
+                        />
+                        <div style={{ fontSize: 11, fontWeight: 800, color: '#475569' }}>{item.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div style={{ display: 'grid', gap: 6 }}>
+                    <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                      Primary Accent
+                    </div>
+                    <input
+                      value={form.display_primary_color}
+                      onChange={(e) => setForm({ ...form, display_primary_color: e.target.value })}
+                      placeholder="#fbbf24"
+                      style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                    />
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>
+                      Dipakai untuk highlight, tombol, dan badge utama.
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gap: 6 }}>
+                    <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                      Dark Surface
+                    </div>
+                    <input
+                      value={form.display_secondary_color}
+                      onChange={(e) => setForm({ ...form, display_secondary_color: e.target.value })}
+                      placeholder="#111111"
+                      style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                    />
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>
+                      Cocok untuk header gelap, panel, dan area display.
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gap: 6 }}>
+                    <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                      Soft Background
+                    </div>
+                    <input
+                      value={form.display_header_bg}
+                      onChange={(e) => setForm({ ...form, display_header_bg: e.target.value })}
+                      placeholder="#f8fafc"
+                      style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                    />
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>
+                      Warna background lembut untuk section terang.
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gap: 6 }}>
+                    <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                      Light Card
+                    </div>
+                    <input
+                      value={form.display_card_bg}
+                      onChange={(e) => setForm({ ...form, display_card_bg: e.target.value })}
+                      placeholder="#ffffff"
+                      style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                    />
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>
+                      Warna dasar untuk card putih atau panel info.
+                    </div>
+                  </div>
+                </div>
+                <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
+                  <div style={{ fontWeight: 900 }}>Event Logo</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>
+                    Logo ini dipakai untuk branding event di halaman publik, display, dan hasil.
+                  </div>
                   <input
-                    value={form.display_primary_color}
-                    onChange={(e) => setForm({ ...form, display_primary_color: e.target.value })}
-                    placeholder="Primary color"
-                    style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
-                  />
-                  <input
-                    value={form.display_secondary_color}
-                    onChange={(e) => setForm({ ...form, display_secondary_color: e.target.value })}
-                    placeholder="Secondary color"
-                    style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
-                  />
-                  <input
-                    value={form.display_header_bg}
-                    onChange={(e) => setForm({ ...form, display_header_bg: e.target.value })}
-                    placeholder="Header background"
-                    style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
-                  />
-                  <input
-                    value={form.display_card_bg}
-                    onChange={(e) => setForm({ ...form, display_card_bg: e.target.value })}
-                    placeholder="Card background"
+                    value={form.display_logo_url}
+                    onChange={(e) => setForm({ ...form, display_logo_url: e.target.value })}
+                    placeholder="Logo URL (opsional, akan terisi otomatis jika upload logo)"
                     style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
                   />
                 </div>
-                <input
-                  value={form.display_logo_url}
-                  onChange={(e) => setForm({ ...form, display_logo_url: e.target.value })}
-                  placeholder="Logo URL (optional)"
-                  style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
-                />
                 <div style={{ display: 'grid', gap: 8 }}>
                   <div style={{ fontWeight: 900 }}>Upload Logo</div>
                   <input
@@ -1304,7 +1379,7 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
                 <input
                   value={form.display_slogan}
                   onChange={(e) => setForm({ ...form, display_slogan: e.target.value })}
-                  placeholder="Event slogan (optional)"
+                  placeholder="Event slogan (opsional)"
                   style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
                 />
 
