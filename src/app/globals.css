@@ -10,7 +10,7 @@
 
 @layer components {
   .public-page {
-    @apply min-h-screen overflow-x-hidden bg-slate-100 text-slate-900;
+    @apply min-h-screen overflow-x-hidden bg-slate-100 pb-24 text-slate-900;
   }
 
   .public-main {

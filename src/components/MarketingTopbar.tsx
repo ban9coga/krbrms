@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import { formatAppRoleLabel, normalizeAppRole } from '../lib/roles'
 import { supabase } from '../lib/supabaseClient'
+import PublicBottomBar from './PublicBottomBar'
 
 const navItems = [
   { href: '/', label: 'Home' },
@@ -76,30 +77,78 @@ export default function MarketingTopbar({ showNav = true, showLoginButton = true
   }
 
   return (
-    <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur">
-      <div className="relative w-full px-4 py-3 md:px-6">
-        <div className="flex items-center justify-between gap-4">
-          <Link href="/" className="flex min-w-0 items-center gap-3">
-            <img
-              src="/platform-logo.png"
-              alt="Platform Logo"
-              className="h-10 w-10 object-contain"
-            />
-            <span className="min-w-0">
-              <span className="block truncate text-sm font-black tracking-tight text-slate-900 sm:text-base md:text-lg">
-                Pushbike Race Management Platform
+    <>
+      <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur">
+        <div className="relative w-full px-4 py-3 md:px-6">
+          <div className="flex items-center justify-between gap-4">
+            <Link href="/" className="flex min-w-0 items-center gap-3">
+              <img
+                src="/platform-logo.png"
+                alt="Platform Logo"
+                className="h-10 w-10 object-contain"
+              />
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-black tracking-tight text-slate-900 sm:text-base md:text-lg">
+                  Pushbike Race Management Platform
+                </span>
+                <span className="block truncate text-[11px] font-bold text-slate-500">
+                  Public Event, Live Results, and Race Control
+                </span>
               </span>
-              <span className="block truncate text-[11px] font-bold text-slate-500">
-                Public Event, Live Results, and Race Control
-              </span>
-            </span>
-          </Link>
+            </Link>
+
+            {showNav && (
+              <nav className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-6 text-sm font-semibold text-slate-600 md:flex">
+                {navItems.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`transition-colors hover:text-amber-500 ${isActive(item.href) ? 'text-amber-500' : ''}`}
+                  >
+                    {item.label}
+                  </Link>
+                ))}
+              </nav>
+            )}
+
+            {showLoginButton && !isLoginPage ? (
+              <div className="flex items-center gap-2">
+                {isLoggedIn ? (
+                  <>
+                    <Link
+                      href={panelHref}
+                      className="max-w-[160px] truncate rounded-full border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-extrabold uppercase tracking-[0.08em] text-slate-700 transition-colors hover:bg-slate-200"
+                      title={userEmail ?? undefined}
+                    >
+                      {panelLabel}
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={handleLogout}
+                      className="rounded-full bg-amber-400 px-5 py-2 text-sm font-bold text-slate-900 transition-colors hover:bg-amber-300"
+                    >
+                      Logout
+                    </button>
+                  </>
+                ) : (
+                  <Link
+                    href="/login"
+                    className="rounded-full bg-amber-400 px-5 py-2 text-sm font-bold text-slate-900 transition-colors hover:bg-amber-300"
+                  >
+                    Login
+                  </Link>
+                )}
+              </div>
+            ) : (
+              <div />
+            )}
+          </div>
 
           {showNav && (
-            <nav className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-6 text-sm font-semibold text-slate-600 md:flex">
+            <nav className="mt-3 flex items-center justify-center gap-4 text-sm font-semibold text-slate-600 md:hidden">
               {navItems.map((item) => (
                 <Link
-                  key={item.href}
+                  key={`${item.href}-mobile`}
                   href={item.href}
                   className={`transition-colors hover:text-amber-500 ${isActive(item.href) ? 'text-amber-500' : ''}`}
                 >
@@ -108,54 +157,9 @@ export default function MarketingTopbar({ showNav = true, showLoginButton = true
               ))}
             </nav>
           )}
-
-          {showLoginButton && !isLoginPage ? (
-            <div className="flex items-center gap-2">
-              {isLoggedIn ? (
-                <>
-                  <Link
-                    href={panelHref}
-                    className="max-w-[160px] truncate rounded-full border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-extrabold uppercase tracking-[0.08em] text-slate-700 transition-colors hover:bg-slate-200"
-                    title={userEmail ?? undefined}
-                  >
-                    {panelLabel}
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={handleLogout}
-                    className="rounded-full bg-amber-400 px-5 py-2 text-sm font-bold text-slate-900 transition-colors hover:bg-amber-300"
-                  >
-                    Logout
-                  </button>
-                </>
-              ) : (
-                <Link
-                  href="/login"
-                  className="rounded-full bg-amber-400 px-5 py-2 text-sm font-bold text-slate-900 transition-colors hover:bg-amber-300"
-                >
-                  Login
-                </Link>
-              )}
-            </div>
-          ) : (
-            <div />
-          )}
         </div>
-
-        {showNav && (
-          <nav className="mt-3 flex items-center justify-center gap-4 text-sm font-semibold text-slate-600 md:hidden">
-            {navItems.map((item) => (
-              <Link
-                key={`${item.href}-mobile`}
-                href={item.href}
-                className={`transition-colors hover:text-amber-500 ${isActive(item.href) ? 'text-amber-500' : ''}`}
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-        )}
-      </div>
-    </header>
+      </header>
+      <PublicBottomBar />
+    </>
   )
 }

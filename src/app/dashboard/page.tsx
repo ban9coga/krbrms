@@ -55,7 +55,7 @@ export default async function DashboardPage() {
   }))
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f6fbf7', color: '#111' }}>
+    <div style={{ minHeight: '100vh', background: '#f6fbf7', color: '#111', paddingBottom: '84px' }}>
       <MarketingTopbar />
 
       <main className="w-full bg-slate-100 px-2 py-4 sm:px-4 md:px-6 md:py-8">
