@@ -40,8 +40,8 @@ export default function HeroRace({ liveEvent }: { liveEvent: LiveEventItem | nul
 
             <h1 className="mt-1 text-4xl font-black leading-[0.95] tracking-tight text-white sm:text-5xl md:mt-2 md:text-6xl lg:text-7xl">
               <span className="block">
-                <span className="font-black text-amber-400 drop-shadow-[0_16px_50px_rgba(251,191,36,0.35)]">KANCANG</span>{' '}
-                <span className="font-extrabold text-white/95">Run Bike</span>
+                <span className="font-black text-amber-400 drop-shadow-[0_16px_50px_rgba(251,191,36,0.35)]">PUSHBIKE</span>{' '}
+                <span className="font-extrabold text-white/95">Race Platform</span>
               </span>
             </h1>
 
