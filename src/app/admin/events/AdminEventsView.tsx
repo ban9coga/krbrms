@@ -19,6 +19,12 @@ type AdminEventsViewProps = {
   showCreate?: boolean
 }
 
+const fieldClass =
+  'w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-300/30'
+
+const buttonClass =
+  'inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.12em] transition-colors'
+
 export default function AdminEventsView({ showCreate = true }: AdminEventsViewProps) {
   const [events, setEvents] = useState<EventItem[]>([])
   const [query, setQuery] = useState('')
@@ -58,7 +64,7 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
   }, [])
 
   useEffect(() => {
-    loadEvents()
+    void loadEvents()
   }, [loadEvents])
 
   const handleCreate = async () => {
@@ -188,96 +194,88 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
   }, [events, query])
 
   return (
-    <div style={{ maxWidth: 980 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'end', gap: 12 }}>
-        <div>
-          <h1 style={{ fontSize: 28, fontWeight: 950, margin: 0, color: '#f8fafc' }}>{showCreate ? 'Events' : 'Events Snapshot'}</h1>
-          <div style={{ marginTop: 8, color: '#cbd5e1', fontWeight: 700 }}>
-            Status event hanya untuk tampilan publik (Coming Soon / Ongoing / Completed).
+    <div className="grid w-full max-w-[1180px] gap-5">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div className="grid gap-2">
+          <h1 className="text-3xl font-black tracking-tight text-slate-50">{showCreate ? 'Events' : 'Events Snapshot'}</h1>
+          <div className="max-w-3xl text-sm font-semibold text-slate-300">
+            Status event dipakai untuk tampilan publik. Halaman ini sudah dirapikan supaya create, filter,
+            dan aksi event tetap nyaman di tablet maupun smartphone.
           </div>
         </div>
         <Link
           href="/"
-          style={{
-            padding: '10px 12px',
-            borderRadius: 12,
-            border: '1px solid rgba(148,163,184,0.38)',
-            background: 'rgba(15,23,42,0.72)',
-            color: '#f8fafc',
-            fontWeight: 900,
-            textDecoration: 'none',
-          }}
+          className={`${buttonClass} border border-slate-500 bg-slate-900/70 text-slate-100 hover:bg-slate-800`}
         >
           Public Landing
         </Link>
       </div>
 
       {showCreate ? (
-        <div
-          style={{
-            marginTop: 18,
-            background: '#ffffff',
-            border: '1px solid #cbd5e1',
-            borderRadius: 16,
-            padding: 16,
-          }}
-        >
-          <div style={{ fontWeight: 950, fontSize: 18 }}>Create Event</div>
-          <div style={{ marginTop: 12, display: 'grid', gap: 10 }}>
-            <input
-              placeholder="Event Name"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              style={{ padding: 12, borderRadius: 12, border: '1px solid #cbd5e1' }}
-            />
-            <input
-              placeholder="Location"
-              value={form.location}
-              onChange={(e) => setForm({ ...form, location: e.target.value })}
-              style={{ padding: 12, borderRadius: 12, border: '1px solid #cbd5e1' }}
-            />
-            <div style={{ display: 'grid', gap: 8 }}>
-              <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                Date
-              </div>
+        <section className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-[0_18px_40px_rgba(15,23,42,0.12)] sm:p-6">
+          <div className="mb-4 grid gap-1">
+            <div className="text-xl font-black tracking-tight text-slate-900">Create Event</div>
+            <div className="text-sm font-semibold text-slate-500">Set dasar event terlebih dahulu, detail lain bisa diatur setelah event dibuat.</div>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <label className="grid gap-2 xl:col-span-2">
+              <span className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">Event Name</span>
+              <input
+                placeholder="Nama event"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                className={fieldClass}
+              />
+            </label>
+
+            <label className="grid gap-2">
+              <span className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">Location</span>
+              <input
+                placeholder="Lokasi event"
+                value={form.location}
+                onChange={(e) => setForm({ ...form, location: e.target.value })}
+                className={fieldClass}
+              />
+            </label>
+
+            <label className="grid gap-2">
+              <span className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">Date</span>
               <input
                 type="date"
                 value={form.event_date}
                 onChange={(e) => setForm({ ...form, event_date: e.target.value })}
-                style={{ padding: 12, borderRadius: 12, border: '1px solid #cbd5e1' }}
+                className={fieldClass}
               />
-            </div>
-            <div style={{ display: 'grid', gap: 8 }}>
-              <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                Status (Public)
-              </div>
+            </label>
+
+            <label className="grid gap-2">
+              <span className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">Status (Public)</span>
               <select
                 value={form.status}
                 onChange={(e) => setForm({ ...form, status: e.target.value as EventItem['status'] })}
-                style={{ padding: 12, borderRadius: 12, border: '1px solid #cbd5e1' }}
+                className={fieldClass}
               >
                 <option value="UPCOMING">UPCOMING</option>
                 <option value="LIVE">LIVE</option>
                 <option value="FINISHED">FINISHED</option>
               </select>
-            </div>
-            <div style={{ display: 'grid', gap: 8 }}>
-              <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                Event Type
-              </div>
+            </label>
+
+            <label className="grid gap-2">
+              <span className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">Event Type</span>
               <select
                 value={form.visibility}
                 onChange={(e) => setForm({ ...form, visibility: e.target.value as 'PUBLIC' | 'INTERNAL' })}
-                style={{ padding: 12, borderRadius: 12, border: '1px solid #cbd5e1' }}
+                className={fieldClass}
               >
                 <option value="PUBLIC">Public Event</option>
                 <option value="INTERNAL">Internal Event</option>
               </select>
-            </div>
-            <div style={{ display: 'grid', gap: 8 }}>
-              <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                Draw Mode
-              </div>
+            </label>
+
+            <label className="grid gap-2">
+              <span className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">Draw Mode</span>
               <select
                 value={form.draw_mode}
                 onChange={(e) =>
@@ -286,290 +284,176 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
                     draw_mode: e.target.value as NonNullable<EventItem['draw_mode']>,
                   })
                 }
-                style={{ padding: 12, borderRadius: 12, border: '1px solid #cbd5e1' }}
+                className={fieldClass}
               >
                 <option value="internal_live_draw">Internal Live Draw</option>
                 <option value="external_draw">External Draw (Paste Order)</option>
               </select>
-            </div>
+            </label>
+          </div>
 
+          <div className="mt-4">
             <button
               type="button"
               onClick={handleCreate}
               disabled={creating}
-              style={{
-                padding: 12,
-                borderRadius: 14,
-                border: '1px solid #fb7185',
-                background: '#fbbf24',
-                color: '#fff1f2',
-                fontWeight: 900,
-                cursor: 'pointer',
-              }}
+              className={`${buttonClass} w-full border border-amber-300 bg-amber-400 text-slate-900 hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto`}
             >
               {creating ? 'Creating...' : 'Create Event'}
             </button>
           </div>
-        </div>
+        </section>
       ) : null}
 
-      <div style={{ marginTop: 18, display: 'grid', gap: 10 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <div style={{ fontWeight: 950, fontSize: 18, color: '#e2e8f0' }}>Event List</div>
+      <section className="rounded-[1.5rem] border border-slate-700 bg-slate-900/75 p-4 shadow-[0_20px_44px_rgba(2,6,23,0.26)] sm:p-6">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="grid gap-1">
+            <div className="text-xl font-black tracking-tight text-slate-50">Event List</div>
+            <div className="text-sm font-semibold text-slate-300">
+              Dari card ini kamu bisa langsung masuk ke manage event, settings, atau public page.
+            </div>
+          </div>
           <button
             type="button"
-            onClick={loadEvents}
+            onClick={() => void loadEvents()}
             disabled={loading}
-            style={{
-              padding: '10px 12px',
-              borderRadius: 12,
-              border: '1px solid rgba(148,163,184,0.38)',
-              background: 'rgba(15,23,42,0.72)',
-              color: '#f8fafc',
-              fontWeight: 900,
-              cursor: 'pointer',
-            }}
+            className={`${buttonClass} border border-slate-500 bg-slate-800 text-slate-100 hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60`}
           >
             {loading ? 'Loading...' : 'Refresh'}
           </button>
         </div>
-        <input
-          placeholder="Cari event (nama / lokasi / tanggal)"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          style={{ padding: 12, borderRadius: 12, border: '1px solid #334155', background: '#0f172a', color: '#f8fafc' }}
-        />
-      </div>
 
-      <div style={{ marginTop: 12, display: 'grid', gap: 12 }}>
-        {filteredEvents.map((ev) => {
-          const eventScope = ev.event_scope === 'INTERNAL' ? 'INTERNAL' : 'PUBLIC'
-          const scopeTheme =
-            eventScope === 'INTERNAL'
-              ? { border: '#fca5a5', background: '#fff1f2', color: '#9f1239', label: 'Internal Event' }
-              : { border: '#86efac', background: '#f0fdf4', color: '#166534', label: 'Public Event' }
-          return (
-          <div
-            key={ev.id}
-            style={{
-              padding: 14,
-              border: '1px solid #cbd5e1',
-              borderRadius: 16,
-              background: '#fff',
-              display: 'grid',
-              gap: 8,
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: 10 }}>
-              <div> 
-                <div style={{ fontWeight: 950, fontSize: 18 }}>{ev.name}</div> 
-                <div
-                  style={{
-                    marginTop: 4,
-                    width: 'fit-content',
-                    padding: '3px 8px',
-                    borderRadius: 999,
-                    border: `1px solid ${scopeTheme.border}`,
-                    background: scopeTheme.background,
-                    color: scopeTheme.color,
-                    fontSize: 12,
-                    fontWeight: 900,
-                  }}
-                >
-                  {scopeTheme.label}
+        <div className="mt-4">
+          <input
+            placeholder="Cari event (nama / lokasi / tanggal)"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="w-full rounded-2xl border border-slate-700 bg-slate-950/60 px-4 py-3 text-sm font-semibold text-slate-100 outline-none transition focus:border-amber-300 focus:ring-2 focus:ring-amber-300/30"
+          />
+        </div>
+
+        <div className="mt-4 grid gap-4">
+          {filteredEvents.map((ev) => {
+            const eventScope = ev.event_scope === 'INTERNAL' ? 'INTERNAL' : 'PUBLIC'
+            const scopeTheme =
+              eventScope === 'INTERNAL'
+                ? { border: 'border-rose-200', background: 'bg-rose-50', color: 'text-rose-700', label: 'Internal Event' }
+                : { border: 'border-emerald-200', background: 'bg-emerald-50', color: 'text-emerald-700', label: 'Public Event' }
+
+            return (
+              <article
+                key={ev.id}
+                className="grid gap-4 rounded-[1.4rem] border border-slate-200 bg-white p-4 text-slate-900 shadow-[0_14px_32px_rgba(15,23,42,0.08)] sm:p-5"
+              >
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                  <div className="grid gap-2">
+                    <div className="text-xl font-black tracking-tight text-slate-900">{ev.name}</div>
+                    <div className="flex flex-wrap gap-2">
+                      <div className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.12em] ${scopeTheme.border} ${scopeTheme.background} ${scopeTheme.color}`}>
+                        {scopeTheme.label}
+                      </div>
+                      <div
+                        className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.12em] ${
+                          ev.is_public === false
+                            ? 'border-rose-200 bg-rose-50 text-rose-700'
+                            : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                        }`}
+                      >
+                        {ev.is_public === false ? 'Hidden from Public' : 'Shown on Public'}
+                      </div>
+                      <div className="inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.12em] text-slate-600">
+                        Draw Mode: {ev.draw_mode === 'external_draw' ? 'External Draw' : 'Internal Live Draw'}
+                      </div>
+                    </div>
+                    <div className="text-sm font-semibold text-slate-600">
+                      {ev.location || '-'} | {ev.event_date}
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1 xl:min-w-[220px]">
+                    <select
+                      value={ev.status}
+                      onChange={(e) => handleStatus(ev.id, e.target.value as EventItem['status'])}
+                      className={fieldClass}
+                    >
+                      <option value="UPCOMING">UPCOMING</option>
+                      <option value="LIVE">LIVE</option>
+                      <option value="FINISHED">FINISHED</option>
+                    </select>
+
+                    <button
+                      type="button"
+                      onClick={() => handleVisibility(ev.id, !(ev.is_public ?? true))}
+                      className={`${buttonClass} border border-slate-300 bg-white text-slate-800 hover:bg-slate-100`}
+                    >
+                      {ev.is_public === false ? 'Show on Public' : 'Hide from Public'}
+                    </button>
+
+                    <select
+                      value={ev.draw_mode === 'external_draw' ? 'external_draw' : 'internal_live_draw'}
+                      onChange={(e) => handleDrawMode(ev.id, e.target.value as NonNullable<EventItem['draw_mode']>)}
+                      className={fieldClass}
+                    >
+                      <option value="internal_live_draw">Internal Live Draw</option>
+                      <option value="external_draw">External Draw</option>
+                    </select>
+
+                    <select
+                      value={ev.event_scope === 'INTERNAL' ? 'INTERNAL' : 'PUBLIC'}
+                      onChange={(e) => handleEventScope(ev.id, e.target.value as NonNullable<EventItem['event_scope']>)}
+                      className={fieldClass}
+                    >
+                      <option value="PUBLIC">Public Event Type</option>
+                      <option value="INTERNAL">Internal Event Type</option>
+                    </select>
+                  </div>
                 </div>
-                <div 
-                  style={{ 
-                    marginTop: 4, 
-                    width: 'fit-content', 
-                    padding: '3px 8px',
-                    borderRadius: 999,
-                    border: `1px solid ${ev.is_public === false ? '#fca5a5' : '#86efac'}`,
-                    background: ev.is_public === false ? '#fff1f2' : '#f0fdf4',
-                    color: ev.is_public === false ? '#9f1239' : '#166534',
-                    fontSize: 12,
-                    fontWeight: 900,
-                  }}
-                >
-                  {ev.is_public === false ? 'Hidden from Public' : 'Shown on Public'}
+
+                <div className="flex flex-wrap gap-2">
+                  <Link
+                    href={`/admin/events/${ev.id}`}
+                    className={`${buttonClass} border border-amber-300 bg-amber-400 text-slate-900 hover:bg-amber-300`}
+                  >
+                    Manage Event
+                  </Link>
+                  <Link
+                    href={`/admin/events/${ev.id}/settings`}
+                    className={`${buttonClass} border border-slate-300 bg-white text-slate-800 hover:bg-slate-100`}
+                  >
+                    Event Settings
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => handleEdit(ev)}
+                    className={`${buttonClass} border border-slate-300 bg-white text-slate-800 hover:bg-slate-100`}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(ev.id)}
+                    className={`${buttonClass} border border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100`}
+                  >
+                    Delete
+                  </button>
+                  <Link
+                    href={`/event/${ev.id}`}
+                    className={`${buttonClass} border border-slate-300 bg-white text-slate-800 hover:bg-slate-100`}
+                  >
+                    Public Page
+                  </Link>
                 </div>
-                <div style={{ marginTop: 2, color: '#334155', fontWeight: 700 }}>
-                  {ev.location || '-'} | {ev.event_date}
-                </div>
-                <div
-                  style={{
-                    marginTop: 6,
-                    width: 'fit-content',
-                    padding: '3px 8px',
-                    borderRadius: 999,
-                    border: '1px solid #cbd5e1',
-                    background: '#f8fafc',
-                    color: '#334155',
-                    fontSize: 12,
-                    fontWeight: 900,
-                  }}
-                >
-                  Draw Mode: {ev.draw_mode === 'external_draw' ? 'External Draw' : 'Internal Live Draw'}
-                </div>
-              </div>
-              <div style={{ display: 'grid', gap: 8, justifyItems: 'end' }}>
-                <select
-                  value={ev.status}
-                  onChange={(e) => handleStatus(ev.id, e.target.value as EventItem['status'])}
-                  style={{
-                    padding: '8px 10px',
-                    borderRadius: 12,
-                    border: '1px solid #cbd5e1',
-                    background: '#fff',
-                    fontWeight: 900,
-                  }}
-                >
-                  <option value="UPCOMING">UPCOMING</option>
-                  <option value="LIVE">LIVE</option>
-                  <option value="FINISHED">FINISHED</option>
-                </select>
-                <button
-                  type="button"
-                  onClick={() => handleVisibility(ev.id, !(ev.is_public ?? true))}
-                  style={{
-                    padding: '8px 10px',
-                    borderRadius: 12,
-                    border: '1px solid #cbd5e1',
-                    background: ev.is_public === false ? '#ffe1e1' : '#fff',
-                    fontWeight: 900,
-                    cursor: 'pointer',
-                  }}
-                >
-                  {ev.is_public === false ? 'Show on Public' : 'Hide from Public'}
-                </button>
-                <select
-                  value={ev.draw_mode === 'external_draw' ? 'external_draw' : 'internal_live_draw'}
-                  onChange={(e) =>
-                    handleDrawMode(ev.id, e.target.value as NonNullable<EventItem['draw_mode']>)
-                  }
-                  style={{
-                    padding: '8px 10px',
-                    borderRadius: 12,
-                    border: '1px solid #cbd5e1',
-                    background: '#fff',
-                    fontWeight: 900,
-                    minWidth: 190,
-                  }}
-                >
-                  <option value="internal_live_draw">Internal Live Draw</option>
-                  <option value="external_draw">External Draw</option>
-                </select>
-                <select
-                  value={ev.event_scope === 'INTERNAL' ? 'INTERNAL' : 'PUBLIC'}
-                  onChange={(e) =>
-                    handleEventScope(ev.id, e.target.value as NonNullable<EventItem['event_scope']>)
-                  }
-                  style={{
-                    padding: '8px 10px',
-                    borderRadius: 12,
-                    border: '1px solid #cbd5e1',
-                    background: '#fff',
-                    fontWeight: 900,
-                    minWidth: 190,
-                  }}
-                >
-                  <option value="PUBLIC">Public Event Type</option>
-                  <option value="INTERNAL">Internal Event Type</option>
-                </select>
-              </div>
+              </article>
+            )
+          })}
+
+          {!loading && filteredEvents.length === 0 && (
+            <div className="rounded-[1.35rem] border border-dashed border-slate-600 bg-slate-950/45 p-5 text-sm font-semibold text-slate-300">
+              Belum ada event.
             </div>
-
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}> 
-              <Link
-                href={`/admin/events/${ev.id}`}
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: 12,
-                  border: '1px solid #fb7185',
-                  background: '#fbbf24',
-                  color: '#fff1f2',
-                  fontWeight: 900,
-                  textDecoration: 'none',
-                }}
-              >
-                Manage Event
-              </Link>
-              <Link
-                href={`/admin/events/${ev.id}/settings`}
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: 12,
-                  border: '1px solid #cbd5e1',
-                  background: '#fff',
-                  color: '#111827',
-                  fontWeight: 900,
-                  textDecoration: 'none',
-                }}
-              >
-                Event Settings
-              </Link>
-              <button
-                type="button"
-                onClick={() => handleEdit(ev)}
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: 12,
-                  border: '1px solid #cbd5e1',
-                  background: '#fff',
-                  fontWeight: 900,
-                  cursor: 'pointer',
-                }}
-              >
-                Edit
-              </button>
-              <button
-                type="button"
-                onClick={() => handleDelete(ev.id)}
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: 12,
-                  border: '1px solid #fca5a5',
-                  background: '#ffe4e6',
-                  color: '#be123c',
-                  fontWeight: 900,
-                  cursor: 'pointer',
-                }}
-              >
-                Delete
-              </button>
-              <Link
-                href={`/event/${ev.id}`}
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: 12,
-                  border: '1px solid #cbd5e1',
-                  background: '#fff',
-                  fontWeight: 900,
-                  textDecoration: 'none',
-                  color: '#111827',
-                }}
-              >
-                Public Page
-              </Link>
-            </div> 
-          </div>
-          )
-        })}
-        {!loading && filteredEvents.length === 0 && (
-          <div
-            style={{
-              padding: 16,
-              borderRadius: 16,
-              border: '1px dashed rgba(148,163,184,0.6)',
-              background: 'rgba(15,23,42,0.72)',
-              color: '#cbd5e1',
-              fontWeight: 800,
-            }}
-          >
-            Belum ada event.
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      </section>
     </div>
   )
 }

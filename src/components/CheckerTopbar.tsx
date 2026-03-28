@@ -66,30 +66,30 @@ export default function CheckerTopbar({ title = 'Checker Control' }: CheckerTopb
   return (
     <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur">
       <div className="w-full px-4 py-3 md:px-6">
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <Link href={roleHomeHref(roleKey)} className="flex min-w-0 items-center gap-3">
             <img
               src="/platform-logo.png"
               alt="Platform Logo"
-              className="h-10 w-10 object-contain"
+              className="h-9 w-9 flex-shrink-0 object-contain sm:h-10 sm:w-10"
             />
             <div className="min-w-0">
-              <div className="truncate text-base font-black tracking-tight text-slate-900">{title}</div>
-              <div className="truncate text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
+              <div className="truncate text-sm font-black tracking-tight text-slate-900 sm:text-base">{title}</div>
+              <div className="truncate text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">
                 Pushbike Race Management Platform
               </div>
             </div>
           </Link>
 
-          <div className="flex items-center gap-2 sm:gap-3">
-            <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-right">
-              <div className="text-xs font-extrabold uppercase tracking-[0.1em] text-slate-500">{formatAppRoleLabel(roleKey)}</div>
-              <div className="max-w-[140px] truncate text-sm font-bold text-slate-900 sm:max-w-[220px]">{name}</div>
+          <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto sm:flex-nowrap sm:justify-end sm:gap-3">
+            <div className="min-w-0 flex-1 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-left sm:max-w-[260px] sm:flex-none sm:text-right">
+              <div className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-slate-500">{formatAppRoleLabel(roleKey)}</div>
+              <div className="truncate text-sm font-bold text-slate-900">{name}</div>
             </div>
             <button
               type="button"
               onClick={handleLogout}
-              className="rounded-full bg-amber-400 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-amber-300"
+              className="rounded-full bg-amber-400 px-4 py-2 text-sm font-bold text-slate-900 transition-colors hover:bg-amber-300"
             >
               Logout
             </button>

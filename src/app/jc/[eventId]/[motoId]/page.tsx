@@ -469,7 +469,7 @@ export default function JCPage() {
         <div style={{ display: 'grid', gap: 8 }}>
           <div className="jc-header-row" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <div style={{ fontSize: 28, fontWeight: 900 }}>Jury Start</div>
-            <div style={{ marginLeft: 'auto', fontWeight: 700 }}>
+            <div className="jc-summary-text" style={{ marginLeft: 'auto', fontWeight: 700 }}>
               {selectedCategoryLabel} - {selectedMoto?.moto_name ?? '-'} | Ready: {activeCount}/{summary.total}
               {warningCount > 0 ? ` | Warn: ${warningCount}` : ''}
             </div>
@@ -742,7 +742,7 @@ export default function JCPage() {
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+                <div className="jc-safety-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
                   {safetyRequirements.map((item) => {
                     const checked = safetyChecks[r.id]?.[item.id] === true
                     return (
@@ -789,7 +789,7 @@ export default function JCPage() {
                   })}
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+                <div className="jc-status-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
                   <button
                     className="jc-action-btn jc-primary"
                     type="button"
@@ -882,8 +882,16 @@ export default function JCPage() {
             flex-direction: column;
             align-items: flex-start;
           }
+          .jc-summary-text {
+            margin-left: 0 !important;
+            width: 100%;
+          }
           .jc-moto-select {
             width: 100%;
+          }
+          .jc-safety-grid,
+          .jc-status-grid {
+            grid-template-columns: 1fr;
           }
         }
       `}</style>

@@ -429,7 +429,7 @@ export default function RaceDirectorApprovalPage() {
   }
 
   return (
-    <div className="public-page">
+    <div className="min-h-screen overflow-x-hidden bg-slate-100 text-slate-900">
       <CheckerTopbar title="Race Director Panel" />
       <main className="public-main max-w-[1500px]">
         <section className="public-hero">
@@ -560,6 +560,7 @@ export default function RaceDirectorApprovalPage() {
               )}
               {filteredGateStatus.map((g) => (
                 <div
+                  className="rd-gate-row"
                   key={g.moto_id}
                   style={{
                     border: '2px solid #111',
@@ -580,7 +581,7 @@ export default function RaceDirectorApprovalPage() {
                   }}
                 >
                   <span>{gateCategoryId === 'ALL' ? `${g.category_label ?? 'Category'} - ${g.moto_name}` : g.moto_name}</span>
-                  <span>
+                  <span className="rd-gate-meta">
                     {g.status}
                     {g.warnings && g.warnings > 0 ? ` (WARN ${g.warnings})` : ''}
                     {' | '}
@@ -890,7 +891,7 @@ export default function RaceDirectorApprovalPage() {
           </section>
 
           <section className="public-panel-light">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+            <div className="rd-section-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
               <div style={{ fontWeight: 900, fontSize: 18 }}>Audit Log (Last 100)</div>
               <button
                 type="button"
@@ -997,6 +998,17 @@ export default function RaceDirectorApprovalPage() {
         @media (max-width: 640px) {
           .rd-action-grid {
             grid-template-columns: 1fr;
+          }
+          .rd-gate-row {
+            flex-direction: column;
+            align-items: flex-start;
+          }
+          .rd-gate-meta {
+            width: 100%;
+          }
+          .rd-section-head {
+            flex-direction: column;
+            align-items: flex-start;
           }
         }
       `}</style>
