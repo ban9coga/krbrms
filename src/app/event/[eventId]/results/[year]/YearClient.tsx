@@ -155,7 +155,7 @@ export default function YearClient({ eventId, year }: { eventId: string; year: s
                   <div className="grid gap-1">
                     <div className="text-lg font-black text-slate-900">{category.label}</div>
                     <div className="text-xs font-semibold text-slate-500">
-                      Year {category.year_min ?? category.year} - {category.year_max ?? category.year}
+                      Year {category.year_min ?? category.year} - {category.year_max ?? category.year} • View & share results
                     </div>
                   </div>
                   <StatusBadge label={category.status} />

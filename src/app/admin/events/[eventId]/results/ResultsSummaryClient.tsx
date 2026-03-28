@@ -1,7 +1,11 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import ResultStoryCard, { buildResultStoryCardSvg, type ResultStoryCardData } from '../../../../../components/ResultStoryCard'
+import ResultStoryCard, {
+  generateResultStoryCardPngBlob,
+  getResultStoryCardFilename,
+  type ResultStoryCardData,
+} from '../../../../../components/ResultStoryCard'
 import { supabase } from '../../../../../lib/supabaseClient'
 import type { BusinessSettings } from '../../../../../lib/eventService'
 
@@ -67,6 +71,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
   const [penaltyMap, setPenaltyMap] = useState<Record<string, PenaltyRow[]>>({})
   const [storyData, setStoryData] = useState<ResultStoryCardData | null>(null)
   const [storyDownloading, setStoryDownloading] = useState(false)
+  const [storySharing, setStorySharing] = useState(false)
 
   const apiFetch = async (url: string) => {
     const { data } = await supabase.auth.getSession()
@@ -315,36 +320,18 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
     })
   }
 
+  const canWebShare =
+    typeof navigator !== 'undefined' &&
+    typeof navigator.share === 'function' &&
+    typeof navigator.canShare === 'function'
+
   const downloadStoryCard = async (data: ResultStoryCardData) => {
     setStoryDownloading(true)
     try {
-      const svg = buildResultStoryCardSvg(data)
-      const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' })
-      const url = URL.createObjectURL(blob)
-      const img = new Image()
-      const loaded = new Promise<void>((resolve, reject) => {
-        img.onload = () => resolve()
-        img.onerror = () => reject(new Error('Gagal memuat preview story card.'))
-      })
-      img.src = url
-      await loaded
-
-      const canvas = document.createElement('canvas')
-      canvas.width = 1080
-      canvas.height = 1920
-      const ctx = canvas.getContext('2d')
-      if (!ctx) throw new Error('Canvas tidak tersedia.')
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-      URL.revokeObjectURL(url)
-
-      const pngBlob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png', 1))
-      if (!pngBlob) throw new Error('Gagal membuat PNG.')
-
+      const pngBlob = await generateResultStoryCardPngBlob(data)
       const pngUrl = URL.createObjectURL(pngBlob)
       const link = document.createElement('a')
-      const fileBase = `${data.eventBrand || data.eventTitle}_${data.riderName}_${data.categoryLabel}_${data.classLabel || 'result'}`
-        .replace(/[^a-z0-9]+/gi, '_')
-        .toLowerCase()
+      const fileBase = getResultStoryCardFilename(data)
       link.href = pngUrl
       link.download = `${fileBase}.png`
       link.click()
@@ -353,6 +340,30 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
       alert(err instanceof Error ? err.message : 'Gagal download story card.')
     } finally {
       setStoryDownloading(false)
+    }
+  }
+
+  const shareStoryCard = async (data: ResultStoryCardData) => {
+    if (!canWebShare) return
+    setStorySharing(true)
+    try {
+      const pngBlob = await generateResultStoryCardPngBlob(data)
+      const file = new File([pngBlob], `${getResultStoryCardFilename(data)}.png`, {
+        type: 'image/png',
+      })
+      if (!navigator.canShare({ files: [file] })) {
+        throw new Error('Browser ini belum mendukung share file gambar.')
+      }
+      await navigator.share({
+        files: [file],
+        title: `${data.riderName} - ${data.eventTitle}`,
+        text: `${data.riderName} ${data.rankNumber ? `finish di rank #${data.rankNumber}` : 'official result'} pada ${data.eventTitle}`,
+      })
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === 'AbortError') return
+      alert(err instanceof Error ? err.message : 'Gagal share story card.')
+    } finally {
+      setStorySharing(false)
     }
   }
 
@@ -412,7 +423,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
     <div style={{ maxWidth: 1020 }}>
       <h1 style={{ fontSize: 26, fontWeight: 950, margin: 0 }}>{publicEventTitle}</h1>
       <div style={{ marginTop: 8, color: '#333', fontWeight: 700 }}>
-        {publicBrandName || 'Results Summary'} ? Ringkasan hasil per kategori + export CSV / print PDF.
+        {publicBrandName || 'Results Summary'} • Ringkasan hasil per kategori + export CSV / print PDF.
       </div>
       {(operatingCommitteeLabel || scoringSupportLabel) && (
         <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -748,6 +759,24 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
                   >
                     {storyDownloading ? 'Generating PNG...' : 'Download PNG'}
                   </button>
+                  {canWebShare && (
+                    <button
+                      type="button"
+                      onClick={() => shareStoryCard(storyData)}
+                      disabled={storySharing}
+                      style={{
+                        padding: '12px 16px',
+                        borderRadius: 12,
+                        border: '2px solid #111',
+                        background: '#fff',
+                        color: '#111',
+                        fontWeight: 900,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {storySharing ? 'Opening Share...' : 'Share'}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

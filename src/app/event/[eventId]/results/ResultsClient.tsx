@@ -109,7 +109,7 @@ export default function ResultsClient({ eventId }: { eventId: string }) {
               {publicEventTitle}
             </h1>
             <p className="max-w-3xl text-sm font-semibold text-slate-200 sm:text-base">
-              {publicTagline || 'Pilih race category untuk melihat peringkat, live score, dan update hasil balap.'}
+              {publicTagline || 'Pilih race category untuk melihat peringkat, live score, dan bikin story card hasil rider.'}
             </p>
             {(showEventOwner || showOperatingCommittee || showScoringSupport) && (
               <div className="flex flex-wrap gap-2 text-xs font-extrabold uppercase tracking-[0.12em] text-slate-100">
@@ -170,7 +170,7 @@ export default function ResultsClient({ eventId }: { eventId: string }) {
                       onClick={(e) => e.stopPropagation()}
                       className="inline-flex w-fit items-center rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-extrabold uppercase tracking-[0.1em] text-emerald-700 transition-colors hover:bg-emerald-100"
                     >
-                      View Live Score
+                      View & Share Results
                     </Link>
                   </div>
                 </div>

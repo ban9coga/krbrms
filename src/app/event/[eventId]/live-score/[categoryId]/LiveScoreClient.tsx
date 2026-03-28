@@ -1,11 +1,17 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { getEventById, type EventItem } from '../../../../../lib/eventService'
 import Link from 'next/link'
+import { useEffect, useMemo, useState } from 'react'
 import EmptyState from '../../../../../components/EmptyState'
 import LoadingState from '../../../../../components/LoadingState'
 import PublicTopbar from '../../../../../components/PublicTopbar'
+import ResultStoryCard, {
+  generateResultStoryCardPngBlob,
+  getPodiumBadge,
+  getResultStoryCardFilename,
+  type ResultStoryCardData,
+} from '../../../../../components/ResultStoryCard'
+import { getEventById, type EventItem } from '../../../../../lib/eventService'
 
 type Row = {
   rider_id: string
@@ -58,6 +64,14 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
   const [stages, setStages] = useState<StageGroup[]>([])
   const [sortMode, setSortMode] = useState<'GATE' | 'RANK'>('RANK')
   const [refreshing, setRefreshing] = useState(false)
+  const [storyData, setStoryData] = useState<ResultStoryCardData | null>(null)
+  const [storyDownloading, setStoryDownloading] = useState(false)
+  const [storySharing, setStorySharing] = useState(false)
+
+  const canWebShare =
+    typeof navigator !== 'undefined' &&
+    typeof navigator.share === 'function' &&
+    typeof navigator.canShare === 'function'
 
   const loadLiveScore = async () => {
     const res = await fetch(
@@ -105,10 +119,16 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
   const publicEventTitle = business?.public_event_title?.trim() || event?.name || 'Live Score'
   const publicBrandName = business?.public_brand_name?.trim() || ''
   const publicTagline = business?.public_tagline?.trim() || ''
-  const operatingCommitteeLabel = business?.operating_committee_label?.trim() || business?.operating_committee_name?.trim() || ''
-  const scoringSupportLabel = business?.scoring_support_label?.trim() || business?.scoring_support_name?.trim() || ''
-  const showOperatingCommittee = Boolean(business?.show_operating_committee_publicly && operatingCommitteeLabel)
-  const showScoringSupport = Boolean(business?.show_scoring_support_publicly && scoringSupportLabel)
+  const operatingCommitteeLabel =
+    business?.operating_committee_label?.trim() || business?.operating_committee_name?.trim() || ''
+  const scoringSupportLabel =
+    business?.scoring_support_label?.trim() || business?.scoring_support_name?.trim() || ''
+  const showOperatingCommittee = Boolean(
+    business?.show_operating_committee_publicly && operatingCommitteeLabel
+  )
+  const showScoringSupport = Boolean(
+    business?.show_scoring_support_publicly && scoringSupportLabel
+  )
 
   const riderPhotoCell = (name: string, noPlate: string, photoUrl?: string | null) => {
     if (photoUrl) {
@@ -128,6 +148,75 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
     )
   }
 
+  const createStoryData = (row: Row): ResultStoryCardData => ({
+    eventTitle: publicEventTitle,
+    eventBrand: publicBrandName || publicEventTitle,
+    eventDate: event?.event_date ?? null,
+    eventLocation: event?.location ?? null,
+    categoryLabel: categoryLabel || 'Category',
+    classLabel: row.class_label ?? null,
+    riderName: row.name,
+    plateNumber: row.no_plate,
+    rankNumber: row.rank_point ?? null,
+    totalPoint: row.total_point ?? null,
+    statusLabel: 'Official Result',
+    operatorLabel: operatingCommitteeLabel || null,
+    scoringSupportLabel: scoringSupportLabel || null,
+  })
+
+  const downloadStoryCard = async (data: ResultStoryCardData) => {
+    setStoryDownloading(true)
+    try {
+      const pngBlob = await generateResultStoryCardPngBlob(data)
+      const pngUrl = URL.createObjectURL(pngBlob)
+      const link = document.createElement('a')
+      link.href = pngUrl
+      link.download = `${getResultStoryCardFilename(data)}.png`
+      link.click()
+      URL.revokeObjectURL(pngUrl)
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Gagal download story card.')
+    } finally {
+      setStoryDownloading(false)
+    }
+  }
+
+  const shareStoryCard = async (data: ResultStoryCardData) => {
+    if (!canWebShare) return
+    setStorySharing(true)
+    try {
+      const pngBlob = await generateResultStoryCardPngBlob(data)
+      const file = new File([pngBlob], `${getResultStoryCardFilename(data)}.png`, {
+        type: 'image/png',
+      })
+      if (!navigator.canShare({ files: [file] })) {
+        throw new Error('Browser ini belum mendukung share file gambar.')
+      }
+      await navigator.share({
+        files: [file],
+        title: `${data.riderName} - ${data.eventTitle}`,
+        text: `${data.riderName} finish di ${data.rankNumber ? `rank #${data.rankNumber}` : 'hasil resmi'} pada ${data.eventTitle}`,
+      })
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === 'AbortError') return
+      alert(err instanceof Error ? err.message : 'Gagal share story card.')
+    } finally {
+      setStorySharing(false)
+    }
+  }
+
+  const tableRowsByBatch = useMemo(
+    () =>
+      batches.map((batch) => ({
+        ...batch,
+        rows:
+          sortMode === 'RANK'
+            ? [...batch.rows].sort((a, b) => (a.rank_point ?? 9999) - (b.rank_point ?? 9999))
+            : [...batch.rows].sort((a, b) => (a.gate_moto1 ?? 9999) - (b.gate_moto1 ?? 9999)),
+      })),
+    [batches, sortMode]
+  )
+
   return (
     <div className="public-page">
       <PublicTopbar theme="dark" />
@@ -143,15 +232,29 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
               >
                 Back to Race Categories
               </Link>
-              <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-amber-300">{publicBrandName || 'Live Score'}</p>
-              <h1 className="text-3xl font-black tracking-tight text-white md:text-5xl">{publicEventTitle}</h1>
-              <p className="text-sm font-semibold text-slate-200 sm:text-base">{categoryLabel || 'Category'}</p>
+              <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-amber-300">
+                {publicBrandName || 'Live Score'}
+              </p>
+              <h1 className="text-3xl font-black tracking-tight text-white md:text-5xl">
+                {publicEventTitle}
+              </h1>
+              <p className="text-sm font-semibold text-slate-200 sm:text-base">
+                {categoryLabel || 'Category'}
+              </p>
               {(publicTagline || showOperatingCommittee || showScoringSupport) && (
                 <div className="grid gap-2">
                   {publicTagline && <p className="text-sm font-semibold text-slate-300">{publicTagline}</p>}
                   <div className="flex flex-wrap gap-2 text-[11px] font-extrabold uppercase tracking-[0.12em] text-slate-300">
-                    {showOperatingCommittee && <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">Operating Committee: {operatingCommitteeLabel}</span>}
-                    {showScoringSupport && <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">Scoring Support: {scoringSupportLabel}</span>}
+                    {showOperatingCommittee && (
+                      <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
+                        Operating Committee: {operatingCommitteeLabel}
+                      </span>
+                    )}
+                    {showScoringSupport && (
+                      <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
+                        Scoring Support: {scoringSupportLabel}
+                      </span>
+                    )}
                   </div>
                 </div>
               )}
@@ -187,48 +290,50 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
         {!loading && batches.length === 0 && <EmptyState label="Belum ada batch." />}
 
         <section className="grid gap-4">
-          {batches.map((batch) => {
-            const rows =
-              sortMode === 'RANK'
-                ? [...batch.rows].sort((a, b) => (a.rank_point ?? 9999) - (b.rank_point ?? 9999))
-                : [...batch.rows].sort((a, b) => (a.gate_moto1 ?? 9999) - (b.gate_moto1 ?? 9999))
-            return (
-              <article key={batch.batch_index} className="public-panel-dark">
-                <div className="mb-3 flex items-center justify-between gap-2">
-                  <h2 className="text-lg font-black uppercase tracking-[0.08em] text-white">
-                    Batch {batch.batch_index}
-                  </h2>
-                  <span className="rounded-full border border-slate-600 bg-slate-800 px-3 py-1 text-xs font-extrabold uppercase tracking-[0.1em] text-slate-200">
-                    Kualifikasi Moto
-                  </span>
-                </div>
-                <div className="table-mobile-hint">Geser kiri/kanan untuk lihat semua kolom.</div>
-                <div className="public-table-wrap">
-                  <table className="public-table min-w-[860px] text-[11px] sm:text-xs md:text-sm">
-                    <thead>
-                      <tr>
-                        {[
-                          'Gate M1',
-                          'Gate M2',
-                          'Gate M3',
-                          'Foto',
-                          'Nama Peserta',
-                          'No Plat',
-                          'Komunitas',
-                          'Point M1',
-                          'Point M2',
-                          'Point M3',
-                          'Penalty',
-                          'Total',
-                          'Rank',
-                          'Class',
-                        ].map((h) => (
-                          <th key={h} className="whitespace-nowrap">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {rows.map((row) => (
+          {tableRowsByBatch.map((batch) => (
+            <article key={batch.batch_index} className="public-panel-dark">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <h2 className="text-lg font-black uppercase tracking-[0.08em] text-white">
+                  Batch {batch.batch_index}
+                </h2>
+                <span className="rounded-full border border-slate-600 bg-slate-800 px-3 py-1 text-xs font-extrabold uppercase tracking-[0.1em] text-slate-200">
+                  Kualifikasi Moto
+                </span>
+              </div>
+              <div className="table-mobile-hint">
+                Geser kiri/kanan untuk lihat semua kolom. Tap Share untuk bikin story card rider.
+              </div>
+              <div className="public-table-wrap">
+                <table className="public-table min-w-[1040px] text-[11px] sm:text-xs md:text-sm">
+                  <thead>
+                    <tr>
+                      {[
+                        'Gate M1',
+                        'Gate M2',
+                        'Gate M3',
+                        'Foto',
+                        'Nama Peserta',
+                        'No Plat',
+                        'Komunitas',
+                        'Point M1',
+                        'Point M2',
+                        'Point M3',
+                        'Penalty',
+                        'Total',
+                        'Rank',
+                        'Class',
+                        'Share',
+                      ].map((h) => (
+                        <th key={h} className="whitespace-nowrap">
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {batch.rows.map((row) => {
+                      const podiumBadge = getPodiumBadge(row.rank_point)
+                      return (
                         <tr key={row.rider_id}>
                           <td>{row.gate_moto1 ?? '-'}</td>
                           <td>{row.gate_moto2 ?? '-'}</td>
@@ -242,16 +347,34 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                           <td>{row.point_moto3 ?? '-'}</td>
                           <td className="font-extrabold text-amber-600">{row.penalty_total ?? '-'}</td>
                           <td className="font-extrabold text-sky-700">{row.total_point ?? '-'}</td>
-                          <td className="font-extrabold text-emerald-700">{row.rank_point ?? '-'}</td>
+                          <td>
+                            <div className="grid gap-1">
+                              <span className="font-extrabold text-emerald-700">{row.rank_point ?? '-'}</span>
+                              {podiumBadge && (
+                                <span className="inline-flex w-fit rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.1em] text-amber-700">
+                                  {podiumBadge}
+                                </span>
+                              )}
+                            </div>
+                          </td>
                           <td className="whitespace-nowrap">{row.class_label || '-'}</td>
+                          <td>
+                            <button
+                              type="button"
+                              onClick={() => setStoryData(createStoryData(row))}
+                              className="rounded-full border border-amber-300 bg-amber-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-amber-700 transition-colors hover:bg-amber-100 sm:text-xs"
+                            >
+                              Share Story
+                            </button>
+                          </td>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </article>
-            )
-          })}
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </article>
+          ))}
         </section>
 
         {stages.length > 0 && (
@@ -270,7 +393,9 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                     <thead>
                       <tr>
                         {['Gate', 'Foto', 'Nama Peserta', 'No Plat', 'Komunitas', 'Point', 'Status'].map((h) => (
-                          <th key={h} className="whitespace-nowrap">{h}</th>
+                          <th key={h} className="whitespace-nowrap">
+                            {h}
+                          </th>
                         ))}
                       </tr>
                     </thead>
@@ -294,6 +419,137 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
           </section>
         )}
       </main>
+
+      {storyData && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 80,
+            background: 'rgba(15,23,42,0.74)',
+            display: 'grid',
+            placeItems: 'center',
+            padding: 20,
+          }}
+          onClick={() => setStoryData(null)}
+        >
+          <div
+            style={{
+              width: 'min(100%, 920px)',
+              maxHeight: 'calc(100vh - 40px)',
+              overflow: 'auto',
+              background: '#fff',
+              borderRadius: 24,
+              padding: 20,
+              display: 'grid',
+              gap: 18,
+              boxShadow: '0 24px 80px rgba(15,23,42,0.32)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+              <div style={{ display: 'grid', gap: 4 }}>
+                <div style={{ fontSize: 22, fontWeight: 950 }}>Share Result Story</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#475569' }}>
+                  Download PNG atau kirim langsung ke share sheet mobile untuk WhatsApp / Instagram.
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setStoryData(null)}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: 10,
+                  border: '2px solid #111',
+                  background: '#fff',
+                  fontWeight: 900,
+                  cursor: 'pointer',
+                }}
+              >
+                Close
+              </button>
+            </div>
+
+            <div
+              className="story-preview-grid"
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'minmax(0, 360px) minmax(0, 1fr)',
+                gap: 20,
+                alignItems: 'start',
+              }}
+            >
+              <ResultStoryCard data={storyData} />
+              <div style={{ display: 'grid', gap: 12 }}>
+                <div style={{ padding: 14, borderRadius: 16, border: '2px solid #111', background: '#f8fafc' }}>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 900,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.08em',
+                      color: '#475569',
+                    }}
+                  >
+                    Story Info
+                  </div>
+                  <div style={{ marginTop: 10, display: 'grid', gap: 6, fontWeight: 800 }}>
+                    <div>Rider: {storyData.riderName}</div>
+                    <div>Category: {storyData.categoryLabel}</div>
+                    <div>Class: {storyData.classLabel || '-'}</div>
+                    <div>Rank: {storyData.rankNumber != null ? `#${storyData.rankNumber}` : '-'}</div>
+                    <div>Total Point: {storyData.totalPoint ?? '-'}</div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => downloadStoryCard(storyData)}
+                    disabled={storyDownloading}
+                    style={{
+                      padding: '12px 16px',
+                      borderRadius: 12,
+                      border: '2px solid #111',
+                      background: '#fbbf24',
+                      color: '#111',
+                      fontWeight: 900,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {storyDownloading ? 'Generating PNG...' : 'Download PNG'}
+                  </button>
+                  {canWebShare && (
+                    <button
+                      type="button"
+                      onClick={() => shareStoryCard(storyData)}
+                      disabled={storySharing}
+                      style={{
+                        padding: '12px 16px',
+                        borderRadius: 12,
+                        border: '2px solid #111',
+                        background: '#fff',
+                        color: '#111',
+                        fontWeight: 900,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {storySharing ? 'Opening Share...' : 'Share'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style jsx>{`
+        @media (max-width: 860px) {
+          .story-preview-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+      `}</style>
     </div>
   )
 }

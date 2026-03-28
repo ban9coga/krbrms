@@ -42,14 +42,27 @@ const rankPalette = (rank?: number | null) => {
   return { badge: '#38bdf8', glow: 'rgba(56,189,248,0.28)', label: 'Official Result' }
 }
 
+export const getPodiumBadge = (rank?: number | null) => {
+  if (rank === 1) return '1st Place'
+  if (rank === 2) return '2nd Place'
+  if (rank === 3) return '3rd Place'
+  return null
+}
+
+const joinMeta = (parts: Array<string | null | undefined>) => parts.filter(Boolean).join(' • ')
+
 export function buildResultStoryCardSvg(data: ResultStoryCardData) {
   const width = 1080
   const height = 1920
   const rank = data.rankNumber ?? null
   const palette = rankPalette(rank)
+  const podiumBadge = getPodiumBadge(rank)
   const rankText = rank ? `#${rank}` : data.statusLabel || 'RESULT'
-  const metaLine = [formatDate(data.eventDate), data.eventLocation].filter(Boolean).join('  •  ')
-  const subLine = [data.categoryLabel, data.classLabel ? `Class ${data.classLabel}` : null].filter(Boolean).join('  •  ')
+  const metaLine = joinMeta([formatDate(data.eventDate), data.eventLocation])
+  const subLine = joinMeta([
+    data.categoryLabel,
+    data.classLabel ? `Class ${data.classLabel}` : null,
+  ])
   const operatorLine = data.operatorLabel ? `Operating Committee: ${data.operatorLabel}` : ''
   const scoringLine = data.scoringSupportLabel ? `Scoring Support: ${data.scoringSupportLabel}` : ''
   const pointLine = data.totalPoint != null ? `${data.totalPoint} pts` : data.statusLabel || 'Final Result'
@@ -103,7 +116,7 @@ export function buildResultStoryCardSvg(data: ResultStoryCardData) {
 
     <rect x="118" y="1184" width="844" height="260" rx="36" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.10)" stroke-width="2" />
     <text x="154" y="1260" fill="#f8fafc" font-size="26" font-weight="800" letter-spacing="4" font-family="Arial, Helvetica, sans-serif">EVENT NOTES</text>
-    <text x="154" y="1332" fill="#ffffff" font-size="34" font-weight="700" font-family="Arial, Helvetica, sans-serif">${escapeSvg(palette.label)}</text>
+    <text x="154" y="1332" fill="#ffffff" font-size="34" font-weight="700" font-family="Arial, Helvetica, sans-serif">${escapeSvg(podiumBadge || palette.label)}</text>
     <text x="154" y="1384" fill="#cbd5e1" font-size="26" font-weight="700" font-family="Arial, Helvetica, sans-serif">${escapeSvg(operatorLine)}</text>
     <text x="154" y="1430" fill="#cbd5e1" font-size="26" font-weight="700" font-family="Arial, Helvetica, sans-serif">${escapeSvg(scoringLine)}</text>
 
@@ -113,8 +126,50 @@ export function buildResultStoryCardSvg(data: ResultStoryCardData) {
   `.trim()
 }
 
-export default function ResultStoryCard({ data, compact = false }: { data: ResultStoryCardData; compact?: boolean }) {
+export async function generateResultStoryCardPngBlob(data: ResultStoryCardData) {
+  const svg = buildResultStoryCardSvg(data)
+  const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+
+  try {
+    const img = new Image()
+    const loaded = new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve()
+      img.onerror = () => reject(new Error('Gagal memuat preview story card.'))
+    })
+    img.src = url
+    await loaded
+
+    const canvas = document.createElement('canvas')
+    canvas.width = 1080
+    canvas.height = 1920
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new Error('Canvas tidak tersedia.')
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+
+    const pngBlob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png', 1))
+    if (!pngBlob) throw new Error('Gagal membuat PNG.')
+    return pngBlob
+  } finally {
+    URL.revokeObjectURL(url)
+  }
+}
+
+export const getResultStoryCardFilename = (data: ResultStoryCardData) =>
+  `${data.eventBrand || data.eventTitle}_${data.riderName}_${data.categoryLabel}_${data.classLabel || 'result'}`
+    .replace(/[^a-z0-9]+/gi, '_')
+    .toLowerCase()
+
+export default function ResultStoryCard({
+  data,
+  compact = false,
+}: {
+  data: ResultStoryCardData
+  compact?: boolean
+}) {
   const palette = rankPalette(data.rankNumber)
+  const podiumBadge = getPodiumBadge(data.rankNumber)
+
   return (
     <div
       style={{
@@ -140,20 +195,64 @@ export default function ResultStoryCard({ data, compact = false }: { data: Resul
           filter: 'blur(40px)',
         }}
       />
-      <div style={{ position: 'absolute', inset: 18, borderRadius: 22, border: '1px solid rgba(255,255,255,0.08)' }} />
-      <div style={{ position: 'relative', zIndex: 1, height: '100%', padding: '22px 22px 20px', display: 'grid', gridTemplateRows: 'auto auto 1fr auto', gap: 16 }}>
+      <div
+        style={{
+          position: 'absolute',
+          inset: 18,
+          borderRadius: 22,
+          border: '1px solid rgba(255,255,255,0.08)',
+        }}
+      />
+      <div
+        style={{
+          position: 'relative',
+          zIndex: 1,
+          height: '100%',
+          padding: '22px 22px 20px',
+          display: 'grid',
+          gridTemplateRows: 'auto auto 1fr auto',
+          gap: 16,
+        }}
+      >
         <div style={{ display: 'grid', gap: 4 }}>
-          <div style={{ fontSize: 11, fontWeight: 900, letterSpacing: '0.22em', textTransform: 'uppercase', color: '#fbbf24' }}>Official Result</div>
-          <div style={{ fontSize: compact ? 24 : 28, fontWeight: 900, lineHeight: 1.05 }}>{data.eventTitle}</div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#cbd5e1' }}>{data.eventBrand || 'Pushbike Race Management Platform'}</div>
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 900,
+              letterSpacing: '0.22em',
+              textTransform: 'uppercase',
+              color: '#fbbf24',
+            }}
+          >
+            Official Result
+          </div>
+          <div style={{ fontSize: compact ? 24 : 28, fontWeight: 900, lineHeight: 1.05 }}>
+            {data.eventTitle}
+          </div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#cbd5e1' }}>
+            {data.eventBrand || 'Pushbike Race Management Platform'}
+          </div>
         </div>
 
         <div style={{ display: 'grid', gap: 4 }}>
-          <div style={{ fontSize: compact ? 30 : 34, fontWeight: 900, fontStyle: 'italic', lineHeight: 1.05 }}>{data.riderName}</div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#e2e8f0' }}>
-            {[data.categoryLabel, data.classLabel ? `Class ${data.classLabel}` : null].filter(Boolean).join(' • ')}
+          <div
+            style={{
+              fontSize: compact ? 30 : 34,
+              fontWeight: 900,
+              fontStyle: 'italic',
+              lineHeight: 1.05,
+            }}
+          >
+            {data.riderName}
           </div>
-          {data.plateNumber && <div style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8' }}>No Plate {data.plateNumber}</div>}
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#e2e8f0' }}>
+            {joinMeta([data.categoryLabel, data.classLabel ? `Class ${data.classLabel}` : null])}
+          </div>
+          {data.plateNumber && (
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8' }}>
+              No Plate {data.plateNumber}
+            </div>
+          )}
         </div>
 
         <div style={{ display: 'grid', alignContent: 'center', justifyItems: 'center', gap: 16 }}>
@@ -170,19 +269,64 @@ export default function ResultStoryCard({ data, compact = false }: { data: Resul
             }}
           >
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 13, fontWeight: 900, letterSpacing: '0.18em', textTransform: 'uppercase' }}>Rank</div>
-              <div style={{ fontSize: compact ? 44 : 54, fontWeight: 900, lineHeight: 1 }}>{data.rankNumber ? `#${data.rankNumber}` : data.statusLabel || 'RESULT'}</div>
+              <div
+                style={{
+                  fontSize: 13,
+                  fontWeight: 900,
+                  letterSpacing: '0.18em',
+                  textTransform: 'uppercase',
+                }}
+              >
+                Rank
+              </div>
+              <div style={{ fontSize: compact ? 44 : 54, fontWeight: 900, lineHeight: 1 }}>
+                {data.rankNumber ? `#${data.rankNumber}` : data.statusLabel || 'RESULT'}
+              </div>
             </div>
           </div>
-          <div style={{ fontSize: compact ? 24 : 28, fontWeight: 900 }}>{data.classLabel || 'General'}</div>
-          <div style={{ fontSize: 16, fontWeight: 800, color: '#fcd34d' }}>{data.totalPoint != null ? `${data.totalPoint} pts` : data.statusLabel || 'Final Result'}</div>
+          <div style={{ fontSize: compact ? 24 : 28, fontWeight: 900 }}>
+            {data.classLabel || 'General'}
+          </div>
+          <div style={{ fontSize: 16, fontWeight: 800, color: '#fcd34d' }}>
+            {data.totalPoint != null ? `${data.totalPoint} pts` : data.statusLabel || 'Final Result'}
+          </div>
         </div>
 
         <div style={{ display: 'grid', gap: 6 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#cbd5e1' }}>{[formatDate(data.eventDate), data.eventLocation].filter(Boolean).join(' • ') || 'Event Result'}</div>
-          {data.operatorLabel && <div style={{ fontSize: 12, fontWeight: 700, color: '#cbd5e1' }}>Operating Committee: {data.operatorLabel}</div>}
-          {data.scoringSupportLabel && <div style={{ fontSize: 12, fontWeight: 700, color: '#cbd5e1' }}>Scoring Support: {data.scoringSupportLabel}</div>}
-          <div style={{ fontSize: 11, fontWeight: 800, color: '#94a3b8', marginTop: 4 }}>Ready to share to WhatsApp Story / Instagram Story</div>
+          {podiumBadge && (
+            <div
+              style={{
+                display: 'inline-flex',
+                width: 'fit-content',
+                padding: '6px 10px',
+                borderRadius: 999,
+                background: '#fbbf24',
+                color: '#111827',
+                fontSize: 12,
+                fontWeight: 900,
+                textTransform: 'uppercase',
+                letterSpacing: '0.12em',
+              }}
+            >
+              {podiumBadge}
+            </div>
+          )}
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#cbd5e1' }}>
+            {joinMeta([formatDate(data.eventDate), data.eventLocation]) || 'Event Result'}
+          </div>
+          {data.operatorLabel && (
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#cbd5e1' }}>
+              Operating Committee: {data.operatorLabel}
+            </div>
+          )}
+          {data.scoringSupportLabel && (
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#cbd5e1' }}>
+              Scoring Support: {data.scoringSupportLabel}
+            </div>
+          )}
+          <div style={{ fontSize: 11, fontWeight: 800, color: '#94a3b8', marginTop: 4 }}>
+            Ready to share to WhatsApp Story / Instagram Story
+          </div>
         </div>
       </div>
     </div>
