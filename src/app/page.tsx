@@ -168,7 +168,7 @@ export default async function LandingPage() {
 
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-slate-300">
             <a
-              href="https://instagram.com/yogafrnands"
+              href="https://instagram.com/yogafernands"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 transition-colors hover:text-white"
@@ -178,13 +178,13 @@ export default async function LandingPage() {
                 <circle cx="12" cy="12" r="4" />
                 <circle cx="17.3" cy="6.7" r="0.8" fill="currentColor" stroke="none" />
               </svg>
-              <span>@yogafrnands</span>
+              <span>@yogafernands</span>
             </a>
             <a href="mailto:yogafernandes42@gmail.com" className="transition-colors hover:text-white">
               Contact: yogafernandes42@gmail.com
             </a>
             <span className="text-slate-400">
-              Website by <span className="font-semibold text-slate-200">Yoga Fernandes</span>
+              Sistem by <span className="font-semibold text-slate-200">ferntechstudio.my.id</span>
             </span>
           </div>
         </div>
