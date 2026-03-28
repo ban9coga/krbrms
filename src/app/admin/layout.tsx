@@ -190,15 +190,45 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <Image
-          src="/platform-logo.png"
-          alt="Platform"
-          width={40}
-          height={40}
+        <div
           style={{
-            objectFit: 'contain',
+            position: 'relative',
+            width: 44,
+            height: 44,
+            display: 'grid',
+            placeItems: 'center',
+            flexShrink: 0,
           }}
-        />
+        >
+          <div
+            style={{
+              position: 'absolute',
+              inset: 6,
+              borderRadius: 999,
+              background: 'rgba(255,255,255,0.74)',
+              filter: 'blur(10px)',
+            }}
+          />
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              borderRadius: 999,
+              background: 'linear-gradient(135deg, rgba(255,255,255,0.24), rgba(251,191,36,0.08), transparent)',
+            }}
+          />
+          <Image
+            src="/platform-logo.png"
+            alt="Platform"
+            width={40}
+            height={40}
+            style={{
+              objectFit: 'contain',
+              position: 'relative',
+              filter: 'drop-shadow(0 2px 10px rgba(255,255,255,0.35))',
+            }}
+          />
+        </div>
         {!collapsed && (
           <div style={{ display: 'grid', lineHeight: 1.12 }}>
             <div style={{ fontWeight: 900, letterSpacing: '0.02em' }}>{BRAND.short}</div>

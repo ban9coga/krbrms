@@ -108,11 +108,19 @@ export default function PublicTopbar({ theme = 'light' }: PublicTopbarProps) {
       <div className="relative w-full px-4 py-3 md:px-6">
         <div className="flex items-center justify-between gap-4">
           <Link href="/" className="flex min-w-0 items-center gap-3">
-            <img
-              src="/platform-logo.png"
-              alt="Platform Logo"
-              className="h-10 w-10 object-contain"
-            />
+            <span className="relative flex h-10 w-10 items-center justify-center">
+              {isDark && (
+                <>
+                  <span className="absolute inset-1 rounded-full bg-white/70 blur-md" />
+                  <span className="absolute inset-0 rounded-full bg-gradient-to-br from-white/35 via-amber-200/15 to-transparent" />
+                </>
+              )}
+              <img
+                src="/platform-logo.png"
+                alt="Platform Logo"
+                className={`relative h-10 w-10 object-contain ${isDark ? 'drop-shadow-[0_2px_10px_rgba(255,255,255,0.35)]' : ''}`}
+              />
+            </span>
             <span className="min-w-0">
               <span
                 className={`block truncate text-sm font-black tracking-tight sm:text-base md:text-lg ${
