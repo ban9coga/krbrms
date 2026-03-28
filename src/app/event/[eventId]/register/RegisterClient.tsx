@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState, type ClipboardEvent, type DragEvent } from 'react'
-import MarketingTopbar from '../../../../components/MarketingTopbar'
+import PublicTopbar from '../../../../components/PublicTopbar'
+import type { BusinessSettings } from '../../../../lib/eventService'
 
 type CategoryItem = {
   id: string
@@ -54,6 +55,7 @@ const initialRider = (): RiderForm => ({
 export default function RegisterClient({ eventId }: { eventId: string }) {
   const [categories, setCategories] = useState<CategoryItem[]>([])
   const [eventName, setEventName] = useState<string | null>(null)
+  const [businessSettings, setBusinessSettings] = useState<BusinessSettings | null>(null)
   const [contactName, setContactName] = useState('')
   const [contactPhone, setContactPhone] = useState('')
   const [contactEmail, setContactEmail] = useState('')
@@ -76,8 +78,10 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         const res = await fetch(`/api/events/${eventId}`)
         const json = await res.json()
         setEventName(json?.data?.name ?? null)
+        setBusinessSettings((json?.data?.business_settings ?? null) as BusinessSettings | null)
       } catch {
         setEventName(null)
+        setBusinessSettings(null)
       }
     }
     const loadCategories = async () => {
@@ -187,6 +191,27 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     if (!category) return true
     return isCategoryFull(category)
   })
+  const publicEventTitle = businessSettings?.public_event_title?.trim() || eventName || 'Pendaftaran Event'
+  const publicBrandName = businessSettings?.public_brand_name?.trim() || ''
+  const publicTagline = businessSettings?.public_tagline?.trim() || ''
+  const showEventOwner = Boolean(
+    businessSettings?.show_event_owner_publicly && businessSettings?.event_owner_name?.trim()
+  )
+  const showOperatingCommittee = Boolean(
+    businessSettings?.show_operating_committee_publicly &&
+      (businessSettings?.operating_committee_label?.trim() || businessSettings?.operating_committee_name?.trim())
+  )
+  const showScoringSupport = Boolean(
+    businessSettings?.show_scoring_support_publicly &&
+      (businessSettings?.scoring_support_label?.trim() || businessSettings?.scoring_support_name?.trim())
+  )
+  const eventOwnerName = businessSettings?.event_owner_name?.trim() || ''
+  const operatingCommitteeLabel =
+    businessSettings?.operating_committee_label?.trim() ||
+    businessSettings?.operating_committee_name?.trim() ||
+    ''
+  const scoringSupportLabel =
+    businessSettings?.scoring_support_label?.trim() || businessSettings?.scoring_support_name?.trim() || ''
 
   const handleSubmit = async () => {
     setSuccess(null)
@@ -357,15 +382,37 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#020817_0%,#041030_45%,#030712_100%)] text-slate-100">
-      <MarketingTopbar />
+      <PublicTopbar />
       <main className="mx-auto grid w-full max-w-[1200px] gap-4 px-4 pb-32 pt-6 sm:px-6 md:gap-5 md:pt-8">
         <section className="relative overflow-hidden rounded-[1.75rem] border border-slate-700 bg-[linear-gradient(130deg,#0b1328_0%,#1e293b_52%,#4a1127_100%)] px-5 py-6 shadow-[0_26px_60px_rgba(2,6,23,0.35)] sm:px-7">
           <div className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full border border-white/20" />
           <div className="pointer-events-none absolute -left-16 bottom-0 h-44 w-44 rounded-full bg-amber-400/15 blur-3xl" />
           <div className="relative z-10 grid gap-2">
             <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-amber-300">Event Registration</p>
-            <h1 className="text-2xl font-black tracking-tight text-white md:text-4xl">Pendaftaran Event</h1>
-            <p className="text-base font-semibold text-slate-200 md:text-lg">{eventName ?? 'KRB Race Event'}</p>
+            {publicBrandName && (
+              <p className="text-sm font-extrabold uppercase tracking-[0.16em] text-amber-100/90">{publicBrandName}</p>
+            )}
+            <h1 className="text-2xl font-black tracking-tight text-white md:text-4xl">{publicEventTitle}</h1>
+            <p className="text-base font-semibold text-slate-200 md:text-lg">
+              {publicTagline || eventName || 'Form registrasi event'}
+            </p>
+            {(showEventOwner || showOperatingCommittee || showScoringSupport) && (
+              <div className="mt-2 flex flex-wrap gap-2 text-xs font-extrabold uppercase tracking-[0.12em] text-slate-100">
+                {showEventOwner && (
+                  <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">Event Owner: {eventOwnerName}</span>
+                )}
+                {showOperatingCommittee && (
+                  <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
+                    Operating Committee: {operatingCommitteeLabel}
+                  </span>
+                )}
+                {showScoringSupport && (
+                  <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
+                    Scoring Support: {scoringSupportLabel}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </section>
 

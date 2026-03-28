@@ -579,13 +579,15 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
   }
 
   const isDirty = initialForm !== JSON.stringify(form)
-  const basicSummary = `Base ${Number(form.base_price || 0).toLocaleString()} • Extra ${Number(
+  const basicSummary = `Base ${Number(form.base_price || 0).toLocaleString()} | Extra ${Number(
     form.extra_price || 0
-  ).toLocaleString()} • FFA ${form.ffa_mix_min_year}-${form.ffa_mix_max_year} • Jersey ${
+  ).toLocaleString()} | FFA ${form.ffa_mix_min_year}-${form.ffa_mix_max_year} | Jersey ${
     form.require_jersey_size ? 'Wajib' : 'Opsional'
   }`
-  const businessSummary = `${form.business_public_brand_name || 'No brand'} ? ${form.business_operating_committee_name || 'No operator'} ? ${form.business_scoring_support_name || 'No scoring support'}`
-  const appearanceSummary = `Theme ${form.display_primary_color} ? Race ${form.race_moto_per_batch} motos`
+  const businessSummary = `Brand ${form.business_public_brand_name || 'Belum diisi'} | Operating Committee ${
+    form.business_operating_committee_name || 'Belum diisi'
+  } | Scoring Support ${form.business_scoring_support_name || 'Belum diisi'}`
+  const appearanceSummary = `Theme ${form.display_primary_color} | Race ${form.race_moto_per_batch} motos`
   const advancedSummary = `${advancedItems.filter((i) => i.config?.enabled).length} enabled`
 
   return (
@@ -799,7 +801,57 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
               <>
                 <div style={{ marginTop: 6, fontWeight: 950, fontSize: 18 }}>Business & Roles</div>
                 <div style={{ fontSize: 12, color: '#333', fontWeight: 700 }}>
-                  Atur brand publik event, owner event, panitia operasional, dan scoring support.
+                  Atur brand publik event, Event Owner, Operating Committee, dan Scoring Support.
+                </div>
+                <div
+                  style={{
+                    marginTop: 8,
+                    border: '2px solid #111',
+                    borderRadius: 18,
+                    padding: 16,
+                    background: 'linear-gradient(135deg,#0f172a 0%,#1e293b 48%,#78350f 100%)',
+                    color: '#fff',
+                    display: 'grid',
+                    gap: 10,
+                    boxShadow: '0 18px 40px rgba(15,23,42,0.22)',
+                  }}
+                >
+                  <div style={{ display: 'grid', gap: 4 }}>
+                    <div style={{ fontSize: 11, fontWeight: 900, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#fcd34d' }}>
+                      Public Preview
+                    </div>
+                    <div style={{ fontSize: 28, fontWeight: 950, lineHeight: 1.05 }}>
+                      {form.business_public_event_title || form.business_public_brand_name || 'Event Title'}
+                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: '#fde68a' }}>
+                      {form.business_public_brand_name || 'Public Brand Name'}
+                    </div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#cbd5e1' }}>
+                      {form.business_public_tagline || 'Tagline event akan tampil di halaman publik bila diisi.'}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    {form.business_show_event_owner_publicly && form.business_event_owner_name && (
+                      <span style={{ borderRadius: 999, border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(255,255,255,0.08)', padding: '6px 12px', fontSize: 12, fontWeight: 900 }}>
+                        Event Owner: {form.business_event_owner_name}
+                      </span>
+                    )}
+                    {form.business_show_operating_committee_publicly &&
+                      (form.business_operating_committee_label || form.business_operating_committee_name) && (
+                        <span style={{ borderRadius: 999, border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(255,255,255,0.08)', padding: '6px 12px', fontSize: 12, fontWeight: 900 }}>
+                          Operating Committee: {form.business_operating_committee_label || form.business_operating_committee_name}
+                        </span>
+                      )}
+                    {form.business_show_scoring_support_publicly &&
+                      (form.business_scoring_support_label || form.business_scoring_support_name) && (
+                        <span style={{ borderRadius: 999, border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(255,255,255,0.08)', padding: '6px 12px', fontSize: 12, fontWeight: 900 }}>
+                          Scoring Support: {form.business_scoring_support_label || form.business_scoring_support_name}
+                        </span>
+                      )}
+                    <span style={{ borderRadius: 999, border: '1px solid rgba(251,191,36,0.4)', background: 'rgba(251,191,36,0.16)', padding: '6px 12px', fontSize: 12, fontWeight: 900, color: '#fde68a' }}>
+                      Central Control: {form.business_central_control_enabled ? 'Active' : 'Off'}
+                    </span>
+                  </div>
                 </div>
                 <div style={{ display: 'grid', gap: 8, marginTop: 6 }}>
                   <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>

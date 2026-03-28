@@ -32,6 +32,24 @@ export default function ResultsClient({ eventId }: { eventId: string }) {
   const [categories, setCategories] = useState<(RiderCategory & { status: CategoryStatus })[]>([])
   const [loading, setLoading] = useState(false)
   const router = useRouter()
+  const business = event?.business_settings ?? null
+  const publicEventTitle = business?.public_event_title?.trim() || event?.name || 'Event Results'
+  const publicBrandName = business?.public_brand_name?.trim() || ''
+  const publicTagline = business?.public_tagline?.trim() || ''
+  const showEventOwner = Boolean(business?.show_event_owner_publicly && business?.event_owner_name?.trim())
+  const showOperatingCommittee = Boolean(
+    business?.show_operating_committee_publicly &&
+      (business?.operating_committee_label?.trim() || business?.operating_committee_name?.trim())
+  )
+  const showScoringSupport = Boolean(
+    business?.show_scoring_support_publicly &&
+      (business?.scoring_support_label?.trim() || business?.scoring_support_name?.trim())
+  )
+  const eventOwnerName = business?.event_owner_name?.trim() || ''
+  const operatingCommitteeLabel =
+    business?.operating_committee_label?.trim() || business?.operating_committee_name?.trim() || ''
+  const scoringSupportLabel =
+    business?.scoring_support_label?.trim() || business?.scoring_support_name?.trim() || ''
 
   useEffect(() => {
     const load = async () => {
@@ -84,12 +102,32 @@ export default function ResultsClient({ eventId }: { eventId: string }) {
           <div className="pointer-events-none absolute -top-24 right-0 h-72 w-72 rounded-full bg-sky-400/15 blur-3xl" />
           <div className="relative z-10 grid gap-3">
             <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-amber-300">Public Results</p>
+            {publicBrandName && (
+              <p className="text-sm font-extrabold uppercase tracking-[0.16em] text-amber-100/90">{publicBrandName}</p>
+            )}
             <h1 className="text-3xl font-black tracking-tight text-white md:text-5xl">
-              {event ? event.name : 'Event Results'}
+              {publicEventTitle}
             </h1>
             <p className="max-w-3xl text-sm font-semibold text-slate-200 sm:text-base">
-              Pilih race category untuk melihat peringkat, live score, dan update hasil balap.
+              {publicTagline || 'Pilih race category untuk melihat peringkat, live score, dan update hasil balap.'}
             </p>
+            {(showEventOwner || showOperatingCommittee || showScoringSupport) && (
+              <div className="flex flex-wrap gap-2 text-xs font-extrabold uppercase tracking-[0.12em] text-slate-100">
+                {showEventOwner && (
+                  <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">Event Owner: {eventOwnerName}</span>
+                )}
+                {showOperatingCommittee && (
+                  <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
+                    Operating Committee: {operatingCommitteeLabel}
+                  </span>
+                )}
+                {showScoringSupport && (
+                  <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
+                    Scoring Support: {scoringSupportLabel}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </section>
 

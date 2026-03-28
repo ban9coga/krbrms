@@ -6,7 +6,14 @@ import EmptyState from '../../../../../components/EmptyState'
 import LoadingState from '../../../../../components/LoadingState'
 import PublicTopbar from '../../../../../components/PublicTopbar'
 import StatusBadge from '../../../../../components/StatusBadge'
-import { getCategoriesByYear, getMotosByCategory, type RiderCategory, type MotoItem } from '../../../../../lib/eventService'
+import {
+  getCategoriesByYear,
+  getEventById,
+  getMotosByCategory,
+  type EventItem,
+  type RiderCategory,
+  type MotoItem,
+} from '../../../../../lib/eventService'
 import { isMotoFinished, isMotoLive, isMotoUpcoming } from '../../../../../lib/motoStatus'
 
 type CategoryStatus = 'UPCOMING' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED'
@@ -16,6 +23,7 @@ const normalize = (value: string) => value.toLowerCase()
 const statusOptions: Array<'ALL' | 'LIVE' | 'FINISHED'> = ['ALL', 'LIVE', 'FINISHED']
 
 export default function YearClient({ eventId, year }: { eventId: string; year: string }) {
+  const [event, setEvent] = useState<EventItem | null>(null)
   const [categories, setCategories] = useState<(RiderCategory & { status: CategoryStatus })[]>([])
   const [loading, setLoading] = useState(false)
   const [query, setQuery] = useState('')
@@ -24,7 +32,7 @@ export default function YearClient({ eventId, year }: { eventId: string; year: s
   useEffect(() => {
     const load = async () => {
       setLoading(true)
-      const base = await getCategoriesByYear(eventId, year)
+      const [eventData, base] = await Promise.all([getEventById(eventId), getCategoriesByYear(eventId, year)])
       const withStatus = await Promise.all(
         base.map(async (category) => {
           const motos: MotoItem[] = await getMotosByCategory(category.id)
@@ -41,6 +49,7 @@ export default function YearClient({ eventId, year }: { eventId: string; year: s
           return { ...category, status }
         })
       )
+      setEvent(eventData)
       setCategories(withStatus)
       setLoading(false)
     }
@@ -52,6 +61,24 @@ export default function YearClient({ eventId, year }: { eventId: string; year: s
     const matchesStatus = statusFilter === 'ALL' || item.status === statusFilter
     return matchesQuery && matchesStatus
   })
+  const business = event?.business_settings ?? null
+  const publicEventTitle = business?.public_event_title?.trim() || event?.name || `Race Categories ${year}`
+  const publicBrandName = business?.public_brand_name?.trim() || ''
+  const publicTagline = business?.public_tagline?.trim() || ''
+  const showEventOwner = Boolean(business?.show_event_owner_publicly && business?.event_owner_name?.trim())
+  const showOperatingCommittee = Boolean(
+    business?.show_operating_committee_publicly &&
+      (business?.operating_committee_label?.trim() || business?.operating_committee_name?.trim())
+  )
+  const showScoringSupport = Boolean(
+    business?.show_scoring_support_publicly &&
+      (business?.scoring_support_label?.trim() || business?.scoring_support_name?.trim())
+  )
+  const eventOwnerName = business?.event_owner_name?.trim() || ''
+  const operatingCommitteeLabel =
+    business?.operating_committee_label?.trim() || business?.operating_committee_name?.trim() || ''
+  const scoringSupportLabel =
+    business?.scoring_support_label?.trim() || business?.scoring_support_name?.trim() || ''
 
   return (
     <div className="public-page">
@@ -62,10 +89,30 @@ export default function YearClient({ eventId, year }: { eventId: string; year: s
           <div className="pointer-events-none absolute -top-24 right-0 h-72 w-72 rounded-full bg-sky-400/15 blur-3xl" />
           <div className="relative z-10 grid gap-3">
             <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-amber-300">Results Explorer</p>
-            <h1 className="text-3xl font-black tracking-tight text-white md:text-5xl">Race Categories {year}</h1>
+            {publicBrandName && (
+              <p className="text-sm font-extrabold uppercase tracking-[0.16em] text-amber-100/90">{publicBrandName}</p>
+            )}
+            <h1 className="text-3xl font-black tracking-tight text-white md:text-5xl">{publicEventTitle}</h1>
             <p className="max-w-2xl text-sm font-semibold text-slate-200 sm:text-base">
-              Filter category berdasarkan nama dan status race.
+              {publicTagline || `Filter race category ${year} berdasarkan nama dan status race.`}
             </p>
+            {(showEventOwner || showOperatingCommittee || showScoringSupport) && (
+              <div className="flex flex-wrap gap-2 text-xs font-extrabold uppercase tracking-[0.12em] text-slate-100">
+                {showEventOwner && (
+                  <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">Event Owner: {eventOwnerName}</span>
+                )}
+                {showOperatingCommittee && (
+                  <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
+                    Operating Committee: {operatingCommitteeLabel}
+                  </span>
+                )}
+                {showScoringSupport && (
+                  <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
+                    Scoring Support: {scoringSupportLabel}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </section>
 

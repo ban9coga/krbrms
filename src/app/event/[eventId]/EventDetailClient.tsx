@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from 'react'
 import StatusBadge from '../../../components/StatusBadge'
 import LoadingState from '../../../components/LoadingState'
 import EmptyState from '../../../components/EmptyState'
-import MarketingTopbar from '../../../components/MarketingTopbar'
+import PublicTopbar from '../../../components/PublicTopbar'
 import { compareMotoSequence } from '../../../lib/motoSequence'
 import {
   getEventById,
@@ -96,6 +96,24 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
     ? eventDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
     : null
   const eventLogoUrl = event?.event_logo_url ?? null
+  const business = event?.business_settings ?? null
+  const publicEventTitle = business?.public_event_title?.trim() || event?.name || 'Event Detail'
+  const publicBrandName = business?.public_brand_name?.trim() || ''
+  const publicTagline = business?.public_tagline?.trim() || ''
+  const showEventOwner = Boolean(business?.show_event_owner_publicly && business?.event_owner_name?.trim())
+  const showOperatingCommittee = Boolean(
+    business?.show_operating_committee_publicly &&
+      (business?.operating_committee_label?.trim() || business?.operating_committee_name?.trim())
+  )
+  const showScoringSupport = Boolean(
+    business?.show_scoring_support_publicly &&
+      (business?.scoring_support_label?.trim() || business?.scoring_support_name?.trim())
+  )
+  const eventOwnerName = business?.event_owner_name?.trim() || ''
+  const operatingCommitteeLabel =
+    business?.operating_committee_label?.trim() || business?.operating_committee_name?.trim() || ''
+  const scoringSupportLabel =
+    business?.scoring_support_label?.trim() || business?.scoring_support_name?.trim() || ''
   const daysToEvent =
     eventDate ? Math.ceil((eventDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null
 
@@ -169,7 +187,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900">
-      <MarketingTopbar />
+      <PublicTopbar />
       <div className="mx-auto w-full max-w-[1500px] px-2 py-4 sm:px-4 md:px-6 md:py-8">
         {loading && <LoadingState label="Memuat detail event..." />}
         {!loading && !event && <EmptyState label="Event tidak ditemukan." />}
@@ -183,9 +201,17 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="grid gap-2">
                     <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-amber-300">Event Detail</p>
+                    {publicBrandName && (
+                      <p className="text-sm font-extrabold uppercase tracking-[0.16em] text-amber-100/90">
+                        {publicBrandName}
+                      </p>
+                    )}
                     <h1 className="text-3xl font-black leading-tight tracking-tight text-white md:text-5xl">
-                      {event.name}
+                      {publicEventTitle}
                     </h1>
+                    {publicTagline && (
+                      <p className="max-w-3xl text-sm font-semibold text-slate-200 md:text-base">{publicTagline}</p>
+                    )}
                     <div className="flex flex-wrap gap-3 text-sm font-semibold text-slate-200 md:text-base">
                       <span className="inline-flex items-center gap-2">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4 text-amber-300">
@@ -202,6 +228,25 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                         {formattedDate ?? '-'}
                       </span>
                     </div>
+                    {(showEventOwner || showOperatingCommittee || showScoringSupport) && (
+                      <div className="flex flex-wrap gap-2 text-xs font-extrabold uppercase tracking-[0.12em] text-slate-100">
+                        {showEventOwner && (
+                          <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
+                            Event Owner: {eventOwnerName}
+                          </span>
+                        )}
+                        {showOperatingCommittee && (
+                          <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
+                            Operating Committee: {operatingCommitteeLabel}
+                          </span>
+                        )}
+                        {showScoringSupport && (
+                          <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
+                            Scoring Support: {scoringSupportLabel}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <StatusBadge
                     label={
