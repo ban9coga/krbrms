@@ -10,7 +10,8 @@
 
 @layer components {
   .public-page {
-    @apply min-h-screen overflow-x-hidden bg-slate-100 pb-24 text-slate-900;
+    @apply min-h-screen overflow-x-hidden bg-slate-100 text-slate-900;
+    padding-bottom: calc(7.5rem + env(safe-area-inset-bottom, 0px));
   }
 
   .public-main {
