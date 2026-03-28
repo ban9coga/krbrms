@@ -166,12 +166,12 @@ export default async function LandingPage() {
             Copyright (c) {new Date().getFullYear()} Pushbike Race Management Platform
           </p>
 
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-slate-300">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-slate-300">
             <a
               href="https://instagram.com/yogafernands"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 transition-colors hover:text-white"
+              className="inline-flex items-center gap-1.5 transition-colors hover:text-white"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-3.5 w-3.5">
                 <rect x="3.5" y="3.5" width="17" height="17" rx="5" />
@@ -184,7 +184,7 @@ export default async function LandingPage() {
               Contact: yogafernandes42@gmail.com
             </a>
             <span className="text-slate-400">
-              Sistem by <span className="font-semibold text-slate-200">ferntechstudio.my.id</span>
+              Sistem by <span className="font-semibold text-slate-200">FernTech Studio</span>
             </span>
           </div>
         </div>
