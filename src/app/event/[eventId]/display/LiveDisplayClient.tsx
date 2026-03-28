@@ -214,6 +214,14 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
   }, [queueTarget])
 
   const nextUp = useMemo(() => prepareQueue[0] ?? null, [prepareQueue])
+  const business = event?.business_settings ?? null
+  const publicEventTitle = business?.public_event_title?.trim() || event?.name || 'Live Display'
+  const publicBrandName = business?.public_brand_name?.trim() || ''
+  const publicTagline = business?.public_tagline?.trim() || ''
+  const operatingCommitteeLabel = business?.operating_committee_label?.trim() || business?.operating_committee_name?.trim() || ''
+  const scoringSupportLabel = business?.scoring_support_label?.trim() || business?.scoring_support_name?.trim() || ''
+  const showOperatingCommittee = Boolean(business?.show_operating_committee_publicly && operatingCommitteeLabel)
+  const showScoringSupport = Boolean(business?.show_scoring_support_publicly && scoringSupportLabel)
   const trackState = useMemo(() => {
     if (!activeMoto) {
       return {
@@ -272,12 +280,19 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="grid gap-1">
                 <h1 className="text-2xl font-black tracking-tight text-slate-900 md:text-4xl">
-                  {event?.name ?? 'Live Display'}
+                  {publicEventTitle}
                 </h1>
                 <p className="text-sm font-black uppercase tracking-[0.12em] text-slate-700">
-                  {categoryLabel || 'Pilih Kategori'}
+                  {publicBrandName || categoryLabel || 'Pilih Kategori'}
                 </p>
+                {publicTagline && <p className="text-sm font-semibold text-slate-500">{publicTagline}</p>}
                 {event?.location && <p className="text-sm font-semibold text-slate-500">{event.location}</p>}
+                {(showOperatingCommittee || showScoringSupport) && (
+                  <div className="flex flex-wrap gap-2 text-[11px] font-extrabold uppercase tracking-[0.12em] text-slate-500">
+                    {showOperatingCommittee && <span className="rounded-full border border-slate-200 bg-white px-3 py-1">Operator: {operatingCommitteeLabel}</span>}
+                    {showScoringSupport && <span className="rounded-full border border-slate-200 bg-white px-3 py-1">Scoring: {scoringSupportLabel}</span>}
+                  </div>
+                )}
                 {activeMoto && (
                   <p className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">
                     Now: {activeMoto.moto_name} ({activeMoto.status})

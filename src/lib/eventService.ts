@@ -1,5 +1,37 @@
 export type EventStatus = 'UPCOMING' | 'LIVE' | 'FINISHED'
 
+export type BusinessSettings = {
+  public_brand_name?: string | null
+  public_event_title?: string | null
+  public_tagline?: string | null
+  public_contact_name?: string | null
+  public_contact_phone?: string | null
+  public_contact_email?: string | null
+  public_instagram?: string | null
+  event_owner_name?: string | null
+  event_owner_type?: 'COMMUNITY' | 'EO' | 'CLUB' | 'INTERNAL' | 'OTHER' | null
+  event_owner_contact_name?: string | null
+  event_owner_contact_phone?: string | null
+  event_owner_contact_email?: string | null
+  operating_committee_name?: string | null
+  operating_committee_label?: string | null
+  operating_committee_contact_name?: string | null
+  operating_committee_contact_phone?: string | null
+  operating_committee_contact_email?: string | null
+  scoring_support_name?: string | null
+  scoring_support_label?: string | null
+  scoring_support_contact_name?: string | null
+  scoring_support_contact_phone?: string | null
+  scoring_support_contact_email?: string | null
+  platform_label?: string | null
+  platform_powered_by?: string | null
+  central_control_enabled?: boolean | null
+  requires_platform_approval?: boolean | null
+  show_event_owner_publicly?: boolean | null
+  show_operating_committee_publicly?: boolean | null
+  show_scoring_support_publicly?: boolean | null
+}
+
 export type EventItem = {
   id: string
   name: string
@@ -9,6 +41,7 @@ export type EventItem = {
   is_public?: boolean | null
   event_scope?: 'PUBLIC' | 'INTERNAL' | null
   event_logo_url?: string | null
+  business_settings?: BusinessSettings | null
   created_at?: string | null
   updated_at?: string | null
 }

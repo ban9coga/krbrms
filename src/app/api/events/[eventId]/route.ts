@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../lib/auth'
 import { computeQualificationAndStore, computeStageAdvances, generateStageMotos } from '../../../../services/advancedRaceAuto'
-
+import type { BusinessSettings } from '../../../../lib/eventService'
 type DrawMode = 'internal_live_draw' | 'external_draw'
 type EventScope = 'PUBLIC' | 'INTERNAL'
 
@@ -18,10 +18,17 @@ const parseRaceFormatSettings = (value: unknown): Record<string, unknown> => {
   return {}
 }
 
+const parseBusinessSettings = (value: unknown): BusinessSettings => {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as BusinessSettings
+  }
+  return {}
+}
+
 const getLatestRaceFormatSettings = async (eventId: string) => {
   const { data, error } = await adminClient
     .from('event_settings')
-    .select('race_format_settings, event_logo_url, updated_at')
+    .select('race_format_settings, event_logo_url, business_settings, updated_at')
     .eq('event_id', eventId)
     .order('updated_at', { ascending: false })
     .limit(1)
@@ -30,6 +37,7 @@ const getLatestRaceFormatSettings = async (eventId: string) => {
   return {
     data: parseRaceFormatSettings(row?.race_format_settings),
     eventLogoUrl: typeof row?.event_logo_url === 'string' ? row.event_logo_url : null,
+    businessSettings: parseBusinessSettings(row?.business_settings),
     error: null,
   }
 }
@@ -60,6 +68,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       draw_mode: drawMode,
       event_scope: eventScope,
       event_logo_url: formatResult.eventLogoUrl,
+      business_settings: formatResult.businessSettings,
     },
   })
 }

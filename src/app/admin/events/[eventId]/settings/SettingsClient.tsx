@@ -1,7 +1,8 @@
-﻿'use client'
+'use client'
 
 import { useEffect, useState } from 'react'
 import { supabase } from '../../../../../lib/supabaseClient'
+import type { BusinessSettings } from '../../../../../lib/eventService'
 
 type SettingsRow = {
   event_id: string
@@ -15,6 +16,7 @@ type SettingsRow = {
   scoring_rules: Record<string, unknown>
   display_theme: Record<string, unknown>
   race_format_settings: Record<string, unknown>
+  business_settings: BusinessSettings
   updated_at?: string | null
 }
 
@@ -85,8 +87,9 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
       { stageCounts: Record<string, number>; motoCounts: { quarter: number; semi: number; final: number } }
     >
   >({})
-  const [sections, setSections] = useState<{ basic: boolean; appearance: boolean; advanced: boolean }>({
+  const [sections, setSections] = useState<{ basic: boolean; business: boolean; appearance: boolean; advanced: boolean }>({
     basic: true,
+    business: false,
     appearance: false,
     advanced: false,
   })
@@ -114,6 +117,20 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
     display_card_bg: '#ffffff',
     display_logo_url: '',
     display_slogan: '',
+    business_public_brand_name: '',
+    business_public_event_title: '',
+    business_public_tagline: '',
+    business_event_owner_name: '',
+    business_event_owner_type: 'COMMUNITY',
+    business_operating_committee_name: '',
+    business_operating_committee_label: '',
+    business_scoring_support_name: '',
+    business_scoring_support_label: '',
+    business_central_control_enabled: true,
+    business_requires_platform_approval: false,
+    business_show_event_owner_publicly: false,
+    business_show_operating_committee_publicly: true,
+    business_show_scoring_support_publicly: true,
     race_moto_per_batch: '3',
     race_gate_positions: '8',
     race_qualification_enabled: true,
@@ -163,6 +180,7 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
         const scoring = (data.scoring_rules ?? {}) as Record<string, unknown>
         const theme = (data.display_theme ?? {}) as Record<string, unknown>
         const format = (data.race_format_settings ?? {}) as Record<string, unknown>
+        const business = (data.business_settings ?? {}) as BusinessSettings
         const nextForm = {
           event_logo_url: data.event_logo_url ?? '',
           sponsor_logo_urls: (data.sponsor_logo_urls ?? []).join('\n'),
@@ -201,6 +219,34 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
             typeof theme.logo_url === 'string' ? theme.logo_url : '',
           display_slogan:
             typeof theme.slogan === 'string' ? theme.slogan : '',
+          business_public_brand_name:
+            typeof business.public_brand_name === 'string' ? business.public_brand_name : '',
+          business_public_event_title:
+            typeof business.public_event_title === 'string' ? business.public_event_title : '',
+          business_public_tagline:
+            typeof business.public_tagline === 'string' ? business.public_tagline : '',
+          business_event_owner_name:
+            typeof business.event_owner_name === 'string' ? business.event_owner_name : '',
+          business_event_owner_type:
+            typeof business.event_owner_type === 'string' ? business.event_owner_type : 'COMMUNITY',
+          business_operating_committee_name:
+            typeof business.operating_committee_name === 'string' ? business.operating_committee_name : '',
+          business_operating_committee_label:
+            typeof business.operating_committee_label === 'string' ? business.operating_committee_label : '',
+          business_scoring_support_name:
+            typeof business.scoring_support_name === 'string' ? business.scoring_support_name : '',
+          business_scoring_support_label:
+            typeof business.scoring_support_label === 'string' ? business.scoring_support_label : '',
+          business_central_control_enabled:
+            typeof business.central_control_enabled === 'boolean' ? business.central_control_enabled : true,
+          business_requires_platform_approval:
+            typeof business.requires_platform_approval === 'boolean' ? business.requires_platform_approval : false,
+          business_show_event_owner_publicly:
+            typeof business.show_event_owner_publicly === 'boolean' ? business.show_event_owner_publicly : false,
+          business_show_operating_committee_publicly:
+            typeof business.show_operating_committee_publicly === 'boolean' ? business.show_operating_committee_publicly : true,
+          business_show_scoring_support_publicly:
+            typeof business.show_scoring_support_publicly === 'boolean' ? business.show_scoring_support_publicly : true,
           race_moto_per_batch:
             typeof format.moto_per_batch === 'number' ? String(format.moto_per_batch) : '3',
           race_gate_positions:
@@ -435,6 +481,24 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
       logo_url: form.display_logo_url.trim() || null,
       slogan: form.display_slogan.trim() || null,
     }
+    const ownerType: NonNullable<BusinessSettings['event_owner_type']> =
+      (form.business_event_owner_type || 'COMMUNITY') as NonNullable<BusinessSettings['event_owner_type']>
+    const businessSettings: BusinessSettings = {
+      public_brand_name: form.business_public_brand_name.trim() || null,
+      public_event_title: form.business_public_event_title.trim() || null,
+      public_tagline: form.business_public_tagline.trim() || null,
+      event_owner_name: form.business_event_owner_name.trim() || null,
+      event_owner_type: ownerType,
+      operating_committee_name: form.business_operating_committee_name.trim() || null,
+      operating_committee_label: form.business_operating_committee_label.trim() || null,
+      scoring_support_name: form.business_scoring_support_name.trim() || null,
+      scoring_support_label: form.business_scoring_support_label.trim() || null,
+      central_control_enabled: Boolean(form.business_central_control_enabled),
+      requires_platform_approval: Boolean(form.business_requires_platform_approval),
+      show_event_owner_publicly: Boolean(form.business_show_event_owner_publicly),
+      show_operating_committee_publicly: Boolean(form.business_show_operating_committee_publicly),
+      show_scoring_support_publicly: Boolean(form.business_show_scoring_support_publicly),
+    }
     const motoPerBatch = Number(form.race_moto_per_batch)
     const gatePositions = Number(form.race_gate_positions)
     if (!Number.isFinite(motoPerBatch) || motoPerBatch <= 0) {
@@ -498,6 +562,7 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
           require_jersey_size: Boolean(form.require_jersey_size),
           scoring_rules: scoring,
           display_theme: theme,
+          business_settings: businessSettings,
           race_format_settings: format,
         }),
       })
@@ -519,7 +584,8 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
   ).toLocaleString()} • FFA ${form.ffa_mix_min_year}-${form.ffa_mix_max_year} • Jersey ${
     form.require_jersey_size ? 'Wajib' : 'Opsional'
   }`
-  const appearanceSummary = `Theme ${form.display_primary_color} • Race ${form.race_moto_per_batch} motos`
+  const businessSummary = `${form.business_public_brand_name || 'No brand'} ? ${form.business_operating_committee_name || 'No operator'} ? ${form.business_scoring_support_name || 'No scoring support'}`
+  const appearanceSummary = `Theme ${form.display_primary_color} ? Race ${form.race_moto_per_batch} motos`
   const advancedSummary = `${advancedItems.filter((i) => i.config?.enabled).length} enabled`
 
   return (
@@ -538,6 +604,7 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
       >
         {[
           { key: 'basic', label: 'Basic' },
+          { key: 'business', label: 'Business & Roles' },
           { key: 'appearance', label: 'Display & Race Format' },
           { key: 'advanced', label: 'Advanced Multi-Stage' },
         ].map((section) => {
@@ -545,6 +612,8 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
           const summary =
             section.key === 'basic'
               ? basicSummary
+              : section.key === 'business'
+              ? businessSummary
               : section.key === 'appearance'
               ? appearanceSummary
               : advancedSummary
@@ -722,6 +791,143 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
                   <div style={{ fontSize: 12, color: '#333', fontWeight: 700 }}>
                     Scoring rules disimpan otomatis ke JSON scoring_rules saat Save.
                   </div>
+                </div>
+              </>
+            )}
+
+            {sections.business && (
+              <>
+                <div style={{ marginTop: 6, fontWeight: 950, fontSize: 18 }}>Business & Roles</div>
+                <div style={{ fontSize: 12, color: '#333', fontWeight: 700 }}>
+                  Atur brand publik event, owner event, panitia operasional, dan scoring support.
+                </div>
+                <div style={{ display: 'grid', gap: 8, marginTop: 6 }}>
+                  <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                    Public Branding
+                  </div>
+                  <input
+                    placeholder="Public Brand Name"
+                    value={form.business_public_brand_name}
+                    onChange={(e) => setForm({ ...form, business_public_brand_name: e.target.value })}
+                    style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                  />
+                  <input
+                    placeholder="Public Event Title"
+                    value={form.business_public_event_title}
+                    onChange={(e) => setForm({ ...form, business_public_event_title: e.target.value })}
+                    style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                  />
+                  <input
+                    placeholder="Public Tagline"
+                    value={form.business_public_tagline}
+                    onChange={(e) => setForm({ ...form, business_public_tagline: e.target.value })}
+                    style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                  />
+                </div>
+                <div style={{ display: 'grid', gap: 8, marginTop: 6 }}>
+                  <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                    Event Owner
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 10 }}>
+                    <input
+                      placeholder="Event Owner Name"
+                      value={form.business_event_owner_name}
+                      onChange={(e) => setForm({ ...form, business_event_owner_name: e.target.value })}
+                      style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                    />
+                    <select
+                      value={form.business_event_owner_type}
+                      onChange={(e) => setForm({ ...form, business_event_owner_type: e.target.value })}
+                      style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                    >
+                      <option value="COMMUNITY">COMMUNITY</option>
+                      <option value="EO">EO</option>
+                      <option value="CLUB">CLUB</option>
+                      <option value="INTERNAL">INTERNAL</option>
+                      <option value="OTHER">OTHER</option>
+                    </select>
+                  </div>
+                  <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 800 }}>
+                    <input
+                      type="checkbox"
+                      checked={form.business_show_event_owner_publicly}
+                      onChange={(e) => setForm({ ...form, business_show_event_owner_publicly: e.target.checked })}
+                    />
+                    Tampilkan event owner di halaman publik
+                  </label>
+                </div>
+                <div style={{ display: 'grid', gap: 8, marginTop: 6 }}>
+                  <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                    Operating Committee
+                  </div>
+                  <input
+                    placeholder="Operating Committee Name"
+                    value={form.business_operating_committee_name}
+                    onChange={(e) => setForm({ ...form, business_operating_committee_name: e.target.value })}
+                    style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                  />
+                  <input
+                    placeholder="Operating Committee Label"
+                    value={form.business_operating_committee_label}
+                    onChange={(e) => setForm({ ...form, business_operating_committee_label: e.target.value })}
+                    style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                  />
+                  <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 800 }}>
+                    <input
+                      type="checkbox"
+                      checked={form.business_show_operating_committee_publicly}
+                      onChange={(e) =>
+                        setForm({ ...form, business_show_operating_committee_publicly: e.target.checked })
+                      }
+                    />
+                    Tampilkan operating committee di halaman publik
+                  </label>
+                </div>
+                <div style={{ display: 'grid', gap: 8, marginTop: 6 }}>
+                  <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                    Scoring Support
+                  </div>
+                  <input
+                    placeholder="Scoring Support Name"
+                    value={form.business_scoring_support_name}
+                    onChange={(e) => setForm({ ...form, business_scoring_support_name: e.target.value })}
+                    style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                  />
+                  <input
+                    placeholder="Scoring Support Label"
+                    value={form.business_scoring_support_label}
+                    onChange={(e) => setForm({ ...form, business_scoring_support_label: e.target.value })}
+                    style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                  />
+                  <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 800 }}>
+                    <input
+                      type="checkbox"
+                      checked={form.business_show_scoring_support_publicly}
+                      onChange={(e) => setForm({ ...form, business_show_scoring_support_publicly: e.target.checked })}
+                    />
+                    Tampilkan scoring support di halaman publik
+                  </label>
+                </div>
+                <div style={{ display: 'grid', gap: 8, marginTop: 6 }}>
+                  <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                    Central Control
+                  </div>
+                  <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 800 }}>
+                    <input
+                      type="checkbox"
+                      checked={form.business_central_control_enabled}
+                      onChange={(e) => setForm({ ...form, business_central_control_enabled: e.target.checked })}
+                    />
+                    Central control / kamar hitung aktif
+                  </label>
+                  <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 800 }}>
+                    <input
+                      type="checkbox"
+                      checked={form.business_requires_platform_approval}
+                      onChange={(e) => setForm({ ...form, business_requires_platform_approval: e.target.checked })}
+                    />
+                    Perlu approval platform untuk keputusan tertentu
+                  </label>
                 </div>
               </>
             )}
