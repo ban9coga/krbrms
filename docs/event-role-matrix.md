@@ -90,3 +90,26 @@ Artinya:
 - role tetap sederhana
 - pembagian kerja dibaca per event
 - `business_settings` tetap level event
+
+## Rancangan Tabel `user_event_roles`
+
+Draft migration:
+- `docs/sql/migrations/2026-03-28_user_event_roles.sql`
+
+Tujuan:
+- mengikat role ke event tertentu
+- memungkinkan 1 user punya role berbeda di event berbeda
+- jadi dasar enforcement akses per event di API dan UI
+
+Kolom utama:
+- `user_id`
+- `event_id`
+- `role`
+- `is_active`
+- `assigned_by`
+- `notes`
+
+Contoh:
+- user A = `ADMIN` pada Event Kampar
+- user A = `CHECKER` pada Event KRB lain
+- user B = `MC` pada Event tertentu
