@@ -17,6 +17,12 @@ type PublicTopbarProps = {
   theme?: PublicTopbarTheme
 }
 
+type EventBranding = {
+  eventId: string
+  title: string
+  brand: string
+}
+
 const normalizeRole = (value: string | null) => {
   if (!value) return ''
   const upper = value.toUpperCase()
@@ -53,6 +59,7 @@ export default function PublicTopbar({ theme = 'light' }: PublicTopbarProps) {
   const router = useRouter()
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [roleKey, setRoleKey] = useState<string | null>(null)
+  const [eventBranding, setEventBranding] = useState<EventBranding | null>(null)
   const isDark = theme === 'dark'
 
   const panelHref = useMemo(() => roleHome(roleKey), [roleKey])
@@ -60,6 +67,30 @@ export default function PublicTopbar({ theme = 'light' }: PublicTopbarProps) {
   const isLoggedIn = Boolean(userEmail || roleKey)
 
   useEffect(() => {
+    const match = pathname.match(/^\/event\/([^/]+)/)
+    const eventId = match?.[1] ?? null
+    const loadEventBranding = async () => {
+      if (!eventId) {
+        setEventBranding(null)
+        return
+      }
+      try {
+        const res = await fetch(`/api/events/${eventId}`)
+        const json = await res.json().catch(() => ({}))
+        const data = json?.data ?? null
+        const business = data?.business_settings ?? null
+        setEventBranding({
+          eventId,
+          title: business?.public_event_title?.trim() || data?.name || 'Event',
+          brand: business?.public_brand_name?.trim() || data?.name || 'Event',
+        })
+      } catch {
+        setEventBranding(null)
+      }
+    }
+
+    loadEventBranding()
+
     const syncUser = async () => {
       const { data } = await supabase.auth.getUser()
       const user = data.user
@@ -79,7 +110,7 @@ export default function PublicTopbar({ theme = 'light' }: PublicTopbarProps) {
     return () => {
       sub.subscription.unsubscribe()
     }
-  }, [])
+  }, [pathname])
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -97,12 +128,19 @@ export default function PublicTopbar({ theme = 'light' }: PublicTopbarProps) {
         <div className="flex items-center justify-between gap-4">
           <Link href="/" className="flex min-w-0 items-center gap-3">
             <img src="/krb-logo.png" alt="KRB Logo" className="h-10 w-10 rounded-lg object-contain" />
-            <span
-              className={`truncate text-sm font-black tracking-tight sm:text-base md:text-lg ${
-                isDark ? 'text-slate-100' : 'text-slate-900'
-              }`}
-            >
-              Kancang Run Bike Racing Committee
+            <span className="min-w-0">
+              <span
+                className={`block truncate text-sm font-black tracking-tight sm:text-base md:text-lg ${
+                  isDark ? 'text-slate-100' : 'text-slate-900'
+                }`}
+              >
+                {eventBranding?.brand || 'Kancang Run Bike Racing Committee'}
+              </span>
+              {eventBranding && (
+                <span className={`block truncate text-[11px] font-bold ${isDark ? 'text-slate-300' : 'text-slate-500'}`}>
+                  {eventBranding.title}
+                </span>
+              )}
             </span>
           </Link>
 

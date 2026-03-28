@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../../../../lib/supabaseClient'
+import type { BusinessSettings } from '../../../../../lib/eventService'
 
 type CategoryItem = {
   id: string
@@ -37,6 +38,11 @@ type Batch = {
   rows: SummaryRow[]
 }
 
+type EventMeta = {
+  name: string
+  business_settings?: BusinessSettings | null
+}
+
 type PenaltyRow = {
   rider_id: string
   rule_code: string | null
@@ -47,6 +53,7 @@ type PenaltyRow = {
 
 export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
   const [categories, setCategories] = useState<CategoryItem[]>([])
+  const [eventMeta, setEventMeta] = useState<EventMeta | null>(null)
   const [selectedCategory, setSelectedCategory] = useState<string>('')
   const [batches, setBatches] = useState<Batch[]>([])
   const [loading, setLoading] = useState(false)
@@ -61,6 +68,13 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
     const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : undefined })
     const json = await res.json().catch(() => ({}))
     return { res, json }
+  }
+
+  const loadEventMeta = async () => {
+    try {
+      const { res, json } = await apiFetch(`/api/events/${eventId}`)
+      if (res.ok) setEventMeta((json.data ?? null) as EventMeta | null)
+    } catch {}
   }
 
   const loadCategories = async () => {
@@ -156,6 +170,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
 
   useEffect(() => {
     if (!eventId) return
+    loadEventMeta()
     loadCategories()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
@@ -217,7 +232,8 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `results_${selectedCategory}.csv`
+    const fileBase = `${(publicBrandName || publicEventTitle || 'results').replace(/[^a-z0-9]+/gi, '_')}_${categoryLabel.replace(/[^a-z0-9]+/gi, '_')}`.toLowerCase()
+    a.download = `${fileBase}.csv`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -275,11 +291,18 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `results_${selectedCategory}_batch_${batch.batch_index}.csv`
+      const fileBase = `${(publicBrandName || publicEventTitle || 'results').replace(/[^a-z0-9]+/gi, '_')}_${categoryLabel.replace(/[^a-z0-9]+/gi, '_')}_batch_${batch.batch_index}`.toLowerCase()
+      a.download = `${fileBase}.csv`
       a.click()
       URL.revokeObjectURL(url)
     })
   }
+
+  const business = eventMeta?.business_settings ?? null
+  const publicEventTitle = business?.public_event_title?.trim() || eventMeta?.name || 'Results Summary'
+  const publicBrandName = business?.public_brand_name?.trim() || ''
+  const operatingCommitteeLabel = business?.operating_committee_label?.trim() || business?.operating_committee_name?.trim() || ''
+  const scoringSupportLabel = business?.scoring_support_label?.trim() || business?.scoring_support_name?.trim() || ''
 
   const categoryLabel = useMemo(
     () => categories.find((c) => c.id === selectedCategory)?.label ?? 'Category',
@@ -313,10 +336,16 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
 
   return (
     <div style={{ maxWidth: 1020 }}>
-      <h1 style={{ fontSize: 26, fontWeight: 950, margin: 0 }}>Results Summary</h1>
+      <h1 style={{ fontSize: 26, fontWeight: 950, margin: 0 }}>{publicEventTitle}</h1>
       <div style={{ marginTop: 8, color: '#333', fontWeight: 700 }}>
-        Ringkasan hasil per kategori + export CSV.
+        {publicBrandName || 'Results Summary'} ? Ringkasan hasil per kategori + export CSV / print PDF.
       </div>
+      {(operatingCommitteeLabel || scoringSupportLabel) && (
+        <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {operatingCommitteeLabel && <span style={{ padding: '4px 10px', borderRadius: 999, border: '1px solid #cbd5e1', background: '#fff', fontWeight: 800, fontSize: 12 }}>Operator: {operatingCommitteeLabel}</span>}
+          {scoringSupportLabel && <span style={{ padding: '4px 10px', borderRadius: 999, border: '1px solid #cbd5e1', background: '#fff', fontWeight: 800, fontSize: 12 }}>Scoring: {scoringSupportLabel}</span>}
+        </div>
+      )}
 
       <div style={{ marginTop: 16, display: 'grid', gap: 12 }}>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }} className="no-print">
@@ -412,7 +441,12 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
           </button>
         </div>
 
-        <div style={{ fontWeight: 900 }}>Kategori: {categoryLabel}</div>
+        <div style={{ display: 'grid', gap: 4 }}>
+          <div style={{ fontWeight: 900 }}>Kategori: {categoryLabel}</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>
+            Print / Save as PDF akan memakai identitas event dan metadata operator/scoring ini.
+          </div>
+        </div>
         <div
           style={{
             display: 'grid',
@@ -543,6 +577,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
           @media print {
             .no-print { display: none !important; }
             body { background: #fff !important; }
+            @page { margin: 14mm; }
           }
         `}
       </style>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { getEventById, type EventItem } from '../../../../../lib/eventService'
 import Link from 'next/link'
 import EmptyState from '../../../../../components/EmptyState'
 import LoadingState from '../../../../../components/LoadingState'
@@ -51,6 +52,7 @@ type StageGroup = {
 
 export default function LiveScoreClient({ eventId, categoryId }: { eventId: string; categoryId: string }) {
   const [loading, setLoading] = useState(false)
+  const [event, setEvent] = useState<EventItem | null>(null)
   const [categoryLabel, setCategoryLabel] = useState('')
   const [batches, setBatches] = useState<Batch[]>([])
   const [stages, setStages] = useState<StageGroup[]>([])
@@ -71,6 +73,8 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
     const load = async () => {
       setLoading(true)
       try {
+        const eventData = await getEventById(eventId)
+        setEvent(eventData)
         await loadLiveScore()
       } finally {
         setLoading(false)
@@ -96,6 +100,15 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
     return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId, categoryId])
+
+  const business = event?.business_settings ?? null
+  const publicEventTitle = business?.public_event_title?.trim() || event?.name || 'Live Score'
+  const publicBrandName = business?.public_brand_name?.trim() || ''
+  const publicTagline = business?.public_tagline?.trim() || ''
+  const operatingCommitteeLabel = business?.operating_committee_label?.trim() || business?.operating_committee_name?.trim() || ''
+  const scoringSupportLabel = business?.scoring_support_label?.trim() || business?.scoring_support_name?.trim() || ''
+  const showOperatingCommittee = Boolean(business?.show_operating_committee_publicly && operatingCommitteeLabel)
+  const showScoringSupport = Boolean(business?.show_scoring_support_publicly && scoringSupportLabel)
 
   const riderPhotoCell = (name: string, noPlate: string, photoUrl?: string | null) => {
     if (photoUrl) {
@@ -130,8 +143,18 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
               >
                 Back to Race Categories
               </Link>
-              <h1 className="text-3xl font-black tracking-tight text-white md:text-5xl">Live Score</h1>
+              <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-amber-300">{publicBrandName || 'Live Score'}</p>
+              <h1 className="text-3xl font-black tracking-tight text-white md:text-5xl">{publicEventTitle}</h1>
               <p className="text-sm font-semibold text-slate-200 sm:text-base">{categoryLabel || 'Category'}</p>
+              {(publicTagline || showOperatingCommittee || showScoringSupport) && (
+                <div className="grid gap-2">
+                  {publicTagline && <p className="text-sm font-semibold text-slate-300">{publicTagline}</p>}
+                  <div className="flex flex-wrap gap-2 text-[11px] font-extrabold uppercase tracking-[0.12em] text-slate-300">
+                    {showOperatingCommittee && <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">Operator: {operatingCommitteeLabel}</span>}
+                    {showScoringSupport && <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">Scoring: {scoringSupportLabel}</span>}
+                  </div>
+                </div>
+              )}
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {(['GATE', 'RANK'] as const).map((mode) => (
