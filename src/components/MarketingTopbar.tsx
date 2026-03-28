@@ -102,7 +102,7 @@ export default function MarketingTopbar({ showNav = true, showLoginButton = true
             <img
               src="/platform-logo.png"
               alt="Platform Logo"
-              className="h-10 w-10 rounded-lg border border-slate-200 bg-white object-cover object-top p-0.5"
+              className="h-10 w-10 rounded-lg border border-slate-200 bg-white object-contain p-1"
             />
             <span className="min-w-0">
               <span className="block truncate text-sm font-black tracking-tight text-slate-900 sm:text-base md:text-lg">

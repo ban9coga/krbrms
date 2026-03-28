@@ -130,7 +130,7 @@ export default function PublicTopbar({ theme = 'light' }: PublicTopbarProps) {
             <img
               src="/platform-logo.png"
               alt="Platform Logo"
-              className="h-10 w-10 rounded-lg border border-slate-200 bg-white object-cover object-top p-0.5"
+              className="h-10 w-10 rounded-lg border border-slate-200 bg-white object-contain p-1"
             />
             <span className="min-w-0">
               <span

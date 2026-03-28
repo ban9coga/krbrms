@@ -93,7 +93,7 @@ export default function CheckerTopbar({ title = 'Checker Control' }: CheckerTopb
             <img
               src="/platform-logo.png"
               alt="Platform Logo"
-              className="h-10 w-10 rounded-lg border border-slate-200 bg-white object-cover object-top p-0.5"
+              className="h-10 w-10 rounded-lg border border-slate-200 bg-white object-contain p-1"
             />
             <div className="min-w-0">
               <div className="truncate text-base font-black tracking-tight text-slate-900">{title}</div>
