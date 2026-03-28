@@ -26,4 +26,4 @@ where upper(coalesce(u.raw_user_meta_data->>'role', u.raw_app_meta_data->>'role'
   'JURY_START',
   'JURY_FINISH'
 )
-on conflict (user_id, event_id, role) do nothing;
+on conflict do nothing;
