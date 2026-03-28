@@ -9,9 +9,10 @@ type RiderRow = {
 }
 
 export async function GET(req: Request, { params }: { params: Promise<{ motoId: string }> }) {
-  const auth = await requireJury(req, ['CHECKER', 'FINISHER', 'RACE_DIRECTOR', 'super_admin'])
-  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
   const { motoId } = await params
+  const { data: moto } = await adminClient.from('motos').select('event_id').eq('id', motoId).maybeSingle()
+  const auth = await requireJury(req, ['CHECKER', 'FINISHER', 'RACE_DIRECTOR', 'super_admin'], moto?.event_id ?? null)
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
   const { data: gates, error: gateError } = await adminClient
     .from('moto_gate_positions')

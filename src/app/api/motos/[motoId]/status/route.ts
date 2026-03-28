@@ -51,9 +51,6 @@ const hasPendingApprovals = async (eventId: string, riderIds: string[]) => {
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ motoId: string }> }) {
-  const auth = await requireJury(req, ['RACE_DIRECTOR', 'super_admin', 'admin'])
-  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
-
   const { motoId } = await params
   const body = await req.json().catch(() => ({}))
   const status = body?.status as TargetStatus | undefined
@@ -68,6 +65,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
     .maybeSingle()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   if (!moto) return NextResponse.json({ error: 'Moto not found' }, { status: 404 })
+  const auth = await requireJury(req, ['RACE_DIRECTOR', 'super_admin', 'admin'], moto.event_id as string)
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
   const current = (moto.status as string | null)?.toUpperCase() ?? ''
 
@@ -97,7 +96,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
     if (current !== 'LOCKED') {
       return NextResponse.json({ error: 'Invalid status transition.' }, { status: 400 })
     }
-    if (auth.role !== 'super_admin') {
+    if (auth.role !== 'SUPER_ADMIN') {
       return NextResponse.json({ error: 'Unlock requires super_admin.' }, { status: 403 })
     }
   }

@@ -15,14 +15,14 @@ const isLockedMoto = async (motoId?: string | null) => {
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ riderId: string }> }) {
-  const auth = await requireJury(req, ['CHECKER', 'FINISHER', 'RACE_DIRECTOR', 'super_admin'])
-  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
   const { riderId } = await params
   const body = await req.json()
   const { event_id, stage = 'MOTO', rule_code, note, moto_id } = body ?? {}
   if (!event_id || !rule_code) {
     return NextResponse.json({ error: 'event_id and rule_code required' }, { status: 400 })
   }
+  const auth = await requireJury(req, ['CHECKER', 'FINISHER', 'RACE_DIRECTOR', 'super_admin'], event_id)
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
   if (auth.role === 'RACE_DIRECTOR') {
     return NextResponse.json({ error: 'Read-only for RACE_DIRECTOR' }, { status: 403 })

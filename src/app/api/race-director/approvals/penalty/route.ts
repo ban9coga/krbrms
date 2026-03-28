@@ -3,9 +3,6 @@ import { adminClient } from '../../../../../lib/auth'
 import { requireJury } from '../../../../../services/juryAuth'
 
 export async function POST(req: Request) {
-  const auth = await requireJury(req, ['RACE_DIRECTOR', 'super_admin'])
-  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
-
   const body = await req.json()
   const { penalty_id, decision, reason } = body ?? {}
   if (!penalty_id || !decision) return NextResponse.json({ error: 'penalty_id and decision required' }, { status: 400 })
@@ -17,6 +14,8 @@ export async function POST(req: Request) {
     .maybeSingle()
 
   if (error || !penalty) return NextResponse.json({ error: 'Penalty not found' }, { status: 404 })
+  const auth = await requireJury(req, ['RACE_DIRECTOR', 'super_admin'], penalty.event_id)
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
   const approval_status = decision === 'APPROVE' ? 'APPROVED' : 'REJECTED'
 

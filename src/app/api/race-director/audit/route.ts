@@ -3,12 +3,11 @@ import { adminClient } from '../../../../lib/auth'
 import { requireJury } from '../../../../services/juryAuth'
 
 export async function GET(req: Request) {
-  const auth = await requireJury(req, ['RACE_DIRECTOR', 'super_admin'])
-  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
-
   const { searchParams } = new URL(req.url)
   const eventId = searchParams.get('event_id')
   if (!eventId) return NextResponse.json({ error: 'event_id required' }, { status: 400 })
+  const auth = await requireJury(req, ['RACE_DIRECTOR', 'super_admin'], eventId)
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
   const { data, error } = await adminClient
     .from('audit_log')

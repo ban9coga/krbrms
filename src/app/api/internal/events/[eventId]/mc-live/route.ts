@@ -38,10 +38,9 @@ const parseBatch = (name: string) => {
 }
 
 export async function GET(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
-  const auth = await requireJury(req, ['MC'])
-  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
-
   const { eventId } = await params
+  const auth = await requireJury(req, ['MC'], eventId)
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
   const { data: reviewMotos } = await adminClient
     .from('motos')

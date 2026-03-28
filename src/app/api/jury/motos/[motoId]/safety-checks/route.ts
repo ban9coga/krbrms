@@ -15,11 +15,10 @@ const getMotoEvent = async (motoId: string) => {
 }
 
 export async function GET(req: Request, { params }: { params: Promise<{ motoId: string }> }) {
-  const auth = await requireJury(req, ['CHECKER', 'FINISHER', 'RACE_DIRECTOR', 'super_admin'])
-  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
-
   const { motoId } = await params
   const moto = await getMotoEvent(motoId)
+  const auth = await requireJury(req, ['CHECKER', 'FINISHER', 'RACE_DIRECTOR', 'super_admin'], moto.event_id)
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
   const { data: requirements, error: reqError } = await adminClient
     .from('event_safety_requirements')
@@ -38,9 +37,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ motoId: 
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ motoId: string }> }) {
-  const auth = await requireJury(req, ['CHECKER', 'super_admin'])
-  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
-
   const { motoId } = await params
   const { rider_id, requirement_id, is_checked } = await req.json().catch(() => ({}))
 
@@ -49,6 +45,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
   }
 
   const moto = await getMotoEvent(motoId)
+  const auth = await requireJury(req, ['CHECKER', 'super_admin'], moto.event_id)
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
   try {
     assertMotoEditable(moto.status)
     assertMotoNotUnderProtest(moto.status)
@@ -67,7 +65,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
           requirement_id,
           is_checked,
           updated_at: new Date().toISOString(),
-          updated_by: auth.user.id,
+          updated_by: auth.user?.id ?? null,
         },
       ],
       { onConflict: 'event_id,moto_id,rider_id,requirement_id' }

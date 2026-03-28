@@ -14,10 +14,10 @@ const isLockedMoto = async (motoId: string) => {
 }
 
 export async function GET(req: Request, { params }: { params: Promise<{ motoId: string }> }) {
-  const auth = await requireJury(req, ['FINISHER', 'CHECKER', 'RACE_DIRECTOR', 'super_admin'])
-  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
-
   const { motoId } = await params
+  const { data: moto } = await adminClient.from('motos').select('event_id').eq('id', motoId).maybeSingle()
+  const auth = await requireJury(req, ['FINISHER', 'CHECKER', 'RACE_DIRECTOR', 'super_admin'], moto?.event_id ?? null)
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
   const { data, error } = await adminClient
     .from('results')
     .select('rider_id, finish_order, result_status')
@@ -29,10 +29,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ motoId: 
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ motoId: string }> }) {
-  const auth = await requireJury(req, ['FINISHER', 'CHECKER', 'RACE_DIRECTOR', 'super_admin'])
-  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
-
   const { motoId } = await params
+  const { data: scopedMoto } = await adminClient.from('motos').select('event_id').eq('id', motoId).maybeSingle()
+  const auth = await requireJury(req, ['FINISHER', 'CHECKER', 'RACE_DIRECTOR', 'super_admin'], scopedMoto?.event_id ?? null)
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
   if (auth.role === 'RACE_DIRECTOR') {
     return NextResponse.json({ error: 'Read-only for RACE_DIRECTOR' }, { status: 403 })
   }
@@ -129,11 +129,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
 
 
 export async function DELETE(req: Request, { params }: { params: Promise<{ motoId: string }> }) {
-  const auth = await requireJury(req, ['FINISHER', 'RACE_DIRECTOR', 'super_admin'])
-  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
-
   const { motoId } = await params
-  if (await isLockedMoto(motoId) && auth.role !== 'RACE_DIRECTOR' && auth.role !== 'super_admin') {
+  const { data: scopedMoto } = await adminClient.from('motos').select('event_id').eq('id', motoId).maybeSingle()
+  const auth = await requireJury(req, ['FINISHER', 'RACE_DIRECTOR', 'super_admin'], scopedMoto?.event_id ?? null)
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+  if (await isLockedMoto(motoId) && auth.role !== 'RACE_DIRECTOR' && auth.role !== 'SUPER_ADMIN') {
     try {
       assertMotoEditable('locked')
     } catch (err: unknown) {

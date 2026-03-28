@@ -4,10 +4,9 @@ import { compareMotoSequence } from '../../../../../../lib/motoSequence'
 import { requireJury } from '../../../../../../services/juryAuth'
 
 export async function GET(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
-  const auth = await requireJury(req, ['RACE_DIRECTOR', 'super_admin'])
-  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
-
   const { eventId } = await params
+  const auth = await requireJury(req, ['RACE_DIRECTOR', 'super_admin'], eventId)
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
   const { data: requirements, error: reqError } = await adminClient
     .from('event_safety_requirements')

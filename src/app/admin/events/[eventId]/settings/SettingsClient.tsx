@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { formatAppRoleLabel } from '../../../../../lib/roles'
 import { supabase } from '../../../../../lib/supabaseClient'
 import type { BusinessSettings } from '../../../../../lib/eventService'
@@ -118,6 +118,7 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
   const [staffSaving, setStaffSaving] = useState(false)
   const [staffAssignments, setStaffAssignments] = useState<EventStaffAssignmentRow[]>([])
   const [availableUsers, setAvailableUsers] = useState<EventStaffUserRow[]>([])
+  const [staffSearch, setStaffSearch] = useState('')
 
   const [form, setForm] = useState({
     event_logo_url: '',
@@ -687,6 +688,15 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
   } | Scoring Support ${form.business_scoring_support_name || 'Belum diisi'}`
   const appearanceSummary = `Theme ${form.display_primary_color} | Race ${form.race_moto_per_batch} motos`
   const advancedSummary = `${advancedItems.filter((i) => i.config?.enabled).length} enabled`
+  const filteredAvailableUsers = useMemo(() => {
+    const keyword = staffSearch.trim().toLowerCase()
+    if (!keyword) return availableUsers
+    return availableUsers.filter((user) => {
+      const email = String(user.email ?? '').toLowerCase()
+      const role = formatAppRoleLabel(user.global_role).toLowerCase()
+      return email.includes(keyword) || role.includes(keyword)
+    })
+  }, [availableUsers, staffSearch])
 
   return (
     <div style={{ maxWidth: 980 }}>
@@ -1086,6 +1096,17 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
                   <div style={{ fontSize: 12, color: '#333', fontWeight: 700 }}>
                     Assign user ke event ini dengan role per-event. Ini akan menjadi dasar transisi dari role global ke role scoped per event.
                   </div>
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    <input
+                      value={staffSearch}
+                      onChange={(e) => setStaffSearch(e.target.value)}
+                      placeholder="Cari user by email atau global role"
+                      style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                    />
+                    <div style={{ fontSize: 12, color: '#333', fontWeight: 700 }}>
+                      {filteredAvailableUsers.length} user cocok dari {availableUsers.length} total user assignable.
+                    </div>
+                  </div>
                   <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                     <button
                       type="button"
@@ -1147,9 +1168,9 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
                             style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
                           >
                             <option value="">Pilih User</option>
-                            {availableUsers.map((user) => (
+                            {filteredAvailableUsers.map((user) => (
                               <option key={user.id} value={user.id}>
-                                {user.email ?? user.id} [{user.global_role || 'NO ROLE'}]
+                                {user.email ?? user.id} [{formatAppRoleLabel(user.global_role) || 'No Role'}]
                               </option>
                             ))}
                           </select>

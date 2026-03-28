@@ -24,9 +24,9 @@ const isLockedMoto = async (motoId?: string | null) => {
 }
 
 export async function GET(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
-  const auth = await requireJury(req, ['CHECKER', 'FINISHER', 'RACE_DIRECTOR', 'super_admin'])
-  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
   const { eventId } = await params
+  const auth = await requireJury(req, ['CHECKER', 'FINISHER', 'RACE_DIRECTOR', 'super_admin'], eventId)
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
   const { data: approvedRows, error: approvedError } = await adminClient
     .from('rider_participation_status')
@@ -78,9 +78,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
-  const auth = await requireJury(req, ['CHECKER', 'RACE_DIRECTOR', 'super_admin'])
-  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
   const { eventId } = await params
+  const auth = await requireJury(req, ['CHECKER', 'RACE_DIRECTOR', 'super_admin'], eventId)
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
   const body = await req.json()
   const { rider_id, participation_status, registration_order = 0, moto_id } = body ?? {}
   if (!rider_id || !participation_status) {
