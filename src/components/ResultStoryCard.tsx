@@ -325,7 +325,7 @@ export default function ResultStoryCard({
             </div>
           )}
           <div style={{ fontSize: 11, fontWeight: 800, color: '#94a3b8', marginTop: 4 }}>
-            Ready to share to WhatsApp Story / Instagram Story
+            Download PNG to upload to WhatsApp Story / Instagram Story
           </div>
         </div>
       </div>

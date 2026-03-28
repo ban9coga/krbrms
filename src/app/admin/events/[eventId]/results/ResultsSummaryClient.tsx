@@ -71,7 +71,6 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
   const [penaltyMap, setPenaltyMap] = useState<Record<string, PenaltyRow[]>>({})
   const [storyData, setStoryData] = useState<ResultStoryCardData | null>(null)
   const [storyDownloading, setStoryDownloading] = useState(false)
-  const [storySharing, setStorySharing] = useState(false)
 
   const apiFetch = async (url: string) => {
     const { data } = await supabase.auth.getSession()
@@ -320,11 +319,6 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
     })
   }
 
-  const canWebShare =
-    typeof navigator !== 'undefined' &&
-    typeof navigator.share === 'function' &&
-    typeof navigator.canShare === 'function'
-
   const downloadStoryCard = async (data: ResultStoryCardData) => {
     setStoryDownloading(true)
     try {
@@ -343,29 +337,6 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
     }
   }
 
-  const shareStoryCard = async (data: ResultStoryCardData) => {
-    if (!canWebShare) return
-    setStorySharing(true)
-    try {
-      const pngBlob = await generateResultStoryCardPngBlob(data)
-      const file = new File([pngBlob], `${getResultStoryCardFilename(data)}.png`, {
-        type: 'image/png',
-      })
-      if (!navigator.canShare({ files: [file] })) {
-        throw new Error('Browser ini belum mendukung share file gambar.')
-      }
-      await navigator.share({
-        files: [file],
-        title: `${data.riderName} - ${data.eventTitle}`,
-        text: `${data.riderName} ${data.rankNumber ? `finish di rank #${data.rankNumber}` : 'official result'} pada ${data.eventTitle}`,
-      })
-    } catch (err: unknown) {
-      if (err instanceof Error && err.name === 'AbortError') return
-      alert(err instanceof Error ? err.message : 'Gagal share story card.')
-    } finally {
-      setStorySharing(false)
-    }
-  }
 
   const business = eventMeta?.business_settings ?? null
   const publicEventTitle = business?.public_event_title?.trim() || eventMeta?.name || 'Results Summary'
@@ -759,24 +730,23 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
                   >
                     {storyDownloading ? 'Generating PNG...' : 'Download PNG'}
                   </button>
-                  {canWebShare && (
-                    <button
-                      type="button"
-                      onClick={() => shareStoryCard(storyData)}
-                      disabled={storySharing}
-                      style={{
-                        padding: '12px 16px',
-                        borderRadius: 12,
-                        border: '2px solid #111',
-                        background: '#fff',
-                        color: '#111',
-                        fontWeight: 900,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {storySharing ? 'Opening Share...' : 'Share'}
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    disabled
+                    title="Direct share sedang disiapkan"
+                    style={{
+                      padding: '12px 16px',
+                      borderRadius: 12,
+                      border: '2px solid #cbd5e1',
+                      background: '#f8fafc',
+                      color: '#64748b',
+                      fontWeight: 900,
+                      cursor: 'not-allowed',
+                      opacity: 0.75,
+                    }}
+                  >
+                    Share Soon
+                  </button>
                 </div>
               </div>
             </div>

@@ -66,12 +66,6 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
   const [refreshing, setRefreshing] = useState(false)
   const [storyData, setStoryData] = useState<ResultStoryCardData | null>(null)
   const [storyDownloading, setStoryDownloading] = useState(false)
-  const [storySharing, setStorySharing] = useState(false)
-
-  const canWebShare =
-    typeof navigator !== 'undefined' &&
-    typeof navigator.share === 'function' &&
-    typeof navigator.canShare === 'function'
 
   const loadLiveScore = async () => {
     const res = await fetch(
@@ -181,29 +175,6 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
     }
   }
 
-  const shareStoryCard = async (data: ResultStoryCardData) => {
-    if (!canWebShare) return
-    setStorySharing(true)
-    try {
-      const pngBlob = await generateResultStoryCardPngBlob(data)
-      const file = new File([pngBlob], `${getResultStoryCardFilename(data)}.png`, {
-        type: 'image/png',
-      })
-      if (!navigator.canShare({ files: [file] })) {
-        throw new Error('Browser ini belum mendukung share file gambar.')
-      }
-      await navigator.share({
-        files: [file],
-        title: `${data.riderName} - ${data.eventTitle}`,
-        text: `${data.riderName} finish di ${data.rankNumber ? `rank #${data.rankNumber}` : 'hasil resmi'} pada ${data.eventTitle}`,
-      })
-    } catch (err: unknown) {
-      if (err instanceof Error && err.name === 'AbortError') return
-      alert(err instanceof Error ? err.message : 'Gagal share story card.')
-    } finally {
-      setStorySharing(false)
-    }
-  }
 
   const tableRowsByBatch = useMemo(
     () =>
@@ -301,7 +272,7 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                 </span>
               </div>
               <div className="table-mobile-hint">
-                Geser kiri/kanan untuk lihat semua kolom. Tap Share untuk bikin story card rider.
+                Geser kiri/kanan untuk lihat semua kolom. Tap Story Card untuk bikin PNG rider.
               </div>
               <div className="public-table-wrap">
                 <table className="public-table min-w-[1040px] text-[11px] sm:text-xs md:text-sm">
@@ -364,7 +335,7 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                               onClick={() => setStoryData(createStoryData(row))}
                               className="rounded-full border border-amber-300 bg-amber-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-amber-700 transition-colors hover:bg-amber-100 sm:text-xs"
                             >
-                              Share Story
+                              Story Card
                             </button>
                           </td>
                         </tr>
@@ -451,7 +422,7 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
               <div style={{ display: 'grid', gap: 4 }}>
                 <div style={{ fontSize: 22, fontWeight: 950 }}>Share Result Story</div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: '#475569' }}>
-                  Download PNG atau kirim langsung ke share sheet mobile untuk WhatsApp / Instagram.
+                  Download PNG untuk upload manual ke WhatsApp Story atau Instagram Story.
                 </div>
               </div>
               <button
@@ -518,24 +489,23 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                   >
                     {storyDownloading ? 'Generating PNG...' : 'Download PNG'}
                   </button>
-                  {canWebShare && (
-                    <button
-                      type="button"
-                      onClick={() => shareStoryCard(storyData)}
-                      disabled={storySharing}
-                      style={{
-                        padding: '12px 16px',
-                        borderRadius: 12,
-                        border: '2px solid #111',
-                        background: '#fff',
-                        color: '#111',
-                        fontWeight: 900,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {storySharing ? 'Opening Share...' : 'Share'}
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    disabled
+                    title="Direct share sedang disiapkan"
+                    style={{
+                      padding: '12px 16px',
+                      borderRadius: 12,
+                      border: '2px solid #cbd5e1',
+                      background: '#f8fafc',
+                      color: '#64748b',
+                      fontWeight: 900,
+                      cursor: 'not-allowed',
+                      opacity: 0.75,
+                    }}
+                  >
+                    Share Soon
+                  </button>
                 </div>
               </div>
             </div>
