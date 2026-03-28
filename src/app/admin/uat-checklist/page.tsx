@@ -19,7 +19,7 @@ const sections: ChecklistSection[] = [
     title: '1. Pre-Flight',
     items: [
       { id: '1.1', label: 'Aplikasi bisa diakses tanpa error (/, /login, /admin)' },
-      { id: '1.2', label: 'Semua role test tersedia (super_admin, admin, race_control, CHECKER, FINISHER, RACE_DIRECTOR, MC)' },
+      { id: '1.2', label: 'Semua role test tersedia (Central Admin, Operator Admin, Race Control, Checker, Finisher, Race Director, MC)' },
       { id: '1.3', label: 'Storage foto/dokumen bisa upload' },
       { id: '1.4', label: 'Build terakhir sukses (local/vercel)' },
     ],
@@ -41,7 +41,7 @@ const sections: ChecklistSection[] = [
   {
     title: '3. Admin Setup Event',
     items: [
-      { id: '3.1', label: 'Admin login berhasil' },
+      { id: '3.1', label: 'Operator Admin login berhasil' },
       { id: '3.2', label: 'Buat event baru berhasil' },
       { id: '3.3', label: 'Buat kategori berhasil' },
       { id: '3.4', label: 'Buat/cek moto berhasil' },
@@ -66,7 +66,7 @@ const sections: ChecklistSection[] = [
   {
     title: '5. Checker / Jury Start',
     items: [
-      { id: '5.1', label: 'Login role CHECKER berhasil' },
+      { id: '5.1', label: 'Login role Checker berhasil' },
       { id: '5.2', label: 'Topbar menampilkan user/role yang benar' },
       { id: '5.3', label: 'Gate selector menampilkan event LIVE' },
       { id: '5.4', label: 'Auto-redirect jalan saat syarat terpenuhi' },
@@ -78,7 +78,7 @@ const sections: ChecklistSection[] = [
   {
     title: '6. Finisher / Jury Finish',
     items: [
-      { id: '6.1', label: 'Login role FINISHER berhasil' },
+      { id: '6.1', label: 'Login role Finisher berhasil' },
       { id: '6.2', label: 'Event dan moto terload benar' },
       { id: '6.3', label: 'Input urutan finish bisa disimpan' },
       { id: '6.4', label: 'Ganti event tidak membawa data stale' },
@@ -88,7 +88,7 @@ const sections: ChecklistSection[] = [
   {
     title: '7. Race Director',
     items: [
-      { id: '7.1', label: 'Login role RACE_DIRECTOR berhasil' },
+      { id: '7.1', label: 'Login role Race Director berhasil' },
       { id: '7.2', label: 'Daftar approval tampil' },
       { id: '7.3', label: 'Approve hasil moto berhasil' },
       { id: '7.4', label: 'Reject/override penalty berhasil' },
@@ -98,7 +98,7 @@ const sections: ChecklistSection[] = [
   {
     title: '8. Race Control',
     items: [
-      { id: '8.1', label: 'Login role race_control berhasil' },
+      { id: '8.1', label: 'Login role Race Control berhasil' },
       { id: '8.2', label: 'Queue/flow race tampil sesuai event LIVE' },
       { id: '8.3', label: 'Update dari checker/finisher terbaca di race control' },
     ],
@@ -115,7 +115,7 @@ const sections: ChecklistSection[] = [
   {
     title: '10. Security & Access',
     items: [
-      { id: '10.1', label: 'Super Admin bisa akses /admin/users' },
+      { id: '10.1', label: 'Central Admin bisa akses /admin/users' },
       { id: '10.2', label: 'Role non-admin tidak bisa masuk /admin' },
       { id: '10.3', label: 'Logout menghapus session dan kembali ke login' },
     ],

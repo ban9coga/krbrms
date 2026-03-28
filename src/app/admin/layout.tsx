@@ -4,6 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
+import { formatAppRoleLabel, isEventAdminRole, normalizeAppRole } from '../../lib/roles'
 import { supabase } from '../../lib/supabaseClient'
 
 type NavItem = {
@@ -12,38 +13,16 @@ type NavItem = {
 }
 
 const BRAND = {
-  name: 'KRB Race Management',
-  short: 'KRB',
-}
-
-const formatRoleLabel = (role: string | null) => {
-  if (!role) return 'Unknown'
-  const normalized = role.toUpperCase()
-  if (normalized === 'SUPER_ADMIN') return 'Super Admin'
-  if (normalized === 'ADMIN') return 'Admin'
-  if (normalized === 'RACE_CONTROL') return 'Race Control'
-  if (normalized === 'RACE_DIRECTOR') return 'Race Director'
-  if (normalized === 'CHECKER' || normalized === 'JURY_START') return 'Jury Start'
-  if (normalized === 'FINISHER' || normalized === 'JURY_FINISH') return 'Jury Finish'
-  if (normalized === 'MC') return 'MC'
-  return role.replace(/_/g, ' ')
-}
-
-const normalizeRole = (role: string | null) => {
-  if (!role) return ''
-  const upper = role.toUpperCase()
-  if (upper === 'JURY_START') return 'CHECKER'
-  if (upper === 'JURY_FINISH') return 'FINISHER'
-  return upper
+  name: 'Pushbike Race Management Platform',
+  short: 'PRM',
 }
 
 const isAdminRole = (role: string | null) => {
-  const normalized = normalizeRole(role)
-  return normalized === 'ADMIN' || normalized === 'SUPER_ADMIN'
+  return isEventAdminRole(role)
 }
 
 const roleHome = (role: string | null) => {
-  const normalized = normalizeRole(role)
+  const normalized = normalizeAppRole(role)
   if (normalized === 'RACE_DIRECTOR') return '/race-director/approval'
   if (normalized === 'FINISHER') return '/jury/finish'
   if (normalized === 'CHECKER') return '/jc'
@@ -406,7 +385,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             }}
             title={userEmail ?? undefined}
           >
-            {formatRoleLabel(userRole)} {userEmail ? `| ${userEmail}` : ''}
+            {formatAppRoleLabel(userRole)} {userEmail ? `| ${userEmail}` : ''}
           </div>
           <button
             type="button"

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { formatAppRoleLabel } from '../../../lib/roles'
 import { supabase } from '../../../lib/supabaseClient'
 
 type RoleType = 'admin' | 'jury' | 'race_control' | 'super_admin' | 'CHECKER' | 'FINISHER' | 'RACE_DIRECTOR' | 'MC'
@@ -116,7 +117,7 @@ export default function AdminUsersPage() {
     <div style={{ maxWidth: 980 }}>
       <h1 style={{ fontSize: 26, fontWeight: 950, margin: 0, color: '#f8fafc' }}>Users / Roles</h1>
       <p style={{ marginTop: 8, color: '#cbd5e1', fontWeight: 700 }}>
-        Buat akun untuk admin, juri, atau race control.
+        Buat akun untuk Central Admin, Operator Admin, atau field operator.
       </p>
 
       <div
@@ -171,12 +172,12 @@ export default function AdminUsersPage() {
               fontWeight: 900,
             }}
           >
-            <option value="admin">Admin</option>
+            <option value="admin">Operator Admin</option>
             <option value="race_control">Race Control</option>
-            <option value="CHECKER">Checker (Jury Start)</option>
-            <option value="FINISHER">Finisher (Jury Finish)</option>
+            <option value="CHECKER">Checker</option>
+            <option value="FINISHER">Finisher</option>
             <option value="RACE_DIRECTOR">Race Director</option>
-            <option value="MC">MC (Tablet)</option>
+            <option value="MC">MC</option>
           </select>
           <button
             type="submit"
@@ -244,6 +245,9 @@ export default function AdminUsersPage() {
               <div style={{ fontWeight: 900 }}>{u.email ?? u.id}</div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                 <div style={{ fontSize: 12, color: '#333', fontWeight: 700 }}>Role</div>
+                <div style={{ fontSize: 12, color: '#555', fontWeight: 800, minWidth: 120 }}>
+                  {formatAppRoleLabel(role)}
+                </div>
                 <select
                   value={role}
                   onChange={(e) => {
@@ -266,8 +270,8 @@ export default function AdminUsersPage() {
                     fontWeight: 900,
                   }}
                 >
-                  <option value="super_admin">Super Admin</option>
-                  <option value="admin">Admin</option>
+                  <option value="super_admin">Central Admin</option>
+                  <option value="admin">Operator Admin</option>
                   <option value="race_control">Race Control</option>
                   <option value="CHECKER">Checker</option>
                   <option value="FINISHER">Finisher</option>

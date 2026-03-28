@@ -3,37 +3,15 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { formatAppRoleLabel, normalizeAppRole } from '../lib/roles'
 import { supabase } from '../lib/supabaseClient'
 
 type CheckerTopbarProps = {
   title?: string
 }
 
-const normalizeRole = (value: string) => {
-  const upper = String(value ?? '').trim().toUpperCase()
-  if (upper === 'JURY_START') return 'CHECKER'
-  if (upper === 'JURY_FINISH') return 'FINISHER'
-  if (upper === 'RACE_CONTROL') return 'RACE_CONTROL'
-  if (upper === 'RACE_DIRECTOR') return 'RACE_DIRECTOR'
-  if (upper === 'SUPER_ADMIN') return 'SUPER_ADMIN'
-  if (upper === 'ADMIN') return 'ADMIN'
-  if (upper === 'CHECKER' || upper === 'FINISHER') return upper
-  return upper
-}
-
-const roleLabel = (value: string) => {
-  const role = normalizeRole(value)
-  if (role === 'CHECKER') return 'Checker'
-  if (role === 'FINISHER') return 'Finisher'
-  if (role === 'RACE_DIRECTOR') return 'Race Director'
-  if (role === 'RACE_CONTROL') return 'Race Control'
-  if (role === 'SUPER_ADMIN') return 'Super Admin'
-  if (role === 'ADMIN') return 'Admin'
-  return role || 'Unknown'
-}
-
 const roleHomeHref = (value: string) => {
-  const role = normalizeRole(value)
+  const role = normalizeAppRole(value)
   if (role === 'FINISHER') return '/jury/finish'
   if (role === 'RACE_DIRECTOR') return '/race-director/approval'
   if (role === 'RACE_CONTROL') return '/race-control'
@@ -98,14 +76,14 @@ export default function CheckerTopbar({ title = 'Checker Control' }: CheckerTopb
             <div className="min-w-0">
               <div className="truncate text-base font-black tracking-tight text-slate-900">{title}</div>
               <div className="truncate text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
-                KRB Race Management
+                Pushbike Race Management Platform
               </div>
             </div>
           </Link>
 
           <div className="flex items-center gap-2 sm:gap-3">
             <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-right">
-              <div className="text-xs font-extrabold uppercase tracking-[0.1em] text-slate-500">{roleLabel(roleKey)}</div>
+              <div className="text-xs font-extrabold uppercase tracking-[0.1em] text-slate-500">{formatAppRoleLabel(roleKey)}</div>
               <div className="max-w-[140px] truncate text-sm font-bold text-slate-900 sm:max-w-[220px]">{name}</div>
             </div>
             <button

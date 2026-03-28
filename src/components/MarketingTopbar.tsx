@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
+import { formatAppRoleLabel, normalizeAppRole } from '../lib/roles'
 import { supabase } from '../lib/supabaseClient'
 
 const navItems = [
@@ -16,28 +17,8 @@ type MarketingTopbarProps = {
   showLoginButton?: boolean
 }
 
-const normalizeRole = (value: string | null) => {
-  if (!value) return ''
-  const upper = value.toUpperCase()
-  if (upper === 'JURY_START') return 'CHECKER'
-  if (upper === 'JURY_FINISH') return 'FINISHER'
-  return upper
-}
-
-const roleLabel = (value: string | null) => {
-  const role = normalizeRole(value)
-  if (role === 'ADMIN') return 'Admin'
-  if (role === 'SUPER_ADMIN') return 'Super Admin'
-  if (role === 'RACE_CONTROL') return 'Race Control'
-  if (role === 'RACE_DIRECTOR') return 'Race Director'
-  if (role === 'CHECKER') return 'Checker'
-  if (role === 'FINISHER') return 'Finisher'
-  if (role === 'MC') return 'MC'
-  return 'User'
-}
-
 const roleHome = (value: string | null) => {
-  const role = normalizeRole(value)
+  const role = normalizeAppRole(value)
   if (role === 'RACE_DIRECTOR') return '/race-director/approval'
   if (role === 'FINISHER') return '/jury/finish'
   if (role === 'CHECKER') return '/jc'
@@ -56,7 +37,7 @@ export default function MarketingTopbar({ showNav = true, showLoginButton = true
   const [roleKey, setRoleKey] = useState<string | null>(null)
 
   const panelHref = useMemo(() => roleHome(roleKey), [roleKey])
-  const panelLabel = useMemo(() => roleLabel(roleKey), [roleKey])
+  const panelLabel = useMemo(() => formatAppRoleLabel(roleKey), [roleKey])
   const isLoggedIn = Boolean(userEmail || roleKey)
 
   useEffect(() => {

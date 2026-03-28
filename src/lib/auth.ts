@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { isEventAdminRole, normalizeAppRole } from './roles'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
@@ -17,6 +18,7 @@ export const requireAdmin = async (authHeader?: string | null) => {
   const role =
     (typeof meta.role === 'string' ? meta.role : null) ||
     (typeof appMeta.role === 'string' ? appMeta.role : null)
-  if (role !== 'admin' && role !== 'super_admin') return { ok: false as const }
-  return { ok: true as const, user: data.user }
+  const normalizedRole = normalizeAppRole(role)
+  if (!isEventAdminRole(normalizedRole)) return { ok: false as const }
+  return { ok: true as const, user: data.user, role: normalizedRole }
 }
