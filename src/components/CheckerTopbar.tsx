@@ -90,7 +90,11 @@ export default function CheckerTopbar({ title = 'Checker Control' }: CheckerTopb
       <div className="w-full px-4 py-3 md:px-6">
         <div className="flex items-center justify-between gap-4">
           <Link href={roleHomeHref(roleKey)} className="flex min-w-0 items-center gap-3">
-            <img src="/platform-logo.webp" alt="Platform Logo" className="h-10 w-10 rounded-lg object-contain" />
+            <img
+              src="/platform-logo.webp"
+              alt="Platform Logo"
+              className="h-10 w-10 rounded-lg border border-slate-200 bg-white object-cover object-top p-0.5"
+            />
             <div className="min-w-0">
               <div className="truncate text-base font-black tracking-tight text-slate-900">{title}</div>
               <div className="truncate text-xs font-bold uppercase tracking-[0.12em] text-slate-500">

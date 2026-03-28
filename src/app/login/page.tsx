@@ -71,7 +71,11 @@ export default function LoginPage() {
 
           <div className="mb-5 flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <img src="/platform-logo.webp" alt="Platform Logo" className="h-10 w-10 rounded-lg object-contain" />
+              <img
+                src="/platform-logo.webp"
+                alt="Platform Logo"
+                className="h-10 w-10 rounded-lg border border-slate-200 bg-white object-cover object-top p-0.5"
+              />
               <div>
                 <p className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">PRM Platform</p>
                 <p className="text-lg font-black tracking-tight text-slate-900">Secure Login</p>
