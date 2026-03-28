@@ -104,9 +104,10 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
       { stageCounts: Record<string, number>; motoCounts: { quarter: number; semi: number; final: number } }
     >
   >({})
-  const [sections, setSections] = useState<{ basic: boolean; business: boolean; advanced: boolean }>({
+  const [sections, setSections] = useState<{ basic: boolean; business: boolean; appearance: boolean; advanced: boolean }>({
     basic: true,
     business: false,
+    appearance: false,
     advanced: false,
   })
   const [advancedOpen, setAdvancedOpen] = useState<Record<string, boolean>>({})
@@ -685,6 +686,7 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
   const businessSummary = `Brand ${form.business_public_brand_name || 'Belum diisi'} | Operating Committee ${
     form.business_operating_committee_name || 'Belum diisi'
   } | Scoring Support ${form.business_scoring_support_name || 'Belum diisi'}`
+  const appearanceSummary = 'Logo event + race format'
   const advancedSummary = `${advancedItems.filter((i) => i.config?.enabled).length} enabled`
   const filteredAvailableUsers = useMemo(() => {
     const keyword = staffSearch.trim().toLowerCase()
@@ -713,6 +715,7 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
         {[
           { key: 'basic', label: 'Basic' },
           { key: 'business', label: 'Business & Roles' },
+          { key: 'appearance', label: 'Display & Race Format' },
           { key: 'advanced', label: 'Advanced Multi-Stage' },
         ].map((section) => {
           const isOpen = sections[section.key as keyof typeof sections]
@@ -721,6 +724,8 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
               ? basicSummary
               : section.key === 'business'
               ? businessSummary
+              : section.key === 'appearance'
+              ? appearanceSummary
               : advancedSummary
           return (
             <button
@@ -1224,256 +1229,14 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
               </>
             )}
 
-            {false && (
+            {sections.appearance && (
               <>
                 <div style={{ marginTop: 6, fontWeight: 950, fontSize: 18 }}>Display & Race Format</div>
-                <div style={{ marginTop: 10, fontWeight: 900 }}>Display Theme</div>
+                <div style={{ marginTop: 10, fontWeight: 900 }}>Event Logo</div>
                 <div style={{ color: '#475569', fontWeight: 700, fontSize: 13 }}>
-                  Atur warna utama event untuk area publik dan display. Jika belum yakin, biarkan default saja.
-                </div>
-                <div
-                  style={{
-                    marginTop: 10,
-                    padding: 12,
-                    borderRadius: 14,
-                    border: '2px solid #111',
-                    background: '#f8fafc',
-                    display: 'grid',
-                    gap: 10,
-                  }}
-                >
-                  <div style={{ fontWeight: 900, fontSize: 13 }}>Theme Preview</div>
-                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                    {[
-                      { label: 'Primary Accent', color: form.display_primary_color },
-                      { label: 'Dark Surface', color: form.display_secondary_color },
-                      { label: 'Soft Background', color: form.display_header_bg },
-                      { label: 'Light Card', color: form.display_card_bg },
-                    ].map((item) => (
-                      <div key={item.label} style={{ display: 'grid', gap: 6 }}>
-                        <div
-                          style={{
-                            width: 72,
-                            height: 44,
-                            borderRadius: 12,
-                            border: '2px solid #111',
-                            background: item.color || '#ffffff',
-                          }}
-                        />
-                        <div style={{ fontSize: 11, fontWeight: 800, color: '#475569' }}>{item.label}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div
-                  style={{
-                    marginTop: 10,
-                    padding: 14,
-                    borderRadius: 14,
-                    border: '2px solid #111',
-                    background: '#fff',
-                    display: 'grid',
-                    gap: 12,
-                  }}
-                >
-                  <div style={{ fontWeight: 900, fontSize: 13 }}>Mini Mockup Preview</div>
-                  <div
-                    style={{
-                      borderRadius: 18,
-                      overflow: 'hidden',
-                      border: '2px solid #111',
-                      background: form.display_header_bg || '#f8fafc',
-                    }}
-                  >
-                    <div
-                      style={{
-                        padding: 14,
-                        background: form.display_secondary_color || '#111111',
-                        color: '#ffffff',
-                        display: 'grid',
-                        gap: 8,
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div
-                          style={{
-                            width: 38,
-                            height: 38,
-                            borderRadius: 10,
-                            border: '1px solid rgba(255,255,255,0.18)',
-                            background: 'rgba(255,255,255,0.08)',
-                            display: 'grid',
-                            placeItems: 'center',
-                            overflow: 'hidden',
-                          }}
-                        >
-                          {form.display_logo_url ? (
-                            <img
-                              src={form.display_logo_url}
-                              alt="Theme logo preview"
-                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                            />
-                          ) : (
-                            <span style={{ fontSize: 10, fontWeight: 900 }}>LOGO</span>
-                          )}
-                        </div>
-                        <div style={{ display: 'grid', gap: 2 }}>
-                          <div
-                            style={{
-                              fontSize: 12,
-                              fontWeight: 900,
-                              letterSpacing: '0.08em',
-                              textTransform: 'uppercase',
-                              color: form.display_primary_color || '#fbbf24',
-                            }}
-                          >
-                            {form.business_public_brand_name || 'Event Brand'}
-                          </div>
-                          <div style={{ fontSize: 18, fontWeight: 950 }}>
-                            {form.business_public_event_title || 'Event Display Preview'}
-                          </div>
-                        </div>
-                      </div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: '#cbd5e1' }}>
-                        {form.display_slogan || form.business_public_tagline || 'Hero / display area akan mengikuti warna tema ini.'}
-                      </div>
-                    </div>
-                    <div style={{ padding: 14, display: 'grid', gap: 10 }}>
-                      <div
-                        style={{
-                          borderRadius: 14,
-                          padding: 12,
-                          border: '1px solid #cbd5e1',
-                          background: form.display_card_bg || '#ffffff',
-                          color: '#111827',
-                          display: 'grid',
-                          gap: 6,
-                        }}
-                      >
-                        <div style={{ fontSize: 11, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#475569' }}>
-                          Sample Card
-                        </div>
-                        <div style={{ fontSize: 16, fontWeight: 900 }}>Live Result / Event Info</div>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>
-                          Card terang akan memakai warna dasar ini.
-                        </div>
-                        <div
-                          style={{
-                            marginTop: 4,
-                            width: 'fit-content',
-                            padding: '6px 10px',
-                            borderRadius: 999,
-                            background: form.display_primary_color || '#fbbf24',
-                            color: '#111827',
-                            fontWeight: 900,
-                            fontSize: 12,
-                          }}
-                        >
-                          Accent Button
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <div style={{ display: 'grid', gap: 6 }}>
-                    <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                      Primary Accent
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '72px 1fr', gap: 10 }}>
-                      <input
-                        type="color"
-                        value={form.display_primary_color}
-                        onChange={(e) => setForm({ ...form, display_primary_color: e.target.value })}
-                        aria-label="Primary Accent"
-                        style={{ width: '100%', height: 48, borderRadius: 12, border: '2px solid #111', padding: 4, background: '#fff', cursor: 'pointer' }}
-                      />
-                      <input
-                        value={form.display_primary_color}
-                        onChange={(e) => setForm({ ...form, display_primary_color: e.target.value })}
-                        placeholder="#fbbf24"
-                        style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
-                      />
-                    </div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>
-                      Dipakai untuk highlight, tombol, dan badge utama.
-                    </div>
-                  </div>
-                  <div style={{ display: 'grid', gap: 6 }}>
-                    <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                      Dark Surface
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '72px 1fr', gap: 10 }}>
-                      <input
-                        type="color"
-                        value={form.display_secondary_color}
-                        onChange={(e) => setForm({ ...form, display_secondary_color: e.target.value })}
-                        aria-label="Dark Surface"
-                        style={{ width: '100%', height: 48, borderRadius: 12, border: '2px solid #111', padding: 4, background: '#fff', cursor: 'pointer' }}
-                      />
-                      <input
-                        value={form.display_secondary_color}
-                        onChange={(e) => setForm({ ...form, display_secondary_color: e.target.value })}
-                        placeholder="#111111"
-                        style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
-                      />
-                    </div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>
-                      Cocok untuk header gelap, panel, dan area display.
-                    </div>
-                  </div>
-                  <div style={{ display: 'grid', gap: 6 }}>
-                    <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                      Soft Background
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '72px 1fr', gap: 10 }}>
-                      <input
-                        type="color"
-                        value={form.display_header_bg}
-                        onChange={(e) => setForm({ ...form, display_header_bg: e.target.value })}
-                        aria-label="Soft Background"
-                        style={{ width: '100%', height: 48, borderRadius: 12, border: '2px solid #111', padding: 4, background: '#fff', cursor: 'pointer' }}
-                      />
-                      <input
-                        value={form.display_header_bg}
-                        onChange={(e) => setForm({ ...form, display_header_bg: e.target.value })}
-                        placeholder="#f8fafc"
-                        style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
-                      />
-                    </div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>
-                      Warna background lembut untuk section terang.
-                    </div>
-                  </div>
-                  <div style={{ display: 'grid', gap: 6 }}>
-                    <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                      Light Card
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '72px 1fr', gap: 10 }}>
-                      <input
-                        type="color"
-                        value={form.display_card_bg}
-                        onChange={(e) => setForm({ ...form, display_card_bg: e.target.value })}
-                        aria-label="Light Card"
-                        style={{ width: '100%', height: 48, borderRadius: 12, border: '2px solid #111', padding: 4, background: '#fff', cursor: 'pointer' }}
-                      />
-                      <input
-                        value={form.display_card_bg}
-                        onChange={(e) => setForm({ ...form, display_card_bg: e.target.value })}
-                        placeholder="#ffffff"
-                        style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
-                      />
-                    </div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>
-                      Warna dasar untuk card putih atau panel info.
-                    </div>
-                  </div>
+                  Pakai logo event untuk branding halaman publik, display, dan hasil.
                 </div>
                 <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
-                  <div style={{ fontWeight: 900 }}>Event Logo</div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>
-                    Logo ini dipakai untuk branding event di halaman publik, display, dan hasil.
-                  </div>
                   <input
                     value={form.display_logo_url}
                     onChange={(e) => setForm({ ...form, display_logo_url: e.target.value })}
@@ -1525,6 +1288,9 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
                 />
 
                 <div style={{ marginTop: 14, fontWeight: 900 }}>Race Format</div>
+                <div style={{ color: '#475569', fontWeight: 700, fontSize: 13 }}>
+                  Atur jumlah moto, gate, dan auto-advance untuk format balap event ini.
+                </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   <input
                     type="number"
