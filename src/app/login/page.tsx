@@ -74,7 +74,7 @@ export default function LoginPage() {
               <img
                 src="/platform-logo.png"
                 alt="Platform Logo"
-                className="h-10 w-10 rounded-lg border border-slate-200 bg-white object-contain p-1"
+                className="h-10 w-10 object-contain"
               />
               <div>
                 <p className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">PRM Platform</p>

@@ -217,11 +217,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           width={40}
           height={40}
           style={{
-            borderRadius: 12,
-            border: '1px solid rgba(148,163,184,0.36)',
-            background: '#fff',
             objectFit: 'contain',
-            padding: 4,
           }}
         />
         {!collapsed && (
