@@ -212,8 +212,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <Image
-          src="/krb-logo.png"
-          alt="KRB"
+          src="/platform-logo.webp"
+          alt="Platform"
           width={40}
           height={40}
           style={{
