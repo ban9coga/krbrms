@@ -104,10 +104,9 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
       { stageCounts: Record<string, number>; motoCounts: { quarter: number; semi: number; final: number } }
     >
   >({})
-  const [sections, setSections] = useState<{ basic: boolean; business: boolean; appearance: boolean; advanced: boolean }>({
+  const [sections, setSections] = useState<{ basic: boolean; business: boolean; advanced: boolean }>({
     basic: true,
     business: false,
-    appearance: false,
     advanced: false,
   })
   const [advancedOpen, setAdvancedOpen] = useState<Record<string, boolean>>({})
@@ -686,7 +685,6 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
   const businessSummary = `Brand ${form.business_public_brand_name || 'Belum diisi'} | Operating Committee ${
     form.business_operating_committee_name || 'Belum diisi'
   } | Scoring Support ${form.business_scoring_support_name || 'Belum diisi'}`
-  const appearanceSummary = `Theme ${form.display_primary_color} | Race ${form.race_moto_per_batch} motos`
   const advancedSummary = `${advancedItems.filter((i) => i.config?.enabled).length} enabled`
   const filteredAvailableUsers = useMemo(() => {
     const keyword = staffSearch.trim().toLowerCase()
@@ -715,7 +713,6 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
         {[
           { key: 'basic', label: 'Basic' },
           { key: 'business', label: 'Business & Roles' },
-          { key: 'appearance', label: 'Display & Race Format' },
           { key: 'advanced', label: 'Advanced Multi-Stage' },
         ].map((section) => {
           const isOpen = sections[section.key as keyof typeof sections]
@@ -724,8 +721,6 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
               ? basicSummary
               : section.key === 'business'
               ? businessSummary
-              : section.key === 'appearance'
-              ? appearanceSummary
               : advancedSummary
           return (
             <button
@@ -1229,7 +1224,7 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
               </>
             )}
 
-            {sections.appearance && (
+            {false && (
               <>
                 <div style={{ marginTop: 6, fontWeight: 950, fontSize: 18 }}>Display & Race Format</div>
                 <div style={{ marginTop: 10, fontWeight: 900 }}>Display Theme</div>
