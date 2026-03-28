@@ -97,7 +97,7 @@ export default async function LandingPage() {
     }))
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f6fbf7', color: '#111' }}>
+    <div style={{ minHeight: '100vh', background: '#f6fbf7', color: '#111', paddingBottom: '84px' }}>
       <MarketingTopbar />
 
       <main>
@@ -160,62 +160,28 @@ export default async function LandingPage() {
         <OrganizerCTA />
       </main>
 
-      <footer className="border-t border-slate-800 bg-slate-950 text-slate-200">
-        <div className="mx-auto w-full max-w-[1500px] px-4 py-10 sm:px-6 md:px-8">
-          <div className="flex flex-col gap-8 md:flex-row md:items-start md:justify-between">
-            <div>
-              <div className="text-lg font-extrabold tracking-tight text-white">Pushbike Race Management Platform</div>
-              <p className="mt-2 max-w-xl text-sm text-slate-400">
-                Platform publik untuk registrasi, live results, race control, dan operasional event pushbike.
-              </p>
-              <p className="mt-3 text-xs font-semibold text-slate-500">
-                Copyright (c) {new Date().getFullYear()} Pushbike Race Management Platform
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-4 text-sm font-semibold">
-              <Link href="/dashboard" className="text-slate-300 transition-colors hover:text-white">
-                Events
-              </Link>
-              <Link href="/dashboard#live-results" className="text-slate-300 transition-colors hover:text-white">
-                Live Results
-              </Link>
-              <Link href="/login" className="text-slate-300 transition-colors hover:text-white">
-                Login
-              </Link>
-              <a href="mailto:race@krbrms.com" className="text-slate-300 transition-colors hover:text-white">
-                Contact
-              </a>
-            </div>
-          </div>
-
-          <div className="mt-8 flex items-center gap-3">
-            <a
-              href="https://instagram.com/yogafernands"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Instagram"
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-700 bg-slate-900 text-slate-300 transition-colors hover:border-slate-500 hover:text-white"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
-                <rect x="3.5" y="3.5" width="17" height="17" rx="5" />
-                <circle cx="12" cy="12" r="4" />
-                <circle cx="17.3" cy="6.7" r="0.8" fill="currentColor" stroke="none" />
-              </svg>
-            </a>
-            <a
-              href="https://instagram.com/yogafernands"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm font-semibold text-slate-300 transition-colors hover:text-white"
-            >
-              @yogafernands
-            </a>
-          </div>
-
-          <p className="mt-6 text-xs text-slate-500">
-            Website by <span className="font-semibold text-slate-300">Yoga Fernandes</span>
+      <footer className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-800/80 bg-slate-950/95 text-slate-200 shadow-[0_-12px_32px_rgba(2,6,23,0.24)] backdrop-blur">
+        <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-2 px-4 py-3 text-[11px] font-medium sm:px-6 md:flex-row md:items-center md:justify-between md:px-8 md:text-xs">
+          <p className="text-slate-400">
+            Copyright (c) {new Date().getFullYear()} Pushbike Race Management Platform
           </p>
+
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-slate-300">
+            <a
+              href="https://instagram.com/yogafernands"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="transition-colors hover:text-white"
+            >
+              Social Media: @yogafernands
+            </a>
+            <a href="mailto:race@krbrms.com" className="transition-colors hover:text-white">
+              Contact: race@krbrms.com
+            </a>
+            <span className="text-slate-400">
+              Website by <span className="font-semibold text-slate-200">Yoga Fernandes</span>
+            </span>
+          </div>
         </div>
       </footer>
     </div>
