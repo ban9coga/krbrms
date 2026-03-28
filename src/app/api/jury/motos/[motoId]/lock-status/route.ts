@@ -5,7 +5,7 @@ import { requireJury } from '../../../../../../services/juryAuth'
 export async function GET(req: Request, { params }: { params: Promise<{ motoId: string }> }) {
   const { motoId } = await params
   const { data: moto } = await adminClient.from('motos').select('event_id').eq('id', motoId).maybeSingle()
-  const auth = await requireJury(req, ['CHECKER', 'FINISHER', 'RACE_DIRECTOR', 'super_admin'], moto?.event_id ?? null)
+  const auth = await requireJury(req, ['CHECKER', 'FINISHER', 'RACE_DIRECTOR', 'ADMIN', 'super_admin'], moto?.event_id ?? null)
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
   const { data } = await adminClient
     .from('moto_locks')

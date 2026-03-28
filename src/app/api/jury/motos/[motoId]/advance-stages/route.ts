@@ -7,9 +7,6 @@ import { computeQualificationAndStore, computeStageAdvances, generateStageMotos 
 const isMoto2Batch = (name: string) => /moto\s*2\s*-\s*batch\s*\d+/i.test(name)
 
 export async function POST(req: Request, { params }: { params: Promise<{ motoId: string }> }) {
-  const auth = await requireJury(req, ['FINISHER', 'CHECKER', 'super_admin'])
-  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
-
   const { motoId } = await params
   const { data: moto, error } = await adminClient
     .from('motos')
@@ -18,6 +15,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
     .maybeSingle()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   if (!moto) return NextResponse.json({ error: 'Moto not found' }, { status: 404 })
+
+  const auth = await requireJury(req, ['FINISHER', 'CHECKER', 'ADMIN', 'super_admin'], moto.event_id)
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
   try {
     assertMotoEditable((moto as { status?: string | null }).status ?? null)
     assertMotoNotUnderProtest((moto as { status?: string | null }).status ?? null)
