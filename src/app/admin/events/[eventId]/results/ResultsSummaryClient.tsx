@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import ResultStoryCard, { buildResultStoryCardSvg, type ResultStoryCardData } from '../../../../../components/ResultStoryCard'
 import { supabase } from '../../../../../lib/supabaseClient'
 import type { BusinessSettings } from '../../../../../lib/eventService'
 
@@ -40,6 +41,9 @@ type Batch = {
 
 type EventMeta = {
   name: string
+  location?: string | null
+  event_date?: string | null
+  event_logo_url?: string | null
   business_settings?: BusinessSettings | null
 }
 
@@ -61,6 +65,8 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'FINISHED' | 'DNF' | 'DNS' | 'DQ'>('ALL')
   const [batchFilter, setBatchFilter] = useState<'ALL' | string>('ALL')
   const [penaltyMap, setPenaltyMap] = useState<Record<string, PenaltyRow[]>>({})
+  const [storyData, setStoryData] = useState<ResultStoryCardData | null>(null)
+  const [storyDownloading, setStoryDownloading] = useState(false)
 
   const apiFetch = async (url: string) => {
     const { data } = await supabase.auth.getSession()
@@ -309,6 +315,47 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
     })
   }
 
+  const downloadStoryCard = async (data: ResultStoryCardData) => {
+    setStoryDownloading(true)
+    try {
+      const svg = buildResultStoryCardSvg(data)
+      const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const img = new Image()
+      const loaded = new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve()
+        img.onerror = () => reject(new Error('Gagal memuat preview story card.'))
+      })
+      img.src = url
+      await loaded
+
+      const canvas = document.createElement('canvas')
+      canvas.width = 1080
+      canvas.height = 1920
+      const ctx = canvas.getContext('2d')
+      if (!ctx) throw new Error('Canvas tidak tersedia.')
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+      URL.revokeObjectURL(url)
+
+      const pngBlob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png', 1))
+      if (!pngBlob) throw new Error('Gagal membuat PNG.')
+
+      const pngUrl = URL.createObjectURL(pngBlob)
+      const link = document.createElement('a')
+      const fileBase = `${data.eventBrand || data.eventTitle}_${data.riderName}_${data.categoryLabel}_${data.classLabel || 'result'}`
+        .replace(/[^a-z0-9]+/gi, '_')
+        .toLowerCase()
+      link.href = pngUrl
+      link.download = `${fileBase}.png`
+      link.click()
+      URL.revokeObjectURL(pngUrl)
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Gagal download story card.')
+    } finally {
+      setStoryDownloading(false)
+    }
+  }
+
   const business = eventMeta?.business_settings ?? null
   const publicEventTitle = business?.public_event_title?.trim() || eventMeta?.name || 'Results Summary'
   const publicBrandName = business?.public_brand_name?.trim() || ''
@@ -319,6 +366,22 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
     () => categories.find((c) => c.id === selectedCategory)?.label ?? 'Category',
     [categories, selectedCategory]
   )
+
+  const createStoryData = (row: SummaryRow): ResultStoryCardData => ({
+    eventTitle: publicEventTitle,
+    eventBrand: publicBrandName || publicEventTitle,
+    eventDate: eventMeta?.event_date ?? null,
+    eventLocation: eventMeta?.location ?? null,
+    categoryLabel,
+    classLabel: row.class_label ?? null,
+    riderName: row.name,
+    plateNumber: row.no_plate,
+    rankNumber: row.rank_point ?? null,
+    totalPoint: row.total_point ?? null,
+    statusLabel: row.status ?? 'FINISHED',
+    operatorLabel: operatingCommitteeLabel || null,
+    scoringSupportLabel: scoringSupportLabel || null,
+  })
 
   const summary = useMemo(() => {
     const rows =
@@ -537,6 +600,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
                       'Total',
                       'Class',
                       'Status',
+                      'Story',
                     ].map((h) => (
                       <th key={h} style={{ padding: 8, borderBottom: '2px solid #111', fontWeight: 900 }}>
                         {h}
@@ -574,6 +638,24 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
                       <td style={{ padding: 8, fontWeight: 900 }}>{row.total_point ?? '-'}</td>
                       <td style={{ padding: 8 }}>{row.class_label ?? '-'}</td>
                       <td style={{ padding: 8 }}>{row.status ?? '-'}</td>
+                      <td style={{ padding: 8 }}>
+                        <button
+                          type="button"
+                          onClick={() => setStoryData(createStoryData(row))}
+                          style={{
+                            padding: '8px 10px',
+                            borderRadius: 10,
+                            border: '2px solid #111',
+                            background: '#fbbf24',
+                            color: '#111',
+                            fontWeight: 900,
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          Preview
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -583,12 +665,106 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
           )
         })}
       </div>
+      {storyData && (
+        <div
+          className="no-print"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 80,
+            background: 'rgba(15,23,42,0.74)',
+            display: 'grid',
+            placeItems: 'center',
+            padding: 20,
+          }}
+          onClick={() => setStoryData(null)}
+        >
+          <div
+            style={{
+              width: 'min(100%, 920px)',
+              maxHeight: 'calc(100vh - 40px)',
+              overflow: 'auto',
+              background: '#fff',
+              borderRadius: 24,
+              padding: 20,
+              display: 'grid',
+              gap: 18,
+              boxShadow: '0 24px 80px rgba(15,23,42,0.32)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+              <div style={{ display: 'grid', gap: 4 }}>
+                <div style={{ fontSize: 22, fontWeight: 950 }}>Story Card Preview</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#475569' }}>
+                  Cocok untuk download lalu share ke WhatsApp Story atau Instagram Story.
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setStoryData(null)}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: 10,
+                  border: '2px solid #111',
+                  background: '#fff',
+                  fontWeight: 900,
+                  cursor: 'pointer',
+                }}
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="story-preview-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 360px) minmax(0, 1fr)', gap: 20, alignItems: 'start' }}>
+              <ResultStoryCard data={storyData} />
+              <div style={{ display: 'grid', gap: 12 }}>
+                <div style={{ padding: 14, borderRadius: 16, border: '2px solid #111', background: '#f8fafc' }}>
+                  <div style={{ fontSize: 12, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#475569' }}>
+                    Story Info
+                  </div>
+                  <div style={{ marginTop: 10, display: 'grid', gap: 6, fontWeight: 800 }}>
+                    <div>Rider: {storyData.riderName}</div>
+                    <div>Category: {storyData.categoryLabel}</div>
+                    <div>Class: {storyData.classLabel || '-'}</div>
+                    <div>Rank: {storyData.rankNumber != null ? `#${storyData.rankNumber}` : '-'}</div>
+                    <div>Total Point: {storyData.totalPoint ?? '-'}</div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => downloadStoryCard(storyData)}
+                    disabled={storyDownloading}
+                    style={{
+                      padding: '12px 16px',
+                      borderRadius: 12,
+                      border: '2px solid #111',
+                      background: '#fbbf24',
+                      color: '#111',
+                      fontWeight: 900,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {storyDownloading ? 'Generating PNG...' : 'Download PNG'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       <style>
         {`
           @media print {
             .no-print { display: none !important; }
             body { background: #fff !important; }
             @page { margin: 14mm; }
+          }
+          @media (max-width: 860px) {
+            .story-preview-grid {
+              grid-template-columns: 1fr;
+            }
           }
         `}
       </style>
