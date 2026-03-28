@@ -3,8 +3,8 @@ import './globals.css'
 
 export const metadata: Metadata = {
   title: {
-    default: 'KRB Race Management System',
-    template: '%s | KRB Race Management System',
+    default: 'Pushbike Race Management Platform',
+    template: '%s | Pushbike Race Management Platform',
   },
   description:
     'Sistem manajemen event pushbike: pendaftaran rider, live scoring, hasil, dan dashboard admin.',

@@ -127,14 +127,14 @@ export default function PublicTopbar({ theme = 'light' }: PublicTopbarProps) {
       <div className="relative w-full px-4 py-3 md:px-6">
         <div className="flex items-center justify-between gap-4">
           <Link href="/" className="flex min-w-0 items-center gap-3">
-            <img src="/krb-logo.png" alt="KRB Logo" className="h-10 w-10 rounded-lg object-contain" />
+            <img src="/krb-logo.png" alt="Platform Logo" className="h-10 w-10 rounded-lg object-contain" />
             <span className="min-w-0">
               <span
                 className={`block truncate text-sm font-black tracking-tight sm:text-base md:text-lg ${
                   isDark ? 'text-slate-100' : 'text-slate-900'
                 }`}
               >
-Pushbike Race Management Platform
+                Pushbike Race Management Platform
               </span>
               {eventBranding ? (
                 <span className={`block truncate text-[11px] font-bold ${isDark ? 'text-slate-300' : 'text-slate-500'}`}>

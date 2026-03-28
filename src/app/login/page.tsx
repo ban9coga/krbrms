@@ -71,9 +71,9 @@ export default function LoginPage() {
 
           <div className="mb-5 flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <img src="/krb-logo.png" alt="KRB Logo" className="h-10 w-10 rounded-lg object-contain" />
+              <img src="/krb-logo.png" alt="Platform Logo" className="h-10 w-10 rounded-lg object-contain" />
               <div>
-                <p className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">KRB RMS</p>
+                <p className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">PRM Platform</p>
                 <p className="text-lg font-black tracking-tight text-slate-900">Secure Login</p>
               </div>
             </div>

@@ -209,7 +209,7 @@ export default async function LandingPage() {
               rel="noopener noreferrer"
               className="text-sm font-semibold text-slate-300 transition-colors hover:text-white"
             >
-              @kancang.runbike
+              Instagram
             </a>
           </div>
 
