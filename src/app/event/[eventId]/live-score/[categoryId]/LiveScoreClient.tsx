@@ -130,7 +130,7 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
 
   return (
     <div className="public-page">
-      <PublicTopbar />
+      <PublicTopbar theme="dark" />
       <main className="public-main">
         <section className="public-hero">
           <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-amber-400/15 blur-3xl" />
@@ -150,8 +150,8 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                 <div className="grid gap-2">
                   {publicTagline && <p className="text-sm font-semibold text-slate-300">{publicTagline}</p>}
                   <div className="flex flex-wrap gap-2 text-[11px] font-extrabold uppercase tracking-[0.12em] text-slate-300">
-                    {showOperatingCommittee && <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">Operator: {operatingCommitteeLabel}</span>}
-                    {showScoringSupport && <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">Scoring: {scoringSupportLabel}</span>}
+                    {showOperatingCommittee && <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">Operating Committee: {operatingCommitteeLabel}</span>}
+                    {showScoringSupport && <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">Scoring Support: {scoringSupportLabel}</span>}
                   </div>
                 </div>
               )}

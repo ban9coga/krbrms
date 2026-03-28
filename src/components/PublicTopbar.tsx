@@ -134,11 +134,15 @@ export default function PublicTopbar({ theme = 'light' }: PublicTopbarProps) {
                   isDark ? 'text-slate-100' : 'text-slate-900'
                 }`}
               >
-                {eventBranding?.brand || 'Kancang Run Bike Racing Committee'}
+Pushbike Race Management Platform
               </span>
-              {eventBranding && (
+              {eventBranding ? (
                 <span className={`block truncate text-[11px] font-bold ${isDark ? 'text-slate-300' : 'text-slate-500'}`}>
-                  {eventBranding.title}
+                  {eventBranding.brand} ? {eventBranding.title}
+                </span>
+              ) : (
+                <span className={`block truncate text-[11px] font-bold ${isDark ? 'text-slate-300' : 'text-slate-500'}`}>
+                  Public Event & Live Results
                 </span>
               )}
             </span>

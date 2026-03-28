@@ -207,6 +207,11 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
       'status',
     ]
     const csv = [
+      `# Event,${publicEventTitle}`,
+      `# Brand,${publicBrandName || '-'}`,
+      `# Category,${categoryLabel}`,
+      `# Operator,${operatingCommitteeLabel || '-'}`,
+      `# Scoring,${scoringSupportLabel || '-'}`,
       header.join(','),
       ...filtered.map((r) =>
         [
@@ -266,6 +271,12 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
         : batch.rows.filter((r) => r.status === statusFilter)
       if (rows.length === 0) return
       const csv = [
+        `# Event,${publicEventTitle}`,
+        `# Brand,${publicBrandName || '-'}`,
+        `# Category,${categoryLabel}`,
+        `# Batch,${batch.batch_index}`,
+        `# Operator,${operatingCommitteeLabel || '-'}`,
+        `# Scoring,${scoringSupportLabel || '-'}`,
         header.join(','),
         ...rows.map((r) =>
           [
@@ -342,8 +353,8 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
       </div>
       {(operatingCommitteeLabel || scoringSupportLabel) && (
         <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {operatingCommitteeLabel && <span style={{ padding: '4px 10px', borderRadius: 999, border: '1px solid #cbd5e1', background: '#fff', fontWeight: 800, fontSize: 12 }}>Operator: {operatingCommitteeLabel}</span>}
-          {scoringSupportLabel && <span style={{ padding: '4px 10px', borderRadius: 999, border: '1px solid #cbd5e1', background: '#fff', fontWeight: 800, fontSize: 12 }}>Scoring: {scoringSupportLabel}</span>}
+          {operatingCommitteeLabel && <span style={{ padding: '4px 10px', borderRadius: 999, border: '1px solid #cbd5e1', background: '#fff', fontWeight: 800, fontSize: 12 }}>Operating Committee: {operatingCommitteeLabel}</span>}
+          {scoringSupportLabel && <span style={{ padding: '4px 10px', borderRadius: 999, border: '1px solid #cbd5e1', background: '#fff', fontWeight: 800, fontSize: 12 }}>Scoring Support: {scoringSupportLabel}</span>}
         </div>
       )}
 

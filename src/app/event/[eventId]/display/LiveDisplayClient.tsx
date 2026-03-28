@@ -289,8 +289,8 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
                 {event?.location && <p className="text-sm font-semibold text-slate-500">{event.location}</p>}
                 {(showOperatingCommittee || showScoringSupport) && (
                   <div className="flex flex-wrap gap-2 text-[11px] font-extrabold uppercase tracking-[0.12em] text-slate-500">
-                    {showOperatingCommittee && <span className="rounded-full border border-slate-200 bg-white px-3 py-1">Operator: {operatingCommitteeLabel}</span>}
-                    {showScoringSupport && <span className="rounded-full border border-slate-200 bg-white px-3 py-1">Scoring: {scoringSupportLabel}</span>}
+                    {showOperatingCommittee && <span className="rounded-full border border-slate-200 bg-white px-3 py-1">Operating Committee: {operatingCommitteeLabel}</span>}
+                    {showScoringSupport && <span className="rounded-full border border-slate-200 bg-white px-3 py-1">Scoring Support: {scoringSupportLabel}</span>}
                   </div>
                 )}
                 {activeMoto && (
