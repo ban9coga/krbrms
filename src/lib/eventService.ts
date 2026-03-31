@@ -1,5 +1,28 @@
 export type EventStatus = 'UPCOMING' | 'LIVE' | 'FINISHED'
 
+export type EventSponsorTier = 'TITLE' | 'MAIN' | 'SUPPORT' | 'MEDIA' | 'COMMUNITY' | 'PARTNER'
+
+export type EventSponsor = {
+  id?: string | null
+  name?: string | null
+  tier?: EventSponsorTier | null
+  logo_url?: string | null
+  logo_dark_url?: string | null
+  website_url?: string | null
+  instagram_url?: string | null
+  sort_order?: number | null
+  display_priority?: number | null
+  rotation_group?: string | null
+  is_active?: boolean | null
+  show_on_event_page?: boolean | null
+  show_on_live_display?: boolean | null
+  show_on_live_results?: boolean | null
+  show_on_story_card?: boolean | null
+  show_on_certificate?: boolean | null
+  use_dark_variant?: boolean | null
+  notes?: string | null
+}
+
 export type BusinessSettings = {
   public_brand_name?: string | null
   public_event_title?: string | null
@@ -30,6 +53,10 @@ export type BusinessSettings = {
   show_event_owner_publicly?: boolean | null
   show_operating_committee_publicly?: boolean | null
   show_scoring_support_publicly?: boolean | null
+  sponsor_section_enabled?: boolean | null
+  sponsor_section_title?: string | null
+  sponsor_section_subtitle?: string | null
+  sponsors?: EventSponsor[] | null
 }
 
 export type EventItem = {
@@ -41,6 +68,7 @@ export type EventItem = {
   is_public?: boolean | null
   event_scope?: 'PUBLIC' | 'INTERNAL' | null
   event_logo_url?: string | null
+  sponsor_logo_urls?: string[] | null
   business_settings?: BusinessSettings | null
   created_at?: string | null
   updated_at?: string | null

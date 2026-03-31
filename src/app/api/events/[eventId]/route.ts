@@ -28,7 +28,7 @@ const parseBusinessSettings = (value: unknown): BusinessSettings => {
 const getLatestRaceFormatSettings = async (eventId: string) => {
   const { data, error } = await adminClient
     .from('event_settings')
-    .select('race_format_settings, event_logo_url, business_settings, updated_at')
+    .select('race_format_settings, event_logo_url, sponsor_logo_urls, business_settings, updated_at')
     .eq('event_id', eventId)
     .order('updated_at', { ascending: false })
     .limit(1)
@@ -37,6 +37,9 @@ const getLatestRaceFormatSettings = async (eventId: string) => {
   return {
     data: parseRaceFormatSettings(row?.race_format_settings),
     eventLogoUrl: typeof row?.event_logo_url === 'string' ? row.event_logo_url : null,
+    sponsorLogoUrls: Array.isArray(row?.sponsor_logo_urls)
+      ? row.sponsor_logo_urls.filter((item: unknown) => typeof item === 'string')
+      : [],
     businessSettings: parseBusinessSettings(row?.business_settings),
     error: null,
   }
@@ -68,6 +71,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       draw_mode: drawMode,
       event_scope: eventScope,
       event_logo_url: formatResult.eventLogoUrl,
+      sponsor_logo_urls: formatResult.sponsorLogoUrls,
       business_settings: formatResult.businessSettings,
     },
   })

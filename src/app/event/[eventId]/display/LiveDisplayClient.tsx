@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import EmptyState from '../../../../components/EmptyState'
 import LoadingState from '../../../../components/LoadingState'
 import PublicTopbar from '../../../../components/PublicTopbar'
+import SponsorMarquee from '../../../../components/SponsorMarquee'
 import { getEventById, getEventCategories, type EventItem, type RiderCategory } from '../../../../lib/eventService'
 import { compareMotoSequence } from '../../../../lib/motoSequence'
 import { isMotoLive, isMotoUpcoming } from '../../../../lib/motoStatus'
@@ -215,6 +216,7 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
 
   const nextUp = useMemo(() => prepareQueue[0] ?? null, [prepareQueue])
   const business = event?.business_settings ?? null
+  const sponsorLogoUrls = event?.sponsor_logo_urls ?? []
   const publicEventTitle = business?.public_event_title?.trim() || event?.name || 'Live Display'
   const publicBrandName = business?.public_brand_name?.trim() || ''
   const publicTagline = business?.public_tagline?.trim() || ''
@@ -348,6 +350,15 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
             )}
           </div>
         </section>
+
+        <SponsorMarquee
+          businessSettings={business}
+          sponsorLogoUrls={sponsorLogoUrls}
+          placement="live_display"
+          title="Supported By"
+          subtitle="Sponsor ribbon untuk board publik event ini."
+          compact
+        />
 
         {loading && <LoadingState />}
         {!loading && event?.is_public === false && <EmptyState label="Event ini sedang disembunyikan dari publik." />}

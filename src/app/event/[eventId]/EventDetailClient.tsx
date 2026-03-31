@@ -6,6 +6,7 @@ import StatusBadge from '../../../components/StatusBadge'
 import LoadingState from '../../../components/LoadingState'
 import EmptyState from '../../../components/EmptyState'
 import PublicTopbar from '../../../components/PublicTopbar'
+import SponsorMarquee from '../../../components/SponsorMarquee'
 import { compareMotoSequence } from '../../../lib/motoSequence'
 import {
   getEventById,
@@ -96,6 +97,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
     ? eventDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
     : null
   const eventLogoUrl = event?.event_logo_url ?? null
+  const sponsorLogoUrls = event?.sponsor_logo_urls ?? []
   const business = event?.business_settings ?? null
   const publicEventTitle = business?.public_event_title?.trim() || event?.name || 'Event Detail'
   const publicBrandName = business?.public_brand_name?.trim() || ''
@@ -317,6 +319,17 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                 </div>
               </div>
             </section>
+
+            <SponsorMarquee
+              businessSettings={business}
+              sponsorLogoUrls={sponsorLogoUrls}
+              placement="event_page"
+              title={business?.sponsor_section_title?.trim() || 'Official Sponsors'}
+              subtitle={
+                business?.sponsor_section_subtitle?.trim() ||
+                'Partner dan sponsor yang ikut mendukung event ini.'
+              }
+            />
 
             <section
               id="race-categories"

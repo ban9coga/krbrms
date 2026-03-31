@@ -582,7 +582,12 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
     }
     const ownerType: NonNullable<BusinessSettings['event_owner_type']> =
       (form.business_event_owner_type || 'COMMUNITY') as NonNullable<BusinessSettings['event_owner_type']>
+    const existingBusinessSettings =
+      row?.business_settings && typeof row.business_settings === 'object' && !Array.isArray(row.business_settings)
+        ? (row.business_settings as BusinessSettings)
+        : {}
     const businessSettings: BusinessSettings = {
+      ...existingBusinessSettings,
       public_brand_name: form.business_public_brand_name.trim() || null,
       public_event_title: form.business_public_event_title.trim() || null,
       public_tagline: form.business_public_tagline.trim() || null,
@@ -782,8 +787,14 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
                   onChange={(e) => setForm({ ...form, event_logo_url: e.target.value })}
                   style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
                 />
+                <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                  Sponsor Logos
+                </div>
+                <div style={{ color: '#475569', fontWeight: 700, fontSize: 13 }}>
+                  Isi 1 URL logo sponsor per baris. Field ini dipakai sebagai sponsor marquee di event page dan live display.
+                </div>
                 <textarea
-                  placeholder="Sponsor Logo URLs (1 per line)"
+                  placeholder="https://.../sponsor-a.png&#10;https://.../sponsor-b.png"
                   value={form.sponsor_logo_urls}
                   onChange={(e) => setForm({ ...form, sponsor_logo_urls: e.target.value })}
                   style={{ padding: 12, borderRadius: 12, border: '2px solid #111', minHeight: 90, fontWeight: 800 }}
