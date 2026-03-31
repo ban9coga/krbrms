@@ -275,38 +275,42 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
     <div className="public-page !bg-slate-100 !text-slate-900">
       <PublicTopbar theme="dark" />
       <main className="public-main max-w-[1500px]">
-        <section className="public-hero border border-slate-200 !bg-white shadow-xl">
-          <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-slate-200/30 blur-3xl" />
-          <div className="pointer-events-none absolute -top-24 right-0 h-72 w-72 rounded-full bg-slate-100/30 blur-3xl" />
+        <section className="public-hero border border-slate-700/70 shadow-xl">
+          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(15,23,42,0.16)_0%,rgba(15,23,42,0.05)_32%,rgba(251,191,36,0.10)_100%)]" />
+          <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-slate-100/10 blur-3xl" />
+          <div className="pointer-events-none absolute -top-24 right-0 h-72 w-72 rounded-full bg-amber-200/10 blur-3xl" />
           <div className="relative z-10 grid gap-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="grid gap-1">
-                <h1 className="text-2xl font-black tracking-tight text-slate-900 md:text-4xl">
+                <h1 className="text-2xl font-black tracking-tight text-white drop-shadow-[0_4px_16px_rgba(15,23,42,0.32)] md:text-4xl">
                   {publicEventTitle}
                 </h1>
-                <p className="text-sm font-black uppercase tracking-[0.12em] text-slate-700">
+                <p className="text-sm font-black uppercase tracking-[0.12em] text-amber-200">
                   {publicBrandName || categoryLabel || 'Pilih Kategori'}
                 </p>
-                {publicTagline && <p className="text-sm font-semibold text-slate-500">{publicTagline}</p>}
-                {event?.location && <p className="text-sm font-semibold text-slate-500">{event.location}</p>}
+                {publicTagline && <p className="text-sm font-semibold text-slate-100/90">{publicTagline}</p>}
+                {event?.location && <p className="text-sm font-semibold text-slate-200/85">{event.location}</p>}
                 {(showOperatingCommittee || showScoringSupport) && (
-                  <div className="flex flex-wrap gap-2 text-[11px] font-extrabold uppercase tracking-[0.12em] text-slate-500">
-                    {showOperatingCommittee && <span className="rounded-full border border-slate-200 bg-white px-3 py-1">Operating Committee: {operatingCommitteeLabel}</span>}
-                    {showScoringSupport && <span className="rounded-full border border-slate-200 bg-white px-3 py-1">Scoring Support: {scoringSupportLabel}</span>}
+                  <div className="flex flex-wrap gap-2 text-[11px] font-extrabold uppercase tracking-[0.12em] text-slate-100/90">
+                    {showOperatingCommittee && <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 backdrop-blur-sm">Operating Committee: {operatingCommitteeLabel}</span>}
+                    {showScoringSupport && <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 backdrop-blur-sm">Scoring Support: {scoringSupportLabel}</span>}
                   </div>
                 )}
                 {activeMoto && (
-                  <p className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">
+                  <p className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-200/85">
                     Now: {activeMoto.moto_name} ({activeMoto.status})
                   </p>
                 )}
               </div>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2 rounded-[1.4rem] border border-white/10 bg-slate-950/18 p-2 backdrop-blur-sm">
                 <select
                   value={categoryId}
                   onChange={(e) => setCategoryId(e.target.value)}
-                  className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 outline-none shadow-sm"
+                  className="min-w-[140px] rounded-xl border border-white/15 bg-white/95 px-3 py-2 text-sm font-semibold text-slate-700 outline-none shadow-sm"
                 >
+                  <option value="" disabled>
+                    Pilih kategori
+                  </option>
                   {categories.map((c) => (
                     <option key={c.id} value={c.id} className="text-slate-900">
                       {c.label}
@@ -321,7 +325,7 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
                     className={`rounded-full border px-3 py-2 text-xs font-extrabold uppercase tracking-[0.12em] transition-colors sm:text-sm ${
                       mode === m
                         ? 'border-slate-900 bg-slate-900 text-white'
-                        : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400 hover:text-slate-900'
+                        : 'border-white/15 bg-white text-slate-700 hover:border-slate-300 hover:text-slate-900'
                     }`}
                   >
                     {m === 'LINEUP' ? 'Lineup' : m === 'RESULTS' ? 'Live Results' : 'Winners'}
@@ -339,13 +343,13 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
             </div>
 
             {nextUp && (
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-800 shadow-sm">
-                <span className="rounded-full border border-amber-300 bg-amber-200 px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.12em] text-amber-900">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-bold text-slate-50 shadow-sm backdrop-blur-sm">
+                <span className="rounded-full border border-amber-200/60 bg-amber-300 px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.12em] text-slate-900">
                   Next Up
                 </span>
                 <span>{nextUp.name}</span>
                 <span>No: {nextUp.no_plate}</span>
-                <span className="text-slate-600">Gate {nextUp.gate ?? '-'}</span>
+                <span className="text-slate-200/80">Gate {nextUp.gate ?? '-'}</span>
               </div>
             )}
           </div>
