@@ -23,6 +23,25 @@ type ResolvedSponsor = {
   sortOrder: number
 }
 
+const buildMarqueeSponsors = (items: ResolvedSponsor[], minimumItems: number): ResolvedSponsor[] => {
+  if (items.length === 0) return []
+  const next: ResolvedSponsor[] = []
+  let cycle = 0
+
+  while (next.length < minimumItems) {
+    for (const item of items) {
+      next.push({
+        ...item,
+        id: `${item.id}-cycle-${cycle}`,
+      })
+      if (next.length >= minimumItems) break
+    }
+    cycle += 1
+  }
+
+  return next
+}
+
 const tierOrder: Record<string, number> = {
   TITLE: 0,
   MAIN: 1,
@@ -115,13 +134,14 @@ export default function SponsorMarquee({
       ? 'Partner event yang ikut mendukung board ini'
       : 'Partner dan sponsor yang mendukung event ini')
 
-  const animate = sponsors.length > 1
-  const duration = Math.max(22, sponsors.length * (compact ? 3.8 : 4.8))
-  const renderItems = (suffix: string) =>
-    sponsors.map((sponsor) => {
+  const marqueeSponsors = buildMarqueeSponsors(sponsors, compact ? 8 : 10)
+  const animate = marqueeSponsors.length > 0
+  const duration = Math.max(20, marqueeSponsors.length * (compact ? 2.8 : 3.6))
+  const renderItems = (items: ResolvedSponsor[], suffix: string) =>
+    items.map((sponsor, index) => {
       const image = (
         <img
-          key={`${sponsor.id}-${suffix}`}
+          key={`${sponsor.id}-${suffix}-${index}`}
           src={sponsor.logoUrl}
           alt={sponsor.name}
           loading="lazy"
@@ -131,7 +151,7 @@ export default function SponsorMarquee({
 
       return sponsor.href ? (
         <a
-          key={`${sponsor.id}-${suffix}`}
+          key={`${sponsor.id}-${suffix}-${index}`}
           href={sponsor.href}
           target="_blank"
           rel="noopener noreferrer"
@@ -142,7 +162,7 @@ export default function SponsorMarquee({
         </a>
       ) : (
         <div
-          key={`${sponsor.id}-${suffix}`}
+          key={`${sponsor.id}-${suffix}-${index}`}
           className="inline-flex shrink-0 items-center rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm"
           title={sponsor.name}
         >
@@ -164,13 +184,13 @@ export default function SponsorMarquee({
             className="sponsor-marquee-track"
             style={{ ['--sponsor-duration' as string]: `${duration}s` }}
           >
-            <div className="sponsor-marquee-group">{renderItems('a')}</div>
+            <div className="sponsor-marquee-group">{renderItems(marqueeSponsors, 'a')}</div>
             <div className="sponsor-marquee-group" aria-hidden="true">
-              {renderItems('b')}
+              {renderItems(marqueeSponsors, 'b')}
             </div>
           </div>
         ) : (
-          <div className="flex flex-wrap items-center gap-3">{renderItems('single')}</div>
+          <div className="flex flex-wrap items-center gap-3">{renderItems(sponsors, 'single')}</div>
         )}
       </div>
 
