@@ -58,8 +58,14 @@ const gateByMoto = (row: Row, motoIndex: number) => {
 
 const modeOptions: Mode[] = ['LINEUP', 'RESULTS', 'WINNERS']
 
-export default function LiveDisplayClient({ eventId }: { eventId: string }) {
-  const [event, setEvent] = useState<EventItem | null>(null)
+export default function LiveDisplayClient({
+  eventId,
+  initialEvent = null,
+}: {
+  eventId: string
+  initialEvent?: EventItem | null
+}) {
+  const [event, setEvent] = useState<EventItem | null>(initialEvent)
   const [categories, setCategories] = useState<RiderCategory[]>([])
   const [categoryId, setCategoryId] = useState<string>('')
   const [categoryLabel, setCategoryLabel] = useState<string>('')
@@ -73,9 +79,9 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
     const load = async () => {
       setLoading(true)
       try {
-        const eventData = await getEventById(eventId)
+        const eventData = initialEvent ?? (await getEventById(eventId))
         const cats = (await getEventCategories(eventId)).filter((c) => c.enabled)
-        setEvent(eventData)
+        setEvent(eventData ?? initialEvent ?? null)
         setCategories(cats)
         if (!categoryId && cats.length > 0) setCategoryId(cats[0].id)
       } finally {
@@ -83,7 +89,7 @@ export default function LiveDisplayClient({ eventId }: { eventId: string }) {
       }
     }
     if (eventId) load()
-  }, [eventId, categoryId])
+  }, [eventId, categoryId, initialEvent])
 
   useEffect(() => {
     const html = document.documentElement
