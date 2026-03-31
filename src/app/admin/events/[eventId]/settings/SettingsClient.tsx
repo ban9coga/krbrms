@@ -1,9 +1,10 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import SponsorMarquee from '../../../../../components/SponsorMarquee'
 import { formatAppRoleLabel } from '../../../../../lib/roles'
 import { supabase } from '../../../../../lib/supabaseClient'
-import type { BusinessSettings } from '../../../../../lib/eventService'
+import type { BusinessSettings, EventSponsor, EventSponsorTier } from '../../../../../lib/eventService'
 
 type SettingsRow = {
   event_id: string
@@ -76,6 +77,75 @@ type StageResultRow = {
   riders: { name: string; no_plate_display: string } | null
 }
 
+type SponsorDraft = {
+  id: string
+  name: string
+  tier: EventSponsorTier
+  logo_url: string
+  website_url: string
+  instagram_url: string
+  sort_order: string
+  is_active: boolean
+  show_on_event_page: boolean
+  show_on_live_display: boolean
+}
+
+const sponsorTierOptions: EventSponsorTier[] = ['TITLE', 'MAIN', 'SUPPORT', 'MEDIA', 'COMMUNITY', 'PARTNER']
+
+const createEmptySponsorDraft = (index = 0): SponsorDraft => ({
+  id: '',
+  name: '',
+  tier: 'SUPPORT',
+  logo_url: '',
+  website_url: '',
+  instagram_url: '',
+  sort_order: String(index + 1),
+  is_active: true,
+  show_on_event_page: true,
+  show_on_live_display: true,
+})
+
+const sponsorDraftFromItem = (item: Partial<EventSponsor>, index: number): SponsorDraft => ({
+  id: typeof item.id === 'string' ? item.id : '',
+  name: typeof item.name === 'string' ? item.name : '',
+  tier: (typeof item.tier === 'string' ? item.tier : 'SUPPORT') as EventSponsorTier,
+  logo_url: typeof item.logo_url === 'string' ? item.logo_url : '',
+  website_url: typeof item.website_url === 'string' ? item.website_url : '',
+  instagram_url: typeof item.instagram_url === 'string' ? item.instagram_url : '',
+  sort_order:
+    typeof item.sort_order === 'number'
+      ? String(item.sort_order)
+      : typeof item.sort_order === 'string'
+      ? item.sort_order
+      : String(index + 1),
+  is_active: typeof item.is_active === 'boolean' ? item.is_active : true,
+  show_on_event_page:
+    typeof item.show_on_event_page === 'boolean' ? item.show_on_event_page : true,
+  show_on_live_display:
+    typeof item.show_on_live_display === 'boolean' ? item.show_on_live_display : true,
+})
+
+const sanitizeSponsorDrafts = (items: SponsorDraft[]): EventSponsor[] =>
+  items
+    .map((item, index) => {
+      const logoUrl = item.logo_url.trim()
+      const name = item.name.trim() || `Sponsor ${index + 1}`
+      if (!logoUrl) return null
+      return {
+        id: item.id.trim() || `sponsor-${index + 1}`,
+        name,
+        tier: item.tier,
+        logo_url: logoUrl,
+        website_url: item.website_url.trim() || null,
+        instagram_url: item.instagram_url.trim() || null,
+        sort_order: Number(item.sort_order) || index + 1,
+        is_active: Boolean(item.is_active),
+        show_on_event_page: Boolean(item.show_on_event_page),
+        show_on_live_display: Boolean(item.show_on_live_display),
+      } satisfies EventSponsor
+    })
+    .filter(Boolean) as EventSponsor[]
+
 const safeJsonParse = (value: string) => {
   try {
     return JSON.parse(value)
@@ -119,6 +189,12 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
   const [staffAssignments, setStaffAssignments] = useState<EventStaffAssignmentRow[]>([])
   const [availableUsers, setAvailableUsers] = useState<EventStaffUserRow[]>([])
   const [staffSearch, setStaffSearch] = useState('')
+  const [sponsorItems, setSponsorItems] = useState<SponsorDraft[]>([])
+  const [sponsorSectionEnabled, setSponsorSectionEnabled] = useState(true)
+  const [sponsorSectionTitle, setSponsorSectionTitle] = useState('Official Sponsors')
+  const [sponsorSectionSubtitle, setSponsorSectionSubtitle] = useState(
+    'Partner dan sponsor yang ikut mendukung event ini.'
+  )
 
   const [form, setForm] = useState({
     event_logo_url: '',
@@ -219,6 +295,11 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
         const theme = (data.display_theme ?? {}) as Record<string, unknown>
         const format = (data.race_format_settings ?? {}) as Record<string, unknown>
         const business = (data.business_settings ?? {}) as BusinessSettings
+        const loadedSponsors = Array.isArray(business.sponsors) && business.sponsors.length > 0
+          ? business.sponsors.map((item, index) => sponsorDraftFromItem(item, index))
+          : (data.sponsor_logo_urls ?? []).map((logoUrl, index) =>
+              sponsorDraftFromItem({ logo_url: logoUrl, sort_order: index + 1 }, index)
+            )
         const nextForm = {
           event_logo_url: data.event_logo_url ?? '',
           sponsor_logo_urls: (data.sponsor_logo_urls ?? []).join('\n'),
@@ -300,7 +381,32 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
           race_format_settings: JSON.stringify(data.race_format_settings ?? {}, null, 2),
         }
         setForm(nextForm)
-        setInitialForm(JSON.stringify(nextForm))
+        setSponsorItems(loadedSponsors)
+        setSponsorSectionEnabled(
+          typeof business.sponsor_section_enabled === 'boolean' ? business.sponsor_section_enabled : true
+        )
+        setSponsorSectionTitle(
+          typeof business.sponsor_section_title === 'string' && business.sponsor_section_title.trim()
+            ? business.sponsor_section_title
+            : 'Official Sponsors'
+        )
+        setSponsorSectionSubtitle(
+          typeof business.sponsor_section_subtitle === 'string' && business.sponsor_section_subtitle.trim()
+            ? business.sponsor_section_subtitle
+            : 'Partner dan sponsor yang ikut mendukung event ini.'
+        )
+        setInitialForm(
+          JSON.stringify({
+            ...nextForm,
+            sponsorSectionEnabled:
+              typeof business.sponsor_section_enabled === 'boolean' ? business.sponsor_section_enabled : true,
+            sponsorSectionTitle:
+              typeof business.sponsor_section_title === 'string' ? business.sponsor_section_title : '',
+            sponsorSectionSubtitle:
+              typeof business.sponsor_section_subtitle === 'string' ? business.sponsor_section_subtitle : '',
+            sponsorItems: loadedSponsors,
+          })
+        )
       }
     } finally {
       setLoading(false)
@@ -517,6 +623,23 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
     setStaffAssignments((prev) => prev.filter((_, idx) => idx !== index))
   }
 
+  const addSponsorItem = () => {
+    setSponsorItems((prev) => [...prev, createEmptySponsorDraft(prev.length)])
+  }
+
+  const updateSponsorItem = (index: number, patch: Partial<SponsorDraft>) => {
+    setSponsorItems((prev) =>
+      prev.map((item, idx) => {
+        if (idx !== index) return item
+        return { ...item, ...patch }
+      })
+    )
+  }
+
+  const removeSponsorItem = (index: number) => {
+    setSponsorItems((prev) => prev.filter((_, idx) => idx !== index))
+  }
+
   const saveStaffAssignments = async () => {
     if (!eventId) return
     setStaffSaving(true)
@@ -582,6 +705,7 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
     }
     const ownerType: NonNullable<BusinessSettings['event_owner_type']> =
       (form.business_event_owner_type || 'COMMUNITY') as NonNullable<BusinessSettings['event_owner_type']>
+    const normalizedSponsors = sanitizeSponsorDrafts(sponsorItems)
     const existingBusinessSettings =
       row?.business_settings && typeof row.business_settings === 'object' && !Array.isArray(row.business_settings)
         ? (row.business_settings as BusinessSettings)
@@ -602,6 +726,10 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
       show_event_owner_publicly: Boolean(form.business_show_event_owner_publicly),
       show_operating_committee_publicly: Boolean(form.business_show_operating_committee_publicly),
       show_scoring_support_publicly: Boolean(form.business_show_scoring_support_publicly),
+      sponsor_section_enabled: Boolean(sponsorSectionEnabled),
+      sponsor_section_title: sponsorSectionTitle.trim() || null,
+      sponsor_section_subtitle: sponsorSectionSubtitle.trim() || null,
+      sponsors: normalizedSponsors,
     }
     const motoPerBatch = Number(form.race_moto_per_batch)
     const gatePositions = Number(form.race_gate_positions)
@@ -655,10 +783,9 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
         method: 'PATCH',
         body: JSON.stringify({
           event_logo_url: form.event_logo_url.trim() || null,
-          sponsor_logo_urls: form.sponsor_logo_urls
-            .split(/\n/)
-            .map((s) => s.trim())
-            .filter(Boolean),
+          sponsor_logo_urls: normalizedSponsors
+            .map((item) => item.logo_url?.trim())
+            .filter((item): item is string => Boolean(item)),
           base_price: basePriceNum,
           extra_price: extraPriceNum,
           ffa_mix_min_year: ffaMinNum,
@@ -673,6 +800,10 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
       await load()
       setInitialForm(JSON.stringify({
         ...form,
+        sponsorSectionEnabled,
+        sponsorSectionTitle,
+        sponsorSectionSubtitle,
+        sponsorItems,
       }))
       alert('Settings tersimpan.')
     } catch (err: unknown) {
@@ -682,12 +813,28 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
     }
   }
 
-  const isDirty = initialForm !== JSON.stringify(form)
+  const previewSponsors = useMemo(() => sanitizeSponsorDrafts(sponsorItems), [sponsorItems])
+  const previewBusinessSettings = useMemo<BusinessSettings>(
+    () => ({
+      sponsor_section_enabled: sponsorSectionEnabled,
+      sponsor_section_title: sponsorSectionTitle.trim() || null,
+      sponsor_section_subtitle: sponsorSectionSubtitle.trim() || null,
+      sponsors: previewSponsors,
+    }),
+    [previewSponsors, sponsorSectionEnabled, sponsorSectionTitle, sponsorSectionSubtitle]
+  )
+  const isDirty =
+    initialForm !==
+    JSON.stringify({
+      ...form,
+      sponsorSectionEnabled,
+      sponsorSectionTitle,
+      sponsorSectionSubtitle,
+      sponsorItems,
+    })
   const basicSummary = `Base ${Number(form.base_price || 0).toLocaleString()} | Extra ${Number(
     form.extra_price || 0
-  ).toLocaleString()} | FFA ${form.ffa_mix_min_year}-${form.ffa_mix_max_year} | Jersey ${
-    form.require_jersey_size ? 'Wajib' : 'Opsional'
-  }`
+  ).toLocaleString()} | Sponsor ${previewSponsors.length} | Jersey ${form.require_jersey_size ? 'Wajib' : 'Opsional'}`
   const businessSummary = `Brand ${form.business_public_brand_name || 'Belum diisi'} | Operating Committee ${
     form.business_operating_committee_name || 'Belum diisi'
   } | Scoring Support ${form.business_scoring_support_name || 'Belum diisi'}`
@@ -788,17 +935,217 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
                   style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
                 />
                 <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                  Sponsor Logos
+                  Sponsor Manager
                 </div>
                 <div style={{ color: '#475569', fontWeight: 700, fontSize: 13 }}>
-                  Isi 1 URL logo sponsor per baris. Field ini dipakai sebagai sponsor marquee di event page dan live display.
+                  Kelola sponsor per item untuk event page dan live display. Logo URL tetap akan disimpan juga
+                  sebagai fallback cepat.
                 </div>
-                <textarea
-                  placeholder="https://.../sponsor-a.png&#10;https://.../sponsor-b.png"
-                  value={form.sponsor_logo_urls}
-                  onChange={(e) => setForm({ ...form, sponsor_logo_urls: e.target.value })}
-                  style={{ padding: 12, borderRadius: 12, border: '2px solid #111', minHeight: 90, fontWeight: 800 }}
-                />
+                <div style={{ display: 'grid', gap: 10 }}>
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 800 }}>
+                      <input
+                        type="checkbox"
+                        checked={sponsorSectionEnabled}
+                        onChange={(e) => setSponsorSectionEnabled(e.target.checked)}
+                      />
+                      Tampilkan sponsor section
+                    </label>
+                    <button
+                      type="button"
+                      onClick={addSponsorItem}
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: 10,
+                        border: '2px solid #111',
+                        background: '#bfead2',
+                        fontWeight: 900,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Add Sponsor
+                    </button>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <input
+                      value={sponsorSectionTitle}
+                      onChange={(e) => setSponsorSectionTitle(e.target.value)}
+                      placeholder="Section title"
+                      style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                    />
+                    <input
+                      value={sponsorSectionSubtitle}
+                      onChange={(e) => setSponsorSectionSubtitle(e.target.value)}
+                      placeholder="Section subtitle"
+                      style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                    />
+                  </div>
+
+                  {sponsorItems.length === 0 ? (
+                    <div
+                      style={{
+                        padding: 12,
+                        borderRadius: 12,
+                        border: '2px dashed #111',
+                        background: '#f8fafc',
+                        fontWeight: 800,
+                        color: '#475569',
+                      }}
+                    >
+                      Belum ada sponsor. Klik <strong>Add Sponsor</strong> untuk mulai.
+                    </div>
+                  ) : (
+                    <div style={{ display: 'grid', gap: 12 }}>
+                      {sponsorItems.map((item, index) => (
+                        <div
+                          key={`sponsor-${index}`}
+                          style={{
+                            padding: 12,
+                            borderRadius: 14,
+                            border: '2px solid #111',
+                            background: '#f8fafc',
+                            display: 'grid',
+                            gap: 10,
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            <div style={{ fontWeight: 900 }}>Sponsor #{index + 1}</div>
+                            <button
+                              type="button"
+                              onClick={() => removeSponsorItem(index)}
+                              style={{
+                                padding: '6px 10px',
+                                borderRadius: 10,
+                                border: '2px solid #b91c1c',
+                                background: '#fee2e2',
+                                color: '#7f1d1d',
+                                fontWeight: 900,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Remove
+                            </button>
+                          </div>
+
+                          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 10 }}>
+                            <input
+                              value={item.name}
+                              onChange={(e) => updateSponsorItem(index, { name: e.target.value })}
+                              placeholder="Sponsor name"
+                              style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                            />
+                            <select
+                              value={item.tier}
+                              onChange={(e) => updateSponsorItem(index, { tier: e.target.value as EventSponsorTier })}
+                              style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                            >
+                              {sponsorTierOptions.map((tier) => (
+                                <option key={tier} value={tier}>
+                                  {tier}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <input
+                            value={item.logo_url}
+                            onChange={(e) => updateSponsorItem(index, { logo_url: e.target.value })}
+                            placeholder="Logo URL"
+                            style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                          />
+
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 120px', gap: 10 }}>
+                            <input
+                              value={item.website_url}
+                              onChange={(e) => updateSponsorItem(index, { website_url: e.target.value })}
+                              placeholder="Website URL (opsional)"
+                              style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                            />
+                            <input
+                              value={item.instagram_url}
+                              onChange={(e) => updateSponsorItem(index, { instagram_url: e.target.value })}
+                              placeholder="Instagram URL (opsional)"
+                              style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                            />
+                            <input
+                              type="number"
+                              min={1}
+                              value={item.sort_order}
+                              onChange={(e) => updateSponsorItem(index, { sort_order: e.target.value })}
+                              placeholder="Urutan"
+                              style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                            />
+                          </div>
+
+                          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+                            <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 800 }}>
+                              <input
+                                type="checkbox"
+                                checked={item.is_active}
+                                onChange={(e) => updateSponsorItem(index, { is_active: e.target.checked })}
+                              />
+                              Active
+                            </label>
+                            <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 800 }}>
+                              <input
+                                type="checkbox"
+                                checked={item.show_on_event_page}
+                                onChange={(e) => updateSponsorItem(index, { show_on_event_page: e.target.checked })}
+                              />
+                              Event Page
+                            </label>
+                            <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 800 }}>
+                              <input
+                                type="checkbox"
+                                checked={item.show_on_live_display}
+                                onChange={(e) => updateSponsorItem(index, { show_on_live_display: e.target.checked })}
+                              />
+                              Live Display
+                            </label>
+                          </div>
+
+                          {item.logo_url.trim() && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                              <img
+                                src={item.logo_url}
+                                alt={item.name || `Sponsor ${index + 1}`}
+                                style={{ height: 48, width: 'auto', maxWidth: 160, objectFit: 'contain', borderRadius: 8, background: '#fff', border: '1px solid #cbd5e1', padding: 6 }}
+                              />
+                              <div style={{ fontSize: 12, color: '#475569', fontWeight: 700 }}>
+                                Preview logo sponsor
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div style={{ display: 'grid', gap: 10 }}>
+                    <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                      Preview Sebelum Save
+                    </div>
+                    <div style={{ color: '#475569', fontWeight: 700, fontSize: 13 }}>
+                      Preview ini meniru sponsor marquee di event page dan live display.
+                    </div>
+                    <SponsorMarquee
+                      businessSettings={previewBusinessSettings}
+                      sponsorLogoUrls={previewSponsors.map((item) => item.logo_url ?? '').filter(Boolean)}
+                      placement="event_page"
+                      title={sponsorSectionTitle || 'Official Sponsors'}
+                      subtitle={sponsorSectionSubtitle || 'Partner dan sponsor yang ikut mendukung event ini.'}
+                    />
+                    <SponsorMarquee
+                      businessSettings={previewBusinessSettings}
+                      sponsorLogoUrls={previewSponsors.map((item) => item.logo_url ?? '').filter(Boolean)}
+                      placement="live_display"
+                      title="Supported By"
+                      subtitle="Preview ribbon sponsor untuk live display."
+                      compact
+                    />
+                  </div>
+                </div>
                 <div style={{ display: 'grid', gap: 8 }}>
                   <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
                     Biaya Pendaftaran
