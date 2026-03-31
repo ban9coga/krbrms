@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type DragEvent } from 'react'
 import SponsorMarquee from '../../../../../components/SponsorMarquee'
 import { formatAppRoleLabel } from '../../../../../lib/roles'
 import { supabase } from '../../../../../lib/supabaseClient'
@@ -125,6 +125,40 @@ const sponsorDraftFromItem = (item: Partial<EventSponsor>, index: number): Spons
     typeof item.show_on_live_display === 'boolean' ? item.show_on_live_display : true,
 })
 
+const reindexSponsorDrafts = (items: SponsorDraft[]): SponsorDraft[] =>
+  items.map((item, index) => ({
+    ...item,
+    sort_order: String(index + 1),
+  }))
+
+const sortSponsorDrafts = (items: SponsorDraft[]): SponsorDraft[] =>
+  reindexSponsorDrafts(
+    [...items].sort((a, b) => {
+      const aOrder = Number(a.sort_order)
+      const bOrder = Number(b.sort_order)
+      const safeA = Number.isFinite(aOrder) && aOrder > 0 ? aOrder : Number.MAX_SAFE_INTEGER
+      const safeB = Number.isFinite(bOrder) && bOrder > 0 ? bOrder : Number.MAX_SAFE_INTEGER
+      return safeA - safeB
+    })
+  )
+
+const moveSponsorDrafts = (items: SponsorDraft[], fromIndex: number, toIndex: number): SponsorDraft[] => {
+  if (
+    fromIndex === toIndex ||
+    fromIndex < 0 ||
+    toIndex < 0 ||
+    fromIndex >= items.length ||
+    toIndex >= items.length
+  ) {
+    return items
+  }
+  const next = [...items]
+  const [moved] = next.splice(fromIndex, 1)
+  if (!moved) return items
+  next.splice(toIndex, 0, moved)
+  return reindexSponsorDrafts(next)
+}
+
 const sanitizeSponsorDrafts = (items: SponsorDraft[]): EventSponsor[] =>
   items
     .map((item, index) => {
@@ -195,6 +229,13 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
   const [sponsorSectionSubtitle, setSponsorSectionSubtitle] = useState(
     'Partner dan sponsor yang ikut mendukung event ini.'
   )
+  const [sponsorUploadingIndex, setSponsorUploadingIndex] = useState<number | null>(null)
+  const [sponsorUploadError, setSponsorUploadError] = useState<{ index: number | null; message: string }>({
+    index: null,
+    message: '',
+  })
+  const [dragSponsorIndex, setDragSponsorIndex] = useState<number | null>(null)
+  const [dragOverSponsorIndex, setDragOverSponsorIndex] = useState<number | null>(null)
 
   const [form, setForm] = useState({
     event_logo_url: '',
@@ -266,6 +307,22 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
     return json?.url as string
   }
 
+  const uploadSponsorLogo = async (file: File) => {
+    const { data } = await supabase.auth.getSession()
+    const token = data.session?.access_token
+    if (!token) throw new Error('Session expired. Silakan login ulang.')
+    const body = new FormData()
+    body.append('file', file)
+    const res = await fetch(`/api/events/${eventId}/sponsor-logo`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body,
+    })
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(json?.error || 'Gagal upload logo sponsor.')
+    return json?.url as string
+  }
+
   const loadStaffAssignments = async () => {
     if (!eventId) return
     setStaffLoading(true)
@@ -295,11 +352,13 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
         const theme = (data.display_theme ?? {}) as Record<string, unknown>
         const format = (data.race_format_settings ?? {}) as Record<string, unknown>
         const business = (data.business_settings ?? {}) as BusinessSettings
-        const loadedSponsors = Array.isArray(business.sponsors) && business.sponsors.length > 0
-          ? business.sponsors.map((item, index) => sponsorDraftFromItem(item, index))
-          : (data.sponsor_logo_urls ?? []).map((logoUrl, index) =>
-              sponsorDraftFromItem({ logo_url: logoUrl, sort_order: index + 1 }, index)
-            )
+        const loadedSponsors = sortSponsorDrafts(
+          Array.isArray(business.sponsors) && business.sponsors.length > 0
+            ? business.sponsors.map((item, index) => sponsorDraftFromItem(item, index))
+            : (data.sponsor_logo_urls ?? []).map((logoUrl, index) =>
+                sponsorDraftFromItem({ logo_url: logoUrl, sort_order: index + 1 }, index)
+              )
+        )
         const nextForm = {
           event_logo_url: data.event_logo_url ?? '',
           sponsor_logo_urls: (data.sponsor_logo_urls ?? []).join('\n'),
@@ -624,7 +683,7 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
   }
 
   const addSponsorItem = () => {
-    setSponsorItems((prev) => [...prev, createEmptySponsorDraft(prev.length)])
+    setSponsorItems((prev) => reindexSponsorDrafts([...prev, createEmptySponsorDraft(prev.length)]))
   }
 
   const updateSponsorItem = (index: number, patch: Partial<SponsorDraft>) => {
@@ -637,7 +696,57 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
   }
 
   const removeSponsorItem = (index: number) => {
-    setSponsorItems((prev) => prev.filter((_, idx) => idx !== index))
+    setSponsorItems((prev) => reindexSponsorDrafts(prev.filter((_, idx) => idx !== index)))
+  }
+
+  const moveSponsorItem = (fromIndex: number, toIndex: number) => {
+    setSponsorItems((prev) => moveSponsorDrafts(prev, fromIndex, toIndex))
+  }
+
+  const handleSponsorLogoUpload = async (index: number, file?: File | null) => {
+    if (!file) return
+    setSponsorUploadError({ index: null, message: '' })
+    setSponsorUploadingIndex(index)
+    try {
+      const url = await uploadSponsorLogo(file)
+      updateSponsorItem(index, { logo_url: url })
+    } catch (err: unknown) {
+      setSponsorUploadError({
+        index,
+        message: err instanceof Error ? err.message : 'Gagal upload logo sponsor.',
+      })
+    } finally {
+      setSponsorUploadingIndex(null)
+    }
+  }
+
+  const handleSponsorDragStart = (index: number) => (event: DragEvent<HTMLDivElement>) => {
+    setDragSponsorIndex(index)
+    setDragOverSponsorIndex(index)
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', String(index))
+  }
+
+  const handleSponsorDragOver = (index: number) => (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    if (dragOverSponsorIndex !== index) setDragOverSponsorIndex(index)
+    event.dataTransfer.dropEffect = 'move'
+  }
+
+  const handleSponsorDrop = (index: number) => (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    const fallbackIndex = Number.parseInt(event.dataTransfer.getData('text/plain') || '', 10)
+    const sourceIndex = dragSponsorIndex ?? fallbackIndex
+    if (Number.isFinite(sourceIndex) && sourceIndex >= 0) {
+      moveSponsorItem(sourceIndex, index)
+    }
+    setDragSponsorIndex(null)
+    setDragOverSponsorIndex(null)
+  }
+
+  const resetSponsorDragState = () => {
+    setDragSponsorIndex(null)
+    setDragOverSponsorIndex(null)
   }
 
   const saveStaffAssignments = async () => {
@@ -1000,32 +1109,107 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
                       {sponsorItems.map((item, index) => (
                         <div
                           key={`sponsor-${index}`}
+                          onDragOver={handleSponsorDragOver(index)}
+                          onDrop={handleSponsorDrop(index)}
                           style={{
                             padding: 12,
                             borderRadius: 14,
-                            border: '2px solid #111',
-                            background: '#f8fafc',
+                            border:
+                              dragOverSponsorIndex === index && dragSponsorIndex !== index
+                                ? '2px solid #2563eb'
+                                : '2px solid #111',
+                            background: dragSponsorIndex === index ? '#eef2ff' : '#f8fafc',
                             display: 'grid',
                             gap: 10,
+                            boxShadow:
+                              dragOverSponsorIndex === index && dragSponsorIndex !== index
+                                ? '0 0 0 3px rgba(37,99,235,0.12)'
+                                : 'none',
                           }}
                         >
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                            <div style={{ fontWeight: 900 }}>Sponsor #{index + 1}</div>
-                            <button
-                              type="button"
-                              onClick={() => removeSponsorItem(index)}
-                              style={{
-                                padding: '6px 10px',
-                                borderRadius: 10,
-                                border: '2px solid #b91c1c',
-                                background: '#fee2e2',
-                                color: '#7f1d1d',
-                                fontWeight: 900,
-                                cursor: 'pointer',
-                              }}
-                            >
-                              Remove
-                            </button>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                              <span
+                                draggable={sponsorItems.length > 1}
+                                onDragStart={handleSponsorDragStart(index)}
+                                onDragEnd={resetSponsorDragState}
+                                style={{
+                                  padding: '6px 10px',
+                                  borderRadius: 999,
+                                  border: '2px solid #111',
+                                  background: '#fff',
+                                  fontWeight: 900,
+                                  cursor: sponsorItems.length > 1 ? 'grab' : 'default',
+                                  userSelect: 'none',
+                                }}
+                                title="Drag untuk ubah urutan sponsor"
+                              >
+                                Drag
+                              </span>
+                              <div style={{ fontWeight: 900 }}>Sponsor #{index + 1}</div>
+                              <span
+                                style={{
+                                  padding: '4px 8px',
+                                  borderRadius: 999,
+                                  background: '#dbeafe',
+                                  border: '1px solid #93c5fd',
+                                  color: '#1d4ed8',
+                                  fontSize: 12,
+                                  fontWeight: 900,
+                                }}
+                              >
+                                Urutan {index + 1}
+                              </span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                              <button
+                                type="button"
+                                onClick={() => moveSponsorItem(index, index - 1)}
+                                disabled={index === 0}
+                                style={{
+                                  padding: '6px 10px',
+                                  borderRadius: 10,
+                                  border: '2px solid #111',
+                                  background: index === 0 ? '#e5e7eb' : '#fff',
+                                  fontWeight: 900,
+                                  cursor: index === 0 ? 'not-allowed' : 'pointer',
+                                  opacity: index === 0 ? 0.6 : 1,
+                                }}
+                              >
+                                Up
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => moveSponsorItem(index, index + 1)}
+                                disabled={index === sponsorItems.length - 1}
+                                style={{
+                                  padding: '6px 10px',
+                                  borderRadius: 10,
+                                  border: '2px solid #111',
+                                  background: index === sponsorItems.length - 1 ? '#e5e7eb' : '#fff',
+                                  fontWeight: 900,
+                                  cursor: index === sponsorItems.length - 1 ? 'not-allowed' : 'pointer',
+                                  opacity: index === sponsorItems.length - 1 ? 0.6 : 1,
+                                }}
+                              >
+                                Down
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => removeSponsorItem(index)}
+                                style={{
+                                  padding: '6px 10px',
+                                  borderRadius: 10,
+                                  border: '2px solid #b91c1c',
+                                  background: '#fee2e2',
+                                  color: '#7f1d1d',
+                                  fontWeight: 900,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                Remove
+                              </button>
+                            </div>
                           </div>
 
                           <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 10 }}>
@@ -1055,7 +1239,41 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
                             style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
                           />
 
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 120px', gap: 10 }}>
+                          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                            <label
+                              style={{
+                                padding: '8px 12px',
+                                borderRadius: 10,
+                                border: '2px solid #111',
+                                background: '#fff',
+                                fontWeight: 900,
+                                cursor: sponsorUploadingIndex === index ? 'progress' : 'pointer',
+                              }}
+                            >
+                              {sponsorUploadingIndex === index ? 'Uploading...' : 'Upload Logo'}
+                              <input
+                                type="file"
+                                accept="image/*"
+                                disabled={sponsorUploadingIndex !== null}
+                                onChange={async (e) => {
+                                  const file = e.currentTarget.files?.[0]
+                                  await handleSponsorLogoUpload(index, file)
+                                  e.currentTarget.value = ''
+                                }}
+                                style={{ display: 'none' }}
+                              />
+                            </label>
+                            <div style={{ fontSize: 12, color: '#475569', fontWeight: 700 }}>
+                              Upload langsung atau tetap paste URL kalau logo sudah ada di hosting.
+                            </div>
+                          </div>
+                          {sponsorUploadError.index === index && sponsorUploadError.message && (
+                            <div style={{ fontSize: 12, fontWeight: 800, color: '#b91c1c' }}>
+                              {sponsorUploadError.message}
+                            </div>
+                          )}
+
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                             <input
                               value={item.website_url}
                               onChange={(e) => updateSponsorItem(index, { website_url: e.target.value })}
@@ -1066,14 +1284,6 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
                               value={item.instagram_url}
                               onChange={(e) => updateSponsorItem(index, { instagram_url: e.target.value })}
                               placeholder="Instagram URL (opsional)"
-                              style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
-                            />
-                            <input
-                              type="number"
-                              min={1}
-                              value={item.sort_order}
-                              onChange={(e) => updateSponsorItem(index, { sort_order: e.target.value })}
-                              placeholder="Urutan"
                               style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
                             />
                           </div>
