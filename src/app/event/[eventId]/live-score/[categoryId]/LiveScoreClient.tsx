@@ -5,12 +5,6 @@ import { useEffect, useMemo, useState } from 'react'
 import EmptyState from '../../../../../components/EmptyState'
 import LoadingState from '../../../../../components/LoadingState'
 import PublicTopbar from '../../../../../components/PublicTopbar'
-import ResultStoryCard, {
-  generateResultStoryCardPngBlob,
-  getPodiumBadge,
-  getResultStoryCardFilename,
-  type ResultStoryCardData,
-} from '../../../../../components/ResultStoryCard'
 import { getEventById, type EventItem } from '../../../../../lib/eventService'
 
 type Row = {
@@ -64,8 +58,6 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
   const [stages, setStages] = useState<StageGroup[]>([])
   const [sortMode, setSortMode] = useState<'GATE' | 'RANK'>('RANK')
   const [refreshing, setRefreshing] = useState(false)
-  const [storyData, setStoryData] = useState<ResultStoryCardData | null>(null)
-  const [storyDownloading, setStoryDownloading] = useState(false)
 
   const loadLiveScore = async () => {
     const res = await fetch(
@@ -141,40 +133,6 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
       </div>
     )
   }
-
-  const createStoryData = (row: Row): ResultStoryCardData => ({
-    eventTitle: publicEventTitle,
-    eventBrand: publicBrandName || publicEventTitle,
-    eventDate: event?.event_date ?? null,
-    eventLocation: event?.location ?? null,
-    categoryLabel: categoryLabel || 'Category',
-    classLabel: row.class_label ?? null,
-    riderName: row.name,
-    plateNumber: row.no_plate,
-    rankNumber: row.rank_point ?? null,
-    totalPoint: row.total_point ?? null,
-    statusLabel: 'Official Result',
-    operatorLabel: operatingCommitteeLabel || null,
-    scoringSupportLabel: scoringSupportLabel || null,
-  })
-
-  const downloadStoryCard = async (data: ResultStoryCardData) => {
-    setStoryDownloading(true)
-    try {
-      const pngBlob = await generateResultStoryCardPngBlob(data)
-      const pngUrl = URL.createObjectURL(pngBlob)
-      const link = document.createElement('a')
-      link.href = pngUrl
-      link.download = `${getResultStoryCardFilename(data)}.png`
-      link.click()
-      URL.revokeObjectURL(pngUrl)
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Gagal download story card.')
-    } finally {
-      setStoryDownloading(false)
-    }
-  }
-
 
   const tableRowsByBatch = useMemo(
     () =>
@@ -272,10 +230,10 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                 </span>
               </div>
               <div className="table-mobile-hint">
-                Geser kiri/kanan untuk lihat semua kolom. Tap Story Card untuk bikin PNG rider.
+                Geser kiri/kanan untuk lihat semua kolom.
               </div>
               <div className="public-table-wrap">
-                <table className="public-table min-w-[1040px] text-[11px] sm:text-xs md:text-sm">
+                <table className="public-table min-w-[940px] text-[11px] sm:text-xs md:text-sm">
                   <thead>
                     <tr>
                       {[
@@ -293,7 +251,6 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                         'Total',
                         'Rank',
                         'Class',
-                        'Share',
                       ].map((h) => (
                         <th key={h} className="whitespace-nowrap">
                           {h}
@@ -302,45 +259,24 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                     </tr>
                   </thead>
                   <tbody>
-                    {batch.rows.map((row) => {
-                      const podiumBadge = getPodiumBadge(row.rank_point)
-                      return (
-                        <tr key={row.rider_id}>
-                          <td>{row.gate_moto1 ?? '-'}</td>
-                          <td>{row.gate_moto2 ?? '-'}</td>
-                          <td>{row.gate_moto3 ?? '-'}</td>
-                          <td>{riderPhotoCell(row.name, row.no_plate, row.photo_thumbnail_url)}</td>
-                          <td className="whitespace-nowrap font-extrabold text-slate-900">{row.name}</td>
-                          <td>{row.no_plate}</td>
-                          <td className="whitespace-nowrap">{row.club || '-'}</td>
-                          <td>{row.point_moto1 ?? '-'}</td>
-                          <td>{row.point_moto2 ?? '-'}</td>
-                          <td>{row.point_moto3 ?? '-'}</td>
-                          <td className="font-extrabold text-amber-600">{row.penalty_total ?? '-'}</td>
-                          <td className="font-extrabold text-sky-700">{row.total_point ?? '-'}</td>
-                          <td>
-                            <div className="grid gap-1">
-                              <span className="font-extrabold text-emerald-700">{row.rank_point ?? '-'}</span>
-                              {podiumBadge && (
-                                <span className="inline-flex w-fit rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.1em] text-amber-700">
-                                  {podiumBadge}
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="whitespace-nowrap">{row.class_label || '-'}</td>
-                          <td>
-                            <button
-                              type="button"
-                              onClick={() => setStoryData(createStoryData(row))}
-                              className="rounded-full border border-amber-300 bg-amber-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-amber-700 transition-colors hover:bg-amber-100 sm:text-xs"
-                            >
-                              Story Card
-                            </button>
-                          </td>
-                        </tr>
-                      )
-                    })}
+                    {batch.rows.map((row) => (
+                      <tr key={row.rider_id}>
+                        <td>{row.gate_moto1 ?? '-'}</td>
+                        <td>{row.gate_moto2 ?? '-'}</td>
+                        <td>{row.gate_moto3 ?? '-'}</td>
+                        <td>{riderPhotoCell(row.name, row.no_plate, row.photo_thumbnail_url)}</td>
+                        <td className="whitespace-nowrap font-extrabold text-slate-900">{row.name}</td>
+                        <td>{row.no_plate}</td>
+                        <td className="whitespace-nowrap">{row.club || '-'}</td>
+                        <td>{row.point_moto1 ?? '-'}</td>
+                        <td>{row.point_moto2 ?? '-'}</td>
+                        <td>{row.point_moto3 ?? '-'}</td>
+                        <td className="font-extrabold text-amber-600">{row.penalty_total ?? '-'}</td>
+                        <td className="font-extrabold text-sky-700">{row.total_point ?? '-'}</td>
+                        <td className="font-extrabold text-emerald-700">{row.rank_point ?? '-'}</td>
+                        <td className="whitespace-nowrap">{row.class_label || '-'}</td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -391,135 +327,6 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
         )}
       </main>
 
-      {storyData && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 80,
-            background: 'rgba(15,23,42,0.74)',
-            display: 'grid',
-            placeItems: 'center',
-            padding: 20,
-          }}
-          onClick={() => setStoryData(null)}
-        >
-          <div
-            style={{
-              width: 'min(100%, 920px)',
-              maxHeight: 'calc(100vh - 40px)',
-              overflow: 'auto',
-              background: '#fff',
-              borderRadius: 24,
-              padding: 20,
-              display: 'grid',
-              gap: 18,
-              boxShadow: '0 24px 80px rgba(15,23,42,0.32)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-              <div style={{ display: 'grid', gap: 4 }}>
-                <div style={{ fontSize: 22, fontWeight: 950 }}>Share Result Story</div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#475569' }}>
-                  Download PNG untuk upload manual ke WhatsApp Story atau Instagram Story.
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setStoryData(null)}
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: 10,
-                  border: '2px solid #111',
-                  background: '#fff',
-                  fontWeight: 900,
-                  cursor: 'pointer',
-                }}
-              >
-                Close
-              </button>
-            </div>
-
-            <div
-              className="story-preview-grid"
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'minmax(0, 360px) minmax(0, 1fr)',
-                gap: 20,
-                alignItems: 'start',
-              }}
-            >
-              <ResultStoryCard data={storyData} />
-              <div style={{ display: 'grid', gap: 12 }}>
-                <div style={{ padding: 14, borderRadius: 16, border: '2px solid #111', background: '#f8fafc' }}>
-                  <div
-                    style={{
-                      fontSize: 12,
-                      fontWeight: 900,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.08em',
-                      color: '#475569',
-                    }}
-                  >
-                    Story Info
-                  </div>
-                  <div style={{ marginTop: 10, display: 'grid', gap: 6, fontWeight: 800 }}>
-                    <div>Rider: {storyData.riderName}</div>
-                    <div>Category: {storyData.categoryLabel}</div>
-                    <div>Class: {storyData.classLabel || '-'}</div>
-                    <div>Rank: {storyData.rankNumber != null ? `#${storyData.rankNumber}` : '-'}</div>
-                    <div>Total Point: {storyData.totalPoint ?? '-'}</div>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                  <button
-                    type="button"
-                    onClick={() => downloadStoryCard(storyData)}
-                    disabled={storyDownloading}
-                    style={{
-                      padding: '12px 16px',
-                      borderRadius: 12,
-                      border: '2px solid #111',
-                      background: '#fbbf24',
-                      color: '#111',
-                      fontWeight: 900,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {storyDownloading ? 'Generating PNG...' : 'Download PNG'}
-                  </button>
-                  <button
-                    type="button"
-                    disabled
-                    title="Direct share sedang disiapkan"
-                    style={{
-                      padding: '12px 16px',
-                      borderRadius: 12,
-                      border: '2px solid #cbd5e1',
-                      background: '#f8fafc',
-                      color: '#64748b',
-                      fontWeight: 900,
-                      cursor: 'not-allowed',
-                      opacity: 0.75,
-                    }}
-                  >
-                    Share Soon
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <style jsx>{`
-        @media (max-width: 860px) {
-          .story-preview-grid {
-            grid-template-columns: 1fr;
-          }
-        }
-      `}</style>
     </div>
   )
 }

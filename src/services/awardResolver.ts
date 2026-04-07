@@ -4,12 +4,13 @@ import type { ResolvedRank } from './rankingResolver'
 
 export type AwardType =
   | 'PARTICIPATION'
-  | 'BEGINNER'
-  | 'AMATEUR'
-  | 'ACADEMY'
   | 'ROOKIE'
-  | 'PRO'
+  | 'BEGINNER'
   | 'NOVICE'
+  | 'AMATEUR'
+  | 'INTERMEDIATE'
+  | 'ADVANCED'
+  | 'PRO'
   | 'ELITE'
 
 export type AwardRow = {

@@ -19,13 +19,23 @@ export type RankedRider = {
 export type StageAdvance = {
   riderId: string
   toStage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL'
-  finalClass?: 'BEGINNER' | 'AMATEUR' | 'ACADEMY' | 'ROOKIE' | 'PRO' | 'NOVICE' | 'ELITE'
+  finalClass?: FinalClass
 }
+
+export type FinalClass =
+  | 'ROOKIE'
+  | 'BEGINNER'
+  | 'NOVICE'
+  | 'AMATEUR'
+  | 'INTERMEDIATE'
+  | 'ADVANCED'
+  | 'PRO'
+  | 'ELITE'
 
 export type FinalFinish = {
   riderId: string
   finishOrder: number | null
-  finalClass: 'BEGINNER' | 'AMATEUR' | 'ACADEMY' | 'ROOKIE' | 'PRO' | 'NOVICE' | 'ELITE'
+  finalClass: FinalClass
 }
 
 export type FinalWinner = {
@@ -44,6 +54,50 @@ export type SafetyResult = {
 }
 
 export type PointResolver = (finishOrder: number | null) => number
+
+export const FINAL_CLASS_ORDER: FinalClass[] = [
+  'ROOKIE',
+  'BEGINNER',
+  'NOVICE',
+  'AMATEUR',
+  'INTERMEDIATE',
+  'ADVANCED',
+  'PRO',
+  'ELITE',
+]
+
+export type StageFlagsLike = {
+  enableQuarterFinal: boolean
+  enableSemiFinal: boolean
+}
+
+const applyPrimaryAdvance = (
+  advances: StageAdvance[],
+  riderId: string,
+  primaryAdvance: Pick<StageAdvance, 'toStage' | 'finalClass'>
+) => {
+  if (primaryAdvance.toStage === 'FINAL') {
+    advances.push({ riderId, toStage: 'FINAL', finalClass: primaryAdvance.finalClass ?? 'ELITE' })
+    return
+  }
+  advances.push({ riderId, toStage: primaryAdvance.toStage })
+}
+
+export const resolveQualificationPrimaryAdvance = (stages: StageFlagsLike): Pick<StageAdvance, 'toStage' | 'finalClass'> => {
+  if (stages.enableQuarterFinal) return { toStage: 'QUARTER_FINAL' }
+  if (stages.enableSemiFinal) return { toStage: 'SEMI_FINAL' }
+  return { toStage: 'FINAL', finalClass: 'ELITE' }
+}
+
+export const resolveQuarterFinalPrimaryAdvance = (stages: Pick<StageFlagsLike, 'enableSemiFinal'>): Pick<StageAdvance, 'toStage' | 'finalClass'> => {
+  if (stages.enableSemiFinal) return { toStage: 'SEMI_FINAL' }
+  return { toStage: 'FINAL', finalClass: 'ELITE' }
+}
+
+export const formatStageAdvanceLabel = (advance: Pick<StageAdvance, 'toStage' | 'finalClass'>): string => {
+  if (advance.toStage === 'FINAL') return `FINAL ${advance.finalClass ?? 'ELITE'}`
+  return advance.toStage.replace(/_/g, ' ')
+}
 
 const defaultPointResolver: PointResolver = (finishOrder) => {
   if (finishOrder === null || finishOrder === undefined) return 9999
@@ -68,7 +122,8 @@ const rankByPoints = (scores: Record<string, number>): RankedRider[] => {
 
 export function computeQualification(
   batches: BatchInput[],
-  pointResolver: PointResolver = defaultPointResolver
+  pointResolver: PointResolver = defaultPointResolver,
+  primaryAdvance: Pick<StageAdvance, 'toStage' | 'finalClass'> = { toStage: 'QUARTER_FINAL' }
 ): { batchRanks: Record<string, RankedRider[]>; advances: StageAdvance[] } {
   const advances: StageAdvance[] = []
   const batchRanks: Record<string, RankedRider[]> = {}
@@ -87,13 +142,15 @@ export function computeQualification(
 
     for (const row of ranked) {
       if (row.rank >= 1 && row.rank <= 4) {
-        advances.push({ riderId: row.riderId, toStage: 'QUARTER_FINAL' })
+        applyPrimaryAdvance(advances, row.riderId, primaryAdvance)
       } else if (row.rank === 5) {
-        advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass: 'ACADEMY' })
-      } else if (row.rank === 6) {
         advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass: 'AMATEUR' })
-      } else if (row.rank === 7 || row.rank === 8) {
+      } else if (row.rank === 6) {
+        advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass: 'NOVICE' })
+      } else if (row.rank === 7) {
         advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass: 'BEGINNER' })
+      } else if (row.rank === 8) {
+        advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass: 'ROOKIE' })
       }
     }
   }
@@ -101,15 +158,18 @@ export function computeQualification(
   return { batchRanks, advances }
 }
 
-export function computeQuarterFinal(ranked: RankedRider[]): StageAdvance[] {
+export function computeQuarterFinal(
+  ranked: RankedRider[],
+  primaryAdvance: Pick<StageAdvance, 'toStage' | 'finalClass'> = { toStage: 'SEMI_FINAL' }
+): StageAdvance[] {
   const advances: StageAdvance[] = []
   for (const row of ranked) {
     if (row.rank >= 1 && row.rank <= 4) {
-      advances.push({ riderId: row.riderId, toStage: 'SEMI_FINAL' })
+      applyPrimaryAdvance(advances, row.riderId, primaryAdvance)
     } else if (row.rank === 5 || row.rank === 6) {
-      advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass: 'PRO' })
+      advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass: 'ADVANCED' })
     } else if (row.rank === 7 || row.rank === 8) {
-      advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass: 'ROOKIE' })
+      advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass: 'INTERMEDIATE' })
     }
   }
   return advances
@@ -121,7 +181,7 @@ export function computeSemiFinal(ranked: RankedRider[]): StageAdvance[] {
     if (row.rank >= 1 && row.rank <= 4) {
       advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass: 'ELITE' })
     } else if (row.rank >= 5 && row.rank <= 8) {
-      advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass: 'NOVICE' })
+      advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass: 'PRO' })
     }
   }
   return advances

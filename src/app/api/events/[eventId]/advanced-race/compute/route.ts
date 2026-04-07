@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../../lib/auth'
 import { assertMotoEditable, assertMotoNotUnderProtest } from '../../../../../../lib/motoLock'
 import { resolveCategoryConfig } from '../../../../../../services/categoryResolver'
-import { computeQualification } from '../../../../../../services/raceStageEngine'
+import { computeQualification, resolveQualificationPrimaryAdvance } from '../../../../../../services/raceStageEngine'
 import { generateStageMotos } from '../../../../../../services/advancedRaceAuto'
 
 type MotoRow = {
@@ -131,7 +131,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   }
 
   const { batchRanks, advances } = computeQualification(
-    batches.map((b) => ({ batchId: b.batchId, riders: b.riders, finishes: b.finishes }))
+    batches.map((b) => ({ batchId: b.batchId, riders: b.riders, finishes: b.finishes })),
+    undefined,
+    resolveQualificationPrimaryAdvance(resolved.stages)
   )
 
   const filteredAdvances = advances.filter((row) => {

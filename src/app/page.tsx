@@ -112,7 +112,7 @@ export default async function LandingPage() {
                 <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-end">
                   <div className="grid gap-2">
                     <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-amber-300">Event Spotlight</p>
-                    <h2 className="text-3xl font-black tracking-tight text-white md:text-4xl">Live, Upcoming, dan Hasil Terbaru</h2>
+                    <h2 className="text-3xl font-black tracking-tight text-white md:text-4xl">Live, Upcoming, dan Completed Event</h2>
                     <p className="max-w-3xl text-sm font-medium text-slate-200 md:text-base">
                       Pantau event yang sedang berjalan, lihat jadwal yang akan datang, dan buka hasil race yang sudah selesai.
                     </p>
@@ -161,3 +161,4 @@ export default async function LandingPage() {
     </div>
   )
 }
+

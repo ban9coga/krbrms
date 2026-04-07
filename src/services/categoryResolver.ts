@@ -1,6 +1,7 @@
 'use server'
 
 import { adminClient } from '../lib/auth'
+import { FINAL_CLASS_ORDER } from './raceStageEngine'
 
 export type StageFlags = {
   enableQualification: boolean
@@ -31,6 +32,34 @@ const DEFAULT_RESULT = (categoryId: string, eventId: string, totalRiders: number
   source: 'default',
   warning,
 })
+
+const resolveDefaultAdvancedRace = (totalRiders: number) => {
+  if (totalRiders <= 8) {
+    return {
+      stages: { enableQualification: false, enableQuarterFinal: false, enableSemiFinal: false },
+      finalClasses: ['ELITE'],
+    }
+  }
+
+  if (totalRiders <= 16) {
+    return {
+      stages: { enableQualification: true, enableQuarterFinal: false, enableSemiFinal: false },
+      finalClasses: ['ROOKIE', 'BEGINNER', 'NOVICE', 'AMATEUR', 'ELITE'],
+    }
+  }
+
+  if (totalRiders <= 32) {
+    return {
+      stages: { enableQualification: true, enableQuarterFinal: false, enableSemiFinal: true },
+      finalClasses: ['ROOKIE', 'BEGINNER', 'NOVICE', 'AMATEUR', 'PRO', 'ELITE'],
+    }
+  }
+
+  return {
+    stages: { enableQualification: true, enableQuarterFinal: true, enableSemiFinal: true },
+    finalClasses: [...FINAL_CLASS_ORDER],
+  }
+}
 
 export async function resolveCategoryConfig(categoryId: string, override?: ResolverOverride): Promise<CategoryResolveResult> {
   try {
@@ -93,31 +122,14 @@ export async function resolveCategoryConfig(categoryId: string, override?: Resol
 
     if (ruleError || !rule) {
       const total = totalRiders ?? 0
-      const finals =
-        total <= 8
-          ? ['ELITE']
-          : total <= 16
-          ? ['ELITE', 'NOVICE']
-          : total <= 24
-          ? ['ELITE', 'NOVICE', 'PRO']
-          : total <= 32
-          ? ['ELITE', 'NOVICE', 'PRO', 'ROOKIE']
-          : total <= 40
-          ? ['ELITE', 'NOVICE', 'PRO', 'ROOKIE', 'ACADEMY']
-          : total <= 48
-          ? ['ELITE', 'NOVICE', 'PRO', 'ROOKIE', 'ACADEMY', 'AMATEUR']
-          : ['ELITE', 'NOVICE', 'PRO', 'ROOKIE', 'ACADEMY', 'AMATEUR', 'BEGINNER']
+      const defaults = resolveDefaultAdvancedRace(total)
 
       return {
         categoryId,
         eventId,
         totalRiders: total,
-        stages: {
-          enableQualification: total > 0,
-          enableQuarterFinal: total > 8,
-          enableSemiFinal: total > 8,
-        },
-        finalClasses: finals,
+        stages: defaults.stages,
+        finalClasses: defaults.finalClasses,
         source: 'default',
         warning: 'No rule matched. Using default auto mapping.',
       }

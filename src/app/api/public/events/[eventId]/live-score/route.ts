@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../../lib/auth'
 import { isMotoPublicVisible, isMotoUpcoming } from '../../../../../../lib/motoStatus'
+import { resolveCategoryConfig } from '../../../../../../services/categoryResolver'
+import { formatStageAdvanceLabel, resolveQualificationPrimaryAdvance } from '../../../../../../services/raceStageEngine'
 
 type MotoRow = {
   id: string
@@ -87,6 +89,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   if (catError || !category || category.event_id !== eventId) {
     return NextResponse.json({ error: 'Category not found in event' }, { status: 404 })
   }
+  const resolvedCategory = await resolveCategoryConfig(categoryId)
 
   const { data: motos, error: motoError } = await adminClient
     .from('motos')
@@ -314,10 +317,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       const classForRank = (rank: number | null | undefined) => {
         if (!hasMultipleBatches) return null
         if (!rank) return null
-        if (rank >= 1 && rank <= 4) return 'QUARTER FINAL'
-        if (rank === 5) return 'FINAL ACADEMY'
-        if (rank === 6) return 'FINAL AMATEUR'
-        if (rank === 7 || rank === 8) return 'FINAL BEGINNER'
+        if (rank >= 1 && rank <= 4) return formatStageAdvanceLabel(resolveQualificationPrimaryAdvance(resolvedCategory.stages))
+        if (rank === 5) return 'FINAL AMATEUR'
+        if (rank === 6) return 'FINAL NOVICE'
+        if (rank === 7) return 'FINAL BEGINNER'
+        if (rank === 8) return 'FINAL ROOKIE'
         return null
       }
 

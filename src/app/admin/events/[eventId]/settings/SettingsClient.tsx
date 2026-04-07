@@ -91,6 +91,137 @@ type SponsorDraft = {
 }
 
 const sponsorTierOptions: EventSponsorTier[] = ['TITLE', 'MAIN', 'SUPPORT', 'MEDIA', 'COMMUNITY', 'PARTNER']
+const advancedFinalClassOrder = ['ROOKIE', 'BEGINNER', 'NOVICE', 'AMATEUR', 'INTERMEDIATE', 'ADVANCED', 'PRO', 'ELITE'] as const
+const legacyAdvancedFinalClasses = ['ACADEMY'] as const
+
+const buildStandardBatchRules = (gateSize: number): CategoryRule[] => {
+  const safeGateSize = Math.max(1, gateSize || 8)
+  const eliteOnly = ['ELITE']
+  const qualificationFinals = ['ROOKIE', 'BEGINNER', 'NOVICE', 'AMATEUR', 'ELITE']
+  const semiFinals = ['ROOKIE', 'BEGINNER', 'NOVICE', 'AMATEUR', 'PRO', 'ELITE']
+  const fullFinals = [...advancedFinalClassOrder]
+
+  return [
+    {
+      category_id: '',
+      min_riders: 1,
+      enable_qualification: false,
+      enable_quarter_final: false,
+      enable_semi_final: false,
+      enabled_final_classes: eliteOnly,
+    },
+    {
+      category_id: '',
+      min_riders: safeGateSize + 1,
+      enable_qualification: true,
+      enable_quarter_final: false,
+      enable_semi_final: false,
+      enabled_final_classes: qualificationFinals,
+    },
+    {
+      category_id: '',
+      min_riders: safeGateSize * 2 + 1,
+      enable_qualification: true,
+      enable_quarter_final: false,
+      enable_semi_final: true,
+      enabled_final_classes: semiFinals,
+    },
+    {
+      category_id: '',
+      min_riders: safeGateSize * 3 + 1,
+      enable_qualification: true,
+      enable_quarter_final: false,
+      enable_semi_final: true,
+      enabled_final_classes: semiFinals,
+    },
+    {
+      category_id: '',
+      min_riders: safeGateSize * 4 + 1,
+      enable_qualification: true,
+      enable_quarter_final: true,
+      enable_semi_final: true,
+      enabled_final_classes: fullFinals,
+    },
+    {
+      category_id: '',
+      min_riders: safeGateSize * 5 + 1,
+      enable_qualification: true,
+      enable_quarter_final: true,
+      enable_semi_final: true,
+      enabled_final_classes: fullFinals,
+    },
+    {
+      category_id: '',
+      min_riders: safeGateSize * 6 + 1,
+      enable_qualification: true,
+      enable_quarter_final: true,
+      enable_semi_final: true,
+      enabled_final_classes: fullFinals,
+    },
+    {
+      category_id: '',
+      min_riders: safeGateSize * 7 + 1,
+      enable_qualification: true,
+      enable_quarter_final: true,
+      enable_semi_final: true,
+      enabled_final_classes: fullFinals,
+    },
+  ]
+}
+
+const standardBatchPresetCards = (gateSize: number) => {
+  const safeGateSize = Math.max(1, gateSize || 8)
+  return [
+    {
+      label: '1 Batch',
+      riderRange: `1-${safeGateSize} rider`,
+      summary: '3 moto final biasa',
+      finals: ['ELITE'],
+    },
+    {
+      label: '2 Batch',
+      riderRange: `${safeGateSize + 1}-${safeGateSize * 2} rider`,
+      summary: 'Qualification -> Final Elite',
+      finals: ['ROOKIE', 'BEGINNER', 'NOVICE', 'AMATEUR', 'ELITE'],
+    },
+    {
+      label: '3 Batch',
+      riderRange: `${safeGateSize * 2 + 1}-${safeGateSize * 3} rider`,
+      summary: 'Qualification -> Semi Final -> Final Elite/Pro',
+      finals: ['ROOKIE', 'BEGINNER', 'NOVICE', 'AMATEUR', 'PRO', 'ELITE'],
+    },
+    {
+      label: '4 Batch',
+      riderRange: `${safeGateSize * 3 + 1}-${safeGateSize * 4} rider`,
+      summary: 'Qualification -> Semi Final -> Final Elite/Pro',
+      finals: ['ROOKIE', 'BEGINNER', 'NOVICE', 'AMATEUR', 'PRO', 'ELITE'],
+    },
+    {
+      label: '5 Batch',
+      riderRange: `${safeGateSize * 4 + 1}-${safeGateSize * 5} rider`,
+      summary: 'Qualification -> Quarter -> Semi -> Finals lengkap',
+      finals: [...advancedFinalClassOrder],
+    },
+    {
+      label: '6 Batch',
+      riderRange: `${safeGateSize * 5 + 1}-${safeGateSize * 6} rider`,
+      summary: 'Qualification -> Quarter -> Semi -> Finals lengkap',
+      finals: [...advancedFinalClassOrder],
+    },
+    {
+      label: '7 Batch',
+      riderRange: `${safeGateSize * 6 + 1}-${safeGateSize * 7} rider`,
+      summary: 'Qualification -> Quarter -> Semi -> Finals lengkap',
+      finals: [...advancedFinalClassOrder],
+    },
+    {
+      label: '8 Batch',
+      riderRange: `${safeGateSize * 7 + 1}-${safeGateSize * 8} rider`,
+      summary: 'Qualification -> Quarter -> Semi -> Finals lengkap',
+      finals: [...advancedFinalClassOrder],
+    },
+  ]
+}
 
 const createEmptySponsorDraft = (index = 0): SponsorDraft => ({
   id: '',
@@ -274,7 +405,7 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
     race_gate_positions: '8',
     race_qualification_enabled: true,
     race_auto_advance: true,
-    race_final_classes: 'ELITE,NOVICE',
+    race_final_classes: 'ELITE,PRO,ADVANCED,INTERMEDIATE,AMATEUR,NOVICE,BEGINNER,ROOKIE',
     scoring_rules: '{\n}\n',
     display_theme: '{\n}\n',
     race_format_settings: '{\n}\n',
@@ -434,7 +565,9 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
           race_auto_advance:
             typeof format.auto_advance === 'boolean' ? format.auto_advance : true,
           race_final_classes:
-            Array.isArray(format.final_classes) ? format.final_classes.join(',') : 'ELITE,NOVICE',
+            Array.isArray(format.final_classes)
+              ? format.final_classes.join(',')
+              : 'ELITE,PRO,ADVANCED,INTERMEDIATE,AMATEUR,NOVICE,BEGINNER,ROOKIE',
           scoring_rules: JSON.stringify(data.scoring_rules ?? {}, null, 2),
           display_theme: JSON.stringify(data.display_theme ?? {}, null, 2),
           race_format_settings: JSON.stringify(data.race_format_settings ?? {}, null, 2),
@@ -630,6 +763,25 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
       ...prev,
       [categoryId]: (prev[categoryId] ?? []).filter((_, i) => i !== index),
     }))
+  }
+
+  const applyStandardBatchRules = (categoryId: string) => {
+    const gateSize = Math.max(1, Number(form.race_gate_positions) || 8)
+    const standardRules = buildStandardBatchRules(gateSize).map((rule) => ({
+      ...rule,
+      category_id: categoryId,
+    }))
+    setRulesByCategory((prev) => ({
+      ...prev,
+      [categoryId]: standardRules,
+    }))
+    updateDraft(categoryId, {
+      min_riders: gateSize + 1,
+      enable_qualification: true,
+      enable_quarter_final: false,
+      enable_semi_final: false,
+      enabled_final_classes: ['ROOKIE', 'BEGINNER', 'NOVICE', 'AMATEUR', 'ELITE'],
+    })
   }
 
   const saveRules = async (categoryId: string) => {
@@ -2031,6 +2183,61 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
                 {isOpen && (
                   <>
                     <div style={{ marginTop: 8, fontWeight: 900 }}>Rules</div>
+                    <div
+                      style={{
+                        borderRadius: 12,
+                        border: '2px solid #111',
+                        background: '#f8fafc',
+                        padding: 12,
+                        display: 'grid',
+                        gap: 10,
+                      }}
+                    >
+                      <div style={{ fontWeight: 900 }}>Preset Standar per Jumlah Batch</div>
+                      <div style={{ color: '#475569', fontWeight: 700, fontSize: 13 }}>
+                        Gate size saat ini: {Math.max(1, Number(form.race_gate_positions) || 8)} rider per batch. Klik preset ini
+                        untuk isi rule otomatis sesuai flow pushbike yang kita sepakati.
+                      </div>
+                      <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
+                        {standardBatchPresetCards(Math.max(1, Number(form.race_gate_positions) || 8)).map((preset) => (
+                          <div
+                            key={preset.label}
+                            style={{
+                              borderRadius: 12,
+                              border: '2px solid #111',
+                              background: '#fff',
+                              padding: 10,
+                              display: 'grid',
+                              gap: 6,
+                            }}
+                          >
+                            <div style={{ fontWeight: 900 }}>{preset.label}</div>
+                            <div style={{ color: '#475569', fontWeight: 800, fontSize: 12 }}>{preset.riderRange}</div>
+                            <div style={{ fontWeight: 800, fontSize: 12 }}>{preset.summary}</div>
+                            <div style={{ color: '#334155', fontWeight: 700, fontSize: 12 }}>
+                              Finals: {preset.finals.join(', ')}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          onClick={() => applyStandardBatchRules(item.category.id)}
+                          disabled={advancedSaving}
+                          style={{
+                            padding: '8px 12px',
+                            borderRadius: 10,
+                            border: '2px solid #111',
+                            background: '#fff1b8',
+                            fontWeight: 900,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Apply Standard Batch Rules
+                        </button>
+                      </div>
+                    </div>
                     {(rulesByCategory[item.category.id] ?? []).length === 0 && (
                       <div style={{ fontWeight: 800, color: '#333' }}>Belum ada rules.</div>
                     )}
@@ -2046,11 +2253,18 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
                           gap: 6,
                           fontWeight: 800,
                         }}
-                      >
-                        <div>Min riders: {rule.min_riders}</div>
-                        <div>
-                          Stages: Q={rule.enable_qualification ? 'ON' : 'OFF'} | QF=
-                          {rule.enable_quarter_final ? 'ON' : 'OFF'} | SF=
+                        >
+                          <div>Min riders: {rule.min_riders}</div>
+                          {rule.enabled_final_classes.some((value) =>
+                            legacyAdvancedFinalClasses.includes(value as (typeof legacyAdvancedFinalClasses)[number])
+                          ) && (
+                            <div style={{ color: '#b91c1c' }}>
+                              Legacy final class terdeteksi: {rule.enabled_final_classes.join(', ')}
+                            </div>
+                          )}
+                          <div>
+                            Stages: Q={rule.enable_qualification ? 'ON' : 'OFF'} | QF=
+                            {rule.enable_quarter_final ? 'ON' : 'OFF'} | SF=
                           {rule.enable_semi_final ? 'ON' : 'OFF'}
                         </div>
                         <div>Final classes: {rule.enabled_final_classes.join(', ') || '-'}</div>

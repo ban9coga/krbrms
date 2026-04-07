@@ -3,7 +3,14 @@
 import { adminClient } from '../lib/auth'
 import { resolveCategoryConfig } from './categoryResolver'
 import { assertMotoEditable, assertMotoNotUnderProtest } from '../lib/motoLock'
-import { computeQualification } from './raceStageEngine'
+import {
+  computeQualification,
+  computeQuarterFinal,
+  computeSemiFinal,
+  FINAL_CLASS_ORDER,
+  resolveQualificationPrimaryAdvance,
+  resolveQuarterFinalPrimaryAdvance,
+} from './raceStageEngine'
 
 type MotoRow = {
   id: string
@@ -23,20 +30,19 @@ type MotoRiderRow = {
   rider_id: string
 }
 
+type StageResultSeedRow = {
+  rider_id: string
+  stage: 'QUALIFICATION' | 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL'
+  final_class: string | null
+  batch_id: string | null
+  position: number | null
+  points: number | null
+}
+
 const parseBatchKey = (name: string) => {
   const match = name.match(/moto\s*(\d+)\s*-\s*batch\s*(\d+)/i)
   if (!match) return null
   return { motoIndex: Number(match[1]), batchIndex: Number(match[2]) }
-}
-
-const chunk = <T,>(items: T[], size: number) => {
-  const out: T[][] = []
-  let cursor = 0
-  while (cursor < items.length) {
-    out.push(items.slice(cursor, cursor + size))
-    cursor += size
-  }
-  return out
 }
 
 const safeMotoNameExists = async (eventId: string, categoryId: string, prefix: string) => {
@@ -50,6 +56,61 @@ const safeMotoNameExists = async (eventId: string, categoryId: string, prefix: s
   if (error) return true
   return (data ?? []).length > 0
 }
+
+const tableExists = async (tableName: string) => {
+  const { data, error } = await adminClient
+    .from('information_schema.tables')
+    .select('table_name')
+    .eq('table_schema', 'public')
+    .eq('table_name', tableName)
+    .maybeSingle()
+  if (error) return false
+  return !!data?.table_name
+}
+
+const sortSeedRows = (rows: StageResultSeedRow[]) =>
+  [...rows].sort((a, b) => {
+    const positionDiff = (a.position ?? 9999) - (b.position ?? 9999)
+    if (positionDiff !== 0) return positionDiff
+    const pointsDiff = (a.points ?? 9999) - (b.points ?? 9999)
+    if (pointsDiff !== 0) return pointsDiff
+    const batchDiff = (a.batch_id ?? '').localeCompare(b.batch_id ?? '')
+    if (batchDiff !== 0) return batchDiff
+    return a.rider_id.localeCompare(b.rider_id)
+  })
+
+const orderRidersBySeedRows = (riderIds: string[], seedRows: StageResultSeedRow[]) => {
+  const wanted = new Set(riderIds)
+  const ordered = sortSeedRows(seedRows)
+    .filter((row) => row.position !== null && wanted.has(row.rider_id))
+    .map((row) => row.rider_id)
+
+  const seen = new Set(ordered)
+  const leftovers = riderIds.filter((id) => !seen.has(id)).sort((a, b) => a.localeCompare(b))
+  return [...ordered, ...leftovers]
+}
+
+const distributeSeededHeats = (orderedRiders: string[], maxRiders: number) => {
+  if (orderedRiders.length === 0) return [] as string[][]
+  const heatCount = Math.max(1, Math.ceil(orderedRiders.length / maxRiders))
+  const groups = Array.from({ length: heatCount }, () => [] as string[])
+
+  orderedRiders.forEach((riderId, idx) => {
+    const cycle = Math.floor(idx / heatCount)
+    const offset = idx % heatCount
+    const groupIndex = cycle % 2 === 0 ? offset : heatCount - 1 - offset
+    groups[groupIndex].push(riderId)
+  })
+
+  return groups
+}
+
+const buildGateRows = (motoId: string, riderIds: string[]) =>
+  riderIds.map((riderId, index) => ({
+    moto_id: motoId,
+    rider_id: riderId,
+    gate_position: index + 1,
+  }))
 
 export async function computeQualificationAndStore(eventId: string, categoryId: string) {
   const { data: config } = await adminClient
@@ -130,16 +191,12 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
   if (batches.length === 0) return { ok: false, warning: 'No qualifying batches found.' }
 
   const { batchRanks, advances } = computeQualification(
-    batches.map((b) => ({ batchId: b.batchId, riders: b.riders, finishes: b.finishes }))
+    batches.map((b) => ({ batchId: b.batchId, riders: b.riders, finishes: b.finishes })),
+    undefined,
+    resolveQualificationPrimaryAdvance(resolved.stages)
   )
 
-  const mappedAdvances = !resolved.stages.enableQuarterFinal && resolved.stages.enableSemiFinal
-    ? advances.map((row) =>
-        row.toStage === 'QUARTER_FINAL' ? { ...row, toStage: 'SEMI_FINAL' as const } : row
-      )
-    : advances
-
-  const filteredAdvances = mappedAdvances.filter((row) => {
+  const filteredAdvances = advances.filter((row) => {
     if (row.toStage === 'QUARTER_FINAL' && !resolved.stages.enableQuarterFinal) return false
     if (row.toStage === 'SEMI_FINAL' && !resolved.stages.enableSemiFinal) return false
     if (row.toStage === 'FINAL') {
@@ -240,13 +297,24 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
 
   const { data: stageRows, error } = await adminClient
     .from('race_stage_result')
-    .select('rider_id, stage, final_class')
+    .select('rider_id, stage, final_class, batch_id, position, points')
     .eq('category_id', categoryId)
   if (error) return { ok: false, warning: error.message }
 
-  const quarterRiders = (stageRows ?? []).filter((r) => r.stage === 'QUARTER_FINAL').map((r) => r.rider_id)
-  const semiRiders = (stageRows ?? []).filter((r) => r.stage === 'SEMI_FINAL').map((r) => r.rider_id)
-  const finals = (stageRows ?? [])
+  const stageSeedRows = (stageRows ?? []) as StageResultSeedRow[]
+  const qualificationRows = stageSeedRows.filter((row) => row.stage === 'QUALIFICATION')
+  const quarterResultRows = stageSeedRows.filter((row) => row.stage === 'QUARTER_FINAL' && row.position !== null)
+  const semiResultRows = stageSeedRows.filter((row) => row.stage === 'SEMI_FINAL' && row.position !== null)
+
+  const quarterRiders = orderRidersBySeedRows(
+    stageSeedRows.filter((r) => r.stage === 'QUARTER_FINAL').map((r) => r.rider_id),
+    qualificationRows
+  )
+  const semiRiders = orderRidersBySeedRows(
+    stageSeedRows.filter((r) => r.stage === 'SEMI_FINAL').map((r) => r.rider_id),
+    quarterResultRows
+  )
+  const finals = stageSeedRows
     .filter((r) => r.stage === 'FINAL' && r.final_class)
     .reduce<Record<string, string[]>>((acc, r) => {
       const key = r.final_class as string
@@ -266,6 +334,8 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
 
   const newMotos: Array<{ event_id: string; category_id: string; moto_name: string; moto_order: number; status: string }> = []
   const newMotoRiders: Array<{ moto_id: string; rider_id: string }> = []
+  const newGatePositions: Array<{ moto_id: string; rider_id: string; gate_position: number }> = []
+  const gateTableReady = await tableExists('moto_gate_positions')
 
   if (quarterRiders.length > 0) {
     const existingQuarterMotos = await loadStageMotos(eventId, categoryId, 'Quarter Final')
@@ -283,7 +353,7 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
 
     const pendingQuarter = quarterRiders.filter((id) => !assignedQuarter.has(id))
     if (pendingQuarter.length > 0) {
-      const groups = chunk(pendingQuarter, maxRiders)
+      const groups = distributeSeededHeats(pendingQuarter, maxRiders)
       const startIndex = existingQuarterMotos.length
       groups.forEach((_, idx) => {
         newMotos.push({
@@ -301,13 +371,14 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
       if (motoError || !motoRows) return { ok: false, warning: motoError?.message || 'Failed to create QF motos.' }
       motoRows.forEach((m, i) => {
         groups[i].forEach((riderId) => newMotoRiders.push({ moto_id: m.id, rider_id: riderId }))
+        newGatePositions.push(...buildGateRows(m.id, groups[i]))
       })
     }
   }
 
   const semiExists = await safeMotoNameExists(eventId, categoryId, 'Semi Final')
   if (!semiExists && semiRiders.length > 0) {
-    const groups = chunk(semiRiders, maxRiders)
+    const groups = distributeSeededHeats(semiRiders, maxRiders)
     const { data: motoRows, error: motoError } = await adminClient
       .from('motos')
       .insert(
@@ -323,13 +394,13 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
     if (motoError || !motoRows) return { ok: false, warning: motoError?.message || 'Failed to create SF motos.' }
     motoRows.forEach((m, i) => {
       groups[i].forEach((riderId) => newMotoRiders.push({ moto_id: m.id, rider_id: riderId }))
+      newGatePositions.push(...buildGateRows(m.id, groups[i]))
     })
   }
 
   const finalExists = await safeMotoNameExists(eventId, categoryId, 'Final')
   if (!finalExists && Object.keys(finals).length > 0) {
-    const order = ['BEGINNER', 'AMATEUR', 'ACADEMY', 'ROOKIE', 'PRO', 'NOVICE', 'ELITE']
-    const finalsToCreate = order.filter((key) => (finals[key] ?? []).length > 0)
+    const finalsToCreate = FINAL_CLASS_ORDER.filter((key) => (finals[key] ?? []).length > 0)
     const { data: motoRows, error: motoError } = await adminClient
       .from('motos')
       .insert(
@@ -345,14 +416,26 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
     if (motoError || !motoRows) return { ok: false, warning: motoError?.message || 'Failed to create Final motos.' }
     motoRows.forEach((m) => {
       const key = m.moto_name.replace('Final ', '')
-      const riders = finals[key] ?? []
+      const sourceRows =
+        key === 'AMATEUR' || key === 'NOVICE' || key === 'BEGINNER' || key === 'ROOKIE'
+          ? qualificationRows
+          : key === 'ADVANCED' || key === 'INTERMEDIATE'
+            ? quarterResultRows
+            : semiResultRows
+      const riders = orderRidersBySeedRows(finals[key] ?? [], sourceRows)
       riders.forEach((riderId) => newMotoRiders.push({ moto_id: m.id, rider_id: riderId }))
+      newGatePositions.push(...buildGateRows(m.id, riders))
     })
   }
 
   if (newMotoRiders.length > 0) {
     const { error: riderError } = await adminClient.from('moto_riders').insert(newMotoRiders)
     if (riderError) return { ok: false, warning: riderError.message }
+  }
+
+  if (gateTableReady && newGatePositions.length > 0) {
+    const { error: gateError } = await adminClient.from('moto_gate_positions').insert(newGatePositions)
+    if (gateError) return { ok: false, warning: gateError.message }
   }
 
   return { ok: true }
@@ -395,6 +478,7 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
     .eq('category_id', categoryId)
     .maybeSingle()
   if (!config?.enabled) return { ok: false, warning: 'Advanced race disabled.' }
+  const resolved = await resolveCategoryConfig(categoryId)
 
   const { data: existingMotos, error: motoError } = await adminClient
     .from('motos')
@@ -458,19 +542,7 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
       scores[id] = row?.finish_order ?? 9999
     })
     const ranked = rankByPoints(scores)
-    const advances = ranked
-      .map((r) => ({ riderId: r.riderId, rank: r.rank, points: r.points }))
-      .flatMap((r) => {
-        const next = []
-        if (r.rank >= 1 && r.rank <= 4) {
-          next.push({ toStage: 'SEMI_FINAL', finalClass: null })
-        } else if (r.rank === 5 || r.rank === 6) {
-          next.push({ toStage: 'FINAL', finalClass: 'PRO' })
-        } else if (r.rank === 7 || r.rank === 8) {
-          next.push({ toStage: 'FINAL', finalClass: 'ROOKIE' })
-        }
-        return next.map((n) => ({ riderId: r.riderId, ...n }))
-      })
+    const advances = computeQuarterFinal(ranked, resolveQuarterFinalPrimaryAdvance(resolved.stages))
 
     ranked.forEach((r) => {
       quarterRows.push({
@@ -512,6 +584,7 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
       scores[id] = row?.finish_order ?? 9999
     })
     const ranked = rankByPoints(scores)
+    const advances = computeSemiFinal(ranked)
     ranked.forEach((r) => {
       semiRows.push({
         rider_id: r.riderId,
@@ -520,25 +593,17 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
         position: r.rank,
         points: r.points,
       })
-      if (r.rank >= 1 && r.rank <= 4) {
+      const nextRows = advances.filter((row) => row.riderId === r.riderId)
+      nextRows.forEach((next) => {
         finalRows.push({
           rider_id: r.riderId,
           category_id: categoryId,
           stage: 'FINAL',
-          final_class: 'ELITE',
+          final_class: next.finalClass ?? null,
           position: null,
           points: null,
         })
-      } else if (r.rank >= 5 && r.rank <= 8) {
-        finalRows.push({
-          rider_id: r.riderId,
-          category_id: categoryId,
-          stage: 'FINAL',
-          final_class: 'NOVICE',
-          position: null,
-          points: null,
-        })
-      }
+      })
     })
   }
 
