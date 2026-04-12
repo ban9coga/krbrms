@@ -12,6 +12,9 @@ export const metadata: Metadata = {
   authors: [{ name: 'FernTech Studio' }],
   creator: 'FernTech Studio',
   metadataBase: new URL('https://krbrms.vercel.app'),
+  verification: {
+    google: '5hpTlLiEQ5f3Qldh9rkNfgpdnsHzMExsT9IAEeCR9XA', // tambah ini
+  },  
   openGraph: {
     title: 'Pushbike Race Management Platform',
     description: 'Sistem manajemen event pushbike real-time: live scoring, hasil race, dan dashboard admin.',
