@@ -59,7 +59,8 @@ export default function EventCard({
             {status.label}
           </span>
 
-          <div className="absolute right-4 top-4 rounded-xl bg-black/35 px-3 py-1.5 text-[11px] font-bold tracking-wide text-white backdrop-blur-sm">
+          {/* FIX 1: badge tanggal tidak terpotong di mobile */}
+          <div className="absolute right-4 top-4 rounded-xl bg-black/35 px-2 py-1.5 text-[10px] font-bold tracking-wide text-white backdrop-blur-sm max-w-[150px] text-right leading-tight">
             {dayLabel}, {dateLabel.toUpperCase()}
           </div>
 
@@ -79,11 +80,12 @@ export default function EventCard({
         <div className="grid gap-4 p-6">
           <h3 className="text-[1.85rem] font-black leading-[1.04] tracking-tight text-slate-900">{event.name}</h3>
           <div className="h-px bg-slate-200" />
-          <div className="flex items-center justify-between gap-4">
-            <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.14em] text-slate-500">
+          {/* FIX 2: "INTERNAL EVENT" & "VIEW EVENT" tidak pecah 2 baris */}
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.14em] text-slate-500 whitespace-nowrap">
               {eventScope === 'INTERNAL' ? 'Internal Event' : 'Public Event'}
             </span>
-            <span className="inline-flex items-center gap-2 text-sm font-extrabold uppercase tracking-[0.12em] text-amber-500">
+            <span className="inline-flex items-center gap-2 text-sm font-extrabold uppercase tracking-[0.12em] text-amber-500 whitespace-nowrap">
               View Event
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
                 <path d="M8 5h11v11M8 16L19 5" strokeLinecap="round" strokeLinejoin="round" />
