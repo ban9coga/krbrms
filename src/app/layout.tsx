@@ -7,7 +7,28 @@ export const metadata: Metadata = {
     template: '%s | Pushbike Race Management Platform',
   },
   description:
-    'Sistem manajemen event pushbike: pendaftaran rider, live scoring, hasil, dan dashboard admin.',
+    'Sistem manajemen event pushbike real-time: live scoring, hasil race, dan dashboard admin untuk organizer di Indonesia.',
+  keywords: ['pushbike', 'runbike', 'race management', 'live results', 'scoring', 'Padang', 'Indonesia'],
+  authors: [{ name: 'FernTech Studio' }],
+  creator: 'FernTech Studio',
+  metadataBase: new URL('https://krbrms.vercel.app'),
+  openGraph: {
+    title: 'Pushbike Race Management Platform',
+    description: 'Sistem manajemen event pushbike real-time: live scoring, hasil race, dan dashboard admin.',
+    url: 'https://krbrms.vercel.app',
+    siteName: 'Pushbike Race Management Platform',
+    locale: 'id_ID',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Pushbike Race Management Platform',
+    description: 'Sistem manajemen event pushbike real-time: live scoring, hasil race, dan dashboard admin.',
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
