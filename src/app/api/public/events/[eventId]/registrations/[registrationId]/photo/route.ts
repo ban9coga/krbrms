@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../../../../lib/auth'
 
 const BUCKET = process.env.NEXT_PUBLIC_REGISTRATION_BUCKET || 'registration-docs'
+const RIDER_PHOTO_MAX_BYTES = Math.round(1.5 * 1024 * 1024)
 
 export const runtime = 'nodejs'
 
@@ -50,7 +51,13 @@ export async function POST(
   const itemId = form.get('registration_item_id')?.toString() || null
 
   if (!(file instanceof File)) {
-    return NextResponse.json({ error: 'Photo is required' }, { status: 400 })
+    return NextResponse.json({ error: 'Foto rider wajib diupload.' }, { status: 400 })
+  }
+  if (!file.type.startsWith('image/')) {
+    return NextResponse.json({ error: 'Foto rider harus berupa gambar.' }, { status: 400 })
+  }
+  if (file.size > RIDER_PHOTO_MAX_BYTES) {
+    return NextResponse.json({ error: 'Foto rider terlalu besar. Maksimal 1.5 MB.' }, { status: 400 })
   }
   if (!itemId) {
     return NextResponse.json({ error: 'registration_item_id required' }, { status: 400 })

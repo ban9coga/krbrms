@@ -41,7 +41,9 @@ type PlateCheckState = {
 
 const DEFAULT_BASE_PRICE = 250000
 const DEFAULT_EXTRA_PRICE = 150000
-const MAX_SINGLE_UPLOAD_BYTES = 4 * 1024 * 1024
+const RIDER_PHOTO_MAX_BYTES = Math.round(1.5 * 1024 * 1024)
+const SUPPORTING_IMAGE_MAX_BYTES = 2 * 1024 * 1024
+const SUPPORTING_PDF_MAX_BYTES = 3 * 1024 * 1024
 const JERSEY_SIZE_GUIDE_ROWS = [
   ['XS', '37-38', '25-26'],
   ['S', '39-40', '27-28'],
@@ -59,6 +61,67 @@ const formatFileSize = (bytes: number) => {
   if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
   if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`
   return `${bytes} B`
+}
+
+const getFileKind = (file: File) => {
+  const lowerName = file.name.toLowerCase()
+  const isImage = file.type.startsWith('image/')
+  const isPdf = file.type === 'application/pdf' || lowerName.endsWith('.pdf')
+  return { isImage, isPdf }
+}
+
+const getUploadLimitBytes = (file: File, uploadType: 'rider-photo' | 'document' | 'payment') => {
+  const { isImage, isPdf } = getFileKind(file)
+  if (uploadType === 'rider-photo') return isImage ? RIDER_PHOTO_MAX_BYTES : null
+  if (isPdf) return SUPPORTING_PDF_MAX_BYTES
+  if (isImage) return SUPPORTING_IMAGE_MAX_BYTES
+  return null
+}
+
+const getUploadHint = (uploadType: 'rider-photo' | 'document' | 'payment') => {
+  if (uploadType === 'rider-photo') {
+    return `Format gambar. Maks ${formatFileSize(RIDER_PHOTO_MAX_BYTES)}.`
+  }
+  return `Format gambar maks ${formatFileSize(SUPPORTING_IMAGE_MAX_BYTES)} atau PDF maks ${formatFileSize(
+    SUPPORTING_PDF_MAX_BYTES
+  )}.`
+}
+
+const validateUploadFile = (
+  file: File | null | undefined,
+  label: string,
+  uploadType: 'rider-photo' | 'document' | 'payment'
+) => {
+  if (!(file instanceof File)) {
+    return `${label} wajib diupload.`
+  }
+
+  const { isImage, isPdf } = getFileKind(file)
+  if (uploadType === 'rider-photo' && !isImage) {
+    return `${label} harus berupa gambar.`
+  }
+  if (uploadType !== 'rider-photo' && !isImage && !isPdf) {
+    return `${label} harus berupa gambar atau PDF.`
+  }
+
+  const limit = getUploadLimitBytes(file, uploadType)
+  if (!limit) {
+    return `${label} tidak didukung.`
+  }
+
+  if (file.size > limit) {
+    const kindLabel = isPdf ? 'PDF' : 'gambar'
+    return `${label} terlalu besar (${formatFileSize(file.size)}). Maksimal ${formatFileSize(limit)} untuk file ${kindLabel}.`
+  }
+
+  return null
+}
+
+const getUploadTypeError = (label: string, uploadType: 'rider-photo' | 'document' | 'payment') => {
+  if (uploadType === 'rider-photo') {
+    return `${label} harus berupa gambar.`
+  }
+  return `${label} harus berupa gambar atau PDF.`
 }
 
 const parseJsonResponse = async (res: Response) => {
@@ -498,19 +561,6 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     let createdRegistrationId: string | null = null
     let createdUploadToken: string | null = null
     try {
-      const ensureUploadFile = (file: File | null | undefined, label: string) => {
-        if (!(file instanceof File)) {
-          throw new Error(`${label} wajib diupload.`)
-        }
-        if (file.size > MAX_SINGLE_UPLOAD_BYTES) {
-          throw new Error(
-            `${label} terlalu besar (${formatFileSize(file.size)}). Maksimal ${formatFileSize(
-              MAX_SINGLE_UPLOAD_BYTES
-            )} per file.`
-          )
-        }
-      }
-
       const uploadStep = async (path: string, body: FormData, fallbackMessage: string, uploadToken: string) => {
         const res = await fetch(path, {
           method: 'POST',
@@ -523,10 +573,14 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
       }
 
       riders.forEach((rider, idx) => {
-        ensureUploadFile(rider.photo, `Foto rider #${idx + 1}`)
-        ensureUploadFile(rider.docKk, `Dokumen KK/Akte rider #${idx + 1}`)
+        const photoError = validateUploadFile(rider.photo, `Foto rider #${idx + 1}`, 'rider-photo')
+        if (photoError) throw new Error(photoError)
+
+        const documentError = validateUploadFile(rider.docKk, `Dokumen KK/Akte rider #${idx + 1}`, 'document')
+        if (documentError) throw new Error(documentError)
       })
-      ensureUploadFile(paymentProof, 'Bukti pembayaran')
+      const paymentError = validateUploadFile(paymentProof, 'Bukti pembayaran', 'payment')
+      if (paymentError) throw new Error(paymentError)
 
       const items = riders.map((r) => {
         return {
@@ -659,6 +713,26 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     return null
   }
 
+  const setValidatedUploadFile = (
+    file: File | null,
+    label: string,
+    uploadType: 'rider-photo' | 'document' | 'payment',
+    onFile: (file: File | null) => void
+  ) => {
+    if (!file) {
+      onFile(null)
+      return
+    }
+
+    const error = validateUploadFile(file, label, uploadType)
+    if (error) {
+      alert(error)
+      return
+    }
+
+    onFile(file)
+  }
+
   const onDropZoneOver = (key: string, e: DragEvent<HTMLElement>) => {
     e.preventDefault()
     e.stopPropagation()
@@ -675,24 +749,39 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     key: string,
     e: DragEvent<HTMLElement>,
     onFile: (file: File | null) => void,
+    label: string,
+    uploadType: 'rider-photo' | 'document' | 'payment',
     allowPdf = false
   ) => {
     e.preventDefault()
     e.stopPropagation()
     setDragActiveKey(null)
     const file = pickAcceptedFile(e.dataTransfer?.files, allowPdf)
-    if (file) onFile(file)
+    if (!file) {
+      if (e.dataTransfer?.files?.length) {
+        alert(getUploadTypeError(label, uploadType))
+      }
+      return
+    }
+    setValidatedUploadFile(file, label, uploadType, onFile)
   }
 
   const onDropZonePaste = (
     e: ClipboardEvent<HTMLElement>,
     onFile: (file: File | null) => void,
+    label: string,
+    uploadType: 'rider-photo' | 'document' | 'payment',
     allowPdf = false
   ) => {
     const file = pickAcceptedFile(e.clipboardData?.files, allowPdf)
-    if (!file) return
+    if (!file) {
+      if (e.clipboardData?.files?.length) {
+        alert(getUploadTypeError(label, uploadType))
+      }
+      return
+    }
     e.preventDefault()
-    onFile(file)
+    setValidatedUploadFile(file, label, uploadType, onFile)
   }
 
   const dropZoneClass = (key: string) =>
@@ -1021,15 +1110,19 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
 
                 <div className="grid gap-3 md:grid-cols-2">
                   <div className="grid gap-2">
-                    <label className="text-sm font-bold text-slate-200">Upload Foto Rider (wajib)</label>
+                    <label className="text-sm font-bold text-slate-200">Upload Foto Rider (gambar, maks 1.5 MB)</label>
                     <label
                       className={dropZoneClass(`photo-${idx}`)}
                       tabIndex={0}
                       onDragEnter={(e) => onDropZoneOver(`photo-${idx}`, e)}
                       onDragOver={(e) => onDropZoneOver(`photo-${idx}`, e)}
                       onDragLeave={(e) => onDropZoneLeave(`photo-${idx}`, e)}
-                      onDrop={(e) => onDropZoneDrop(`photo-${idx}`, e, (file) => updateRider(idx, { photo: file }), false)}
-                      onPaste={(e) => onDropZonePaste(e, (file) => updateRider(idx, { photo: file }), false)}
+                      onDrop={(e) =>
+                        onDropZoneDrop(`photo-${idx}`, e, (file) => updateRider(idx, { photo: file }), `Foto rider #${idx + 1}`, 'rider-photo', false)
+                      }
+                      onPaste={(e) =>
+                        onDropZonePaste(e, (file) => updateRider(idx, { photo: file }), `Foto rider #${idx + 1}`, 'rider-photo', false)
+                      }
                     >
                       <span className="truncate text-sm font-semibold text-slate-200">
                         {rider.photo ? rider.photo.name : 'Pilih file foto'}
@@ -1040,24 +1133,36 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                       <input
                         type="file"
                         accept="image/*"
-                        onChange={(e) => updateRider(idx, { photo: e.target.files?.[0] ?? null })}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] ?? null
+                          setValidatedUploadFile(file, `Foto rider #${idx + 1}`, 'rider-photo', (nextFile) =>
+                            updateRider(idx, { photo: nextFile })
+                          )
+                          e.currentTarget.value = ''
+                        }}
                         className="hidden"
                       />
                     </label>
                     <div className="text-[11px] font-semibold text-slate-400">
-                      Bisa drag & drop atau paste (Ctrl+V). Maks {formatFileSize(MAX_SINGLE_UPLOAD_BYTES)} per file.
+                      {getUploadHint('rider-photo')} Bisa drag & drop atau paste (Ctrl+V).
                     </div>
                   </div>
                   <div className="grid gap-2">
-                    <label className="text-sm font-bold text-slate-200">Upload KK / Akte Kelahiran (wajib)</label>
+                    <label className="text-sm font-bold text-slate-200">
+                      Upload KK / Akte Kelahiran (gambar maks 2 MB / PDF maks 3 MB)
+                    </label>
                     <label
                       className={dropZoneClass(`doc-${idx}`)}
                       tabIndex={0}
                       onDragEnter={(e) => onDropZoneOver(`doc-${idx}`, e)}
                       onDragOver={(e) => onDropZoneOver(`doc-${idx}`, e)}
                       onDragLeave={(e) => onDropZoneLeave(`doc-${idx}`, e)}
-                      onDrop={(e) => onDropZoneDrop(`doc-${idx}`, e, (file) => updateRider(idx, { docKk: file }), true)}
-                      onPaste={(e) => onDropZonePaste(e, (file) => updateRider(idx, { docKk: file }), true)}
+                      onDrop={(e) =>
+                        onDropZoneDrop(`doc-${idx}`, e, (file) => updateRider(idx, { docKk: file }), `Dokumen KK/Akte rider #${idx + 1}`, 'document', true)
+                      }
+                      onPaste={(e) =>
+                        onDropZonePaste(e, (file) => updateRider(idx, { docKk: file }), `Dokumen KK/Akte rider #${idx + 1}`, 'document', true)
+                      }
                     >
                       <span className="truncate text-sm font-semibold text-slate-200">
                         {rider.docKk ? rider.docKk.name : 'Pilih dokumen KK/Akte'}
@@ -1068,12 +1173,18 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                       <input
                         type="file"
                         accept="image/*,.pdf"
-                        onChange={(e) => updateRider(idx, { docKk: e.target.files?.[0] ?? null })}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] ?? null
+                          setValidatedUploadFile(file, `Dokumen KK/Akte rider #${idx + 1}`, 'document', (nextFile) =>
+                            updateRider(idx, { docKk: nextFile })
+                          )
+                          e.currentTarget.value = ''
+                        }}
                         className="hidden"
                       />
                     </label>
                     <div className="text-[11px] font-semibold text-slate-400">
-                      Bisa drag & drop atau paste (Ctrl+V). Maks {formatFileSize(MAX_SINGLE_UPLOAD_BYTES)} per file.
+                      {getUploadHint('document')} Bisa drag & drop atau paste (Ctrl+V).
                     </div>
                   </div>
                 </div>
@@ -1163,14 +1274,15 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                   : 'Total sudah bisa dilihat sekarang. Lengkapi kontak dan data rider untuk melanjutkan submit.'}
               </div>
             </div>
+            <label className="text-sm font-bold text-slate-200">Upload Bukti Pembayaran (gambar maks 2 MB / PDF maks 3 MB)</label>
             <label
               className={dropZoneClass('payment-proof')}
               tabIndex={0}
               onDragEnter={(e) => onDropZoneOver('payment-proof', e)}
               onDragOver={(e) => onDropZoneOver('payment-proof', e)}
               onDragLeave={(e) => onDropZoneLeave('payment-proof', e)}
-              onDrop={(e) => onDropZoneDrop('payment-proof', e, setPaymentProof, true)}
-              onPaste={(e) => onDropZonePaste(e, setPaymentProof, true)}
+              onDrop={(e) => onDropZoneDrop('payment-proof', e, setPaymentProof, 'Bukti pembayaran', 'payment', true)}
+              onPaste={(e) => onDropZonePaste(e, setPaymentProof, 'Bukti pembayaran', 'payment', true)}
             >
               <span className="truncate text-sm font-semibold text-slate-200">
                 {paymentProof ? paymentProof.name : 'Upload bukti pembayaran'}
@@ -1181,12 +1293,16 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
               <input
                 type="file"
                 accept="image/*,.pdf"
-                onChange={(e) => setPaymentProof(e.target.files?.[0] ?? null)}
+                onChange={(e) => {
+                  const file = e.target.files?.[0] ?? null
+                  setValidatedUploadFile(file, 'Bukti pembayaran', 'payment', setPaymentProof)
+                  e.currentTarget.value = ''
+                }}
                 className="hidden"
               />
             </label>
             <div className="text-[11px] font-semibold text-slate-400">
-              Bisa drag & drop atau paste (Ctrl+V). Maks {formatFileSize(MAX_SINGLE_UPLOAD_BYTES)} per file.
+              {getUploadHint('payment')} Bisa drag & drop atau paste (Ctrl+V).
             </div>
           </div>
         </section>

@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../../../../lib/auth'
 
 const BUCKET = process.env.NEXT_PUBLIC_REGISTRATION_BUCKET || 'registration-docs'
+const SUPPORTING_IMAGE_MAX_BYTES = 2 * 1024 * 1024
+const SUPPORTING_PDF_MAX_BYTES = 3 * 1024 * 1024
 
 export const runtime = 'nodejs'
 
@@ -52,7 +54,23 @@ export async function POST(
   const accountNumber = form.get('account_number')?.toString() || null
 
   if (!(file instanceof File)) {
-    return NextResponse.json({ error: 'Payment proof is required' }, { status: 400 })
+    return NextResponse.json({ error: 'Bukti pembayaran wajib diupload.' }, { status: 400 })
+  }
+
+  const lowerName = file.name.toLowerCase()
+  const isImage = file.type.startsWith('image/')
+  const isPdf = file.type === 'application/pdf' || lowerName.endsWith('.pdf')
+  if (!isImage && !isPdf) {
+    return NextResponse.json({ error: 'Bukti pembayaran harus berupa gambar atau PDF.' }, { status: 400 })
+  }
+  const limit = isPdf ? SUPPORTING_PDF_MAX_BYTES : SUPPORTING_IMAGE_MAX_BYTES
+  if (file.size > limit) {
+    return NextResponse.json(
+      {
+        error: `Bukti pembayaran terlalu besar. Maksimal ${isPdf ? '3.0 MB untuk PDF' : '2.0 MB untuk gambar'}.`,
+      },
+      { status: 400 }
+    )
   }
 
   const { data: reg, error: regError } = await adminClient
