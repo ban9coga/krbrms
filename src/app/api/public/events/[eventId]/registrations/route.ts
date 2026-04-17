@@ -52,7 +52,7 @@ type RegistrationItemRow = {
 const BASE_PRICE = 250000
 const EXTRA_PRICE = 150000
 const BUCKET = process.env.NEXT_PUBLIC_REGISTRATION_BUCKET || 'registration-docs'
-const JERSEY_SIZES = new Set(['XS', 'S', 'M', 'L', 'XL'])
+const JERSEY_SIZES = new Set(['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'])
 const DOCUMENT_TYPE = 'KK'
 
 const toYear = (dateString: string) => {

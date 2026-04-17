@@ -187,7 +187,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'gender must be BOY or GIRL' }, { status: 400 })
   }
 
-  if (jersey_size && !['XS', 'S', 'M', 'L', 'XL'].includes(String(jersey_size))) {
+  if (jersey_size && !['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'].includes(String(jersey_size))) {
     return NextResponse.json({ error: 'jersey_size invalid' }, { status: 400 })
   }
 

@@ -752,6 +752,8 @@ export default function RidersClient({ eventId }: { eventId: string }) {
             <option value="M">M</option>
             <option value="L">L</option>
             <option value="XL">XL</option>
+            <option value="2XL">2XL</option>
+            <option value="3XL">3XL</option>
           </select>
           <div style={{ display: 'grid', gap: 8 }}>
             <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
@@ -1198,6 +1200,8 @@ export default function RidersClient({ eventId }: { eventId: string }) {
               <option value="M">M</option>
               <option value="L">L</option>
               <option value="XL">XL</option>
+              <option value="2XL">2XL</option>
+              <option value="3XL">3XL</option>
             </select>
             <input
               type="date"

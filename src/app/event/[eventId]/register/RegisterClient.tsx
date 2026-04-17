@@ -482,7 +482,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         !r.docKk
     )
     if (hasInvalid) {
-      alert('Lengkapi data rider. Wajib: nama, panggilan, nomor plate, foto rider, KK/Akte, dan ukuran jersey (jika diwajibkan).')
+      alert('Lengkapi data rider. Wajib: nama lengkap, panggilan, nomor plate, foto rider, KK/Akte, dan ukuran jersey (jika diwajibkan).')
       return
     }
     if (hasMissingPrimaryCategory) {
@@ -612,7 +612,10 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         createdUploadToken
       )
 
-      setSuccess('Pendaftaran berhasil. Admin akan memverifikasi data & pembayaran.')
+      setSuccess('Pendaftaran telah dikirim. Admin akan memverifikasi data dan pembayaran Anda.')
+      if (typeof window !== 'undefined') {
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+      }
       setRiders([initialRider()])
       setPlateChecks([initialPlateCheck()])
       setContactName('')
@@ -699,6 +702,12 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     <div className="min-h-screen bg-[linear-gradient(180deg,#020817_0%,#041030_45%,#030712_100%)] text-slate-100">
       <PublicTopbar />
       <main className="mx-auto grid w-full max-w-[1200px] gap-4 px-4 pb-32 pt-6 sm:px-6 md:gap-5 md:pt-8">
+        {success && (
+          <section className="rounded-2xl border border-emerald-300/45 bg-emerald-500/15 p-4 shadow-[0_16px_36px_rgba(16,185,129,0.12)]">
+            <div className="text-xs font-black uppercase tracking-[0.16em] text-emerald-200">Pendaftaran Terkirim</div>
+            <div className="mt-2 text-sm font-semibold text-emerald-50">{success}</div>
+          </section>
+        )}
         <section className="relative overflow-hidden rounded-[1.75rem] border border-slate-700 bg-[linear-gradient(130deg,#0b1328_0%,#1e293b_52%,#4a1127_100%)] px-5 py-6 shadow-[0_26px_60px_rgba(2,6,23,0.35)] sm:px-7">
           <div className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full border border-white/20" />
           <div className="pointer-events-none absolute -left-16 bottom-0 h-44 w-44 rounded-full bg-amber-400/15 blur-3xl" />
@@ -819,7 +828,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                 <input
                   value={rider.name}
                   onChange={(e) => updateRider(idx, { name: e.target.value })}
-                  placeholder="Nama Rider"
+                  placeholder="Nama Lengkap Rider"
                   className={fieldClass}
                 />
                 <input
@@ -842,12 +851,14 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                     <option value="M">M</option>
                     <option value="L">L</option>
                     <option value="XL">XL</option>
+                    <option value="2XL">2XL</option>
+                    <option value="3XL">3XL</option>
                   </select>
                   <div className="overflow-hidden rounded-xl border border-slate-700 bg-white shadow-[0_12px_30px_rgba(2,6,23,0.18)]">
                     <div className="border-b border-slate-200 px-3 py-2">
                       <div className="text-sm font-black uppercase tracking-[0.12em] text-slate-800">Size Chart</div>
                       <div className="text-[11px] font-semibold text-slate-500">
-                        Referensi base layer sleeveless. Pilihan ukuran yang aktif di form saat ini: XS sampai XL.
+                        Referensi base layer sleeveless. Pilihan ukuran yang aktif di form saat ini: XS sampai 3XL.
                       </div>
                     </div>
                     <div className="bg-slate-100 p-2">
@@ -856,12 +867,18 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                   </div>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <input
-                    type="date"
-                    value={rider.dateOfBirth}
-                    onChange={(e) => updateRider(idx, { dateOfBirth: e.target.value })}
-                    className={fieldClass}
-                  />
+                  <div className="grid gap-2">
+                    <label className="text-sm font-bold text-slate-200">Tanggal Lahir Rider</label>
+                    <input
+                      type="date"
+                      value={rider.dateOfBirth}
+                      onChange={(e) => updateRider(idx, { dateOfBirth: e.target.value })}
+                      className={fieldClass}
+                    />
+                    <div className="text-[11px] font-semibold text-slate-400">
+                      Pastikan ini tanggal lahir rider, bukan tanggal pendaftaran.
+                    </div>
+                  </div>
                   <select
                     value={rider.gender}
                     onChange={(e) => updateRider(idx, { gender: e.target.value as 'BOY' | 'GIRL' })}
@@ -1174,12 +1191,14 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
           </div>
         </section>
 
-        {success && (
-          <section className="rounded-xl border border-emerald-300/50 bg-emerald-500/10 p-4 text-sm font-semibold text-emerald-100">
-            {success}
-          </section>
-        )}
       </main>
+
+      {success && (
+        <div className="fixed right-4 top-4 z-50 w-[calc(100%-2rem)] max-w-sm rounded-2xl border border-emerald-300/50 bg-emerald-500/20 p-4 shadow-[0_20px_45px_rgba(16,185,129,0.22)] backdrop-blur">
+          <div className="text-xs font-black uppercase tracking-[0.16em] text-emerald-200">Notif Pendaftaran</div>
+          <div className="mt-2 text-sm font-semibold text-white">{success}</div>
+        </div>
+      )}
 
       <div className="fixed bottom-4 left-1/2 z-40 flex w-[calc(100%-1.5rem)] max-w-[1200px] -translate-x-1/2 flex-col gap-3 rounded-2xl border border-slate-600 bg-slate-950/95 px-4 py-3 shadow-[0_18px_40px_rgba(2,6,23,0.45)] backdrop-blur md:flex-row md:items-center md:justify-between">
         <div className="grid gap-1">
