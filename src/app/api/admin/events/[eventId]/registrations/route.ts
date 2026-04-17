@@ -95,9 +95,11 @@ const paymentRegistrationIds = async (eventId: string, paymentFilter: (typeof PA
   const allRegsRes = await adminClient.from('registrations').select('id').eq('event_id', eventId)
   if (allRegsRes.error) throw new Error(allRegsRes.error.message)
 
-  return (allRegsRes.data ?? [])
+  const registrationIds = (allRegsRes.data ?? [])
     .map((row) => (typeof row.id === 'string' ? row.id : null))
-    .filter((id): id is string => Boolean(id) && !paidIds.has(id))
+    .filter((id): id is string => id !== null)
+
+  return registrationIds.filter((id) => !paidIds.has(id))
 }
 
 export async function GET(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
@@ -159,3 +161,4 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     )
   }
 }
+
