@@ -220,6 +220,10 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   const totalAmount = useMemo(() => {
     return riders.reduce((sum, rider) => sum + basePrice + (rider.extraCategoryId ? extraPrice : 0), 0)
   }, [riders, basePrice, extraPrice])
+  const riderCount = riders.length
+  const extraCategoryCount = riders.filter((rider) => Boolean(rider.extraCategoryId)).length
+  const baseAmount = riderCount * basePrice
+  const extraAmount = extraCategoryCount * extraPrice
 
   const hasContact = contactName.trim() && contactPhone.trim()
   const ridersComplete = riders.every(
@@ -891,13 +895,28 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
               placeholder="Nomor Rekening"
               className={fieldClass}
             />
-            {showTotal ? (
-              <div className="text-sm font-bold text-emerald-300">Total: {formatRupiah(totalAmount)}</div>
-            ) : (
-              <div className="text-sm font-bold text-slate-400">
-                Total akan muncul setelah kontak & data rider lengkap.
+            <div className="rounded-xl border border-emerald-300/20 bg-emerald-500/10 p-3">
+              <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-emerald-200">Ringkasan Biaya</div>
+              <div className="mt-2 grid gap-2 text-sm font-semibold text-slate-200">
+                <div className="flex items-center justify-between gap-3">
+                  <span>{riderCount} rider x {formatRupiah(basePrice)}</span>
+                  <span>{formatRupiah(baseAmount)}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span>{extraCategoryCount} up category x {formatRupiah(extraPrice)}</span>
+                  <span>{formatRupiah(extraAmount)}</span>
+                </div>
               </div>
-            )}
+              <div className="mt-3 flex items-center justify-between gap-3 border-t border-emerald-300/15 pt-3 text-sm font-black text-emerald-100">
+                <span>Total Bayar</span>
+                <span>{formatRupiah(totalAmount)}</span>
+              </div>
+              <div className="mt-2 text-xs font-semibold text-slate-300">
+                {showTotal
+                  ? 'Total sudah final sesuai rider dan kategori tambahan yang dipilih.'
+                  : 'Total sudah bisa dilihat sekarang. Lengkapi kontak dan data rider untuk melanjutkan submit.'}
+              </div>
+            </div>
             <label
               className={dropZoneClass('payment-proof')}
               tabIndex={0}
@@ -932,8 +951,13 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
       </main>
 
       <div className="fixed bottom-4 left-1/2 z-40 flex w-[calc(100%-1.5rem)] max-w-[1200px] -translate-x-1/2 flex-col gap-3 rounded-2xl border border-slate-600 bg-slate-950/95 px-4 py-3 shadow-[0_18px_40px_rgba(2,6,23,0.45)] backdrop-blur md:flex-row md:items-center md:justify-between">
-        <div className="text-sm font-black text-slate-100 md:text-base">
-          {showTotal ? `Total: ${formatRupiah(totalAmount)}` : 'Lengkapi kontak & data rider'}
+        <div className="grid gap-1">
+          <div className="text-sm font-black text-slate-100 md:text-base">Total: {formatRupiah(totalAmount)}</div>
+          <div className="text-xs font-semibold text-slate-400">
+            {showTotal
+              ? `${riderCount} rider siap diajukan`
+              : `Lengkapi kontak & data rider. Saat ini: ${riderCount} rider, ${extraCategoryCount} up category`}
+          </div>
         </div>
         <button
           type="button"
