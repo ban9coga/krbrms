@@ -26,12 +26,6 @@ export async function PATCH(
 
   if (regError) return NextResponse.json({ error: regError.message }, { status: 400 })
   if (!registration) return NextResponse.json({ error: 'Registration not found' }, { status: 404 })
-  if (registration.status === 'APPROVED') {
-    return NextResponse.json(
-      { error: 'Status pembayaran tidak bisa diubah setelah pendaftaran di-approve.' },
-      { status: 400 }
-    )
-  }
 
   const { data, error } = await adminClient
     .from('registration_payments')
@@ -44,3 +38,4 @@ export async function PATCH(
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json({ data })
 }
+

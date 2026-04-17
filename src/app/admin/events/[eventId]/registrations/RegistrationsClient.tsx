@@ -909,26 +909,22 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                                 >
                                   Lihat Bukti
                                 </button>
-                                {registration.status !== 'APPROVED' && (
-                                  <>
-                                    <button
-                                      type="button"
-                                      disabled={savingKey === `payment:${payment.id}` || payment.status === 'APPROVED'}
-                                      onClick={() => updatePaymentStatus(registration, payment, 'APPROVED')}
-                                      className="rounded-xl border border-emerald-300 bg-emerald-100 px-3 py-2 text-sm font-bold text-emerald-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
-                                    >
-                                      Approve Payment
-                                    </button>
-                                    <button
-                                      type="button"
-                                      disabled={savingKey === `payment:${payment.id}` || payment.status === 'REJECTED'}
-                                      onClick={() => updatePaymentStatus(registration, payment, 'REJECTED')}
-                                      className="rounded-xl border border-rose-300 bg-rose-100 px-3 py-2 text-sm font-bold text-rose-950 transition hover:bg-rose-200 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
-                                    >
-                                      Reject Payment
-                                    </button>
-                                  </>
-                                )}
+                                <button
+                                  type="button"
+                                  disabled={savingKey === `payment:${payment.id}` || payment.status === 'APPROVED'}
+                                  onClick={() => updatePaymentStatus(registration, payment, 'APPROVED')}
+                                  className="rounded-xl border border-emerald-300 bg-emerald-100 px-3 py-2 text-sm font-bold text-emerald-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                                >
+                                  Approve Payment
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={savingKey === `payment:${payment.id}` || payment.status === 'REJECTED'}
+                                  onClick={() => updatePaymentStatus(registration, payment, 'REJECTED')}
+                                  className="rounded-xl border border-rose-300 bg-rose-100 px-3 py-2 text-sm font-bold text-rose-950 transition hover:bg-rose-200 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                                >
+                                  Reject Payment
+                                </button>
                               </div>
                             </div>
                           ))
@@ -1165,3 +1161,4 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
     </div>
   )
 }
+
