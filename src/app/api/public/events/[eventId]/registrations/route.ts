@@ -390,7 +390,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   const { registration, itemRows } = created
 
   if (!isMultipart || !formData) {
-    return NextResponse.json({ data: { registration, items: itemRows, upload_token: (registration as any).upload_token ?? null } })
+    const uploadToken = (registration as any).upload_token ?? null
+    if (!uploadToken) {
+      await rollbackRegistration(registration.id, [])
+      return NextResponse.json(
+        { error: 'Upload bertahap belum aktif. Jalankan migration 2026-03-14_registration_upload_token.sql.' },
+        { status: 409 }
+      )
+    }
+
+    return NextResponse.json({ data: { registration, items: itemRows, upload_token: uploadToken } })
   }
 
   const uploadedPaths: string[] = []

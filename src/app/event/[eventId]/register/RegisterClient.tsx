@@ -41,9 +41,25 @@ type PlateCheckState = {
 
 const DEFAULT_BASE_PRICE = 250000
 const DEFAULT_EXTRA_PRICE = 150000
+const MAX_SINGLE_UPLOAD_BYTES = 4 * 1024 * 1024
 
 const formatRupiah = (value: number) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value)
+
+const formatFileSize = (bytes: number) => {
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`
+  return `${bytes} B`
+}
+
+const parseJsonResponse = async (res: Response) => {
+  const text = await res.text()
+  try {
+    return JSON.parse(text)
+  } catch {
+    return { _raw: text }
+  }
+}
 
 const initialRider = (): RiderForm => ({
   name: '',
@@ -376,15 +392,38 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     }
 
     setSubmitting(true)
+    let createdRegistrationId: string | null = null
+    let createdUploadToken: string | null = null
     try {
-      const parseJson = async (res: Response) => {
-        const text = await res.text()
-        try {
-          return JSON.parse(text)
-        } catch {
-          return { _raw: text }
+      const ensureUploadFile = (file: File | null | undefined, label: string) => {
+        if (!(file instanceof File)) {
+          throw new Error(`${label} wajib diupload.`)
+        }
+        if (file.size > MAX_SINGLE_UPLOAD_BYTES) {
+          throw new Error(
+            `${label} terlalu besar (${formatFileSize(file.size)}). Maksimal ${formatFileSize(
+              MAX_SINGLE_UPLOAD_BYTES
+            )} per file.`
+          )
         }
       }
+
+      const uploadStep = async (path: string, body: FormData, fallbackMessage: string, uploadToken: string) => {
+        const res = await fetch(path, {
+          method: 'POST',
+          headers: { 'x-upload-token': uploadToken },
+          body,
+        })
+        const json = await parseJsonResponse(res)
+        if (!res.ok) throw new Error(json?.error || json?._raw || fallbackMessage)
+        return json
+      }
+
+      riders.forEach((rider, idx) => {
+        ensureUploadFile(rider.photo, `Foto rider #${idx + 1}`)
+        ensureUploadFile(rider.docKk, `Dokumen KK/Akte rider #${idx + 1}`)
+      })
+      ensureUploadFile(paymentProof, 'Bukti pembayaran')
 
       const items = riders.map((r) => {
         return {
@@ -400,40 +439,75 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         }
       })
 
-      const submitForm = new FormData()
-      submitForm.append(
-        'payload',
-        JSON.stringify({
+      const createRes = await fetch(`/api/public/events/${eventId}/registrations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           community_name: communityName || null,
           contact_name: contactName,
           contact_phone: contactPhone,
           contact_email: contactEmail || null,
           items,
-        })
-      )
-
-      riders.forEach((rider, idx) => {
-        if (rider.photo instanceof File) {
-          submitForm.append(`rider_photo_${idx}`, rider.photo)
-        }
-        if (rider.docKk instanceof File) {
-          submitForm.append(`rider_doc_${idx}`, rider.docKk)
-        }
+        }),
       })
+      const createJson = await parseJsonResponse(createRes)
+      if (!createRes.ok) throw new Error(createJson?.error || createJson?._raw || 'Gagal membuat pendaftaran')
 
-      if (paymentProof instanceof File) {
-        submitForm.append('payment_proof', paymentProof)
+      createdRegistrationId = createJson?.data?.registration?.id ?? null
+      createdUploadToken = createJson?.data?.upload_token ?? null
+      const createdItems = Array.isArray(createJson?.data?.items) ? createJson.data.items : []
+
+      if (!createdRegistrationId) {
+        throw new Error('Registrasi berhasil dibuat, tetapi ID registrasi tidak ditemukan.')
       }
-      submitForm.append('bank_name', bankName)
-      submitForm.append('account_name', accountName)
-      submitForm.append('account_number', accountNumber)
+      if (!createdUploadToken) {
+        throw new Error(
+          'Mode upload bertahap belum aktif di database. Jalankan migration 2026-03-14_registration_upload_token.sql lalu deploy ulang.'
+        )
+      }
+      if (createdItems.length !== riders.length) {
+        throw new Error('Jumlah item registrasi tidak sesuai dengan jumlah rider yang dikirim.')
+      }
 
-      const submitRes = await fetch(`/api/public/events/${eventId}/registrations`, {
-        method: 'POST',
-        body: submitForm,
-      })
-      const submitJson = await parseJson(submitRes)
-      if (!submitRes.ok) throw new Error(submitJson?.error || submitJson?._raw || 'Gagal membuat pendaftaran')
+      for (const [idx, rider] of riders.entries()) {
+        const itemId = createdItems[idx]?.id
+        if (!itemId) {
+          throw new Error(`Item registrasi untuk rider #${idx + 1} tidak ditemukan.`)
+        }
+
+        const photoBody = new FormData()
+        photoBody.append('registration_item_id', itemId)
+        photoBody.append('file', rider.photo as File)
+        await uploadStep(
+          `/api/public/events/${eventId}/registrations/${createdRegistrationId}/photo`,
+          photoBody,
+          `Gagal mengupload foto rider #${idx + 1}`,
+          createdUploadToken
+        )
+
+        const documentBody = new FormData()
+        documentBody.append('registration_item_id', itemId)
+        documentBody.append('document_type', 'KK')
+        documentBody.append('file', rider.docKk as File)
+        await uploadStep(
+          `/api/public/events/${eventId}/registrations/${createdRegistrationId}/documents`,
+          documentBody,
+          `Gagal mengupload dokumen rider #${idx + 1}`,
+          createdUploadToken
+        )
+      }
+
+      const paymentBody = new FormData()
+      paymentBody.append('file', paymentProof as File)
+      paymentBody.append('bank_name', bankName)
+      paymentBody.append('account_name', accountName)
+      paymentBody.append('account_number', accountNumber)
+      await uploadStep(
+        `/api/public/events/${eventId}/registrations/${createdRegistrationId}/payment`,
+        paymentBody,
+        'Gagal mengupload bukti pembayaran',
+        createdUploadToken
+      )
 
       setSuccess('Pendaftaran berhasil. Admin akan memverifikasi data & pembayaran.')
       setRiders([initialRider()])
@@ -447,6 +521,14 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
       setAccountNumber('')
       setPaymentProof(null)
     } catch (err: unknown) {
+      if (createdRegistrationId && createdUploadToken) {
+        try {
+          await fetch(`/api/public/events/${eventId}/registrations/${createdRegistrationId}`, {
+            method: 'DELETE',
+            headers: { 'x-upload-token': createdUploadToken },
+          })
+        } catch {}
+      }
       alert(err instanceof Error ? err.message : 'Gagal menyimpan pendaftaran')
     } finally {
       setSubmitting(false)
@@ -829,7 +911,9 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                         className="hidden"
                       />
                     </label>
-                    <div className="text-[11px] font-semibold text-slate-400">Bisa drag & drop atau paste (Ctrl+V).</div>
+                    <div className="text-[11px] font-semibold text-slate-400">
+                      Bisa drag & drop atau paste (Ctrl+V). Maks {formatFileSize(MAX_SINGLE_UPLOAD_BYTES)} per file.
+                    </div>
                   </div>
                   <div className="grid gap-2">
                     <label className="text-sm font-bold text-slate-200">Upload KK / Akte Kelahiran (wajib)</label>
@@ -855,7 +939,9 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                         className="hidden"
                       />
                     </label>
-                    <div className="text-[11px] font-semibold text-slate-400">Bisa drag & drop atau paste (Ctrl+V).</div>
+                    <div className="text-[11px] font-semibold text-slate-400">
+                      Bisa drag & drop atau paste (Ctrl+V). Maks {formatFileSize(MAX_SINGLE_UPLOAD_BYTES)} per file.
+                    </div>
                   </div>
                 </div>
               </div>
@@ -939,7 +1025,9 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                 className="hidden"
               />
             </label>
-            <div className="text-[11px] font-semibold text-slate-400">Bisa drag & drop atau paste (Ctrl+V).</div>
+            <div className="text-[11px] font-semibold text-slate-400">
+              Bisa drag & drop atau paste (Ctrl+V). Maks {formatFileSize(MAX_SINGLE_UPLOAD_BYTES)} per file.
+            </div>
           </div>
         </section>
 
