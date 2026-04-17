@@ -8,6 +8,7 @@ import EmptyState from '../../../components/EmptyState'
 import PublicTopbar from '../../../components/PublicTopbar'
 import SponsorMarquee from '../../../components/SponsorMarquee'
 import { compareMotoSequence } from '../../../lib/motoSequence'
+import { buildGoogleMapsUrl, buildQrCodeUrl } from '../../../lib/publicLinks'
 import {
   getEventById,
   getEventCategories,
@@ -118,6 +119,8 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
     business?.scoring_support_label?.trim() || business?.scoring_support_name?.trim() || ''
   const daysToEvent =
     eventDate ? Math.ceil((eventDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null
+  const mapsUrl = event ? buildGoogleMapsUrl(event.name, event.location) : null
+  const mapsQrUrl = mapsUrl ? buildQrCodeUrl(mapsUrl, 220) : null
 
   const categoryLabel = useMemo(() => {
     const map = new Map<string, string>()
@@ -317,6 +320,39 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                     </Link>
                   )}
                 </div>
+
+                {mapsUrl && mapsQrUrl && (
+                  <div className="grid gap-4 rounded-[1.7rem] border border-white/10 bg-slate-950/30 p-4 backdrop-blur-sm md:grid-cols-[140px_1fr] md:items-center">
+                    <img
+                      src={mapsQrUrl}
+                      alt={`QR Google Maps ${event.name}`}
+                      className="h-[140px] w-[140px] rounded-2xl border border-white/15 bg-white p-2 object-contain"
+                    />
+                    <div className="grid gap-3">
+                      <div className="grid gap-1">
+                        <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-amber-300">Venue Navigation</p>
+                        <h2 className="text-xl font-black tracking-tight text-white md:text-2xl">Scan QR atau buka Google Maps untuk langsung ke lokasi event.</h2>
+                        <p className="max-w-2xl text-sm font-semibold leading-6 text-slate-200">
+                          Cocok untuk pengunjung yang buka detail event dari laptop, layar panitia, atau ingin membagikan lokasi venue dengan cepat.
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap gap-3">
+                        <a
+                          href={mapsUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center rounded-xl border border-white/20 bg-white/10 px-5 py-3 text-sm font-extrabold uppercase tracking-wide text-white transition-colors hover:bg-white/20"
+                        >
+                          Buka Google Maps
+                        </a>
+                        <span className="inline-flex items-center rounded-xl border border-white/10 bg-slate-900/35 px-4 py-3 text-xs font-bold uppercase tracking-[0.14em] text-slate-200">
+                          Scan QR untuk rute cepat
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </section>
 

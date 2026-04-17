@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import type { EventItem } from '../lib/eventService'
+import { buildGoogleMapsUrl, buildQrCodeUrl } from '../lib/publicLinks'
 
 const statusConfig: Record<EventItem['status'], { label: string; className: string }> = {
   LIVE: { label: 'Live', className: 'bg-emerald-500/90 text-white ring-emerald-300/40' },
@@ -44,6 +45,8 @@ export default function EventCard({
   const eventScope = event.event_scope === 'INTERNAL' ? 'INTERNAL' : event.is_public === false ? 'INTERNAL' : 'PUBLIC'
   const detailHref = `/event/${event.id}`
   const registerHref = `/event/${event.id}/register`
+  const mapsUrl = buildGoogleMapsUrl(event.name, event.location)
+  const mapsQrUrl = mapsUrl ? buildQrCodeUrl(mapsUrl, 140) : null
 
   return (
     <article className="group relative overflow-hidden rounded-[1.8rem] border border-slate-200 bg-white/95 shadow-[0_16px_34px_rgba(15,23,42,0.12)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_44px_rgba(15,23,42,0.2)]">
@@ -118,6 +121,33 @@ export default function EventCard({
             {event.status === 'LIVE' ? 'Lihat Event' : event.status === 'FINISHED' ? 'Lihat Hasil' : 'Lihat Detail'}
           </Link>
         </div>
+
+        {mapsUrl && mapsQrUrl && (
+          <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:grid-cols-[74px_1fr] sm:items-center">
+            <img
+              src={mapsQrUrl}
+              alt={`QR Google Maps ${event.name}`}
+              className="h-[74px] w-[74px] rounded-xl border border-slate-200 bg-white object-cover"
+              loading="lazy"
+            />
+            <div className="grid gap-2">
+              <div className="grid gap-1">
+                <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-slate-500">Scan Lokasi</p>
+                <p className="text-xs font-semibold text-slate-600">
+                  Scan QR atau buka Google Maps untuk menuju venue event.
+                </p>
+              </div>
+              <a
+                href={mapsUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-extrabold uppercase tracking-[0.12em] text-slate-700 transition-colors hover:bg-slate-100"
+              >
+                Buka GMaps
+              </a>
+            </div>
+          </div>
+        )}
       </div>
     </article>
   )
