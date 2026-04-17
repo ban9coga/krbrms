@@ -42,19 +42,23 @@ const SafeIcon = () => (
 )
 
 const stats: StatItem[] = [
-  { value: '200+', label: 'Riders Supported', icon: <RidersIcon /> },
-  { value: '<1s', label: 'Real-Time Sync', icon: <SyncIcon /> },
-  { value: 'Multi-Batch', label: 'System', icon: <BatchIcon /> },
-  { value: 'Zero', label: 'Data Loss Architecture', icon: <SafeIcon /> },
+  { value: 'Live', label: 'Operational Visibility', icon: <RidersIcon /> },
+  { value: 'Role-Based', label: 'Workflow Control', icon: <SyncIcon /> },
+  { value: 'Multi-Stage', label: 'Race Structure Ready', icon: <BatchIcon /> },
+  { value: 'Audit', label: 'Decision Trail Mindset', icon: <SafeIcon /> },
 ]
 
 export default function PerformanceStats() {
   return (
     <section className="w-full bg-gradient-to-b from-slate-900 via-[#070e1f] to-black py-16 sm:py-20">
       <div className="mx-auto w-full max-w-[1500px] px-2 text-center sm:px-4 md:px-6">
-        <h2 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl md:text-5xl">
-          Race-Ready Performance
+        <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-amber-300">Operational Confidence</p>
+        <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-white sm:text-4xl md:text-5xl">
+          Dirancang untuk event yang perlu terlihat sigap, rapi, dan bisa dipercaya.
         </h2>
+        <p className="mx-auto mt-4 max-w-3xl text-sm font-medium leading-7 text-slate-300 sm:text-base">
+          Alih-alih memakai klaim bombastis, section ini menekankan kemampuan inti sistem yang benar-benar terasa di hari pelaksanaan.
+        </p>
 
         <div className="mx-auto mt-10 grid max-w-[1120px] grid-cols-2 gap-4 sm:mt-12 sm:gap-6 md:grid-cols-4 md:gap-8">
           {stats.map((stat) => (
