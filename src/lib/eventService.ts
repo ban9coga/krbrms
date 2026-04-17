@@ -27,6 +27,9 @@ export type BusinessSettings = {
   public_brand_name?: string | null
   public_event_title?: string | null
   public_tagline?: string | null
+  payment_bank_name?: string | null
+  payment_account_name?: string | null
+  payment_account_number?: string | null
   public_contact_name?: string | null
   public_contact_phone?: string | null
   public_contact_email?: string | null

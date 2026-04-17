@@ -266,6 +266,10 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   const publicEventTitle = businessSettings?.public_event_title?.trim() || eventName || 'Pendaftaran Event'
   const publicBrandName = businessSettings?.public_brand_name?.trim() || ''
   const publicTagline = businessSettings?.public_tagline?.trim() || ''
+  const paymentBankName = businessSettings?.payment_bank_name?.trim() || ''
+  const paymentAccountName = businessSettings?.payment_account_name?.trim() || ''
+  const paymentAccountNumber = businessSettings?.payment_account_number?.trim() || ''
+  const showPaymentDestination = Boolean(paymentBankName || paymentAccountName || paymentAccountNumber)
   const showEventOwner = Boolean(
     businessSettings?.show_event_owner_publicly && businessSettings?.event_owner_name?.trim()
   )
@@ -963,22 +967,49 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
             Silakan transfer total biaya dan upload bukti pembayaran.
           </p>
           <div className="mt-4 grid gap-3">
+            {showPaymentDestination && (
+              <div className="rounded-xl border border-amber-300/25 bg-amber-400/10 p-3">
+                <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-amber-200">
+                  Rekening Tujuan Transfer
+                </div>
+                <div className="mt-2 grid gap-2 text-sm font-semibold text-slate-100">
+                  {paymentBankName && (
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-slate-300">Bank</span>
+                      <span>{paymentBankName}</span>
+                    </div>
+                  )}
+                  {paymentAccountName && (
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-slate-300">Atas Nama</span>
+                      <span>{paymentAccountName}</span>
+                    </div>
+                  )}
+                  {paymentAccountNumber && (
+                    <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-300/20 bg-slate-950/40 px-3 py-2">
+                      <span className="text-slate-300">No. Rekening</span>
+                      <span className="font-black tracking-[0.08em] text-amber-100">{paymentAccountNumber}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
             <input
               value={bankName}
               onChange={(e) => setBankName(e.target.value)}
-              placeholder="Nama Bank"
+              placeholder="Bank Pengirim"
               className={fieldClass}
             />
             <input
               value={accountName}
               onChange={(e) => setAccountName(e.target.value)}
-              placeholder="Nama Pemilik Rekening"
+              placeholder="Atas Nama Pengirim"
               className={fieldClass}
             />
             <input
               value={accountNumber}
               onChange={(e) => setAccountNumber(e.target.value)}
-              placeholder="Nomor Rekening"
+              placeholder="Nomor Rekening Pengirim"
               className={fieldClass}
             />
             <div className="rounded-xl border border-emerald-300/20 bg-emerald-500/10 p-3">
