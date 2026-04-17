@@ -194,9 +194,9 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ eventId: string; registrationId: string }> }
 ) {
-  const auth = await requireAdmin(req.headers.get('authorization'))
-  if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { eventId, registrationId } = await params
+  const auth = await requireAdmin(req.headers.get('authorization'), eventId)
+  if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const body = await req.json().catch(() => null)
   if (!body) return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
 
@@ -205,13 +205,17 @@ export async function PATCH(
     return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
   }
 
-  const { error: regError } = await adminClient
+  const { data: registration, error: regError } = await adminClient
     .from('registrations')
-    .select('*')
+    .select('id, status')
     .eq('id', registrationId)
     .eq('event_id', eventId)
     .single()
   if (regError) return NextResponse.json({ error: regError.message }, { status: 400 })
+  if (!registration) return NextResponse.json({ error: 'Registration not found' }, { status: 404 })
+  if (registration.status !== 'PENDING') {
+    return NextResponse.json({ error: 'Pendaftaran ini sudah diproses dan tidak bisa diubah lagi.' }, { status: 400 })
+  }
 
   const { data: itemRows, error: itemError } = await adminClient
     .from('registration_items')
@@ -223,6 +227,40 @@ export async function PATCH(
     await adminClient.from('registrations').update({ status, notes: notes ?? null }).eq('id', registrationId)
     await adminClient.from('registration_items').update({ status }).eq('registration_id', registrationId)
     return NextResponse.json({ ok: true })
+  }
+
+  const { data: paymentRows, error: paymentError } = await adminClient
+    .from('registration_payments')
+    .select('id, status')
+    .eq('registration_id', registrationId)
+  if (paymentError) return NextResponse.json({ error: paymentError.message }, { status: 400 })
+  if (!(paymentRows ?? []).some((row) => row.status === 'APPROVED')) {
+    return NextResponse.json(
+      { error: 'Pendaftaran belum bisa di-approve. Minimal satu pembayaran harus berstatus APPROVED.' },
+      { status: 400 }
+    )
+  }
+
+  const { data: documentRows, error: documentError } = await adminClient
+    .from('registration_documents')
+    .select('registration_item_id')
+    .eq('registration_id', registrationId)
+  if (documentError) return NextResponse.json({ error: documentError.message }, { status: 400 })
+
+  const docsByItem = new Map<string, number>()
+  for (const row of documentRows ?? []) {
+    const itemId = typeof row.registration_item_id === 'string' ? row.registration_item_id : null
+    if (!itemId) continue
+    docsByItem.set(itemId, (docsByItem.get(itemId) ?? 0) + 1)
+  }
+
+  for (const item of itemRows ?? []) {
+    if (!item.photo_url) {
+      return NextResponse.json({ error: `Foto rider untuk ${item.rider_name} belum lengkap.` }, { status: 400 })
+    }
+    if ((docsByItem.get(item.id) ?? 0) === 0) {
+      return NextResponse.json({ error: `Dokumen KK/Akte untuk ${item.rider_name} belum lengkap.` }, { status: 400 })
+    }
   }
 
   const categoryIds = new Set<string>()
@@ -284,6 +322,7 @@ export async function PATCH(
   }
 
   const itemMap = new Map((items ?? []).map((i) => [i.id, i]))
+  const seenPlates = new Set<string>()
 
   for (const item of itemRows ?? []) {
     const input = itemMap.get(item.id)
@@ -292,6 +331,14 @@ export async function PATCH(
     if (!plateNumber) {
       return NextResponse.json({ error: `Plate number invalid untuk ${item.rider_name}` }, { status: 400 })
     }
+    const plateKey = `${plateNumber}${plateSuffix ?? ''}`
+    if (seenPlates.has(plateKey)) {
+      return NextResponse.json(
+        { error: `Plate ${plateKey} bentrok dengan rider lain dalam pendaftaran ini.` },
+        { status: 400 }
+      )
+    }
+    seenPlates.add(plateKey)
 
     let query = adminClient
       .from('riders')
@@ -370,9 +417,9 @@ export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ eventId: string; registrationId: string }> }
 ) {
-  const auth = await requireAdmin(req.headers.get('authorization'))
-  if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { eventId, registrationId } = await params
+  const auth = await requireAdmin(req.headers.get('authorization'), eventId)
+  if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { error } = await adminClient
     .from('registrations')
     .delete()
