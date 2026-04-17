@@ -42,6 +42,15 @@ type PlateCheckState = {
 const DEFAULT_BASE_PRICE = 250000
 const DEFAULT_EXTRA_PRICE = 150000
 const MAX_SINGLE_UPLOAD_BYTES = 4 * 1024 * 1024
+const JERSEY_SIZE_GUIDE_ROWS = [
+  ['XS', '37-38', '25-26'],
+  ['S', '39-40', '27-28'],
+  ['M', '41-42', '29-30'],
+  ['L', '43-44', '31-32'],
+  ['XL', '45-46', '33-34'],
+  ['2XL', '47-48', '35-36'],
+  ['3XL', '49-50', '37-38'],
+] as const
 
 const formatRupiah = (value: number) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value)
@@ -87,6 +96,96 @@ const formatPlateDisplay = (plateNumber: string, plateSuffix: string, usePlateSu
   if (!normalizedNumber) return '-'
   const normalizedSuffix = usePlateSuffix ? plateSuffix.trim().toUpperCase().slice(0, 1) : ''
   return `${normalizedNumber}${normalizedSuffix}`
+}
+
+function JerseySizeChartGraphic() {
+  return (
+    <svg viewBox="0 0 1180 820" className="w-full" role="img" aria-label="Sleeveless baselayer size chart">
+      <rect x="0" y="0" width="1180" height="820" rx="32" fill="#ffffff" />
+      <text x="590" y="92" textAnchor="middle" fontSize="58" fontWeight="900" fontStyle="italic" fill="#111111">
+        SLEEVELESS BASELAYER
+      </text>
+      <text x="590" y="150" textAnchor="middle" fontSize="50" fontWeight="500" fill="#111111">
+        SIZECHART
+      </text>
+
+      <g transform="translate(110,245)">
+        <rect x="0" y="0" width="340" height="430" fill="#ffffff" stroke="#111111" strokeWidth="2" />
+        <line x1="96" y1="0" x2="96" y2="430" stroke="#111111" strokeWidth="1.5" />
+        <line x1="214" y1="0" x2="214" y2="430" stroke="#111111" strokeWidth="1.5" />
+        <line x1="0" y1="74" x2="340" y2="74" stroke="#111111" strokeWidth="1.5" />
+        {JERSEY_SIZE_GUIDE_ROWS.map((row, index) => {
+          const y = 74 + (index + 1) * 50
+          return <line key={`row-line-${row[0]}`} x1="0" y1={y} x2="340" y2={y} stroke="#111111" strokeWidth="1.2" />
+        })}
+        <text x="48" y="48" textAnchor="middle" fontSize="18" fontWeight="700" fill="#111111">
+          SIZE
+        </text>
+        <text x="155" y="48" textAnchor="middle" fontSize="18" fontWeight="700" fill="#111111">
+          PANJANG
+        </text>
+        <text x="277" y="48" textAnchor="middle" fontSize="18" fontWeight="700" fill="#111111">
+          LEBAR
+        </text>
+        {JERSEY_SIZE_GUIDE_ROWS.map((row, index) => {
+          const textY = 108 + index * 50
+          return (
+            <g key={row[0]}>
+              <text x="48" y={textY} textAnchor="middle" fontSize="18" fontWeight="500" fill="#111111">
+                {row[0]}
+              </text>
+              <text x="155" y={textY} textAnchor="middle" fontSize="18" fontWeight="500" fill="#111111">
+                {row[1]}
+              </text>
+              <text x="277" y={textY} textAnchor="middle" fontSize="18" fontWeight="500" fill="#111111">
+                {row[2]}
+              </text>
+            </g>
+          )
+        })}
+      </g>
+
+      <g transform="translate(650,200)">
+        <path
+          d="M84 58 134 46c16 38 72 60 138 60s122-22 138-60l50 12-8 168c-1 28 12 82 12 208l-8 176c-44 20-282 20-326 0l-8-176c0-126 13-180 12-208Z"
+          fill="none"
+          stroke="#111111"
+          strokeWidth="5"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M144 50c8 52 36 88 128 88s120-36 128-88"
+          fill="none"
+          stroke="#111111"
+          strokeWidth="4"
+          strokeLinecap="round"
+        />
+        <path
+          d="M120 610c38-22 270-22 308 0"
+          fill="none"
+          stroke="#111111"
+          strokeWidth="2"
+          opacity="0.5"
+        />
+        <line x1="88" y1="266" x2="460" y2="266" stroke="#c73d3d" strokeWidth="3" strokeDasharray="10 10" />
+        <line x1="308" y1="46" x2="308" y2="648" stroke="#c73d3d" strokeWidth="3" strokeDasharray="10 10" />
+        <text x="207" y="294" textAnchor="middle" fontSize="20" fontWeight="500" fill="#111111">
+          LEBAR
+        </text>
+        <text
+          x="296"
+          y="426"
+          textAnchor="middle"
+          fontSize="20"
+          fontWeight="500"
+          fill="#111111"
+          transform="rotate(-90 296 426)"
+        >
+          PANJANG
+        </text>
+      </g>
+    </svg>
+  )
 }
 
 export default function RegisterClient({ eventId }: { eventId: string }) {
@@ -729,20 +828,33 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                   placeholder="Nama Panggilan"
                   className={fieldClass}
                 />
-                <select
-                  value={rider.jerseySize}
-                  onChange={(e) => updateRider(idx, { jerseySize: e.target.value })}
-                  className={fieldClass}
-                >
-                  <option value="">
-                    Ukuran Jersey {requireJerseySize ? '(wajib)' : '(opsional)'}
-                  </option>
-                  <option value="XS">XS</option>
-                  <option value="S">S</option>
-                  <option value="M">M</option>
-                  <option value="L">L</option>
-                  <option value="XL">XL</option>
-                </select>
+                <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
+                  <select
+                    value={rider.jerseySize}
+                    onChange={(e) => updateRider(idx, { jerseySize: e.target.value })}
+                    className={fieldClass}
+                  >
+                    <option value="">
+                      Ukuran Jersey {requireJerseySize ? '(wajib)' : '(opsional)'}
+                    </option>
+                    <option value="XS">XS</option>
+                    <option value="S">S</option>
+                    <option value="M">M</option>
+                    <option value="L">L</option>
+                    <option value="XL">XL</option>
+                  </select>
+                  <div className="overflow-hidden rounded-xl border border-slate-700 bg-white shadow-[0_12px_30px_rgba(2,6,23,0.18)]">
+                    <div className="border-b border-slate-200 px-3 py-2">
+                      <div className="text-sm font-black uppercase tracking-[0.12em] text-slate-800">Size Chart</div>
+                      <div className="text-[11px] font-semibold text-slate-500">
+                        Referensi base layer sleeveless. Pilihan ukuran yang aktif di form saat ini: XS sampai XL.
+                      </div>
+                    </div>
+                    <div className="bg-slate-100 p-2">
+                      <JerseySizeChartGraphic />
+                    </div>
+                  </div>
+                </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <input
                     type="date"
