@@ -42,10 +42,12 @@ export default function EventCard({
     year: 'numeric',
   })
   const eventScope = event.event_scope === 'INTERNAL' ? 'INTERNAL' : event.is_public === false ? 'INTERNAL' : 'PUBLIC'
+  const detailHref = `/event/${event.id}`
+  const registerHref = `/event/${event.id}/register`
 
   return (
-    <Link href={`/event/${event.id}`} className="group block text-slate-900 no-underline" aria-label={`Open event ${event.name}`}>
-      <article className="relative overflow-hidden rounded-[1.8rem] border border-slate-200 bg-white/95 shadow-[0_16px_34px_rgba(15,23,42,0.12)] transition-all duration-300 group-hover:-translate-y-1 group-hover:shadow-[0_24px_44px_rgba(15,23,42,0.2)]">
+    <article className="group relative overflow-hidden rounded-[1.8rem] border border-slate-200 bg-white/95 shadow-[0_16px_34px_rgba(15,23,42,0.12)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_44px_rgba(15,23,42,0.2)]">
+      <Link href={detailHref} className="block text-slate-900 no-underline" aria-label={`Open event ${event.name}`}>
         <div className="relative h-56 overflow-hidden">
           <div
             className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-105"
@@ -77,22 +79,46 @@ export default function EventCard({
           </div>
         </div>
 
-        <div className="grid gap-4 p-6">
+        <div className="grid gap-4 px-6 pt-6">
           <h3 className="text-[1.85rem] font-black leading-[1.04] tracking-tight text-slate-900">{event.name}</h3>
           <div className="h-px bg-slate-200" />
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.14em] text-slate-500 w-fit">
-              {eventScope === 'INTERNAL' ? 'Internal Event' : 'Public Event'}
-            </span>
-            <span className="inline-flex items-center gap-2 text-sm font-extrabold uppercase tracking-[0.12em] text-amber-500">
-              View Event
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
-                <path d="M8 5h11v11M8 16L19 5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </span>
-          </div>
         </div>
-      </article>
-    </Link>
+      </Link>
+
+      <div className="flex flex-col gap-3 p-6 pt-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.14em] text-slate-500 w-fit">
+            {eventScope === 'INTERNAL' ? 'Internal Event' : 'Public Event'}
+          </span>
+          <span className="inline-flex items-center gap-2 text-sm font-extrabold uppercase tracking-[0.12em] text-amber-500">
+            {event.status === 'UPCOMING' ? 'Registration Open' : event.status === 'LIVE' ? 'View Event' : 'View Results'}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
+              <path d="M8 5h11v11M8 16L19 5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </span>
+        </div>
+
+        <div className="flex flex-col gap-2 sm:flex-row">
+          {event.status === 'UPCOMING' && (
+            <Link
+              href={registerHref}
+              className="inline-flex flex-1 items-center justify-center rounded-xl bg-amber-400 px-4 py-3 text-sm font-extrabold uppercase tracking-[0.12em] text-white transition-colors hover:bg-amber-300"
+            >
+              Daftar Sekarang
+            </Link>
+          )}
+          <Link
+            href={detailHref}
+            className={`inline-flex items-center justify-center rounded-xl border px-4 py-3 text-sm font-extrabold uppercase tracking-[0.12em] transition-colors ${
+              event.status === 'UPCOMING'
+                ? 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                : 'w-full border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            {event.status === 'LIVE' ? 'Lihat Event' : event.status === 'FINISHED' ? 'Lihat Hasil' : 'Lihat Detail'}
+          </Link>
+        </div>
+      </div>
+    </article>
   )
 }
