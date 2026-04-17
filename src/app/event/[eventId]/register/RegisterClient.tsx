@@ -28,8 +28,15 @@ type RiderForm = {
   extraCategoryId: string
   requestedPlateNumber: string
   requestedPlateSuffix: string
+  usePlateSuffix: boolean
   photo?: File | null
   docKk?: File | null
+}
+
+type PlateCheckState = {
+  state: 'idle' | 'checking' | 'available' | 'needs_suffix' | 'suffix_taken' | 'error'
+  message: string
+  suggestedSuffix: string | null
 }
 
 const DEFAULT_BASE_PRICE = 250000
@@ -48,9 +55,23 @@ const initialRider = (): RiderForm => ({
   extraCategoryId: '',
   requestedPlateNumber: '',
   requestedPlateSuffix: '',
+  usePlateSuffix: false,
   photo: null,
   docKk: null,
 })
+
+const initialPlateCheck = (): PlateCheckState => ({
+  state: 'idle',
+  message: '',
+  suggestedSuffix: null,
+})
+
+const formatPlateDisplay = (plateNumber: string, plateSuffix: string, usePlateSuffix: boolean) => {
+  const normalizedNumber = plateNumber.trim()
+  if (!normalizedNumber) return '-'
+  const normalizedSuffix = usePlateSuffix ? plateSuffix.trim().toUpperCase().slice(0, 1) : ''
+  return `${normalizedNumber}${normalizedSuffix}`
+}
 
 export default function RegisterClient({ eventId }: { eventId: string }) {
   const [categories, setCategories] = useState<CategoryItem[]>([])
@@ -69,6 +90,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   const [accountNumber, setAccountNumber] = useState('')
   const [paymentProof, setPaymentProof] = useState<File | null>(null)
   const [dragActiveKey, setDragActiveKey] = useState<string | null>(null)
+  const [plateChecks, setPlateChecks] = useState<PlateCheckState[]>([initialPlateCheck()])
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState<string | null>(null)
 
@@ -117,13 +139,43 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
 
   const addRider = () => {
     setRiders((prev) => [...prev, initialRider()])
+    setPlateChecks((prev) => [...prev, initialPlateCheck()])
   }
 
-  const removeRider = (index: number) =>
+  const removeRider = (index: number) => {
     setRiders((prev) => prev.filter((_, idx) => idx !== index).map((item) => ({ ...item })))
+    setPlateChecks((prev) => prev.filter((_, idx) => idx !== index))
+  }
 
-  const updateRider = (index: number, updates: Partial<RiderForm>) =>
-    setRiders((prev) => prev.map((item, idx) => (idx === index ? { ...item, ...updates } : item)))
+  const updateRider = (index: number, updates: Partial<RiderForm>) => {
+    const normalizedUpdates = { ...updates }
+
+    if (typeof normalizedUpdates.requestedPlateNumber === 'string' && normalizedUpdates.requestedPlateNumber.trim() === '') {
+      normalizedUpdates.requestedPlateSuffix = ''
+      normalizedUpdates.usePlateSuffix = false
+    }
+
+    if (typeof normalizedUpdates.requestedPlateSuffix === 'string') {
+      normalizedUpdates.requestedPlateSuffix = normalizedUpdates.requestedPlateSuffix.toUpperCase().slice(0, 1)
+      if (normalizedUpdates.requestedPlateSuffix) {
+        normalizedUpdates.usePlateSuffix = true
+      }
+    }
+
+    if (normalizedUpdates.usePlateSuffix === false) {
+      normalizedUpdates.requestedPlateSuffix = ''
+    }
+
+    setRiders((prev) => prev.map((item, idx) => (idx === index ? { ...item, ...normalizedUpdates } : item)))
+
+    if (
+      Object.prototype.hasOwnProperty.call(normalizedUpdates, 'requestedPlateNumber') ||
+      Object.prototype.hasOwnProperty.call(normalizedUpdates, 'requestedPlateSuffix') ||
+      Object.prototype.hasOwnProperty.call(normalizedUpdates, 'usePlateSuffix')
+    ) {
+      setPlateChecks((prev) => prev.map((item, idx) => (idx === index ? initialPlateCheck() : item)))
+    }
+  }
 
   const inRange = (c: CategoryItem, birthYear: number) => {
     const min = c.year_min ?? c.year
@@ -212,6 +264,79 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     ''
   const scoringSupportLabel =
     businessSettings?.scoring_support_label?.trim() || businessSettings?.scoring_support_name?.trim() || ''
+
+  useEffect(() => {
+    const timers: Array<ReturnType<typeof setTimeout>> = []
+    const controllers: AbortController[] = []
+
+    riders.forEach((rider, index) => {
+      const plateNumber = rider.requestedPlateNumber.trim()
+      const plateSuffix = rider.usePlateSuffix ? rider.requestedPlateSuffix.trim().toUpperCase().slice(0, 1) : ''
+
+      if (!plateNumber) {
+        setPlateChecks((prev) => prev.map((item, idx) => (idx === index ? initialPlateCheck() : item)))
+        return
+      }
+
+      setPlateChecks((prev) =>
+        prev.map((item, idx) =>
+          idx === index ? { state: 'checking', message: 'Mengecek nomor plate...', suggestedSuffix: null } : item
+        )
+      )
+
+      const controller = new AbortController()
+      controllers.push(controller)
+
+      const timer = setTimeout(async () => {
+        try {
+          const params = new URLSearchParams({ plate_number: plateNumber })
+          if (plateSuffix) params.set('plate_suffix', plateSuffix)
+
+          const res = await fetch(`/api/public/events/${eventId}/plate-check?${params.toString()}`, {
+            signal: controller.signal,
+          })
+          const json = await res.json().catch(() => ({}))
+          if (!res.ok) {
+            throw new Error(json?.error || 'Gagal mengecek nomor plate')
+          }
+
+          const data = json?.data ?? {}
+          const nextState: PlateCheckState = {
+            state:
+              data?.status === 'available' ||
+              data?.status === 'needs_suffix' ||
+              data?.status === 'suffix_taken'
+                ? data.status
+                : 'error',
+            message: typeof data?.message === 'string' ? data.message : 'Gagal membaca hasil cek nomor plate.',
+            suggestedSuffix: typeof data?.suggested_suffix === 'string' ? data.suggested_suffix : null,
+          }
+
+          setPlateChecks((prev) => prev.map((item, idx) => (idx === index ? nextState : item)))
+        } catch (error) {
+          if (controller.signal.aborted) return
+          setPlateChecks((prev) =>
+            prev.map((item, idx) =>
+              idx === index
+                ? {
+                    state: 'error',
+                    message: error instanceof Error ? error.message : 'Gagal mengecek nomor plate.',
+                    suggestedSuffix: null,
+                  }
+                : item
+            )
+          )
+        }
+      }, 350)
+
+      timers.push(timer)
+    })
+
+    return () => {
+      timers.forEach((timer) => clearTimeout(timer))
+      controllers.forEach((controller) => controller.abort())
+    }
+  }, [eventId, riders])
 
   const handleSubmit = async () => {
     setSuccess(null)
@@ -308,6 +433,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
 
       setSuccess('Pendaftaran berhasil. Admin akan memverifikasi data & pembayaran.')
       setRiders([initialRider()])
+      setPlateChecks([initialPlateCheck()])
       setContactName('')
       setContactPhone('')
       setContactEmail('')
@@ -457,6 +583,34 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
               (c) => inRange(c, birthYear) && (c.gender === rider.gender || c.gender === 'MIX') && isCategoryFull(c)
             )
           const extrasAvailable = extras.some((cat) => !isCategoryFull(cat))
+          const selectedExtraCategory = extras.find((cat) => cat.id === rider.extraCategoryId) ?? null
+          const plateCheck = plateChecks[idx] ?? initialPlateCheck()
+          const showPlateSuffixField =
+            rider.usePlateSuffix ||
+            Boolean(rider.requestedPlateSuffix) ||
+            plateCheck.state === 'needs_suffix' ||
+            plateCheck.state === 'suffix_taken'
+          const platePreview = formatPlateDisplay(rider.requestedPlateNumber, rider.requestedPlateSuffix, showPlateSuffixField)
+          const extraCategoryMessage =
+            !birthYear
+              ? 'Isi tanggal lahir dulu agar sistem bisa menghitung kategori tambahan yang mungkin diikuti rider.'
+              : !primaryCategory
+              ? hasMatchedFullCategory
+                ? 'Kategori utama untuk rider ini sedang penuh, jadi opsi kategori tambahan belum bisa ditampilkan.'
+                : 'Kategori tambahan baru akan muncul setelah kategori utama rider berhasil terdeteksi.'
+              : extras.length === 0
+              ? 'Tidak ada kategori tambahan yang cocok untuk rider ini.'
+              : !extrasAvailable
+              ? 'Semua opsi kategori tambahan saat ini penuh.'
+              : 'Opsional: rider bisa ikut satu kategori tambahan jika ingin naik kategori.'
+          const plateStatusClass =
+            plateCheck.state === 'available'
+              ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-200'
+              : plateCheck.state === 'needs_suffix' || plateCheck.state === 'suffix_taken'
+              ? 'border-amber-400/30 bg-amber-500/10 text-amber-200'
+              : plateCheck.state === 'error'
+              ? 'border-rose-400/30 bg-rose-500/10 text-rose-200'
+              : 'border-slate-700 bg-slate-950/60 text-slate-300'
           return (
             <section key={`rider-${idx}`} className={panelClass}>
               <div className="mb-3 flex items-center justify-between gap-3">
@@ -538,40 +692,112 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                   )}
                 </div>
 
-                {extras.length > 0 && (
-                  <select
-                    value={rider.extraCategoryId}
-                    onChange={(e) => updateRider(idx, { extraCategoryId: e.target.value })}
-                    className={fieldClass}
-                  >
-                    <option value="">Tambah Kategori (opsional)</option>
-                    {extras.map((cat) => (
-                      <option key={cat.id} value={cat.id} disabled={isCategoryFull(cat)}>
-                        {cat.label}{isCategoryFull(cat) ? ' (Kuota Penuh)' : ''}
-                      </option>
-                    ))}
-                  </select>
-                )}
-                {extras.length > 0 && !extrasAvailable && (
-                  <div className="text-xs font-semibold text-amber-300">
-                    Semua opsi kategori tambahan saat ini penuh.
+                <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-sm font-bold text-slate-200">Kategori Tambahan / Up Category</div>
+                    <div className="rounded-full border border-emerald-300/25 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-[0.12em] text-emerald-200">
+                      + {formatRupiah(extraPrice)}
+                    </div>
                   </div>
-                )}
+                  <div className="mt-1 text-xs font-semibold text-slate-400">{extraCategoryMessage}</div>
+                  {extras.length > 0 && (
+                    <div className="mt-3 grid gap-2">
+                      <select
+                        value={rider.extraCategoryId}
+                        onChange={(e) => updateRider(idx, { extraCategoryId: e.target.value })}
+                        className={fieldClass}
+                      >
+                        <option value="">Tidak ikut kategori tambahan</option>
+                        {extras.map((cat) => (
+                          <option key={cat.id} value={cat.id} disabled={isCategoryFull(cat)}>
+                            {cat.label}{isCategoryFull(cat) ? ' (Kuota Penuh)' : ''}
+                          </option>
+                        ))}
+                      </select>
+                      {selectedExtraCategory && (
+                        <div className="text-xs font-semibold text-emerald-200">
+                          Rider akan didaftarkan juga ke kategori tambahan: {selectedExtraCategory.label}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
 
-                <div className="grid gap-3 sm:grid-cols-[1fr_120px]">
-                  <input
-                    value={rider.requestedPlateNumber}
-                    onChange={(e) => updateRider(idx, { requestedPlateNumber: e.target.value.replace(/[^\d]/g, '') })}
-                    placeholder="Nomor Plate (wajib)"
-                    inputMode="numeric"
-                    className={fieldClass}
-                  />
-                  <input
-                    value={rider.requestedPlateSuffix}
-                    onChange={(e) => updateRider(idx, { requestedPlateSuffix: e.target.value.toUpperCase().slice(0, 1) })}
-                    placeholder="Suffix"
-                    className={fieldClass}
-                  />
+                <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-sm font-bold text-slate-200">Nomor Plate yang Diajukan</div>
+                    <div className="rounded-full border border-slate-600 bg-slate-900/80 px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-[0.12em] text-amber-200">
+                      Preview: {platePreview}
+                    </div>
+                  </div>
+                  <div className="mt-1 text-xs font-semibold text-slate-400">
+                    Isi angka saja. Huruf tambahan hanya dipakai jika nomor utama sudah digunakan rider lain.
+                  </div>
+
+                  <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto]">
+                    <input
+                      value={rider.requestedPlateNumber}
+                      onChange={(e) => updateRider(idx, { requestedPlateNumber: e.target.value.replace(/[^\d]/g, '') })}
+                      placeholder="Nomor Plate (angka saja)"
+                      inputMode="numeric"
+                      className={fieldClass}
+                    />
+                    {!showPlateSuffixField && (
+                      <button
+                        type="button"
+                        onClick={() => updateRider(idx, { usePlateSuffix: true })}
+                        disabled={!rider.requestedPlateNumber}
+                        className="rounded-xl border border-slate-500 bg-slate-900/70 px-4 py-3 text-sm font-extrabold uppercase tracking-[0.12em] text-slate-100 transition-colors hover:border-amber-400/60 hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Tambah Huruf
+                      </button>
+                    )}
+                  </div>
+
+                  {showPlateSuffixField && (
+                    <div className="mt-3 grid gap-2">
+                      <div className="grid gap-2 sm:grid-cols-[180px_1fr]">
+                        <input
+                          value={rider.requestedPlateSuffix}
+                          onChange={(e) => updateRider(idx, { requestedPlateSuffix: e.target.value })}
+                          placeholder="Huruf Tambahan"
+                          className={fieldClass}
+                        />
+                        <div className="flex flex-wrap gap-2">
+                          {plateCheck.suggestedSuffix && plateCheck.suggestedSuffix !== rider.requestedPlateSuffix && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateRider(idx, {
+                                  usePlateSuffix: true,
+                                  requestedPlateSuffix: plateCheck.suggestedSuffix ?? '',
+                                })
+                              }
+                              className="rounded-xl border border-amber-300/40 bg-amber-400/10 px-4 py-3 text-sm font-extrabold uppercase tracking-[0.12em] text-amber-100 transition-colors hover:bg-amber-400/20"
+                            >
+                              Pakai {plateCheck.suggestedSuffix}
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => updateRider(idx, { usePlateSuffix: false, requestedPlateSuffix: '' })}
+                            className="rounded-xl border border-slate-500 bg-slate-900/70 px-4 py-3 text-sm font-extrabold uppercase tracking-[0.12em] text-slate-100 transition-colors hover:border-slate-300"
+                          >
+                            Tanpa Huruf
+                          </button>
+                        </div>
+                      </div>
+                      <div className="text-[11px] font-semibold text-slate-400">
+                        Contoh: jika nomor 12 sudah dipakai, Anda bisa ajukan 12A.
+                      </div>
+                    </div>
+                  )}
+
+                  {plateCheck.state !== 'idle' && (
+                    <div className={`mt-3 rounded-xl border px-3 py-2 text-xs font-semibold ${plateStatusClass}`}>
+                      {plateCheck.message}
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid gap-3 md:grid-cols-2">
