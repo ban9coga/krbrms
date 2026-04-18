@@ -174,7 +174,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     router.push('/login')
   }
 
-  const sidebarWidth = collapsed ? 86 : 292
+  const sidebarWidth = collapsed ? 74 : 248
   const topbarHeight = 56
 
   const SidebarContent = (
@@ -183,17 +183,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        padding: '14px 12px',
-        gap: 12,
+        padding: '12px 10px',
+        gap: 10,
         color: '#e2e8f0',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <div
           style={{
             position: 'relative',
-            width: 44,
-            height: 44,
+            width: 40,
+            height: 40,
             display: 'grid',
             placeItems: 'center',
             flexShrink: 0,
@@ -219,8 +219,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <Image
             src="/platform-logo.png"
             alt="Platform"
-            width={40}
-            height={40}
+            width={36}
+            height={36}
             style={{
               objectFit: 'contain',
               position: 'relative',
@@ -230,8 +230,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
         {!collapsed && (
           <div style={{ display: 'grid', lineHeight: 1.12 }}>
-            <div style={{ fontWeight: 900, letterSpacing: '0.02em' }}>{BRAND.short}</div>
-            <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.84 }}>{BRAND.name}</div>
+            <div style={{ fontWeight: 900, letterSpacing: '0.02em', fontSize: 15 }}>{BRAND.short}</div>
+            <div style={{ fontSize: 11, fontWeight: 800, opacity: 0.84 }}>{BRAND.name}</div>
           </div>
         )}
       </div>
@@ -242,12 +242,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           onClick={() => setCollapsed((v) => !v)}
           style={{
             width: '100%',
-            padding: '10px 12px',
-            borderRadius: 12,
+            padding: '8px 10px',
+            borderRadius: 10,
             border: '1px solid rgba(148,163,184,0.36)',
             background: collapsed ? 'rgba(15,23,42,0.72)' : '#fbbf24',
             color: '#f8fafc',
             fontWeight: 800,
+            fontSize: 13,
             cursor: 'pointer',
           }}
         >
@@ -255,7 +256,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </button>
       )}
 
-      <div style={{ display: 'grid', gap: 8 }}>
+      <div style={{ display: 'grid', gap: 6 }}>
         {globalNav.map((item) => {
           const active = isActivePath(pathname, item.href)
           return (
@@ -269,12 +270,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             >
               <div
                 style={{
-                  padding: '10px 12px',
-                  borderRadius: 12,
+                  padding: collapsed ? '9px 8px' : '8px 12px',
+                  borderRadius: 10,
                   border: '1px solid rgba(148,163,184,0.32)',
                   background: active ? '#fbbf24' : 'rgba(15,23,42,0.75)',
                   color: '#f8fafc',
                   fontWeight: 800,
+                  fontSize: collapsed ? 13 : 12,
                   textAlign: collapsed ? 'center' : 'left',
                 }}
                 title={collapsed ? item.label : undefined}
@@ -287,37 +289,39 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </div>
 
       {eventId && (
-        <div style={{ display: 'grid', gap: 10 }}>
+        <div style={{ display: 'grid', gap: 8 }}>
           <button
             type="button"
             onClick={() => setEventMenuOpen((v) => !v)}
             style={{
               width: '100%',
-              padding: '10px 12px',
-              borderRadius: 12,
+              padding: collapsed ? '9px 8px' : '8px 12px',
+              borderRadius: 10,
               border: '1px solid rgba(148,163,184,0.32)',
               background: 'rgba(15,23,42,0.75)',
               color: '#f8fafc',
               fontWeight: 800,
+              fontSize: collapsed ? 13 : 12,
               cursor: 'pointer',
             }}
           >
             {collapsed ? (eventMenuOpen ? 'EV-' : 'EV+') : eventMenuOpen ? 'Event Menu Open' : 'Event Menu Closed'}
           </button>
           {eventMenuOpen && (
-            <div style={{ display: 'grid', gap: 8 }}>
+            <div style={{ display: 'grid', gap: 6 }}>
               {eventNav.map((item) => {
                 const active = isActivePath(pathname, item.href)
                 return (
                   <Link key={item.href} href={item.href} style={{ textDecoration: 'none', color: '#e2e8f0' }}>
                     <div
                       style={{
-                        padding: '10px 12px',
-                        borderRadius: 12,
+                        padding: collapsed ? '9px 8px' : '8px 12px',
+                        borderRadius: 10,
                         border: '1px solid rgba(148,163,184,0.32)',
                         background: active ? '#fbbf24' : 'rgba(15,23,42,0.75)',
                         color: '#f8fafc',
                         fontWeight: 800,
+                        fontSize: collapsed ? 13 : 12,
                         textAlign: collapsed ? 'center' : 'left',
                       }}
                       title={collapsed ? item.label : undefined}
