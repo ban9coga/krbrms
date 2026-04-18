@@ -122,6 +122,18 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
     eventDate ? Math.ceil((eventDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null
   const mapsUrl = event ? buildGoogleMapsUrl(event.name, event.location) : null
   const mapsQrUrl = mapsUrl ? buildQrCodeUrl(mapsUrl, 220) : null
+  const isCategoryFull = (category: RiderCategory) => {
+    if (category.is_full === true) return true
+    if (typeof category.capacity !== 'number') return false
+    if (typeof category.remaining !== 'number') return false
+    return category.remaining <= 0
+  }
+  const canRegister = useMemo(() => {
+    if (!event || event.status !== 'UPCOMING') return false
+    const enabledCategories = categories.filter((category) => category.enabled)
+    if (enabledCategories.length === 0) return true
+    return enabledCategories.some((category) => !isCategoryFull(category))
+  }, [categories, event])
 
   const categoryLabel = useMemo(() => {
     const map = new Map<string, string>()
@@ -312,7 +324,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                       Live Board
                     </Link>
                   )}
-                  {event.status === 'UPCOMING' && !hideRegistrationAndVenueActions && (
+                  {event.status === 'UPCOMING' && !hideRegistrationAndVenueActions && canRegister && (
                     <Link
                       href={`/event/${event.id}/register`}
                       className="inline-flex items-center rounded-xl bg-amber-400 px-5 py-3 text-sm font-extrabold uppercase tracking-wide text-white transition-colors hover:bg-amber-300"
@@ -321,6 +333,12 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                     </Link>
                   )}
                 </div>
+
+                {event.status === 'UPCOMING' && !hideRegistrationAndVenueActions && !canRegister && (
+                  <div className="rounded-2xl border border-amber-300/25 bg-amber-400/10 px-4 py-4 text-sm font-semibold text-amber-100">
+                    Pendaftaran event ini sedang ditutup karena semua slot kategori sudah penuh.
+                  </div>
+                )}
 
                 {!hideRegistrationAndVenueActions && mapsUrl && mapsQrUrl && (
                   <div className="grid gap-4 rounded-[1.7rem] border border-white/10 bg-slate-950/30 p-4 backdrop-blur-sm md:grid-cols-[140px_1fr] md:items-center">

@@ -22,11 +22,13 @@ export default function EventCard({
   index = 0,
   logoUrl,
   slogan,
+  canRegister = true,
 }: {
   event: EventItem
   index?: number
   logoUrl?: string | null
   slogan?: string | null
+  canRegister?: boolean
 }) {
   const status = statusConfig[event.status]
   const fallback = fallbackCovers[index % fallbackCovers.length]
@@ -47,6 +49,8 @@ export default function EventCard({
   const registerHref = `/event/${event.id}/register`
   const mapsUrl = buildGoogleMapsUrl(event.name, event.location)
   const mapsQrUrl = mapsUrl ? buildQrCodeUrl(mapsUrl, 140) : null
+  const showRegisterButton = event.status === 'UPCOMING' && canRegister
+  const upcomingStateLabel = canRegister ? 'Registration Open' : 'Kuota Penuh'
 
   return (
     <article className="group relative overflow-hidden rounded-[1.8rem] border border-slate-200 bg-white/95 shadow-[0_16px_34px_rgba(15,23,42,0.12)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_44px_rgba(15,23,42,0.2)]">
@@ -94,7 +98,7 @@ export default function EventCard({
             {eventScope === 'INTERNAL' ? 'Internal Event' : 'Public Event'}
           </span>
           <span className="inline-flex items-center gap-2 text-sm font-extrabold uppercase tracking-[0.12em] text-amber-500">
-            {event.status === 'UPCOMING' ? 'Registration Open' : event.status === 'LIVE' ? 'View Event' : 'View Results'}
+            {event.status === 'UPCOMING' ? upcomingStateLabel : event.status === 'LIVE' ? 'View Event' : 'View Results'}
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
               <path d="M8 5h11v11M8 16L19 5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
@@ -102,7 +106,7 @@ export default function EventCard({
         </div>
 
         <div className="flex flex-col gap-2 sm:flex-row">
-          {event.status === 'UPCOMING' && (
+          {showRegisterButton && (
             <Link
               href={registerHref}
               className="inline-flex flex-1 items-center justify-center rounded-xl bg-amber-400 px-4 py-3 text-sm font-extrabold uppercase tracking-[0.12em] text-white transition-colors hover:bg-amber-300"
@@ -113,7 +117,7 @@ export default function EventCard({
           <Link
             href={detailHref}
             className={`inline-flex items-center justify-center rounded-xl border px-4 py-3 text-sm font-extrabold uppercase tracking-[0.12em] transition-colors ${
-              event.status === 'UPCOMING'
+              showRegisterButton
                 ? 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                 : 'w-full border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
             }`}
@@ -121,6 +125,12 @@ export default function EventCard({
             {event.status === 'LIVE' ? 'Lihat Event' : event.status === 'FINISHED' ? 'Lihat Hasil' : 'Lihat Detail'}
           </Link>
         </div>
+
+        {event.status === 'UPCOMING' && !canRegister && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
+            Pendaftaran event ini ditutup karena semua slot kategori sudah penuh.
+          </div>
+        )}
 
         {mapsUrl && mapsQrUrl && (
           <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:grid-cols-[74px_1fr] sm:items-center">

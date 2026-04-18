@@ -56,6 +56,59 @@ const loadEventSettings = async (eventIds: string[]) => {
   return settingsMap
 }
 
+const loadRegistrationAvailability = async (eventIds: string[]) => {
+  const availability = new Map<string, boolean>()
+  if (eventIds.length === 0) return availability
+
+  const { data: categories } = await adminClient
+    .from('categories')
+    .select('id, event_id, capacity, enabled')
+    .in('event_id', eventIds)
+    .eq('enabled', true)
+
+  const categoriesByEvent = new Map<string, Array<{ id: string; capacity: number | null }>>()
+  for (const row of categories ?? []) {
+    const bucket = categoriesByEvent.get(row.event_id) ?? []
+    bucket.push({
+      id: row.id,
+      capacity: typeof row.capacity === 'number' && Number.isFinite(row.capacity) ? row.capacity : null,
+    })
+    categoriesByEvent.set(row.event_id, bucket)
+  }
+
+  const { data: existingItems } = await adminClient
+    .from('registration_items')
+    .select('primary_category_id, extra_category_id, status, registrations!inner(event_id)')
+    .in('registrations.event_id', eventIds)
+    .in('status', ['PENDING', 'APPROVED'])
+
+  const filledCounts = new Map<string, number>()
+  for (const row of existingItems ?? []) {
+    const primaryId = typeof row.primary_category_id === 'string' ? row.primary_category_id : null
+    const extraId = typeof row.extra_category_id === 'string' ? row.extra_category_id : null
+    if (primaryId) filledCounts.set(primaryId, (filledCounts.get(primaryId) ?? 0) + 1)
+    if (extraId) filledCounts.set(extraId, (filledCounts.get(extraId) ?? 0) + 1)
+  }
+
+  for (const eventId of eventIds) {
+    const eventCategories = categoriesByEvent.get(eventId) ?? []
+    if (eventCategories.length === 0) {
+      availability.set(eventId, true)
+      continue
+    }
+    availability.set(
+      eventId,
+      eventCategories.some((category) => {
+        if (category.capacity == null) return true
+        const filled = filledCounts.get(category.id) ?? 0
+        return filled < category.capacity
+      })
+    )
+  }
+
+  return availability
+}
+
 const getLiveEvent = async (): Promise<LiveEventItem | null> => {
   const { data, error } = await adminClient
     .from('events')
@@ -87,7 +140,10 @@ export default async function LandingPage() {
   ])
   const spotlightRaw = [...liveEventsRaw, ...upcomingEventsRaw, ...finishedEventsRaw]
   const spotlightIds = Array.from(new Set(spotlightRaw.map((e) => e.id)))
-  const settingsMap = await loadEventSettings(spotlightIds)
+  const [settingsMap, registrationAvailability] = await Promise.all([
+    loadEventSettings(spotlightIds),
+    loadRegistrationAvailability(upcomingEventsRaw.map((event) => event.id)),
+  ])
   const spotlightEvents = spotlightRaw
     .filter((e, idx, arr) => arr.findIndex((x) => x.id === e.id) === idx)
     .map((event) => ({
@@ -146,6 +202,7 @@ export default async function LandingPage() {
                           index={idx}
                           logoUrl={settingsMap.get(event.id)?.logo ?? null}
                           slogan={settingsMap.get(event.id)?.slogan ?? null}
+                          canRegister={event.status !== 'UPCOMING' ? true : (registrationAvailability.get(event.id) ?? true)}
                         />
                       ))}
                     </div>

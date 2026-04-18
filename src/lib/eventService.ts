@@ -88,6 +88,9 @@ export type RiderCategory = {
   year_min?: number
   year_max?: number
   capacity?: number | null
+  filled?: number
+  remaining?: number | null
+  is_full?: boolean
   gender: 'BOY' | 'GIRL' | 'MIX'
   label: string
   enabled: boolean
