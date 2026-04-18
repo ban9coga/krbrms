@@ -717,12 +717,14 @@ export default function RidersClient({ eventId }: { eventId: string }) {
         return
       }
 
-      const lines: string[] = []
-      let totalExported = 0
+      const allRegisteredRows = await fetchExportRows(undefined, '')
+      const totalRegistered = allRegisteredRows.length
+      const categorySections: string[] = []
+      let totalAcrossCategories = 0
 
       for (const category of exportCategories) {
         const exportRows = await fetchExportRows(category.id, '')
-        totalExported += exportRows.length
+        totalAcrossCategories += exportRows.length
 
         const slotStatus =
           category.is_full === true
@@ -731,22 +733,22 @@ export default function RidersClient({ eventId }: { eventId: string }) {
             ? 'TERSEDIA'
             : 'TANPA BATAS'
 
-        lines.push([toCsvCell('Kategori'), toCsvCell(category.label)].join(CSV_DELIMITER))
-        lines.push(
+        categorySections.push([toCsvCell('Kategori'), toCsvCell(category.label)].join(CSV_DELIMITER))
+        categorySections.push(
           [
             toCsvCell('Kapasitas'),
             toCsvCell(typeof category.capacity === 'number' ? category.capacity : 'Tanpa batas'),
           ].join(CSV_DELIMITER)
         )
-        lines.push([toCsvCell('Terisi'), toCsvCell(category.filled ?? exportRows.length)].join(CSV_DELIMITER))
-        lines.push(
+        categorySections.push([toCsvCell('Terisi'), toCsvCell(category.filled ?? exportRows.length)].join(CSV_DELIMITER))
+        categorySections.push(
           [
             toCsvCell('Sisa Slot'),
             toCsvCell(typeof category.remaining === 'number' ? category.remaining : 'Tanpa batas'),
           ].join(CSV_DELIMITER)
         )
-        lines.push([toCsvCell('Status Kuota'), toCsvCell(slotStatus)].join(CSV_DELIMITER))
-        lines.push(
+        categorySections.push([toCsvCell('Status Kuota'), toCsvCell(slotStatus)].join(CSV_DELIMITER))
+        categorySections.push(
           [
             'no_plate_display',
             'plate_number',
@@ -762,9 +764,9 @@ export default function RidersClient({ eventId }: { eventId: string }) {
         )
 
         if (exportRows.length === 0) {
-          lines.push([toCsvCell('Tidak ada rider terdaftar di kategori ini')].join(CSV_DELIMITER))
+          categorySections.push([toCsvCell('Tidak ada rider terdaftar di kategori ini')].join(CSV_DELIMITER))
         } else {
-          lines.push(
+          categorySections.push(
             ...exportRows.map((row) =>
               [
                 toCsvCell(row.no_plate_display),
@@ -782,13 +784,38 @@ export default function RidersClient({ eventId }: { eventId: string }) {
           )
         }
 
-        lines.push('')
+        categorySections.push('')
       }
 
-      if (totalExported === 0) {
+      if (totalRegistered === 0) {
         alert('Belum ada rider terdaftar di semua kategori.')
         return
       }
+
+      const upClassCount = Math.max(0, totalAcrossCategories - totalRegistered)
+      const lines: string[] = [
+        [toCsvCell('Jumlah Rider Terdaftar'), toCsvCell(totalRegistered)].join(CSV_DELIMITER),
+        [toCsvCell('Jumlah Rider Ambil Up Class'), toCsvCell(upClassCount)].join(CSV_DELIMITER),
+        [toCsvCell('Sisa Slot per Kategori'), toCsvCell('')].join(CSV_DELIMITER),
+        ['kategori', 'kapasitas', 'terisi', 'sisa_slot', 'status_kuota'].join(CSV_DELIMITER),
+        ...exportCategories.map((category) =>
+          [
+            toCsvCell(category.label),
+            toCsvCell(typeof category.capacity === 'number' ? category.capacity : 'Tanpa batas'),
+            toCsvCell(category.filled ?? 0),
+            toCsvCell(typeof category.remaining === 'number' ? category.remaining : 'Tanpa batas'),
+            toCsvCell(
+              category.is_full === true
+                ? 'PENUH'
+                : typeof category.remaining === 'number'
+                ? 'TERSEDIA'
+                : 'TANPA BATAS'
+            ),
+          ].join(CSV_DELIMITER)
+        ),
+        '',
+        ...categorySections,
+      ]
 
       const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
       downloadCsvFile(`riders_all_by_category_${stamp}.csv`, lines)
