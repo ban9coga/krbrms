@@ -97,6 +97,7 @@ type ModalState =
   | null
 
 type FeedbackState = { type: 'success' | 'error'; message: string } | null
+type InlineFeedbackState = { type: 'success' | 'error'; message: string }
 
 const STATUS_OPTIONS: Array<{ value: 'ALL' | RegistrationStatus; label: string }> = [
   { value: 'ALL', label: 'Semua Status' },
@@ -198,6 +199,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
   const [registrations, setRegistrations] = useState<RegistrationRow[]>([])
   const [meta, setMeta] = useState({ page: 1, pageSize: 10, total: 0, totalPages: 1 })
   const [feedback, setFeedback] = useState<FeedbackState>(null)
+  const [paymentFeedback, setPaymentFeedback] = useState<Record<string, InlineFeedbackState>>({})
   const [savingKey, setSavingKey] = useState<string | null>(null)
   const [plateInputs, setPlateInputs] = useState<Record<string, { number: string; suffix: string }>>({})
   const [plateChecks, setPlateChecks] = useState<Record<string, PlateCheckState>>({})
@@ -362,6 +364,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
 
         setRegistrations(res.data ?? [])
         setMeta(nextMeta)
+        setPaymentFeedback({})
         setExpanded((prev) => {
           const next = { ...prev }
           for (const row of res.data ?? []) {
@@ -587,17 +590,48 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
     nextStatus: 'APPROVED' | 'REJECTED'
   ) => {
     setSavingKey(`payment:${payment.id}`)
+    setPaymentFeedback((prev) => {
+      const next = { ...prev }
+      delete next[payment.id]
+      return next
+    })
     try {
       await apiFetch(`/api/admin/events/${eventId}/registrations/${registration.id}/payments/${payment.id}`, {
         method: 'PATCH',
         body: JSON.stringify({ status: nextStatus }),
       })
+      setRegistrations((prev) =>
+        prev.map((row) =>
+          row.id !== registration.id
+            ? row
+            : {
+                ...row,
+                registration_payments: row.registration_payments.map((entry) =>
+                  entry.id === payment.id ? { ...entry, status: nextStatus } : entry
+                ),
+              }
+        )
+      )
       setFeedback({
         type: 'success',
         message: `Pembayaran ${registration.contact_name} berhasil diubah ke ${nextStatus}.`,
       })
+      setPaymentFeedback((prev) => ({
+        ...prev,
+        [payment.id]: {
+          type: 'success',
+          message: `Status pembayaran langsung berubah ke ${nextStatus}.`,
+        },
+      }))
       setRefreshTick((prev) => prev + 1)
     } catch (err: unknown) {
+      setPaymentFeedback((prev) => ({
+        ...prev,
+        [payment.id]: {
+          type: 'error',
+          message: err instanceof Error ? err.message : 'Gagal mengubah status pembayaran.',
+        },
+      }))
       setFeedback({ type: 'error', message: err instanceof Error ? err.message : 'Gagal mengubah status pembayaran.' })
     } finally {
       setSavingKey(null)
@@ -915,7 +949,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                                   onClick={() => updatePaymentStatus(registration, payment, 'APPROVED')}
                                   className="rounded-xl border border-emerald-300 bg-emerald-100 px-3 py-2 text-sm font-bold text-emerald-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
                                 >
-                                  Approve Payment
+                                  {savingKey === `payment:${payment.id}` ? 'Menyimpan...' : 'Approve Payment'}
                                 </button>
                                 <button
                                   type="button"
@@ -923,9 +957,21 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                                   onClick={() => updatePaymentStatus(registration, payment, 'REJECTED')}
                                   className="rounded-xl border border-rose-300 bg-rose-100 px-3 py-2 text-sm font-bold text-rose-950 transition hover:bg-rose-200 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
                                 >
-                                  Reject Payment
+                                  {savingKey === `payment:${payment.id}` ? 'Menyimpan...' : 'Reject Payment'}
                                 </button>
                               </div>
+
+                              {paymentFeedback[payment.id] && (
+                                <div
+                                  className={`rounded-xl border px-3 py-2 text-sm font-semibold ${
+                                    paymentFeedback[payment.id].type === 'success'
+                                      ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                                      : 'border-rose-200 bg-rose-50 text-rose-900'
+                                  }`}
+                                >
+                                  {paymentFeedback[payment.id].message}
+                                </div>
+                              )}
                             </div>
                           ))
                         )}
