@@ -449,6 +449,21 @@ export default function RidersClient({ eventId }: { eventId: string }) {
     return `"${text.replace(/"/g, '""')}"`
   }
 
+  const CSV_DELIMITER = ';'
+
+  const downloadCsvFile = (filename: string, lines: string[]) => {
+    const content = `\uFEFFsep=${CSV_DELIMITER}\n${lines.join('\n')}`
+    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = filename
+    document.body.appendChild(anchor)
+    anchor.click()
+    document.body.removeChild(anchor)
+    URL.revokeObjectURL(url)
+  }
+
   const toFileSlug = (value: string) => {
     const slug = value
       .toLowerCase()
@@ -533,7 +548,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
       ]
 
       const lines = [
-        header.join(','),
+        header.join(CSV_DELIMITER),
         ...exportRows.map((row) =>
           [
             toCsvCell(row.no_plate_display),
@@ -547,21 +562,13 @@ export default function RidersClient({ eventId }: { eventId: string }) {
             toCsvCell(row.jersey_size ?? ''),
             toCsvCell(row.club ?? ''),
             toCsvCell(selectedCategoryLabel || selectedCategory),
-          ].join(',')
+          ].join(CSV_DELIMITER)
         ),
       ]
 
       const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
       const categorySlug = toFileSlug(selectedCategoryLabel || selectedCategory)
-      const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
-      const url = URL.createObjectURL(blob)
-      const anchor = document.createElement('a')
-      anchor.href = url
-      anchor.download = `riders_${categorySlug}_${stamp}.csv`
-      document.body.appendChild(anchor)
-      anchor.click()
-      document.body.removeChild(anchor)
-      URL.revokeObjectURL(url)
+      downloadCsvFile(`riders_${categorySlug}_${stamp}.csv`, lines)
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Gagal export rider.')
     } finally {
@@ -721,7 +728,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
       ]
 
       const lines = [
-        header.join(','),
+        header.join(CSV_DELIMITER),
         ...exportRows.map((row) =>
           [
             toCsvCell(row.no_plate_display),
@@ -734,20 +741,12 @@ export default function RidersClient({ eventId }: { eventId: string }) {
             toCsvCell(row.birth_year ?? ''),
             toCsvCell(row.jersey_size ?? ''),
             toCsvCell(row.club ?? ''),
-          ].join(',')
+          ].join(CSV_DELIMITER)
         ),
       ]
 
       const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
-      const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
-      const url = URL.createObjectURL(blob)
-      const anchor = document.createElement('a')
-      anchor.href = url
-      anchor.download = `riders_all_${stamp}.csv`
-      document.body.appendChild(anchor)
-      anchor.click()
-      document.body.removeChild(anchor)
-      URL.revokeObjectURL(url)
+      downloadCsvFile(`riders_all_${stamp}.csv`, lines)
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Gagal export semua rider.')
     } finally {
