@@ -83,6 +83,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [exportingAll, setExportingAll] = useState(false)
   const [exportingPdf, setExportingPdf] = useState(false)
 
   const [categories, setCategories] = useState<CategoryItem[]>([])
@@ -466,7 +467,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
       .replace(/'/g, '&#39;')
   }
 
-  const fetchExportRows = async () => {
+  const fetchExportRows = async (categoryId?: string | null) => {
     const exportRows: RiderItem[] = []
     const exportPageSize = 200
     let currentPage = 1
@@ -475,10 +476,10 @@ export default function RidersClient({ eventId }: { eventId: string }) {
     while (true) {
       const qs = new URLSearchParams({
         event_id: eventId,
-        category_id: selectedCategory,
         page: String(currentPage),
         page_size: String(exportPageSize),
       })
+      if (categoryId) qs.set('category_id', categoryId)
       if (query.trim()) qs.set('q', query.trim())
 
       const res = await fetch(`/api/riders?${qs.toString()}`)
@@ -510,7 +511,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
 
     setExporting(true)
     try {
-      const exportRows = await fetchExportRows()
+      const exportRows = await fetchExportRows(selectedCategory)
 
       if (exportRows.length === 0) {
         alert('Tidak ada data rider untuk diexport.')
@@ -580,7 +581,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
 
     setExportingPdf(true)
     try {
-      const exportRows = await fetchExportRows()
+      const exportRows = await fetchExportRows(selectedCategory)
       if (exportRows.length === 0) {
         alert('Tidak ada data rider untuk diexport.')
         return
@@ -688,6 +689,69 @@ export default function RidersClient({ eventId }: { eventId: string }) {
       alert(err instanceof Error ? err.message : 'Gagal export PDF rider.')
     } finally {
       setExportingPdf(false)
+    }
+  }
+
+  const handleExportAllRiders = async () => {
+    if (!eventId) {
+      alert('Event ID tidak valid.')
+      return
+    }
+
+    setExportingAll(true)
+    try {
+      const exportRows = await fetchExportRows()
+
+      if (exportRows.length === 0) {
+        alert('Tidak ada data rider untuk diexport.')
+        return
+      }
+
+      const header = [
+        'no_plate_display',
+        'plate_number',
+        'plate_suffix',
+        'name',
+        'rider_nickname',
+        'gender',
+        'date_of_birth',
+        'birth_year',
+        'jersey_size',
+        'club',
+      ]
+
+      const lines = [
+        header.join(','),
+        ...exportRows.map((row) =>
+          [
+            toCsvCell(row.no_plate_display),
+            toCsvCell(row.plate_number),
+            toCsvCell(row.plate_suffix ?? ''),
+            toCsvCell(row.name),
+            toCsvCell(row.rider_nickname ?? ''),
+            toCsvCell(row.gender),
+            toCsvCell(row.date_of_birth),
+            toCsvCell(row.birth_year ?? ''),
+            toCsvCell(row.jersey_size ?? ''),
+            toCsvCell(row.club ?? ''),
+          ].join(',')
+        ),
+      ]
+
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+      const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = `riders_all_${stamp}.csv`
+      document.body.appendChild(anchor)
+      anchor.click()
+      document.body.removeChild(anchor)
+      URL.revokeObjectURL(url)
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Gagal export semua rider.')
+    } finally {
+      setExportingAll(false)
     }
   }
 
@@ -926,31 +990,47 @@ export default function RidersClient({ eventId }: { eventId: string }) {
         <button
           type="button"
           onClick={handleExportRiders}
-          disabled={exporting || exportingPdf || loading || !selectedCategory}
+          disabled={exporting || exportingAll || exportingPdf || loading || !selectedCategory}
           style={{
             padding: '10px 12px',
             borderRadius: 12,
             border: '2px solid #111',
-            background: exporting || exportingPdf || loading || !selectedCategory ? '#eee' : '#dbeafe',
+            background: exporting || exportingAll || exportingPdf || loading || !selectedCategory ? '#eee' : '#dbeafe',
             color: '#0f172a',
             fontWeight: 900,
-            cursor: exporting || exportingPdf || loading || !selectedCategory ? 'not-allowed' : 'pointer',
+            cursor: exporting || exportingAll || exportingPdf || loading || !selectedCategory ? 'not-allowed' : 'pointer',
           }}
         >
           {exporting ? 'Exporting CSV...' : 'Export CSV'}
         </button>
         <button
           type="button"
-          onClick={handleExportRidersPdf}
-          disabled={exportingPdf || exporting || loading || !selectedCategory}
+          onClick={handleExportAllRiders}
+          disabled={exportingAll || exporting || exportingPdf || loading}
           style={{
             padding: '10px 12px',
             borderRadius: 12,
             border: '2px solid #111',
-            background: exportingPdf || exporting || loading || !selectedCategory ? '#eee' : '#fde68a',
+            background: exportingAll || exporting || exportingPdf || loading ? '#eee' : '#dcfce7',
             color: '#0f172a',
             fontWeight: 900,
-            cursor: exportingPdf || exporting || loading || !selectedCategory ? 'not-allowed' : 'pointer',
+            cursor: exportingAll || exporting || exportingPdf || loading ? 'not-allowed' : 'pointer',
+          }}
+        >
+          {exportingAll ? 'Exporting All...' : 'Export Semua Rider'}
+        </button>
+        <button
+          type="button"
+          onClick={handleExportRidersPdf}
+          disabled={exportingPdf || exportingAll || exporting || loading || !selectedCategory}
+          style={{
+            padding: '10px 12px',
+            borderRadius: 12,
+            border: '2px solid #111',
+            background: exportingPdf || exportingAll || exporting || loading || !selectedCategory ? '#eee' : '#fde68a',
+            color: '#0f172a',
+            fontWeight: 900,
+            cursor: exportingPdf || exportingAll || exporting || loading || !selectedCategory ? 'not-allowed' : 'pointer',
           }}
         >
           {exportingPdf ? 'Preparing PDF...' : 'Export PDF'}
