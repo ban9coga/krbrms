@@ -1268,11 +1268,6 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                 <span>Total Bayar</span>
                 <span>{formatRupiah(totalAmount)}</span>
               </div>
-              <div className="mt-2 text-xs font-semibold text-slate-300">
-                {showTotal
-                  ? 'Total sudah final sesuai rider dan kategori tambahan yang dipilih.'
-                  : 'Total sudah bisa dilihat sekarang. Lengkapi kontak dan data rider untuk melanjutkan submit.'}
-              </div>
             </div>
             <label className="text-sm font-bold text-slate-200">Upload Bukti Pembayaran (gambar maks 2 MB / PDF maks 3 MB)</label>
             <label

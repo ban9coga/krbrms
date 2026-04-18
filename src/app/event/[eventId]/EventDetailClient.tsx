@@ -29,6 +29,7 @@ const categoryCoverGradients = [
 ]
 
 export default function EventDetailClient({ eventId }: { eventId: string }) {
+  const hideRegistrationAndVenueActions = eventId === '1d063c20-af89-4416-a578-cc06b824adc2'
   const [event, setEvent] = useState<EventItem | null>(null)
   const [categories, setCategories] = useState<RiderCategory[]>([])
   const [liveMotos, setLiveMotos] = useState<MotoItem[]>([])
@@ -311,7 +312,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                       Live Board
                     </Link>
                   )}
-                  {event.status === 'UPCOMING' && (
+                  {event.status === 'UPCOMING' && !hideRegistrationAndVenueActions && (
                     <Link
                       href={`/event/${event.id}/register`}
                       className="inline-flex items-center rounded-xl bg-amber-400 px-5 py-3 text-sm font-extrabold uppercase tracking-wide text-white transition-colors hover:bg-amber-300"
@@ -321,7 +322,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                   )}
                 </div>
 
-                {mapsUrl && mapsQrUrl && (
+                {!hideRegistrationAndVenueActions && mapsUrl && mapsQrUrl && (
                   <div className="grid gap-4 rounded-[1.7rem] border border-white/10 bg-slate-950/30 p-4 backdrop-blur-sm md:grid-cols-[140px_1fr] md:items-center">
                     <img
                       src={mapsQrUrl}

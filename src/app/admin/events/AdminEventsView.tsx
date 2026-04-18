@@ -411,7 +411,7 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
 
                 <div className="flex flex-wrap gap-2">
                   <Link
-                    href={`/admin/events/${ev.id}`}
+                    href={`/admin/events/${ev.id}/registrations`}
                     className={`${buttonClass} border border-amber-300 bg-amber-400 text-slate-900 hover:bg-amber-300`}
                   >
                     Manage Event
