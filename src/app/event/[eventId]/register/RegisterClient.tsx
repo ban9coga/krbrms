@@ -133,6 +133,9 @@ const parseJsonResponse = async (res: Response) => {
   }
 }
 
+const buildNetworkStepError = (stepLabel: string) =>
+  `${stepLabel} gagal karena koneksi terputus atau server tidak merespons. Coba cek internet lalu ulangi submit.`
+
 const initialRider = (): RiderForm => ({
   name: '',
   nickname: '',
@@ -562,11 +565,16 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     let createdUploadToken: string | null = null
     try {
       const uploadStep = async (path: string, body: FormData, fallbackMessage: string, uploadToken: string) => {
-        const res = await fetch(path, {
-          method: 'POST',
-          headers: { 'x-upload-token': uploadToken },
-          body,
-        })
+        let res: Response
+        try {
+          res = await fetch(path, {
+            method: 'POST',
+            headers: { 'x-upload-token': uploadToken },
+            body,
+          })
+        } catch {
+          throw new Error(buildNetworkStepError(fallbackMessage))
+        }
         const json = await parseJsonResponse(res)
         if (!res.ok) throw new Error(json?.error || json?._raw || fallbackMessage)
         return json
@@ -596,17 +604,22 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         }
       })
 
-      const createRes = await fetch(`/api/public/events/${eventId}/registrations`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          community_name: communityName || null,
-          contact_name: contactName,
-          contact_phone: contactPhone,
-          contact_email: contactEmail || null,
-          items,
-        }),
-      })
+      let createRes: Response
+      try {
+        createRes = await fetch(`/api/public/events/${eventId}/registrations`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            community_name: communityName || null,
+            contact_name: contactName,
+            contact_phone: contactPhone,
+            contact_email: contactEmail || null,
+            items,
+          }),
+        })
+      } catch {
+        throw new Error(buildNetworkStepError('Menyimpan data pendaftaran awal'))
+      }
       const createJson = await parseJsonResponse(createRes)
       if (!createRes.ok) throw new Error(createJson?.error || createJson?._raw || 'Gagal membuat pendaftaran')
 
@@ -638,7 +651,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         await uploadStep(
           `/api/public/events/${eventId}/registrations/${createdRegistrationId}/photo`,
           photoBody,
-          `Gagal mengupload foto rider #${idx + 1}`,
+          `Upload foto rider #${idx + 1}`,
           createdUploadToken
         )
 
@@ -649,7 +662,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         await uploadStep(
           `/api/public/events/${eventId}/registrations/${createdRegistrationId}/documents`,
           documentBody,
-          `Gagal mengupload dokumen rider #${idx + 1}`,
+          `Upload dokumen rider #${idx + 1}`,
           createdUploadToken
         )
       }
@@ -662,7 +675,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
       await uploadStep(
         `/api/public/events/${eventId}/registrations/${createdRegistrationId}/payment`,
         paymentBody,
-        'Gagal mengupload bukti pembayaran',
+        'Upload bukti pembayaran',
         createdUploadToken
       )
 
