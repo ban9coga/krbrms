@@ -8,6 +8,10 @@ type CategoryItem = {
   year: number
   year_min?: number
   year_max?: number
+  capacity?: number | null
+  filled?: number
+  remaining?: number | null
+  is_full?: boolean
   gender: 'BOY' | 'GIRL' | 'MIX'
   label: string
   enabled: boolean
@@ -482,7 +486,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
       .replace(/'/g, '&#39;')
   }
 
-  const fetchExportRows = async (categoryId?: string | null) => {
+  const fetchExportRows = async (categoryId?: string | null, searchText = query) => {
     const exportRows: RiderItem[] = []
     const exportPageSize = 200
     let currentPage = 1
@@ -495,7 +499,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
         page_size: String(exportPageSize),
       })
       if (categoryId) qs.set('category_id', categoryId)
-      if (query.trim()) qs.set('q', query.trim())
+      if (searchText.trim()) qs.set('q', searchText.trim())
 
       const res = await fetch(`/api/riders?${qs.toString()}`)
       const json = await res.json().catch(() => ({}))
@@ -707,46 +711,87 @@ export default function RidersClient({ eventId }: { eventId: string }) {
 
     setExportingAll(true)
     try {
-      const exportRows = await fetchExportRows()
-
-      if (exportRows.length === 0) {
-        alert('Tidak ada data rider untuk diexport.')
+      const exportCategories = categories.filter((category) => category.enabled)
+      if (exportCategories.length === 0) {
+        alert('Belum ada kategori aktif untuk diexport.')
         return
       }
 
-      const header = [
-        'no_plate_display',
-        'plate_number',
-        'plate_suffix',
-        'name',
-        'rider_nickname',
-        'gender',
-        'date_of_birth',
-        'birth_year',
-        'jersey_size',
-        'club',
-      ]
+      const lines: string[] = []
+      let totalExported = 0
 
-      const lines = [
-        header.join(CSV_DELIMITER),
-        ...exportRows.map((row) =>
+      for (const category of exportCategories) {
+        const exportRows = await fetchExportRows(category.id, '')
+        totalExported += exportRows.length
+
+        const slotStatus =
+          category.is_full === true
+            ? 'PENUH'
+            : typeof category.remaining === 'number'
+            ? 'TERSEDIA'
+            : 'TANPA BATAS'
+
+        lines.push([toCsvCell('Kategori'), toCsvCell(category.label)].join(CSV_DELIMITER))
+        lines.push(
           [
-            toCsvCell(row.no_plate_display),
-            toCsvCell(row.plate_number),
-            toCsvCell(row.plate_suffix ?? ''),
-            toCsvCell(row.name),
-            toCsvCell(row.rider_nickname ?? ''),
-            toCsvCell(row.gender),
-            toCsvCell(row.date_of_birth),
-            toCsvCell(row.birth_year ?? ''),
-            toCsvCell(row.jersey_size ?? ''),
-            toCsvCell(row.club ?? ''),
+            toCsvCell('Kapasitas'),
+            toCsvCell(typeof category.capacity === 'number' ? category.capacity : 'Tanpa batas'),
           ].join(CSV_DELIMITER)
-        ),
-      ]
+        )
+        lines.push([toCsvCell('Terisi'), toCsvCell(category.filled ?? exportRows.length)].join(CSV_DELIMITER))
+        lines.push(
+          [
+            toCsvCell('Sisa Slot'),
+            toCsvCell(typeof category.remaining === 'number' ? category.remaining : 'Tanpa batas'),
+          ].join(CSV_DELIMITER)
+        )
+        lines.push([toCsvCell('Status Kuota'), toCsvCell(slotStatus)].join(CSV_DELIMITER))
+        lines.push(
+          [
+            'no_plate_display',
+            'plate_number',
+            'plate_suffix',
+            'name',
+            'rider_nickname',
+            'gender',
+            'date_of_birth',
+            'birth_year',
+            'jersey_size',
+            'club',
+          ].join(CSV_DELIMITER)
+        )
+
+        if (exportRows.length === 0) {
+          lines.push([toCsvCell('Tidak ada rider terdaftar di kategori ini')].join(CSV_DELIMITER))
+        } else {
+          lines.push(
+            ...exportRows.map((row) =>
+              [
+                toCsvCell(row.no_plate_display),
+                toCsvCell(row.plate_number),
+                toCsvCell(row.plate_suffix ?? ''),
+                toCsvCell(row.name),
+                toCsvCell(row.rider_nickname ?? ''),
+                toCsvCell(row.gender),
+                toCsvCell(row.date_of_birth),
+                toCsvCell(row.birth_year ?? ''),
+                toCsvCell(row.jersey_size ?? ''),
+                toCsvCell(row.club ?? ''),
+              ].join(CSV_DELIMITER)
+            )
+          )
+        }
+
+        lines.push('')
+      }
+
+      if (totalExported === 0) {
+        alert('Belum ada rider terdaftar di semua kategori.')
+        return
+      }
 
       const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
-      downloadCsvFile(`riders_all_${stamp}.csv`, lines)
+      downloadCsvFile(`riders_all_by_category_${stamp}.csv`, lines)
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Gagal export semua rider.')
     } finally {
@@ -1016,7 +1061,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
             cursor: exportingAll || exporting || exportingPdf || loading ? 'not-allowed' : 'pointer',
           }}
         >
-          {exportingAll ? 'Exporting All...' : 'Export Semua Rider'}
+          {exportingAll ? 'Exporting Semua Kategori...' : 'Export Semua Rider per Kategori'}
         </button>
         <button
           type="button"
