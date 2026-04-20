@@ -32,6 +32,20 @@ type RiderItem = {
   photo_thumbnail_url?: string | null
 }
 
+type ExportCategorySummary = {
+  id: string
+  label: string
+  capacity: number | null
+  filled: number
+  remaining: number | null
+  status: 'PENUH' | 'TERSEDIA' | 'TANPA BATAS'
+}
+
+type ExportCategoryGroup = {
+  summary: ExportCategorySummary
+  rows: RiderItem[]
+}
+
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
 
 async function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number) {
@@ -88,6 +102,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
   const [saving, setSaving] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [exportingAll, setExportingAll] = useState(false)
+  const [exportingExcel, setExportingExcel] = useState(false)
   const [exportingPdf, setExportingPdf] = useState(false)
 
   const [categories, setCategories] = useState<CategoryItem[]>([])
@@ -496,6 +511,33 @@ export default function RidersClient({ eventId }: { eventId: string }) {
       .replace(/'/g, '&#39;')
   }
 
+  const escapeXml = (value: string | number | null | undefined) => {
+    const text = value == null ? '' : String(value)
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;')
+  }
+
+  const sanitizeWorksheetName = (value: string, fallback: string) => {
+    const sanitized = value.replace(/[\\/:?*\[\]]/g, ' ').trim().replace(/\s+/g, ' ')
+    return (sanitized || fallback).slice(0, 31)
+  }
+
+  const downloadExcelXmlFile = (filename: string, content: string) => {
+    const blob = new Blob([content], { type: 'application/vnd.ms-excel;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = filename
+    document.body.appendChild(anchor)
+    anchor.click()
+    document.body.removeChild(anchor)
+    URL.revokeObjectURL(url)
+  }
+
   const fetchExportRows = async (categoryId?: string | null, searchText = query) => {
     const exportRows: RiderItem[] = []
     const exportPageSize = 200
@@ -526,6 +568,50 @@ export default function RidersClient({ eventId }: { eventId: string }) {
     }
 
     return exportRows
+  }
+
+  const buildAllCategoryExportData = async () => {
+    const exportCategories = await fetchLatestCategories()
+    if (exportCategories.length === 0) {
+      throw new Error('Belum ada kategori aktif untuk diexport.')
+    }
+
+    const allRegisteredRows = await fetchExportRows(undefined, '')
+    const totalRegistered = allRegisteredRows.length
+    if (totalRegistered === 0) {
+      throw new Error('Belum ada rider terdaftar di semua kategori.')
+    }
+
+    const categoryGroups: ExportCategoryGroup[] = []
+    let totalAcrossCategories = 0
+
+    for (const category of exportCategories) {
+      const rows = await fetchExportRows(category.id, '')
+      totalAcrossCategories += rows.length
+      const capacity = typeof category.capacity === 'number' ? category.capacity : null
+      const filled = rows.length
+      const remaining = capacity == null ? null : Math.max(0, capacity - filled)
+      const status =
+        capacity == null ? 'TANPA BATAS' : filled >= capacity ? 'PENUH' : 'TERSEDIA'
+
+      categoryGroups.push({
+        summary: {
+          id: category.id,
+          label: category.label,
+          capacity,
+          filled,
+          remaining,
+          status,
+        },
+        rows,
+      })
+    }
+
+    return {
+      totalRegistered,
+      upClassCount: Math.max(0, totalAcrossCategories - totalRegistered),
+      categoryGroups,
+    }
   }
 
   const handleExportRiders = async () => {
@@ -721,61 +807,26 @@ export default function RidersClient({ eventId }: { eventId: string }) {
 
     setExportingAll(true)
     try {
-      const exportCategories = await fetchLatestCategories()
-      if (exportCategories.length === 0) {
-        alert('Belum ada kategori aktif untuk diexport.')
-        return
-      }
-
-      const allRegisteredRows = await fetchExportRows(undefined, '')
-      const totalRegistered = allRegisteredRows.length
+      const { totalRegistered, upClassCount, categoryGroups } = await buildAllCategoryExportData()
       const categorySections: string[] = []
-      const categorySummaries: Array<{
-        label: string
-        capacity: number | null | undefined
-        filled: number
-        remaining: number | null
-        status: 'PENUH' | 'TERSEDIA' | 'TANPA BATAS'
-      }> = []
-      let totalAcrossCategories = 0
 
-      for (const category of exportCategories) {
-        const exportRows = await fetchExportRows(category.id, '')
-        totalAcrossCategories += exportRows.length
-        const filledCount = exportRows.length
-        const remainingCount =
-          typeof category.capacity === 'number' ? Math.max(0, category.capacity - filledCount) : null
-
-        const slotStatus =
-          typeof category.capacity === 'number'
-            ? filledCount >= category.capacity
-              ? 'PENUH'
-              : 'TERSEDIA'
-            : 'TANPA BATAS'
-
-        categorySummaries.push({
-          label: category.label,
-          capacity: category.capacity,
-          filled: filledCount,
-          remaining: remainingCount,
-          status: slotStatus,
-        })
-
-        categorySections.push([toCsvCell('Kategori'), toCsvCell(category.label)].join(CSV_DELIMITER))
+      for (const group of categoryGroups) {
+        const { summary, rows } = group
+        categorySections.push([toCsvCell('Kategori'), toCsvCell(summary.label)].join(CSV_DELIMITER))
         categorySections.push(
           [
             toCsvCell('Kapasitas'),
-            toCsvCell(typeof category.capacity === 'number' ? category.capacity : 'Tanpa batas'),
+            toCsvCell(typeof summary.capacity === 'number' ? summary.capacity : 'Tanpa batas'),
           ].join(CSV_DELIMITER)
         )
-        categorySections.push([toCsvCell('Terisi'), toCsvCell(filledCount)].join(CSV_DELIMITER))
+        categorySections.push([toCsvCell('Terisi'), toCsvCell(summary.filled)].join(CSV_DELIMITER))
         categorySections.push(
           [
             toCsvCell('Sisa Slot'),
-            toCsvCell(typeof remainingCount === 'number' ? remainingCount : 'Tanpa batas'),
+            toCsvCell(typeof summary.remaining === 'number' ? summary.remaining : 'Tanpa batas'),
           ].join(CSV_DELIMITER)
         )
-        categorySections.push([toCsvCell('Status Kuota'), toCsvCell(slotStatus)].join(CSV_DELIMITER))
+        categorySections.push([toCsvCell('Status Kuota'), toCsvCell(summary.status)].join(CSV_DELIMITER))
         categorySections.push(
           [
             'no_plate_display',
@@ -791,11 +842,11 @@ export default function RidersClient({ eventId }: { eventId: string }) {
           ].join(CSV_DELIMITER)
         )
 
-        if (exportRows.length === 0) {
+        if (rows.length === 0) {
           categorySections.push([toCsvCell('Tidak ada rider terdaftar di kategori ini')].join(CSV_DELIMITER))
         } else {
           categorySections.push(
-            ...exportRows.map((row) =>
+            ...rows.map((row) =>
               [
                 toCsvCell(row.no_plate_display),
                 toCsvCell(row.plate_number),
@@ -814,25 +865,18 @@ export default function RidersClient({ eventId }: { eventId: string }) {
 
         categorySections.push('')
       }
-
-      if (totalRegistered === 0) {
-        alert('Belum ada rider terdaftar di semua kategori.')
-        return
-      }
-
-      const upClassCount = Math.max(0, totalAcrossCategories - totalRegistered)
       const lines: string[] = [
         [toCsvCell('Jumlah Rider Terdaftar'), toCsvCell(totalRegistered)].join(CSV_DELIMITER),
         [toCsvCell('Jumlah Rider Ambil Up Class'), toCsvCell(upClassCount)].join(CSV_DELIMITER),
         [toCsvCell('Sisa Slot per Kategori'), toCsvCell('')].join(CSV_DELIMITER),
         ['kategori', 'kapasitas', 'terisi', 'sisa_slot', 'status_kuota'].join(CSV_DELIMITER),
-        ...categorySummaries.map((category) =>
+        ...categoryGroups.map(({ summary }) =>
           [
-            toCsvCell(category.label),
-            toCsvCell(typeof category.capacity === 'number' ? category.capacity : 'Tanpa batas'),
-            toCsvCell(category.filled),
-            toCsvCell(typeof category.remaining === 'number' ? category.remaining : 'Tanpa batas'),
-            toCsvCell(category.status),
+            toCsvCell(summary.label),
+            toCsvCell(typeof summary.capacity === 'number' ? summary.capacity : 'Tanpa batas'),
+            toCsvCell(summary.filled),
+            toCsvCell(typeof summary.remaining === 'number' ? summary.remaining : 'Tanpa batas'),
+            toCsvCell(summary.status),
           ].join(CSV_DELIMITER)
         ),
         '',
@@ -845,6 +889,274 @@ export default function RidersClient({ eventId }: { eventId: string }) {
       alert(err instanceof Error ? err.message : 'Gagal export semua rider.')
     } finally {
       setExportingAll(false)
+    }
+  }
+
+  const handleExportExcelRapi = async () => {
+    if (!eventId) {
+      alert('Event ID tidak valid.')
+      return
+    }
+
+    setExportingExcel(true)
+    try {
+      const { totalRegistered, upClassCount, categoryGroups } = await buildAllCategoryExportData()
+      const generatedAt = new Date()
+
+      const xmlCell = (
+        value: string | number | null | undefined,
+        styleId: string,
+        type: 'String' | 'Number' = 'String',
+        mergeAcross = 0
+      ) => {
+        const mergeAttr = mergeAcross > 0 ? ` ss:MergeAcross="${mergeAcross}"` : ''
+        return `<Cell ss:StyleID="${styleId}"${mergeAttr}><Data ss:Type="${type}">${escapeXml(value)}</Data></Cell>`
+      }
+
+      const xmlEmptyCell = () => '<Cell/>'
+      const xmlRow = (cells: string[]) => `<Row>${cells.join('')}</Row>`
+
+      const summaryRows: string[] = [
+        xmlRow([xmlCell('LAPORAN RIDER EVENT', 'Title',  'String', 4)]),
+        xmlRow([xmlCell(`Generated: ${generatedAt.toLocaleString('id-ID')}`, 'Subtle', 'String', 4)]),
+        xmlRow([xmlCell('', 'Default', 'String', 4)]),
+        xmlRow([xmlCell('Jumlah Rider Terdaftar', 'Label'), xmlCell(totalRegistered, 'ValueNumber', 'Number')]),
+        xmlRow([xmlCell('Jumlah Rider Ambil Up Class', 'Label'), xmlCell(upClassCount, 'ValueNumber', 'Number')]),
+        xmlRow([xmlCell('', 'Default', 'String', 4)]),
+        xmlRow([
+          xmlCell('Kategori', 'Header'),
+          xmlCell('Kapasitas', 'Header'),
+          xmlCell('Terisi', 'Header'),
+          xmlCell('Sisa Slot', 'Header'),
+          xmlCell('Status', 'Header'),
+        ]),
+        ...categoryGroups.map(({ summary }) =>
+          xmlRow([
+            xmlCell(summary.label, 'Text'),
+            xmlCell(summary.capacity == null ? 'Tanpa batas' : summary.capacity, summary.capacity == null ? 'Text' : 'ValueNumber', summary.capacity == null ? 'String' : 'Number'),
+            xmlCell(summary.filled, 'ValueNumber', 'Number'),
+            xmlCell(
+              summary.remaining == null ? 'Tanpa batas' : summary.remaining,
+              summary.remaining == null ? 'Text' : summary.status === 'PENUH' ? 'StatusRed' : 'StatusGreen',
+              summary.remaining == null ? 'String' : 'Number'
+            ),
+            xmlCell(summary.status, summary.status === 'PENUH' ? 'StatusRed' : summary.status === 'TERSEDIA' ? 'StatusGreen' : 'StatusBlue'),
+          ])
+        ),
+      ]
+
+      const detailRows: string[] = [
+        xmlRow([xmlCell('SEMUA RIDER PER KATEGORI', 'Title', 'String', 9)]),
+        xmlRow([xmlCell(`Generated: ${generatedAt.toLocaleString('id-ID')}`, 'Subtle', 'String', 9)]),
+        xmlRow([xmlCell('', 'Default', 'String', 9)]),
+      ]
+
+      for (const { summary, rows } of categoryGroups) {
+        detailRows.push(xmlRow([xmlCell(summary.label, 'Section', 'String', 9)]))
+        detailRows.push(
+          xmlRow([
+            xmlCell('Kapasitas', 'Label'),
+            xmlCell(summary.capacity == null ? 'Tanpa batas' : summary.capacity, summary.capacity == null ? 'Text' : 'ValueNumber', summary.capacity == null ? 'String' : 'Number'),
+            xmlCell('Terisi', 'Label'),
+            xmlCell(summary.filled, 'ValueNumber', 'Number'),
+            xmlCell('Sisa Slot', 'Label'),
+            xmlCell(
+              summary.remaining == null ? 'Tanpa batas' : summary.remaining,
+              summary.remaining == null ? 'Text' : summary.status === 'PENUH' ? 'StatusRed' : 'StatusGreen',
+              summary.remaining == null ? 'String' : 'Number'
+            ),
+            xmlCell('Status', 'Label'),
+            xmlCell(summary.status, summary.status === 'PENUH' ? 'StatusRed' : summary.status === 'TERSEDIA' ? 'StatusGreen' : 'StatusBlue'),
+          ])
+        )
+        detailRows.push(
+          xmlRow([
+            xmlCell('No Plate', 'Header'),
+            xmlCell('Plate Number', 'Header'),
+            xmlCell('Suffix', 'Header'),
+            xmlCell('Nama Rider', 'Header'),
+            xmlCell('Panggilan', 'Header'),
+            xmlCell('Gender', 'Header'),
+            xmlCell('Tanggal Lahir', 'Header'),
+            xmlCell('Tahun Lahir', 'Header'),
+            xmlCell('Jersey', 'Header'),
+            xmlCell('Club', 'Header'),
+          ])
+        )
+
+        if (rows.length === 0) {
+          detailRows.push(xmlRow([xmlCell('Tidak ada rider terdaftar di kategori ini', 'Subtle', 'String', 9)]))
+        } else {
+          detailRows.push(
+            ...rows.map((row) =>
+              xmlRow([
+                xmlCell(row.no_plate_display, 'Text'),
+                xmlCell(row.plate_number, 'Text'),
+                xmlCell(row.plate_suffix ?? '-', 'Text'),
+                xmlCell(row.name, 'Text'),
+                xmlCell(row.rider_nickname ?? '-', 'Text'),
+                xmlCell(row.gender, row.gender === 'GIRL' ? 'StatusPink' : 'StatusBlue'),
+                xmlCell(row.date_of_birth, 'Text'),
+                xmlCell(row.birth_year ?? '', typeof row.birth_year === 'number' ? 'ValueNumber' : 'Text', typeof row.birth_year === 'number' ? 'Number' : 'String'),
+                xmlCell(row.jersey_size ?? '-', 'Text'),
+                xmlCell(row.club ?? '-', 'Text'),
+              ])
+            )
+          )
+        }
+
+        detailRows.push(xmlRow([xmlEmptyCell()]))
+      }
+
+      const workbookXml = `<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:html="http://www.w3.org/TR/REC-html40">
+ <Styles>
+  <Style ss:ID="Default" ss:Name="Normal">
+   <Alignment ss:Vertical="Center"/>
+   <Borders/>
+   <Font ss:FontName="Calibri" ss:Size="11" ss:Color="#0f172a"/>
+   <Interior/>
+   <NumberFormat/>
+   <Protection/>
+  </Style>
+  <Style ss:ID="Title">
+   <Font ss:FontName="Calibri" ss:Size="16" ss:Bold="1" ss:Color="#0f172a"/>
+   <Interior ss:Color="#F8FAFC" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="Section">
+   <Font ss:FontName="Calibri" ss:Size="13" ss:Bold="1" ss:Color="#0f172a"/>
+   <Interior ss:Color="#DCEAFE" ss:Pattern="Solid"/>
+   <Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/></Borders>
+  </Style>
+  <Style ss:ID="Header">
+   <Font ss:FontName="Calibri" ss:Size="11" ss:Bold="1" ss:Color="#FFFFFF"/>
+   <Interior ss:Color="#1E293B" ss:Pattern="Solid"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/>
+   </Borders>
+  </Style>
+  <Style ss:ID="Label">
+   <Font ss:FontName="Calibri" ss:Size="11" ss:Bold="1" ss:Color="#334155"/>
+   <Interior ss:Color="#F8FAFC" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="Text">
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/>
+   </Borders>
+  </Style>
+  <Style ss:ID="ValueNumber">
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/>
+   </Borders>
+   <NumberFormat ss:Format="0"/>
+  </Style>
+  <Style ss:ID="Subtle">
+   <Font ss:FontName="Calibri" ss:Size="10" ss:Color="#64748B"/>
+  </Style>
+  <Style ss:ID="StatusGreen">
+   <Font ss:FontName="Calibri" ss:Size="11" ss:Bold="1" ss:Color="#166534"/>
+   <Interior ss:Color="#DCFCE7" ss:Pattern="Solid"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/>
+   </Borders>
+  </Style>
+  <Style ss:ID="StatusRed">
+   <Font ss:FontName="Calibri" ss:Size="11" ss:Bold="1" ss:Color="#991B1B"/>
+   <Interior ss:Color="#FEE2E2" ss:Pattern="Solid"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/>
+   </Borders>
+  </Style>
+  <Style ss:ID="StatusBlue">
+   <Font ss:FontName="Calibri" ss:Size="11" ss:Bold="1" ss:Color="#1D4ED8"/>
+   <Interior ss:Color="#DBEAFE" ss:Pattern="Solid"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/>
+   </Borders>
+  </Style>
+  <Style ss:ID="StatusPink">
+   <Font ss:FontName="Calibri" ss:Size="11" ss:Bold="1" ss:Color="#9D174D"/>
+   <Interior ss:Color="#FCE7F3" ss:Pattern="Solid"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/>
+   </Borders>
+  </Style>
+ </Styles>
+ <Worksheet ss:Name="${escapeXml(sanitizeWorksheetName('Ringkasan', 'Ringkasan'))}">
+  <Table>
+   <Column ss:Width="220"/>
+   <Column ss:Width="110"/>
+   <Column ss:Width="90"/>
+   <Column ss:Width="90"/>
+   <Column ss:Width="110"/>
+   ${summaryRows.join('')}
+  </Table>
+  <WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel">
+   <FreezePanes/>
+   <FrozenNoSplit/>
+   <SplitHorizontal>7</SplitHorizontal>
+   <TopRowBottomPane>7</TopRowBottomPane>
+   <ProtectObjects>False</ProtectObjects>
+   <ProtectScenarios>False</ProtectScenarios>
+  </WorksheetOptions>
+ </Worksheet>
+ <Worksheet ss:Name="${escapeXml(sanitizeWorksheetName('Semua Rider', 'Semua Rider'))}">
+  <Table>
+   <Column ss:Width="85"/>
+   <Column ss:Width="85"/>
+   <Column ss:Width="60"/>
+   <Column ss:Width="180"/>
+   <Column ss:Width="140"/>
+   <Column ss:Width="70"/>
+   <Column ss:Width="95"/>
+   <Column ss:Width="80"/>
+   <Column ss:Width="80"/>
+   <Column ss:Width="180"/>
+   ${detailRows.join('')}
+  </Table>
+  <WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel">
+   <FreezePanes/>
+   <FrozenNoSplit/>
+   <SplitHorizontal>3</SplitHorizontal>
+   <TopRowBottomPane>3</TopRowBottomPane>
+   <ProtectObjects>False</ProtectObjects>
+   <ProtectScenarios>False</ProtectScenarios>
+  </WorksheetOptions>
+ </Worksheet>
+</Workbook>`
+
+      const stamp = generatedAt.toISOString().slice(0, 19).replace(/[:T]/g, '-')
+      downloadExcelXmlFile(`riders_rapi_${stamp}.xls`, workbookXml)
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Gagal export Excel rapi.')
+    } finally {
+      setExportingExcel(false)
     }
   }
 
@@ -1083,15 +1395,15 @@ export default function RidersClient({ eventId }: { eventId: string }) {
         <button
           type="button"
           onClick={handleExportRiders}
-          disabled={exporting || exportingAll || exportingPdf || loading || !selectedCategory}
+          disabled={exporting || exportingAll || exportingPdf || exportingExcel || loading || !selectedCategory}
           style={{
             padding: '10px 12px',
             borderRadius: 12,
             border: '2px solid #111',
-            background: exporting || exportingAll || exportingPdf || loading || !selectedCategory ? '#eee' : '#dbeafe',
+            background: exporting || exportingAll || exportingPdf || exportingExcel || loading || !selectedCategory ? '#eee' : '#dbeafe',
             color: '#0f172a',
             fontWeight: 900,
-            cursor: exporting || exportingAll || exportingPdf || loading || !selectedCategory ? 'not-allowed' : 'pointer',
+            cursor: exporting || exportingAll || exportingPdf || exportingExcel || loading || !selectedCategory ? 'not-allowed' : 'pointer',
           }}
         >
           {exporting ? 'Exporting CSV...' : 'Export CSV'}
@@ -1099,31 +1411,47 @@ export default function RidersClient({ eventId }: { eventId: string }) {
         <button
           type="button"
           onClick={handleExportAllRiders}
-          disabled={exportingAll || exporting || exportingPdf || loading}
+          disabled={exportingAll || exporting || exportingPdf || exportingExcel || loading}
           style={{
             padding: '10px 12px',
             borderRadius: 12,
             border: '2px solid #111',
-            background: exportingAll || exporting || exportingPdf || loading ? '#eee' : '#dcfce7',
+            background: exportingAll || exporting || exportingPdf || exportingExcel || loading ? '#eee' : '#dcfce7',
             color: '#0f172a',
             fontWeight: 900,
-            cursor: exportingAll || exporting || exportingPdf || loading ? 'not-allowed' : 'pointer',
+            cursor: exportingAll || exporting || exportingPdf || exportingExcel || loading ? 'not-allowed' : 'pointer',
           }}
         >
           {exportingAll ? 'Exporting Semua Kategori...' : 'Export Semua Rider per Kategori'}
         </button>
         <button
           type="button"
-          onClick={handleExportRidersPdf}
-          disabled={exportingPdf || exportingAll || exporting || loading || !selectedCategory}
+          onClick={handleExportExcelRapi}
+          disabled={exportingExcel || exportingAll || exporting || exportingPdf || loading}
           style={{
             padding: '10px 12px',
             borderRadius: 12,
             border: '2px solid #111',
-            background: exportingPdf || exportingAll || exporting || loading || !selectedCategory ? '#eee' : '#fde68a',
+            background: exportingExcel || exportingAll || exporting || exportingPdf || loading ? '#eee' : '#bfdbfe',
             color: '#0f172a',
             fontWeight: 900,
-            cursor: exportingPdf || exportingAll || exporting || loading || !selectedCategory ? 'not-allowed' : 'pointer',
+            cursor: exportingExcel || exportingAll || exporting || exportingPdf || loading ? 'not-allowed' : 'pointer',
+          }}
+        >
+          {exportingExcel ? 'Menyiapkan Excel...' : 'Export Excel Rapi'}
+        </button>
+        <button
+          type="button"
+          onClick={handleExportRidersPdf}
+          disabled={exportingPdf || exportingAll || exporting || exportingExcel || loading || !selectedCategory}
+          style={{
+            padding: '10px 12px',
+            borderRadius: 12,
+            border: '2px solid #111',
+            background: exportingPdf || exportingAll || exporting || exportingExcel || loading || !selectedCategory ? '#eee' : '#fde68a',
+            color: '#0f172a',
+            fontWeight: 900,
+            cursor: exportingPdf || exportingAll || exporting || exportingExcel || loading || !selectedCategory ? 'not-allowed' : 'pointer',
           }}
         >
           {exportingPdf ? 'Preparing PDF...' : 'Export PDF'}
