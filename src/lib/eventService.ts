@@ -27,9 +27,7 @@ export type BusinessSettings = {
   public_brand_name?: string | null
   public_event_title?: string | null
   public_tagline?: string | null
-  payment_bank_name?: string | null
-  payment_account_name?: string | null
-  payment_account_number?: string | null
+  whatsapp_group_invite_url?: string | null
   public_contact_name?: string | null
   public_contact_phone?: string | null
   public_contact_email?: string | null
@@ -88,9 +86,6 @@ export type RiderCategory = {
   year_min?: number
   year_max?: number
   capacity?: number | null
-  filled?: number
-  remaining?: number | null
-  is_full?: boolean
   gender: 'BOY' | 'GIRL' | 'MIX'
   label: string
   enabled: boolean
@@ -237,5 +232,4 @@ export const getMotoResults = async (motoId: string): Promise<LeaderboardRow[]> 
     penalty_total: row.penalty_total,
   }))
 }
-
 

@@ -390,9 +390,7 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
     business_public_brand_name: '',
     business_public_event_title: '',
     business_public_tagline: '',
-    business_payment_bank_name: '',
-    business_payment_account_name: '',
-    business_payment_account_number: '',
+    business_whatsapp_group_invite_url: '',
     business_event_owner_name: '',
     business_event_owner_type: 'COMMUNITY',
     business_operating_committee_name: '',
@@ -537,12 +535,8 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
             typeof business.public_event_title === 'string' ? business.public_event_title : '',
           business_public_tagline:
             typeof business.public_tagline === 'string' ? business.public_tagline : '',
-          business_payment_bank_name:
-            typeof business.payment_bank_name === 'string' ? business.payment_bank_name : '',
-          business_payment_account_name:
-            typeof business.payment_account_name === 'string' ? business.payment_account_name : '',
-          business_payment_account_number:
-            typeof business.payment_account_number === 'string' ? business.payment_account_number : '',
+          business_whatsapp_group_invite_url:
+            typeof business.whatsapp_group_invite_url === 'string' ? business.whatsapp_group_invite_url : '',
           business_event_owner_name:
             typeof business.event_owner_name === 'string' ? business.event_owner_name : '',
           business_event_owner_type:
@@ -985,9 +979,7 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
       public_brand_name: form.business_public_brand_name.trim() || null,
       public_event_title: form.business_public_event_title.trim() || null,
       public_tagline: form.business_public_tagline.trim() || null,
-      payment_bank_name: form.business_payment_bank_name.trim() || null,
-      payment_account_name: form.business_payment_account_name.trim() || null,
-      payment_account_number: form.business_payment_account_number.trim() || null,
+      whatsapp_group_invite_url: form.business_whatsapp_group_invite_url.trim() || null,
       event_owner_name: form.business_event_owner_name.trim() || null,
       event_owner_type: ownerType,
       operating_committee_name: form.business_operating_committee_name.trim() || null,
@@ -1108,8 +1100,8 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
   const basicSummary = `Base ${Number(form.base_price || 0).toLocaleString()} | Extra ${Number(
     form.extra_price || 0
   ).toLocaleString()} | Sponsor ${previewSponsors.length} | Jersey ${form.require_jersey_size ? 'Wajib' : 'Opsional'}`
-  const businessSummary = `Brand ${form.business_public_brand_name || 'Belum diisi'} | Rekening ${
-    form.business_payment_account_number || 'Belum diisi'
+  const businessSummary = `Brand ${form.business_public_brand_name || 'Belum diisi'} | Operating Committee ${
+    form.business_operating_committee_name || 'Belum diisi'
   } | Scoring Support ${form.business_scoring_support_name || 'Belum diisi'}`
   const appearanceSummary = 'Logo event + race format'
   const advancedSummary = `${advancedItems.filter((i) => i.config?.enabled).length} enabled`
@@ -1715,33 +1707,14 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
                     onChange={(e) => setForm({ ...form, business_public_tagline: e.target.value })}
                     style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
                   />
-                </div>
-                <div style={{ display: 'grid', gap: 8, marginTop: 6 }}>
-                  <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                    Payment Transfer
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-                    <input
-                      placeholder="Bank Tujuan Transfer"
-                      value={form.business_payment_bank_name}
-                      onChange={(e) => setForm({ ...form, business_payment_bank_name: e.target.value })}
-                      style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
-                    />
-                    <input
-                      placeholder="Atas Nama Rekening"
-                      value={form.business_payment_account_name}
-                      onChange={(e) => setForm({ ...form, business_payment_account_name: e.target.value })}
-                      style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
-                    />
-                    <input
-                      placeholder="Nomor Rekening Tujuan"
-                      value={form.business_payment_account_number}
-                      onChange={(e) => setForm({ ...form, business_payment_account_number: e.target.value })}
-                      style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
-                    />
-                  </div>
+                  <input
+                    placeholder="Link Grup WhatsApp (contoh: https://chat.whatsapp.com/...)"
+                    value={form.business_whatsapp_group_invite_url}
+                    onChange={(e) => setForm({ ...form, business_whatsapp_group_invite_url: e.target.value })}
+                    style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                  />
                   <div style={{ fontSize: 12, color: '#333', fontWeight: 700 }}>
-                    Data ini akan tampil di halaman pendaftaran sebagai rekening tujuan transfer.
+                    Jika diisi, tombol masuk grup WhatsApp akan muncul setelah pendaftaran berhasil dikirim.
                   </div>
                 </div>
                 <div style={{ display: 'grid', gap: 8, marginTop: 6 }}>
@@ -2511,6 +2484,5 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
     </div>
   )
 }
-
 
 
