@@ -64,6 +64,14 @@ const normalizeExternalUrl = (value?: string | null) => {
   return `https://${raw}`
 }
 
+const openExternalLink = (url: string) => {
+  if (typeof window === 'undefined' || !url) return
+  const opened = window.open(url, '_blank', 'noopener,noreferrer')
+  if (!opened) {
+    window.location.href = url
+  }
+}
+
 const formatFileSize = (bytes: number) => {
   if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
   if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`
@@ -818,14 +826,13 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
             <div className="mt-2 text-sm font-semibold text-emerald-50">{success}</div>
             {whatsappGroupInviteUrl && (
               <div className="mt-3">
-                <a
-                  href={whatsappGroupInviteUrl}
-                  target="_blank"
-                  rel="noreferrer"
+                <button
+                  type="button"
+                  onClick={() => openExternalLink(whatsappGroupInviteUrl)}
                   className="inline-flex items-center justify-center rounded-xl bg-emerald-400 px-4 py-2.5 text-xs font-black uppercase tracking-[0.14em] text-slate-950 transition-colors hover:bg-emerald-300"
                 >
                   Masuk Grup WhatsApp
-                </a>
+                </button>
               </div>
             )}
           </section>
