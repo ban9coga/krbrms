@@ -1082,7 +1082,7 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
         sponsorSectionSubtitle,
         sponsorItems,
       }))
-      alert('Settings tersimpan.')
+      alert('Settings dan staff assignments tersimpan.')
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Gagal menyimpan settings.')
     } finally {
@@ -2524,6 +2524,7 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
     </div>
   )
 }
+
 
 
 
