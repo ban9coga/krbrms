@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../../../lib/auth'
+import { buildCategoryOccupancyMap } from '../../../../../../../services/categoryOccupancy'
 
 const REGISTRATION_BUCKET = process.env.NEXT_PUBLIC_REGISTRATION_BUCKET || 'registration-docs'
 const RIDER_PHOTO_BUCKET = 'rider-photos'
@@ -194,9 +195,9 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ eventId: string; registrationId: string }> }
 ) {
-  const { eventId, registrationId } = await params
-  const auth = await requireAdmin(req.headers.get('authorization'), eventId)
+  const auth = await requireAdmin(req.headers.get('authorization'))
   if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { eventId, registrationId } = await params
   const body = await req.json().catch(() => null)
   if (!body) return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
 
@@ -205,17 +206,13 @@ export async function PATCH(
     return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
   }
 
-  const { data: registration, error: regError } = await adminClient
+  const { error: regError } = await adminClient
     .from('registrations')
-    .select('id, status')
+    .select('*')
     .eq('id', registrationId)
     .eq('event_id', eventId)
     .single()
   if (regError) return NextResponse.json({ error: regError.message }, { status: 400 })
-  if (!registration) return NextResponse.json({ error: 'Registration not found' }, { status: 404 })
-  if (registration.status !== 'PENDING') {
-    return NextResponse.json({ error: 'Pendaftaran ini sudah diproses dan tidak bisa diubah lagi.' }, { status: 400 })
-  }
 
   const { data: itemRows, error: itemError } = await adminClient
     .from('registration_items')
@@ -229,40 +226,6 @@ export async function PATCH(
     return NextResponse.json({ ok: true })
   }
 
-  const { data: paymentRows, error: paymentError } = await adminClient
-    .from('registration_payments')
-    .select('id, status')
-    .eq('registration_id', registrationId)
-  if (paymentError) return NextResponse.json({ error: paymentError.message }, { status: 400 })
-  if (!(paymentRows ?? []).some((row) => row.status === 'APPROVED')) {
-    return NextResponse.json(
-      { error: 'Pendaftaran belum bisa di-approve. Minimal satu pembayaran harus berstatus APPROVED.' },
-      { status: 400 }
-    )
-  }
-
-  const { data: documentRows, error: documentError } = await adminClient
-    .from('registration_documents')
-    .select('registration_item_id')
-    .eq('registration_id', registrationId)
-  if (documentError) return NextResponse.json({ error: documentError.message }, { status: 400 })
-
-  const docsByItem = new Map<string, number>()
-  for (const row of documentRows ?? []) {
-    const itemId = typeof row.registration_item_id === 'string' ? row.registration_item_id : null
-    if (!itemId) continue
-    docsByItem.set(itemId, (docsByItem.get(itemId) ?? 0) + 1)
-  }
-
-  for (const item of itemRows ?? []) {
-    if (!item.photo_url) {
-      return NextResponse.json({ error: `Foto rider untuk ${item.rider_name} belum lengkap.` }, { status: 400 })
-    }
-    if ((docsByItem.get(item.id) ?? 0) === 0) {
-      return NextResponse.json({ error: `Dokumen KK/Akte untuk ${item.rider_name} belum lengkap.` }, { status: 400 })
-    }
-  }
-
   const categoryIds = new Set<string>()
   for (const item of itemRows ?? []) {
     if (item.primary_category_id) categoryIds.add(item.primary_category_id as string)
@@ -272,7 +235,7 @@ export async function PATCH(
   if (categoryIds.size > 0) {
     const { data: categories, error: catError } = await adminClient
       .from('categories')
-      .select('id, capacity, label')
+      .select('id, year, year_min, year_max, gender, capacity, label')
       .in('id', Array.from(categoryIds))
     if (catError) return NextResponse.json({ error: catError.message }, { status: 400 })
 
@@ -282,20 +245,24 @@ export async function PATCH(
     const hasCapacity = Array.from(capacityMap.values()).some((c) => typeof c.capacity === 'number')
 
     if (hasCapacity) {
-      const { data: existingItems, error: existingError } = await adminClient
-        .from('registration_items')
-        .select('primary_category_id, extra_category_id, status, registration_id, registrations!inner(event_id)')
-        .eq('registrations.event_id', eventId)
-        .in('status', ['PENDING', 'APPROVED'])
-        .neq('registration_id', registrationId)
-      if (existingError) return NextResponse.json({ error: existingError.message }, { status: 400 })
-
-      const currentCounts = new Map<string, number>()
-      for (const row of existingItems ?? []) {
-        const primaryId = row.primary_category_id as string | null
-        const extraId = row.extra_category_id as string | null
-        if (primaryId) currentCounts.set(primaryId, (currentCounts.get(primaryId) ?? 0) + 1)
-        if (extraId) currentCounts.set(extraId, (currentCounts.get(extraId) ?? 0) + 1)
+      let currentCounts = new Map<string, number>()
+      try {
+        currentCounts = await buildCategoryOccupancyMap(
+          eventId,
+          (categories ?? []) as Array<{
+            id: string
+            year: number
+            year_min?: number | null
+            year_max?: number | null
+            gender: 'BOY' | 'GIRL' | 'MIX'
+          }>,
+          { excludePendingRegistrationId: registrationId }
+        )
+      } catch (err) {
+        return NextResponse.json(
+          { error: err instanceof Error ? err.message : 'Failed to count category occupancy' },
+          { status: 400 }
+        )
       }
 
       const addCounts = new Map<string, number>()
@@ -322,7 +289,6 @@ export async function PATCH(
   }
 
   const itemMap = new Map((items ?? []).map((i) => [i.id, i]))
-  const seenPlates = new Set<string>()
 
   for (const item of itemRows ?? []) {
     const input = itemMap.get(item.id)
@@ -331,14 +297,6 @@ export async function PATCH(
     if (!plateNumber) {
       return NextResponse.json({ error: `Plate number invalid untuk ${item.rider_name}` }, { status: 400 })
     }
-    const plateKey = `${plateNumber}${plateSuffix ?? ''}`
-    if (seenPlates.has(plateKey)) {
-      return NextResponse.json(
-        { error: `Plate ${plateKey} bentrok dengan rider lain dalam pendaftaran ini.` },
-        { status: 400 }
-      )
-    }
-    seenPlates.add(plateKey)
 
     let query = adminClient
       .from('riders')
@@ -417,9 +375,9 @@ export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ eventId: string; registrationId: string }> }
 ) {
-  const { eventId, registrationId } = await params
-  const auth = await requireAdmin(req.headers.get('authorization'), eventId)
+  const auth = await requireAdmin(req.headers.get('authorization'))
   if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { eventId, registrationId } = await params
   const { error } = await adminClient
     .from('registrations')
     .delete()

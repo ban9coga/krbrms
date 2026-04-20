@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { randomBytes } from 'crypto'
 import { adminClient } from '../../../../../../lib/auth'
+import { buildCategoryOccupancyMap } from '../../../../../../services/categoryOccupancy'
 
 type RegistrationItemInput = {
   rider_name: string
@@ -52,7 +53,7 @@ type RegistrationItemRow = {
 const BASE_PRICE = 250000
 const EXTRA_PRICE = 150000
 const BUCKET = process.env.NEXT_PUBLIC_REGISTRATION_BUCKET || 'registration-docs'
-const JERSEY_SIZES = new Set(['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'])
+const JERSEY_SIZES = new Set(['XS', 'S', 'M', 'L', 'XL'])
 const DOCUMENT_TYPE = 'KK'
 
 const toYear = (dateString: string) => {
@@ -220,12 +221,13 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
     if (extra && extra.event_id !== eventId) return { error: 'Invalid extra category' }
     if (extra && extra.id === primary.id) return { error: 'Extra category must differ from primary category' }
 
+    const extraMin = extra ? (extra.year_min ?? extra.year) : null
     const extraMax = extra ? (extra.year_max ?? extra.year) : null
-    if (extra && extraMax != null && extraMax >= birthYear) {
-      return { error: 'Extra category must be above rider birth year' }
+    if (extra && (birthYear < extraMin || birthYear > extraMax)) {
+      return { error: 'Birth year not eligible for extra category' }
     }
     if (extra && extra.gender !== 'MIX' && extra.gender !== item.gender) {
-      return { error: 'Gender must match for extra category' }
+      return { error: 'Gender not eligible for extra category' }
     }
 
     const requestedPlateNumber = normalizePlateNumber(item.requested_plate_number)
@@ -269,19 +271,20 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
   )
   const hasCapacity = Array.from(capacityMap.values()).some((c) => typeof c.capacity === 'number')
   if (hasCapacity) {
-    const { data: existingItems, error: existingError } = await adminClient
-      .from('registration_items')
-      .select('primary_category_id, extra_category_id, status, registrations!inner(event_id)')
-      .eq('registrations.event_id', eventId)
-      .in('status', ['PENDING', 'APPROVED'])
-    if (existingError) return { error: existingError.message }
-
-    const currentCounts = new Map<string, number>()
-    for (const row of existingItems ?? []) {
-      const primaryId = row.primary_category_id as string | null
-      const extraId = row.extra_category_id as string | null
-      if (primaryId) currentCounts.set(primaryId, (currentCounts.get(primaryId) ?? 0) + 1)
-      if (extraId) currentCounts.set(extraId, (currentCounts.get(extraId) ?? 0) + 1)
+    let currentCounts = new Map<string, number>()
+    try {
+      currentCounts = await buildCategoryOccupancyMap(
+        eventId,
+        (categories ?? []) as Array<{
+          id: string
+          year: number
+          year_min?: number | null
+          year_max?: number | null
+          gender: 'BOY' | 'GIRL' | 'MIX'
+        }>
+      )
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : 'Failed to count category occupancy' }
     }
 
     const addCounts = new Map<string, number>()
@@ -389,16 +392,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   const { registration, itemRows } = created
 
   if (!isMultipart || !formData) {
-    const uploadToken = (registration as any).upload_token ?? null
-    if (!uploadToken) {
-      await rollbackRegistration(registration.id, [])
-      return NextResponse.json(
-        { error: 'Upload bertahap belum aktif. Jalankan migration 2026-03-14_registration_upload_token.sql.' },
-        { status: 409 }
-      )
-    }
-
-    return NextResponse.json({ data: { registration, items: itemRows, upload_token: uploadToken } })
+    return NextResponse.json({ data: { registration, items: itemRows, upload_token: (registration as any).upload_token ?? null } })
   }
 
   const uploadedPaths: string[] = []

@@ -111,7 +111,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ riderI
     return NextResponse.json({ error: 'gender must be BOY or GIRL' }, { status: 400 })
   }
 
-  if (jersey_size && !['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'].includes(String(jersey_size))) {
+  if (jersey_size && !['XS', 'S', 'M', 'L', 'XL'].includes(String(jersey_size))) {
     return NextResponse.json({ error: 'jersey_size invalid' }, { status: 400 })
   }
 
@@ -173,6 +173,25 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ riderI
 
   // Ensure the category row exists for the (possibly updated) DOB/gender.
   await resolveCategory(rider.event_id, nextBirthYear, nextGender)
+
+  const { data: existingExtraCategory } = await adminClient
+    .from('rider_extra_categories')
+    .select('id, category_id, categories(id, year, year_min, year_max, gender)')
+    .eq('rider_id', riderId)
+    .maybeSingle()
+
+  const linkedExtraCategory = existingExtraCategory?.categories as
+    | { id: string; year: number; year_min?: number | null; year_max?: number | null; gender: 'BOY' | 'GIRL' | 'MIX' }
+    | null
+
+  if (linkedExtraCategory) {
+    const maxYear = linkedExtraCategory.year_max ?? linkedExtraCategory.year
+    const invalidGender = linkedExtraCategory.gender !== 'MIX' && linkedExtraCategory.gender !== nextGender
+    const invalidBirthYear = maxYear >= nextBirthYear
+    if (invalidGender || invalidBirthYear) {
+      await adminClient.from('rider_extra_categories').delete().eq('rider_id', riderId)
+    }
+  }
 
   const { data, error } = await adminClient
     .from('riders')

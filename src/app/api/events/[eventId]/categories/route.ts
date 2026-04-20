@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../lib/auth'
+import { buildCategoryOccupancyMap } from '../../../../../services/categoryOccupancy'
 
 export async function GET(_: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params
@@ -15,19 +16,17 @@ export async function GET(_: Request, { params }: { params: Promise<{ eventId: s
     return NextResponse.json({ data: [] })
   }
 
-  const { data: existingItems, error: existingError } = await adminClient
-    .from('registration_items')
-    .select('primary_category_id, extra_category_id, status, registrations!inner(event_id)')
-    .eq('registrations.event_id', eventId)
-    .in('status', ['PENDING', 'APPROVED'])
-  if (existingError) return NextResponse.json({ error: existingError.message }, { status: 400 })
-
-  const filledCounts = new Map<string, number>()
-  for (const row of existingItems ?? []) {
-    const primaryId = row.primary_category_id as string | null
-    const extraId = row.extra_category_id as string | null
-    if (primaryId) filledCounts.set(primaryId, (filledCounts.get(primaryId) ?? 0) + 1)
-    if (extraId) filledCounts.set(extraId, (filledCounts.get(extraId) ?? 0) + 1)
+  let filledCounts = new Map<string, number>()
+  try {
+    filledCounts = await buildCategoryOccupancyMap(eventId, categories as Array<{
+      id: string
+      year: number
+      year_min?: number | null
+      year_max?: number | null
+      gender: 'BOY' | 'GIRL' | 'MIX'
+    }>)
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Failed to count category occupancy' }, { status: 400 })
   }
 
   const data = categories.map((category) => {
