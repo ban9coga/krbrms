@@ -180,7 +180,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ riderI
     .eq('rider_id', riderId)
     .maybeSingle()
 
-  const linkedExtraCategory = existingExtraCategory?.categories as
+  const linkedCategoryRaw = existingExtraCategory?.categories
+  const linkedExtraCategory = (
+    Array.isArray(linkedCategoryRaw) ? linkedCategoryRaw[0] : linkedCategoryRaw
+  ) as
     | { id: string; year: number; year_min?: number | null; year_max?: number | null; gender: 'BOY' | 'GIRL' | 'MIX' }
     | null
 
