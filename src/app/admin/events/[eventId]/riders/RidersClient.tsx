@@ -209,6 +209,16 @@ export default function RidersClient({ eventId }: { eventId: string }) {
     }
   }
 
+  const fetchLatestCategories = async () => {
+    if (!eventId) return [] as CategoryItem[]
+    const res = await fetch(`/api/events/${eventId}/categories`)
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      throw new Error(json?.error || 'Gagal mengambil data kategori terbaru.')
+    }
+    return ((json.data ?? []) as CategoryItem[]).filter((category) => category.enabled)
+  }
+
   const loadRiders = async (nextPage = page, nextQuery = query) => {
     if (!eventId) return
     if (!selectedCategory) {
@@ -418,7 +428,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
       })
       if (!extraRes.res.ok) throw new Error(extraRes.json?.error || 'Gagal update extra category')
 
-      await loadRiders(page, query)
+      await Promise.all([loadRiders(page, query), loadCategories()])
       closeEdit()
       alert('Rider berhasil diupdate.')
     } catch (err: unknown) {
@@ -440,7 +450,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
     try {
       const { res, json } = await apiFetch(`/api/riders/${riderId}`, { method: 'DELETE' })
       if (!res.ok) throw new Error(json?.error || 'Gagal hapus rider.')
-      await loadRiders(page, query)
+      await Promise.all([loadRiders(page, query), loadCategories()])
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Gagal hapus rider.')
     } finally {
@@ -711,7 +721,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
 
     setExportingAll(true)
     try {
-      const exportCategories = categories.filter((category) => category.enabled)
+      const exportCategories = await fetchLatestCategories()
       if (exportCategories.length === 0) {
         alert('Belum ada kategori aktif untuk diexport.')
         return
@@ -720,18 +730,36 @@ export default function RidersClient({ eventId }: { eventId: string }) {
       const allRegisteredRows = await fetchExportRows(undefined, '')
       const totalRegistered = allRegisteredRows.length
       const categorySections: string[] = []
+      const categorySummaries: Array<{
+        label: string
+        capacity: number | null | undefined
+        filled: number
+        remaining: number | null
+        status: 'PENUH' | 'TERSEDIA' | 'TANPA BATAS'
+      }> = []
       let totalAcrossCategories = 0
 
       for (const category of exportCategories) {
         const exportRows = await fetchExportRows(category.id, '')
         totalAcrossCategories += exportRows.length
+        const filledCount = exportRows.length
+        const remainingCount =
+          typeof category.capacity === 'number' ? Math.max(0, category.capacity - filledCount) : null
 
         const slotStatus =
-          category.is_full === true
-            ? 'PENUH'
-            : typeof category.remaining === 'number'
-            ? 'TERSEDIA'
+          typeof category.capacity === 'number'
+            ? filledCount >= category.capacity
+              ? 'PENUH'
+              : 'TERSEDIA'
             : 'TANPA BATAS'
+
+        categorySummaries.push({
+          label: category.label,
+          capacity: category.capacity,
+          filled: filledCount,
+          remaining: remainingCount,
+          status: slotStatus,
+        })
 
         categorySections.push([toCsvCell('Kategori'), toCsvCell(category.label)].join(CSV_DELIMITER))
         categorySections.push(
@@ -740,11 +768,11 @@ export default function RidersClient({ eventId }: { eventId: string }) {
             toCsvCell(typeof category.capacity === 'number' ? category.capacity : 'Tanpa batas'),
           ].join(CSV_DELIMITER)
         )
-        categorySections.push([toCsvCell('Terisi'), toCsvCell(category.filled ?? exportRows.length)].join(CSV_DELIMITER))
+        categorySections.push([toCsvCell('Terisi'), toCsvCell(filledCount)].join(CSV_DELIMITER))
         categorySections.push(
           [
             toCsvCell('Sisa Slot'),
-            toCsvCell(typeof category.remaining === 'number' ? category.remaining : 'Tanpa batas'),
+            toCsvCell(typeof remainingCount === 'number' ? remainingCount : 'Tanpa batas'),
           ].join(CSV_DELIMITER)
         )
         categorySections.push([toCsvCell('Status Kuota'), toCsvCell(slotStatus)].join(CSV_DELIMITER))
@@ -798,19 +826,13 @@ export default function RidersClient({ eventId }: { eventId: string }) {
         [toCsvCell('Jumlah Rider Ambil Up Class'), toCsvCell(upClassCount)].join(CSV_DELIMITER),
         [toCsvCell('Sisa Slot per Kategori'), toCsvCell('')].join(CSV_DELIMITER),
         ['kategori', 'kapasitas', 'terisi', 'sisa_slot', 'status_kuota'].join(CSV_DELIMITER),
-        ...exportCategories.map((category) =>
+        ...categorySummaries.map((category) =>
           [
             toCsvCell(category.label),
             toCsvCell(typeof category.capacity === 'number' ? category.capacity : 'Tanpa batas'),
-            toCsvCell(category.filled ?? 0),
+            toCsvCell(category.filled),
             toCsvCell(typeof category.remaining === 'number' ? category.remaining : 'Tanpa batas'),
-            toCsvCell(
-              category.is_full === true
-                ? 'PENUH'
-                : typeof category.remaining === 'number'
-                ? 'TERSEDIA'
-                : 'TANPA BATAS'
-            ),
+            toCsvCell(category.status),
           ].join(CSV_DELIMITER)
         ),
         '',
