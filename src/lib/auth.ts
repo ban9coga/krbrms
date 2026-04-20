@@ -88,6 +88,23 @@ export const getAccessibleEventIds = async (userId: string, allowedRoles: string
   )
 }
 
+const getAnyAdminEventRole = async (userId: string) => {
+  const { data, error } = await adminClient
+    .from('user_event_roles')
+    .select('role')
+    .eq('user_id', userId)
+    .eq('is_active', true)
+
+  if (error || !data?.length) return null
+
+  const prioritized = data
+    .map((row) => normalizeAppRole(typeof row.role === 'string' ? row.role : ''))
+    .filter((role) => role === 'SUPER_ADMIN' || role === 'ADMIN')
+    .sort((a, b) => roleWeight(a) - roleWeight(b))
+
+  return prioritized[0] ?? null
+}
+
 export const requireAdmin = async (authHeader?: string | null, eventId?: string | null): Promise<AuthSuccess | AuthFailure> => {
   const user = await getAuthenticatedUser(authHeader)
   if (!user) return { ok: false }
@@ -100,9 +117,12 @@ export const requireAdmin = async (authHeader?: string | null, eventId?: string 
     if (eventRole !== 'ADMIN' && eventRole !== 'SUPER_ADMIN') return { ok: false }
     return { ok: true, user, role: eventRole, eventRole }
   }
-  const effectiveRole = globalRole
-  if (!isEventAdminRole(effectiveRole)) return { ok: false }
-  return { ok: true, user, role: effectiveRole, eventRole }
+  if (isEventAdminRole(globalRole)) {
+    return { ok: true, user, role: globalRole, eventRole }
+  }
+  const scopedAdminRole = await getAnyAdminEventRole(user.id)
+  if (!scopedAdminRole) return { ok: false }
+  return { ok: true, user, role: scopedAdminRole, eventRole: scopedAdminRole }
 }
 
 export const requireEventRole = async (
@@ -119,3 +139,4 @@ export const requireEventRole = async (
   if (!allowed.includes(effectiveRole)) return { ok: false }
   return { ok: true, user, role: effectiveRole, eventRole }
 }
+
