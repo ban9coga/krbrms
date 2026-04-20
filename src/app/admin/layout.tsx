@@ -155,6 +155,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         const res = await fetch(`/api/events/${eventId}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         })
+        if (!res.ok) {
+          setEventName(null)
+          router.replace('/admin')
+          return
+        }
         const json = await res.json()
         setEventName(json?.data?.name ?? null)
       } catch {
@@ -162,7 +167,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       }
     }
     loadEvent()
-  }, [eventId, authorized])
+  }, [eventId, authorized, router])
 
   useEffect(() => {
     setSidebarOpen(false)

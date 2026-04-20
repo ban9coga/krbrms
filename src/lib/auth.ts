@@ -8,14 +8,27 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 export const adminClient = createClient(supabaseUrl, supabaseServiceKey)
 const authClient = createClient(supabaseUrl, supabaseAnonKey)
 
+type AuthUser = NonNullable<Awaited<ReturnType<typeof authClient.auth.getUser>>['data']['user']>
+
 type AuthSuccess = {
   ok: true
-  user: Awaited<ReturnType<typeof authClient.auth.getUser>>['data']['user']
+  user: AuthUser
   role: string
   eventRole: string | null
 }
 
 type AuthFailure = { ok: false }
+
+const roleWeight = (role: string) => {
+  if (role === 'SUPER_ADMIN') return 0
+  if (role === 'ADMIN') return 1
+  if (role === 'RACE_DIRECTOR') return 2
+  if (role === 'RACE_CONTROL') return 3
+  if (role === 'CHECKER') return 4
+  if (role === 'FINISHER') return 5
+  if (role === 'MC') return 6
+  return 99
+}
 
 const getAuthenticatedUser = async (authHeader?: string | null) => {
   if (!authHeader?.startsWith('Bearer ')) return null
@@ -25,7 +38,7 @@ const getAuthenticatedUser = async (authHeader?: string | null) => {
   return data.user
 }
 
-const getGlobalRole = (user: NonNullable<Awaited<ReturnType<typeof authClient.auth.getUser>>['data']['user']>) => {
+const getGlobalRole = (user: AuthUser) => {
   const meta = (user.user_metadata ?? {}) as Record<string, unknown>
   const appMeta = (user.app_metadata ?? {}) as Record<string, unknown>
   const role =
@@ -48,21 +61,31 @@ const getEventRole = async (userId: string, eventId?: string | null) => {
   const prioritized = data
     .map((row) => normalizeAppRole(typeof row.role === 'string' ? row.role : ''))
     .filter(Boolean)
-    .sort((a, b) => {
-      const weight = (role: string) => {
-        if (role === 'SUPER_ADMIN') return 0
-        if (role === 'ADMIN') return 1
-        if (role === 'RACE_DIRECTOR') return 2
-        if (role === 'RACE_CONTROL') return 3
-        if (role === 'CHECKER') return 4
-        if (role === 'FINISHER') return 5
-        if (role === 'MC') return 6
-        return 99
-      }
-      return weight(a) - weight(b)
-    })
+    .sort((a, b) => roleWeight(a) - roleWeight(b))
 
   return prioritized[0] ?? null
+}
+
+export const getAccessibleEventIds = async (userId: string, allowedRoles: string[]) => {
+  const allowed = allowedRoles.map((role) => normalizeAppRole(role)).filter(Boolean)
+  if (allowed.length === 0) return []
+
+  const { data, error } = await adminClient
+    .from('user_event_roles')
+    .select('event_id, role')
+    .eq('user_id', userId)
+    .eq('is_active', true)
+
+  if (error || !data?.length) return []
+
+  return Array.from(
+    new Set(
+      data
+        .filter((row) => allowed.includes(normalizeAppRole(typeof row.role === 'string' ? row.role : '')))
+        .map((row) => row.event_id)
+        .filter((eventId): eventId is string => typeof eventId === 'string' && eventId.length > 0)
+    )
+  )
 }
 
 export const requireAdmin = async (authHeader?: string | null, eventId?: string | null): Promise<AuthSuccess | AuthFailure> => {
@@ -70,7 +93,14 @@ export const requireAdmin = async (authHeader?: string | null, eventId?: string 
   if (!user) return { ok: false }
   const globalRole = getGlobalRole(user)
   const eventRole = await getEventRole(user.id, eventId)
-  const effectiveRole = eventRole || globalRole
+  if (eventId) {
+    if (globalRole === 'SUPER_ADMIN') {
+      return { ok: true, user, role: globalRole, eventRole }
+    }
+    if (eventRole !== 'ADMIN' && eventRole !== 'SUPER_ADMIN') return { ok: false }
+    return { ok: true, user, role: eventRole, eventRole }
+  }
+  const effectiveRole = globalRole
   if (!isEventAdminRole(effectiveRole)) return { ok: false }
   return { ok: true, user, role: effectiveRole, eventRole }
 }

@@ -29,9 +29,9 @@ export async function GET(_: Request, { params }: { params: Promise<{ eventId: s
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
-  const auth = await requireAdmin(req.headers.get('authorization'))
-  if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { eventId } = await params
+  const auth = await requireAdmin(req.headers.get('authorization'), eventId)
+  if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const body = await req.json().catch(() => ({}))
   const category_id = body?.category_id as string | undefined
   const rules = (body?.rules ?? []) as RuleInput[]

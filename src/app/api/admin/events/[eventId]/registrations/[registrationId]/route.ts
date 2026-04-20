@@ -195,9 +195,9 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ eventId: string; registrationId: string }> }
 ) {
-  const auth = await requireAdmin(req.headers.get('authorization'))
-  if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { eventId, registrationId } = await params
+  const auth = await requireAdmin(req.headers.get('authorization'), eventId)
+  if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const body = await req.json().catch(() => null)
   if (!body) return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
 
@@ -375,9 +375,9 @@ export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ eventId: string; registrationId: string }> }
 ) {
-  const auth = await requireAdmin(req.headers.get('authorization'))
-  if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { eventId, registrationId } = await params
+  const auth = await requireAdmin(req.headers.get('authorization'), eventId)
+  if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { error } = await adminClient
     .from('registrations')
     .delete()

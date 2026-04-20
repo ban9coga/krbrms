@@ -47,7 +47,7 @@ const getLatestRaceFormatSettings = async (eventId: string) => {
 
 export async function GET(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params
-  const auth = await requireAdmin(req.headers.get('authorization'))
+  const auth = await requireAdmin(req.headers.get('authorization'), eventId)
   const { data, error } = await adminClient
     .from('events')
     .select('id, name, location, event_date, status, is_public, created_at, updated_at')
@@ -78,9 +78,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
 }
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
-  const auth = await requireAdmin(req.headers.get('authorization'))
-  if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { eventId } = await params
+  const auth = await requireAdmin(req.headers.get('authorization'), eventId)
+  if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const body = await req.json()
   const { name, location, event_date, status, is_public, draw_mode, event_scope } = body ?? {}
   const requestedDrawMode = draw_mode == null ? null : normalizeDrawMode(draw_mode)
@@ -182,9 +182,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ eventI
 }
 
 export async function DELETE(_: Request, { params }: { params: Promise<{ eventId: string }> }) {
-  const auth = await requireAdmin(_.headers.get('authorization'))
-  if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { eventId } = await params
+  const auth = await requireAdmin(_.headers.get('authorization'), eventId)
+  if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { error } = await adminClient.from('events').delete().eq('id', eventId)
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json({ ok: true })

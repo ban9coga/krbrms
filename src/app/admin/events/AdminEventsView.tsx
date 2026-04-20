@@ -30,6 +30,7 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(false)
   const [creating, setCreating] = useState(false)
+  const [canCreate, setCanCreate] = useState(false)
   const [form, setForm] = useState({
     name: '',
     location: '',
@@ -64,6 +65,15 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
   }, [])
 
   useEffect(() => {
+    void supabase.auth.getUser().then(({ data }) => {
+      const user = data.user
+      const meta = (user?.user_metadata ?? {}) as Record<string, unknown>
+      const appMeta = (user?.app_metadata ?? {}) as Record<string, unknown>
+      const metaRole = typeof meta.role === 'string' ? meta.role : null
+      const appRole = typeof appMeta.role === 'string' ? appMeta.role : null
+      const role = String(metaRole || appRole || '').trim().toUpperCase()
+      setCanCreate(role === 'SUPER_ADMIN')
+    })
     void loadEvents()
   }, [loadEvents])
 
@@ -211,7 +221,7 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
         </Link>
       </div>
 
-      {showCreate ? (
+      {showCreate && canCreate ? (
         <section className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-[0_18px_40px_rgba(15,23,42,0.12)] sm:p-6">
           <div className="mb-4 grid gap-1">
             <div className="text-xl font-black tracking-tight text-slate-900">Create Event</div>

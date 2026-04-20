@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { adminClient, requireAdmin } from '../../../lib/auth'
+import { adminClient, getAccessibleEventIds, requireAdmin } from '../../../lib/auth'
 
 type DrawMode = 'internal_live_draw' | 'external_draw'
 type EventScope = 'PUBLIC' | 'INTERNAL'
@@ -30,6 +30,12 @@ export async function GET(req: Request) {
   }
   if (!auth.ok) {
     query = query.eq('is_public', true)
+  } else if (auth.role !== 'SUPER_ADMIN') {
+    const accessibleEventIds = await getAccessibleEventIds(auth.user.id, ['ADMIN', 'SUPER_ADMIN'])
+    if (accessibleEventIds.length === 0) {
+      return NextResponse.json({ data: [] })
+    }
+    query = query.in('id', accessibleEventIds)
   }
   const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
@@ -74,6 +80,9 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const auth = await requireAdmin(req.headers.get('authorization'))
   if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (auth.role !== 'SUPER_ADMIN') {
+    return NextResponse.json({ error: 'Only super admin can create events' }, { status: 403 })
+  }
   const body = await req.json()
   const { name, location, event_date, status = 'UPCOMING', is_public, draw_mode, event_scope } = body ?? {}
   const drawMode = normalizeDrawMode(draw_mode)
