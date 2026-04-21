@@ -155,13 +155,19 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ riderI
     if ((existingPlates ?? []).length > 0) {
       const used = existingPlates?.map((row) => row.plate_suffix) ?? []
       if (!nextPlateSuffix) {
-        const suggestion = suggestSuffix(used)
-        return NextResponse.json(
-          { error: 'plate_number already exists', suggested_suffix: suggestion },
-          { status: 409 }
-        )
+        const noSuffixTaken = (used ?? []).some((suffix) => !suffix)
+        if (noSuffixTaken) {
+          const suggestion = suggestSuffix(used)
+          return NextResponse.json(
+            { error: 'plate_number already exists', suggested_suffix: suggestion },
+            { status: 409 }
+          )
+        }
       }
-      if ((used ?? []).map((s) => (s ?? '').toUpperCase()).includes(nextPlateSuffix.toUpperCase())) {
+      if (
+        nextPlateSuffix &&
+        (used ?? []).map((s) => (s ?? '').toUpperCase()).includes(nextPlateSuffix.toUpperCase())
+      ) {
         const suggestion = suggestSuffix(used)
         return NextResponse.json(
           { error: 'plate_suffix already exists', suggested_suffix: suggestion },
