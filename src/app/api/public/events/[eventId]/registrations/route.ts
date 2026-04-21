@@ -406,6 +406,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     const accountName = toStringOrNull(formData.get('account_name'))
     const accountNumber = toStringOrNull(formData.get('account_number'))
 
+    if (!bankName) {
+      throw new Error('Bank pengirim wajib diisi.')
+    }
+    if (!accountName) {
+      throw new Error('Nama pengirim wajib diisi.')
+    }
+    if (!accountNumber) {
+      throw new Error('Nomor rekening pengirim wajib diisi.')
+    }
+
     const docsToInsert = await Promise.all(
       itemRows.map(async (itemRow, idx) => {
         const photoFile = formData.get(`rider_photo_${idx}`)

@@ -289,6 +289,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   const [plateChecks, setPlateChecks] = useState<PlateCheckState[]>([initialPlateCheck()])
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState<string | null>(null)
+  const [slotFullModal, setSlotFullModal] = useState<{ title: string; message: string } | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -397,6 +398,14 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     return mix.sort((a, b) => (a.year_max ?? a.year) - (b.year_max ?? b.year))[0] ?? null
   }
 
+  const getPrimaryCategoryIssue = (birthYear: number | null, gender: 'BOY' | 'GIRL') => {
+    if (!birthYear) return null
+    const candidates = categories.filter((c) => inRange(c, birthYear))
+    const compatible = candidates.filter((c) => c.gender === gender || c.gender === 'MIX')
+    if (compatible.length === 0) return 'invalid'
+    return compatible.every((category) => isCategoryFull(category)) ? 'full' : null
+  }
+
   const extraCategoryOptions = (
     birthYear: number | null,
     gender: 'BOY' | 'GIRL',
@@ -435,7 +444,11 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   const showTotal = Boolean(hasContact && ridersComplete)
   const hasMissingPrimaryCategory = riders.some((rider) => {
     const birthYear = rider.dateOfBirth ? new Date(rider.dateOfBirth).getUTCFullYear() : null
-    return !computePrimaryCategory(birthYear, rider.gender)
+    return getPrimaryCategoryIssue(birthYear, rider.gender) !== null
+  })
+  const hasPrimaryCategorySlotFull = riders.some((rider) => {
+    const birthYear = rider.dateOfBirth ? new Date(rider.dateOfBirth).getUTCFullYear() : null
+    return getPrimaryCategoryIssue(birthYear, rider.gender) === 'full'
   })
   const hasFullExtraCategory = riders.some((rider) => {
     if (!rider.extraCategoryId) return false
@@ -545,8 +558,21 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
 
   const handleSubmit = async () => {
     setSuccess(null)
+    setSlotFullModal(null)
     if (!contactName || !contactPhone) {
       alert('Nama dan nomor kontak wajib diisi')
+      return
+    }
+    if (!bankName.trim()) {
+      alert('Bank pengirim wajib diisi')
+      return
+    }
+    if (!accountName.trim()) {
+      alert('Nama pengirim wajib diisi')
+      return
+    }
+    if (!accountNumber.trim()) {
+      alert('Nomor rekening pengirim wajib diisi')
       return
     }
     if (!paymentProof) {
@@ -567,12 +593,18 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
       alert('Lengkapi data rider. Wajib: nama lengkap, panggilan, nomor plate, foto rider, KK/Akte, dan ukuran jersey (jika diwajibkan).')
       return
     }
+    if (hasPrimaryCategorySlotFull) {
+      openSlotFullModal(
+        'Salah satu kategori utama rider sudah penuh. Silakan pilih kategori lain yang masih tersedia atau hubungi panitia.'
+      )
+      return
+    }
     if (hasMissingPrimaryCategory) {
-      alert('Kategori otomatis belum tersedia untuk beberapa rider (range usia/gender tidak cocok atau kuota kategori penuh).')
+      alert('Kategori otomatis belum tersedia untuk beberapa rider karena range usia atau gender tidak cocok dengan kategori yang tersedia.')
       return
     }
     if (hasFullExtraCategory) {
-      alert('Ada kategori tambahan yang kuotanya sudah penuh. Pilih kategori tambahan lain.')
+      openSlotFullModal('Ada kategori tambahan yang kuotanya sudah penuh. Pilih kategori tambahan lain yang masih tersedia.')
       return
     }
 
@@ -718,7 +750,16 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
           })
         } catch {}
       }
-      alert(err instanceof Error ? err.message : 'Gagal menyimpan pendaftaran')
+      const message = err instanceof Error ? err.message : 'Gagal menyimpan pendaftaran'
+      if (
+        message.includes('Kuota kategori') ||
+        message.toLowerCase().includes('slot penuh') ||
+        (message.toLowerCase().includes('kuota') && message.toLowerCase().includes('penuh'))
+      ) {
+        openSlotFullModal(message)
+      } else {
+        alert(message)
+      }
     } finally {
       setSubmitting(false)
     }
@@ -815,6 +856,13 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
 
   const dropZoneClass = (key: string) =>
     `${filePickerClass} ${dragActiveKey === key ? 'border-amber-400 bg-amber-400/10' : ''}`
+
+  const openSlotFullModal = (message: string) => {
+    setSlotFullModal({
+      title: 'Slot Pendaftaran Penuh',
+      message,
+    })
+  }
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#020817_0%,#041030_45%,#030712_100%)] text-slate-100">
@@ -1348,6 +1396,25 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         <div className="fixed right-4 top-4 z-50 w-[calc(100%-2rem)] max-w-sm rounded-2xl border border-emerald-300/50 bg-emerald-500/20 p-4 shadow-[0_20px_45px_rgba(16,185,129,0.22)] backdrop-blur">
           <div className="text-xs font-black uppercase tracking-[0.16em] text-emerald-200">Notif Pendaftaran</div>
           <div className="mt-2 text-sm font-semibold text-white">{success}</div>
+        </div>
+      )}
+
+      {slotFullModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/75 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-[1.75rem] border border-amber-300/30 bg-slate-900 p-6 shadow-[0_30px_90px_rgba(2,6,23,0.55)]">
+            <div className="text-xs font-black uppercase tracking-[0.18em] text-amber-300">{slotFullModal.title}</div>
+            <h3 className="mt-3 text-2xl font-black text-white">Pendaftaran belum bisa dilanjutkan</h3>
+            <p className="mt-3 text-sm font-medium leading-6 text-slate-300">{slotFullModal.message}</p>
+            <div className="mt-5 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setSlotFullModal(null)}
+                className="inline-flex items-center justify-center rounded-xl bg-amber-400 px-4 py-2.5 text-sm font-extrabold uppercase tracking-wide text-slate-950 transition-colors hover:bg-amber-300"
+              >
+                Oke, Mengerti
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

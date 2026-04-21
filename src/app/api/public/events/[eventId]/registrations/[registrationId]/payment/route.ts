@@ -49,12 +49,21 @@ export async function POST(
 
   const form = await req.formData()
   const file = form.get('file')
-  const bankName = form.get('bank_name')?.toString() || null
-  const accountName = form.get('account_name')?.toString() || null
-  const accountNumber = form.get('account_number')?.toString() || null
+  const bankName = form.get('bank_name')?.toString().trim() || null
+  const accountName = form.get('account_name')?.toString().trim() || null
+  const accountNumber = form.get('account_number')?.toString().trim() || null
 
   if (!(file instanceof File)) {
     return NextResponse.json({ error: 'Bukti pembayaran wajib diupload.' }, { status: 400 })
+  }
+  if (!bankName) {
+    return NextResponse.json({ error: 'Bank pengirim wajib diisi.' }, { status: 400 })
+  }
+  if (!accountName) {
+    return NextResponse.json({ error: 'Nama pengirim wajib diisi.' }, { status: 400 })
+  }
+  if (!accountNumber) {
+    return NextResponse.json({ error: 'Nomor rekening pengirim wajib diisi.' }, { status: 400 })
   }
 
   const lowerName = file.name.toLowerCase()
