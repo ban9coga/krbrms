@@ -221,13 +221,12 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
     if (extra && extra.event_id !== eventId) return { error: 'Invalid extra category' }
     if (extra && extra.id === primary.id) return { error: 'Extra category must differ from primary category' }
 
-    const extraMin = extra ? (extra.year_min ?? extra.year) : null
     const extraMax = extra ? (extra.year_max ?? extra.year) : null
-    if (extra && (birthYear < extraMin || birthYear > extraMax)) {
-      return { error: 'Birth year not eligible for extra category' }
+    if (extra && extraMax !== null && extraMax >= birthYear) {
+      return { error: 'Extra category must be above rider birth year' }
     }
     if (extra && extra.gender !== 'MIX' && extra.gender !== item.gender) {
-      return { error: 'Gender not eligible for extra category' }
+      return { error: 'Gender must match for extra category' }
     }
 
     const requestedPlateNumber = normalizePlateNumber(item.requested_plate_number)
@@ -484,3 +483,4 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     return NextResponse.json({ error: message }, { status: 400 })
   }
 }
+
