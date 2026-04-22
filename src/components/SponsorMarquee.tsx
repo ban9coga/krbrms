@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import type { BusinessSettings, EventSponsor } from '../lib/eventService'
 
@@ -25,7 +25,7 @@ type ResolvedSponsor = {
 
 const buildMarqueeSponsors = (items: ResolvedSponsor[], minimumItems: number): ResolvedSponsor[] => {
   if (items.length === 0) return []
-  const next: ResolvedSponsor[] = []
+  const next: ResolvedSponsor[] = [...items]
   let cycle = 0
 
   while (next.length < minimumItems) {
