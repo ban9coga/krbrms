@@ -54,6 +54,13 @@ const tierOrder: Record<string, number> = {
 const isTruthyFlag = (value: boolean | null | undefined, fallback = false) =>
   typeof value === 'boolean' ? value : fallback
 
+const normalizeExternalUrl = (value?: string | null) => {
+  const raw = value?.trim()
+  if (!raw) return null
+  if (/^https?:\/\//i.test(raw)) return raw
+  return `https://${raw}`
+}
+
 const normalizeSponsors = (
   businessSettings?: BusinessSettings | null,
   sponsorLogoUrls?: string[] | null,
@@ -76,7 +83,7 @@ const normalizeSponsors = (
         name: sponsor.name?.trim() || `Sponsor ${index + 1}`,
         tier: sponsor.tier?.trim() || 'SUPPORT',
         logoUrl,
-        href: sponsor.website_url?.trim() || sponsor.instagram_url?.trim() || null,
+        href: normalizeExternalUrl(sponsor.website_url) || normalizeExternalUrl(sponsor.instagram_url),
         priority: Number(sponsor.display_priority ?? 0),
         sortOrder: Number(sponsor.sort_order ?? index),
       } satisfies ResolvedSponsor
