@@ -133,6 +133,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [dragActiveKey, setDragActiveKey] = useState<string | null>(null)
   const photoPreview = useMemo(() => (photoFile ? URL.createObjectURL(photoFile) : null), [photoFile])
+  const [addModalOpen, setAddModalOpen] = useState(false)
   const [editing, setEditing] = useState<RiderItem | null>(null)
   const [editForm, setEditForm] = useState({
     name: '',
@@ -272,6 +273,26 @@ export default function RidersClient({ eventId }: { eventId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId, selectedCategory, page, query])
 
+  const resetCreateForm = () => {
+    setForm({
+      name: '',
+      rider_nickname: '',
+      jersey_size: '',
+      date_of_birth: '',
+      gender: 'BOY',
+      plate_number: '',
+      plate_suffix: '',
+      club: '',
+    })
+    setPhotoFile(null)
+  }
+
+  const closeAddModal = () => {
+    if (saving) return
+    setAddModalOpen(false)
+    resetCreateForm()
+  }
+
   const handleCreate = async () => {
     if (!eventId) {
       alert('Event ID tidak ditemukan. Coba kembali ke Events lalu klik Manage Event lagi.')
@@ -327,17 +348,8 @@ export default function RidersClient({ eventId }: { eventId: string }) {
         if (!upload.res.ok) throw new Error(upload.json?.error || 'Upload photo failed')
       }
 
-      setForm({
-        name: '',
-        rider_nickname: '',
-        jersey_size: '',
-        date_of_birth: '',
-        gender: 'BOY',
-        plate_number: '',
-        plate_suffix: '',
-        club: '',
-      })
-      setPhotoFile(null)
+      resetCreateForm()
+      setAddModalOpen(false)
       setPage(1)
       await loadRiders(1, query)
       alert('Rider berhasil ditambahkan.')
@@ -1189,147 +1201,40 @@ export default function RidersClient({ eventId }: { eventId: string }) {
       <div
         style={{
           marginTop: 16,
-          background: '#fff',
-          border: '2px solid #111',
+          background: 'rgba(255,255,255,0.08)',
+          border: '1px solid rgba(226,232,240,0.18)',
           borderRadius: 16,
           padding: 16,
-          color: '#0f172a',
+          color: '#e2e8f0',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: 12,
+          flexWrap: 'wrap',
         }}
       >
-        <div style={{ fontWeight: 950, fontSize: 18 }}>Add Rider</div>
-        <div style={{ marginTop: 12, display: 'grid', gap: 10 }}>
-          <input
-            placeholder="Nama Rider"
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-            style={{ padding: 12, borderRadius: 12, border: '2px solid #111' }}
-          />
-          <input
-            placeholder="Nama Panggilan (opsional)"
-            value={form.rider_nickname}
-            onChange={(e) => setForm({ ...form, rider_nickname: e.target.value })}
-            style={{ padding: 12, borderRadius: 12, border: '2px solid #111' }}
-          />
-          <select
-            value={form.jersey_size}
-            onChange={(e) => setForm({ ...form, jersey_size: e.target.value })}
-            style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 900 }}
-          >
-            <option value="">Ukuran Jersey (opsional)</option>
-            <option value="XS">XS</option>
-            <option value="S">S</option>
-            <option value="M">M</option>
-            <option value="L">L</option>
-            <option value="XL">XL</option>
-            <option value="2XL">2XL</option>
-            <option value="3XL">3XL</option>
-          </select>
-          <div style={{ display: 'grid', gap: 8 }}>
-            <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-              Tanggal Lahir
-            </div>
-            <input
-              type="date"
-              value={form.date_of_birth}
-              onChange={(e) => setForm({ ...form, date_of_birth: e.target.value })}
-              style={{ padding: 12, borderRadius: 12, border: '2px solid #111' }}
-            />
+        <div style={{ display: 'grid', gap: 4 }}>
+          <div style={{ fontWeight: 950, fontSize: 18 }}>Tambah Rider Lebih Rapi</div>
+          <div style={{ fontWeight: 700, fontSize: 13, color: '#cbd5e1' }}>
+            Gunakan modal agar daftar rider tetap fokus dan form input tidak selalu memenuhi layar.
           </div>
-          <select
-            value={form.gender}
-            onChange={(e) => setForm({ ...form, gender: e.target.value as 'BOY' | 'GIRL' })}
-            style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 900 }}
-          >
-            <option value="BOY">BOY</option>
-            <option value="GIRL">GIRL</option>
-          </select>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <input
-              inputMode="numeric"
-              placeholder="Plate Number (angka)"
-              value={form.plate_number}
-              onChange={(e) => setForm({ ...form, plate_number: e.target.value.replace(/[^\d]/g, '') })}
-              style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 900, color: '#0f172a' }}
-            />
-            <input
-              placeholder="Suffix (opsional, A-Z)"
-              value={form.plate_suffix}
-              onChange={(e) => setForm({ ...form, plate_suffix: e.target.value.toUpperCase().slice(0, 1) })}
-              style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 900, color: '#0f172a' }}
-            />
-          </div>
-          <input
-            placeholder="Club (opsional)"
-            value={form.club}
-            onChange={(e) => setForm({ ...form, club: e.target.value })}
-            style={{ padding: 12, borderRadius: 12, border: '2px solid #111' }}
-          />
-
-          <div style={{ display: 'grid', gap: 10 }}>
-            <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-              Rider Photo (auto resize)
-            </div>
-            <label
-              tabIndex={0}
-              onDragEnter={(e) => onDropZoneOver('add-photo', e)}
-              onDragOver={(e) => onDropZoneOver('add-photo', e)}
-              onDragLeave={(e) => onDropZoneLeave('add-photo', e)}
-              onDrop={(e) => onDropZoneDrop('add-photo', e, setPhotoFile)}
-              onPaste={(e) => onDropZonePaste(e, setPhotoFile)}
-              style={dropZoneStyle('add-photo')}
-            >
-              <span style={{ fontWeight: 700, color: '#334155', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {photoFile ? photoFile.name : 'Pilih file foto'}
-              </span>
-              <span
-                style={{
-                  padding: '6px 10px',
-                  borderRadius: 10,
-                  border: '2px solid #111',
-                  fontWeight: 900,
-                  fontSize: 11,
-                  letterSpacing: '0.06em',
-                  textTransform: 'uppercase',
-                  color: '#0f172a',
-                  flexShrink: 0,
-                }}
-              >
-                Browse
-              </span>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)}
-                style={{ display: 'none' }}
-              />
-            </label>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>Bisa drag & drop atau paste (Ctrl+V).</div>
-            {photoPreview && (
-              <img
-                src={photoPreview}
-                alt="Preview"
-                style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 16, border: '2px solid #111' }}
-                loading="lazy"
-              />
-            )}
-          </div>
-
-          <button
-            type="button"
-            onClick={handleCreate}
-            disabled={saving}
-            style={{
-              padding: 14,
-              borderRadius: 14,
-              border: '2px solid #111',
-              background: '#2ecc71',
-              fontWeight: 950,
-              cursor: 'pointer',
-            }}
-          >
-            {saving ? 'Saving...' : 'Add Rider'}
-          </button>
         </div>
+        <button
+          type="button"
+          onClick={() => setAddModalOpen(true)}
+          style={{
+            padding: '12px 16px',
+            borderRadius: 14,
+            border: '2px solid #111',
+            background: '#2ecc71',
+            color: '#0f172a',
+            fontWeight: 950,
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          + Add Rider
+        </button>
       </div>
 
       <div style={{ marginTop: 16, display: 'grid', gap: 10 }}>
@@ -1651,6 +1556,208 @@ export default function RidersClient({ eventId }: { eventId: string }) {
           Next
         </button>
       </div>
+
+      {addModalOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.35)',
+            display: 'grid',
+            placeItems: 'center',
+            zIndex: 70,
+            padding: 16,
+          }}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: 520,
+              background: '#fff',
+              borderRadius: 16,
+              border: '2px solid #111',
+              padding: 16,
+              display: 'grid',
+              gap: 12,
+              color: '#0f172a',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: 12 }}>
+              <div style={{ display: 'grid', gap: 4 }}>
+                <div style={{ fontWeight: 950, fontSize: 18 }}>Add Rider</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#475569' }}>
+                  Isi data rider baru tanpa mengganggu daftar rider yang sedang ditinjau.
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={closeAddModal}
+                style={{
+                  padding: '8px 10px',
+                  borderRadius: 12,
+                  border: '2px solid #111',
+                  background: '#fff',
+                  color: '#0f172a',
+                  fontWeight: 900,
+                  cursor: saving ? 'not-allowed' : 'pointer',
+                }}
+              >
+                Tutup
+              </button>
+            </div>
+
+            <input
+              placeholder="Nama Rider"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              style={{ padding: 12, borderRadius: 12, border: '2px solid #111' }}
+            />
+            <input
+              placeholder="Nama Panggilan (opsional)"
+              value={form.rider_nickname}
+              onChange={(e) => setForm({ ...form, rider_nickname: e.target.value })}
+              style={{ padding: 12, borderRadius: 12, border: '2px solid #111' }}
+            />
+            <select
+              value={form.jersey_size}
+              onChange={(e) => setForm({ ...form, jersey_size: e.target.value })}
+              style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 900 }}
+            >
+              <option value="">Ukuran Jersey (opsional)</option>
+              <option value="XS">XS</option>
+              <option value="S">S</option>
+              <option value="M">M</option>
+              <option value="L">L</option>
+              <option value="XL">XL</option>
+              <option value="2XL">2XL</option>
+              <option value="3XL">3XL</option>
+            </select>
+            <div style={{ display: 'grid', gap: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                Tanggal Lahir
+              </div>
+              <input
+                type="date"
+                value={form.date_of_birth}
+                onChange={(e) => setForm({ ...form, date_of_birth: e.target.value })}
+                style={{ padding: 12, borderRadius: 12, border: '2px solid #111' }}
+              />
+            </div>
+            <select
+              value={form.gender}
+              onChange={(e) => setForm({ ...form, gender: e.target.value as 'BOY' | 'GIRL' })}
+              style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 900 }}
+            >
+              <option value="BOY">BOY</option>
+              <option value="GIRL">GIRL</option>
+            </select>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <input
+                inputMode="numeric"
+                placeholder="Plate Number (angka)"
+                value={form.plate_number}
+                onChange={(e) => setForm({ ...form, plate_number: e.target.value.replace(/[^\d]/g, '') })}
+                style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 900, color: '#0f172a' }}
+              />
+              <input
+                placeholder="Suffix (opsional, A-Z)"
+                value={form.plate_suffix}
+                onChange={(e) => setForm({ ...form, plate_suffix: e.target.value.toUpperCase().slice(0, 1) })}
+                style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 900, color: '#0f172a' }}
+              />
+            </div>
+            <input
+              placeholder="Club (opsional)"
+              value={form.club}
+              onChange={(e) => setForm({ ...form, club: e.target.value })}
+              style={{ padding: 12, borderRadius: 12, border: '2px solid #111' }}
+            />
+
+            <div style={{ display: 'grid', gap: 10 }}>
+              <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                Rider Photo (auto resize)
+              </div>
+              <label
+                tabIndex={0}
+                onDragEnter={(e) => onDropZoneOver('add-photo', e)}
+                onDragOver={(e) => onDropZoneOver('add-photo', e)}
+                onDragLeave={(e) => onDropZoneLeave('add-photo', e)}
+                onDrop={(e) => onDropZoneDrop('add-photo', e, setPhotoFile)}
+                onPaste={(e) => onDropZonePaste(e, setPhotoFile)}
+                style={dropZoneStyle('add-photo')}
+              >
+                <span style={{ fontWeight: 700, color: '#334155', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {photoFile ? photoFile.name : 'Pilih file foto'}
+                </span>
+                <span
+                  style={{
+                    padding: '6px 10px',
+                    borderRadius: 10,
+                    border: '2px solid #111',
+                    fontWeight: 900,
+                    fontSize: 11,
+                    letterSpacing: '0.06em',
+                    textTransform: 'uppercase',
+                    color: '#0f172a',
+                    flexShrink: 0,
+                  }}
+                >
+                  Browse
+                </span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)}
+                  style={{ display: 'none' }}
+                />
+              </label>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>Bisa drag & drop atau paste (Ctrl+V).</div>
+              {photoPreview && (
+                <img
+                  src={photoPreview}
+                  alt="Preview"
+                  style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 16, border: '2px solid #111' }}
+                  loading="lazy"
+                />
+              )}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button
+                type="button"
+                onClick={closeAddModal}
+                style={{
+                  padding: '12px 14px',
+                  borderRadius: 14,
+                  border: '2px solid #111',
+                  background: '#fff',
+                  fontWeight: 900,
+                  cursor: saving ? 'not-allowed' : 'pointer',
+                }}
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleCreate}
+                disabled={saving}
+                style={{
+                  padding: '12px 14px',
+                  borderRadius: 14,
+                  border: '2px solid #111',
+                  background: '#2ecc71',
+                  fontWeight: 950,
+                  cursor: saving ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {saving ? 'Saving...' : 'Add Rider'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {editing && (
         <div

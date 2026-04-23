@@ -8,6 +8,11 @@ type CategoryItem = {
   label: string
   year: number
   gender: 'BOY' | 'GIRL' | 'MIX'
+  capacity?: number | null
+  filled?: number
+  remaining?: number | null
+  is_full?: boolean
+  enabled?: boolean
 }
 
 type RegistrationStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
@@ -215,6 +220,34 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
   const [modalNotes, setModalNotes] = useState('')
 
   const categoryMap = useMemo(() => new Map(categories.map((category) => [category.id, category.label])), [categories])
+  const categoryKpis = useMemo(
+    () =>
+      [...categories]
+        .filter((category) => category.enabled !== false)
+        .map((category) => {
+          const capacity = typeof category.capacity === 'number' ? category.capacity : null
+          const filled = typeof category.filled === 'number' ? category.filled : 0
+          const remaining = capacity == null ? null : typeof category.remaining === 'number' ? category.remaining : Math.max(0, capacity - filled)
+          const status = capacity == null ? 'Tanpa Batas' : category.is_full || remaining === 0 ? 'Penuh' : 'Tersedia'
+          return {
+            ...category,
+            capacity,
+            filled,
+            remaining,
+            status,
+          }
+        })
+        .sort((a, b) => {
+          if ((a.is_full ? 1 : 0) !== (b.is_full ? 1 : 0)) return (b.is_full ? 1 : 0) - (a.is_full ? 1 : 0)
+          return (b.filled ?? 0) - (a.filled ?? 0)
+        }),
+    [categories]
+  )
+  const fullCategoryCount = useMemo(() => categoryKpis.filter((category) => category.is_full).length, [categoryKpis])
+  const totalFilledAcrossCategories = useMemo(
+    () => categoryKpis.reduce((sum, category) => sum + (category.filled ?? 0), 0),
+    [categoryKpis]
+  )
 
   const resolveFileUrl = async (pathOrUrl: string) => {
     if (!pathOrUrl) return null
@@ -773,6 +806,76 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
           </div>
         </form>
       </section>
+
+      {categoryKpis.length > 0 && (
+        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="grid gap-2">
+              <div className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">KPI Pendaftaran per Kategori</div>
+              <h2 className="text-xl font-black tracking-tight text-slate-950">Pantau Slot dan Jumlah Pendaftar</h2>
+              <p className="max-w-3xl text-sm font-medium text-slate-600">
+                Ringkasan ini mengambil kapasitas dan keterisian kategori terbaru, jadi admin bisa cepat lihat kategori mana yang penuh dan mana yang masih longgar.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+                Total Terisi <span className="font-black text-slate-950">{totalFilledAcrossCategories}</span>
+              </div>
+              <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-900">
+                Kategori Full <span className="font-black">{fullCategoryCount}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {categoryKpis.map((category) => (
+              <article
+                key={category.id}
+                className={`rounded-2xl border p-4 shadow-sm ${
+                  category.is_full ? 'border-rose-200 bg-rose-50' : 'border-slate-200 bg-slate-50'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="grid gap-1">
+                    <div className="text-sm font-black text-slate-950">{category.label}</div>
+                    <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                      {category.gender} · {category.year}
+                    </div>
+                  </div>
+                  <span
+                    className={`rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] ${
+                      category.is_full
+                        ? 'border-rose-300 bg-rose-100 text-rose-900'
+                        : category.capacity == null
+                          ? 'border-slate-300 bg-white text-slate-700'
+                          : 'border-emerald-300 bg-emerald-100 text-emerald-900'
+                    }`}
+                  >
+                    {category.status}
+                  </span>
+                </div>
+
+                <div className="mt-4 grid gap-2 text-sm font-semibold text-slate-700">
+                  <div className="flex items-center justify-between gap-3">
+                    <span>Pendaftar</span>
+                    <span className="font-black text-slate-950">{category.filled}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span>Kapasitas</span>
+                    <span className="font-black text-slate-950">{category.capacity == null ? 'Tanpa batas' : category.capacity}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span>Sisa Slot</span>
+                    <span className={`font-black ${category.is_full ? 'text-rose-900' : 'text-emerald-900'}`}>
+                      {category.remaining == null ? 'Tanpa batas' : category.remaining}
+                    </span>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
 
       {feedback && (
         <div
