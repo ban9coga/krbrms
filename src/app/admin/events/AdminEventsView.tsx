@@ -76,12 +76,11 @@ const formatDate = (value: string) =>
     year: 'numeric',
   }).format(new Date(value))
 
-function SummaryCard({ label, value, helper }: { label: string; value: number; helper: string }) {
+function SummaryCard({ label, value }: { label: string; value: number }) {
   return (
     <article className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
       <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">{label}</div>
       <div className="mt-3 text-2xl font-black tracking-tight text-slate-950">{value}</div>
-      <div className="mt-1 text-sm font-semibold text-slate-500">{helper}</div>
     </article>
   )
 }
@@ -335,13 +334,8 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
               {showCreate ? 'Event Workspace' : 'Event Snapshot'}
             </div>
             <h1 className="text-2xl font-black tracking-tight text-slate-950 sm:text-[2rem]">
-              {showCreate ? 'Kelola semua event dari satu workspace yang rapi.' : 'Ringkasan event aktif dan publik.'}
+              {showCreate ? 'Event Workspace' : 'Event Snapshot'}
             </h1>
-            <p className="max-w-3xl text-sm font-semibold leading-6 text-slate-500">
-              {showCreate
-                ? 'Phase 2 memindahkan halaman events ke pola modern control panel: summary dulu, filter jelas, lalu kartu event yang lebih administratif.'
-                : 'Versi snapshot fokus untuk dashboard: cepat discan, cukup ringkas, dan tetap bisa masuk ke workspace event utama.'}
-            </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Link href="/" className={subtleButtonClass}>
@@ -360,11 +354,11 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
       </section>
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <SummaryCard label="Total Event" value={summary.total} helper="Semua event yang tersimpan." />
-        <SummaryCard label="Public Event" value={summary.publicEvents} helper="Event yang ditujukan untuk publik." />
-        <SummaryCard label="Internal Event" value={summary.internalEvents} helper="Event internal atau terbatas." />
-        <SummaryCard label="Live Event" value={summary.liveEvents} helper="Event yang sedang berjalan." />
-        <SummaryCard label="Hidden from Public" value={summary.hiddenEvents} helper="Event yang belum ditampilkan." />
+        <SummaryCard label="Total Event" value={summary.total} />
+        <SummaryCard label="Public Event" value={summary.publicEvents} />
+        <SummaryCard label="Internal Event" value={summary.internalEvents} />
+        <SummaryCard label="Live Event" value={summary.liveEvents} />
+        <SummaryCard label="Hidden from Public" value={summary.hiddenEvents} />
       </section>
 
       {feedback && (
@@ -385,11 +379,7 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
             <div className="grid gap-4">
               <div className="grid gap-1">
                 <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Create Event</div>
-                <h2 className="text-2xl font-black tracking-tight text-slate-950">Buka event baru tanpa form yang ramai.</h2>
-                <p className="max-w-3xl text-sm font-semibold leading-6 text-slate-500">
-                  Isi data inti dulu, lalu detail operasional seperti sponsor, pricing, dan branding bisa diatur dari halaman
-                  settings setelah event dibuat.
-                </p>
+                <h2 className="text-2xl font-black tracking-tight text-slate-950">Create Event</h2>
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
@@ -468,13 +458,7 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
             </div>
 
             <div className="rounded-[1.75rem] border border-slate-200 bg-slate-50 p-5">
-              <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Before create</div>
-              <div className="mt-3 text-xl font-black tracking-tight text-slate-950">Checklist singkat</div>
-              <ul className="mt-4 grid gap-3 text-sm font-semibold leading-6 text-slate-600">
-                <li>- Nama event gunakan versi final agar URL dan branding konsisten.</li>
-                <li>- Pilih tipe internal bila event tidak ditampilkan ke publik umum.</li>
-                <li>- Gunakan external draw hanya kalau urutan start disiapkan manual.</li>
-              </ul>
+              <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Action</div>
               <button type="button" onClick={handleCreate} disabled={creating} className={`${primaryButtonClass} mt-6 w-full`}>
                 {creating ? 'Creating Event…' : 'Create Event'}
               </button>
@@ -487,11 +471,7 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="grid gap-1">
             <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Event Directory</div>
-            <h2 className="text-2xl font-black tracking-tight text-slate-950">Filter event tanpa visual yang terlalu berat.</h2>
-            <p className="max-w-3xl text-sm font-semibold leading-6 text-slate-500">
-              Search, status, dan scope sekarang disusun seperti control bar agar daftar event lebih cepat dibaca saat data
-              sudah mulai banyak.
-            </p>
+            <h2 className="text-2xl font-black tracking-tight text-slate-950">Event Directory</h2>
           </div>
           <div className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-500">
             {loading ? 'Memuat daftar event…' : `${filteredEvents.length} event tampil`}
@@ -661,9 +641,6 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
           {!loading && filteredEvents.length === 0 && (
             <div className="rounded-[1.7rem] border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center">
               <div className="text-lg font-black tracking-tight text-slate-900">Belum ada event yang cocok.</div>
-              <div className="mt-2 text-sm font-semibold text-slate-500">
-                Coba ubah filter, kata kunci pencarian, atau buat event baru kalau memang belum ada data.
-              </div>
             </div>
           )}
         </div>
