@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../../../../lib/supabaseClient'
@@ -220,6 +220,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
   const [refreshTick, setRefreshTick] = useState(0)
   const [modal, setModal] = useState<ModalState>(null)
   const [modalNotes, setModalNotes] = useState('')
+  const [showCategoryKpis, setShowCategoryKpis] = useState(false)
 
   const categoryMap = useMemo(() => new Map(categories.map((category) => [category.id, category.label])), [categories])
   const categoryKpis = useMemo(
@@ -835,6 +836,13 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => setShowCategoryKpis((prev) => !prev)}
+                className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-black text-slate-700 transition hover:border-slate-950 hover:text-slate-950"
+              >
+                {showCategoryKpis ? 'Sembunyikan KPI' : 'Tampilkan KPI'}
+              </button>
               <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
                 Approved Riders <span className="font-black text-slate-950">{totalApprovedAcrossCategories}</span>
               </div>
@@ -850,12 +858,12 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
             </div>
           </div>
 
-          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {showCategoryKpis && <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {categoryKpis.map((category) => (
               <article
                 key={category.id}
                 className={`rounded-2xl border p-4 shadow-sm ${
-                  category.is_full ? 'border-rose-200 bg-rose-50' : 'border-slate-200 bg-slate-50'
+                  category.isFull ? 'border-rose-200 bg-rose-50' : 'border-slate-200 bg-slate-50'
                 }`}
               >
                 <div className="flex items-start justify-between gap-3">
@@ -904,7 +912,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                 </div>
               </article>
             ))}
-          </div>
+          </div>}
         </section>
       )}
 
@@ -1341,4 +1349,5 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
     </div>
   )
 }
+
 
