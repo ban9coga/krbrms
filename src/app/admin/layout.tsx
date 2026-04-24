@@ -180,7 +180,7 @@ function NavLink({
       title={collapsed ? item.label : undefined}
     >
       <span
-        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border ${
+        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border ${
           active ? 'border-slate-950 bg-white text-slate-950 shadow-sm' : 'border-slate-200 bg-slate-50 text-slate-500'
         }`}
       >
@@ -345,19 +345,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     router.push('/login')
   }
 
-  const sidebarWidthClass = collapsed ? 'lg:w-[104px]' : 'lg:w-[288px]'
+  const sidebarWidthClass = collapsed ? 'lg:w-[88px]' : 'lg:w-[248px]'
   const eventMenuLabel = eventName ?? (eventId ? 'Loading event…' : 'No event selected')
 
   const sidebarBody = (
-    <div className="flex h-full flex-col gap-6 px-4 py-5">
-      <div className={`flex items-center gap-3 ${collapsed ? 'justify-center' : ''}`}>
-        <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-[linear-gradient(135deg,#ffffff_0%,#fef3c7_100%)] shadow-sm">
-          <Image src="/platform-logo.png" alt="Platform" width={32} height={32} className="object-contain" />
+    <div className="flex h-full flex-col gap-4 px-3 py-4">
+      <div className={`flex items-center gap-2.5 ${collapsed ? 'justify-center' : ''}`}>
+        <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-[linear-gradient(135deg,#ffffff_0%,#fef3c7_100%)] shadow-sm">
+          <Image src="/platform-logo.png" alt="Platform" width={28} height={28} className="object-contain" />
         </div>
         {!collapsed && (
           <div className="min-w-0">
-            <div className="text-sm font-black tracking-[0.18em] text-slate-900">{BRAND.short}</div>
-            <div className="text-xs font-semibold leading-5 text-slate-500">{BRAND.name}</div>
+            <div className="text-sm font-black tracking-[0.14em] text-slate-900">{BRAND.short}</div>
+            <div className="text-xs font-semibold leading-4 text-slate-500">{BRAND.name}</div>
           </div>
         )}
       </div>
@@ -366,27 +366,27 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <button
           type="button"
           onClick={() => setCollapsed((value) => !value)}
-          className={`admin-secondary-button justify-center ${collapsed ? 'px-0' : ''}`}
+          className={`admin-secondary-button justify-center text-xs ${collapsed ? 'px-0' : ''}`}
         >
           <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-slate-300 text-[11px]">
             {collapsed ? '+' : '–'}
           </span>
-          {!collapsed && <span>{collapsed ? 'Expand' : 'Collapse sidebar'}</span>}
+          {!collapsed && <span>Collapse</span>}
         </button>
       )}
 
-      <div className="grid gap-5">
+      <div className="grid gap-4">
         <NavGroup title="Workspace" items={globalNav} pathname={pathname} collapsed={collapsed} onClick={() => setSidebarOpen(false)} />
 
         {eventId && (
-          <section className="grid gap-3">
+          <section className="grid gap-2.5">
             <button
               type="button"
               onClick={() => setEventMenuOpen((value) => !value)}
               className={`admin-secondary-button ${collapsed ? 'justify-center px-0' : ''}`}
               title={collapsed ? (eventMenuOpen ? 'Hide event menu' : 'Show event menu') : undefined}
             >
-              <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-500">
+              <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-[18px] w-[18px]">
                   <path d="M7 3v3M17 3v3M4 8h16M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
@@ -394,9 +394,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               {!collapsed && (
                 <span className="min-w-0 flex-1 text-left">
                   <span className="block truncate text-sm font-extrabold text-slate-800">{eventMenuLabel}</span>
-                  <span className="block truncate text-xs font-semibold text-slate-500">
-                    {eventMenuOpen ? 'Hide event navigation' : 'Show event navigation'}
-                  </span>
                 </span>
               )}
             </button>
@@ -408,7 +405,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         )}
       </div>
 
-      <div className="mt-auto rounded-[1.75rem] border border-slate-200 bg-slate-50 px-4 py-4">
+      <div className="mt-auto rounded-[1.4rem] border border-slate-200 bg-slate-50 px-3 py-3">
         <div className={`grid gap-1 ${collapsed ? 'justify-items-center text-center' : ''}`}>
           <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Current role</div>
           <div
@@ -416,7 +413,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           >
             {formatAppRoleLabel(userRole)}
           </div>
-          {!collapsed && userEmail && <div className="truncate text-sm font-semibold text-slate-500">{userEmail}</div>}
+          {!collapsed && userEmail && <div className="truncate text-xs font-semibold text-slate-500">{userEmail}</div>}
         </div>
       </div>
     </div>
@@ -483,7 +480,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
       <div className="mx-auto flex min-h-screen max-w-[1800px] px-0 pt-[72px] lg:px-8">
         <div className={`${sidebarWidthClass} hidden shrink-0 lg:block`}>
-          <aside className="sticky top-[88px] h-[calc(100vh-104px)] pr-6">
+          <aside className="sticky top-[88px] h-[calc(100vh-104px)] pr-4">
             <div className="admin-surface h-full overflow-hidden">
               <div className="h-full overflow-y-auto">{sidebarBody}</div>
             </div>
