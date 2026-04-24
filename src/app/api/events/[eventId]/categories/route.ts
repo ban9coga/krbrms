@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../lib/auth'
-import { buildCategoryOccupancyMap } from '../../../../../services/categoryOccupancy'
+import { buildCategoryOccupancyBreakdown, type CategoryOccupancyBreakdown } from '../../../../../services/categoryOccupancy'
 
 export async function GET(_: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params
@@ -16,9 +16,9 @@ export async function GET(_: Request, { params }: { params: Promise<{ eventId: s
     return NextResponse.json({ data: [] })
   }
 
-  let filledCounts = new Map<string, number>()
+  let occupancyBreakdown: CategoryOccupancyBreakdown
   try {
-    filledCounts = await buildCategoryOccupancyMap(eventId, categories as Array<{
+    occupancyBreakdown = await buildCategoryOccupancyBreakdown(eventId, categories as Array<{
       id: string
       year: number
       year_min?: number | null
@@ -32,11 +32,15 @@ export async function GET(_: Request, { params }: { params: Promise<{ eventId: s
   const data = categories.map((category) => {
     const rawCapacity = category.capacity
     const capacity = typeof rawCapacity === 'number' && Number.isFinite(rawCapacity) ? rawCapacity : null
-    const filled = filledCounts.get(category.id) ?? 0
+    const approved_filled = occupancyBreakdown.approved.get(category.id) ?? 0
+    const pending_filled = occupancyBreakdown.pending.get(category.id) ?? 0
+    const filled = occupancyBreakdown.total.get(category.id) ?? 0
     const remaining = capacity == null ? null : Math.max(0, capacity - filled)
     const is_full = capacity == null ? false : filled >= capacity
     return {
       ...category,
+      approved_filled,
+      pending_filled,
       filled,
       remaining,
       is_full,

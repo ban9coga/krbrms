@@ -10,6 +10,12 @@ export type OccupancyCategory = {
   gender: CategoryGender
 }
 
+export type CategoryOccupancyBreakdown = {
+  approved: Map<string, number>
+  pending: Map<string, number>
+  total: Map<string, number>
+}
+
 type RiderRow = {
   birth_year?: number | null
   date_of_birth?: string | null
@@ -45,12 +51,18 @@ export const resolvePrimaryCategoryForOccupancy = (
   return candidates.filter((category) => category.gender === 'MIX').sort((a, b) => a.year_max - b.year_max)[0] ?? null
 }
 
-export const buildCategoryOccupancyMap = async (
+const increaseCount = (target: Map<string, number>, categoryId: string | null) => {
+  if (!categoryId) return
+  target.set(categoryId, (target.get(categoryId) ?? 0) + 1)
+}
+
+export const buildCategoryOccupancyBreakdown = async (
   eventId: string,
   categories: OccupancyCategory[],
   options?: { excludePendingRegistrationId?: string | null }
 ) => {
-  const counts = new Map<string, number>()
+  const approvedCounts = new Map<string, number>()
+  const pendingCounts = new Map<string, number>()
 
   const { data: riders, error: ridersError } = await adminClient
     .from('riders')
@@ -64,7 +76,7 @@ export const buildCategoryOccupancyMap = async (
     if (!birthYear) continue
     const category = resolvePrimaryCategoryForOccupancy(categories, birthYear, rider.gender)
     if (!category?.id) continue
-    counts.set(category.id, (counts.get(category.id) ?? 0) + 1)
+    increaseCount(approvedCounts, category.id)
   }
 
   const { data: extraRows, error: extraError } = await adminClient
@@ -76,8 +88,7 @@ export const buildCategoryOccupancyMap = async (
 
   for (const row of extraRows ?? []) {
     const categoryId = typeof row.category_id === 'string' ? row.category_id : null
-    if (!categoryId) continue
-    counts.set(categoryId, (counts.get(categoryId) ?? 0) + 1)
+    increaseCount(approvedCounts, categoryId)
   }
 
   let pendingQuery = adminClient
@@ -96,9 +107,30 @@ export const buildCategoryOccupancyMap = async (
   for (const row of pendingItems ?? []) {
     const primaryId = typeof row.primary_category_id === 'string' ? row.primary_category_id : null
     const extraId = typeof row.extra_category_id === 'string' ? row.extra_category_id : null
-    if (primaryId) counts.set(primaryId, (counts.get(primaryId) ?? 0) + 1)
-    if (extraId) counts.set(extraId, (counts.get(extraId) ?? 0) + 1)
+    increaseCount(pendingCounts, primaryId)
+    increaseCount(pendingCounts, extraId)
   }
 
-  return counts
+  const totalCounts = new Map<string, number>()
+  for (const [categoryId, value] of approvedCounts) {
+    totalCounts.set(categoryId, value)
+  }
+  for (const [categoryId, value] of pendingCounts) {
+    totalCounts.set(categoryId, (totalCounts.get(categoryId) ?? 0) + value)
+  }
+
+  return {
+    approved: approvedCounts,
+    pending: pendingCounts,
+    total: totalCounts,
+  } satisfies CategoryOccupancyBreakdown
+}
+
+export const buildCategoryOccupancyMap = async (
+  eventId: string,
+  categories: OccupancyCategory[],
+  options?: { excludePendingRegistrationId?: string | null }
+) => {
+  const breakdown = await buildCategoryOccupancyBreakdown(eventId, categories, options)
+  return breakdown.total
 }

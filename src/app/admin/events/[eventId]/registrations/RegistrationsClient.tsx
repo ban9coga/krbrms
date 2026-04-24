@@ -9,6 +9,8 @@ type CategoryItem = {
   year: number
   gender: 'BOY' | 'GIRL' | 'MIX'
   capacity?: number | null
+  approved_filled?: number
+  pending_filled?: number
   filled?: number
   remaining?: number | null
   is_full?: boolean
@@ -226,24 +228,39 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
         .filter((category) => category.enabled !== false)
         .map((category) => {
           const capacity = typeof category.capacity === 'number' ? category.capacity : null
-          const filled = typeof category.filled === 'number' ? category.filled : 0
-          const remaining = capacity == null ? null : typeof category.remaining === 'number' ? category.remaining : Math.max(0, capacity - filled)
-          const status = capacity == null ? 'Tanpa Batas' : category.is_full || remaining === 0 ? 'Penuh' : 'Tersedia'
+          const approvedFilled = typeof category.approved_filled === 'number' ? category.approved_filled : 0
+          const pendingFilled = typeof category.pending_filled === 'number' ? category.pending_filled : 0
+          const filled = typeof category.filled === 'number' ? category.filled : approvedFilled + pendingFilled
+          const remaining =
+            capacity == null ? null : typeof category.remaining === 'number' ? category.remaining : Math.max(0, capacity - filled)
+          const isFull = Boolean(category.is_full) || (capacity != null && remaining === 0)
+          const status = capacity == null ? 'Tanpa Batas' : isFull ? 'Penuh' : 'Tersedia'
           return {
             ...category,
             capacity,
+            approvedFilled,
+            pendingFilled,
             filled,
             remaining,
+            isFull,
             status,
           }
         })
         .sort((a, b) => {
-          if ((a.is_full ? 1 : 0) !== (b.is_full ? 1 : 0)) return (b.is_full ? 1 : 0) - (a.is_full ? 1 : 0)
+          if ((a.isFull ? 1 : 0) !== (b.isFull ? 1 : 0)) return (b.isFull ? 1 : 0) - (a.isFull ? 1 : 0)
           return (b.filled ?? 0) - (a.filled ?? 0)
         }),
     [categories]
   )
-  const fullCategoryCount = useMemo(() => categoryKpis.filter((category) => category.is_full).length, [categoryKpis])
+  const fullCategoryCount = useMemo(() => categoryKpis.filter((category) => category.isFull).length, [categoryKpis])
+  const totalApprovedAcrossCategories = useMemo(
+    () => categoryKpis.reduce((sum, category) => sum + (category.approvedFilled ?? 0), 0),
+    [categoryKpis]
+  )
+  const totalPendingAcrossCategories = useMemo(
+    () => categoryKpis.reduce((sum, category) => sum + (category.pendingFilled ?? 0), 0),
+    [categoryKpis]
+  )
   const totalFilledAcrossCategories = useMemo(
     () => categoryKpis.reduce((sum, category) => sum + (category.filled ?? 0), 0),
     [categoryKpis]
@@ -814,12 +831,18 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
               <div className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">KPI Pendaftaran per Kategori</div>
               <h2 className="text-xl font-black tracking-tight text-slate-950">Pantau Slot dan Jumlah Pendaftar</h2>
               <p className="max-w-3xl text-sm font-medium text-slate-600">
-                Ringkasan ini mengambil kapasitas dan keterisian kategori terbaru, jadi admin bisa cepat lihat kategori mana yang penuh dan mana yang masih longgar.
+                Ringkasan ini memisahkan rider yang sudah approved dari pendaftaran yang masih pending, jadi admin bisa lihat kondisi final sekaligus slot yang sedang ditahan.
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
               <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
-                Total Terisi <span className="font-black text-slate-950">{totalFilledAcrossCategories}</span>
+                Approved Riders <span className="font-black text-slate-950">{totalApprovedAcrossCategories}</span>
+              </div>
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
+                Pending Registrasi <span className="font-black">{totalPendingAcrossCategories}</span>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+                Total Slot Terpakai <span className="font-black text-slate-950">{totalFilledAcrossCategories}</span>
               </div>
               <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-900">
                 Kategori Full <span className="font-black">{fullCategoryCount}</span>
@@ -844,7 +867,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                   </div>
                   <span
                     className={`rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] ${
-                      category.is_full
+                      category.isFull
                         ? 'border-rose-300 bg-rose-100 text-rose-900'
                         : category.capacity == null
                           ? 'border-slate-300 bg-white text-slate-700'
@@ -857,7 +880,15 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
 
                 <div className="mt-4 grid gap-2 text-sm font-semibold text-slate-700">
                   <div className="flex items-center justify-between gap-3">
-                    <span>Pendaftar</span>
+                    <span>Approved Rider</span>
+                    <span className="font-black text-slate-950">{category.approvedFilled}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span>Pending Registrasi</span>
+                    <span className="font-black text-amber-900">{category.pendingFilled}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span>Total Slot Terpakai</span>
                     <span className="font-black text-slate-950">{category.filled}</span>
                   </div>
                   <div className="flex items-center justify-between gap-3">
@@ -866,7 +897,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                   </div>
                   <div className="flex items-center justify-between gap-3">
                     <span>Sisa Slot</span>
-                    <span className={`font-black ${category.is_full ? 'text-rose-900' : 'text-emerald-900'}`}>
+                    <span className={`font-black ${category.isFull ? 'text-rose-900' : 'text-emerald-900'}`}>
                       {category.remaining == null ? 'Tanpa batas' : category.remaining}
                     </span>
                   </div>
