@@ -19,18 +19,83 @@ type AdminEventsViewProps = {
   showCreate?: boolean
 }
 
-const fieldClass =
-  'w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-300/30'
+type FeedbackState = {
+  type: 'success' | 'error'
+  message: string
+} | null
 
-const buttonClass =
-  'inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.12em] transition-colors'
+type StatusFilter = 'ALL' | EventItem['status']
+type ScopeFilter = 'ALL' | 'PUBLIC' | 'INTERNAL'
+
+const fieldClass =
+  'w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-amber-300 focus:ring-2 focus:ring-amber-300/30'
+
+const subtleButtonClass =
+  'inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950'
+
+const primaryButtonClass =
+  'inline-flex items-center justify-center rounded-2xl bg-slate-950 px-4 py-2.5 text-sm font-black uppercase tracking-[0.12em] text-white transition-colors hover:bg-slate-800'
+
+const STATUS_META: Record<EventItem['status'], { label: string; className: string; weight: number }> = {
+  LIVE: {
+    label: 'Live',
+    className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    weight: 0,
+  },
+  UPCOMING: {
+    label: 'Upcoming',
+    className: 'border-amber-200 bg-amber-50 text-amber-700',
+    weight: 1,
+  },
+  FINISHED: {
+    label: 'Finished',
+    className: 'border-slate-200 bg-slate-100 text-slate-700',
+    weight: 2,
+  },
+  PROVISIONAL: {
+    label: 'Provisional',
+    className: 'border-sky-200 bg-sky-50 text-sky-700',
+    weight: 3,
+  },
+  PROTEST_REVIEW: {
+    label: 'Protest Review',
+    className: 'border-rose-200 bg-rose-50 text-rose-700',
+    weight: 4,
+  },
+  LOCKED: {
+    label: 'Locked',
+    className: 'border-violet-200 bg-violet-50 text-violet-700',
+    weight: 5,
+  },
+}
+
+const formatDate = (value: string) =>
+  new Intl.DateTimeFormat('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(new Date(value))
+
+function SummaryCard({ label, value, helper }: { label: string; value: number; helper: string }) {
+  return (
+    <article className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
+      <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">{label}</div>
+      <div className="mt-3 text-2xl font-black tracking-tight text-slate-950">{value}</div>
+      <div className="mt-1 text-sm font-semibold text-slate-500">{helper}</div>
+    </article>
+  )
+}
 
 export default function AdminEventsView({ showCreate = true }: AdminEventsViewProps) {
   const [events, setEvents] = useState<EventItem[]>([])
   const [query, setQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL')
+  const [scopeFilter, setScopeFilter] = useState<ScopeFilter>('ALL')
   const [loading, setLoading] = useState(false)
   const [creating, setCreating] = useState(false)
   const [canCreate, setCanCreate] = useState(false)
+  const [feedback, setFeedback] = useState<FeedbackState>(null)
+  const [actionKey, setActionKey] = useState<string | null>(null)
   const [form, setForm] = useState({
     name: '',
     location: '',
@@ -42,7 +107,7 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
 
   const getErrorMessage = (err: unknown) => (err instanceof Error ? err.message : 'Request failed')
 
-  const apiFetch = async (url: string, options: RequestInit = {}) => {
+  const apiFetch = useCallback(async (url: string, options: RequestInit = {}) => {
     const { data } = await supabase.auth.getSession()
     const token = data.session?.access_token
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
@@ -50,22 +115,27 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
 
     const res = await fetch(url, { ...options, headers })
     const json = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(json?.error || 'Request failed')
+    if (!res.ok) {
+      throw new Error(json?.error || 'Request failed')
+    }
     return json
-  }
+  }, [])
 
   const loadEvents = useCallback(async () => {
     setLoading(true)
     try {
       const json = await apiFetch('/api/events')
       setEvents(json.data ?? [])
+    } catch (err: unknown) {
+      setFeedback({ type: 'error', message: `Gagal memuat event: ${getErrorMessage(err)}` })
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [apiFetch])
 
   useEffect(() => {
-    void supabase.auth.getUser().then(({ data }) => {
+    const loadUser = async () => {
+      const { data } = await supabase.auth.getUser()
       const user = data.user
       const meta = (user?.user_metadata ?? {}) as Record<string, unknown>
       const appMeta = (user?.app_metadata ?? {}) as Record<string, unknown>
@@ -73,20 +143,41 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
       const appRole = typeof appMeta.role === 'string' ? appMeta.role : null
       const role = String(metaRole || appRole || '').trim().toUpperCase()
       setCanCreate(role === 'SUPER_ADMIN')
-    })
+    }
+
+    void loadUser()
     void loadEvents()
   }, [loadEvents])
 
+  const runEventAction = useCallback(
+    async (key: string, task: () => Promise<void>, successMessage: string) => {
+      setActionKey(key)
+      setFeedback(null)
+      try {
+        await task()
+        await loadEvents()
+        setFeedback({ type: 'success', message: successMessage })
+      } catch (err: unknown) {
+        setFeedback({ type: 'error', message: getErrorMessage(err) })
+      } finally {
+        setActionKey(null)
+      }
+    },
+    [loadEvents]
+  )
+
   const handleCreate = async () => {
     if (!form.name.trim() || !form.event_date) {
-      alert('Nama dan tanggal event wajib diisi.')
+      setFeedback({ type: 'error', message: 'Nama event dan tanggal event wajib diisi.' })
       return
     }
+
     setCreating(true)
+    setFeedback(null)
     try {
       const payload = {
-        name: form.name,
-        location: form.location,
+        name: form.name.trim(),
+        location: form.location.trim() || null,
         event_date: form.event_date,
         status: form.status,
         is_public: true,
@@ -103,8 +194,9 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
         draw_mode: 'internal_live_draw',
       })
       await loadEvents()
+      setFeedback({ type: 'success', message: 'Event baru berhasil dibuat.' })
     } catch (err: unknown) {
-      alert(getErrorMessage(err))
+      setFeedback({ type: 'error', message: getErrorMessage(err) })
     } finally {
       setCreating(false)
     }
@@ -117,349 +209,461 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
     if (nextLocation === null) return
     const nextDate = window.prompt('Tanggal (YYYY-MM-DD)', event.event_date)
     if (!nextDate || !nextDate.trim()) return
-    try {
-      await apiFetch(`/api/events/${event.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          name: nextName.trim(),
-          location: nextLocation.trim() || null,
-          event_date: nextDate.trim(),
-        }),
-      })
-      await loadEvents()
-    } catch (err: unknown) {
-      alert(getErrorMessage(err))
-    }
+
+    await runEventAction(
+      `edit-${event.id}`,
+      async () => {
+        await apiFetch(`/api/events/${event.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            name: nextName.trim(),
+            location: nextLocation.trim() || null,
+            event_date: nextDate.trim(),
+          }),
+        })
+      },
+      `Event "${event.name}" berhasil diperbarui.`
+    )
   }
 
-  const handleDelete = async (eventId: string) => {
-    if (!window.confirm('Hapus event ini? Semua data terkait akan ikut terhapus.')) return
-    try {
-      await apiFetch(`/api/events/${eventId}`, { method: 'DELETE' })
-      await loadEvents()
-    } catch (err: unknown) {
-      alert(getErrorMessage(err))
-    }
+  const handleDelete = async (event: EventItem) => {
+    if (!window.confirm(`Hapus event "${event.name}"? Semua data terkait akan ikut terhapus.`)) return
+
+    await runEventAction(
+      `delete-${event.id}`,
+      async () => {
+        await apiFetch(`/api/events/${event.id}`, { method: 'DELETE' })
+      },
+      `Event "${event.name}" berhasil dihapus.`
+    )
   }
 
-  const handleStatus = async (eventId: string, status: EventItem['status']) => {
-    if (!eventId) {
-      alert('Event ID tidak valid.')
-      return
-    }
-    try {
-      await apiFetch(`/api/events/${eventId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ status }),
-      })
-      await loadEvents()
-    } catch (err: unknown) {
-      alert(getErrorMessage(err))
-    }
+  const handleStatus = async (event: EventItem, status: EventItem['status']) => {
+    await runEventAction(
+      `status-${event.id}`,
+      async () => {
+        await apiFetch(`/api/events/${event.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ status }),
+        })
+      },
+      `Status "${event.name}" diperbarui ke ${STATUS_META[status].label}.`
+    )
   }
 
-  const handleVisibility = async (eventId: string, isPublic: boolean) => {
-    try {
-      await apiFetch(`/api/events/${eventId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ is_public: isPublic }),
-      })
-      await loadEvents()
-    } catch (err: unknown) {
-      alert(getErrorMessage(err))
-    }
+  const handleVisibility = async (event: EventItem, isPublic: boolean) => {
+    await runEventAction(
+      `visibility-${event.id}`,
+      async () => {
+        await apiFetch(`/api/events/${event.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ is_public: isPublic }),
+        })
+      },
+      isPublic ? `Event "${event.name}" tampil di publik.` : `Event "${event.name}" disembunyikan dari publik.`
+    )
   }
 
-  const handleDrawMode = async (eventId: string, drawMode: NonNullable<EventItem['draw_mode']>) => {
-    try {
-      await apiFetch(`/api/events/${eventId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ draw_mode: drawMode }),
-      })
-      await loadEvents()
-    } catch (err: unknown) {
-      alert(getErrorMessage(err))
-    }
+  const handleDrawMode = async (event: EventItem, drawMode: NonNullable<EventItem['draw_mode']>) => {
+    await runEventAction(
+      `draw-${event.id}`,
+      async () => {
+        await apiFetch(`/api/events/${event.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ draw_mode: drawMode }),
+        })
+      },
+      `Draw mode "${event.name}" berhasil diperbarui.`
+    )
   }
 
-  const handleEventScope = async (eventId: string, eventScope: NonNullable<EventItem['event_scope']>) => {
-    try {
-      await apiFetch(`/api/events/${eventId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ event_scope: eventScope }),
-      })
-      await loadEvents()
-    } catch (err: unknown) {
-      alert(getErrorMessage(err))
-    }
+  const handleEventScope = async (event: EventItem, eventScope: NonNullable<EventItem['event_scope']>) => {
+    await runEventAction(
+      `scope-${event.id}`,
+      async () => {
+        await apiFetch(`/api/events/${event.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ event_scope: eventScope }),
+        })
+      },
+      `Tipe event "${event.name}" berhasil diperbarui.`
+    )
   }
 
   const filteredEvents = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return events
-    return events.filter((event) => {
-      const haystack = `${event.name} ${event.location ?? ''} ${event.event_date}`.toLowerCase()
-      return haystack.includes(q)
-    })
-  }, [events, query])
+
+    return [...events]
+      .filter((event) => {
+        if (statusFilter !== 'ALL' && event.status !== statusFilter) return false
+
+        const resolvedScope = event.event_scope === 'INTERNAL' ? 'INTERNAL' : 'PUBLIC'
+        if (scopeFilter !== 'ALL' && resolvedScope !== scopeFilter) return false
+
+        if (!q) return true
+        const haystack = `${event.name} ${event.location ?? ''} ${event.event_date}`.toLowerCase()
+        return haystack.includes(q)
+      })
+      .sort((a, b) => {
+        const weight = STATUS_META[a.status].weight - STATUS_META[b.status].weight
+        if (weight !== 0) return weight
+        return new Date(b.event_date).getTime() - new Date(a.event_date).getTime()
+      })
+  }, [events, query, scopeFilter, statusFilter])
+
+  const summary = useMemo(() => {
+    const publicEvents = events.filter((event) => (event.event_scope === 'INTERNAL' ? false : true)).length
+    const internalEvents = events.filter((event) => event.event_scope === 'INTERNAL').length
+    const liveEvents = events.filter((event) => event.status === 'LIVE').length
+    const hiddenEvents = events.filter((event) => event.is_public === false).length
+
+    return {
+      total: events.length,
+      publicEvents,
+      internalEvents,
+      liveEvents,
+      hiddenEvents,
+    }
+  }, [events])
 
   return (
-    <div className="grid w-full max-w-[1180px] gap-5">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div className="grid gap-2">
-          <h1 className="text-3xl font-black tracking-tight text-slate-50">{showCreate ? 'Events' : 'Events Snapshot'}</h1>
-          <div className="max-w-3xl text-sm font-semibold text-slate-300">
-            Status event dipakai untuk tampilan publik. Halaman ini sudah dirapikan supaya create, filter,
-            dan aksi event tetap nyaman di tablet maupun smartphone.
+    <div className="grid gap-6">
+      <section className="rounded-[1.8rem] border border-slate-200 bg-[linear-gradient(135deg,#ffffff_0%,#f8fafc_68%,#fef3c7_100%)] p-5 shadow-[0_20px_44px_rgba(15,23,42,0.06)] sm:p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="grid gap-2">
+            <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">
+              {showCreate ? 'Event Workspace' : 'Event Snapshot'}
+            </div>
+            <h1 className="text-2xl font-black tracking-tight text-slate-950 sm:text-[2rem]">
+              {showCreate ? 'Kelola semua event dari satu workspace yang rapi.' : 'Ringkasan event aktif dan publik.'}
+            </h1>
+            <p className="max-w-3xl text-sm font-semibold leading-6 text-slate-500">
+              {showCreate
+                ? 'Phase 2 memindahkan halaman events ke pola modern control panel: summary dulu, filter jelas, lalu kartu event yang lebih administratif.'
+                : 'Versi snapshot fokus untuk dashboard: cepat discan, cukup ringkas, dan tetap bisa masuk ke workspace event utama.'}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/" className={subtleButtonClass}>
+              Public Landing
+            </Link>
+            {showCreate && (
+              <Link href="/admin" className={subtleButtonClass}>
+                Dashboard
+              </Link>
+            )}
+            <button type="button" onClick={() => void loadEvents()} disabled={loading} className={primaryButtonClass}>
+              {loading ? 'Refreshing…' : 'Refresh Events'}
+            </button>
           </div>
         </div>
-        <Link
-          href="/"
-          className={`${buttonClass} border border-slate-500 bg-slate-900/70 text-slate-100 hover:bg-slate-800`}
+      </section>
+
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <SummaryCard label="Total Event" value={summary.total} helper="Semua event yang tersimpan." />
+        <SummaryCard label="Public Event" value={summary.publicEvents} helper="Event yang ditujukan untuk publik." />
+        <SummaryCard label="Internal Event" value={summary.internalEvents} helper="Event internal atau terbatas." />
+        <SummaryCard label="Live Event" value={summary.liveEvents} helper="Event yang sedang berjalan." />
+        <SummaryCard label="Hidden from Public" value={summary.hiddenEvents} helper="Event yang belum ditampilkan." />
+      </section>
+
+      {feedback && (
+        <div
+          className={`rounded-[1.5rem] border px-5 py-4 text-sm font-semibold shadow-sm ${
+            feedback.type === 'success'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+              : 'border-rose-200 bg-rose-50 text-rose-800'
+          }`}
         >
-          Public Landing
-        </Link>
-      </div>
+          {feedback.message}
+        </div>
+      )}
 
       {showCreate && canCreate ? (
-        <section className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-[0_18px_40px_rgba(15,23,42,0.12)] sm:p-6">
-          <div className="mb-4 grid gap-1">
-            <div className="text-xl font-black tracking-tight text-slate-900">Create Event</div>
-            <div className="text-sm font-semibold text-slate-500">Set dasar event terlebih dahulu, detail lain bisa diatur setelah event dibuat.</div>
-          </div>
+        <section className="admin-surface overflow-hidden px-6 py-6 lg:px-8">
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(300px,0.7fr)]">
+            <div className="grid gap-4">
+              <div className="grid gap-1">
+                <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Create Event</div>
+                <h2 className="text-2xl font-black tracking-tight text-slate-950">Buka event baru tanpa form yang ramai.</h2>
+                <p className="max-w-3xl text-sm font-semibold leading-6 text-slate-500">
+                  Isi data inti dulu, lalu detail operasional seperti sponsor, pricing, dan branding bisa diatur dari halaman
+                  settings setelah event dibuat.
+                </p>
+              </div>
 
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            <label className="grid gap-2 xl:col-span-2">
-              <span className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">Event Name</span>
-              <input
-                placeholder="Nama event"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                className={fieldClass}
-              />
-            </label>
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="grid gap-2 md:col-span-2">
+                  <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Event Name</span>
+                  <input
+                    placeholder="Contoh: Pushbike Open Championship Padang"
+                    value={form.name}
+                    onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
+                    className={fieldClass}
+                  />
+                </label>
 
-            <label className="grid gap-2">
-              <span className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">Location</span>
-              <input
-                placeholder="Lokasi event"
-                value={form.location}
-                onChange={(e) => setForm({ ...form, location: e.target.value })}
-                className={fieldClass}
-              />
-            </label>
+                <label className="grid gap-2">
+                  <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Location</span>
+                  <input
+                    placeholder="Lokasi event"
+                    value={form.location}
+                    onChange={(e) => setForm((prev) => ({ ...prev, location: e.target.value }))}
+                    className={fieldClass}
+                  />
+                </label>
 
-            <label className="grid gap-2">
-              <span className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">Date</span>
-              <input
-                type="date"
-                value={form.event_date}
-                onChange={(e) => setForm({ ...form, event_date: e.target.value })}
-                className={fieldClass}
-              />
-            </label>
+                <label className="grid gap-2">
+                  <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Date</span>
+                  <input
+                    type="date"
+                    value={form.event_date}
+                    onChange={(e) => setForm((prev) => ({ ...prev, event_date: e.target.value }))}
+                    className={fieldClass}
+                  />
+                </label>
 
-            <label className="grid gap-2">
-              <span className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">Status (Public)</span>
-              <select
-                value={form.status}
-                onChange={(e) => setForm({ ...form, status: e.target.value as EventItem['status'] })}
-                className={fieldClass}
-              >
-                <option value="UPCOMING">UPCOMING</option>
-                <option value="LIVE">LIVE</option>
-                <option value="FINISHED">FINISHED</option>
-              </select>
-            </label>
+                <label className="grid gap-2">
+                  <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Public Status</span>
+                  <select
+                    value={form.status}
+                    onChange={(e) => setForm((prev) => ({ ...prev, status: e.target.value as EventItem['status'] }))}
+                    className={fieldClass}
+                  >
+                    <option value="UPCOMING">UPCOMING</option>
+                    <option value="LIVE">LIVE</option>
+                    <option value="FINISHED">FINISHED</option>
+                  </select>
+                </label>
 
-            <label className="grid gap-2">
-              <span className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">Event Type</span>
-              <select
-                value={form.visibility}
-                onChange={(e) => setForm({ ...form, visibility: e.target.value as 'PUBLIC' | 'INTERNAL' })}
-                className={fieldClass}
-              >
-                <option value="PUBLIC">Public Event</option>
-                <option value="INTERNAL">Internal Event</option>
-              </select>
-            </label>
+                <label className="grid gap-2">
+                  <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Event Type</span>
+                  <select
+                    value={form.visibility}
+                    onChange={(e) => setForm((prev) => ({ ...prev, visibility: e.target.value as 'PUBLIC' | 'INTERNAL' }))}
+                    className={fieldClass}
+                  >
+                    <option value="PUBLIC">Public Event</option>
+                    <option value="INTERNAL">Internal Event</option>
+                  </select>
+                </label>
 
-            <label className="grid gap-2">
-              <span className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">Draw Mode</span>
-              <select
-                value={form.draw_mode}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    draw_mode: e.target.value as NonNullable<EventItem['draw_mode']>,
-                  })
-                }
-                className={fieldClass}
-              >
-                <option value="internal_live_draw">Internal Live Draw</option>
-                <option value="external_draw">External Draw (Paste Order)</option>
-              </select>
-            </label>
-          </div>
+                <label className="grid gap-2 md:col-span-2">
+                  <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Draw Mode</span>
+                  <select
+                    value={form.draw_mode}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        draw_mode: e.target.value as NonNullable<EventItem['draw_mode']>,
+                      }))
+                    }
+                    className={fieldClass}
+                  >
+                    <option value="internal_live_draw">Internal Live Draw</option>
+                    <option value="external_draw">External Draw (Paste Order)</option>
+                  </select>
+                </label>
+              </div>
+            </div>
 
-          <div className="mt-4">
-            <button
-              type="button"
-              onClick={handleCreate}
-              disabled={creating}
-              className={`${buttonClass} w-full border border-amber-300 bg-amber-400 text-slate-900 hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto`}
-            >
-              {creating ? 'Creating...' : 'Create Event'}
-            </button>
+            <div className="rounded-[1.75rem] border border-slate-200 bg-slate-50 p-5">
+              <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Before create</div>
+              <div className="mt-3 text-xl font-black tracking-tight text-slate-950">Checklist singkat</div>
+              <ul className="mt-4 grid gap-3 text-sm font-semibold leading-6 text-slate-600">
+                <li>- Nama event gunakan versi final agar URL dan branding konsisten.</li>
+                <li>- Pilih tipe internal bila event tidak ditampilkan ke publik umum.</li>
+                <li>- Gunakan external draw hanya kalau urutan start disiapkan manual.</li>
+              </ul>
+              <button type="button" onClick={handleCreate} disabled={creating} className={`${primaryButtonClass} mt-6 w-full`}>
+                {creating ? 'Creating Event…' : 'Create Event'}
+              </button>
+            </div>
           </div>
         </section>
       ) : null}
 
-      <section className="rounded-[1.5rem] border border-slate-700 bg-slate-900/75 p-4 shadow-[0_20px_44px_rgba(2,6,23,0.26)] sm:p-6">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      <section className="admin-surface overflow-hidden px-6 py-6 lg:px-8">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="grid gap-1">
-            <div className="text-xl font-black tracking-tight text-slate-50">Event List</div>
-            <div className="text-sm font-semibold text-slate-300">
-              Dari card ini kamu bisa langsung masuk ke manage event, settings, atau public page.
-            </div>
+            <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Event Directory</div>
+            <h2 className="text-2xl font-black tracking-tight text-slate-950">Filter event tanpa visual yang terlalu berat.</h2>
+            <p className="max-w-3xl text-sm font-semibold leading-6 text-slate-500">
+              Search, status, dan scope sekarang disusun seperti control bar agar daftar event lebih cepat dibaca saat data
+              sudah mulai banyak.
+            </p>
           </div>
-          <button
-            type="button"
-            onClick={() => void loadEvents()}
-            disabled={loading}
-            className={`${buttonClass} border border-slate-500 bg-slate-800 text-slate-100 hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60`}
-          >
-            {loading ? 'Loading...' : 'Refresh'}
-          </button>
+          <div className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-500">
+            {loading ? 'Memuat daftar event…' : `${filteredEvents.length} event tampil`}
+          </div>
         </div>
 
-        <div className="mt-4">
+        <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1.4fr)_220px_220px]">
           <input
-            placeholder="Cari event (nama / lokasi / tanggal)"
+            placeholder="Cari event berdasarkan nama, lokasi, atau tanggal"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="w-full rounded-2xl border border-slate-700 bg-slate-950/60 px-4 py-3 text-sm font-semibold text-slate-100 outline-none transition focus:border-amber-300 focus:ring-2 focus:ring-amber-300/30"
+            className={fieldClass}
           />
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as StatusFilter)} className={fieldClass}>
+            <option value="ALL">Semua Status</option>
+            <option value="UPCOMING">Upcoming</option>
+            <option value="LIVE">Live</option>
+            <option value="FINISHED">Finished</option>
+            <option value="PROVISIONAL">Provisional</option>
+            <option value="PROTEST_REVIEW">Protest Review</option>
+            <option value="LOCKED">Locked</option>
+          </select>
+          <select value={scopeFilter} onChange={(e) => setScopeFilter(e.target.value as ScopeFilter)} className={fieldClass}>
+            <option value="ALL">Semua Tipe Event</option>
+            <option value="PUBLIC">Public Event</option>
+            <option value="INTERNAL">Internal Event</option>
+          </select>
         </div>
 
-        <div className="mt-4 grid gap-4">
-          {filteredEvents.map((ev) => {
-            const eventScope = ev.event_scope === 'INTERNAL' ? 'INTERNAL' : 'PUBLIC'
-            const scopeTheme =
-              eventScope === 'INTERNAL'
-                ? { border: 'border-rose-200', background: 'bg-rose-50', color: 'text-rose-700', label: 'Internal Event' }
-                : { border: 'border-emerald-200', background: 'bg-emerald-50', color: 'text-emerald-700', label: 'Public Event' }
+        <div className="mt-6 grid gap-4">
+          {filteredEvents.map((event) => {
+            const statusMeta = STATUS_META[event.status]
+            const eventScope = event.event_scope === 'INTERNAL' ? 'INTERNAL' : 'PUBLIC'
+            const isPublic = event.is_public !== false
+            const drawMode = event.draw_mode === 'external_draw' ? 'External Draw' : 'Internal Live Draw'
+            const busy = Boolean(actionKey && actionKey.includes(event.id))
 
             return (
               <article
-                key={ev.id}
-                className="grid gap-4 rounded-[1.4rem] border border-slate-200 bg-white p-4 text-slate-900 shadow-[0_14px_32px_rgba(15,23,42,0.08)] sm:p-5"
+                key={event.id}
+                className="grid gap-5 rounded-[1.7rem] border border-slate-200 bg-[linear-gradient(135deg,#ffffff_0%,#ffffff_72%,#f8fafc_100%)] p-5 shadow-[0_14px_34px_rgba(15,23,42,0.05)]"
               >
-                <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                  <div className="grid gap-2">
-                    <div className="text-xl font-black tracking-tight text-slate-900">{ev.name}</div>
-                    <div className="flex flex-wrap gap-2">
-                      <div className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.12em] ${scopeTheme.border} ${scopeTheme.background} ${scopeTheme.color}`}>
-                        {scopeTheme.label}
-                      </div>
-                      <div
-                        className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.12em] ${
-                          ev.is_public === false
+                <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+                  <div className="grid gap-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] ${statusMeta.className}`}>
+                        {statusMeta.label}
+                      </span>
+                      <span
+                        className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] ${
+                          eventScope === 'INTERNAL'
                             ? 'border-rose-200 bg-rose-50 text-rose-700'
-                            : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                            : 'border-sky-200 bg-sky-50 text-sky-700'
                         }`}
                       >
-                        {ev.is_public === false ? 'Hidden from Public' : 'Shown on Public'}
-                      </div>
-                      <div className="inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.12em] text-slate-600">
-                        Draw Mode: {ev.draw_mode === 'external_draw' ? 'External Draw' : 'Internal Live Draw'}
+                        {eventScope === 'INTERNAL' ? 'Internal Event' : 'Public Event'}
+                      </span>
+                      <span
+                        className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] ${
+                          isPublic
+                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                            : 'border-slate-200 bg-slate-100 text-slate-600'
+                        }`}
+                      >
+                        {isPublic ? 'Shown on Public' : 'Hidden from Public'}
+                      </span>
+                    </div>
+
+                    <div className="grid gap-1">
+                      <h3 className="text-2xl font-black tracking-tight text-slate-950">{event.name}</h3>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm font-semibold text-slate-500">
+                        <span>{event.location || 'Lokasi belum diisi'}</span>
+                        <span>{formatDate(event.event_date)}</span>
+                        <span>{drawMode}</span>
                       </div>
                     </div>
-                    <div className="text-sm font-semibold text-slate-600">
-                      {ev.location || '-'} | {ev.event_date}
+
+                    <div className="flex flex-wrap gap-2">
+                      <Link href={`/admin/events/${event.id}/registrations`} className={primaryButtonClass}>
+                        Manage Event
+                      </Link>
+                      <Link href={`/admin/events/${event.id}/settings`} className={subtleButtonClass}>
+                        Event Settings
+                      </Link>
+                      <Link href={`/event/${event.id}`} className={subtleButtonClass}>
+                        Public Page
+                      </Link>
                     </div>
                   </div>
 
-                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1 xl:min-w-[220px]">
-                    <select
-                      value={ev.status}
-                      onChange={(e) => handleStatus(ev.id, e.target.value as EventItem['status'])}
-                      className={fieldClass}
-                    >
-                      <option value="UPCOMING">UPCOMING</option>
-                      <option value="LIVE">LIVE</option>
-                      <option value="FINISHED">FINISHED</option>
-                    </select>
+                  <div className="grid gap-3 xl:min-w-[260px]">
+                    <label className="grid gap-2">
+                      <span className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Status</span>
+                      <select
+                        value={event.status}
+                        onChange={(e) => void handleStatus(event, e.target.value as EventItem['status'])}
+                        className={fieldClass}
+                        disabled={busy}
+                      >
+                        <option value="UPCOMING">UPCOMING</option>
+                        <option value="LIVE">LIVE</option>
+                        <option value="FINISHED">FINISHED</option>
+                        <option value="PROVISIONAL">PROVISIONAL</option>
+                        <option value="PROTEST_REVIEW">PROTEST_REVIEW</option>
+                        <option value="LOCKED">LOCKED</option>
+                      </select>
+                    </label>
 
-                    <button
-                      type="button"
-                      onClick={() => handleVisibility(ev.id, !(ev.is_public ?? true))}
-                      className={`${buttonClass} border border-slate-300 bg-white text-slate-800 hover:bg-slate-100`}
-                    >
-                      {ev.is_public === false ? 'Show on Public' : 'Hide from Public'}
-                    </button>
+                    <label className="grid gap-2">
+                      <span className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Draw Mode</span>
+                      <select
+                        value={event.draw_mode === 'external_draw' ? 'external_draw' : 'internal_live_draw'}
+                        onChange={(e) => void handleDrawMode(event, e.target.value as NonNullable<EventItem['draw_mode']>)}
+                        className={fieldClass}
+                        disabled={busy}
+                      >
+                        <option value="internal_live_draw">Internal Live Draw</option>
+                        <option value="external_draw">External Draw</option>
+                      </select>
+                    </label>
 
-                    <select
-                      value={ev.draw_mode === 'external_draw' ? 'external_draw' : 'internal_live_draw'}
-                      onChange={(e) => handleDrawMode(ev.id, e.target.value as NonNullable<EventItem['draw_mode']>)}
-                      className={fieldClass}
-                    >
-                      <option value="internal_live_draw">Internal Live Draw</option>
-                      <option value="external_draw">External Draw</option>
-                    </select>
-
-                    <select
-                      value={ev.event_scope === 'INTERNAL' ? 'INTERNAL' : 'PUBLIC'}
-                      onChange={(e) => handleEventScope(ev.id, e.target.value as NonNullable<EventItem['event_scope']>)}
-                      className={fieldClass}
-                    >
-                      <option value="PUBLIC">Public Event Type</option>
-                      <option value="INTERNAL">Internal Event Type</option>
-                    </select>
+                    <label className="grid gap-2">
+                      <span className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Event Type</span>
+                      <select
+                        value={eventScope}
+                        onChange={(e) => void handleEventScope(event, e.target.value as NonNullable<EventItem['event_scope']>)}
+                        className={fieldClass}
+                        disabled={busy}
+                      >
+                        <option value="PUBLIC">Public Event</option>
+                        <option value="INTERNAL">Internal Event</option>
+                      </select>
+                    </label>
                   </div>
                 </div>
 
-                <div className="flex flex-wrap gap-2">
-                  <Link
-                    href={`/admin/events/${ev.id}/registrations`}
-                    className={`${buttonClass} border border-amber-300 bg-amber-400 text-slate-900 hover:bg-amber-300`}
-                  >
-                    Manage Event
-                  </Link>
-                  <Link
-                    href={`/admin/events/${ev.id}/settings`}
-                    className={`${buttonClass} border border-slate-300 bg-white text-slate-800 hover:bg-slate-100`}
-                  >
-                    Event Settings
-                  </Link>
+                <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-4">
                   <button
                     type="button"
-                    onClick={() => handleEdit(ev)}
-                    className={`${buttonClass} border border-slate-300 bg-white text-slate-800 hover:bg-slate-100`}
+                    onClick={() => void handleVisibility(event, !isPublic)}
+                    className={subtleButtonClass}
+                    disabled={busy}
                   >
-                    Edit
+                    {isPublic ? 'Hide from Public' : 'Show on Public'}
+                  </button>
+                  <button type="button" onClick={() => void handleEdit(event)} className={subtleButtonClass} disabled={busy}>
+                    Edit Basics
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleDelete(ev.id)}
-                    className={`${buttonClass} border border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100`}
+                    onClick={() => void handleDelete(event)}
+                    className="inline-flex items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-bold text-rose-700 transition-colors hover:bg-rose-100"
+                    disabled={busy}
                   >
-                    Delete
+                    Delete Event
                   </button>
-                  <Link
-                    href={`/event/${ev.id}`}
-                    className={`${buttonClass} border border-slate-300 bg-white text-slate-800 hover:bg-slate-100`}
-                  >
-                    Public Page
-                  </Link>
+                  {busy && (
+                    <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-black uppercase tracking-[0.14em] text-amber-700">
+                      Saving…
+                    </span>
+                  )}
                 </div>
               </article>
             )
           })}
 
           {!loading && filteredEvents.length === 0 && (
-            <div className="rounded-[1.35rem] border border-dashed border-slate-600 bg-slate-950/45 p-5 text-sm font-semibold text-slate-300">
-              Belum ada event.
+            <div className="rounded-[1.7rem] border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center">
+              <div className="text-lg font-black tracking-tight text-slate-900">Belum ada event yang cocok.</div>
+              <div className="mt-2 text-sm font-semibold text-slate-500">
+                Coba ubah filter, kata kunci pencarian, atau buat event baru kalau memang belum ada data.
+              </div>
             </div>
           )}
         </div>
