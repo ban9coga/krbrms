@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../lib/auth'
+import { isMissingPrimaryCategoryColumnError } from '../../../../lib/categoryAssignment'
 
 const MIN_BIRTH_YEAR = 2016
 const MAX_BIRTH_YEAR = 2025
@@ -98,11 +99,19 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ riderI
     photo_thumbnail_url,
   } = body ?? {}
 
-  const { data: rider, error: riderError } = await adminClient
+  let { data: rider, error: riderError } = await adminClient
     .from('riders')
     .select('id, event_id, primary_category_id, date_of_birth, gender, plate_number, plate_suffix')
     .eq('id', riderId)
     .single()
+
+  if (riderError && isMissingPrimaryCategoryColumnError(riderError.message)) {
+    ;({ data: rider, error: riderError } = await adminClient
+      .from('riders')
+      .select('id, event_id, date_of_birth, gender, plate_number, plate_suffix')
+      .eq('id', riderId)
+      .single())
+  }
 
   if (riderError || !rider) return NextResponse.json({ error: 'Rider not found' }, { status: 404 })
 
@@ -203,7 +212,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ riderI
     }
   }
 
-  const { data, error } = await adminClient
+  let { data, error } = await adminClient
     .from('riders')
     .update({
       name,
@@ -221,6 +230,26 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ riderI
     .eq('id', riderId)
     .select('*')
     .single()
+
+  if (error && isMissingPrimaryCategoryColumnError(error.message)) {
+    ;({ data, error } = await adminClient
+      .from('riders')
+      .update({
+        name,
+        rider_nickname: typeof rider_nickname === 'string' ? rider_nickname.trim() || null : undefined,
+        jersey_size: typeof jersey_size === 'string' ? jersey_size : undefined,
+        date_of_birth,
+        gender,
+        plate_number: hasPlateNumber ? nextPlateNumber : undefined,
+        plate_suffix: hasPlateSuffix ? nextPlateSuffix : undefined,
+        club,
+        photo_url,
+        photo_thumbnail_url,
+      })
+      .eq('id', riderId)
+      .select('*')
+      .single())
+  }
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json({ data })

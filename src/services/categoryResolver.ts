@@ -1,7 +1,7 @@
 'use server'
 
 import { adminClient } from '../lib/auth'
-import { riderBelongsToPrimaryCategory } from '../lib/categoryAssignment'
+import { isMissingPrimaryCategoryColumnError, riderBelongsToPrimaryCategory } from '../lib/categoryAssignment'
 import { FINAL_CLASS_ORDER } from './raceStageEngine'
 
 export type StageFlags = {
@@ -77,15 +77,44 @@ export async function resolveCategoryConfig(categoryId: string, override?: Resol
     }
 
     const eventId = category.event_id as string
-    const { data: riders, error: riderError } = await adminClient
-      .from('riders')
-      .select('id, primary_category_id, birth_year, date_of_birth, gender')
-      .eq('event_id', eventId)
+    let riders:
+      | Array<{ primary_category_id?: string | null; birth_year?: number | null; date_of_birth?: string | null; gender: 'BOY' | 'GIRL' }>
+      | null = null
+    {
+      const withPrimary = await adminClient
+        .from('riders')
+        .select('id, primary_category_id, birth_year, date_of_birth, gender')
+        .eq('event_id', eventId)
 
-    if (riderError) {
-      const warning = 'Failed to count riders. Resolver skipped.'
-      console.warn(warning)
-      return DEFAULT_RESULT(categoryId, eventId, 0, warning)
+      if (withPrimary.error && !isMissingPrimaryCategoryColumnError(withPrimary.error.message)) {
+        const warning = 'Failed to count riders. Resolver skipped.'
+        console.warn(warning)
+        return DEFAULT_RESULT(categoryId, eventId, 0, warning)
+      }
+
+      if (withPrimary.error) {
+        const legacy = await adminClient
+          .from('riders')
+          .select('id, birth_year, date_of_birth, gender')
+          .eq('event_id', eventId)
+        if (legacy.error) {
+          const warning = 'Failed to count riders. Resolver skipped.'
+          console.warn(warning)
+          return DEFAULT_RESULT(categoryId, eventId, 0, warning)
+        }
+        riders = (legacy.data ?? []) as Array<{
+          birth_year?: number | null
+          date_of_birth?: string | null
+          gender: 'BOY' | 'GIRL'
+        }>
+      } else {
+        riders = (withPrimary.data ?? []) as Array<{
+          primary_category_id?: string | null
+          birth_year?: number | null
+          date_of_birth?: string | null
+          gender: 'BOY' | 'GIRL'
+        }>
+      }
     }
 
     const totalRiders =

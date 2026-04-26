@@ -1,5 +1,5 @@
 import { adminClient } from '../lib/auth'
-import { riderBelongsToPrimaryCategory } from '../lib/categoryAssignment'
+import { isMissingPrimaryCategoryColumnError, riderBelongsToPrimaryCategory } from '../lib/categoryAssignment'
 
 type CategoryGender = 'BOY' | 'GIRL' | 'MIX'
 
@@ -37,14 +37,30 @@ export const buildCategoryOccupancyBreakdown = async (
   const approvedCounts = new Map<string, number>()
   const pendingCounts = new Map<string, number>()
 
-  const { data: riders, error: ridersError } = await adminClient
-    .from('riders')
-    .select('primary_category_id, birth_year, date_of_birth, gender')
-    .eq('event_id', eventId)
+  let riders: RiderRow[] = []
+  {
+    const withPrimary = await adminClient
+      .from('riders')
+      .select('primary_category_id, birth_year, date_of_birth, gender')
+      .eq('event_id', eventId)
 
-  if (ridersError) throw new Error(ridersError.message)
+    if (withPrimary.error && !isMissingPrimaryCategoryColumnError(withPrimary.error.message)) {
+      throw new Error(withPrimary.error.message)
+    }
 
-  for (const rider of (riders ?? []) as RiderRow[]) {
+    if (withPrimary.error) {
+      const legacy = await adminClient
+        .from('riders')
+        .select('birth_year, date_of_birth, gender')
+        .eq('event_id', eventId)
+      if (legacy.error) throw new Error(legacy.error.message)
+      riders = (legacy.data ?? []) as RiderRow[]
+    } else {
+      riders = (withPrimary.data ?? []) as RiderRow[]
+    }
+  }
+
+  for (const rider of riders) {
     for (const category of categories) {
       if (!riderBelongsToPrimaryCategory(rider, category)) continue
       increaseCount(approvedCounts, category.id)

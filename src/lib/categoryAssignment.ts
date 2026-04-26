@@ -17,6 +17,17 @@ export type RiderCategorySnapshot = {
   gender: RiderCategoryGender
 }
 
+export const isMissingPrimaryCategoryColumnError = (message?: string | null) => {
+  const normalized = String(message ?? '').toLowerCase()
+  return (
+    normalized.includes('primary_category_id') &&
+    (normalized.includes('column') ||
+      normalized.includes('schema cache') ||
+      normalized.includes('could not find the') ||
+      normalized.includes('does not exist'))
+  )
+}
+
 export const getCategoryMinYear = (category: Pick<CategoryAssignmentItem, 'year' | 'year_min'>) =>
   category.year_min ?? category.year
 

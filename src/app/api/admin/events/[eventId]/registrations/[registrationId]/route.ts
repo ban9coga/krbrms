@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../../../lib/auth'
+import { isMissingPrimaryCategoryColumnError } from '../../../../../../../lib/categoryAssignment'
 import { buildCategoryOccupancyMap } from '../../../../../../../services/categoryOccupancy'
 
 const REGISTRATION_BUCKET = process.env.NEXT_PUBLIC_REGISTRATION_BUCKET || 'registration-docs'
@@ -335,7 +336,7 @@ export async function PATCH(
         ? item.primary_category_id
         : await resolveCategory(eventId, birthYear, item.gender)
 
-    const { data: riderRow, error: riderError } = await adminClient
+    let { data: riderRow, error: riderError } = await adminClient
       .from('riders')
       .insert({
         event_id: eventId,
@@ -351,7 +352,27 @@ export async function PATCH(
       })
       .select('id')
       .single()
-    if (riderError) return NextResponse.json({ error: riderError.message }, { status: 400 })
+
+    if (riderError && isMissingPrimaryCategoryColumnError(riderError.message)) {
+      ;({ data: riderRow, error: riderError } = await adminClient
+        .from('riders')
+        .insert({
+          event_id: eventId,
+          name: item.rider_name,
+          rider_nickname: item.rider_nickname ?? null,
+          jersey_size: item.jersey_size ?? null,
+          date_of_birth: item.date_of_birth,
+          gender: item.gender,
+          plate_number: plateNumber,
+          plate_suffix: plateSuffix,
+          club: item.club ?? null,
+        })
+        .select('id')
+        .single())
+    }
+    if (riderError || !riderRow?.id) {
+      return NextResponse.json({ error: riderError?.message ?? 'Failed creating rider' }, { status: 400 })
+    }
 
     await syncRegistrationPhotoToRider(eventId, riderRow.id, item.photo_url as string | null | undefined)
     createdRiders.push({ rider_id: riderRow.id, extra_category_id: item.extra_category_id })

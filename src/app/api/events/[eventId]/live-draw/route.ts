@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../lib/auth'
+import { isMissingPrimaryCategoryColumnError } from '../../../../../lib/categoryAssignment'
 
 type CategoryRow = {
   id: string
@@ -98,10 +99,16 @@ const loadCategory = async (eventId: string, categoryId: string) => {
 const loadRidersForCategory = async (eventId: string, category: CategoryRow) => {
   const minYear = category.year_min ?? category.year
   const maxYear = category.year_max ?? category.year
-  let query = adminClient
-    .from('riders')
-    .select('id, name, no_plate_display, plate_number, plate_suffix, birth_year, primary_category_id, gender')
-    .eq('event_id', eventId)
+  const buildQuery = (supportsPrimaryCategory: boolean) =>
+    adminClient
+      .from('riders')
+      .select(
+        supportsPrimaryCategory
+          ? 'id, name, no_plate_display, plate_number, plate_suffix, birth_year, primary_category_id, gender'
+          : 'id, name, no_plate_display, plate_number, plate_suffix, birth_year, gender'
+      )
+      .eq('event_id', eventId)
+  let query = buildQuery(true)
   const { data: extraRows } = await adminClient
     .from('rider_extra_categories')
     .select('rider_id')
@@ -109,20 +116,51 @@ const loadRidersForCategory = async (eventId: string, category: CategoryRow) => 
     .eq('category_id', category.id)
   const extraIds = (extraRows ?? []).map((row) => row.rider_id)
 
-  const legacyFilter =
-    category.gender === 'MIX'
-      ? `and(primary_category_id.is.null,birth_year.gte.${minYear},birth_year.lte.${maxYear})`
-      : `and(primary_category_id.is.null,birth_year.gte.${minYear},birth_year.lte.${maxYear},gender.eq.${category.gender})`
-  const filters = [`primary_category_id.eq.${category.id}`, legacyFilter]
-  if (extraIds.length > 0) {
-    filters.push(`id.in.(${extraIds.join(',')})`)
+  const withPrimaryFilters = () => {
+    const legacyFilter =
+      category.gender === 'MIX'
+        ? `and(primary_category_id.is.null,birth_year.gte.${minYear},birth_year.lte.${maxYear})`
+        : `and(primary_category_id.is.null,birth_year.gte.${minYear},birth_year.lte.${maxYear},gender.eq.${category.gender})`
+    const filters = [`primary_category_id.eq.${category.id}`, legacyFilter]
+    if (extraIds.length > 0) {
+      filters.push(`id.in.(${extraIds.join(',')})`)
+    }
+    return filters.join(',')
   }
-  query = query.or(filters.join(','))
-  const { data, error } = await query
-    .order('plate_number', { ascending: true })
-    .order('plate_suffix', { ascending: true, nullsFirst: true })
+
+  const legacyQuery = () => {
+    let nextQuery = buildQuery(false)
+    if (extraIds.length > 0) {
+      const baseFilter =
+        category.gender === 'MIX'
+          ? `and(birth_year.gte.${minYear},birth_year.lte.${maxYear})`
+          : `and(birth_year.gte.${minYear},birth_year.lte.${maxYear},gender.eq.${category.gender})`
+      nextQuery = nextQuery.or(`${baseFilter},id.in.(${extraIds.join(',')})`)
+    } else {
+      nextQuery = nextQuery.gte('birth_year', minYear).lte('birth_year', maxYear)
+      if (category.gender !== 'MIX') {
+        nextQuery = nextQuery.eq('gender', category.gender)
+      }
+    }
+    return nextQuery
+  }
+
+  query = query.or(withPrimaryFilters())
+  let { data, error } = await query
+  if (error && isMissingPrimaryCategoryColumnError(error.message)) {
+    ;({ data, error } = await legacyQuery())
+  }
+
   if (error) return { data: null, error }
-  return { data: (data ?? []) as RiderRow[], error: null }
+  const rows = (data ?? []) as unknown as RiderRow[]
+  return {
+    data: rows.sort((a, b) => {
+      const plateCompare = String(a.plate_number).localeCompare(String(b.plate_number), undefined, { numeric: true })
+      if (plateCompare !== 0) return plateCompare
+      return String(a.plate_suffix ?? '').localeCompare(String(b.plate_suffix ?? ''))
+    }),
+    error: null,
+  }
 }
 
 const tableExists = async (tableName: string) => {

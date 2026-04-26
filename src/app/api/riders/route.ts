@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../lib/auth'
+import { isMissingPrimaryCategoryColumnError } from '../../../lib/categoryAssignment'
 
 const MIN_BIRTH_YEAR = 2016
 const MAX_BIRTH_YEAR = 2025
@@ -82,15 +83,24 @@ export async function GET(req: Request) {
   const q = searchParams.get('q')
   const from = (page - 1) * pageSize
   const to = from + pageSize - 1
-  let query = adminClient
-    .from('riders')
-    .select(
-      'id, event_id, name, rider_nickname, jersey_size, date_of_birth, birth_year, primary_category_id, gender, plate_number, plate_suffix, no_plate_display, club, photo_url, photo_thumbnail_url',
-      { count: 'exact' }
-    )
-    .order('plate_number', { ascending: true })
-    .order('plate_suffix', { ascending: true, nullsFirst: true })
-  if (eventId) query = query.eq('event_id', eventId)
+
+  const buildQuery = (supportsPrimaryCategory: boolean) => {
+    let query = adminClient
+      .from('riders')
+      .select(
+        supportsPrimaryCategory
+          ? 'id, event_id, name, rider_nickname, jersey_size, date_of_birth, birth_year, primary_category_id, gender, plate_number, plate_suffix, no_plate_display, club, photo_url, photo_thumbnail_url'
+          : 'id, event_id, name, rider_nickname, jersey_size, date_of_birth, birth_year, gender, plate_number, plate_suffix, no_plate_display, club, photo_url, photo_thumbnail_url',
+        { count: 'exact' }
+      )
+      .order('plate_number', { ascending: true })
+      .order('plate_suffix', { ascending: true, nullsFirst: true })
+    if (eventId) query = query.eq('event_id', eventId)
+    return query
+  }
+
+  let supportsPrimaryCategory = true
+  let query = buildQuery(true)
   if (categoryId) {
     const { data: category, error: categoryError } = await adminClient
       .from('categories')
@@ -112,19 +122,71 @@ export async function GET(req: Request) {
 
     const minYear = (category.year_min ?? category.year) as number
     const maxYear = (category.year_max ?? category.year) as number
-    const legacyFilter =
-      category.gender === 'MIX'
-        ? `and(primary_category_id.is.null,birth_year.gte.${minYear},birth_year.lte.${maxYear})`
-        : `and(primary_category_id.is.null,birth_year.gte.${minYear},birth_year.lte.${maxYear},gender.eq.${category.gender})`
-    const filters = [`primary_category_id.eq.${categoryId}`, legacyFilter]
-    if (extraIds.length > 0) {
-      filters.push(`id.in.(${extraIds.join(',')})`)
+    if (supportsPrimaryCategory) {
+      const legacyFilter =
+        category.gender === 'MIX'
+          ? `and(primary_category_id.is.null,birth_year.gte.${minYear},birth_year.lte.${maxYear})`
+          : `and(primary_category_id.is.null,birth_year.gte.${minYear},birth_year.lte.${maxYear},gender.eq.${category.gender})`
+      const filters = [`primary_category_id.eq.${categoryId}`, legacyFilter]
+      if (extraIds.length > 0) {
+        filters.push(`id.in.(${extraIds.join(',')})`)
+      }
+      query = query.or(filters.join(','))
+    } else if (extraIds.length > 0) {
+      const baseFilter =
+        category.gender === 'MIX'
+          ? `and(birth_year.gte.${minYear},birth_year.lte.${maxYear})`
+          : `and(birth_year.gte.${minYear},birth_year.lte.${maxYear},gender.eq.${category.gender})`
+      const orFilter = `${baseFilter},id.in.(${extraIds.join(',')})`
+      query = query.or(orFilter)
+    } else {
+      query = query.gte('birth_year', minYear).lte('birth_year', maxYear)
+      if (category.gender !== 'MIX') {
+        query = query.eq('gender', category.gender)
+      }
     }
-    query = query.or(filters.join(','))
   }
   if (q) query = query.or(`name.ilike.%${q}%,rider_nickname.ilike.%${q}%,no_plate_display.ilike.%${q}%`)
   query = query.range(from, to)
-  const { data, error, count } = await query
+  let { data, error, count } = await query
+  if (error && isMissingPrimaryCategoryColumnError(error.message)) {
+    supportsPrimaryCategory = false
+    query = buildQuery(false)
+    if (categoryId) {
+      const { data: category } = await adminClient
+        .from('categories')
+        .select('id, event_id, year, year_min, year_max, gender')
+        .eq('id', categoryId)
+        .maybeSingle()
+      if (!category || category.event_id !== eventId) {
+        return NextResponse.json({ error: 'Invalid category_id' }, { status: 400 })
+      }
+      const { data: extraRows } = await adminClient
+        .from('rider_extra_categories')
+        .select('rider_id')
+        .eq('event_id', eventId)
+        .eq('category_id', categoryId)
+      const extraIds = (extraRows ?? []).map((row) => row.rider_id)
+      const minYear = (category.year_min ?? category.year) as number
+      const maxYear = (category.year_max ?? category.year) as number
+      if (extraIds.length > 0) {
+        const baseFilter =
+          category.gender === 'MIX'
+            ? `and(birth_year.gte.${minYear},birth_year.lte.${maxYear})`
+            : `and(birth_year.gte.${minYear},birth_year.lte.${maxYear},gender.eq.${category.gender})`
+        const orFilter = `${baseFilter},id.in.(${extraIds.join(',')})`
+        query = query.or(orFilter)
+      } else {
+        query = query.gte('birth_year', minYear).lte('birth_year', maxYear)
+        if (category.gender !== 'MIX') {
+          query = query.eq('gender', category.gender)
+        }
+      }
+    }
+    if (q) query = query.or(`name.ilike.%${q}%,rider_nickname.ilike.%${q}%,no_plate_display.ilike.%${q}%`)
+    query = query.range(from, to)
+    ;({ data, error, count } = await query)
+  }
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json({ data, page, page_size: pageSize, total: count ?? 0 })
 }
@@ -227,7 +289,7 @@ export async function POST(req: Request) {
 
   const categoryId = await resolveCategory(event_id, birthYear, gender)
 
-  const { data, error } = await adminClient
+  let { data, error } = await adminClient
     .from('riders')
     .insert([
       {
@@ -245,6 +307,26 @@ export async function POST(req: Request) {
     ])
     .select('*')
     .single()
+
+  if (error && isMissingPrimaryCategoryColumnError(error.message)) {
+    ;({ data, error } = await adminClient
+      .from('riders')
+      .insert([
+        {
+          event_id,
+          name,
+          rider_nickname: typeof rider_nickname === 'string' ? rider_nickname.trim() || null : null,
+          jersey_size: typeof jersey_size === 'string' ? jersey_size : null,
+          date_of_birth,
+          gender,
+          plate_number: plateNumber,
+          plate_suffix: normalizedSuffix,
+          club,
+        },
+      ])
+      .select('*')
+      .single())
+  }
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json({ data, category_id: categoryId })
