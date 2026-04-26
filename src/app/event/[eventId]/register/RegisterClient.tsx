@@ -484,6 +484,16 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     const issue = getPrimaryCategoryIssue(birthYear, rider.gender, rider.primaryCategoryId)
     return issue === 'invalid'
   })
+  const hasPrimaryCategoryAndFallbackFull = riders.some((rider) => {
+    const birthYear = rider.dateOfBirth ? new Date(rider.dateOfBirth).getUTCFullYear() : null
+    const issue = getPrimaryCategoryIssue(birthYear, rider.gender, rider.primaryCategoryId)
+    return issue === 'full'
+  })
+  const hasPrimaryCategoryNeedsFallbackChoice = riders.some((rider) => {
+    const birthYear = rider.dateOfBirth ? new Date(rider.dateOfBirth).getUTCFullYear() : null
+    const issue = getPrimaryCategoryIssue(birthYear, rider.gender, rider.primaryCategoryId)
+    return issue === 'fallback_required'
+  })
   const hasPrimaryCategorySlotFull = riders.some((rider) => {
     const birthYear = rider.dateOfBirth ? new Date(rider.dateOfBirth).getUTCFullYear() : null
     const issue = getPrimaryCategoryIssue(birthYear, rider.gender, rider.primaryCategoryId)
@@ -633,7 +643,13 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
       return
     }
     if (hasPrimaryCategorySlotFull) {
-      openSlotFullModal('Salah satu kategori utama rider penuh. Pilih kategori pengganti yang tersedia.')
+      openSlotFullModal(
+        hasPrimaryCategoryAndFallbackFull
+          ? 'Kategori sesuai umur penuh, dan semua kategori di atas umur rider juga penuh.'
+          : hasPrimaryCategoryNeedsFallbackChoice
+          ? 'Kategori sesuai umur penuh. Pilih kategori pengganti yang tersedia.'
+          : 'Salah satu kategori utama rider penuh.'
+      )
       return
     }
     if (hasMissingPrimaryCategory) {
@@ -1013,7 +1029,9 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
             !birthYear
               ? 'Isi tanggal lahir dulu agar sistem bisa menghitung kategori tambahan yang mungkin diikuti rider.'
               : !primaryCategory
-              ? hasMatchedFullCategory
+              ? primaryIssue === 'full'
+                ? 'Kategori utama dan semua kategori di atas umur rider sedang penuh.'
+                : hasMatchedFullCategory
                 ? 'Pilih kategori utama pengganti dulu.'
                 : 'Kategori tambahan baru akan muncul setelah kategori utama rider berhasil terdeteksi.'
               : extras.length === 0
@@ -1147,7 +1165,9 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                   )}
                   {!primaryCategory && (
                     <div className="mt-2 text-xs font-semibold text-amber-300">
-                      {primaryIssue === 'fallback_required'
+                      {primaryIssue === 'full'
+                        ? 'Kategori sesuai umur penuh, dan semua kategori di atas umur rider juga penuh.'
+                        : primaryIssue === 'fallback_required'
                         ? 'Kategori sesuai umur penuh. Pilih kategori di atas umur rider.'
                         : hasMatchedFullCategory
                         ? 'Kategori untuk rider ini tersedia, tetapi kuotanya sudah penuh.'
