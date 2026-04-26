@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../lib/auth'
-import { isMissingPrimaryCategoryColumnError } from '../../../../lib/categoryAssignment'
+import {
+  isMissingPrimaryCategoryColumnError,
+  missingPrimaryCategoryMigrationMessage,
+} from '../../../../lib/categoryAssignment'
 
 const MIN_BIRTH_YEAR = 2016
 const MAX_BIRTH_YEAR = 2025
@@ -212,7 +215,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ riderI
     }
   }
 
-  let { data, error } = await adminClient
+  const { data, error } = await adminClient
     .from('riders')
     .update({
       name,
@@ -232,23 +235,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ riderI
     .single()
 
   if (error && isMissingPrimaryCategoryColumnError(error.message)) {
-    ;({ data, error } = await adminClient
-      .from('riders')
-      .update({
-        name,
-        rider_nickname: typeof rider_nickname === 'string' ? rider_nickname.trim() || null : undefined,
-        jersey_size: typeof jersey_size === 'string' ? jersey_size : undefined,
-        date_of_birth,
-        gender,
-        plate_number: hasPlateNumber ? nextPlateNumber : undefined,
-        plate_suffix: hasPlateSuffix ? nextPlateSuffix : undefined,
-        club,
-        photo_url,
-        photo_thumbnail_url,
-      })
-      .eq('id', riderId)
-      .select('*')
-      .single())
+    return NextResponse.json({ error: missingPrimaryCategoryMigrationMessage }, { status: 500 })
   }
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })

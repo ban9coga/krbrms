@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../lib/auth'
-import { isMissingPrimaryCategoryColumnError } from '../../../lib/categoryAssignment'
+import {
+  isMissingPrimaryCategoryColumnError,
+  missingPrimaryCategoryMigrationMessage,
+} from '../../../lib/categoryAssignment'
 
 const MIN_BIRTH_YEAR = 2016
 const MAX_BIRTH_YEAR = 2025
@@ -289,7 +292,7 @@ export async function POST(req: Request) {
 
   const categoryId = await resolveCategory(event_id, birthYear, gender)
 
-  let { data, error } = await adminClient
+  const { data, error } = await adminClient
     .from('riders')
     .insert([
       {
@@ -309,23 +312,7 @@ export async function POST(req: Request) {
     .single()
 
   if (error && isMissingPrimaryCategoryColumnError(error.message)) {
-    ;({ data, error } = await adminClient
-      .from('riders')
-      .insert([
-        {
-          event_id,
-          name,
-          rider_nickname: typeof rider_nickname === 'string' ? rider_nickname.trim() || null : null,
-          jersey_size: typeof jersey_size === 'string' ? jersey_size : null,
-          date_of_birth,
-          gender,
-          plate_number: plateNumber,
-          plate_suffix: normalizedSuffix,
-          club,
-        },
-      ])
-      .select('*')
-      .single())
+    return NextResponse.json({ error: missingPrimaryCategoryMigrationMessage }, { status: 500 })
   }
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })

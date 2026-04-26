@@ -93,6 +93,7 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
   const [loading, setLoading] = useState(false)
   const [creating, setCreating] = useState(false)
   const [canCreate, setCanCreate] = useState(false)
+  const [showCreateForm, setShowCreateForm] = useState(false)
   const [feedback, setFeedback] = useState<FeedbackState>(null)
   const [actionKey, setActionKey] = useState<string | null>(null)
   const [form, setForm] = useState({
@@ -192,6 +193,7 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
         visibility: 'PUBLIC',
         draw_mode: 'internal_live_draw',
       })
+      setShowCreateForm(false)
       await loadEvents()
       setFeedback({ type: 'success', message: 'Event baru berhasil dibuat.' })
     } catch (err: unknown) {
@@ -346,6 +348,15 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
                 Dashboard
               </Link>
             )}
+            {showCreate && canCreate && (
+              <button
+                type="button"
+                onClick={() => setShowCreateForm((prev) => !prev)}
+                className={subtleButtonClass}
+              >
+                {showCreateForm ? 'Tutup Form Event' : 'Tambah Event Baru'}
+              </button>
+            )}
             <button type="button" onClick={() => void loadEvents()} disabled={loading} className={primaryButtonClass}>
               {loading ? 'Refreshing…' : 'Refresh Events'}
             </button>
@@ -373,7 +384,7 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
         </div>
       )}
 
-      {showCreate && canCreate ? (
+      {showCreate && canCreate && showCreateForm ? (
         <section className="admin-surface overflow-hidden px-6 py-6 lg:px-8">
           <div className="grid gap-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(300px,0.7fr)]">
             <div className="grid gap-4">
@@ -461,6 +472,14 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
               <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Action</div>
               <button type="button" onClick={handleCreate} disabled={creating} className={`${primaryButtonClass} mt-6 w-full`}>
                 {creating ? 'Creating Event…' : 'Create Event'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowCreateForm(false)}
+                disabled={creating}
+                className={`${subtleButtonClass} mt-3 w-full`}
+              >
+                Batal
               </button>
             </div>
           </div>

@@ -28,6 +28,9 @@ export const isMissingPrimaryCategoryColumnError = (message?: string | null) => 
   )
 }
 
+export const missingPrimaryCategoryMigrationMessage =
+  'Database belum siap untuk category utama rider. Jalankan migration docs/sql/migrations/2026-04-26_riders_primary_category.sql.'
+
 export const getCategoryMinYear = (category: Pick<CategoryAssignmentItem, 'year' | 'year_min'>) =>
   category.year_min ?? category.year
 
