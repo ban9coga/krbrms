@@ -17,6 +17,7 @@ type RiderRow = {
   plate_number: string
   plate_suffix?: string | null
   birth_year: number
+  primary_category_id?: string | null
   gender: 'BOY' | 'GIRL'
 }
 
@@ -99,7 +100,7 @@ const loadRidersForCategory = async (eventId: string, category: CategoryRow) => 
   const maxYear = category.year_max ?? category.year
   let query = adminClient
     .from('riders')
-    .select('id, name, no_plate_display, plate_number, plate_suffix, birth_year, gender')
+    .select('id, name, no_plate_display, plate_number, plate_suffix, birth_year, primary_category_id, gender')
     .eq('event_id', eventId)
   const { data: extraRows } = await adminClient
     .from('rider_extra_categories')
@@ -108,19 +109,15 @@ const loadRidersForCategory = async (eventId: string, category: CategoryRow) => 
     .eq('category_id', category.id)
   const extraIds = (extraRows ?? []).map((row) => row.rider_id)
 
+  const legacyFilter =
+    category.gender === 'MIX'
+      ? `and(primary_category_id.is.null,birth_year.gte.${minYear},birth_year.lte.${maxYear})`
+      : `and(primary_category_id.is.null,birth_year.gte.${minYear},birth_year.lte.${maxYear},gender.eq.${category.gender})`
+  const filters = [`primary_category_id.eq.${category.id}`, legacyFilter]
   if (extraIds.length > 0) {
-    const baseFilter =
-      category.gender === 'MIX'
-        ? `and(birth_year.gte.${minYear},birth_year.lte.${maxYear})`
-        : `and(birth_year.gte.${minYear},birth_year.lte.${maxYear},gender.eq.${category.gender})`
-    const orFilter = `${baseFilter},id.in.(${extraIds.join(',')})`
-    query = query.or(orFilter)
-  } else {
-    query = query.gte('birth_year', minYear).lte('birth_year', maxYear)
-    if (category.gender !== 'MIX') {
-      query = query.eq('gender', category.gender)
-    }
+    filters.push(`id.in.(${extraIds.join(',')})`)
   }
+  query = query.or(filters.join(','))
   const { data, error } = await query
     .order('plate_number', { ascending: true })
     .order('plate_suffix', { ascending: true, nullsFirst: true })

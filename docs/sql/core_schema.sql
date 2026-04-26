@@ -90,6 +90,7 @@ create table if not exists riders (
   jersey_size text,
   date_of_birth date not null,
   birth_year int generated always as (extract(year from date_of_birth)::int) stored,
+  primary_category_id uuid references categories(id) on delete set null,
   gender gender_type not null,
   plate_number text not null,
   plate_suffix char(1),
@@ -114,6 +115,7 @@ create table if not exists riders (
 create unique index if not exists uq_riders_plate_per_event on riders(event_id, plate_number, plate_suffix);
 create index if not exists idx_riders_event on riders(event_id);
 create index if not exists idx_riders_no_plate on riders(event_id, plate_number, plate_suffix);
+create index if not exists idx_riders_primary_category on riders(primary_category_id);
 
 drop trigger if exists trg_riders_updated_at on riders;
 create trigger trg_riders_updated_at

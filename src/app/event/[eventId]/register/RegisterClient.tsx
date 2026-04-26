@@ -2,6 +2,10 @@
 
 import { useEffect, useMemo, useState, type ClipboardEvent, type DragEvent } from 'react'
 import PublicTopbar from '../../../../components/PublicTopbar'
+import {
+  getExactPrimaryCategoryCandidates,
+  getFallbackPrimaryCategoryCandidates,
+} from '../../../../lib/categoryAssignment'
 import type { BusinessSettings } from '../../../../lib/eventService'
 
 type CategoryItem = {
@@ -25,6 +29,7 @@ type RiderForm = {
   dateOfBirth: string
   gender: 'BOY' | 'GIRL'
   club: string
+  primaryCategoryId: string
   extraCategoryId: string
   requestedPlateNumber: string
   requestedPlateSuffix: string
@@ -158,6 +163,7 @@ const initialRider = (): RiderForm => ({
   dateOfBirth: '',
   gender: 'BOY',
   club: '',
+  primaryCategoryId: '',
   extraCategoryId: '',
   requestedPlateNumber: '',
   requestedPlateSuffix: '',
@@ -347,6 +353,14 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   const updateRider = (index: number, updates: Partial<RiderForm>) => {
     const normalizedUpdates = { ...updates }
 
+    if (
+      Object.prototype.hasOwnProperty.call(normalizedUpdates, 'dateOfBirth') ||
+      Object.prototype.hasOwnProperty.call(normalizedUpdates, 'gender')
+    ) {
+      normalizedUpdates.primaryCategoryId = ''
+      normalizedUpdates.extraCategoryId = ''
+    }
+
     if (typeof normalizedUpdates.requestedPlateNumber === 'string' && normalizedUpdates.requestedPlateNumber.trim() === '') {
       normalizedUpdates.requestedPlateSuffix = ''
       normalizedUpdates.usePlateSuffix = false
@@ -374,12 +388,6 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     }
   }
 
-  const inRange = (c: CategoryItem, birthYear: number) => {
-    const min = c.year_min ?? c.year
-    const max = c.year_max ?? c.year
-    return birthYear >= min && birthYear <= max
-  }
-
   const isCategoryFull = (category: CategoryItem) => {
     if (category.is_full === true) return true
     if (typeof category.capacity !== 'number') return false
@@ -387,23 +395,52 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     return category.remaining <= 0
   }
 
-  const computePrimaryCategory = (birthYear: number | null, gender: 'BOY' | 'GIRL') => {
-    if (!birthYear) return null
-    const candidates = categories.filter((c) => inRange(c, birthYear) && !isCategoryFull(c))
-    const genderMatch = candidates.filter((c) => c.gender === gender)
-    if (genderMatch.length > 0) {
-      return genderMatch.sort((a, b) => (a.year_max ?? a.year) - (b.year_max ?? b.year))[0] ?? null
-    }
-    const mix = candidates.filter((c) => c.gender === 'MIX')
-    return mix.sort((a, b) => (a.year_max ?? a.year) - (b.year_max ?? b.year))[0] ?? null
+  const getExactPrimaryCategories = (birthYear: number | null, gender: 'BOY' | 'GIRL') => {
+    if (!birthYear) return []
+    return getExactPrimaryCategoryCandidates(categories, birthYear, gender)
   }
 
-  const getPrimaryCategoryIssue = (birthYear: number | null, gender: 'BOY' | 'GIRL') => {
+  const getAvailableExactPrimaryCategory = (birthYear: number | null, gender: 'BOY' | 'GIRL') => {
+    return getExactPrimaryCategories(birthYear, gender).find((category) => !isCategoryFull(category)) ?? null
+  }
+
+  const getFallbackPrimaryCategories = (birthYear: number | null, gender: 'BOY' | 'GIRL') => {
+    if (!birthYear) return []
+    return getFallbackPrimaryCategoryCandidates(categories, birthYear, gender)
+  }
+
+  const getSelectedFallbackPrimaryCategory = (
+    birthYear: number | null,
+    gender: 'BOY' | 'GIRL',
+    primaryCategoryId: string
+  ) => getFallbackPrimaryCategories(birthYear, gender).find((category) => category.id === primaryCategoryId) ?? null
+
+  const computePrimaryCategory = (
+    birthYear: number | null,
+    gender: 'BOY' | 'GIRL',
+    primaryCategoryId: string
+  ) => {
+    const exact = getAvailableExactPrimaryCategory(birthYear, gender)
+    if (exact) return exact
+    const fallback = getSelectedFallbackPrimaryCategory(birthYear, gender, primaryCategoryId)
+    if (!fallback || isCategoryFull(fallback)) return null
+    return fallback
+  }
+
+  const getPrimaryCategoryIssue = (
+    birthYear: number | null,
+    gender: 'BOY' | 'GIRL',
+    primaryCategoryId: string
+  ) => {
     if (!birthYear) return null
-    const candidates = categories.filter((c) => inRange(c, birthYear))
-    const compatible = candidates.filter((c) => c.gender === gender || c.gender === 'MIX')
-    if (compatible.length === 0) return 'invalid'
-    return compatible.every((category) => isCategoryFull(category)) ? 'full' : null
+    const exactCandidates = getExactPrimaryCategories(birthYear, gender)
+    if (exactCandidates.length === 0) return 'invalid'
+    const exactAvailable = exactCandidates.find((category) => !isCategoryFull(category))
+    if (exactAvailable) return null
+    const fallbackOptions = getFallbackPrimaryCategories(birthYear, gender).filter((category) => !isCategoryFull(category))
+    if (fallbackOptions.length === 0) return 'full'
+    const selectedFallback = fallbackOptions.find((category) => category.id === primaryCategoryId)
+    return selectedFallback ? null : 'fallback_required'
   }
 
   const extraCategoryOptions = (
@@ -444,11 +481,13 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   const showTotal = Boolean(hasContact && ridersComplete)
   const hasMissingPrimaryCategory = riders.some((rider) => {
     const birthYear = rider.dateOfBirth ? new Date(rider.dateOfBirth).getUTCFullYear() : null
-    return getPrimaryCategoryIssue(birthYear, rider.gender) !== null
+    const issue = getPrimaryCategoryIssue(birthYear, rider.gender, rider.primaryCategoryId)
+    return issue === 'invalid'
   })
   const hasPrimaryCategorySlotFull = riders.some((rider) => {
     const birthYear = rider.dateOfBirth ? new Date(rider.dateOfBirth).getUTCFullYear() : null
-    return getPrimaryCategoryIssue(birthYear, rider.gender) === 'full'
+    const issue = getPrimaryCategoryIssue(birthYear, rider.gender, rider.primaryCategoryId)
+    return issue === 'full' || issue === 'fallback_required'
   })
   const hasFullExtraCategory = riders.some((rider) => {
     if (!rider.extraCategoryId) return false
@@ -594,9 +633,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
       return
     }
     if (hasPrimaryCategorySlotFull) {
-      openSlotFullModal(
-        'Salah satu kategori utama rider sudah penuh. Silakan pilih kategori lain yang masih tersedia atau hubungi panitia.'
-      )
+      openSlotFullModal('Salah satu kategori utama rider penuh. Pilih kategori pengganti yang tersedia.')
       return
     }
     if (hasMissingPrimaryCategory) {
@@ -639,6 +676,8 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
       if (paymentError) throw new Error(paymentError)
 
       const items = riders.map((r) => {
+        const birthYear = r.dateOfBirth ? new Date(r.dateOfBirth).getUTCFullYear() : null
+        const exactPrimaryCategory = getAvailableExactPrimaryCategory(birthYear, r.gender)
         return {
           rider_name: r.name,
           rider_nickname: r.nickname || null,
@@ -646,6 +685,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
           date_of_birth: r.dateOfBirth,
           gender: r.gender,
           club: r.club || null,
+          primary_category_id: exactPrimaryCategory ? null : r.primaryCategoryId || null,
           extra_category_id: r.extraCategoryId || null,
           requested_plate_number: r.requestedPlateNumber.trim() || null,
           requested_plate_suffix: r.requestedPlateSuffix.trim().toUpperCase().slice(0, 1) || null,
@@ -949,16 +989,19 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
 
         {riders.map((rider, idx) => {
           const birthYear = rider.dateOfBirth ? new Date(rider.dateOfBirth).getUTCFullYear() : null
-          const primaryCategory = computePrimaryCategory(birthYear, rider.gender)
+          const primaryIssue = getPrimaryCategoryIssue(birthYear, rider.gender, rider.primaryCategoryId)
+          const exactPrimaryCategory = getAvailableExactPrimaryCategory(birthYear, rider.gender)
+          const primaryCategory = computePrimaryCategory(birthYear, rider.gender, rider.primaryCategoryId)
+          const fallbackPrimaryOptions = getFallbackPrimaryCategories(birthYear, rider.gender)
+          const availableFallbackPrimaryOptions = fallbackPrimaryOptions.filter((category) => !isCategoryFull(category))
+          const showFallbackPrimarySelector =
+            birthYear != null && !exactPrimaryCategory && availableFallbackPrimaryOptions.length > 0
           const extras = extraCategoryOptions(birthYear, rider.gender, primaryCategory)
-          const hasMatchedFullCategory =
-            !primaryCategory &&
-            birthYear != null &&
-            categories.some(
-              (c) => inRange(c, birthYear) && (c.gender === rider.gender || c.gender === 'MIX') && isCategoryFull(c)
-            )
+          const hasMatchedFullCategory = primaryIssue === 'full' || primaryIssue === 'fallback_required'
           const extrasAvailable = extras.some((cat) => !isCategoryFull(cat))
           const selectedExtraCategory = extras.find((cat) => cat.id === rider.extraCategoryId) ?? null
+          const selectedFallbackPrimaryCategory =
+            fallbackPrimaryOptions.find((category) => category.id === rider.primaryCategoryId) ?? null
           const plateCheck = plateChecks[idx] ?? initialPlateCheck()
           const showPlateSuffixField =
             rider.usePlateSuffix ||
@@ -971,7 +1014,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
               ? 'Isi tanggal lahir dulu agar sistem bisa menghitung kategori tambahan yang mungkin diikuti rider.'
               : !primaryCategory
               ? hasMatchedFullCategory
-                ? 'Kategori utama untuk rider ini sedang penuh, jadi opsi kategori tambahan belum bisa ditampilkan.'
+                ? 'Pilih kategori utama pengganti dulu.'
                 : 'Kategori tambahan baru akan muncul setelah kategori utama rider berhasil terdeteksi.'
               : extras.length === 0
               ? 'Tidak ada kategori tambahan yang cocok untuk rider ini.'
@@ -1076,12 +1119,37 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                   <div className="text-sm font-bold text-slate-200">
                     Kategori Otomatis: <span className="text-amber-300">{primaryCategory ? primaryCategory.label : 'Belum ditemukan'}</span>
                   </div>
-                  <div className="mt-1 text-xs font-semibold text-slate-400">
-                    Pilih tanggal lahir & gender agar kategori terdeteksi otomatis.
-                  </div>
+                  {showFallbackPrimarySelector && (
+                    <div className="mt-3 grid gap-2">
+                      <select
+                        value={rider.primaryCategoryId}
+                        onChange={(e) =>
+                          updateRider(idx, {
+                            primaryCategoryId: e.target.value,
+                            extraCategoryId: e.target.value === rider.extraCategoryId ? '' : rider.extraCategoryId,
+                          })
+                        }
+                        className={fieldClass}
+                      >
+                        <option value="">Pilih kategori pengganti</option>
+                        {fallbackPrimaryOptions.map((cat) => (
+                          <option key={cat.id} value={cat.id} disabled={isCategoryFull(cat)}>
+                            {cat.label}{isCategoryFull(cat) ? ' (Kuota Penuh)' : ''}
+                          </option>
+                        ))}
+                      </select>
+                      {selectedFallbackPrimaryCategory && !isCategoryFull(selectedFallbackPrimaryCategory) && (
+                        <div className="text-xs font-semibold text-emerald-200">
+                          Rider akan masuk ke kategori utama: {selectedFallbackPrimaryCategory.label}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   {!primaryCategory && (
                     <div className="mt-2 text-xs font-semibold text-amber-300">
-                      {hasMatchedFullCategory
+                      {primaryIssue === 'fallback_required'
+                        ? 'Kategori sesuai umur penuh. Pilih kategori di atas umur rider.'
+                        : hasMatchedFullCategory
                         ? 'Kategori untuk rider ini tersedia, tetapi kuotanya sudah penuh.'
                         : 'Tanggal lahir tidak masuk range kategori aktif event ini.'}
                     </div>

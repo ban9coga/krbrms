@@ -330,7 +330,10 @@ export async function PATCH(
     if (Number.isNaN(birthYear)) {
       return NextResponse.json({ error: `Invalid date_of_birth for ${item.rider_name}` }, { status: 400 })
     }
-    await resolveCategory(eventId, birthYear, item.gender)
+    const primaryCategoryId =
+      typeof item.primary_category_id === 'string' && item.primary_category_id
+        ? item.primary_category_id
+        : await resolveCategory(eventId, birthYear, item.gender)
 
     const { data: riderRow, error: riderError } = await adminClient
       .from('riders')
@@ -340,6 +343,7 @@ export async function PATCH(
         rider_nickname: item.rider_nickname ?? null,
         jersey_size: item.jersey_size ?? null,
         date_of_birth: item.date_of_birth,
+        primary_category_id: primaryCategoryId,
         gender: item.gender,
         plate_number: plateNumber,
         plate_suffix: plateSuffix,

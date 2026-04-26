@@ -1,4 +1,5 @@
 import { adminClient } from '../lib/auth'
+import { riderBelongsToPrimaryCategory } from '../lib/categoryAssignment'
 
 type CategoryGender = 'BOY' | 'GIRL' | 'MIX'
 
@@ -17,38 +18,10 @@ export type CategoryOccupancyBreakdown = {
 }
 
 type RiderRow = {
+  primary_category_id?: string | null
   birth_year?: number | null
   date_of_birth?: string | null
   gender: 'BOY' | 'GIRL'
-}
-
-const normalizeCategory = (category: OccupancyCategory) => ({
-  ...category,
-  year_min: category.year_min ?? category.year,
-  year_max: category.year_max ?? category.year,
-})
-
-const getBirthYear = (rider: RiderRow) => {
-  if (typeof rider.birth_year === 'number' && Number.isFinite(rider.birth_year)) {
-    return rider.birth_year
-  }
-  const raw = String(rider.date_of_birth ?? '').slice(0, 4)
-  const parsed = Number(raw)
-  return Number.isFinite(parsed) ? parsed : null
-}
-
-export const resolvePrimaryCategoryForOccupancy = (
-  categories: OccupancyCategory[],
-  birthYear: number,
-  gender: 'BOY' | 'GIRL'
-) => {
-  const normalized = categories.map(normalizeCategory)
-  const candidates = normalized.filter((category) => birthYear >= category.year_min && birthYear <= category.year_max)
-  const genderMatch = candidates.filter((category) => category.gender === gender)
-  if (genderMatch.length > 0) {
-    return genderMatch.sort((a, b) => a.year_max - b.year_max)[0] ?? null
-  }
-  return candidates.filter((category) => category.gender === 'MIX').sort((a, b) => a.year_max - b.year_max)[0] ?? null
 }
 
 const increaseCount = (target: Map<string, number>, categoryId: string | null) => {
@@ -66,17 +39,17 @@ export const buildCategoryOccupancyBreakdown = async (
 
   const { data: riders, error: ridersError } = await adminClient
     .from('riders')
-    .select('birth_year, date_of_birth, gender')
+    .select('primary_category_id, birth_year, date_of_birth, gender')
     .eq('event_id', eventId)
 
   if (ridersError) throw new Error(ridersError.message)
 
   for (const rider of (riders ?? []) as RiderRow[]) {
-    const birthYear = getBirthYear(rider)
-    if (!birthYear) continue
-    const category = resolvePrimaryCategoryForOccupancy(categories, birthYear, rider.gender)
-    if (!category?.id) continue
-    increaseCount(approvedCounts, category.id)
+    for (const category of categories) {
+      if (!riderBelongsToPrimaryCategory(rider, category)) continue
+      increaseCount(approvedCounts, category.id)
+      break
+    }
   }
 
   const { data: extraRows, error: extraError } = await adminClient

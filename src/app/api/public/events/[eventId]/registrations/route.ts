@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server'
 import { randomBytes } from 'crypto'
 import { adminClient } from '../../../../../../lib/auth'
+import {
+  getExactPrimaryCategoryCandidates,
+  getFallbackPrimaryCategoryCandidates,
+  getCategoryMaxYear,
+} from '../../../../../../lib/categoryAssignment'
 import { buildCategoryOccupancyMap } from '../../../../../../services/categoryOccupancy'
 
 type RegistrationItemInput = {
@@ -50,6 +55,17 @@ type RegistrationItemRow = {
   id: string
 }
 
+type EventCategory = {
+  id: string
+  event_id: string
+  year: number
+  year_min?: number | null
+  year_max?: number | null
+  capacity?: number | null
+  gender: 'BOY' | 'GIRL' | 'MIX'
+  label: string
+}
+
 const BASE_PRICE = 250000
 const EXTRA_PRICE = 150000
 const BUCKET = process.env.NEXT_PUBLIC_REGISTRATION_BUCKET || 'registration-docs'
@@ -70,34 +86,13 @@ const normalizePlateNumber = (value: unknown) => {
   return raw
 }
 
-const inRange = (category: { year: number; year_min?: number | null; year_max?: number | null }, birthYear: number) => {
-  const min = category.year_min ?? category.year
-  const max = category.year_max ?? category.year
-  return birthYear >= min && birthYear <= max
-}
-
-const resolvePrimaryCategory = (
-  categories: Array<{
-    id: string
-    year: number
-    year_min?: number | null
-    year_max?: number | null
-    gender: 'BOY' | 'GIRL' | 'MIX'
-  }>,
-  birthYear: number,
-  gender: 'BOY' | 'GIRL'
+const isCategoryFull = (
+  categoryId: string,
+  capacityMap: Map<string, { capacity: number | null; label: string }>,
+  counts: Map<string, number>
 ) => {
-  const candidates = categories.filter((category) => inRange(category, birthYear))
-  const genderMatch = candidates.filter((category) => category.gender === gender)
-  if (genderMatch.length > 0) {
-    return (
-      genderMatch.sort(
-        (a, b) => (a.year_max ?? a.year) - (b.year_max ?? b.year)
-      )[0] ?? null
-    )
-  }
-  const mix = candidates.filter((category) => category.gender === 'MIX')
-  return mix.sort((a, b) => (a.year_max ?? a.year) - (b.year_max ?? b.year))[0] ?? null
+  const capacity = capacityMap.get(categoryId)?.capacity
+  return capacity != null && (counts.get(categoryId) ?? 0) >= capacity
 }
 
 const toStringOrNull = (value: FormDataEntryValue | null) => {
@@ -183,94 +178,17 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
     .eq('enabled', true)
 
   if (catError) return { error: catError.message }
-  const eventCategories = (categories ?? []) as Array<{
-    id: string
-    event_id: string
-    year: number
-    year_min?: number | null
-    year_max?: number | null
-    capacity?: number | null
-    gender: 'BOY' | 'GIRL' | 'MIX'
-    label: string
-  }>
+  const eventCategories = (categories ?? []) as EventCategory[]
   if (eventCategories.length === 0) {
     return { error: 'Kategori event belum tersedia.' }
   }
 
-  const categoryMap = new Map((categories ?? []).map((c) => [c.id, c]))
-
-  const preparedItems: PreparedItem[] = items.map((item) => {
-    const birthYear = toYear(item.date_of_birth ?? '')
-    if (!birthYear) return { error: 'Invalid date_of_birth' }
-
-    const primary = resolvePrimaryCategory(eventCategories, birthYear, item.gender)
-    if (!primary) return { error: 'No matching category for rider' }
-
-    const extra = item.extra_category_id ? categoryMap.get(item.extra_category_id) : null
-
-    if (!item.rider_name || !item.rider_nickname || !item.date_of_birth || !item.gender) {
-      return { error: 'Missing rider fields' }
-    }
-    if (requireJerseySize && !item.jersey_size) {
-      return { error: 'Jersey size required' }
-    }
-    if (item.jersey_size && !JERSEY_SIZES.has(item.jersey_size)) {
-      return { error: 'Invalid jersey size' }
-    }
-    if (item.extra_category_id && !extra) return { error: 'Invalid extra category' }
-    if (extra && extra.event_id !== eventId) return { error: 'Invalid extra category' }
-    if (extra && extra.id === primary.id) return { error: 'Extra category must differ from primary category' }
-
-    const extraMax = extra ? (extra.year_max ?? extra.year) : null
-    if (extra && extraMax !== null && extraMax >= birthYear) {
-      return { error: 'Extra category must be above rider birth year' }
-    }
-    if (extra && extra.gender !== 'MIX' && extra.gender !== item.gender) {
-      return { error: 'Gender must match for extra category' }
-    }
-
-    const requestedPlateNumber = normalizePlateNumber(item.requested_plate_number)
-    if (item.requested_plate_number != null && !requestedPlateNumber) {
-      return { error: 'Invalid requested plate number' }
-    }
-
-    const suffixRaw = item.requested_plate_suffix?.trim().toUpperCase() ?? null
-    const requestedPlateSuffix = suffixRaw && suffixRaw.length > 0 ? suffixRaw[0] : null
-    if (requestedPlateSuffix && !/^[A-Z]$/.test(requestedPlateSuffix)) {
-      return { error: 'Invalid requested plate suffix' }
-    }
-
-    const price = basePrice + (extra ? extraPrice : 0)
-    return {
-      rider_name: item.rider_name,
-      rider_nickname: item.rider_nickname ?? null,
-      jersey_size: item.jersey_size ?? null,
-      date_of_birth: item.date_of_birth,
-      gender: item.gender,
-      club: item.club ?? null,
-      primary_category_id: primary.id,
-      extra_category_id: extra?.id ?? null,
-      requested_plate_number: requestedPlateNumber,
-      requested_plate_suffix: requestedPlateSuffix,
-      price,
-    }
-  })
-
-  const invalid = preparedItems.find((item) => 'error' in item)
-  if (invalid && 'error' in invalid) {
-    return { error: invalid.error }
-  }
-
-  const validItems = preparedItems.filter(
-    (item): item is Exclude<PreparedItem, { error: string }> => !('error' in item)
-  )
-
   const capacityMap = new Map(
     (categories ?? []).map((c) => [c.id, { capacity: c.capacity as number | null, label: c.label as string }])
   )
+  let currentCounts = new Map<string, number>()
   const hasCapacity = Array.from(capacityMap.values()).some((c) => typeof c.capacity === 'number')
   if (hasCapacity) {
-    let currentCounts = new Map<string, number>()
     try {
       currentCounts = await buildCategoryOccupancyMap(
         eventId,
@@ -285,26 +203,127 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
     } catch (err) {
       return { error: err instanceof Error ? err.message : 'Failed to count category occupancy' }
     }
-
-    const addCounts = new Map<string, number>()
-    for (const item of validItems) {
-      if (item.primary_category_id) {
-        addCounts.set(item.primary_category_id, (addCounts.get(item.primary_category_id) ?? 0) + 1)
-      }
-      if (item.extra_category_id) {
-        addCounts.set(item.extra_category_id, (addCounts.get(item.extra_category_id) ?? 0) + 1)
-      }
-    }
-
-    for (const [catId, addCount] of addCounts) {
-      const capInfo = capacityMap.get(catId)
-      if (!capInfo || capInfo.capacity == null) continue
-      const current = currentCounts.get(catId) ?? 0
-      if (current + addCount > capInfo.capacity) {
-        return { error: `Kuota kategori "${capInfo.label}" penuh.` }
-      }
-    }
   }
+
+  const categoryMap = new Map(eventCategories.map((category) => [category.id, category]))
+  const workingCounts = new Map(currentCounts)
+  const preparedItems: PreparedItem[] = []
+
+  for (const item of items) {
+    const birthYear = toYear(item.date_of_birth ?? '')
+    if (!birthYear) {
+      preparedItems.push({ error: 'Invalid date_of_birth' })
+      continue
+    }
+
+    if (!item.rider_name || !item.rider_nickname || !item.date_of_birth || !item.gender) {
+      preparedItems.push({ error: 'Missing rider fields' })
+      continue
+    }
+    if (requireJerseySize && !item.jersey_size) {
+      preparedItems.push({ error: 'Jersey size required' })
+      continue
+    }
+    if (item.jersey_size && !JERSEY_SIZES.has(item.jersey_size)) {
+      preparedItems.push({ error: 'Invalid jersey size' })
+      continue
+    }
+
+    const exactCandidates = getExactPrimaryCategoryCandidates(eventCategories, birthYear, item.gender)
+    if (exactCandidates.length === 0) {
+      preparedItems.push({ error: 'No matching category for rider' })
+      continue
+    }
+
+    const availableExact = exactCandidates.find((category) => !isCategoryFull(category.id, capacityMap, workingCounts)) ?? null
+    const fallbackCandidates = getFallbackPrimaryCategoryCandidates(eventCategories, birthYear, item.gender)
+      .filter((category) => !isCategoryFull(category.id, capacityMap, workingCounts))
+
+    let primary = availableExact
+    if (!primary) {
+      if (!item.primary_category_id) {
+        preparedItems.push({ error: 'Kategori utama sesuai umur penuh. Pilih kategori pengganti yang tersedia.' })
+        continue
+      }
+      primary = fallbackCandidates.find((category) => category.id === item.primary_category_id) ?? null
+      if (!primary) {
+        preparedItems.push({ error: 'Kategori pengganti tidak valid untuk rider ini.' })
+        continue
+      }
+    } else if (item.primary_category_id && item.primary_category_id !== primary.id) {
+      preparedItems.push({ error: 'Kategori utama sesuai umur masih tersedia.' })
+      continue
+    }
+
+    const extra = item.extra_category_id ? categoryMap.get(item.extra_category_id) : null
+    if (item.extra_category_id && !extra) {
+      preparedItems.push({ error: 'Invalid extra category' })
+      continue
+    }
+    if (extra && extra.event_id !== eventId) {
+      preparedItems.push({ error: 'Invalid extra category' })
+      continue
+    }
+    if (extra && extra.id === primary.id) {
+      preparedItems.push({ error: 'Extra category must differ from primary category' })
+      continue
+    }
+
+    const extraMax = extra ? getCategoryMaxYear(extra) : null
+    if (extra && extraMax !== null && extraMax >= birthYear) {
+      preparedItems.push({ error: 'Extra category must be above rider birth year' })
+      continue
+    }
+    if (extra && extra.gender !== 'MIX' && extra.gender !== item.gender) {
+      preparedItems.push({ error: 'Gender must match for extra category' })
+      continue
+    }
+    if (extra && isCategoryFull(extra.id, capacityMap, workingCounts)) {
+      preparedItems.push({ error: `Kuota kategori "${extra.label}" penuh.` })
+      continue
+    }
+
+    const requestedPlateNumber = normalizePlateNumber(item.requested_plate_number)
+    if (item.requested_plate_number != null && !requestedPlateNumber) {
+      preparedItems.push({ error: 'Invalid requested plate number' })
+      continue
+    }
+
+    const suffixRaw = item.requested_plate_suffix?.trim().toUpperCase() ?? null
+    const requestedPlateSuffix = suffixRaw && suffixRaw.length > 0 ? suffixRaw[0] : null
+    if (requestedPlateSuffix && !/^[A-Z]$/.test(requestedPlateSuffix)) {
+      preparedItems.push({ error: 'Invalid requested plate suffix' })
+      continue
+    }
+
+    workingCounts.set(primary.id, (workingCounts.get(primary.id) ?? 0) + 1)
+    if (extra?.id) {
+      workingCounts.set(extra.id, (workingCounts.get(extra.id) ?? 0) + 1)
+    }
+
+    preparedItems.push({
+      rider_name: item.rider_name,
+      rider_nickname: item.rider_nickname ?? null,
+      jersey_size: item.jersey_size ?? null,
+      date_of_birth: item.date_of_birth,
+      gender: item.gender,
+      club: item.club ?? null,
+      primary_category_id: primary.id,
+      extra_category_id: extra?.id ?? null,
+      requested_plate_number: requestedPlateNumber,
+      requested_plate_suffix: requestedPlateSuffix,
+      price: basePrice + (extra ? extraPrice : 0),
+    })
+  }
+
+  const invalid = preparedItems.find((item) => 'error' in item)
+  if (invalid && 'error' in invalid) {
+    return { error: invalid.error }
+  }
+
+  const validItems = preparedItems.filter(
+    (item): item is Exclude<PreparedItem, { error: string }> => !('error' in item)
+  )
 
   const totalAmount = validItems.reduce((sum, item) => sum + item.price, 0)
 
@@ -329,7 +348,10 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
       })
       .select('id, total_amount, upload_token')
       .single()
-    return { data: data as unknown as RegistrationRow | null, error: error as any }
+    return {
+      data: data as RegistrationRow | null,
+      error: error ? { message: String(error.message ?? 'Failed creating registration') } : null,
+    }
   }
   const insertWithoutToken = async () => {
     const { data, error } = await adminClient
@@ -345,7 +367,10 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
       })
       .select('id, total_amount')
       .single()
-    return { data: data as unknown as RegistrationRow | null, error: error as any }
+    return {
+      data: data as RegistrationRow | null,
+      error: error ? { message: String(error.message ?? 'Failed creating registration') } : null,
+    }
   }
 
   let regInsert = await insertWithToken()
@@ -391,7 +416,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   const { registration, itemRows } = created
 
   if (!isMultipart || !formData) {
-    return NextResponse.json({ data: { registration, items: itemRows, upload_token: (registration as any).upload_token ?? null } })
+    return NextResponse.json({ data: { registration, items: itemRows, upload_token: registration.upload_token ?? null } })
   }
 
   const uploadedPaths: string[] = []
@@ -483,7 +508,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       data: {
         registration,
         items: itemRows,
-        upload_token: (registration as any).upload_token ?? null,
+        upload_token: registration.upload_token ?? null,
         payment,
       },
     })

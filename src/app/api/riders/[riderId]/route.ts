@@ -100,7 +100,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ riderI
 
   const { data: rider, error: riderError } = await adminClient
     .from('riders')
-    .select('id, event_id, date_of_birth, gender, plate_number, plate_suffix')
+    .select('id, event_id, primary_category_id, date_of_birth, gender, plate_number, plate_suffix')
     .eq('id', riderId)
     .single()
 
@@ -178,7 +178,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ riderI
   }
 
   // Ensure the category row exists for the (possibly updated) DOB/gender.
-  await resolveCategory(rider.event_id, nextBirthYear, nextGender)
+  const nextPrimaryCategoryId = await resolveCategory(rider.event_id, nextBirthYear, nextGender)
 
   const { data: existingExtraCategory } = await adminClient
     .from('rider_extra_categories')
@@ -197,7 +197,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ riderI
     const maxYear = linkedExtraCategory.year_max ?? linkedExtraCategory.year
     const invalidGender = linkedExtraCategory.gender !== 'MIX' && linkedExtraCategory.gender !== nextGender
     const invalidBirthYear = maxYear >= nextBirthYear
-    if (invalidGender || invalidBirthYear) {
+    const invalidSameAsPrimary = linkedExtraCategory.id === nextPrimaryCategoryId
+    if (invalidGender || invalidBirthYear || invalidSameAsPrimary) {
       await adminClient.from('rider_extra_categories').delete().eq('rider_id', riderId)
     }
   }
@@ -209,6 +210,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ riderI
       rider_nickname: typeof rider_nickname === 'string' ? rider_nickname.trim() || null : undefined,
       jersey_size: typeof jersey_size === 'string' ? jersey_size : undefined,
       date_of_birth,
+      primary_category_id: nextPrimaryCategoryId,
       gender,
       plate_number: hasPlateNumber ? nextPlateNumber : undefined,
       plate_suffix: hasPlateSuffix ? nextPlateSuffix : undefined,

@@ -85,7 +85,7 @@ export async function GET(req: Request) {
   let query = adminClient
     .from('riders')
     .select(
-      'id, event_id, name, rider_nickname, jersey_size, date_of_birth, birth_year, gender, plate_number, plate_suffix, no_plate_display, club, photo_url, photo_thumbnail_url',
+      'id, event_id, name, rider_nickname, jersey_size, date_of_birth, birth_year, primary_category_id, gender, plate_number, plate_suffix, no_plate_display, club, photo_url, photo_thumbnail_url',
       { count: 'exact' }
     )
     .order('plate_number', { ascending: true })
@@ -112,19 +112,15 @@ export async function GET(req: Request) {
 
     const minYear = (category.year_min ?? category.year) as number
     const maxYear = (category.year_max ?? category.year) as number
+    const legacyFilter =
+      category.gender === 'MIX'
+        ? `and(primary_category_id.is.null,birth_year.gte.${minYear},birth_year.lte.${maxYear})`
+        : `and(primary_category_id.is.null,birth_year.gte.${minYear},birth_year.lte.${maxYear},gender.eq.${category.gender})`
+    const filters = [`primary_category_id.eq.${categoryId}`, legacyFilter]
     if (extraIds.length > 0) {
-      const baseFilter =
-        category.gender === 'MIX'
-          ? `and(birth_year.gte.${minYear},birth_year.lte.${maxYear})`
-          : `and(birth_year.gte.${minYear},birth_year.lte.${maxYear},gender.eq.${category.gender})`
-      const orFilter = `${baseFilter},id.in.(${extraIds.join(',')})`
-      query = query.or(orFilter)
-    } else {
-      query = query.gte('birth_year', minYear).lte('birth_year', maxYear)
-      if (category.gender !== 'MIX') {
-        query = query.eq('gender', category.gender)
-      }
+      filters.push(`id.in.(${extraIds.join(',')})`)
     }
+    query = query.or(filters.join(','))
   }
   if (q) query = query.or(`name.ilike.%${q}%,rider_nickname.ilike.%${q}%,no_plate_display.ilike.%${q}%`)
   query = query.range(from, to)
@@ -240,6 +236,7 @@ export async function POST(req: Request) {
         rider_nickname: typeof rider_nickname === 'string' ? rider_nickname.trim() || null : null,
         jersey_size: typeof jersey_size === 'string' ? jersey_size : null,
         date_of_birth,
+        primary_category_id: categoryId,
         gender,
         plate_number: plateNumber,
         plate_suffix: normalizedSuffix,

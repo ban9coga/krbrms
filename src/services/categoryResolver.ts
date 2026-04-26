@@ -1,6 +1,7 @@
 'use server'
 
 import { adminClient } from '../lib/auth'
+import { riderBelongsToPrimaryCategory } from '../lib/categoryAssignment'
 import { FINAL_CLASS_ORDER } from './raceStageEngine'
 
 export type StageFlags = {
@@ -65,7 +66,7 @@ export async function resolveCategoryConfig(categoryId: string, override?: Resol
   try {
     const { data: category, error: catError } = await adminClient
       .from('categories')
-      .select('id, event_id, year, gender')
+      .select('id, event_id, year, year_min, year_max, gender')
       .eq('id', categoryId)
       .maybeSingle()
 
@@ -76,31 +77,30 @@ export async function resolveCategoryConfig(categoryId: string, override?: Resol
     }
 
     const eventId = category.event_id as string
-    const year = category.year as number
-    const gender = category.gender as string
-
-    let riderQuery = adminClient
+    const { data: riders, error: riderError } = await adminClient
       .from('riders')
-      .select('id', { count: 'exact', head: true })
+      .select('id, primary_category_id, birth_year, date_of_birth, gender')
       .eq('event_id', eventId)
-      .eq('birth_year', year)
 
-    if (gender !== 'MIX') {
-      riderQuery = riderQuery.eq('gender', gender)
-    }
-
-    const { count: totalRiders, error: countError } = await riderQuery
-    if (countError) {
+    if (riderError) {
       const warning = 'Failed to count riders. Resolver skipped.'
       console.warn(warning)
       return DEFAULT_RESULT(categoryId, eventId, 0, warning)
     }
 
+    const totalRiders =
+      (riders ?? []).filter((rider) =>
+        riderBelongsToPrimaryCategory(
+          rider as { primary_category_id?: string | null; birth_year?: number | null; date_of_birth?: string | null; gender: 'BOY' | 'GIRL' },
+          category as { id: string; year: number; year_min?: number | null; year_max?: number | null; gender: 'BOY' | 'GIRL' | 'MIX' }
+        )
+      ).length ?? 0
+
     if (override) {
       return {
         categoryId,
         eventId,
-        totalRiders: totalRiders ?? 0,
+        totalRiders,
         stages: {
           enableQualification: override.enableQualification ?? false,
           enableQuarterFinal: override.enableQuarterFinal ?? false,
@@ -115,13 +115,13 @@ export async function resolveCategoryConfig(categoryId: string, override?: Resol
       .from('race_category_rule')
       .select('min_riders, enable_qualification, enable_quarter_final, enable_semi_final, enabled_final_classes')
       .eq('category_id', categoryId)
-      .lte('min_riders', totalRiders ?? 0)
+      .lte('min_riders', totalRiders)
       .order('min_riders', { ascending: false })
       .limit(1)
       .maybeSingle()
 
     if (ruleError || !rule) {
-      const total = totalRiders ?? 0
+      const total = totalRiders
       const defaults = resolveDefaultAdvancedRace(total)
 
       return {
@@ -138,7 +138,7 @@ export async function resolveCategoryConfig(categoryId: string, override?: Resol
     return {
       categoryId,
       eventId,
-      totalRiders: totalRiders ?? 0,
+      totalRiders,
       stages: {
         enableQualification: Boolean(rule.enable_qualification),
         enableQuarterFinal: Boolean(rule.enable_quarter_final),
