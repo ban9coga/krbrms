@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState, type ClipboardEvent, type DragEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent, type DragEvent } from 'react'
 import PublicTopbar from '../../../../components/PublicTopbar'
 import {
   getExactPrimaryCategoryCandidates,
@@ -395,27 +395,29 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     return category.remaining <= 0
   }
 
-  const getExactPrimaryCategories = (birthYear: number | null, gender: 'BOY' | 'GIRL') => {
+  const getExactPrimaryCategories = useCallback((birthYear: number | null, gender: 'BOY' | 'GIRL') => {
     if (!birthYear) return []
     return getExactPrimaryCategoryCandidates(categories, birthYear, gender)
-  }
+  }, [categories])
 
-  const getAvailableExactPrimaryCategory = (birthYear: number | null, gender: 'BOY' | 'GIRL') => {
+  const getAvailableExactPrimaryCategory = useCallback((birthYear: number | null, gender: 'BOY' | 'GIRL') => {
     return getExactPrimaryCategories(birthYear, gender).find((category) => !isCategoryFull(category)) ?? null
-  }
+  }, [getExactPrimaryCategories])
 
-  const getFallbackPrimaryCategories = (birthYear: number | null, gender: 'BOY' | 'GIRL') => {
+  const getFallbackPrimaryCategories = useCallback((birthYear: number | null, gender: 'BOY' | 'GIRL') => {
     if (!birthYear) return []
     return getFallbackPrimaryCategoryCandidates(categories, birthYear, gender)
-  }
+  }, [categories])
 
-  const getSelectedFallbackPrimaryCategory = (
+  const getSelectedFallbackPrimaryCategory = useCallback((
     birthYear: number | null,
     gender: 'BOY' | 'GIRL',
     primaryCategoryId: string
-  ) => getFallbackPrimaryCategories(birthYear, gender).find((category) => category.id === primaryCategoryId) ?? null
+  ) => getFallbackPrimaryCategories(birthYear, gender).find((category) => category.id === primaryCategoryId) ?? null, [
+    getFallbackPrimaryCategories,
+  ])
 
-  const computePrimaryCategory = (
+  const computePrimaryCategory = useCallback((
     birthYear: number | null,
     gender: 'BOY' | 'GIRL',
     primaryCategoryId: string
@@ -425,9 +427,9 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     const fallback = getSelectedFallbackPrimaryCategory(birthYear, gender, primaryCategoryId)
     if (!fallback || isCategoryFull(fallback)) return null
     return fallback
-  }
+  }, [getAvailableExactPrimaryCategory, getSelectedFallbackPrimaryCategory])
 
-  const getPrimaryCategoryIssue = (
+  const getPrimaryCategoryIssue = useCallback((
     birthYear: number | null,
     gender: 'BOY' | 'GIRL',
     primaryCategoryId: string
@@ -441,7 +443,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     if (fallbackOptions.length === 0) return 'full'
     const selectedFallback = fallbackOptions.find((category) => category.id === primaryCategoryId)
     return selectedFallback ? null : 'fallback_required'
-  }
+  }, [getExactPrimaryCategories, getFallbackPrimaryCategories])
 
   const extraCategoryOptions = (
     birthYear: number | null,
@@ -531,6 +533,44 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     ''
   const scoringSupportLabel =
     businessSettings?.scoring_support_label?.trim() || businessSettings?.scoring_support_name?.trim() || ''
+  const lastAutoCategoryModalKeyRef = useRef('')
+  const openSlotFullModal = useCallback((message: string) => {
+    setSlotFullModal({
+      title: 'Slot Pendaftaran Penuh',
+      message,
+    })
+  }, [])
+
+  const getPrimaryIssueModalMessage = (issue: 'full' | 'fallback_required', riderIndex: number) => {
+    if (issue === 'full') {
+      return `Rider #${riderIndex + 1}: kategori sesuai umur penuh, dan semua kategori di atas umur rider juga penuh.`
+    }
+    return `Rider #${riderIndex + 1}: kategori sesuai umur penuh. Pilih kategori pengganti yang tersedia.`
+  }
+
+  useEffect(() => {
+    const issueEntry = riders.findIndex((rider) => {
+      const birthYear = rider.dateOfBirth ? new Date(rider.dateOfBirth).getUTCFullYear() : null
+      const issue = getPrimaryCategoryIssue(birthYear, rider.gender, rider.primaryCategoryId)
+      return issue === 'full' || issue === 'fallback_required'
+    })
+
+    if (issueEntry < 0) {
+      lastAutoCategoryModalKeyRef.current = ''
+      return
+    }
+
+    const rider = riders[issueEntry]
+    const birthYear = rider.dateOfBirth ? new Date(rider.dateOfBirth).getUTCFullYear() : null
+    const issue = getPrimaryCategoryIssue(birthYear, rider.gender, rider.primaryCategoryId)
+    if (issue !== 'full' && issue !== 'fallback_required') return
+
+    const issueKey = `${issueEntry}-${rider.dateOfBirth}-${rider.gender}-${issue}`
+    if (lastAutoCategoryModalKeyRef.current === issueKey) return
+
+    lastAutoCategoryModalKeyRef.current = issueKey
+    openSlotFullModal(getPrimaryIssueModalMessage(issue, issueEntry))
+  }, [getPrimaryCategoryIssue, openSlotFullModal, riders])
 
   useEffect(() => {
     const timers: Array<ReturnType<typeof setTimeout>> = []
@@ -645,7 +685,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     if (hasPrimaryCategorySlotFull) {
       openSlotFullModal(
         hasPrimaryCategoryAndFallbackFull
-          ? 'Kategori sesuai umur penuh, dan semua kategori di atas umur rider juga penuh.'
+          ? 'Kategori sesuai umur penuh, dan semua kategori di atas umur rider juga penuh, silahkan Hubungi panitia'
           : hasPrimaryCategoryNeedsFallbackChoice
           ? 'Kategori sesuai umur penuh. Pilih kategori pengganti yang tersedia.'
           : 'Salah satu kategori utama rider penuh.'
@@ -912,13 +952,6 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
 
   const dropZoneClass = (key: string) =>
     `${filePickerClass} ${dragActiveKey === key ? 'border-amber-400 bg-amber-400/10' : ''}`
-
-  const openSlotFullModal = (message: string) => {
-    setSlotFullModal({
-      title: 'Slot Pendaftaran Penuh',
-      message,
-    })
-  }
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#020817_0%,#041030_45%,#030712_100%)] text-slate-100">
