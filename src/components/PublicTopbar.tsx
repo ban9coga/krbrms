@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import { formatAppRoleLabel, normalizeAppRole } from '../lib/roles'
 import { supabase } from '../lib/supabaseClient'
+import { useTheme } from './ThemeProvider'
 import PublicBottomBar from './PublicBottomBar'
 
 const navItems = [
@@ -36,13 +37,15 @@ const roleHome = (value: string | null) => {
   return '/dashboard'
 }
 
-export default function PublicTopbar({ theme = 'light' }: PublicTopbarProps) {
+export default function PublicTopbar({ theme }: PublicTopbarProps) {
   const pathname = usePathname()
   const router = useRouter()
+  const { theme: globalTheme } = useTheme()
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [roleKey, setRoleKey] = useState<string | null>(null)
   const [eventBranding, setEventBranding] = useState<EventBranding | null>(null)
-  const isDark = theme === 'dark'
+  const resolvedTheme = theme ?? globalTheme
+  const isDark = resolvedTheme === 'dark'
 
   const panelHref = useMemo(() => roleHome(roleKey), [roleKey])
   const panelLabel = useMemo(() => formatAppRoleLabel(roleKey), [roleKey])

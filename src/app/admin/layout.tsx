@@ -4,6 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
+import { useTheme } from '../../components/ThemeProvider'
 import { formatAppRoleLabel, isEventAdminRole, normalizeAppRole } from '../../lib/roles'
 import { supabase } from '../../lib/supabaseClient'
 
@@ -225,6 +226,8 @@ function NavGroup({
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
+  const { theme } = useTheme()
+  const isDark = theme === 'dark'
 
   const [isMobile, setIsMobile] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -351,13 +354,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const sidebarBody = (
     <div className="flex h-full flex-col gap-4 px-3 py-4">
       <div className={`flex items-center gap-2.5 ${collapsed ? 'justify-center' : ''}`}>
-        <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-[linear-gradient(135deg,#ffffff_0%,#fef3c7_100%)] shadow-sm">
+        <div className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border shadow-sm ${isDark ? 'border-slate-700 bg-[linear-gradient(135deg,#0f172a_0%,#1e293b_100%)]' : 'border-slate-200 bg-[linear-gradient(135deg,#ffffff_0%,#fef3c7_100%)]'}`}>
           <Image src="/platform-logo.png" alt="Platform" width={28} height={28} className="object-contain" />
         </div>
         {!collapsed && (
           <div className="min-w-0">
-            <div className="text-sm font-black tracking-[0.14em] text-slate-900">{BRAND.short}</div>
-            <div className="text-xs font-semibold leading-4 text-slate-500">{BRAND.name}</div>
+            <div className={`text-sm font-black tracking-[0.14em] ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{BRAND.short}</div>
+            <div className={`text-xs font-semibold leading-4 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{BRAND.name}</div>
           </div>
         )}
       </div>
@@ -405,7 +408,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         )}
       </div>
 
-      <div className="mt-auto rounded-[1.4rem] border border-slate-200 bg-slate-50 px-3 py-3">
+      <div className={`mt-auto rounded-[1.4rem] border px-3 py-3 ${isDark ? 'border-slate-700 bg-slate-900/70' : 'border-slate-200 bg-slate-50'}`}>
         <div className={`grid gap-1 ${collapsed ? 'justify-items-center text-center' : ''}`}>
           <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Current role</div>
           <div
@@ -413,7 +416,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           >
             {formatAppRoleLabel(userRole)}
           </div>
-          {!collapsed && userEmail && <div className="truncate text-xs font-semibold text-slate-500">{userEmail}</div>}
+          {!collapsed && userEmail && <div className={`truncate text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{userEmail}</div>}
         </div>
       </div>
     </div>
@@ -421,7 +424,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   if (!authChecked) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top,#fef3c7_0%,#f8fafc_36%,#eef2ff_100%)] px-6">
+      <div className={`flex min-h-screen items-center justify-center px-6 ${isDark ? 'bg-[radial-gradient(circle_at_top,#1e293b_0%,#020617_58%,#000000_100%)]' : 'bg-[radial-gradient(circle_at_top,#fef3c7_0%,#f8fafc_36%,#eef2ff_100%)]'}`}>
         <div className="admin-surface flex w-full max-w-md items-center gap-4 p-6">
           <span className="h-3 w-3 animate-pulse rounded-full bg-amber-400" />
           <div>
@@ -436,8 +439,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   if (!authorized) return null
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,#fef3c7_0%,#f8fafc_34%,#eef2ff_100%)] text-slate-900">
-      <div className="fixed inset-x-0 top-0 z-40 border-b border-white/70 bg-white/85 backdrop-blur-xl">
+    <div className={`min-h-screen ${isDark ? 'bg-[radial-gradient(circle_at_top,#1e293b_0%,#020617_54%,#000000_100%)] text-slate-100' : 'bg-[radial-gradient(circle_at_top,#fef3c7_0%,#f8fafc_34%,#eef2ff_100%)] text-slate-900'}`}>
+      <div className={`fixed inset-x-0 top-0 z-40 backdrop-blur-xl ${isDark ? 'border-b border-slate-800 bg-slate-950/82' : 'border-b border-white/70 bg-white/85'}`}>
         <div className="mx-auto flex h-18 max-w-[1800px] items-center gap-4 px-4 sm:px-6 lg:px-8">
           {isMobile && (
             <button type="button" onClick={() => setSidebarOpen(true)} className="admin-secondary-button shrink-0 px-3">
@@ -451,7 +454,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <div className="min-w-0 flex-1">
             <div className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Admin workspace</div>
             <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2">
-              <span className="truncate text-lg font-black tracking-tight text-slate-950">
+              <span className={`truncate text-lg font-black tracking-tight ${isDark ? 'text-slate-100' : 'text-slate-950'}`}>
                 {eventId ? eventMenuLabel : 'Control Dashboard'}
               </span>
               {eventId && (
@@ -464,9 +467,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
           <div className="flex items-center gap-2 sm:gap-3">
             {!isMobile && (
-              <div className="hidden max-w-[320px] rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-right sm:block">
+              <div className={`hidden max-w-[320px] rounded-full border px-4 py-2 text-right sm:block ${isDark ? 'border-slate-700 bg-slate-900/80' : 'border-slate-200 bg-slate-50'}`}>
                 <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">{formatAppRoleLabel(userRole)}</div>
-                <div className="truncate text-sm font-semibold text-slate-600" title={userEmail ?? undefined}>
+                <div className={`truncate text-sm font-semibold ${isDark ? 'text-slate-300' : 'text-slate-600'}`} title={userEmail ?? undefined}>
                   {userEmail ?? 'No email'}
                 </div>
               </div>

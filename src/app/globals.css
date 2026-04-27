@@ -1,16 +1,89 @@
 @import "tailwindcss";
 
 @layer base {
+  :root {
+    --app-bg: #f8fafc;
+    --app-text: #0f172a;
+    --surface-bg: rgba(255, 255, 255, 0.88);
+    --surface-border: rgba(255, 255, 255, 0.7);
+    --surface-shadow: 0 24px 70px rgba(15, 23, 42, 0.08);
+    --panel-bg: rgba(255, 255, 255, 0.9);
+    --panel-border: #e2e8f0;
+    --chip-bg: #f1f5f9;
+    --chip-border: #e2e8f0;
+    --chip-text: #475569;
+    --table-head-bg: #f1f5f9;
+    --table-head-text: #475569;
+    --table-row-odd: #f8fafc;
+    --table-row-even: #ffffff;
+    --table-row-hover: #e2e8f0;
+  }
+
+  html[data-theme='dark'] {
+    --app-bg: #020617;
+    --app-text: #e2e8f0;
+    --surface-bg: rgba(15, 23, 42, 0.86);
+    --surface-border: rgba(51, 65, 85, 0.75);
+    --surface-shadow: 0 24px 70px rgba(2, 6, 23, 0.42);
+    --panel-bg: rgba(15, 23, 42, 0.9);
+    --panel-border: #334155;
+    --chip-bg: #1e293b;
+    --chip-border: #334155;
+    --chip-text: #cbd5e1;
+    --table-head-bg: #0f172a;
+    --table-head-text: #cbd5e1;
+    --table-row-odd: #0b1220;
+    --table-row-even: #111827;
+    --table-row-hover: #1e293b;
+  }
+
   html,
   body {
     margin: 0;
     min-height: 100%;
+    background: var(--app-bg);
+    color: var(--app-text);
+    transition: background-color 180ms ease, color 180ms ease;
+  }
+
+  html[data-theme='dark'] .bg-white,
+  html[data-theme='dark'] .bg-white\/90,
+  html[data-theme='dark'] .bg-white\/95,
+  html[data-theme='dark'] .bg-slate-50,
+  html[data-theme='dark'] .bg-slate-100 {
+    background-color: #0f172a !important;
+  }
+
+  html[data-theme='dark'] .border-slate-200,
+  html[data-theme='dark'] .border-slate-300,
+  html[data-theme='dark'] .border-white\/70 {
+    border-color: #334155 !important;
+  }
+
+  html[data-theme='dark'] .text-slate-900,
+  html[data-theme='dark'] .text-slate-800,
+  html[data-theme='dark'] .text-slate-700 {
+    color: #e2e8f0 !important;
+  }
+
+  html[data-theme='dark'] .text-slate-600,
+  html[data-theme='dark'] .text-slate-500,
+  html[data-theme='dark'] .text-slate-400 {
+    color: #94a3b8 !important;
+  }
+
+  html[data-theme='dark'] .shadow-sm,
+  html[data-theme='dark'] .shadow-2xl {
+    box-shadow: 0 20px 44px rgba(2, 6, 23, 0.35) !important;
   }
 }
 
 @layer components {
   .admin-surface {
-    @apply rounded-[1.75rem] border border-white/70 bg-white/88 shadow-[0_24px_70px_rgba(15,23,42,0.08)] backdrop-blur-xl;
+    @apply rounded-[1.75rem] backdrop-blur-xl;
+    border: 1px solid var(--surface-border);
+    background: var(--surface-bg);
+    box-shadow: var(--surface-shadow);
   }
 
   .admin-primary-button {
@@ -30,7 +103,9 @@
   }
 
   .public-page {
-    @apply min-h-screen overflow-x-hidden bg-slate-100 text-slate-900;
+    @apply min-h-screen overflow-x-hidden;
+    background: var(--app-bg);
+    color: var(--app-text);
     padding-bottom: calc(7.5rem + env(safe-area-inset-bottom, 0px));
   }
 
@@ -47,15 +122,24 @@
   }
 
   .public-panel-light {
-    @apply min-w-0 overflow-x-hidden rounded-[1.5rem] border border-slate-200 bg-white/90 p-4 shadow-[0_14px_34px_rgba(15,23,42,0.1)] sm:p-6;
+    @apply min-w-0 overflow-x-hidden rounded-[1.5rem] p-4 sm:p-6;
+    border: 1px solid var(--panel-border);
+    background: var(--panel-bg);
+    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.1);
   }
 
   .public-filter {
-    @apply rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-300/30;
+    @apply rounded-xl px-3 py-2.5 text-sm font-semibold outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-300/30;
+    border: 1px solid var(--panel-border);
+    background: var(--panel-bg);
+    color: var(--app-text);
   }
 
   .public-chip {
-    @apply inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-extrabold uppercase tracking-[0.12em] text-slate-600;
+    @apply inline-flex items-center rounded-full px-3 py-1 text-xs font-extrabold uppercase tracking-[0.12em];
+    border: 1px solid var(--chip-border);
+    background: var(--chip-bg);
+    color: var(--chip-text);
   }
 
   .public-action {
@@ -63,7 +147,9 @@
   }
 
   .public-table-wrap {
-    @apply w-full max-w-full overflow-x-auto rounded-2xl border border-slate-200 bg-white/95;
+    @apply w-full max-w-full overflow-x-auto rounded-2xl;
+    border: 1px solid var(--panel-border);
+    background: var(--panel-bg);
     overflow-y: hidden;
     overscroll-behavior-x: contain;
     -webkit-overflow-scrolling: touch;
@@ -79,12 +165,16 @@
   }
 
   .table-mobile-hint {
-    @apply mb-2 hidden items-center gap-2 text-[11px] font-extrabold uppercase tracking-[0.08em] text-slate-500;
+    @apply mb-2 hidden items-center gap-2 text-[11px] font-extrabold uppercase tracking-[0.08em];
+    color: var(--chip-text);
   }
 
   .table-mobile-hint::before {
     content: 'SWIPE';
-    @apply inline-flex items-center rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-[10px] font-black tracking-[0.08em] text-slate-600;
+    @apply inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-black tracking-[0.08em];
+    border: 1px solid var(--chip-border);
+    background: var(--chip-bg);
+    color: var(--chip-text);
   }
 
   .public-table {
@@ -92,30 +182,35 @@
   }
 
   .public-table thead tr {
-    @apply bg-slate-100 text-left text-xs font-black uppercase tracking-[0.12em] text-slate-600;
+    @apply text-left text-xs font-black uppercase tracking-[0.12em];
+    background: var(--table-head-bg);
+    color: var(--table-head-text);
   }
 
   .public-table th {
-    @apply border-b border-slate-200 px-3 py-3;
+    @apply px-3 py-3;
+    border-bottom: 1px solid var(--panel-border);
   }
 
   .public-table td {
-    @apply border-b border-slate-100 px-3 py-2.5 text-slate-700;
+    @apply px-3 py-2.5;
+    border-bottom: 1px solid color-mix(in srgb, var(--panel-border) 65%, transparent);
+    color: color-mix(in srgb, var(--app-text) 82%, transparent);
   }
 
   .public-table tbody tr:nth-child(odd),
   .table-striped tbody tr:nth-child(odd) {
-    background: #f8fafc;
+    background: var(--table-row-odd);
   }
 
   .public-table tbody tr:nth-child(even),
   .table-striped tbody tr:nth-child(even) {
-    background: #ffffff;
+    background: var(--table-row-even);
   }
 
   .public-table tbody tr:hover,
   .table-striped tbody tr:hover {
-    background: #e2e8f0;
+    background: var(--table-row-hover);
     transition: background-color 140ms ease;
   }
 
