@@ -439,7 +439,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   if (!authorized) return null
 
   return (
-    <div className={`min-h-screen ${isDark ? 'bg-[radial-gradient(circle_at_top,#1e293b_0%,#020617_54%,#000000_100%)] text-slate-100' : 'bg-[radial-gradient(circle_at_top,#fef3c7_0%,#f8fafc_34%,#eef2ff_100%)] text-slate-900'}`}>
+    <div
+      className={`admin-theme-scope min-h-screen ${
+        isDark
+          ? 'bg-[radial-gradient(circle_at_top,#1e293b_0%,#020617_54%,#000000_100%)] text-slate-100'
+          : 'bg-[radial-gradient(circle_at_top,#fef3c7_0%,#f8fafc_34%,#eef2ff_100%)] text-slate-900'
+      }`}
+    >
       <div className={`fixed inset-x-0 top-0 z-40 backdrop-blur-xl ${isDark ? 'border-b border-slate-800 bg-slate-950/82' : 'border-b border-white/70 bg-white/85'}`}>
         <div className="mx-auto flex h-18 max-w-[1800px] items-center gap-4 px-4 sm:px-6 lg:px-8">
           {isMobile && (
@@ -490,7 +496,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </aside>
         </div>
 
-        <main className="min-w-0 flex-1 px-4 py-5 sm:px-6 sm:py-6 lg:px-0 lg:py-8">
+        <main className={`min-w-0 flex-1 px-4 py-5 sm:px-6 sm:py-6 lg:px-0 lg:py-8 ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
           <div className="mx-auto min-w-0 max-w-[1440px]">{children}</div>
         </main>
       </div>
