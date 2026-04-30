@@ -97,15 +97,15 @@ export default async function DashboardPage() {
   }
   const upcomingEvents = upcomingEventsRaw.map((event) => ({
     ...event,
-    event_scope: settingsMap.get(event.id)?.event_scope ?? (event.is_public === false ? 'INTERNAL' : 'PUBLIC'),
+    event_scope: settingsMap.get(event.id)?.event_scope ?? 'PUBLIC',
   }))
   const ongoingEvents = ongoingEventsRaw.map((event) => ({
     ...event,
-    event_scope: settingsMap.get(event.id)?.event_scope ?? (event.is_public === false ? 'INTERNAL' : 'PUBLIC'),
+    event_scope: settingsMap.get(event.id)?.event_scope ?? 'PUBLIC',
   }))
   const finishedEvents = finishedEventsRaw.map((event) => ({
     ...event,
-    event_scope: settingsMap.get(event.id)?.event_scope ?? (event.is_public === false ? 'INTERNAL' : 'PUBLIC'),
+    event_scope: settingsMap.get(event.id)?.event_scope ?? 'PUBLIC',
   }))
 
   return (

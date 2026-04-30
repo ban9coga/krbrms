@@ -44,7 +44,7 @@ export default function EventCard({
     month: 'short',
     year: 'numeric',
   })
-  const eventScope = event.event_scope === 'INTERNAL' ? 'INTERNAL' : event.is_public === false ? 'INTERNAL' : 'PUBLIC'
+  const eventScope = event.event_scope === 'INTERNAL' ? 'INTERNAL' : 'PUBLIC'
   const detailHref = `/event/${event.id}`
   const registerHref = `/event/${event.id}/register`
   const mapsUrl = buildGoogleMapsUrl(event.name, event.location)

@@ -148,7 +148,7 @@ export default async function LandingPage() {
     .filter((e, idx, arr) => arr.findIndex((x) => x.id === e.id) === idx)
     .map((event) => ({
       ...event,
-      event_scope: settingsMap.get(event.id)?.event_scope ?? (event.is_public === false ? 'INTERNAL' : 'PUBLIC'),
+      event_scope: settingsMap.get(event.id)?.event_scope ?? 'PUBLIC',
     }))
 
   return (

@@ -62,9 +62,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const formatResult = await getLatestRaceFormatSettings(eventId)
   if (formatResult.error) return NextResponse.json({ error: formatResult.error.message }, { status: 400 })
   const drawMode = normalizeDrawMode(formatResult.data?.draw_mode)
-  const eventScope = normalizeEventScope(
-    formatResult.data?.event_scope ?? (eventRow.is_public === false ? 'INTERNAL' : 'PUBLIC')
-  )
+  const eventScope = normalizeEventScope(formatResult.data?.event_scope ?? 'PUBLIC')
   return NextResponse.json({
     data: {
       ...eventRow,

@@ -66,11 +66,10 @@ export async function GET(req: Request) {
 
   const normalizedData = events.map((row) => {
     const eventId = String(row.id ?? '')
-    const fallbackScope = row.is_public === false ? 'INTERNAL' : 'PUBLIC'
     return {
       ...row,
       draw_mode: drawModeByEventId.get(eventId) ?? 'internal_live_draw',
-      event_scope: eventScopeByEventId.get(eventId) ?? fallbackScope,
+      event_scope: eventScopeByEventId.get(eventId) ?? 'PUBLIC',
     }
   })
 
@@ -87,7 +86,7 @@ export async function POST(req: Request) {
   const { name, location, event_date, status = 'UPCOMING', is_public, draw_mode, event_scope } = body ?? {}
   const drawMode = normalizeDrawMode(draw_mode)
   const normalizedIsPublic = is_public === undefined ? true : Boolean(is_public)
-  const eventScope = normalizeEventScope(event_scope ?? (normalizedIsPublic ? 'PUBLIC' : 'INTERNAL'))
+  const eventScope = normalizeEventScope(event_scope ?? 'PUBLIC')
   if (!name || !event_date) {
     return NextResponse.json({ error: 'name and event_date required' }, { status: 400 })
   }
