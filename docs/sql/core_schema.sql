@@ -1,5 +1,6 @@
 -- Core schema for Pushbike Race Management System
 create extension if not exists "uuid-ossp";
+create extension if not exists "pgcrypto";
 
 -- Enums
 do $$
@@ -81,6 +82,14 @@ create index if not exists idx_categories_event on categories(event_id);
 create index if not exists idx_categories_year_gender on categories(event_id, year, gender);
 create unique index if not exists uq_categories_event_year_gender on categories(event_id, year, gender);
 
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'ck_categories_year_range') then
+    alter table categories
+      add constraint ck_categories_year_range check (year_min <= year_max);
+  end if;
+end$$;
+
 -- RIDERS
 create table if not exists riders (
   id uuid primary key default uuid_generate_v4(),
@@ -105,7 +114,7 @@ create table if not exists riders (
   constraint ck_rider_gender check (gender in ('BOY','GIRL')),
   constraint ck_plate_number check (plate_number ~ '^[0-9]+$'),
   constraint ck_plate_suffix check (plate_suffix is null or plate_suffix ~ '^[A-Z]$'),
-  constraint ck_rider_jersey_size check (jersey_size is null or jersey_size in ('XS','S','M','L','XL')),
+  constraint ck_rider_jersey_size check (jersey_size is null or jersey_size in ('XS','S','M','L','XL','2XL','3XL')),
   constraint ck_birth_year check (
     birth_year >= 2016
     and birth_year <= 2025
@@ -194,12 +203,11 @@ create table if not exists event_settings (
   sponsor_logo_urls text[] not null default '{}',
   base_price int not null default 250000,
   extra_price int not null default 150000,
-  ffa_mix_min_year int,
-  ffa_mix_max_year int,
   require_jersey_size boolean not null default false,
   scoring_rules jsonb not null default '{}'::jsonb,
   display_theme jsonb not null default '{}'::jsonb,
   race_format_settings jsonb not null default '{}'::jsonb,
+  business_settings jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -220,6 +228,8 @@ create table if not exists registrations (
   total_amount int not null default 0,
   status registration_status not null default 'PENDING',
   notes text,
+  upload_token text,
+  upload_token_created_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint ck_registrations_total_amount check (total_amount >= 0)
@@ -227,6 +237,7 @@ create table if not exists registrations (
 
 create index if not exists idx_registrations_event on registrations(event_id);
 create index if not exists idx_registrations_status on registrations(event_id, status);
+create unique index if not exists registrations_upload_token_unique on registrations(upload_token) where upload_token is not null;
 
 drop trigger if exists trg_registrations_updated_at on registrations;
 create trigger trg_registrations_updated_at
@@ -260,7 +271,7 @@ create table if not exists registration_items (
     requested_plate_suffix is null or requested_plate_suffix ~ '^[A-Z]$'
   ),
   constraint ck_registration_items_jersey_size check (
-    jersey_size is null or jersey_size in ('XS','S','M','L','XL')
+    jersey_size is null or jersey_size in ('XS','S','M','L','XL','2XL','3XL')
   )
 );
 
