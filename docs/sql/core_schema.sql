@@ -34,6 +34,43 @@ begin
   end if;
 end$$;
 
+-- Optional module enums
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'penalty_stage') then
+    create type penalty_stage as enum ('MOTO','QUARTER','SEMI','FINAL','ALL');
+  end if;
+  if not exists (select 1 from pg_type where typname = 'participation_status') then
+    create type participation_status as enum ('ACTIVE','DNS','DNF','ABSENT');
+  end if;
+  if not exists (select 1 from pg_type where typname = 'rank_type') then
+    create type rank_type as enum ('COMPETITIVE','ADMINISTRATIVE');
+  end if;
+  if not exists (select 1 from pg_type where typname = 'award_type') then
+    create type award_type as enum (
+      'PARTICIPATION',
+      'BEGINNER','AMATEUR','ACADEMY','ROOKIE','PRO','NOVICE','ELITE','INTERMEDIATE','ADVANCED'
+    );
+  end if;
+  if not exists (select 1 from pg_type where typname = 'approval_mode') then
+    create type approval_mode as enum ('AUTO','DIRECTOR');
+  end if;
+  if not exists (select 1 from pg_type where typname = 'approval_status') then
+    create type approval_status as enum ('PENDING','APPROVED','REJECTED');
+  end if;
+  if not exists (select 1 from pg_type where typname = 'audit_action') then
+    create type audit_action as enum ('STATUS_APPROVAL','PENALTY_APPROVAL','RESULT_OVERRIDE','RESULT_UNLOCK');
+  end if;
+  if not exists (select 1 from pg_type where typname = 'race_stage') then
+    create type race_stage as enum ('QUALIFICATION','QUARTER_FINAL','SEMI_FINAL','FINAL');
+  end if;
+  if not exists (select 1 from pg_type where typname = 'final_class') then
+    create type final_class as enum (
+      'BEGINNER','AMATEUR','ACADEMY','ROOKIE','PRO','NOVICE','ELITE','INTERMEDIATE','ADVANCED'
+    );
+  end if;
+end$$;
+
 -- Shared helper to keep updated_at consistent
 create or replace function set_updated_at()
 returns trigger as $$
@@ -139,6 +176,9 @@ create table if not exists motos (
   moto_name text not null,
   moto_order int not null,
   status moto_status not null default 'UPCOMING',
+  is_published boolean not null default false,
+  published_at timestamptz,
+  provisional_at timestamptz,
   created_at timestamptz not null default now()
 );
 
@@ -183,6 +223,7 @@ create table if not exists race_schedules (
   event_id uuid not null references events(id) on delete cascade,
   moto_id uuid not null references motos(id) on delete cascade,
   schedule_time timestamptz,
+  end_time timestamptz,
   track_number int,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -318,4 +359,294 @@ create index if not exists idx_registration_payments_status on registration_paym
 drop trigger if exists trg_registration_payments_updated_at on registration_payments;
 create trigger trg_registration_payments_updated_at
 before update on registration_payments
+for each row execute function set_updated_at();
+
+-- OPTIONAL MODULES
+
+create table if not exists event_feature_flags (
+  event_id uuid primary key references events(id) on delete cascade,
+  penalty_enabled boolean not null default false,
+  absent_enabled boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists rider_participation_status (
+  id uuid primary key default uuid_generate_v4(),
+  event_id uuid not null references events(id) on delete cascade,
+  rider_id uuid not null references riders(id) on delete cascade,
+  participation_status participation_status not null default 'ACTIVE',
+  registration_order int not null default 0,
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists uq_rider_participation_event_rider
+  on rider_participation_status(event_id, rider_id);
+
+create table if not exists event_penalty_rules (
+  id uuid primary key default uuid_generate_v4(),
+  event_id uuid not null references events(id) on delete cascade,
+  code text not null,
+  description text,
+  penalty_point int not null,
+  applies_to_stage penalty_stage not null default 'ALL',
+  is_active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists uq_event_penalty_code
+  on event_penalty_rules(event_id, code);
+create index if not exists idx_event_penalty_event
+  on event_penalty_rules(event_id);
+
+create table if not exists rider_penalties (
+  id uuid primary key default uuid_generate_v4(),
+  rider_id uuid not null references riders(id) on delete cascade,
+  event_id uuid not null references events(id) on delete cascade,
+  stage penalty_stage not null default 'ALL',
+  rule_code text not null,
+  penalty_point int not null,
+  note text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_rider_penalties_event
+  on rider_penalties(event_id);
+create index if not exists idx_rider_penalties_rider
+  on rider_penalties(rider_id);
+
+create table if not exists event_absent_config (
+  event_id uuid primary key references events(id) on delete cascade,
+  absent_point int not null default 99,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists race_awards (
+  id uuid primary key default uuid_generate_v4(),
+  event_id uuid not null references events(id) on delete cascade,
+  rider_id uuid not null references riders(id) on delete cascade,
+  category_id uuid references categories(id) on delete set null,
+  stage penalty_stage not null default 'ALL',
+  rank_type rank_type not null default 'COMPETITIVE',
+  award_type award_type not null default 'PARTICIPATION',
+  position int,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_race_awards_event
+  on race_awards(event_id);
+create index if not exists idx_race_awards_rider
+  on race_awards(rider_id);
+
+create table if not exists event_approval_modes (
+  event_id uuid primary key references events(id) on delete cascade,
+  approval_mode approval_mode not null default 'AUTO',
+  created_at timestamptz not null default now()
+);
+
+create table if not exists rider_status_updates (
+  id uuid primary key default uuid_generate_v4(),
+  event_id uuid not null references events(id) on delete cascade,
+  rider_id uuid not null references riders(id) on delete cascade,
+  proposed_status participation_status not null,
+  created_by text not null,
+  approval_status approval_status not null default 'PENDING',
+  approved_by text,
+  approved_at timestamptz,
+  note text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_rider_status_updates_event
+  on rider_status_updates(event_id);
+
+create table if not exists rider_penalty_approvals (
+  id uuid primary key default uuid_generate_v4(),
+  penalty_id uuid not null references rider_penalties(id) on delete cascade,
+  approval_status approval_status not null default 'PENDING',
+  approved_by text,
+  approved_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists uq_rider_penalty_approvals_penalty
+  on rider_penalty_approvals(penalty_id);
+
+create table if not exists moto_locks (
+  moto_id uuid primary key references motos(id) on delete cascade,
+  event_id uuid not null references events(id) on delete cascade,
+  is_locked boolean not null default true,
+  locked_by text not null,
+  locked_at timestamptz not null default now(),
+  unlocked_by text,
+  unlocked_at timestamptz,
+  reason text
+);
+
+create table if not exists audit_log (
+  id uuid primary key default uuid_generate_v4(),
+  action_type audit_action not null,
+  performed_by text not null,
+  rider_id uuid references riders(id) on delete set null,
+  moto_id uuid references motos(id) on delete set null,
+  event_id uuid references events(id) on delete set null,
+  reason text,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists moto_gate_positions (
+  id uuid primary key default uuid_generate_v4(),
+  moto_id uuid not null references motos(id) on delete cascade,
+  rider_id uuid not null references riders(id) on delete cascade,
+  gate_position int not null,
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists uq_moto_gate_positions
+  on moto_gate_positions(moto_id, rider_id);
+create index if not exists idx_moto_gate_positions_moto
+  on moto_gate_positions(moto_id);
+
+create table if not exists rider_extra_categories (
+  id uuid primary key default uuid_generate_v4(),
+  event_id uuid not null references events(id) on delete cascade,
+  rider_id uuid not null references riders(id) on delete cascade,
+  category_id uuid not null references categories(id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists uq_rider_extra_category_rider
+  on rider_extra_categories(rider_id);
+create index if not exists idx_rider_extra_category_event
+  on rider_extra_categories(event_id);
+create index if not exists idx_rider_extra_category_category
+  on rider_extra_categories(category_id);
+
+create table if not exists event_safety_requirements (
+  id uuid primary key default gen_random_uuid(),
+  event_id uuid not null references events(id) on delete cascade,
+  label text not null,
+  is_required boolean not null default true,
+  sort_order integer not null default 0,
+  penalty_code text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists event_safety_requirements_event_id_idx
+  on event_safety_requirements(event_id);
+create unique index if not exists uq_event_safety_requirements
+  on event_safety_requirements(event_id, label, sort_order);
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'event_safety_requirements_penalty_code_fkey'
+  ) then
+    alter table event_safety_requirements
+      add constraint event_safety_requirements_penalty_code_fkey
+      foreign key (event_id, penalty_code)
+      references event_penalty_rules(event_id, code)
+      on update cascade
+      on delete set null;
+  end if;
+end$$;
+
+create table if not exists rider_safety_checks (
+  id uuid primary key default gen_random_uuid(),
+  event_id uuid not null references events(id) on delete cascade,
+  moto_id uuid not null references motos(id) on delete cascade,
+  rider_id uuid not null references riders(id) on delete cascade,
+  requirement_id uuid not null references event_safety_requirements(id) on delete cascade,
+  is_checked boolean not null default false,
+  updated_at timestamptz not null default now(),
+  updated_by text null
+);
+
+create unique index if not exists rider_safety_checks_unique
+  on rider_safety_checks(event_id, moto_id, rider_id, requirement_id);
+create index if not exists rider_safety_checks_moto_idx
+  on rider_safety_checks(moto_id);
+
+create table if not exists race_stage_config (
+  id uuid primary key default uuid_generate_v4(),
+  event_id uuid not null references events(id) on delete cascade,
+  category_id uuid not null references categories(id) on delete cascade,
+  enabled boolean not null default false,
+  max_riders_per_race int not null default 8,
+  qualification_moto_count int not null default 2,
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists uq_race_stage_config_event_category
+  on race_stage_config(event_id, category_id);
+
+create table if not exists race_category_rule (
+  id uuid primary key default uuid_generate_v4(),
+  category_id uuid not null references categories(id) on delete cascade,
+  min_riders int not null,
+  enable_qualification boolean not null default false,
+  enable_quarter_final boolean not null default false,
+  enable_semi_final boolean not null default false,
+  enabled_final_classes jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_race_category_rule_category
+  on race_category_rule(category_id);
+create unique index if not exists uq_race_category_rule_category_min
+  on race_category_rule(category_id, min_riders);
+
+create table if not exists race_stage_result (
+  id uuid primary key default uuid_generate_v4(),
+  rider_id uuid not null references riders(id) on delete cascade,
+  category_id uuid not null references categories(id) on delete cascade,
+  stage race_stage not null,
+  batch_id uuid,
+  final_class final_class,
+  position int,
+  points int,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_race_stage_result_category_stage
+  on race_stage_result(category_id, stage);
+create index if not exists idx_race_stage_result_rider
+  on race_stage_result(rider_id);
+
+create table if not exists user_event_roles (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  event_id uuid not null references events(id) on delete cascade,
+  role text not null,
+  is_active boolean not null default true,
+  assigned_by uuid references auth.users(id) on delete set null,
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint ck_user_event_roles_role check (
+    upper(role) in (
+      'SUPER_ADMIN',
+      'ADMIN',
+      'CHECKER',
+      'FINISHER',
+      'RACE_DIRECTOR',
+      'RACE_CONTROL',
+      'MC'
+    )
+  )
+);
+
+create unique index if not exists uq_user_event_roles_active
+  on user_event_roles(user_id, event_id, upper(role));
+create index if not exists idx_user_event_roles_event
+  on user_event_roles(event_id, is_active);
+create index if not exists idx_user_event_roles_user
+  on user_event_roles(user_id, is_active);
+create index if not exists idx_user_event_roles_role
+  on user_event_roles(upper(role), is_active);
+
+drop trigger if exists trg_user_event_roles_updated_at on user_event_roles;
+create trigger trg_user_event_roles_updated_at
+before update on user_event_roles
 for each row execute function set_updated_at();
