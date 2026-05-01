@@ -22,6 +22,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
 
   if (riderError) return NextResponse.json({ error: riderError.message }, { status: 400 })
 
+  const { data: existingCategories, error: existingError } = await adminClient
+    .from('categories')
+    .select('year, gender')
+    .eq('event_id', eventId)
+
+  if (existingError) return NextResponse.json({ error: existingError.message }, { status: 400 })
+
   const unique = new Map<string, { year: number; year_min: number; year_max: number; gender: 'BOY' | 'GIRL' | 'MIX'; label: string }>()
   for (const row of riders ?? []) {
     const birthYear = Number(row.birth_year)
@@ -32,7 +39,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     if (!unique.has(key)) unique.set(key, cat)
   }
 
-  const payload = Array.from(unique.values()).map((c) => ({
+  const existingKeys = new Set(
+    (existingCategories ?? []).map((category) => `${Number(category.year)}-${String(category.gender).toUpperCase()}`)
+  )
+
+  const payload = Array.from(unique.values())
+    .filter((category) => !existingKeys.has(`${category.year}-${category.gender}`))
+    .map((c) => ({
     event_id: eventId,
     year: c.year,
     year_min: c.year_min,
@@ -40,13 +53,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     gender: c.gender,
     label: c.label,
     enabled: true,
-  }))
+    }))
 
   if (payload.length === 0) return NextResponse.json({ data: { inserted: 0 } })
 
-  const { error: insertError } = await adminClient
-    .from('categories')
-    .upsert(payload, { onConflict: 'event_id,year,gender' })
+  const { error: insertError } = await adminClient.from('categories').insert(payload)
 
   if (insertError) return NextResponse.json({ error: insertError.message }, { status: 400 })
 
