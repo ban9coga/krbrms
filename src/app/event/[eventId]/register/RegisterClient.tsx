@@ -1108,35 +1108,35 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                   placeholder="Nama Panggilan"
                   className={fieldClass}
                 />
-                <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
-                  <select
-                    value={rider.jerseySize}
-                    onChange={(e) => updateRider(idx, { jerseySize: e.target.value })}
-                    className={fieldClass}
-                  >
-                    <option value="">
-                      Ukuran Jersey {requireJerseySize ? '(wajib)' : '(opsional)'}
-                    </option>
-                    <option value="XS">XS</option>
-                    <option value="S">S</option>
-                    <option value="M">M</option>
-                    <option value="L">L</option>
-                    <option value="XL">XL</option>
-                    <option value="2XL">2XL</option>
-                    <option value="3XL">3XL</option>
-                  </select>
-                  <div className="overflow-hidden rounded-xl border border-slate-700 bg-white shadow-[0_12px_30px_rgba(2,6,23,0.18)]">
-                    <div className="border-b border-slate-200 px-3 py-2">
-                      <div className="text-sm font-black uppercase tracking-[0.12em] text-slate-800">Size Chart</div>
-                      <div className="text-[11px] font-semibold text-slate-500">
-                        Referensi base layer sleeveless. Pilihan ukuran yang aktif di form saat ini: XS sampai 3XL.
+                {requireJerseySize && (
+                  <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
+                    <select
+                      value={rider.jerseySize}
+                      onChange={(e) => updateRider(idx, { jerseySize: e.target.value })}
+                      className={fieldClass}
+                    >
+                      <option value="">Ukuran Jersey (wajib)</option>
+                      <option value="XS">XS</option>
+                      <option value="S">S</option>
+                      <option value="M">M</option>
+                      <option value="L">L</option>
+                      <option value="XL">XL</option>
+                      <option value="2XL">2XL</option>
+                      <option value="3XL">3XL</option>
+                    </select>
+                    <div className="overflow-hidden rounded-xl border border-slate-700 bg-white shadow-[0_12px_30px_rgba(2,6,23,0.18)]">
+                      <div className="border-b border-slate-200 px-3 py-2">
+                        <div className="text-sm font-black uppercase tracking-[0.12em] text-slate-800">Size Chart</div>
+                        <div className="text-[11px] font-semibold text-slate-500">
+                          Referensi base layer sleeveless. Pilihan ukuran yang aktif di form saat ini: XS sampai 3XL.
+                        </div>
+                      </div>
+                      <div className="bg-slate-100 p-2">
+                        <JerseySizeChartGraphic />
                       </div>
                     </div>
-                    <div className="bg-slate-100 p-2">
-                      <JerseySizeChartGraphic />
-                    </div>
                   </div>
-                </div>
+                )}
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="grid gap-2">
                     <label className="text-sm font-bold text-slate-200">Tanggal Lahir Rider</label>
