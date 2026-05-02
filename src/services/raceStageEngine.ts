@@ -143,14 +143,12 @@ export function computeQualification(
     for (const row of ranked) {
       if (row.rank >= 1 && row.rank <= 4) {
         applyPrimaryAdvance(advances, row.riderId, primaryAdvance)
-      } else if (row.rank === 5) {
-        advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass: 'AMATEUR' })
-      } else if (row.rank === 6) {
+      } else if (primaryAdvance.toStage === 'FINAL') {
         advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass: 'NOVICE' })
-      } else if (row.rank === 7) {
+      } else if (row.rank === 5 || row.rank === 6) {
+        advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass: 'NOVICE' })
+      } else if (row.rank === 7 || row.rank === 8) {
         advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass: 'BEGINNER' })
-      } else if (row.rank === 8) {
-        advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass: 'ROOKIE' })
       }
     }
   }

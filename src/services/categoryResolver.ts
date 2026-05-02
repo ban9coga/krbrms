@@ -2,7 +2,6 @@
 
 import { adminClient } from '../lib/auth'
 import { isMissingPrimaryCategoryColumnError, riderBelongsToPrimaryCategory } from '../lib/categoryAssignment'
-import { FINAL_CLASS_ORDER } from './raceStageEngine'
 
 export type StageFlags = {
   enableQualification: boolean
@@ -45,20 +44,20 @@ const resolveDefaultAdvancedRace = (totalRiders: number) => {
   if (totalRiders <= 16) {
     return {
       stages: { enableQualification: true, enableQuarterFinal: false, enableSemiFinal: false },
-      finalClasses: ['ROOKIE', 'BEGINNER', 'NOVICE', 'AMATEUR', 'ELITE'],
+      finalClasses: ['NOVICE', 'ELITE'],
     }
   }
 
   if (totalRiders <= 32) {
     return {
       stages: { enableQualification: true, enableQuarterFinal: false, enableSemiFinal: true },
-      finalClasses: ['ROOKIE', 'BEGINNER', 'NOVICE', 'AMATEUR', 'PRO', 'ELITE'],
+      finalClasses: ['BEGINNER', 'NOVICE', 'PRO', 'ELITE'],
     }
   }
 
   return {
     stages: { enableQualification: true, enableQuarterFinal: true, enableSemiFinal: true },
-    finalClasses: [...FINAL_CLASS_ORDER],
+    finalClasses: ['BEGINNER', 'NOVICE', 'INTERMEDIATE', 'ADVANCED', 'PRO', 'ELITE'],
   }
 }
 

@@ -89,14 +89,14 @@ type SponsorDraft = {
 }
 
 const sponsorTierOptions: EventSponsorTier[] = ['TITLE', 'MAIN', 'SUPPORT', 'MEDIA', 'COMMUNITY', 'PARTNER']
-const advancedFinalClassOrder = ['ROOKIE', 'BEGINNER', 'NOVICE', 'AMATEUR', 'INTERMEDIATE', 'ADVANCED', 'PRO', 'ELITE'] as const
+const advancedFinalClassOrder = ['BEGINNER', 'NOVICE', 'INTERMEDIATE', 'ADVANCED', 'PRO', 'ELITE'] as const
 const legacyAdvancedFinalClasses = ['ACADEMY'] as const
 
 const buildStandardBatchRules = (gateSize: number): CategoryRule[] => {
   const safeGateSize = Math.max(1, gateSize || 8)
   const eliteOnly = ['ELITE']
-  const qualificationFinals = ['ROOKIE', 'BEGINNER', 'NOVICE', 'AMATEUR', 'ELITE']
-  const semiFinals = ['ROOKIE', 'BEGINNER', 'NOVICE', 'AMATEUR', 'PRO', 'ELITE']
+  const qualificationFinals = ['NOVICE', 'ELITE']
+  const semiFinals = ['BEGINNER', 'NOVICE', 'PRO', 'ELITE']
   const fullFinals = [...advancedFinalClassOrder]
 
   return [
@@ -179,43 +179,43 @@ const standardBatchPresetCards = (gateSize: number) => {
     {
       label: '2 Batch',
       riderRange: `${safeGateSize + 1}-${safeGateSize * 2} rider`,
-      summary: 'Qualification -> Final Elite + consolations per rank batch',
-      finals: ['ROOKIE', 'BEGINNER', 'NOVICE', 'AMATEUR', 'ELITE'],
+      summary: 'Qualification -> Final Elite + Final Novice (top 4 / bottom 4)',
+      finals: ['NOVICE', 'ELITE'],
     },
     {
       label: '3 Batch',
       riderRange: `${safeGateSize * 2 + 1}-${safeGateSize * 3} rider`,
-      summary: 'Qualification -> Semi Final -> Final Elite/Pro + consolations',
-      finals: ['ROOKIE', 'BEGINNER', 'NOVICE', 'AMATEUR', 'PRO', 'ELITE'],
+      summary: 'Qualification -> Semi Final -> Final Elite/Pro + Final Novice/Beginner',
+      finals: ['BEGINNER', 'NOVICE', 'PRO', 'ELITE'],
     },
     {
       label: '4 Batch',
       riderRange: `${safeGateSize * 3 + 1}-${safeGateSize * 4} rider`,
-      summary: 'Qualification -> Semi Final -> Final Elite/Pro + consolations',
-      finals: ['ROOKIE', 'BEGINNER', 'NOVICE', 'AMATEUR', 'PRO', 'ELITE'],
+      summary: 'Qualification -> Semi Final -> Final Elite/Pro + Final Novice/Beginner',
+      finals: ['BEGINNER', 'NOVICE', 'PRO', 'ELITE'],
     },
     {
       label: '5 Batch',
       riderRange: `${safeGateSize * 4 + 1}-${safeGateSize * 5} rider`,
-      summary: 'Qualification -> Quarter -> Semi -> Elite/Pro + ADV/INT + consolations',
+      summary: 'Qualification -> Quarter -> Semi -> Elite/Pro + Adv/Int + Novice/Beginner',
       finals: [...advancedFinalClassOrder],
     },
     {
       label: '6 Batch',
       riderRange: `${safeGateSize * 5 + 1}-${safeGateSize * 6} rider`,
-      summary: 'Qualification -> Quarter -> Semi -> Elite/Pro + ADV/INT + consolations',
+      summary: 'Qualification -> Quarter -> Semi -> Elite/Pro + Adv/Int + Novice/Beginner',
       finals: [...advancedFinalClassOrder],
     },
     {
       label: '7 Batch',
       riderRange: `${safeGateSize * 6 + 1}-${safeGateSize * 7} rider`,
-      summary: 'Qualification -> Quarter -> Semi -> Elite/Pro + ADV/INT + consolations',
+      summary: 'Qualification -> Quarter -> Semi -> Elite/Pro + Adv/Int + Novice/Beginner',
       finals: [...advancedFinalClassOrder],
     },
     {
       label: '8 Batch',
       riderRange: `${safeGateSize * 7 + 1}-${safeGateSize * 8} rider`,
-      summary: 'Qualification -> Quarter -> Semi -> Elite/Pro + ADV/INT + consolations',
+      summary: 'Qualification -> Quarter -> Semi -> Elite/Pro + Adv/Int + Novice/Beginner',
       finals: [...advancedFinalClassOrder],
     },
   ]
@@ -2208,9 +2208,11 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
                         untuk isi rule otomatis sesuai flow pushbike yang kita sepakati.
                       </div>
                       <div style={{ color: '#334155', fontWeight: 700, fontSize: 12, lineHeight: 1.5 }}>
-                        Top 4 tiap batch selalu naik ke stage utama berikutnya. Rider sisa masuk final consolation berdasarkan rank
-                        batch. Untuk batch ganjil, rider semifinal / quarter final akan dibagi otomatis ke heat berikutnya dengan pola
-                        sebar zig-zag, jadi jumlah isi heat dan final class bisa tidak rata tetapi tetap mengikuti ranking stage.
+                        Top 4 tiap batch selalu naik ke stage utama berikutnya. Untuk 2 batch, rank 5-8 langsung masuk Final
+                        Novice. Untuk 3-4 batch, rank 5-6 masuk Final Novice dan rank 7-8 masuk Final Beginner. Untuk 5 batch
+                        ke atas, rank quarter final 5-6 masuk Final Advanced dan 7-8 masuk Final Intermediate. Batch ganjil tetap
+                        dibagi otomatis ke heat berikutnya dengan pola sebar zig-zag, jadi isi heat bisa tidak rata tetapi urutan
+                        seed tetap mengikuti ranking stage.
                       </div>
                       <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
                         {standardBatchPresetCards(Math.max(1, Number(form.race_gate_positions) || 8)).map((preset) => (
