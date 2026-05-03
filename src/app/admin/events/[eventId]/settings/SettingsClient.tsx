@@ -405,7 +405,7 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
     race_gate_positions: '8',
     race_qualification_enabled: true,
     race_auto_advance: true,
-    race_final_classes: 'ELITE,PRO,ADVANCED,INTERMEDIATE,AMATEUR,NOVICE,BEGINNER,ROOKIE',
+    race_final_classes: 'ELITE,PRO,ADVANCED,INTERMEDIATE,NOVICE,BEGINNER',
     scoring_rules: '{\n}\n',
     display_theme: '{\n}\n',
     race_format_settings: '{\n}\n',
@@ -571,7 +571,7 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
           race_final_classes:
             Array.isArray(format.final_classes)
               ? format.final_classes.join(',')
-              : 'ELITE,PRO,ADVANCED,INTERMEDIATE,AMATEUR,NOVICE,BEGINNER,ROOKIE',
+              : 'ELITE,PRO,ADVANCED,INTERMEDIATE,NOVICE,BEGINNER',
           scoring_rules: JSON.stringify(data.scoring_rules ?? {}, null, 2),
           display_theme: JSON.stringify(data.display_theme ?? {}, null, 2),
           race_format_settings: JSON.stringify(data.race_format_settings ?? {}, null, 2),
@@ -784,7 +784,7 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
       enable_qualification: true,
       enable_quarter_final: false,
       enable_semi_final: false,
-      enabled_final_classes: ['ROOKIE', 'BEGINNER', 'NOVICE', 'AMATEUR', 'ELITE'],
+      enabled_final_classes: ['NOVICE', 'ELITE'],
     })
   }
 
