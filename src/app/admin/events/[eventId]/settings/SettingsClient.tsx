@@ -89,14 +89,14 @@ type SponsorDraft = {
 }
 
 const sponsorTierOptions: EventSponsorTier[] = ['TITLE', 'MAIN', 'SUPPORT', 'MEDIA', 'COMMUNITY', 'PARTNER']
-const advancedFinalClassOrder = ['BEGINNER', 'NOVICE', 'INTERMEDIATE', 'ADVANCED', 'PRO', 'ELITE'] as const
-const legacyAdvancedFinalClasses = ['ACADEMY'] as const
+const advancedFinalClassOrder = ['BEGINNER', 'AMATEUR', 'ACADEMY', 'ADVANCED', 'ROOKIE', 'PRO', 'NOVICE', 'ELITE'] as const
+const legacyAdvancedFinalClasses: string[] = []
 
 const buildStandardBatchRules = (gateSize: number): CategoryRule[] => {
   const safeGateSize = Math.max(1, gateSize || 8)
   const eliteOnly = ['ELITE']
   const qualificationFinals = ['NOVICE', 'ELITE']
-  const semiFinals = ['BEGINNER', 'NOVICE', 'PRO', 'ELITE']
+  const semiFinals = ['ROOKIE', 'PRO', 'NOVICE', 'ELITE']
   const fullFinals = [...advancedFinalClassOrder]
 
   return [
@@ -185,37 +185,37 @@ const standardBatchPresetCards = (gateSize: number) => {
     {
       label: '3 Batch',
       riderRange: `${safeGateSize * 2 + 1}-${safeGateSize * 3} rider`,
-      summary: 'Qualification -> Semi Final -> Final Elite/Pro + Final Novice/Beginner',
-      finals: ['BEGINNER', 'NOVICE', 'PRO', 'ELITE'],
+      summary: 'Qualification -> Semi Final -> Final Elite/Novice + Pro/Rookie dari heat',
+      finals: ['ROOKIE', 'PRO', 'NOVICE', 'ELITE'],
     },
     {
       label: '4 Batch',
       riderRange: `${safeGateSize * 3 + 1}-${safeGateSize * 4} rider`,
-      summary: 'Qualification -> Semi Final -> Final Elite/Pro + Final Novice/Beginner',
-      finals: ['BEGINNER', 'NOVICE', 'PRO', 'ELITE'],
+      summary: 'Qualification -> Semi Final -> Final Elite/Novice + Pro/Rookie dari heat',
+      finals: ['ROOKIE', 'PRO', 'NOVICE', 'ELITE'],
     },
     {
       label: '5 Batch',
       riderRange: `${safeGateSize * 4 + 1}-${safeGateSize * 5} rider`,
-      summary: 'Qualification -> Quarter -> Semi -> Elite/Pro + Adv/Int + Novice/Beginner',
+      summary: 'Qualification -> Quarter -> Semi -> Elite/Novice + Pro/Rookie + Adv/Academy/Amateur/Beginner',
       finals: [...advancedFinalClassOrder],
     },
     {
       label: '6 Batch',
       riderRange: `${safeGateSize * 5 + 1}-${safeGateSize * 6} rider`,
-      summary: 'Qualification -> Quarter -> Semi -> Elite/Pro + Adv/Int + Novice/Beginner',
+      summary: 'Qualification -> Quarter -> Semi -> Elite/Novice + Pro/Rookie + Adv/Academy/Amateur/Beginner',
       finals: [...advancedFinalClassOrder],
     },
     {
       label: '7 Batch',
       riderRange: `${safeGateSize * 6 + 1}-${safeGateSize * 7} rider`,
-      summary: 'Qualification -> Quarter -> Semi -> Elite/Pro + Adv/Int + Novice/Beginner',
+      summary: 'Qualification -> Quarter -> Semi -> Elite/Novice + Pro/Rookie + Adv/Academy/Amateur/Beginner',
       finals: [...advancedFinalClassOrder],
     },
     {
       label: '8 Batch',
       riderRange: `${safeGateSize * 7 + 1}-${safeGateSize * 8} rider`,
-      summary: 'Qualification -> Quarter -> Semi -> Elite/Pro + Adv/Int + Novice/Beginner',
+      summary: 'Qualification -> Quarter -> Semi -> Elite/Novice + Pro/Rookie + Adv/Academy/Amateur/Beginner',
       finals: [...advancedFinalClassOrder],
     },
   ]
@@ -405,7 +405,7 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
     race_gate_positions: '8',
     race_qualification_enabled: true,
     race_auto_advance: true,
-    race_final_classes: 'ELITE,PRO,ADVANCED,INTERMEDIATE,NOVICE,BEGINNER',
+    race_final_classes: 'ELITE,NOVICE,PRO,ROOKIE,ADVANCED,ACADEMY,AMATEUR,BEGINNER',
     scoring_rules: '{\n}\n',
     display_theme: '{\n}\n',
     race_format_settings: '{\n}\n',
@@ -571,7 +571,7 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
           race_final_classes:
             Array.isArray(format.final_classes)
               ? format.final_classes.join(',')
-              : 'ELITE,PRO,ADVANCED,INTERMEDIATE,NOVICE,BEGINNER',
+              : 'ELITE,NOVICE,PRO,ROOKIE,ADVANCED,ACADEMY,AMATEUR,BEGINNER',
           scoring_rules: JSON.stringify(data.scoring_rules ?? {}, null, 2),
           display_theme: JSON.stringify(data.display_theme ?? {}, null, 2),
           race_format_settings: JSON.stringify(data.race_format_settings ?? {}, null, 2),
@@ -2208,11 +2208,12 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
                         untuk isi rule otomatis sesuai flow pushbike yang kita sepakati.
                       </div>
                       <div style={{ color: '#334155', fontWeight: 700, fontSize: 12, lineHeight: 1.5 }}>
-                        Top 4 tiap batch selalu naik ke stage utama berikutnya. Untuk 2 batch, rank 5-8 langsung masuk Final
-                        Novice. Untuk 3-4 batch, rank 5-6 masuk Final Novice dan rank 7-8 masuk Final Beginner. Untuk 5 batch
-                        ke atas, rank quarter final 5-6 masuk Final Advanced dan 7-8 masuk Final Intermediate. Batch ganjil tetap
-                        dibagi otomatis ke heat berikutnya dengan pola sebar zig-zag, jadi isi heat bisa tidak rata tetapi urutan
-                        seed tetap mengikuti ranking stage.
+                        Untuk 2 batch, top 4 tiap batch masuk Final Elite dan sisanya langsung Final Novice. Untuk 3-4 batch,
+                        top 4 tiap batch masuk Semi Final, lalu rider sisa dari heat langsung dibagi ke Final Pro dan Final Rookie.
+                        Untuk 5-8 batch, top 4 tiap batch masuk Quarter Final, rider sisa dari heat langsung dibagi ke Final
+                        Advanced, Academy, Amateur, dan Beginner; hasil Quarter Final lalu membentuk Final Pro dan Rookie; hasil
+                        Semi Final membentuk Final Elite dan Novice. Batch ganjil tetap dibagi otomatis ke heat berikutnya dengan
+                        pola sebar zig-zag, jadi isi heat bisa tidak rata tetapi urutan seed tetap mengikuti ranking stage.
                       </div>
                       <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
                         {standardBatchPresetCards(Math.max(1, Number(form.race_gate_positions) || 8)).map((preset) => (

@@ -51,13 +51,13 @@ const resolveDefaultAdvancedRace = (totalRiders: number) => {
   if (totalRiders <= 32) {
     return {
       stages: { enableQualification: true, enableQuarterFinal: false, enableSemiFinal: true },
-      finalClasses: ['BEGINNER', 'NOVICE', 'PRO', 'ELITE'],
+      finalClasses: ['ROOKIE', 'PRO', 'NOVICE', 'ELITE'],
     }
   }
 
   return {
     stages: { enableQualification: true, enableQuarterFinal: true, enableSemiFinal: true },
-    finalClasses: ['BEGINNER', 'NOVICE', 'INTERMEDIATE', 'ADVANCED', 'PRO', 'ELITE'],
+    finalClasses: ['BEGINNER', 'AMATEUR', 'ACADEMY', 'ADVANCED', 'ROOKIE', 'PRO', 'NOVICE', 'ELITE'],
   }
 }
 

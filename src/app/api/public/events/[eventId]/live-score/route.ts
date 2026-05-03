@@ -319,8 +319,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         if (!rank) return null
         if (rank >= 1 && rank <= 4) return formatStageAdvanceLabel(resolveQualificationPrimaryAdvance(resolvedCategory.stages))
         if (!resolvedCategory.stages.enableSemiFinal && !resolvedCategory.stages.enableQuarterFinal) return 'FINAL NOVICE'
-        if (rank === 5 || rank === 6) return 'FINAL NOVICE'
-        if (rank === 7 || rank === 8) return 'FINAL BEGINNER'
+        if (resolvedCategory.stages.enableSemiFinal && !resolvedCategory.stages.enableQuarterFinal) {
+          if (rank === 5 || rank === 6) return 'FINAL PRO'
+          if (rank === 7 || rank === 8) return 'FINAL ROOKIE'
+          return null
+        }
+        if (rank === 5) return 'FINAL ADVANCED'
+        if (rank === 6) return 'FINAL ACADEMY'
+        if (rank === 7) return 'FINAL AMATEUR'
+        if (rank === 8) return 'FINAL BEGINNER'
         return null
       }
 
