@@ -44,11 +44,12 @@ export async function GET(req: Request) {
   const eventIds = events.map((row) => String(row.id ?? '')).filter(Boolean)
   const drawModeByEventId = new Map<string, DrawMode>()
   const eventScopeByEventId = new Map<string, EventScope>()
+  const registrationOpenByEventId = new Map<string, boolean>()
 
   if (eventIds.length > 0) {
     const { data: settingsRows, error: settingsError } = await adminClient
       .from('event_settings')
-      .select('event_id, race_format_settings, updated_at')
+      .select('event_id, race_format_settings, registration_open, updated_at')
       .in('event_id', eventIds)
       .order('updated_at', { ascending: false })
     if (settingsError) return NextResponse.json({ error: settingsError.message }, { status: 400 })
@@ -58,6 +59,7 @@ export async function GET(req: Request) {
       if (!eventId || drawModeByEventId.has(eventId)) continue
       const settings = parseRaceFormatSettings(row.race_format_settings)
       drawModeByEventId.set(eventId, normalizeDrawMode(settings.draw_mode))
+      registrationOpenByEventId.set(eventId, typeof row.registration_open === 'boolean' ? row.registration_open : true)
       if (settings.event_scope === 'INTERNAL' || settings.event_scope === 'PUBLIC') {
         eventScopeByEventId.set(eventId, normalizeEventScope(settings.event_scope))
       }
@@ -70,6 +72,7 @@ export async function GET(req: Request) {
       ...row,
       draw_mode: drawModeByEventId.get(eventId) ?? 'internal_live_draw',
       event_scope: eventScopeByEventId.get(eventId) ?? 'PUBLIC',
+      registration_open: registrationOpenByEventId.get(eventId) ?? true,
     }
   })
 
@@ -101,6 +104,7 @@ export async function POST(req: Request) {
     [
       {
         event_id: data.id,
+        registration_open: true,
         race_format_settings: { draw_mode: drawMode, event_scope: eventScope },
       },
     ],

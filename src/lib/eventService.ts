@@ -71,6 +71,7 @@ export type EventItem = {
   status: EventStatus
   is_public?: boolean | null
   event_scope?: 'PUBLIC' | 'INTERNAL' | null
+  registration_open?: boolean | null
   event_logo_url?: string | null
   sponsor_logo_urls?: string[] | null
   business_settings?: BusinessSettings | null

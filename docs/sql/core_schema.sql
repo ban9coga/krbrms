@@ -247,6 +247,7 @@ create table if not exists event_settings (
   sponsor_logo_urls text[] not null default '{}',
   base_price int not null default 250000,
   extra_price int not null default 150000,
+  registration_open boolean not null default true,
   require_jersey_size boolean not null default false,
   scoring_rules jsonb not null default '{}'::jsonb,
   display_theme jsonb not null default '{}'::jsonb,

@@ -80,32 +80,40 @@ export default async function DashboardPage() {
   const eventIds = allEvents.map((e) => e.id)
   const settingsMap = new Map<
     string,
-    { logo?: string | null; slogan?: string | null; event_scope?: 'PUBLIC' | 'INTERNAL' }
+    { logo?: string | null; slogan?: string | null; event_scope?: 'PUBLIC' | 'INTERNAL'; registration_open?: boolean }
   >()
   if (eventIds.length > 0) {
     const { data: settingsRows } = await adminClient
       .from('event_settings')
-      .select('event_id, event_logo_url, display_theme, race_format_settings')
+      .select('event_id, event_logo_url, display_theme, race_format_settings, registration_open')
       .in('event_id', eventIds)
     for (const row of settingsRows ?? []) {
       const theme = (row.display_theme ?? {}) as Record<string, unknown>
       const raceFormat = (row.race_format_settings ?? {}) as Record<string, unknown>
       const slogan = typeof theme.slogan === 'string' ? theme.slogan : null
       const eventScope = raceFormat.event_scope === 'INTERNAL' ? 'INTERNAL' : 'PUBLIC'
-      settingsMap.set(row.event_id, { logo: row.event_logo_url ?? null, slogan, event_scope: eventScope })
+      settingsMap.set(row.event_id, {
+        logo: row.event_logo_url ?? null,
+        slogan,
+        event_scope: eventScope,
+        registration_open: typeof row.registration_open === 'boolean' ? row.registration_open : true,
+      })
     }
   }
   const upcomingEvents = upcomingEventsRaw.map((event) => ({
     ...event,
     event_scope: settingsMap.get(event.id)?.event_scope ?? 'PUBLIC',
+    registration_open: settingsMap.get(event.id)?.registration_open ?? true,
   }))
   const ongoingEvents = ongoingEventsRaw.map((event) => ({
     ...event,
     event_scope: settingsMap.get(event.id)?.event_scope ?? 'PUBLIC',
+    registration_open: settingsMap.get(event.id)?.registration_open ?? true,
   }))
   const finishedEvents = finishedEventsRaw.map((event) => ({
     ...event,
     event_scope: settingsMap.get(event.id)?.event_scope ?? 'PUBLIC',
+    registration_open: settingsMap.get(event.id)?.registration_open ?? true,
   }))
 
   return (
@@ -140,7 +148,7 @@ export default async function DashboardPage() {
                         index={idx}
                         logoUrl={settingsMap.get(event.id)?.logo ?? null}
                         slogan={settingsMap.get(event.id)?.slogan ?? null}
-                        canRegister={registrationAvailability.get(event.id) ?? true}
+                        canRegister={event.registration_open !== false && (registrationAvailability.get(event.id) ?? true)}
                       />
                     ))}
                   </div>
@@ -159,6 +167,7 @@ export default async function DashboardPage() {
                         index={idx}
                         logoUrl={settingsMap.get(event.id)?.logo ?? null}
                         slogan={settingsMap.get(event.id)?.slogan ?? null}
+                        canRegister={event.registration_open !== false && (registrationAvailability.get(event.id) ?? true)}
                       />
                     ))}
                   </div>

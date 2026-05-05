@@ -13,6 +13,7 @@ type EventItem = {
   is_public?: boolean | null
   event_scope?: 'PUBLIC' | 'INTERNAL' | null
   draw_mode?: 'internal_live_draw' | 'external_draw' | null
+  registration_open?: boolean | null
 }
 
 type AdminEventsViewProps = {
@@ -291,6 +292,21 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
     )
   }
 
+  const handleRegistrationOpen = async (event: EventItem, registrationOpen: boolean) => {
+    await runEventAction(
+      `registration-${event.id}`,
+      async () => {
+        await apiFetch(`/api/events/${event.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ registration_open: registrationOpen }),
+        })
+      },
+      registrationOpen
+        ? `Registrasi untuk "${event.name}" dibuka kembali.`
+        : `Registrasi untuk "${event.name}" ditutup.`
+    )
+  }
+
   const filteredEvents = useMemo(() => {
     const q = query.trim().toLowerCase()
 
@@ -525,6 +541,7 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
             const statusMeta = STATUS_META[event.status]
             const eventScope = event.event_scope === 'INTERNAL' ? 'INTERNAL' : 'PUBLIC'
             const isPublic = event.is_public !== false
+            const registrationOpen = event.registration_open !== false
             const drawMode = event.draw_mode === 'external_draw' ? 'External Draw' : 'Internal Live Draw'
             const busy = Boolean(actionKey && actionKey.includes(event.id))
 
@@ -556,6 +573,15 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
                         }`}
                       >
                         {isPublic ? 'Shown on Public' : 'Hidden from Public'}
+                      </span>
+                      <span
+                        className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] ${
+                          registrationOpen
+                            ? 'border-amber-200 bg-amber-50 text-amber-700'
+                            : 'border-rose-200 bg-rose-50 text-rose-700'
+                        }`}
+                      >
+                        {registrationOpen ? 'Registration Open' : 'Registration Closed'}
                       </span>
                     </div>
 
@@ -628,6 +654,18 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
                 </div>
 
                 <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => void handleRegistrationOpen(event, !registrationOpen)}
+                    className={`inline-flex items-center justify-center rounded-2xl border px-4 py-2.5 text-sm font-bold transition-colors ${
+                      registrationOpen
+                        ? 'border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100'
+                        : 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                    }`}
+                    disabled={busy}
+                  >
+                    {registrationOpen ? 'Tutup Registrasi' : 'Buka Registrasi'}
+                  </button>
                   <button
                     type="button"
                     onClick={() => void handleVisibility(event, !isPublic)}

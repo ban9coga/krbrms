@@ -45,12 +45,13 @@ export default function EventCard({
     year: 'numeric',
   })
   const eventScope = event.event_scope === 'INTERNAL' ? 'INTERNAL' : 'PUBLIC'
+  const registrationOpen = event.registration_open !== false
   const detailHref = `/event/${event.id}`
   const registerHref = `/event/${event.id}/register`
   const mapsUrl = buildGoogleMapsUrl(event.name, event.location)
   const mapsQrUrl = mapsUrl ? buildQrCodeUrl(mapsUrl, 140) : null
-  const showRegisterButton = event.status === 'UPCOMING' && canRegister
-  const upcomingStateLabel = canRegister ? 'Registration Open' : 'Kuota Penuh'
+  const showRegisterButton = event.status === 'UPCOMING' && registrationOpen && canRegister
+  const upcomingStateLabel = !registrationOpen ? 'Registration Closed' : canRegister ? 'Registration Open' : 'Kuota Penuh'
 
   return (
     <article className="group relative overflow-hidden rounded-[1.8rem] border border-slate-200 bg-white/95 shadow-[0_16px_34px_rgba(15,23,42,0.12)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_44px_rgba(15,23,42,0.2)]">
@@ -126,9 +127,11 @@ export default function EventCard({
           </Link>
         </div>
 
-        {event.status === 'UPCOMING' && !canRegister && (
+        {event.status === 'UPCOMING' && (!registrationOpen || !canRegister) && (
           <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
-            Pendaftaran event ini ditutup karena semua slot kategori sudah penuh.
+            {registrationOpen
+              ? 'Pendaftaran event ini ditutup karena semua slot kategori sudah penuh.'
+              : 'Pendaftaran event ini sedang ditutup oleh panitia.'}
           </div>
         )}
 

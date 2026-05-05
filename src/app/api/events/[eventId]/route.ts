@@ -28,7 +28,7 @@ const parseBusinessSettings = (value: unknown): BusinessSettings => {
 const getLatestRaceFormatSettings = async (eventId: string) => {
   const { data, error } = await adminClient
     .from('event_settings')
-    .select('race_format_settings, event_logo_url, sponsor_logo_urls, business_settings, updated_at')
+    .select('race_format_settings, event_logo_url, sponsor_logo_urls, business_settings, registration_open, updated_at')
     .eq('event_id', eventId)
     .order('updated_at', { ascending: false })
     .limit(1)
@@ -41,6 +41,7 @@ const getLatestRaceFormatSettings = async (eventId: string) => {
       ? row.sponsor_logo_urls.filter((item: unknown) => typeof item === 'string')
       : [],
     businessSettings: parseBusinessSettings(row?.business_settings),
+    registrationOpen: typeof row?.registration_open === 'boolean' ? row.registration_open : true,
     error: null,
   }
 }
@@ -68,6 +69,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       ...eventRow,
       draw_mode: drawMode,
       event_scope: eventScope,
+      registration_open: formatResult.registrationOpen,
       event_logo_url: formatResult.eventLogoUrl,
       sponsor_logo_urls: formatResult.sponsorLogoUrls,
       business_settings: formatResult.businessSettings,
@@ -80,9 +82,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ eventI
   const auth = await requireAdmin(req.headers.get('authorization'), eventId)
   if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const body = await req.json()
-  const { name, location, event_date, status, is_public, draw_mode, event_scope } = body ?? {}
+  const { name, location, event_date, status, is_public, draw_mode, event_scope, registration_open } = body ?? {}
   const requestedDrawMode = draw_mode == null ? null : normalizeDrawMode(draw_mode)
   const requestedEventScope = event_scope == null ? null : normalizeEventScope(event_scope)
+  const requestedRegistrationOpen = typeof registration_open === 'boolean' ? registration_open : null
   let existingRaceFormatSettings: Record<string, unknown> = {}
   const eventUpdatePayload: Record<string, unknown> = {}
   if (name !== undefined) eventUpdatePayload.name = name
@@ -91,7 +94,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ eventI
   if (status !== undefined) eventUpdatePayload.status = status
   if (is_public !== undefined) eventUpdatePayload.is_public = is_public
 
-  if (requestedDrawMode || requestedEventScope) {
+  if (requestedDrawMode || requestedEventScope || requestedRegistrationOpen !== null) {
     const formatResult = await getLatestRaceFormatSettings(eventId)
     if (formatResult.error) return NextResponse.json({ error: formatResult.error.message }, { status: 400 })
     existingRaceFormatSettings = formatResult.data ?? {}
@@ -132,21 +135,20 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ eventI
   }
   if (!updatedEvent) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
 
-  if (requestedDrawMode || requestedEventScope) {
+  if (requestedDrawMode || requestedEventScope || requestedRegistrationOpen !== null) {
     const mergedRaceFormatSettings = {
       ...existingRaceFormatSettings,
       ...(requestedDrawMode ? { draw_mode: requestedDrawMode } : {}),
       ...(requestedEventScope ? { event_scope: requestedEventScope } : {}),
     }
-    const { error: settingsWriteError } = await adminClient.from('event_settings').upsert(
-      [
-        {
-          event_id: eventId,
-          race_format_settings: mergedRaceFormatSettings,
-        },
-      ],
-      { onConflict: 'event_id' }
-    )
+    const settingsPayload: Record<string, unknown> = {
+      event_id: eventId,
+      race_format_settings: mergedRaceFormatSettings,
+    }
+    if (requestedRegistrationOpen !== null) {
+      settingsPayload.registration_open = requestedRegistrationOpen
+    }
+    const { error: settingsWriteError } = await adminClient.from('event_settings').upsert([settingsPayload], { onConflict: 'event_id' })
     if (settingsWriteError) return NextResponse.json({ error: settingsWriteError.message }, { status: 400 })
   }
 
@@ -175,6 +177,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ eventI
       ...updatedEvent,
       ...(requestedDrawMode ? { draw_mode: requestedDrawMode } : {}),
       ...(requestedEventScope ? { event_scope: requestedEventScope } : {}),
+      ...(requestedRegistrationOpen !== null ? { registration_open: requestedRegistrationOpen } : {}),
     },
   })
 }

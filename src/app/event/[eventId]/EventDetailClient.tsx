@@ -122,6 +122,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
     eventDate ? Math.ceil((eventDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null
   const mapsUrl = event ? buildGoogleMapsUrl(event.name, event.location) : null
   const mapsQrUrl = mapsUrl ? buildQrCodeUrl(mapsUrl, 220) : null
+  const registrationOpen = event?.registration_open !== false
   const isCategoryFull = (category: RiderCategory) => {
     if (category.is_full === true) return true
     if (typeof category.capacity !== 'number') return false
@@ -129,11 +130,11 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
     return category.remaining <= 0
   }
   const canRegister = useMemo(() => {
-    if (!event || event.status !== 'UPCOMING') return false
+    if (!event || event.status !== 'UPCOMING' || !registrationOpen) return false
     const enabledCategories = categories.filter((category) => category.enabled)
     if (enabledCategories.length === 0) return true
     return enabledCategories.some((category) => !isCategoryFull(category))
-  }, [categories, event])
+  }, [categories, event, registrationOpen])
 
   const categoryLabel = useMemo(() => {
     const map = new Map<string, string>()
@@ -336,7 +337,9 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
 
                 {event.status === 'UPCOMING' && !hideRegistrationAndVenueActions && !canRegister && (
                   <div className="rounded-2xl border border-amber-300/25 bg-amber-400/10 px-4 py-4 text-sm font-semibold text-amber-100">
-                    Pendaftaran event ini sedang ditutup karena semua slot kategori sudah penuh.
+                    {registrationOpen
+                      ? 'Pendaftaran event ini sedang ditutup karena semua slot kategori sudah penuh.'
+                      : 'Pendaftaran event ini sedang ditutup oleh panitia.'}
                   </div>
                 )}
 

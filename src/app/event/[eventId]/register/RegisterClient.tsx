@@ -279,6 +279,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   const [categories, setCategories] = useState<CategoryItem[]>([])
   const [eventName, setEventName] = useState<string | null>(null)
   const [businessSettings, setBusinessSettings] = useState<BusinessSettings | null>(null)
+  const [registrationOpen, setRegistrationOpen] = useState(true)
   const [contactName, setContactName] = useState('')
   const [contactPhone, setContactPhone] = useState('')
   const [contactEmail, setContactEmail] = useState('')
@@ -304,9 +305,11 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         const json = await res.json()
         setEventName(json?.data?.name ?? null)
         setBusinessSettings((json?.data?.business_settings ?? null) as BusinessSettings | null)
+        setRegistrationOpen(json?.data?.registration_open !== false)
       } catch {
         setEventName(null)
         setBusinessSettings(null)
+        setRegistrationOpen(true)
       }
     }
     const loadCategories = async () => {
@@ -327,12 +330,14 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         const base = Number(data?.base_price)
         const extra = Number(data?.extra_price)
         setRequireJerseySize(Boolean(data?.require_jersey_size))
+        setRegistrationOpen(data?.registration_open !== false)
         setBasePrice(Number.isFinite(base) && base > 0 ? base : DEFAULT_BASE_PRICE)
         setExtraPrice(Number.isFinite(extra) && extra >= 0 ? extra : DEFAULT_EXTRA_PRICE)
       } catch {
         setBasePrice(DEFAULT_BASE_PRICE)
         setExtraPrice(DEFAULT_EXTRA_PRICE)
         setRequireJerseySize(false)
+        setRegistrationOpen(true)
       }
     }
     load()
@@ -648,6 +653,10 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   const handleSubmit = async () => {
     setSuccess(null)
     setSlotFullModal(null)
+    if (!registrationOpen) {
+      alert('Pendaftaran untuk event ini sedang ditutup oleh panitia.')
+      return
+    }
     if (!contactName || !contactPhone) {
       alert('Nama dan nomor kontak wajib diisi')
       return
@@ -972,6 +981,14 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                 </button>
               </div>
             )}
+          </section>
+        )}
+        {!registrationOpen && (
+          <section className="rounded-2xl border border-rose-300/45 bg-rose-500/15 p-4 shadow-[0_16px_36px_rgba(244,63,94,0.14)]">
+            <div className="text-xs font-black uppercase tracking-[0.16em] text-rose-200">Registrasi Ditutup</div>
+            <div className="mt-2 text-sm font-semibold text-rose-50">
+              Pendaftaran untuk event ini sedang ditutup oleh panitia. Pengiriman data baru sementara dinonaktifkan.
+            </div>
           </section>
         )}
         <section className="relative overflow-hidden rounded-[1.75rem] border border-slate-700 bg-[linear-gradient(130deg,#0b1328_0%,#1e293b_52%,#4a1127_100%)] px-5 py-6 shadow-[0_26px_60px_rgba(2,6,23,0.35)] sm:px-7">
@@ -1550,11 +1567,11 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         </div>
         <button
           type="button"
-          disabled={submitting}
+          disabled={submitting || !registrationOpen}
           onClick={handleSubmit}
           className="inline-flex items-center justify-center rounded-xl bg-amber-400 px-4 py-2.5 text-sm font-extrabold uppercase tracking-wide text-white transition-colors hover:bg-amber-300 disabled:cursor-not-allowed disabled:bg-amber-200"
         >
-          {submitting ? 'Menyimpan...' : 'Kirim Pendaftaran'}
+          {!registrationOpen ? 'Registrasi Ditutup' : submitting ? 'Menyimpan...' : 'Kirim Pendaftaran'}
         </button>
       </div>
     </div>

@@ -158,13 +158,16 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
 
   const { data: settingsRow, error: settingsError } = await adminClient
     .from('event_settings')
-    .select('require_jersey_size, base_price, extra_price')
+    .select('require_jersey_size, base_price, extra_price, registration_open')
     .eq('event_id', eventId)
     .order('updated_at', { ascending: false })
     .limit(1)
 
   if (settingsError) return { error: settingsError.message }
   const latestSettingsRow = (settingsRow ?? [])[0]
+  if (latestSettingsRow?.registration_open === false) {
+    return { error: 'Pendaftaran untuk event ini sedang ditutup.' }
+  }
   const requireJerseySize = Boolean(latestSettingsRow?.require_jersey_size)
   const basePriceRaw = Number(latestSettingsRow?.base_price)
   const extraPriceRaw = Number(latestSettingsRow?.extra_price)
