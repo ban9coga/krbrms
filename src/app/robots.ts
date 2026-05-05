@@ -17,6 +17,6 @@ export default function robots(): MetadataRoute.Robots {
         '/jc',
       ],
     },
-    sitemap: 'https://krbrms.vercel.app/sitemap.xml',
+    sitemap: 'https://racepushbike.com/sitemap.xml',
   }
 }

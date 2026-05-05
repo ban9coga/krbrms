@@ -202,6 +202,7 @@ const isPlateReady = (state: PlateCheckState | undefined) => state?.state === 'a
 
 export default function RegistrationsClient({ eventId }: { eventId: string }) {
   const [loading, setLoading] = useState(false)
+  const [exportingExcel, setExportingExcel] = useState(false)
   const [categories, setCategories] = useState<CategoryItem[]>([])
   const [registrations, setRegistrations] = useState<RegistrationRow[]>([])
   const [meta, setMeta] = useState({ page: 1, pageSize: 10, total: 0, totalPages: 1 })
@@ -713,6 +714,208 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
     return 'Belum ada pendaftaran masuk untuk event ini.'
   }, [filterStatus, loading, paymentFilter, query])
 
+  const fetchAllRegistrationsForExport = async () => {
+    const exportRows: RegistrationRow[] = []
+    const exportPageSize = 50
+    let currentPage = 1
+    let totalPages = 1
+
+    while (currentPage <= totalPages) {
+      const params = new URLSearchParams({
+        page: String(currentPage),
+        page_size: String(exportPageSize),
+        status: filterStatus,
+        payment_status: paymentFilter,
+      })
+      if (query.trim()) params.set('q', query.trim())
+
+      const res = await apiFetch<RegistrationListResponse>(`/api/admin/events/${eventId}/registrations?${params.toString()}`)
+      exportRows.push(...(res.data ?? []))
+      totalPages = res.meta?.total_pages ?? 1
+      currentPage += 1
+    }
+
+    return exportRows
+  }
+
+  const handleExportExcel = async () => {
+    if (!eventId) return
+    setExportingExcel(true)
+    try {
+      const [eventRes, exportRows] = await Promise.all([
+        apiFetch<{ data?: { name?: string; location?: string | null; event_date?: string | null; status?: string | null } }>(
+          `/api/events/${eventId}`
+        ),
+        fetchAllRegistrationsForExport(),
+      ])
+
+      if (exportRows.length === 0) {
+        throw new Error('Tidak ada data registrasi untuk diexport dengan filter saat ini.')
+      }
+
+      const eventName = eventRes.data?.name?.trim() || 'Event'
+      const eventLocation = eventRes.data?.location?.trim() || '-'
+      const eventDate = eventRes.data?.event_date ? formatDateTime(eventRes.data.event_date) : '-'
+      const generatedAt = new Date()
+      const totalRiders = exportRows.reduce((sum, row) => sum + row.registration_items.length, 0)
+      const pendingCount = exportRows.filter((row) => row.status === 'PENDING').length
+      const approvedCount = exportRows.filter((row) => row.status === 'APPROVED').length
+      const rejectedCount = exportRows.filter((row) => row.status === 'REJECTED').length
+      const paymentSummary = exportRows.reduce(
+        (acc, row) => {
+          const aggregate = aggregatePaymentStatus(row.registration_payments)
+          acc[aggregate] += 1
+          return acc
+        },
+        { NO_PAYMENT: 0, PENDING: 0, APPROVED: 0, REJECTED: 0 } as Record<'NO_PAYMENT' | PaymentStatus, number>
+      )
+
+      const formatFilterSummary = () => {
+        const parts: string[] = []
+        if (filterStatus !== 'ALL') parts.push(`Status Registrasi: ${filterStatus}`)
+        if (paymentFilter !== 'ALL') parts.push(`Status Pembayaran: ${paymentFilter}`)
+        if (query.trim()) parts.push(`Pencarian: ${query.trim()}`)
+        return parts.length > 0 ? parts.join(' | ') : 'Semua data registrasi'
+      }
+
+      const summarySheetData: Array<Array<string | number>> = [
+        ['LAPORAN DATA REGISTRASI EVENT'],
+        [eventName],
+        [],
+        ['Generated', generatedAt.toLocaleString('id-ID')],
+        ['Event', eventName],
+        ['Lokasi', eventLocation],
+        ['Tanggal Event', eventDate],
+        ['Filter Aktif', formatFilterSummary()],
+        [],
+        ['Jumlah Registrasi', exportRows.length],
+        ['Jumlah Rider', totalRiders],
+        ['Registrasi Pending', pendingCount],
+        ['Registrasi Approved', approvedCount],
+        ['Registrasi Rejected', rejectedCount],
+        ['Belum Upload Bukti', paymentSummary.NO_PAYMENT],
+        ['Pembayaran Pending', paymentSummary.PENDING],
+        ['Pembayaran Approved', paymentSummary.APPROVED],
+        ['Pembayaran Rejected', paymentSummary.REJECTED],
+      ]
+
+      const detailSheetData: Array<Array<string | number>> = [
+        ['DATA REGISTRASI EVENT'],
+        [eventName],
+        [`Generated: ${generatedAt.toLocaleString('id-ID')}`],
+        [],
+        [
+          'No',
+          'Tanggal Registrasi',
+          'Status Registrasi',
+          'Status Pembayaran',
+          'Komunitas',
+          'Nama Kontak',
+          'No. WhatsApp',
+          'Email',
+          'Total Bayar',
+          'Jumlah Rider',
+          'Nama Rider',
+          'Panggilan',
+          'Tanggal Lahir',
+          'Gender',
+          'Club',
+          'Kategori Utama',
+          'Kategori Tambahan',
+          'Jersey',
+          'Plate Request',
+          'Harga Rider',
+          'Status Item',
+          'Foto',
+          'Jumlah Dokumen',
+          'Catatan Admin',
+        ],
+      ]
+
+      let detailIndex = 1
+      for (const registration of exportRows) {
+        const paymentAggregate = aggregatePaymentStatus(registration.registration_payments)
+        const docsByItem = getDocsByItem(registration)
+        for (const item of registration.registration_items) {
+          detailSheetData.push([
+            detailIndex,
+            formatDateTime(registration.created_at),
+            registration.status,
+            paymentAggregate,
+            registration.community_name ?? '-',
+            registration.contact_name,
+            registration.contact_phone,
+            registration.contact_email ?? '-',
+            registration.total_amount,
+            registration.registration_items.length,
+            item.rider_name,
+            item.rider_nickname ?? '-',
+            item.date_of_birth,
+            item.gender,
+            item.club ?? '-',
+            item.primary_category_id ? categoryMap.get(item.primary_category_id) ?? item.primary_category_id : '-',
+            item.extra_category_id ? categoryMap.get(item.extra_category_id) ?? item.extra_category_id : '-',
+            item.jersey_size ?? '-',
+            buildPlateDisplay(item.requested_plate_number, item.requested_plate_suffix) || '-',
+            item.price,
+            item.status,
+            item.photo_url ? 'Ada' : 'Belum',
+            (docsByItem.get(item.id) ?? []).length,
+            registration.notes ?? '-',
+          ])
+          detailIndex += 1
+        }
+      }
+
+      const XLSX = await import('xlsx')
+      const workbook = XLSX.utils.book_new()
+      const summarySheet = XLSX.utils.aoa_to_sheet(summarySheetData)
+      const detailSheet = XLSX.utils.aoa_to_sheet(detailSheetData)
+
+      summarySheet['!cols'] = [{ wch: 24 }, { wch: 48 }]
+      detailSheet['!cols'] = [
+        { wch: 6 },
+        { wch: 22 },
+        { wch: 18 },
+        { wch: 18 },
+        { wch: 22 },
+        { wch: 22 },
+        { wch: 18 },
+        { wch: 28 },
+        { wch: 14 },
+        { wch: 12 },
+        { wch: 26 },
+        { wch: 18 },
+        { wch: 14 },
+        { wch: 10 },
+        { wch: 22 },
+        { wch: 22 },
+        { wch: 22 },
+        { wch: 12 },
+        { wch: 14 },
+        { wch: 14 },
+        { wch: 14 },
+        { wch: 10 },
+        { wch: 14 },
+        { wch: 28 },
+      ]
+      summarySheet['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: 1 } }]
+      detailSheet['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 23 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: 23 } }, { s: { r: 2, c: 0 }, e: { r: 2, c: 23 } }]
+      detailSheet['!autofilter'] = { ref: `A5:X${detailSheetData.length}` }
+
+      XLSX.utils.book_append_sheet(workbook, summarySheet, 'Ringkasan Registrasi')
+      XLSX.utils.book_append_sheet(workbook, detailSheet, 'Detail Registrasi')
+
+      const stamp = generatedAt.toISOString().slice(0, 19).replace(/[:T]/g, '-')
+      const safeEventName = eventName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'event'
+      XLSX.writeFile(workbook, `registrations_${safeEventName}_${stamp}.xlsx`)
+    } catch (err: unknown) {
+      setFeedback({ type: 'error', message: err instanceof Error ? err.message : 'Gagal export Excel registrasi.' })
+    } finally {
+      setExportingExcel(false)
+    }
+  }
+
   return (
     <div className="grid gap-5 p-4 md:p-6">
       <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -814,13 +1017,23 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
               Halaman <span className="font-black text-slate-900">{meta.page}</span> dari{' '}
               <span className="font-black text-slate-900">{meta.totalPages}</span>
             </div>
-            <button
-              type="button"
-              onClick={() => setRefreshTick((prev) => prev + 1)}
-              className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-black text-slate-700 transition hover:border-slate-950 hover:text-slate-950"
-            >
-              Refresh Data
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleExportExcel}
+                disabled={loading || exportingExcel}
+                className="rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-black text-emerald-900 transition hover:border-emerald-500 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+              >
+                {exportingExcel ? 'Menyiapkan XLSX...' : 'Export Registrasi XLSX'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setRefreshTick((prev) => prev + 1)}
+                className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-black text-slate-700 transition hover:border-slate-950 hover:text-slate-950"
+              >
+                Refresh Data
+              </button>
+            </div>
           </div>
         </form>
       </section>

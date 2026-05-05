@@ -328,7 +328,7 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
   }, [events])
 
   return (
-    <div className="grid gap-6">
+    <div className="admin-events-theme grid gap-6">
       <section className="rounded-[1.8rem] border border-slate-200 bg-[linear-gradient(135deg,#ffffff_0%,#f8fafc_68%,#fef3c7_100%)] p-5 shadow-[0_20px_44px_rgba(15,23,42,0.06)] sm:p-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="grid gap-2">
