@@ -93,6 +93,11 @@ const sameSet = (a: string[], b: string[]) => {
   return true
 }
 
+const formatMoto3Hint = (riderCount: number) =>
+  riderCount <= 8
+    ? 'Moto 3: urutan gate random (diupayakan beda dari Moto 1 & Moto 2).'
+    : 'Moto 3 tidak dibuat otomatis karena batch melebihi kapasitas gate.'
+
 export default function LiveDrawClient({ eventId }: { eventId: string }) {
   const [categories, setCategories] = useState<CategoryItem[]>([])
   const [selectedCategory, setSelectedCategory] = useState<string>('')
@@ -115,9 +120,16 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
   const [externalOrderText, setExternalOrderText] = useState('')
   const [externalMoto2OrderText, setExternalMoto2OrderText] = useState('')
   const [shareCopied, setShareCopied] = useState(false)
+  const [resultModal, setResultModal] = useState<'draft' | 'saved' | null>(null)
+  const spinTimeoutRef = useRef<number | null>(null)
+  const rollingIntervalRef = useRef<number | null>(null)
 
   const batches = useMemo(() => buildBatches(drawnOrder, batchSize), [drawnOrder, batchSize])
   const visibleWheelRiders = wheelRiders.length > 0 ? wheelRiders : riders
+  const selectedCategoryLabel = useMemo(
+    () => categories.find((category) => category.id === selectedCategory)?.label ?? 'Kategori',
+    [categories, selectedCategory]
+  )
 
   const externalValidation = useMemo(() => {
     const tokens = parseExternalTokens(externalOrderText)
@@ -286,10 +298,10 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       ctx.moveTo(0, 0)
       ctx.arc(0, 0, radius - 2, start, end)
       ctx.closePath()
-      ctx.fillStyle = i % 2 === 0 ? '#2ecc71' : '#eaf7ee'
+      ctx.fillStyle = i % 3 === 0 ? '#111827' : i % 2 === 0 ? '#f8fafc' : '#fde68a'
       ctx.fill()
-      ctx.strokeStyle = '#111'
-      ctx.lineWidth = 1
+      ctx.strokeStyle = '#0f172a'
+      ctx.lineWidth = 1.4
       ctx.stroke()
 
       if (list.length > 0 && i % labelEvery === 0) {
@@ -298,7 +310,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
         ctx.rotate(mid)
         ctx.translate(radius * 0.62, 0)
         ctx.rotate(Math.PI / 2)
-        ctx.fillStyle = '#111'
+        ctx.fillStyle = i % 3 === 0 ? '#f8fafc' : '#0f172a'
         ctx.font = 'bold 10px sans-serif'
         const name = list[i]?.name ?? ''
         ctx.fillText(name.slice(0, 14), -20, 4)
@@ -307,11 +319,22 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     }
 
     ctx.beginPath()
-    ctx.arc(0, 0, radius * 0.18, 0, Math.PI * 2)
-    ctx.fillStyle = '#111'
+    ctx.arc(0, 0, radius * 0.2, 0, Math.PI * 2)
+    ctx.fillStyle = '#0f172a'
+    ctx.fill()
+    ctx.beginPath()
+    ctx.arc(0, 0, radius * 0.08, 0, Math.PI * 2)
+    ctx.fillStyle = '#fde68a'
     ctx.fill()
     ctx.restore()
   }, [drawMode, visibleWheelRiders])
+
+  useEffect(() => {
+    return () => {
+      if (spinTimeoutRef.current) window.clearTimeout(spinTimeoutRef.current)
+      if (rollingIntervalRef.current) window.clearInterval(rollingIntervalRef.current)
+    }
+  }, [])
 
   const apiFetch = async (url: string, options: RequestInit = {}) => {
     const { data } = await supabase.auth.getSession()
@@ -379,6 +402,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       setExternalMoto2OrderText('')
       setWheelRiders([])
       setWheelRotation(0)
+      setResultModal(null)
 
       if (locked) {
         const gateRes = await apiFetch(`/api/events/${eventId}/gate-order?categoryId=${categoryId}`)
@@ -419,20 +443,31 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     setRollingName('Spinning...')
     const shuffled = shuffle(riders)
     setWheelRiders(shuffled)
+    setResultModal(null)
 
     const count = shuffled.length
     const index = Math.floor(Math.random() * count)
     const anglePer = 360 / count
-    const spins = 1
-    const targetAngle = 360 * spins + (360 - (index * anglePer + anglePer / 2))
+    const spins = 6 + Math.floor(Math.random() * 3)
+    const targetAngle = wheelRotation + 360 * spins + (360 - (index * anglePer + anglePer / 2))
+    if (rollingIntervalRef.current) window.clearInterval(rollingIntervalRef.current)
+    if (spinTimeoutRef.current) window.clearTimeout(spinTimeoutRef.current)
+
+    rollingIntervalRef.current = window.setInterval(() => {
+      const rider = shuffled[Math.floor(Math.random() * shuffled.length)]
+      setRollingName(rider?.name ?? 'Spinning...')
+    }, 120)
+
     setWheelRotation(targetAngle)
 
-    window.setTimeout(() => {
+    spinTimeoutRef.current = window.setTimeout(() => {
+      if (rollingIntervalRef.current) window.clearInterval(rollingIntervalRef.current)
       setRollingName(shuffled[index].name)
       setDrawnOrder(shuffled)
       setDrawing(false)
       setHasDrawn(true)
-    }, 2200)
+      setResultModal('draft')
+    }, 7200)
   }
 
   const applyExternalOrder = () => {
@@ -452,10 +487,13 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     setRollingName('External order ready')
     setHasDrawn(true)
     setSaveState('idle')
+    setResultModal('draft')
   }
 
   const resetDraw = () => {
     if (categoryLocked) return
+    if (spinTimeoutRef.current) window.clearTimeout(spinTimeoutRef.current)
+    if (rollingIntervalRef.current) window.clearInterval(rollingIntervalRef.current)
     setDrawnOrder([])
     setWheelRiders([])
     setWheelRotation(0)
@@ -464,6 +502,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     setSaveState('idle')
     setExternalOrderText('')
     setExternalMoto2OrderText('')
+    setResultModal(null)
   }
 
   const resetLockedDraw = async () => {
@@ -487,6 +526,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       setSaveState('idle')
       setExternalOrderText('')
       setExternalMoto2OrderText('')
+      setResultModal(null)
       await loadRiders(selectedCategory)
       alert('Draw berhasil direset.')
     } catch (err: unknown) {
@@ -523,6 +563,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       if (!res.ok) throw new Error(json?.error || 'Gagal menyimpan Moto')
       setSaveState('saved')
       await loadRiders(selectedCategory)
+      setResultModal('saved')
       alert('Moto berhasil dibuat.')
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Gagal menyimpan hasil draw')
@@ -669,18 +710,23 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
 
         <div
           style={{
-            border: '2px dashed #111',
-            borderRadius: 16,
-            padding: 16,
+            border: '2px solid #111',
+            borderRadius: 24,
+            padding: 20,
             display: 'grid',
-            gap: 16,
+            gap: 18,
+            background:
+              drawMode === 'external_draw'
+                ? 'linear-gradient(135deg, #fff7ed 0%, #ffffff 58%, #fef3c7 100%)'
+                : 'linear-gradient(135deg, #eff6ff 0%, #ffffff 58%, #dcfce7 100%)',
+            boxShadow: '0 24px 48px rgba(15, 23, 42, 0.08)',
           }}
         >
           <div style={{ display: 'grid', gap: 6 }}>
             <div style={{ fontWeight: 900, fontSize: 18 }}>
               {drawMode === 'external_draw' ? 'External Order' : 'Wheel Spin'}
             </div>
-            <div style={{ fontSize: 18, fontWeight: 900 }}>{rollingName}</div>
+            <div style={{ fontSize: 22, fontWeight: 950, color: '#0f172a' }}>{rollingName}</div>
             <div style={{ color: '#444', fontWeight: 700 }}>
               Total rider: {riders.length} | Batch: {batches.length}
             </div>
@@ -734,15 +780,26 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                 <div
                   style={{
                     position: 'absolute',
-                    top: -6,
+                    top: -10,
                     left: '50%',
                     transform: 'translateX(-50%)',
                     width: 0,
                     height: 0,
-                    borderLeft: '12px solid transparent',
-                    borderRight: '12px solid transparent',
-                    borderBottom: '18px solid #b40000',
+                    borderLeft: '16px solid transparent',
+                    borderRight: '16px solid transparent',
+                    borderBottom: '24px solid #ef4444',
+                    filter: 'drop-shadow(0 8px 14px rgba(239, 68, 68, 0.3))',
                     zIndex: 3,
+                  }}
+                />
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: 8,
+                    borderRadius: '50%',
+                    background: 'radial-gradient(circle at 30% 30%, rgba(255,255,255,0.85), rgba(255,255,255,0))',
+                    pointerEvents: 'none',
+                    zIndex: 2,
                   }}
                 />
                 <canvas
@@ -753,10 +810,11 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                     width: 360,
                     height: 360,
                     borderRadius: '50%',
-                    border: '2px solid #111',
+                    border: '6px solid #0f172a',
                     background: '#fff',
                     transform: `rotate(${wheelRotation}deg)`,
-                    transition: drawing ? 'transform 4.2s cubic-bezier(0.12, 0.6, 0.08, 1)' : 'none',
+                    transition: drawing ? 'transform 7.2s cubic-bezier(0.08, 0.72, 0.12, 1)' : 'none',
+                    boxShadow: '0 28px 48px rgba(15, 23, 42, 0.18)',
                   }}
                 />
               </div>
@@ -776,52 +834,54 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                 >
                   {hasDrawn ? 'Draw Terkunci' : 'Start Draw'}
                 </button>
-                <button
-                  type="button"
-                  onClick={saveAsMoto}
-                  disabled={saveState === 'saving' || drawnOrder.length === 0}
-                  style={{
-                    padding: '12px 16px',
-                    borderRadius: 12,
-                    border: '2px solid #111',
-                    background: saveState === 'saved' ? '#bfead2' : '#fff',
-                    fontWeight: 900,
-                    cursor: saveState === 'saving' ? 'not-allowed' : 'pointer',
-                  }}
-                >
-                  {saveState === 'saving' ? 'Saving...' : 'Save as Moto'}
-                </button>
-                <button
-                  type="button"
-                  onClick={resetDraw}
-                  disabled={categoryLocked || drawnOrder.length === 0}
-                  style={{
-                    padding: '12px 16px',
-                    borderRadius: 12,
-                    border: '2px solid #111',
-                    background: categoryLocked ? '#eee' : '#fff',
-                    fontWeight: 900,
-                    cursor: categoryLocked ? 'not-allowed' : 'pointer',
-                  }}
-                >
-                  Reset Draw
-                </button>
-                {categoryLocked && (
+                {drawnOrder.length > 0 && !categoryLocked && (
                   <button
                     type="button"
-                    onClick={resetLockedDraw}
-                    disabled={saveState === 'saving'}
+                    onClick={() => setResultModal('draft')}
                     style={{
                       padding: '12px 16px',
                       borderRadius: 12,
                       border: '2px solid #111',
-                      background: '#ffd6d6',
+                      background: '#fff',
                       fontWeight: 900,
                       cursor: 'pointer',
                     }}
                   >
-                    Reset Draw (Hapus Moto)
+                    Lihat Hasil Draw
                   </button>
+                )}
+                {categoryLocked && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setResultModal('saved')}
+                      style={{
+                        padding: '12px 16px',
+                        borderRadius: 12,
+                        border: '2px solid #111',
+                        background: '#fff',
+                        fontWeight: 900,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Lihat Moto Tersimpan
+                    </button>
+                    <button
+                      type="button"
+                      onClick={resetLockedDraw}
+                      disabled={saveState === 'saving'}
+                      style={{
+                        padding: '12px 16px',
+                        borderRadius: 12,
+                        border: '2px solid #111',
+                        background: '#ffd6d6',
+                        fontWeight: 900,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Reset Draw (Hapus Moto)
+                    </button>
+                  </>
                 )}
               </div>
             </div>
@@ -965,52 +1025,54 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                 >
                   Gunakan Urutan External
                 </button>
-                <button
-                  type="button"
-                  onClick={saveAsMoto}
-                  disabled={saveState === 'saving' || drawnOrder.length === 0}
-                  style={{
-                    padding: '12px 16px',
-                    borderRadius: 12,
-                    border: '2px solid #111',
-                    background: saveState === 'saved' ? '#bfead2' : '#fff',
-                    fontWeight: 900,
-                    cursor: saveState === 'saving' ? 'not-allowed' : 'pointer',
-                  }}
-                >
-                  {saveState === 'saving' ? 'Saving...' : 'Save as Moto'}
-                </button>
-                <button
-                  type="button"
-                  onClick={resetDraw}
-                  disabled={categoryLocked}
-                  style={{
-                    padding: '12px 16px',
-                    borderRadius: 12,
-                    border: '2px solid #111',
-                    background: categoryLocked ? '#eee' : '#fff',
-                    fontWeight: 900,
-                    cursor: categoryLocked ? 'not-allowed' : 'pointer',
-                  }}
-                >
-                  Reset Draft
-                </button>
-                {categoryLocked && (
+                {drawnOrder.length > 0 && !categoryLocked && (
                   <button
                     type="button"
-                    onClick={resetLockedDraw}
-                    disabled={saveState === 'saving'}
+                    onClick={() => setResultModal('draft')}
                     style={{
                       padding: '12px 16px',
                       borderRadius: 12,
                       border: '2px solid #111',
-                      background: '#ffd6d6',
+                      background: '#fff',
                       fontWeight: 900,
                       cursor: 'pointer',
                     }}
                   >
-                    Reset Draw (Hapus Moto)
+                    Lihat Hasil Draw
                   </button>
+                )}
+                {categoryLocked && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setResultModal('saved')}
+                      style={{
+                        padding: '12px 16px',
+                        borderRadius: 12,
+                        border: '2px solid #111',
+                        background: '#fff',
+                        fontWeight: 900,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Lihat Moto Tersimpan
+                    </button>
+                    <button
+                      type="button"
+                      onClick={resetLockedDraw}
+                      disabled={saveState === 'saving'}
+                      style={{
+                        padding: '12px 16px',
+                        borderRadius: 12,
+                        border: '2px solid #111',
+                        background: '#ffd6d6',
+                        fontWeight: 900,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Reset Draw (Hapus Moto)
+                    </button>
+                  </>
                 )}
               </div>
             </div>
@@ -1025,55 +1087,6 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
             {drawMode === 'external_draw'
               ? 'Belum ada urutan external yang dipakai.'
               : 'Belum ada hasil draw.'}
-          </div>
-        )}
-        {drawnOrder.length > 0 && !categoryLocked && (
-          <div style={{ display: 'grid', gap: 14 }}>
-            {batches.map((batch) => (
-              <div
-                key={batch.index}
-                style={{
-                  border: '2px solid #111',
-                  borderRadius: 16,
-                  padding: 12,
-                  background: '#fff',
-                }}
-              >
-                <div style={{ fontWeight: 900, marginBottom: 8 }}>Batch {batch.index}</div>
-                <div style={{ display: 'grid', gap: 6 }}>
-                  {batch.riders.map((rider, idx) => (
-                    <div
-                      key={rider.id}
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        gap: 10,
-                        padding: '8px 10px',
-                        borderRadius: 10,
-                        border: '1px solid #ddd',
-                        background: '#eaf7ee',
-                        fontWeight: 800,
-                      }}
-                    >
-                      <span>
-                        Gate {idx + 1} - {rider.name}
-                      </span>
-                      <span>{rider.no_plate_display}</span>
-                    </div>
-                  ))}
-                </div>
-                <div style={{ marginTop: 8, color: '#444', fontWeight: 700 }}>
-                  {drawMode === 'external_draw' && externalMoto2Validation.isProvided
-                    ? 'Moto 2: urutan gate manual sesuai input external.'
-                    : `Moto 2: urutan gate otomatis dibalik (Gate ${batch.riders.length} > 1).`}
-                </div>
-                {batch.riders.length <= 8 && (
-                  <div style={{ marginTop: 6, color: '#444', fontWeight: 700 }}>
-                    Moto 3: urutan gate random (diupayakan beda dari Moto 1 & Moto 2).
-                  </div>
-                )}
-              </div>
-            ))}
           </div>
         )}
         {categoryLocked && lockedMotos.length > 0 && (
@@ -1134,6 +1147,293 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
           </div>
         )}
       </div>
+
+      {resultModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 80,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 20,
+            background: 'rgba(15, 23, 42, 0.52)',
+            backdropFilter: 'blur(10px)',
+          }}
+        >
+          <div
+            style={{
+              width: 'min(1120px, 100%)',
+              maxHeight: '88vh',
+              overflow: 'hidden',
+              borderRadius: 28,
+              border: '2px solid #0f172a',
+              background: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)',
+              boxShadow: '0 32px 80px rgba(15, 23, 42, 0.22)',
+              display: 'grid',
+              gridTemplateRows: 'auto 1fr auto',
+            }}
+          >
+            <div
+              style={{
+                padding: '20px 22px 18px',
+                borderBottom: '1px solid #e2e8f0',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'start',
+                gap: 16,
+              }}
+            >
+              <div style={{ display: 'grid', gap: 6 }}>
+                <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#64748b' }}>
+                  {resultModal === 'saved' ? 'Moto Tersimpan' : 'Preview Hasil Draw'}
+                </div>
+                <div style={{ fontSize: 28, fontWeight: 950, color: '#0f172a' }}>{selectedCategoryLabel}</div>
+                <div style={{ color: '#334155', fontWeight: 700 }}>
+                  {resultModal === 'saved'
+                    ? 'Daftar moto yang sudah tersimpan untuk kategori ini.'
+                    : `Total rider ${drawnOrder.length} | ${batches.length} batch | gate max ${batchSize}`}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setResultModal(null)}
+                style={{
+                  padding: '10px 12px',
+                  borderRadius: 12,
+                  border: '2px solid #111',
+                  background: '#fff',
+                  fontWeight: 900,
+                  cursor: 'pointer',
+                }}
+              >
+                Tutup
+              </button>
+            </div>
+
+            <div style={{ overflowY: 'auto', padding: 22, display: 'grid', gap: 16 }}>
+              {resultModal === 'draft' && (
+                <div style={{ display: 'grid', gap: 14 }}>
+                  {batches.map((batch) => (
+                    <div
+                      key={batch.index}
+                      style={{
+                        border: '1px solid #cbd5e1',
+                        borderRadius: 22,
+                        padding: 16,
+                        background: 'linear-gradient(135deg, #ffffff 0%, #ecfeff 100%)',
+                        boxShadow: '0 14px 30px rgba(15, 23, 42, 0.06)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 12 }}>
+                        <div style={{ fontWeight: 950, fontSize: 18, color: '#0f172a' }}>Batch {batch.index}</div>
+                        <div
+                          style={{
+                            padding: '6px 10px',
+                            borderRadius: 999,
+                            background: '#dbeafe',
+                            color: '#1d4ed8',
+                            fontWeight: 900,
+                            fontSize: 12,
+                          }}
+                        >
+                          {batch.riders.length} rider
+                        </div>
+                      </div>
+                      <div style={{ display: 'grid', gap: 8 }}>
+                        {batch.riders.map((rider, idx) => (
+                          <div
+                            key={rider.id}
+                            style={{
+                              display: 'grid',
+                              gridTemplateColumns: 'auto minmax(0, 1fr) auto',
+                              alignItems: 'center',
+                              gap: 12,
+                              padding: '10px 12px',
+                              borderRadius: 14,
+                              border: '1px solid #dbeafe',
+                              background: idx % 2 === 0 ? '#eff6ff' : '#f8fafc',
+                              fontWeight: 800,
+                            }}
+                          >
+                            <span
+                              style={{
+                                minWidth: 66,
+                                textAlign: 'center',
+                                padding: '6px 8px',
+                                borderRadius: 999,
+                                background: '#0f172a',
+                                color: '#fff',
+                                fontSize: 12,
+                                fontWeight: 900,
+                              }}
+                            >
+                              Gate {idx + 1}
+                            </span>
+                            <span style={{ color: '#0f172a' }}>{rider.name}</span>
+                            <span style={{ color: '#475569' }}>{rider.no_plate_display}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ marginTop: 12, display: 'grid', gap: 6, color: '#475569', fontWeight: 700 }}>
+                        <div>
+                          {drawMode === 'external_draw' && externalMoto2Validation.isProvided
+                            ? 'Moto 2: urutan gate manual sesuai input external.'
+                            : `Moto 2: urutan gate otomatis dibalik (Gate ${batch.riders.length} > 1).`}
+                        </div>
+                        <div>{formatMoto3Hint(batch.riders.length)}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {resultModal === 'saved' && (
+                <div style={{ display: 'grid', gap: 12 }}>
+                  {lockedMotos.map((moto) => (
+                    <div
+                      key={moto.id}
+                      style={{
+                        border: '1px solid #cbd5e1',
+                        borderRadius: 20,
+                        padding: 14,
+                        background: '#fff',
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setOpenMotoId((prev) => (prev === moto.id ? null : moto.id))}
+                        style={{
+                          width: '100%',
+                          textAlign: 'left',
+                          padding: '12px 14px',
+                          borderRadius: 14,
+                          border: '1px solid #bfdbfe',
+                          background: openMotoId === moto.id ? '#dbeafe' : '#f8fafc',
+                          fontWeight: 900,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {moto.moto_order}. {moto.moto_name} {openMotoId === moto.id ? '[Hide]' : '[Show]'}
+                      </button>
+                      {openMotoId === moto.id && (
+                        <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
+                          {moto.gates.map((g) => (
+                            <div
+                              key={`${moto.id}-${g.rider_id}`}
+                              style={{
+                                display: 'grid',
+                                gridTemplateColumns: 'auto minmax(0, 1fr) auto',
+                                gap: 12,
+                                alignItems: 'center',
+                                padding: '10px 12px',
+                                borderRadius: 14,
+                                border: '1px solid #e2e8f0',
+                                background: '#fff',
+                                fontWeight: 800,
+                              }}
+                            >
+                              <span
+                                style={{
+                                  minWidth: 66,
+                                  textAlign: 'center',
+                                  padding: '6px 8px',
+                                  borderRadius: 999,
+                                  background: '#0f172a',
+                                  color: '#fff',
+                                  fontSize: 12,
+                                  fontWeight: 900,
+                                }}
+                              >
+                                Gate {g.gate_position}
+                              </span>
+                              <span>{g.name}</span>
+                              <span style={{ color: '#475569' }}>{g.no_plate_display}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div
+              style={{
+                padding: 18,
+                borderTop: '1px solid #e2e8f0',
+                display: 'flex',
+                justifyContent: 'space-between',
+                gap: 12,
+                flexWrap: 'wrap',
+                background: '#fff',
+              }}
+            >
+              <div style={{ color: '#475569', fontWeight: 700 }}>
+                {resultModal === 'saved'
+                  ? 'Gunakan reset jika ingin menghapus moto yang sudah terkunci untuk kategori ini.'
+                  : 'Review dulu hasil batch di modal ini, lalu simpan jadi moto kalau sudah pas.'}
+              </div>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                {resultModal === 'draft' && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={resetDraw}
+                      disabled={categoryLocked || saveState === 'saving'}
+                      style={{
+                        padding: '12px 16px',
+                        borderRadius: 12,
+                        border: '2px solid #111',
+                        background: '#fff',
+                        fontWeight: 900,
+                        cursor: categoryLocked || saveState === 'saving' ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      Reset Draw
+                    </button>
+                    <button
+                      type="button"
+                      onClick={saveAsMoto}
+                      disabled={saveState === 'saving' || drawnOrder.length === 0}
+                      style={{
+                        padding: '12px 16px',
+                        borderRadius: 12,
+                        border: '2px solid #111',
+                        background: saveState === 'saved' ? '#bfead2' : '#111827',
+                        color: saveState === 'saved' ? '#0f172a' : '#fff',
+                        fontWeight: 900,
+                        cursor: saveState === 'saving' ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      {saveState === 'saving' ? 'Saving...' : 'Save as Moto'}
+                    </button>
+                  </>
+                )}
+                {resultModal === 'saved' && (
+                  <button
+                    type="button"
+                    onClick={resetLockedDraw}
+                    disabled={saveState === 'saving'}
+                    style={{
+                      padding: '12px 16px',
+                      borderRadius: 12,
+                      border: '2px solid #111',
+                      background: '#ffd6d6',
+                      fontWeight: 900,
+                      cursor: saveState === 'saving' ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    Reset Draw (Hapus Moto)
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
