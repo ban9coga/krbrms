@@ -51,6 +51,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ eventI
     business_settings,
   } = body ?? {}
 
+  const normalizedRegistrationOpen = typeof registration_open === 'boolean' ? registration_open : true
+
   const { data, error } = await adminClient
     .from('event_settings')
     .upsert(
@@ -61,7 +63,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ eventI
           sponsor_logo_urls,
           base_price,
           extra_price,
-          registration_open,
+          registration_open: normalizedRegistrationOpen,
           require_jersey_size,
           scoring_rules,
           display_theme,
