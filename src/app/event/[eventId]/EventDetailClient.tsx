@@ -338,8 +338,8 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                 {event.status === 'UPCOMING' && !hideRegistrationAndVenueActions && !canRegister && (
                   <div className="rounded-2xl border border-amber-300/25 bg-amber-400/10 px-4 py-4 text-sm font-semibold text-amber-100">
                     {registrationOpen
-                      ? 'Pendaftaran event ini sedang ditutup karena semua slot kategori sudah penuh.'
-                      : 'Pendaftaran event ini sedang ditutup oleh panitia.'}
+                      ? 'Pendaftaran event ini telah ditutup karena semua slot kategori sudah penuh.'
+                      : 'Pendaftaran event telah ditutup.'}
                   </div>
                 )}
 
