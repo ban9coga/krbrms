@@ -821,7 +821,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
           'Gender',
           'Club',
           'Kategori Utama',
-          'Kategori Tambahan',
+          'Kategori Upclass',
           'Jersey',
           'Plate Request',
           'Harga Rider',
@@ -1364,7 +1364,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                                 Kategori Utama: {item.primary_category_id ? categoryMap.get(item.primary_category_id) ?? '-' : '-'}
                               </div>
                               {item.extra_category_id && (
-                                <div>Kategori Tambahan: {categoryMap.get(item.extra_category_id) ?? '-'}</div>
+                                <div>Kategori Upclass: {categoryMap.get(item.extra_category_id) ?? '-'}</div>
                               )}
                             </div>
 

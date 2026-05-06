@@ -471,7 +471,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
         method: 'PUT',
         body: JSON.stringify({ category_id: extraCategoryId }),
       })
-      if (!extraRes.res.ok) throw new Error(extraRes.json?.error || 'Gagal update extra category')
+      if (!extraRes.res.ok) throw new Error(extraRes.json?.error || 'Gagal update kategori upclass')
 
       await Promise.all([loadRiders(page, query), loadCategories()])
       closeEdit()
@@ -1439,7 +1439,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
               />
 
               <div className="grid gap-2">
-                <div className={labelClass}>Upclass</div>
+                <div className={labelClass}>Kategori Upclass</div>
                 {addEligibleExtraCategories.length === 0 ? (
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-500">
                     Tidak ada kategori upclass yang cocok.
@@ -1450,7 +1450,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
                     onChange={(e) => setAddExtraCategoryId(e.target.value || null)}
                     className={inputClass}
                   >
-                    <option value="">Tidak ikut upclass</option>
+                    <option value="">Tidak ikut kategori upclass</option>
                     {addEligibleExtraCategories.map((category) => (
                       <option key={category.id} value={category.id}>
                         {category.label}
@@ -1633,14 +1633,14 @@ export default function RidersClient({ eventId }: { eventId: string }) {
               </div>
 
               <div className="grid gap-2">
-                <div className={labelClass}>Extra Category</div>
+                <div className={labelClass}>Kategori Upclass</div>
                 {eligibleExtraCategories.length === 0 ? (
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-500">
-                    Tidak ada kategori tambahan.
+                    Tidak ada kategori upclass.
                   </div>
                 ) : (
                   <select value={extraCategoryId ?? ''} onChange={(e) => setExtraCategoryId(e.target.value || null)} className={inputClass}>
-                    <option value="">Tidak ikut kategori tambahan</option>
+                    <option value="">Tidak ikut kategori upclass</option>
                     {eligibleExtraCategories.map((category) => (
                       <option key={category.id} value={category.id}>
                         {category.label}
