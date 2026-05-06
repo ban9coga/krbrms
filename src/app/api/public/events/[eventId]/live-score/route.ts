@@ -41,6 +41,7 @@ type StageRow = {
   club: string | null
   photo_thumbnail_url?: string | null
   point: number | null
+  rank: number | null
   status: 'FINISH' | 'DNF' | 'DNS' | 'PENDING'
 }
 
@@ -382,6 +383,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         club: rider?.club ?? '-',
         photo_thumbnail_url: rider?.photo_thumbnail_url ?? null,
         point: pointForResult(res),
+        rank: res?.result_status === 'FINISH' ? res.finish_order ?? null : null,
         status,
       }
     })

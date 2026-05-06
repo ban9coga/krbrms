@@ -44,9 +44,9 @@ const getAllowedMotoStatuses = (current: MotoItem['status']) => {
     case 'LIVE':
       return ['LIVE', 'PROVISIONAL'] as MotoItem['status'][]
     case 'PROVISIONAL':
-      return ['PROVISIONAL', 'PROTEST_REVIEW', 'LOCKED'] as MotoItem['status'][]
+      return ['PROVISIONAL'] as MotoItem['status'][]
     case 'PROTEST_REVIEW':
-      return ['PROTEST_REVIEW', 'LOCKED'] as MotoItem['status'][]
+      return ['PROTEST_REVIEW'] as MotoItem['status'][]
     case 'LOCKED':
       return ['LOCKED'] as MotoItem['status'][]
     case 'FINISHED':
@@ -300,6 +300,27 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     }
   }
 
+  const handleOpenReview = async (motoId: string) => {
+    try {
+      await apiFetch(`/api/jury/motos/${motoId}/open-review`, { method: 'POST' })
+      await load()
+    } catch (err: unknown) {
+      alert(getErrorMessage(err))
+    }
+  }
+
+  const handleLockMoto = async (motoId: string) => {
+    try {
+      await apiFetch(`/api/motos/${motoId}/status`, {
+        method: 'POST',
+        body: JSON.stringify({ status: 'LOCKED' }),
+      })
+      await load()
+    } catch (err: unknown) {
+      alert(getErrorMessage(err))
+    }
+  }
+
   const toggleCategoryCard = (categoryId: string) => {
     setHiddenCategoryIds((prev) =>
       prev.includes(categoryId) ? prev.filter((id) => id !== categoryId) : [...prev, categoryId]
@@ -451,6 +472,40 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                           </option>
                         ))}
                       </select>
+                      {m.status === 'PROVISIONAL' && (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenReview(m.id)}
+                          disabled={eventStatus !== 'LIVE'}
+                          style={{
+                            padding: '8px 12px',
+                            borderRadius: 999,
+                            border: '2px solid #111',
+                            background: '#fef3c7',
+                            fontWeight: 900,
+                            cursor: eventStatus === 'LIVE' ? 'pointer' : 'not-allowed',
+                          }}
+                        >
+                          Buka Review
+                        </button>
+                      )}
+                      {(m.status === 'PROVISIONAL' || m.status === 'PROTEST_REVIEW') && (
+                        <button
+                          type="button"
+                          onClick={() => handleLockMoto(m.id)}
+                          disabled={eventStatus !== 'LIVE'}
+                          style={{
+                            padding: '8px 12px',
+                            borderRadius: 999,
+                            border: '2px solid #111',
+                            background: '#d1fae5',
+                            fontWeight: 900,
+                            cursor: eventStatus === 'LIVE' ? 'pointer' : 'not-allowed',
+                          }}
+                        >
+                          Lock Moto
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => handlePublishMoto(m.id)}
