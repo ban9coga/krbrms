@@ -5,7 +5,7 @@ import EmptyState from '../../../../components/EmptyState'
 import LoadingState from '../../../../components/LoadingState'
 import { getEventById, getEventCategories, type EventItem } from '../../../../lib/eventService'
 import { compareMotoSequence } from '../../../../lib/motoSequence'
-import { isMotoLive, isMotoUpcoming } from '../../../../lib/motoStatus'
+import { isMotoLive } from '../../../../lib/motoStatus'
 
 type Row = {
   rider_id: string
@@ -60,10 +60,9 @@ export default function LiveDisplayClient({
   initialEvent?: EventItem | null
 }) {
   const [event, setEvent] = useState<EventItem | null>(initialEvent)
-  const [categoryId, setCategoryId] = useState<string>('')
-  const [categoryLabel, setCategoryLabel] = useState<string>('')
-  const [batches, setBatches] = useState<Batch[]>([])
-  const [activeMoto, setActiveMoto] = useState<MotoItem | null>(null)
+  const [liveMotoCategoryIds, setLiveMotoCategoryIds] = useState<string[]>([])
+  const [liveScoreByCategory, setLiveScoreByCategory] = useState<Record<string, { categoryLabel: string; batches: Batch[] }>>({})
+  const [liveMotos, setLiveMotos] = useState<MotoItem[]>([])
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
 
@@ -74,13 +73,15 @@ export default function LiveDisplayClient({
         const eventData = initialEvent ?? (await getEventById(eventId))
         const cats = (await getEventCategories(eventId)).filter((c) => c.enabled)
         setEvent(eventData ?? initialEvent ?? null)
-        if (!categoryId && cats.length > 0) setCategoryId(cats[0].id)
+        if (cats.length === 0) {
+          setLiveMotoCategoryIds([])
+        }
       } finally {
         setLoading(false)
       }
     }
     if (eventId) load()
-  }, [eventId, categoryId, initialEvent])
+  }, [eventId, initialEvent])
 
   useEffect(() => {
     const html = document.documentElement
@@ -98,56 +99,79 @@ export default function LiveDisplayClient({
   const fetchMotos = async () => {
     const res = await fetch(`/api/motos?event_id=${eventId}`)
     const json = await res.json()
-    const data = (json?.data ?? []) as MotoItem[]
-    const live = data.find((m) => isMotoLive(m.status)) ?? null
-    const upcoming = data.filter((m) => isMotoUpcoming(m.status)).sort(compareMotoSequence)[0] ?? null
-    const nextActive = live ?? upcoming ?? null
-    setActiveMoto(nextActive)
-    if (nextActive && nextActive.category_id !== categoryId) {
-      setCategoryId(nextActive.category_id)
-    }
+    const data = ((json?.data ?? []) as MotoItem[]).filter((m) => isMotoLive(m.status)).sort(compareMotoSequence)
+    const categoryIds = Array.from(new Set(data.map((m) => m.category_id)))
+    setLiveMotos(data)
+    setLiveMotoCategoryIds(categoryIds)
+    return categoryIds
   }
 
-  const fetchLiveScore = async (id: string) => {
-    if (!id) return
-    const res = await fetch(
-      `/api/public/events/${eventId}/live-score?category_id=${encodeURIComponent(id)}&include_upcoming=1`
+  const fetchLiveScores = async (categoryIds: string[]) => {
+    if (categoryIds.length === 0) {
+      setLiveScoreByCategory({})
+      return
+    }
+    const entries = await Promise.all(
+      categoryIds.map(async (id) => {
+        const res = await fetch(`/api/public/events/${eventId}/live-score?category_id=${encodeURIComponent(id)}`)
+        const json = await res.json()
+        const data = (json?.data ?? {}) as LiveScorePayload
+        return [
+          id,
+          {
+            categoryLabel: data.category ?? '',
+            batches: data.batches ?? [],
+          },
+        ] as const
+      })
     )
-    const json = await res.json()
-    const data = (json?.data ?? {}) as LiveScorePayload
-    setCategoryLabel(data.category ?? '')
-    setBatches(data.batches ?? [])
+    setLiveScoreByCategory(Object.fromEntries(entries))
   }
 
   useEffect(() => {
-    if (categoryId) fetchLiveScore(categoryId)
     fetchMotos()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [categoryId, eventId])
+  }, [eventId])
+
+  useEffect(() => {
+    fetchLiveScores(liveMotoCategoryIds)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventId, liveMotoCategoryIds.join(',')])
 
   const refresh = async () => {
-    if (!categoryId) return
     setRefreshing(true)
     try {
-      await fetchLiveScore(categoryId)
-      await fetchMotos()
+      const categoryIds = await fetchMotos()
+      await fetchLiveScores(categoryIds)
     } finally {
       setRefreshing(false)
     }
   }
 
   useEffect(() => {
-    if (!categoryId) return
     const interval = setInterval(() => {
       refresh()
     }, 10000)
     return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [categoryId, eventId])
+  }, [eventId, liveMotoCategoryIds.join(',')])
 
-  const hasData = useMemo(() => batches.some((batch) => batch.rows.length > 0), [batches])
+  const activeMoto = liveMotos[0] ?? null
+  const queueMoto = liveMotos[1] ?? null
+  const activeLiveScore = activeMoto ? liveScoreByCategory[activeMoto.category_id] : null
+  const queueLiveScore = queueMoto ? liveScoreByCategory[queueMoto.category_id] : null
+  const categoryLabel = activeLiveScore?.categoryLabel ?? ''
+  const batches = useMemo(() => activeLiveScore?.batches ?? [], [activeLiveScore])
+  const queueBatches = useMemo(() => queueLiveScore?.batches ?? [], [queueLiveScore])
+
+  const hasData = useMemo(
+    () => batches.some((batch) => batch.rows.length > 0) || queueBatches.some((batch) => batch.rows.length > 0),
+    [batches, queueBatches]
+  )
   const sortedBatches = useMemo(() => [...batches].sort((a, b) => a.batch_index - b.batch_index), [batches])
   const showMoto3 = sortedBatches.length <= 1
+  const queueSortedBatches = useMemo(() => [...queueBatches].sort((a, b) => a.batch_index - b.batch_index), [queueBatches])
+  const queueShowMoto3 = queueSortedBatches.length <= 1
 
   const activeBatch = useMemo(() => {
     if (!activeMoto) return null
@@ -163,34 +187,21 @@ export default function LiveDisplayClient({
   }, [activeBatch])
 
   const queueTarget = useMemo(() => {
-    if (sortedBatches.length === 0) return null
-    const currentBatch = activeBatch ?? sortedBatches[0]
-    const hasMoto2 = currentBatch.rows.some((row) => row.gate_moto2 != null)
-    const hasMoto3 = showMoto3 && currentBatch.rows.some((row) => row.gate_moto3 != null)
-
-    if (activeMoto?.id === currentBatch.moto1_id && currentBatch.moto2_id && hasMoto2) {
-      return {
-        batch: currentBatch,
-        motoIndex: 2 as const,
-        label: `Batch ${currentBatch.batch_index} - Moto 2`,
-      }
-    }
-
-    if (activeMoto?.id === currentBatch.moto2_id && currentBatch.moto3_id && hasMoto3) {
-      return {
-        batch: currentBatch,
-        motoIndex: 3 as const,
-        label: `Batch ${currentBatch.batch_index} - Moto 3`,
-      }
-    }
-
-    const nextBatch = sortedBatches.find((batch) => batch.batch_index > currentBatch.batch_index) ?? sortedBatches[0]
+    if (!queueMoto || queueSortedBatches.length === 0) return null
+    const batch =
+      queueSortedBatches.find(
+        (item) => item.moto1_id === queueMoto.id || item.moto2_id === queueMoto.id || item.moto3_id === queueMoto.id
+      ) ?? null
+    if (!batch) return null
+    const motoIndex: 1 | 2 | 3 =
+      batch.moto1_id === queueMoto.id ? 1 : batch.moto2_id === queueMoto.id ? 2 : 3
+    if (motoIndex === 3 && !queueShowMoto3) return null
     return {
-      batch: nextBatch,
-      motoIndex: 1 as const,
-      label: `Batch ${nextBatch.batch_index} - Moto 1`,
+      batch,
+      motoIndex,
+      label: `Batch ${batch.batch_index} - Moto ${motoIndex}`,
     }
-  }, [sortedBatches, activeBatch, activeMoto, showMoto3])
+  }, [queueMoto, queueSortedBatches, queueShowMoto3])
 
   const prepareQueue = useMemo(() => {
     if (!queueTarget) return []
@@ -228,13 +239,6 @@ export default function LiveDisplayClient({
         label: 'Track Live',
         dotClass: 'bg-emerald-400 shadow-[0_0_14px_rgba(74,222,128,0.85)]',
         textClass: 'text-emerald-300',
-      }
-    }
-    if (isMotoUpcoming(activeMoto.status)) {
-      return {
-        label: 'Preparing Gate',
-        dotClass: 'bg-amber-400',
-        textClass: 'text-amber-300',
       }
     }
     return {
@@ -374,7 +378,7 @@ export default function LiveDisplayClient({
                 <div className="flex items-center justify-between border-b border-slate-800 px-6 py-4">
                   <div>
                     <h2 className="text-2xl font-black uppercase tracking-[0.08em] text-white">Waiting Feed</h2>
-                    <p className="text-sm font-semibold text-slate-400">{queueTarget?.label ?? 'Menunggu moto berikutnya'}</p>
+                    <p className="text-sm font-semibold text-slate-400">{queueTarget?.label ?? 'Belum ada moto live berikutnya'}</p>
                   </div>
                   <div className="rounded-full border border-amber-300/40 bg-amber-300/15 px-4 py-2 text-sm font-extrabold uppercase tracking-[0.12em] text-amber-200">
                     Next Moto
@@ -382,7 +386,7 @@ export default function LiveDisplayClient({
                 </div>
 
                 {prepareQueue.length === 0 ? (
-                  <div className="p-6 text-lg font-semibold text-slate-400">Belum ada rider di waiting feed.</div>
+                  <div className="p-6 text-lg font-semibold text-slate-400">Belum ada moto lain yang berstatus LIVE.</div>
                 ) : (
                   <div className="overflow-hidden">
                     <table className="w-full table-fixed border-collapse text-sm md:text-base">
