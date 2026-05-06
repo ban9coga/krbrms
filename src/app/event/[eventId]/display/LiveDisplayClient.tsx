@@ -147,6 +147,7 @@ export default function LiveDisplayClient({
 
   const hasData = useMemo(() => batches.some((batch) => batch.rows.length > 0), [batches])
   const sortedBatches = useMemo(() => [...batches].sort((a, b) => a.batch_index - b.batch_index), [batches])
+  const showMoto3 = sortedBatches.length <= 1
 
   const activeBatch = useMemo(() => {
     if (!activeMoto) return null
@@ -164,13 +165,32 @@ export default function LiveDisplayClient({
   const queueTarget = useMemo(() => {
     if (sortedBatches.length === 0) return null
     const currentBatch = activeBatch ?? sortedBatches[0]
+    const hasMoto2 = currentBatch.rows.some((row) => row.gate_moto2 != null)
+    const hasMoto3 = showMoto3 && currentBatch.rows.some((row) => row.gate_moto3 != null)
+
+    if (activeMoto?.id === currentBatch.moto1_id && currentBatch.moto2_id && hasMoto2) {
+      return {
+        batch: currentBatch,
+        motoIndex: 2 as const,
+        label: `Batch ${currentBatch.batch_index} - Moto 2`,
+      }
+    }
+
+    if (activeMoto?.id === currentBatch.moto2_id && currentBatch.moto3_id && hasMoto3) {
+      return {
+        batch: currentBatch,
+        motoIndex: 3 as const,
+        label: `Batch ${currentBatch.batch_index} - Moto 3`,
+      }
+    }
+
     const nextBatch = sortedBatches.find((batch) => batch.batch_index > currentBatch.batch_index) ?? sortedBatches[0]
     return {
       batch: nextBatch,
       motoIndex: 1 as const,
       label: `Batch ${nextBatch.batch_index} - Moto 1`,
     }
-  }, [sortedBatches, activeBatch])
+  }, [sortedBatches, activeBatch, activeMoto, showMoto3])
 
   const prepareQueue = useMemo(() => {
     if (!queueTarget) return []
@@ -302,7 +322,7 @@ export default function LiveDisplayClient({
                     <table className="w-full table-fixed border-collapse text-sm md:text-base">
                       <thead>
                         <tr className="bg-sky-100/90 text-left font-black uppercase tracking-[0.12em] text-slate-700">
-                          {['Rank', 'No Plate', 'Nama Peserta', 'M1', 'M2', 'M3', 'Penalty', 'Total', 'Class'].map((h) => (
+                          {['Rank', 'No Plate', 'Nama Peserta', 'M1', 'M2', ...(showMoto3 ? ['M3'] : []), 'Penalty', 'Total', 'Class'].map((h) => (
                             <th key={h} className="px-4 py-4">
                               {h}
                             </th>
@@ -334,7 +354,9 @@ export default function LiveDisplayClient({
                             </td>
                             <td className="px-4 py-4 text-lg font-extrabold text-slate-700">{row.point_moto1 ?? '-'}</td>
                             <td className="px-4 py-4 text-lg font-extrabold text-slate-700">{row.point_moto2 ?? '-'}</td>
-                            <td className="px-4 py-4 text-lg font-extrabold text-slate-700">{row.point_moto3 ?? '-'}</td>
+                            {showMoto3 && (
+                              <td className="px-4 py-4 text-lg font-extrabold text-slate-700">{row.point_moto3 ?? '-'}</td>
+                            )}
                             <td className="px-4 py-4 text-lg font-extrabold text-amber-600">{row.penalty_total ?? '-'}</td>
                             <td className="px-4 py-4 text-3xl font-black text-slate-900">{row.total_point ?? '-'}</td>
                             <td className="px-4 py-4 text-sm font-extrabold uppercase tracking-[0.08em] text-slate-600">
@@ -352,10 +374,10 @@ export default function LiveDisplayClient({
                 <div className="flex items-center justify-between border-b border-slate-800 px-6 py-4">
                   <div>
                     <h2 className="text-2xl font-black uppercase tracking-[0.08em] text-white">Waiting Feed</h2>
-                    <p className="text-sm font-semibold text-slate-400">{queueTarget?.label ?? 'Menunggu batch berikutnya'}</p>
+                    <p className="text-sm font-semibold text-slate-400">{queueTarget?.label ?? 'Menunggu moto berikutnya'}</p>
                   </div>
                   <div className="rounded-full border border-amber-300/40 bg-amber-300/15 px-4 py-2 text-sm font-extrabold uppercase tracking-[0.12em] text-amber-200">
-                    Next Batch
+                    Next Moto
                   </div>
                 </div>
 

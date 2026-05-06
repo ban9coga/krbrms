@@ -391,7 +391,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     return {
       title: moto.moto_name,
       moto_id: moto.id,
-      rows: rows.sort((a, b) => (a.gate ?? 9999) - (b.gate ?? 9999)),
+      rows: rows.sort((a, b) => {
+        const aRank = a.rank ?? Number.MAX_SAFE_INTEGER
+        const bRank = b.rank ?? Number.MAX_SAFE_INTEGER
+        if (aRank !== bRank) return aRank - bRank
+        const aGate = a.gate ?? Number.MAX_SAFE_INTEGER
+        const bGate = b.gate ?? Number.MAX_SAFE_INTEGER
+        if (aGate !== bGate) return aGate - bGate
+        return a.name.localeCompare(b.name)
+      }),
     }
   })
 

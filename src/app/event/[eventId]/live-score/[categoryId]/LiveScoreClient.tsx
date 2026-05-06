@@ -145,6 +145,23 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
       })),
     [batches, sortMode]
   )
+  const showMoto3 = batches.length <= 1
+  const sortedStages = useMemo(
+    () =>
+      stages.map((stage) => ({
+        ...stage,
+        rows: [...stage.rows].sort((a, b) => {
+          const aRank = a.rank ?? Number.MAX_SAFE_INTEGER
+          const bRank = b.rank ?? Number.MAX_SAFE_INTEGER
+          if (aRank !== bRank) return aRank - bRank
+          const aGate = a.gate ?? Number.MAX_SAFE_INTEGER
+          const bGate = b.gate ?? Number.MAX_SAFE_INTEGER
+          if (aGate !== bGate) return aGate - bGate
+          return a.name.localeCompare(b.name)
+        }),
+      })),
+    [stages]
+  )
 
   return (
     <div className="public-page">
@@ -239,14 +256,14 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                       {[
                         'Gate M1',
                         'Gate M2',
-                        'Gate M3',
+                        ...(showMoto3 ? ['Gate M3'] : []),
                         'Foto',
                         'Nama Peserta',
                         'No Plat',
                         'Komunitas',
                         'Point M1',
                         'Point M2',
-                        'Point M3',
+                        ...(showMoto3 ? ['Point M3'] : []),
                         'Penalty',
                         'Total',
                         'Rank',
@@ -263,14 +280,14 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                       <tr key={row.rider_id}>
                         <td>{row.gate_moto1 ?? '-'}</td>
                         <td>{row.gate_moto2 ?? '-'}</td>
-                        <td>{row.gate_moto3 ?? '-'}</td>
+                        {showMoto3 && <td>{row.gate_moto3 ?? '-'}</td>}
                         <td>{riderPhotoCell(row.name, row.no_plate, row.photo_thumbnail_url)}</td>
                         <td className="whitespace-nowrap font-extrabold text-slate-900">{row.name}</td>
                         <td>{row.no_plate}</td>
                         <td className="whitespace-nowrap">{row.club || '-'}</td>
                         <td>{row.point_moto1 ?? '-'}</td>
                         <td>{row.point_moto2 ?? '-'}</td>
-                        <td>{row.point_moto3 ?? '-'}</td>
+                        {showMoto3 && <td>{row.point_moto3 ?? '-'}</td>}
                         <td className="font-extrabold text-amber-600">{row.penalty_total ?? '-'}</td>
                         <td className="font-extrabold text-sky-700">{row.total_point ?? '-'}</td>
                         <td className="font-extrabold text-emerald-700">{row.rank_point ?? '-'}</td>
@@ -284,9 +301,9 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
           ))}
         </section>
 
-        {stages.length > 0 && (
+        {sortedStages.length > 0 && (
           <section className="grid gap-4">
-            {stages.map((stage) => (
+            {sortedStages.map((stage) => (
               <article key={stage.moto_id} className="public-panel-dark">
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <h2 className="text-lg font-black uppercase tracking-[0.08em] text-white">{stage.title}</h2>
