@@ -121,6 +121,35 @@ const rankByPoints = (scores: Record<string, number>): RankedRider[] => {
   })
 }
 
+export function computeQualificationAdvancesFromRanks(
+  ranked: RankedRider[],
+  primaryAdvance: Pick<StageAdvance, 'toStage' | 'finalClass'> = { toStage: 'QUARTER_FINAL' }
+): StageAdvance[] {
+  const advances: StageAdvance[] = []
+  const consolationRows = ranked.filter((row) => row.rank > 4)
+  const splitRemainderHalf = Math.ceil(consolationRows.length / 2)
+
+  for (const row of ranked) {
+    if (row.rank >= 1 && row.rank <= 4) {
+      applyPrimaryAdvance(advances, row.riderId, primaryAdvance)
+    } else if (primaryAdvance.toStage === 'FINAL') {
+      advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass: 'NOVICE' })
+    } else if (primaryAdvance.toStage === 'SEMI_FINAL') {
+      const consolationIndex = row.rank - 5
+      const finalClass: FinalClass = consolationIndex < splitRemainderHalf ? 'PRO' : 'ROOKIE'
+      advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass })
+    } else {
+      const qualificationLowerClasses: FinalClass[] = ['ADVANCED', 'ACADEMY', 'AMATEUR', 'BEGINNER']
+      const finalClass = qualificationLowerClasses[row.rank - 5]
+      if (finalClass) {
+        advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass })
+      }
+    }
+  }
+
+  return advances
+}
+
 export function computeQualification(
   batches: BatchInput[],
   pointResolver: PointResolver = defaultPointResolver,
@@ -140,26 +169,7 @@ export function computeQualification(
 
     const ranked = rankByPoints(scoreMap)
     batchRanks[batch.batchId] = ranked
-    const consolationRows = ranked.filter((row) => row.rank > 4)
-    const splitRemainderHalf = Math.ceil(consolationRows.length / 2)
-
-    for (const row of ranked) {
-      if (row.rank >= 1 && row.rank <= 4) {
-        applyPrimaryAdvance(advances, row.riderId, primaryAdvance)
-      } else if (primaryAdvance.toStage === 'FINAL') {
-        advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass: 'NOVICE' })
-      } else if (primaryAdvance.toStage === 'SEMI_FINAL') {
-        const consolationIndex = row.rank - 5
-        const finalClass: FinalClass = consolationIndex < splitRemainderHalf ? 'PRO' : 'ROOKIE'
-        advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass })
-      } else {
-        const qualificationLowerClasses: FinalClass[] = ['ADVANCED', 'ACADEMY', 'AMATEUR', 'BEGINNER']
-        const finalClass = qualificationLowerClasses[row.rank - 5]
-        if (finalClass) {
-          advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass })
-        }
-      }
-    }
+    advances.push(...computeQualificationAdvancesFromRanks(ranked, primaryAdvance))
   }
 
   return { batchRanks, advances }

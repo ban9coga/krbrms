@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../lib/auth'
 import { assertMotoEditable, assertMotoNotUnderProtest } from '../../../../../lib/motoLock'
-import { computeQualificationAndStore, generateStageMotos } from '../../../../../services/advancedRaceAuto'
+import { syncAdvancedRaceProgress } from '../../../../../services/advancedRaceAuto'
 
 export async function GET(_: Request, { params }: { params: Promise<{ motoId: string }> }) {
   const { motoId } = await params
@@ -142,7 +142,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
     .update({ status: 'PROVISIONAL', provisional_at: new Date().toISOString() })
     .eq('id', motoId)
 
-  // Auto-advance: if qualification motos for this category are complete, compute stages and create stage motos.
+  // Auto-progress AMS incrementally per batch, then finalize later stages only when their pools are fully ready.
   if (moto?.event_id && moto?.category_id) {
     const { data: cfg } = await adminClient
       .from('race_stage_config')
@@ -152,22 +152,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
       .maybeSingle()
 
     if (cfg?.enabled) {
-      const { data: allMotos } = await adminClient
-        .from('motos')
-        .select('id, moto_name')
-        .eq('event_id', moto.event_id)
-        .eq('category_id', moto.category_id)
-
-      const qualMotos = (allMotos ?? []).filter((m) =>
-        /moto\s*[12]\s*-\s*batch/i.test(m.moto_name ?? '')
-      )
-
-      if (qualMotos.length > 0) {
-        const result = await computeQualificationAndStore(moto.event_id, moto.category_id)
-        if (result.ok) {
-          await generateStageMotos(moto.event_id, moto.category_id)
-        }
-      }
+      await syncAdvancedRaceProgress(moto.event_id, moto.category_id)
     }
   }
 

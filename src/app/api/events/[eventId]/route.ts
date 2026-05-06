@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../lib/auth'
-import { computeQualificationAndStore, computeStageAdvances, generateStageMotos } from '../../../../services/advancedRaceAuto'
+import { syncAdvancedRaceProgress } from '../../../../services/advancedRaceAuto'
 import type { BusinessSettings } from '../../../../lib/eventService'
 type DrawMode = 'internal_live_draw' | 'external_draw'
 type EventScope = 'PUBLIC' | 'INTERNAL'
@@ -181,10 +181,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ eventI
         .eq('event_id', eventId)
         .eq('enabled', true)
       for (const cfg of configs ?? []) {
-        const result = await computeQualificationAndStore(eventId, cfg.category_id)
+        const result = await syncAdvancedRaceProgress(eventId, cfg.category_id)
         if (result.ok) {
-          await generateStageMotos(eventId, cfg.category_id)
-          await computeStageAdvances(eventId, cfg.category_id)
         } else {
           console.warn(`Advanced race auto skipped: ${result.warning ?? 'unknown'}`)
         }

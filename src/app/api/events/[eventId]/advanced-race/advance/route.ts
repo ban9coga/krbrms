@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../../lib/auth'
 import { assertMotoEditable, assertMotoNotUnderProtest } from '../../../../../../lib/motoLock'
-import { computeStageAdvances, generateStageMotos } from '../../../../../../services/advancedRaceAuto'
+import { syncAdvancedRaceProgress } from '../../../../../../services/advancedRaceAuto'
 
 export async function POST(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const auth = await requireAdmin(req.headers.get('authorization'))
@@ -36,8 +36,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Moto locked.' }, { status: 409 })
   }
 
-  await generateStageMotos(eventId, categoryId)
-  const result = await computeStageAdvances(eventId, categoryId)
+  const result = await syncAdvancedRaceProgress(eventId, categoryId)
   if (!result.ok) {
     return NextResponse.json({ warning: result.warning ?? 'Advance skipped.' })
   }
