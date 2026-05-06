@@ -162,6 +162,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
   })
   const [editPhotoFile, setEditPhotoFile] = useState<File | null>(null)
   const [editPhotoStatus, setEditPhotoStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle')
+  const [addExtraCategoryId, setAddExtraCategoryId] = useState<string | null>(null)
   const [extraCategoryId, setExtraCategoryId] = useState<string | null>(null)
 
   useEffect(() => {
@@ -300,6 +301,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
       club: '',
     })
     setPhotoFile(null)
+    setAddExtraCategoryId(null)
   }
 
   const closeAddModal = () => {
@@ -330,6 +332,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
         plate_number: form.plate_number.trim(),
         plate_suffix: form.plate_suffix.trim().toUpperCase() || null,
         club: form.club.trim() || null,
+        extra_category_id: addExtraCategoryId,
       }
 
       const { res, json } = await apiFetch('/api/riders', {
@@ -1111,6 +1114,14 @@ export default function RidersClient({ eventId }: { eventId: string }) {
 
   const selectedCategoryMeta = categories.find((category) => category.id === selectedCategory) ?? null
   const addEligibleCategories = categories.length > 0
+  const addBirthYear = Number(String(form.date_of_birth).slice(0, 4))
+  const addEligibleExtraCategories = categories.filter((category) => {
+    const max = category.year_max ?? category.year
+    if (!Number.isFinite(addBirthYear)) return false
+    if (max >= addBirthYear) return false
+    if (category.gender === 'MIX') return true
+    return category.gender === form.gender
+  })
   const editBirthYear = Number(String(editForm.date_of_birth).slice(0, 4))
   const eligibleExtraCategories = categories.filter((category) => {
     const max = category.year_max ?? category.year
@@ -1426,6 +1437,28 @@ export default function RidersClient({ eventId }: { eventId: string }) {
                 onChange={(e) => setForm({ ...form, club: e.target.value })}
                 className={inputClass}
               />
+
+              <div className="grid gap-2">
+                <div className={labelClass}>Upclass</div>
+                {addEligibleExtraCategories.length === 0 ? (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-500">
+                    Tidak ada kategori upclass yang cocok.
+                  </div>
+                ) : (
+                  <select
+                    value={addExtraCategoryId ?? ''}
+                    onChange={(e) => setAddExtraCategoryId(e.target.value || null)}
+                    className={inputClass}
+                  >
+                    <option value="">Tidak ikut upclass</option>
+                    {addEligibleExtraCategories.map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
 
               <div className="grid gap-2">
                 <div className={labelClass}>Photo</div>

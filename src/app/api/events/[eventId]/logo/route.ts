@@ -21,7 +21,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   }
 
   await ensureBucket()
-  const ext = file.name.split('.').pop() || 'png'
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '-')
   const path = `events/${eventId}/logo-${Date.now()}-${safeName}`
   const { error: uploadError } = await adminClient.storage
@@ -30,9 +29,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   if (uploadError) return NextResponse.json({ error: uploadError.message }, { status: 400 })
 
   const publicUrl = adminClient.storage.from(BUCKET).getPublicUrl(path).data.publicUrl
+  const { data: existingSettings, error: settingsLookupError } = await adminClient
+    .from('event_settings')
+    .select('registration_open')
+    .eq('event_id', eventId)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (settingsLookupError) return NextResponse.json({ error: settingsLookupError.message }, { status: 400 })
+
+  const registrationOpen = typeof existingSettings?.registration_open === 'boolean' ? existingSettings.registration_open : true
   const { error: upsertError } = await adminClient
     .from('event_settings')
-    .upsert({ event_id: eventId, event_logo_url: publicUrl }, { onConflict: 'event_id' })
+    .upsert({ event_id: eventId, event_logo_url: publicUrl, registration_open: registrationOpen }, { onConflict: 'event_id' })
   if (upsertError) return NextResponse.json({ error: upsertError.message }, { status: 400 })
 
   return NextResponse.json({ url: publicUrl })

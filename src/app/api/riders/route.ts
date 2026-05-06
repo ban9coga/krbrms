@@ -209,6 +209,7 @@ export async function POST(req: Request) {
     plate_number,
     plate_suffix = null,
     club,
+    extra_category_id = null,
   } = body ?? {}
 
   const missing: string[] = []
@@ -290,6 +291,30 @@ export async function POST(req: Request) {
     }
   }
 
+  let validatedExtraCategoryId: string | null = null
+  if (extra_category_id) {
+    const { data: category } = await adminClient
+      .from('categories')
+      .select('id, event_id, year, year_min, year_max, gender')
+      .eq('id', extra_category_id)
+      .maybeSingle()
+
+    if (!category || category.event_id !== event_id) {
+      return NextResponse.json({ error: 'Invalid extra category for this event' }, { status: 400 })
+    }
+
+    const maxYear = (category.year_max ?? category.year) as number
+    if (maxYear >= birthYear) {
+      return NextResponse.json({ error: 'Extra category must be above rider birth year' }, { status: 400 })
+    }
+
+    if (category.gender !== 'MIX' && category.gender !== gender) {
+      return NextResponse.json({ error: 'Gender must match for extra category' }, { status: 400 })
+    }
+
+    validatedExtraCategoryId = category.id as string
+  }
+
   const categoryId = await resolveCategory(event_id, birthYear, gender)
 
   const { data, error } = await adminClient
@@ -316,5 +341,23 @@ export async function POST(req: Request) {
   }
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+
+  if (validatedExtraCategoryId) {
+    const { error: extraError } = await adminClient.from('rider_extra_categories').upsert(
+      [
+        {
+          rider_id: data.id,
+          event_id,
+          category_id: validatedExtraCategoryId,
+        },
+      ],
+      { onConflict: 'rider_id' }
+    )
+
+    if (extraError) {
+      return NextResponse.json({ error: extraError.message }, { status: 400 })
+    }
+  }
+
   return NextResponse.json({ data, category_id: categoryId })
 }

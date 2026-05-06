@@ -25,6 +25,22 @@ const parseBusinessSettings = (value: unknown): BusinessSettings => {
   return {}
 }
 
+const getExistingRegistrationOpen = async (eventId: string) => {
+  const { data, error } = await adminClient
+    .from('event_settings')
+    .select('registration_open')
+    .eq('event_id', eventId)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) return { error, value: true }
+  return {
+    error: null,
+    value: typeof data?.registration_open === 'boolean' ? data.registration_open : true,
+  }
+}
+
 const getLatestRaceFormatSettings = async (eventId: string) => {
   const { data, error } = await adminClient
     .from('event_settings')
@@ -141,12 +157,17 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ eventI
       ...(requestedDrawMode ? { draw_mode: requestedDrawMode } : {}),
       ...(requestedEventScope ? { event_scope: requestedEventScope } : {}),
     }
+    const registrationOpenResult =
+      requestedRegistrationOpen !== null
+        ? { error: null, value: requestedRegistrationOpen }
+        : await getExistingRegistrationOpen(eventId)
+    if (registrationOpenResult.error) {
+      return NextResponse.json({ error: registrationOpenResult.error.message }, { status: 400 })
+    }
     const settingsPayload: Record<string, unknown> = {
       event_id: eventId,
+      registration_open: registrationOpenResult.value,
       race_format_settings: mergedRaceFormatSettings,
-    }
-    if (requestedRegistrationOpen !== null) {
-      settingsPayload.registration_open = requestedRegistrationOpen
     }
     const { error: settingsWriteError } = await adminClient.from('event_settings').upsert([settingsPayload], { onConflict: 'event_id' })
     if (settingsWriteError) return NextResponse.json({ error: settingsWriteError.message }, { status: 400 })
