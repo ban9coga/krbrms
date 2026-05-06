@@ -13,6 +13,7 @@ type Row = {
   gate_moto2: number | null
   gate_moto3: number | null
   name: string
+  rider_nickname?: string | null
   no_plate: string
   club: string
   photo_thumbnail_url?: string | null
@@ -60,9 +61,9 @@ export default function LiveDisplayClient({
   initialEvent?: EventItem | null
 }) {
   const [event, setEvent] = useState<EventItem | null>(initialEvent)
-  const [liveMotoCategoryIds, setLiveMotoCategoryIds] = useState<string[]>([])
+  const [scoreCategoryIds, setScoreCategoryIds] = useState<string[]>([])
   const [liveScoreByCategory, setLiveScoreByCategory] = useState<Record<string, { categoryLabel: string; batches: Batch[] }>>({})
-  const [liveMotos, setLiveMotos] = useState<MotoItem[]>([])
+  const [eventMotos, setEventMotos] = useState<MotoItem[]>([])
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
 
@@ -74,7 +75,7 @@ export default function LiveDisplayClient({
         const cats = (await getEventCategories(eventId)).filter((c) => c.enabled)
         setEvent(eventData ?? initialEvent ?? null)
         if (cats.length === 0) {
-          setLiveMotoCategoryIds([])
+          setScoreCategoryIds([])
         }
       } finally {
         setLoading(false)
@@ -99,10 +100,15 @@ export default function LiveDisplayClient({
   const fetchMotos = async () => {
     const res = await fetch(`/api/motos?event_id=${eventId}`)
     const json = await res.json()
-    const data = ((json?.data ?? []) as MotoItem[]).filter((m) => isMotoLive(m.status)).sort(compareMotoSequence)
-    const categoryIds = Array.from(new Set(data.map((m) => m.category_id)))
-    setLiveMotos(data)
-    setLiveMotoCategoryIds(categoryIds)
+    const data = ((json?.data ?? []) as MotoItem[]).sort(compareMotoSequence)
+    const liveMoto = data.find((m) => isMotoLive(m.status)) ?? null
+    const liveIndex = liveMoto ? data.findIndex((m) => m.id === liveMoto.id) : -1
+    const nextMoto = liveIndex >= 0 ? data[liveIndex + 1] ?? null : null
+    const categoryIds = Array.from(
+      new Set([liveMoto?.category_id, nextMoto?.category_id].filter((value): value is string => Boolean(value)))
+    )
+    setEventMotos(data)
+    setScoreCategoryIds(categoryIds)
     return categoryIds
   }
 
@@ -134,9 +140,9 @@ export default function LiveDisplayClient({
   }, [eventId])
 
   useEffect(() => {
-    fetchLiveScores(liveMotoCategoryIds)
+    fetchLiveScores(scoreCategoryIds)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [eventId, liveMotoCategoryIds.join(',')])
+  }, [eventId, scoreCategoryIds.join(',')])
 
   const refresh = async () => {
     setRefreshing(true)
@@ -154,10 +160,14 @@ export default function LiveDisplayClient({
     }, 10000)
     return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [eventId, liveMotoCategoryIds.join(',')])
+  }, [eventId, scoreCategoryIds.join(',')])
 
-  const activeMoto = liveMotos[0] ?? null
-  const queueMoto = liveMotos[1] ?? null
+  const activeMoto = useMemo(() => eventMotos.find((m) => isMotoLive(m.status)) ?? null, [eventMotos])
+  const queueMoto = useMemo(() => {
+    if (!activeMoto) return null
+    const activeIndex = eventMotos.findIndex((m) => m.id === activeMoto.id)
+    return activeIndex >= 0 ? eventMotos[activeIndex + 1] ?? null : null
+  }, [eventMotos, activeMoto])
   const activeLiveScore = activeMoto ? liveScoreByCategory[activeMoto.category_id] : null
   const queueLiveScore = queueMoto ? liveScoreByCategory[queueMoto.category_id] : null
   const categoryLabel = activeLiveScore?.categoryLabel ?? ''
@@ -169,9 +179,7 @@ export default function LiveDisplayClient({
     [batches, queueBatches]
   )
   const sortedBatches = useMemo(() => [...batches].sort((a, b) => a.batch_index - b.batch_index), [batches])
-  const showMoto3 = sortedBatches.length <= 1
   const queueSortedBatches = useMemo(() => [...queueBatches].sort((a, b) => a.batch_index - b.batch_index), [queueBatches])
-  const queueShowMoto3 = queueSortedBatches.length <= 1
 
   const activeBatch = useMemo(() => {
     if (!activeMoto) return null
@@ -195,13 +203,12 @@ export default function LiveDisplayClient({
     if (!batch) return null
     const motoIndex: 1 | 2 | 3 =
       batch.moto1_id === queueMoto.id ? 1 : batch.moto2_id === queueMoto.id ? 2 : 3
-    if (motoIndex === 3 && !queueShowMoto3) return null
     return {
       batch,
       motoIndex,
       label: `Batch ${batch.batch_index} - Moto ${motoIndex}`,
     }
-  }, [queueMoto, queueSortedBatches, queueShowMoto3])
+  }, [queueMoto, queueSortedBatches])
 
   const prepareQueue = useMemo(() => {
     if (!queueTarget) return []
@@ -217,6 +224,7 @@ export default function LiveDisplayClient({
         gate: gateByMoto(row, queueTarget.motoIndex),
         no_plate: row.no_plate,
         name: row.name,
+        rider_nickname: row.rider_nickname ?? null,
         club: row.club,
         photo_thumbnail_url: row.photo_thumbnail_url ?? null,
       }))
@@ -265,6 +273,9 @@ export default function LiveDisplayClient({
       </div>
     )
   }
+
+  const displayName = (row: Pick<Row, 'rider_nickname' | 'name'> | { rider_nickname?: string | null; name: string }) =>
+    row.rider_nickname?.trim() || row.name
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">
@@ -323,11 +334,11 @@ export default function LiveDisplayClient({
                   <div className="p-6 text-lg font-semibold text-slate-500">Belum ada batch live yang aktif.</div>
                 ) : (
                   <div className="overflow-hidden">
-                    <table className="w-full table-fixed border-collapse text-sm md:text-base">
+                    <table className="w-full table-fixed border-collapse text-xs md:text-sm">
                       <thead>
                         <tr className="bg-sky-100/90 text-left font-black uppercase tracking-[0.12em] text-slate-700">
-                          {['Rank', 'No Plate', 'Nama Peserta', 'M1', 'M2', ...(showMoto3 ? ['M3'] : []), 'Penalty', 'Total', 'Class'].map((h) => (
-                            <th key={h} className="px-4 py-4">
+                          {['Rank', 'Plate', 'Panggilan', 'M1', 'M2', 'Penalty', 'Total', 'Class'].map((h) => (
+                            <th key={h} className="px-3 py-3">
                               {h}
                             </th>
                           ))}
@@ -345,25 +356,21 @@ export default function LiveDisplayClient({
                                 : 'bg-white'
                             }`}
                           >
-                            <td className="px-4 py-4 text-3xl font-black text-emerald-700">{row.rank_point ?? '-'}</td>
-                            <td className="px-4 py-4 text-lg font-black text-slate-700">{row.no_plate}</td>
-                            <td className="px-4 py-4">
+                            <td className="px-3 py-3 text-2xl font-black text-emerald-700">{row.rank_point ?? '-'}</td>
+                            <td className="px-3 py-3 text-sm font-black text-slate-700">{row.no_plate}</td>
+                            <td className="px-3 py-3">
                               <div className="flex items-center gap-3">
-                                {riderPhotoCell(row.name, row.no_plate, row.photo_thumbnail_url)}
+                                {riderPhotoCell(displayName(row), row.no_plate, row.photo_thumbnail_url)}
                                 <div className="min-w-0">
-                                  <div className="truncate text-xl font-black italic tracking-wide text-slate-900">{row.name}</div>
-                                  <div className="truncate text-sm font-semibold text-slate-500">{row.club || '-'}</div>
+                                  <div className="truncate text-lg font-black italic tracking-wide text-slate-900">{displayName(row)}</div>
                                 </div>
                               </div>
                             </td>
-                            <td className="px-4 py-4 text-lg font-extrabold text-slate-700">{row.point_moto1 ?? '-'}</td>
-                            <td className="px-4 py-4 text-lg font-extrabold text-slate-700">{row.point_moto2 ?? '-'}</td>
-                            {showMoto3 && (
-                              <td className="px-4 py-4 text-lg font-extrabold text-slate-700">{row.point_moto3 ?? '-'}</td>
-                            )}
-                            <td className="px-4 py-4 text-lg font-extrabold text-amber-600">{row.penalty_total ?? '-'}</td>
-                            <td className="px-4 py-4 text-3xl font-black text-slate-900">{row.total_point ?? '-'}</td>
-                            <td className="px-4 py-4 text-sm font-extrabold uppercase tracking-[0.08em] text-slate-600">
+                            <td className="px-3 py-3 text-sm font-extrabold text-slate-700">{row.point_moto1 ?? '-'}</td>
+                            <td className="px-3 py-3 text-sm font-extrabold text-slate-700">{row.point_moto2 ?? '-'}</td>
+                            <td className="px-3 py-3 text-sm font-extrabold text-amber-600">{row.penalty_total ?? '-'}</td>
+                            <td className="px-3 py-3 text-2xl font-black text-slate-900">{row.total_point ?? '-'}</td>
+                            <td className="px-3 py-3 text-[11px] font-extrabold uppercase tracking-[0.08em] text-slate-600">
                               {row.class_label || '-'}
                             </td>
                           </tr>
@@ -378,7 +385,7 @@ export default function LiveDisplayClient({
                 <div className="flex items-center justify-between border-b border-slate-800 px-6 py-4">
                   <div>
                     <h2 className="text-2xl font-black uppercase tracking-[0.08em] text-white">Waiting Feed</h2>
-                    <p className="text-sm font-semibold text-slate-400">{queueTarget?.label ?? 'Belum ada moto live berikutnya'}</p>
+                    <p className="text-sm font-semibold text-slate-400">{queueTarget?.label ?? 'Belum ada moto berikutnya'}</p>
                   </div>
                   <div className="rounded-full border border-amber-300/40 bg-amber-300/15 px-4 py-2 text-sm font-extrabold uppercase tracking-[0.12em] text-amber-200">
                     Next Moto
@@ -386,14 +393,14 @@ export default function LiveDisplayClient({
                 </div>
 
                 {prepareQueue.length === 0 ? (
-                  <div className="p-6 text-lg font-semibold text-slate-400">Belum ada moto lain yang berstatus LIVE.</div>
+                  <div className="p-6 text-lg font-semibold text-slate-400">Belum ada moto berikutnya untuk ditampilkan.</div>
                 ) : (
                   <div className="overflow-hidden">
-                    <table className="w-full table-fixed border-collapse text-sm md:text-base">
+                    <table className="w-full table-fixed border-collapse text-xs md:text-sm">
                       <thead>
                         <tr className="bg-slate-800 text-left font-black uppercase tracking-[0.12em] text-slate-300">
-                          {['Queue', 'Gate', 'No Plate', 'Nama Peserta'].map((h) => (
-                            <th key={h} className="px-4 py-4">
+                          {['Queue', 'Gate', 'Plate', 'Panggilan'].map((h) => (
+                            <th key={h} className="px-3 py-3">
                               {h}
                             </th>
                           ))}
@@ -407,15 +414,14 @@ export default function LiveDisplayClient({
                               index === 0 ? 'bg-amber-300/10' : index % 2 === 0 ? 'bg-slate-900' : 'bg-slate-950'
                             }`}
                           >
-                            <td className="px-4 py-4 text-2xl font-black text-amber-200">{row.queue}</td>
-                            <td className="px-4 py-4 text-2xl font-black text-white">{row.gate ?? '-'}</td>
-                            <td className="px-4 py-4 text-lg font-black text-slate-200">{row.no_plate}</td>
-                            <td className="px-4 py-4">
+                            <td className="px-3 py-3 text-xl font-black text-amber-200">{row.queue}</td>
+                            <td className="px-3 py-3 text-xl font-black text-white">{row.gate ?? '-'}</td>
+                            <td className="px-3 py-3 text-sm font-black text-slate-200">{row.no_plate}</td>
+                            <td className="px-3 py-3">
                               <div className="flex items-center gap-3">
-                                {riderPhotoCell(row.name, row.no_plate, row.photo_thumbnail_url)}
+                                {riderPhotoCell(displayName(row), row.no_plate, row.photo_thumbnail_url)}
                                 <div className="min-w-0">
-                                  <div className="truncate text-xl font-black italic tracking-wide text-white">{row.name}</div>
-                                  <div className="truncate text-sm font-semibold text-slate-400">{row.club || '-'}</div>
+                                  <div className="truncate text-lg font-black italic tracking-wide text-white">{displayName(row)}</div>
                                 </div>
                               </div>
                             </td>

@@ -28,6 +28,7 @@ type ResultRow = {
 type RiderRow = {
   id: string
   name: string
+  rider_nickname?: string | null
   no_plate_display: string
   club: string | null
   photo_thumbnail_url?: string | null
@@ -197,7 +198,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   }
   const { data: riders, error: riderError } = await adminClient
     .from('riders')
-    .select('id, name, no_plate_display, club, photo_thumbnail_url')
+    .select('id, name, rider_nickname, no_plate_display, club, photo_thumbnail_url')
     .in('id', riderIds)
   if (riderError) return NextResponse.json({ error: riderError.message }, { status: 400 })
   const riderRows = (riders ?? []) as RiderRow[]
@@ -287,6 +288,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
           gate_moto2: gate2Map.get(riderId) ?? null,
           gate_moto3: gate3Map.get(riderId) ?? null,
           name: rider?.name ?? '-',
+          rider_nickname: rider?.rider_nickname ?? null,
           no_plate: rider?.no_plate_display ?? '-',
           club: rider?.club ?? '-',
           photo_thumbnail_url: rider?.photo_thumbnail_url ?? null,
