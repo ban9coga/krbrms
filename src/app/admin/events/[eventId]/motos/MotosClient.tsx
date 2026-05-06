@@ -37,6 +37,25 @@ type GateMotoItem = {
   }>
 }
 
+const getAllowedMotoStatuses = (current: MotoItem['status']) => {
+  switch (current) {
+    case 'UPCOMING':
+      return ['UPCOMING', 'LIVE'] as MotoItem['status'][]
+    case 'LIVE':
+      return ['LIVE', 'PROVISIONAL'] as MotoItem['status'][]
+    case 'PROVISIONAL':
+      return ['PROVISIONAL', 'PROTEST_REVIEW', 'LOCKED'] as MotoItem['status'][]
+    case 'PROTEST_REVIEW':
+      return ['PROTEST_REVIEW', 'LOCKED'] as MotoItem['status'][]
+    case 'LOCKED':
+      return ['LOCKED'] as MotoItem['status'][]
+    case 'FINISHED':
+      return ['FINISHED'] as MotoItem['status'][]
+    default:
+      return [current]
+  }
+}
+
 const parseMotoBatch = (motoName: string) => {
   const match = motoName.match(/moto\s*(\d+)\s*-\s*batch\s*(\d+)/i)
   if (!match) return { motoNo: 0, batchNo: 0 }
@@ -52,6 +71,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
   const [motos, setMotos] = useState<MotoItem[]>([])
   const [gateOrdersByCategory, setGateOrdersByCategory] = useState<Record<string, GateMotoItem[]>>({})
   const [hiddenCategoryIds, setHiddenCategoryIds] = useState<string[]>([])
+  const [showMotoRiderList, setShowMotoRiderList] = useState(false)
   const [loading, setLoading] = useState(false)
   const [eventStatus, setEventStatus] = useState<'UPCOMING' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED' | null>(null)
 
@@ -251,10 +271,20 @@ export default function MotosClient({ eventId }: { eventId: string }) {
 
   const handleUpdateMotoStatus = async (motoId: string, status: MotoItem['status']) => {
     try {
-      await apiFetch(`/api/motos/${motoId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ status }),
-      })
+      const moto = motos.find((item) => item.id === motoId)
+      if (!moto || moto.status === status) return
+
+      if (status === 'LOCKED') {
+        await apiFetch(`/api/motos/${motoId}/status`, {
+          method: 'POST',
+          body: JSON.stringify({ status }),
+        })
+      } else {
+        await apiFetch(`/api/motos/${motoId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ status }),
+        })
+      }
       await load()
     } catch (err: unknown) {
       alert(getErrorMessage(err))
@@ -301,6 +331,10 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       <h1 style={{ fontSize: 26, fontWeight: 950, margin: 0 }}>Motos</h1>
       <div style={{ marginTop: 8, color: '#333', fontWeight: 700 }}>
         Moto dibuat melalui Live Draw. Di halaman ini hanya untuk melihat dan mengatur status moto.
+      </div>
+      <div className="no-print" style={{ marginTop: 8, color: '#475569', fontWeight: 700 }}>
+        Alur status resmi: <strong>UPCOMING -&gt; LIVE -&gt; PROVISIONAL -&gt; PROTEST_REVIEW -&gt; LOCKED</strong>.
+        Status <strong>FINISHED</strong> dipensiunkan dari kontrol halaman ini.
       </div>
       {eventStatus && eventStatus !== 'LIVE' && (
         <div
@@ -408,15 +442,14 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                       <select
                         value={m.status}
                         onChange={(e) => handleUpdateMotoStatus(m.id, e.target.value as MotoItem['status'])}
-                        disabled={eventStatus !== 'LIVE'}
+                        disabled={eventStatus !== 'LIVE' || getAllowedMotoStatuses(m.status).length <= 1}
                         style={{ padding: '8px 10px', borderRadius: 12, border: '2px solid #111', fontWeight: 900 }}
                       >
-                        <option value="UPCOMING">UPCOMING</option>
-                        <option value="LIVE">LIVE</option>
-                        <option value="FINISHED">FINISHED</option>
-                        <option value="PROVISIONAL">PROVISIONAL</option>
-                        <option value="PROTEST_REVIEW">PROTEST_REVIEW</option>
-                        <option value="LOCKED">LOCKED</option>
+                        {getAllowedMotoStatuses(m.status).map((statusOption) => (
+                          <option key={`${m.id}-${statusOption}`} value={statusOption}>
+                            {statusOption}
+                          </option>
+                        ))}
                       </select>
                       <button
                         type="button"
@@ -443,8 +476,42 @@ export default function MotosClient({ eventId }: { eventId: string }) {
         })}
       </div>
 
-      <div style={{ marginTop: 18, display: 'grid', gap: 16 }}>
-        {printGroups.map((group) => (
+      <div style={{ marginTop: 18, display: 'grid', gap: 12 }}>
+        <div
+          className="no-print"
+          style={{
+            padding: 12,
+            borderRadius: 14,
+            border: '2px solid #111',
+            background: '#fff',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+          }}
+        >
+          <div style={{ fontWeight: 900, color: '#0f172a' }}>
+            Daftar rider moto disembunyikan dulu supaya halaman ini fokus ke kontrol status.
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowMotoRiderList((prev) => !prev)}
+            style={{
+              padding: '8px 12px',
+              borderRadius: 999,
+              border: '2px solid #111',
+              background: '#f8fafc',
+              fontWeight: 900,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {showMotoRiderList ? 'Sembunyikan Daftar Rider' : 'Tampilkan Daftar Rider'}
+          </button>
+        </div>
+
+        {showMotoRiderList &&
+          printGroups.map((group) => (
           <section
             key={`print-${group.categoryId}`}
             className="moto-print-section"
@@ -533,7 +600,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
               </div>
             ))}
           </section>
-        ))}
+          ))}
       </div>
       <style>{`
         @media print {
