@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../../lib/auth'
-import { assertMotoEditable, assertMotoNotUnderProtest } from '../../../../../../lib/motoLock'
+import { assertMotoNotUnderProtest } from '../../../../../../lib/motoLock'
 import { syncAdvancedRaceProgress } from '../../../../../../services/advancedRaceAuto'
 
 export async function POST(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
@@ -29,11 +29,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   try {
     (motos ?? []).forEach((m) => {
       const status = (m as { status?: string | null }).status ?? null
-      assertMotoEditable(status)
       assertMotoNotUnderProtest(status)
     })
   } catch (err: unknown) {
-    return NextResponse.json({ error: err instanceof Error ? err.message : 'Moto locked.' }, { status: 409 })
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Moto under protest review.' }, { status: 409 })
   }
 
   const result = await syncAdvancedRaceProgress(eventId, categoryId)

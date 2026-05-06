@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../../lib/auth'
-import { assertMotoEditable, assertMotoNotUnderProtest } from '../../../../../../lib/motoLock'
+import { assertMotoNotUnderProtest } from '../../../../../../lib/motoLock'
 import { resolveCategoryConfig } from '../../../../../../services/categoryResolver'
 import { computeQualification, resolveQualificationPrimaryAdvance } from '../../../../../../services/raceStageEngine'
 import { generateStageMotos } from '../../../../../../services/advancedRaceAuto'
@@ -69,11 +69,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   try {
     motoRows.forEach((m) => {
       const status = (m as { status?: string | null }).status ?? null
-      assertMotoEditable(status)
       assertMotoNotUnderProtest(status)
     })
   } catch (err: unknown) {
-    return NextResponse.json({ error: err instanceof Error ? err.message : 'Moto locked.' }, { status: 409 })
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Moto under protest review.' }, { status: 409 })
   }
 
   const motoIds = motoRows.map((m) => m.id)

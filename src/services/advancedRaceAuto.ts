@@ -2,7 +2,7 @@
 
 import { adminClient } from '../lib/auth'
 import { resolveCategoryConfig } from './categoryResolver'
-import { assertMotoEditable, assertMotoNotUnderProtest } from '../lib/motoLock'
+import { assertMotoNotUnderProtest } from '../lib/motoLock'
 import {
   computeQualification,
   computeQualificationAdvancesFromRanks,
@@ -245,11 +245,10 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
   try {
     motoRows.forEach((m) => {
       const status = (m as { status?: string | null }).status ?? null
-      assertMotoEditable(status)
       assertMotoNotUnderProtest(status)
     })
   } catch (err: unknown) {
-    return { ok: false, warning: err instanceof Error ? err.message : 'Moto locked.' }
+    return { ok: false, warning: err instanceof Error ? err.message : 'Moto under protest review.' }
   }
 
   const motoIds = motoRows.map((m) => m.id)
@@ -397,11 +396,10 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
   try {
     (existingMotos ?? []).forEach((m) => {
       const status = (m as { status?: string | null }).status ?? null
-      assertMotoEditable(status)
       assertMotoNotUnderProtest(status)
     })
   } catch (err: unknown) {
-    return { ok: false, warning: err instanceof Error ? err.message : 'Moto locked.' }
+    return { ok: false, warning: err instanceof Error ? err.message : 'Moto under protest review.' }
   }
   const existingMotoRows = (existingMotos ?? []) as MotoRow[]
   const existingMotoIds = existingMotoRows.map((m) => m.id)
@@ -622,11 +620,10 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
   try {
     (existingMotos ?? []).forEach((m) => {
       const status = (m as { status?: string | null }).status ?? null
-      assertMotoEditable(status)
       assertMotoNotUnderProtest(status)
     })
   } catch (err: unknown) {
-    return { ok: false, warning: err instanceof Error ? err.message : 'Moto locked.' }
+    return { ok: false, warning: err instanceof Error ? err.message : 'Moto under protest review.' }
   }
 
   const quarterMotos = await loadStageMotos(eventId, categoryId, 'Quarter Final')
