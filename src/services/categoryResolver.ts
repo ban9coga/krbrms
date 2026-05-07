@@ -116,13 +116,35 @@ export async function resolveCategoryConfig(categoryId: string, override?: Resol
       }
     }
 
-    const totalRiders =
+    const primaryCategoryRiders =
       (riders ?? []).filter((rider) =>
         riderBelongsToPrimaryCategory(
           rider as { primary_category_id?: string | null; birth_year?: number | null; date_of_birth?: string | null; gender: 'BOY' | 'GIRL' },
           category as { id: string; year: number; year_min?: number | null; year_max?: number | null; gender: 'BOY' | 'GIRL' | 'MIX' }
         )
       ).length ?? 0
+    let qualificationMotoRiderCount = 0
+
+    const { data: qualificationMotos, error: qualificationMotoError } = await adminClient
+      .from('motos')
+      .select('id, moto_name')
+      .eq('event_id', eventId)
+      .eq('category_id', categoryId)
+      .ilike('moto_name', 'Moto % - Batch %')
+
+    if (!qualificationMotoError && (qualificationMotos ?? []).length > 0) {
+      const qualificationMotoIds = (qualificationMotos ?? []).map((moto) => moto.id)
+      const { data: motoRiders, error: motoRiderError } = await adminClient
+        .from('moto_riders')
+        .select('rider_id')
+        .in('moto_id', qualificationMotoIds)
+
+      if (!motoRiderError) {
+        qualificationMotoRiderCount = new Set((motoRiders ?? []).map((row) => row.rider_id)).size
+      }
+    }
+
+    const totalRiders = Math.max(primaryCategoryRiders, qualificationMotoRiderCount)
 
     if (override) {
       return {
