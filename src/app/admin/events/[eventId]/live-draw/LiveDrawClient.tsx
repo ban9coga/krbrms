@@ -93,6 +93,11 @@ const sameSet = (a: string[], b: string[]) => {
   return true
 }
 
+type LiveDrawGuard = {
+  canDelete: boolean
+  reason: string | null
+}
+
 const formatMoto3Hint = (riderCount: number) =>
   riderCount <= 8
     ? 'Moto 3: urutan gate random (diupayakan beda dari Moto 1 & Moto 2).'
@@ -121,6 +126,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
   const [externalMoto2OrderText, setExternalMoto2OrderText] = useState('')
   const [shareCopied, setShareCopied] = useState(false)
   const [resultModal, setResultModal] = useState<'draft' | 'saved' | null>(null)
+  const [deleteGuard, setDeleteGuard] = useState<LiveDrawGuard>({ canDelete: true, reason: null })
   const spinTimeoutRef = useRef<number | null>(null)
   const rollingIntervalRef = useRef<number | null>(null)
 
@@ -403,6 +409,10 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       setWheelRiders([])
       setWheelRotation(0)
       setResultModal(null)
+      setDeleteGuard({
+        canDelete: json?.can_delete !== false,
+        reason: typeof json?.delete_block_reason === 'string' ? json.delete_block_reason : null,
+      })
 
       if (locked) {
         const gateRes = await apiFetch(`/api/events/${eventId}/gate-order?categoryId=${categoryId}`)
@@ -507,6 +517,10 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
 
   const resetLockedDraw = async () => {
     if (!selectedCategory) return
+    if (!deleteGuard.canDelete) {
+      alert(deleteGuard.reason || 'Reset draw diblokir untuk kategori ini.')
+      return
+    }
     const ok = window.confirm('Reset draw? Ini akan menghapus semua moto untuk kategori ini.')
     if (!ok) return
     setSaveState('saving')
@@ -527,6 +541,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       setExternalOrderText('')
       setExternalMoto2OrderText('')
       setResultModal(null)
+      setDeleteGuard({ canDelete: true, reason: null })
       await loadRiders(selectedCategory)
       alert('Draw berhasil direset.')
     } catch (err: unknown) {
@@ -852,6 +867,21 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                 )}
                 {categoryLocked && (
                   <>
+                    {!deleteGuard.canDelete && deleteGuard.reason && (
+                      <div
+                        style={{
+                          width: '100%',
+                          padding: '12px 14px',
+                          borderRadius: 12,
+                          border: '1px solid #f59e0b',
+                          background: '#fffbeb',
+                          color: '#92400e',
+                          fontWeight: 800,
+                        }}
+                      >
+                        {deleteGuard.reason}
+                      </div>
+                    )}
                     <button
                       type="button"
                       onClick={() => setResultModal('saved')}
@@ -869,14 +899,14 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                     <button
                       type="button"
                       onClick={resetLockedDraw}
-                      disabled={saveState === 'saving'}
+                      disabled={saveState === 'saving' || !deleteGuard.canDelete}
                       style={{
                         padding: '12px 16px',
                         borderRadius: 12,
                         border: '2px solid #111',
-                        background: '#ffd6d6',
+                        background: deleteGuard.canDelete ? '#ffd6d6' : '#e5e7eb',
                         fontWeight: 900,
-                        cursor: 'pointer',
+                        cursor: saveState === 'saving' || !deleteGuard.canDelete ? 'not-allowed' : 'pointer',
                       }}
                     >
                       Reset Draw (Hapus Moto)
@@ -1413,21 +1443,38 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                   </>
                 )}
                 {resultModal === 'saved' && (
-                  <button
-                    type="button"
-                    onClick={resetLockedDraw}
-                    disabled={saveState === 'saving'}
-                    style={{
-                      padding: '12px 16px',
-                      borderRadius: 12,
-                      border: '2px solid #111',
-                      background: '#ffd6d6',
-                      fontWeight: 900,
-                      cursor: saveState === 'saving' ? 'not-allowed' : 'pointer',
-                    }}
-                  >
-                    Reset Draw (Hapus Moto)
-                  </button>
+                  <>
+                    {!deleteGuard.canDelete && deleteGuard.reason && (
+                      <div
+                        style={{
+                          width: '100%',
+                          padding: '12px 14px',
+                          borderRadius: 12,
+                          border: '1px solid #f59e0b',
+                          background: '#fffbeb',
+                          color: '#92400e',
+                          fontWeight: 800,
+                        }}
+                      >
+                        {deleteGuard.reason}
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={resetLockedDraw}
+                      disabled={saveState === 'saving' || !deleteGuard.canDelete}
+                      style={{
+                        padding: '12px 16px',
+                        borderRadius: 12,
+                        border: '2px solid #111',
+                        background: deleteGuard.canDelete ? '#ffd6d6' : '#e5e7eb',
+                        fontWeight: 900,
+                        cursor: saveState === 'saving' || !deleteGuard.canDelete ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      Reset Draw (Hapus Moto)
+                    </button>
+                  </>
                 )}
               </div>
             </div>

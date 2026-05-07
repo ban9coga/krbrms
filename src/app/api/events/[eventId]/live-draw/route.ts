@@ -22,6 +22,53 @@ type RiderRow = {
   gender: 'BOY' | 'GIRL'
 }
 
+type MotoStatus = 'UPCOMING' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED'
+
+const buildDeleteGuard = async (eventId: string, categoryId: string) => {
+  const { data: motos, error: motoError } = await adminClient
+    .from('motos')
+    .select('id, status')
+    .eq('event_id', eventId)
+    .eq('category_id', categoryId)
+
+  if (motoError) {
+    return { error: motoError.message }
+  }
+
+  const typedMotos = (motos ?? []) as Array<{ id: string; status?: MotoStatus | null }>
+  const lockedCount = typedMotos.filter((moto) => String(moto.status ?? '').toUpperCase() === 'LOCKED').length
+
+  const { data: stageRows, error: stageError } = await adminClient
+    .from('race_stage_result')
+    .select('stage, final_class')
+    .eq('category_id', categoryId)
+
+  if (stageError) {
+    return { error: stageError.message }
+  }
+
+  const typedStageRows = (stageRows ?? []) as Array<{ stage?: string | null; final_class?: string | null }>
+  const hasFinalState = typedStageRows.some((row) => {
+    const stage = String(row.stage ?? '').toUpperCase()
+    return stage === 'FINAL' || stage === 'SEMI_FINAL' || stage === 'QUARTER_FINAL'
+  })
+
+  const reason =
+    lockedCount > 0
+      ? `Kategori ini memiliki ${lockedCount} moto LOCKED. Reset draw diblokir agar hasil race yang sudah dikunci tidak terhapus.`
+      : hasFinalState
+        ? 'Kategori ini sudah memiliki hasil AMS sampai stage lanjutan/final. Bersihkan hasil race dan state AMS dulu sebelum reset draw.'
+        : null
+
+  return {
+    error: null,
+    canDelete: !reason,
+    deleteBlockReason: reason,
+    lockedCount,
+    hasFinalState,
+  }
+}
+
 const chunk = <T,>(items: T[], size: number) => {
   const batches: T[][] = []
   let cursor = 0
@@ -193,7 +240,18 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
 
   const { data, error } = await loadRidersForCategory(eventId, category)
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-  return NextResponse.json({ data, has_motos: (existingMotos ?? []).length > 0 })
+  const deleteGuard = await buildDeleteGuard(eventId, categoryId)
+  if (deleteGuard.error) {
+    return NextResponse.json({ error: deleteGuard.error }, { status: 400 })
+  }
+  return NextResponse.json({
+    data,
+    has_motos: (existingMotos ?? []).length > 0,
+    can_delete: deleteGuard.canDelete,
+    delete_block_reason: deleteGuard.deleteBlockReason,
+    locked_moto_count: deleteGuard.lockedCount,
+    has_final_state: deleteGuard.hasFinalState,
+  })
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
@@ -384,6 +442,22 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ event
   const body = await req.json().catch(() => ({}))
   const categoryId = body?.category_id as string | undefined
   if (!categoryId) return NextResponse.json({ error: 'category_id required' }, { status: 400 })
+
+  const deleteGuard = await buildDeleteGuard(eventId, categoryId)
+  if (deleteGuard.error) {
+    return NextResponse.json({ error: deleteGuard.error }, { status: 400 })
+  }
+  if (!deleteGuard.canDelete) {
+    return NextResponse.json(
+      {
+        error: deleteGuard.deleteBlockReason,
+        can_delete: false,
+        locked_moto_count: deleteGuard.lockedCount,
+        has_final_state: deleteGuard.hasFinalState,
+      },
+      { status: 409 }
+    )
+  }
 
   const { error } = await adminClient
     .from('motos')
