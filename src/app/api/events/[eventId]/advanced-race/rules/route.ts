@@ -9,6 +9,49 @@ type RuleInput = {
   enabled_final_classes: string[]
 }
 
+const normalizeRuleForGateSize = (rule: RuleInput, gateSize: number): RuleInput => {
+  const safeGateSize = Math.max(1, Number(gateSize) || 8)
+  const minRiders = Math.max(1, Number(rule.min_riders) || 1)
+
+  if (minRiders <= safeGateSize) {
+    return {
+      min_riders: 1,
+      enable_qualification: false,
+      enable_quarter_final: false,
+      enable_semi_final: false,
+      enabled_final_classes: ['ELITE'],
+    }
+  }
+
+  if (minRiders <= safeGateSize * 2) {
+    return {
+      min_riders: minRiders,
+      enable_qualification: true,
+      enable_quarter_final: false,
+      enable_semi_final: false,
+      enabled_final_classes: ['NOVICE', 'ELITE'],
+    }
+  }
+
+  if (minRiders <= safeGateSize * 4) {
+    return {
+      min_riders: minRiders,
+      enable_qualification: true,
+      enable_quarter_final: false,
+      enable_semi_final: true,
+      enabled_final_classes: ['ROOKIE', 'PRO', 'NOVICE', 'ELITE'],
+    }
+  }
+
+  return {
+    min_riders: minRiders,
+    enable_qualification: true,
+    enable_quarter_final: true,
+    enable_semi_final: true,
+    enabled_final_classes: ['BEGINNER', 'AMATEUR', 'ACADEMY', 'ADVANCED', 'ROOKIE', 'PRO', 'NOVICE', 'ELITE'],
+  }
+}
+
 export async function GET(_: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params
   const { data: categories, error: catError } = await adminClient
@@ -47,18 +90,36 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     return NextResponse.json({ error: 'Category not found in event' }, { status: 404 })
   }
 
+  const { data: settingsRow } = await adminClient
+    .from('event_settings')
+    .select('race_format_settings')
+    .eq('event_id', eventId)
+    .maybeSingle()
+
+  const raceFormatSettings =
+    settingsRow?.race_format_settings && typeof settingsRow.race_format_settings === 'object'
+      ? (settingsRow.race_format_settings as Record<string, unknown>)
+      : {}
+  const gateSize =
+    typeof raceFormatSettings.gate_positions === 'number'
+      ? Number(raceFormatSettings.gate_positions)
+      : Number(raceFormatSettings.gate_positions ?? 8)
+
   await adminClient.from('race_category_rule').delete().eq('category_id', category_id)
 
   if (rules.length === 0) return NextResponse.json({ data: [] })
 
-  const payload = rules.map((rule) => ({
+  const payload = rules.map((inputRule) => {
+    const rule = normalizeRuleForGateSize(inputRule, gateSize)
+    return {
     category_id,
     min_riders: Number(rule.min_riders),
     enable_qualification: Boolean(rule.enable_qualification),
     enable_quarter_final: Boolean(rule.enable_quarter_final),
     enable_semi_final: Boolean(rule.enable_semi_final),
     enabled_final_classes: Array.isArray(rule.enabled_final_classes) ? rule.enabled_final_classes : [],
-  }))
+    }
+  })
 
   const { data, error } = await adminClient
     .from('race_category_rule')

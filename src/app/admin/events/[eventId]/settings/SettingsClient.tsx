@@ -167,6 +167,50 @@ const buildStandardBatchRules = (gateSize: number): CategoryRule[] => {
   ]
 }
 
+const normalizeAdvancedRuleForGateSize = (rule: CategoryRule, gateSize: number): CategoryRule => {
+  const safeGateSize = Math.max(1, gateSize || 8)
+  const minRiders = Math.max(1, Number(rule.min_riders) || 1)
+
+  if (minRiders <= safeGateSize) {
+    return {
+      ...rule,
+      min_riders: 1,
+      enable_qualification: false,
+      enable_quarter_final: false,
+      enable_semi_final: false,
+      enabled_final_classes: ['ELITE'],
+    }
+  }
+
+  if (minRiders <= safeGateSize * 2) {
+    return {
+      ...rule,
+      enable_qualification: true,
+      enable_quarter_final: false,
+      enable_semi_final: false,
+      enabled_final_classes: ['NOVICE', 'ELITE'],
+    }
+  }
+
+  if (minRiders <= safeGateSize * 4) {
+    return {
+      ...rule,
+      enable_qualification: true,
+      enable_quarter_final: false,
+      enable_semi_final: true,
+      enabled_final_classes: ['ROOKIE', 'PRO', 'NOVICE', 'ELITE'],
+    }
+  }
+
+  return {
+    ...rule,
+    enable_qualification: true,
+    enable_quarter_final: true,
+    enable_semi_final: true,
+    enabled_final_classes: [...advancedFinalClassOrder],
+  }
+}
+
 const standardBatchPresetCards = (gateSize: number) => {
   const safeGateSize = Math.max(1, gateSize || 8)
   return [
@@ -309,14 +353,6 @@ const sanitizeSponsorDrafts = (items: SponsorDraft[]): EventSponsor[] =>
     })
     .filter(Boolean) as EventSponsor[]
 
-const safeJsonParse = (value: string) => {
-  try {
-    return JSON.parse(value)
-  } catch {
-    return null
-  }
-}
-
 export default function SettingsClient({ eventId }: { eventId: string }) {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -344,6 +380,7 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
     advanced: false,
   })
   const [advancedOpen, setAdvancedOpen] = useState<Record<string, boolean>>({})
+  const [manualRuleOpen, setManualRuleOpen] = useState<Record<string, boolean>>({})
   const [initialForm, setInitialForm] = useState<string>('')
   const [logoUploading, setLogoUploading] = useState(false)
   const [logoError, setLogoError] = useState<string>('')
@@ -732,8 +769,10 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
 
   const updateDraft = (categoryId: string, patch: Partial<Omit<CategoryRule, 'category_id'>>) => {
     setDraftRules((prev) => {
-      const { category_id: _omit, ...prevRest } = prev[categoryId] ?? {}
-      const { category_id: _omitPatch, ...patchRest } = patch as Partial<CategoryRule>
+      const prevRest = { ...(prev[categoryId] ?? {}) }
+      delete prevRest.category_id
+      const patchRest = { ...(patch as Partial<CategoryRule>) }
+      delete patchRest.category_id
       const next = {
         ...prevRest,
         ...patchRest,
@@ -741,8 +780,8 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
 
       if (next.min_riders == null) next.min_riders = 8
       if (next.enable_qualification == null) next.enable_qualification = true
-      if (next.enable_quarter_final == null) next.enable_quarter_final = true
-      if (next.enable_semi_final == null) next.enable_semi_final = true
+      if (next.enable_quarter_final == null) next.enable_quarter_final = false
+      if (next.enable_semi_final == null) next.enable_semi_final = false
       if (!next.enabled_final_classes) next.enabled_final_classes = []
       next.category_id = categoryId
 
@@ -756,9 +795,10 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
   const addRule = (categoryId: string) => {
     const draft = draftRules[categoryId]
     if (!draft) return
+    const gateSize = Math.max(1, Number(form.race_gate_positions) || 8)
     setRulesByCategory((prev) => ({
       ...prev,
-      [categoryId]: [...(prev[categoryId] ?? []), { ...draft }],
+      [categoryId]: [...(prev[categoryId] ?? []), normalizeAdvancedRuleForGateSize({ ...draft }, gateSize)],
     }))
   }
 
@@ -792,7 +832,14 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
     if (!eventId) return
     setAdvancedSaving(true)
     try {
-      const rules = rulesByCategory[categoryId] ?? []
+      const gateSize = Math.max(1, Number(form.race_gate_positions) || 8)
+      const rules = (rulesByCategory[categoryId] ?? []).map((rule) =>
+        normalizeAdvancedRuleForGateSize(rule, gateSize)
+      )
+      setRulesByCategory((prev) => ({
+        ...prev,
+        [categoryId]: rules,
+      }))
       await apiFetch(`/api/events/${eventId}/advanced-race/rules`, {
         method: 'POST',
         body: JSON.stringify({ category_id: categoryId, rules }),
@@ -2204,8 +2251,9 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
                     >
                       <div style={{ fontWeight: 900 }}>Preset Standar per Jumlah Batch</div>
                       <div style={{ color: '#475569', fontWeight: 700, fontSize: 13 }}>
-                        Gate size saat ini: {Math.max(1, Number(form.race_gate_positions) || 8)} rider per batch. Klik preset ini
-                        untuk isi rule otomatis sesuai flow pushbike yang kita sepakati.
+                        Gate size saat ini: {Math.max(1, Number(form.race_gate_positions) || 8)} rider per batch. Jalur
+                        utama AMS pakai preset ini. Jadi untuk 12 rider kamu tidak perlu input angka 12 lagi, karena dia
+                        otomatis masuk rule 2 batch (9-16 rider).
                       </div>
                       <div style={{ color: '#334155', fontWeight: 700, fontSize: 12, lineHeight: 1.5 }}>
                         Untuk 2 batch, top 4 tiap batch masuk Final Elite dan sisanya langsung Final Novice. Untuk 3-4 batch,
@@ -2252,6 +2300,22 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
                           }}
                         >
                           Apply Standard Batch Rules
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setManualRuleOpen((prev) => ({ ...prev, [item.category.id]: !prev[item.category.id] }))
+                          }
+                          style={{
+                            padding: '8px 12px',
+                            borderRadius: 10,
+                            border: '2px solid #111',
+                            background: '#fff',
+                            fontWeight: 900,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {manualRuleOpen[item.category.id] ? 'Hide Manual Override' : 'Manual Override (Expert)'}
                         </button>
                       </div>
                     </div>
@@ -2304,80 +2368,103 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
                       </div>
                     ))}
 
-                    <div style={{ marginTop: 8, fontWeight: 900 }}>Add Rule</div>
-                    <div style={{ display: 'grid', gap: 8 }}>
-                      <input
-                        type="number"
-                        placeholder="min_riders"
-                        value={draftRules[item.category.id]?.min_riders ?? 8}
-                        onChange={(e) => updateDraft(item.category.id, { min_riders: Number(e.target.value) })}
-                        style={{ padding: 10, borderRadius: 10, border: '2px solid #111', fontWeight: 800 }}
-                      />
-                      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                        {(
-                          [
-                            { key: 'enable_qualification', label: 'Qualification' },
-                            { key: 'enable_quarter_final', label: 'Quarter Final' },
-                            { key: 'enable_semi_final', label: 'Semi Final' },
-                          ] as const
-                        ).map((opt) => (
-                          <label key={opt.key} style={{ display: 'flex', gap: 6, alignItems: 'center', fontWeight: 800 }}>
-                            <input
-                              type="checkbox"
-                              checked={Boolean(draftRules[item.category.id]?.[opt.key])}
-                              onChange={(e) =>
-                                updateDraft(item.category.id, { [opt.key]: e.target.checked } as Partial<CategoryRule>)
-                              }
-                            />
-                            {opt.label}
-                          </label>
-                        ))}
-                      </div>
-                      <input
-                        placeholder="Final classes (comma)"
-                        value={(draftRules[item.category.id]?.enabled_final_classes ?? []).join(',')}
-                        onChange={(e) =>
-                          updateDraft(item.category.id, {
-                            enabled_final_classes: e.target.value
-                              .split(',')
-                              .map((v) => v.trim())
-                              .filter(Boolean),
-                          })
-                        }
-                        style={{ padding: 10, borderRadius: 10, border: '2px solid #111', fontWeight: 800 }}
-                      />
-                      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                        <button
-                          type="button"
-                          onClick={() => addRule(item.category.id)}
-                          disabled={advancedSaving}
+                    {manualRuleOpen[item.category.id] && (
+                      <>
+                        <div
                           style={{
-                            padding: '8px 12px',
-                            borderRadius: 10,
+                            marginTop: 8,
+                            padding: 10,
+                            borderRadius: 12,
                             border: '2px solid #111',
-                            background: '#2ecc71',
-                            fontWeight: 900,
-                            cursor: 'pointer',
+                            background: '#fff7ed',
+                            color: '#9a3412',
+                            fontWeight: 800,
+                            fontSize: 13,
+                            lineHeight: 1.5,
                           }}
                         >
-                          Add Rule
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => saveRules(item.category.id)}
-                          disabled={advancedSaving}
-                          style={{
-                            padding: '8px 12px',
-                            borderRadius: 10,
-                            border: '2px solid #111',
-                            background: '#bfead2',
-                            fontWeight: 900,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          Save Rules
-                        </button>
-                      </div>
+                          Manual override hanya untuk kasus khusus. Rule akan tetap dinormalisasi otomatis sesuai threshold
+                          batch, jadi kalau min riders masih masuk 2 batch, QF dan SF akan dimatikan saat disimpan.
+                        </div>
+                        <div style={{ marginTop: 8, fontWeight: 900 }}>Add Rule</div>
+                        <div style={{ display: 'grid', gap: 8 }}>
+                          <input
+                            type="number"
+                            placeholder="min_riders"
+                            value={draftRules[item.category.id]?.min_riders ?? 8}
+                            onChange={(e) => updateDraft(item.category.id, { min_riders: Number(e.target.value) })}
+                            style={{ padding: 10, borderRadius: 10, border: '2px solid #111', fontWeight: 800 }}
+                          />
+                          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                            {(
+                              [
+                                { key: 'enable_qualification', label: 'Qualification' },
+                                { key: 'enable_quarter_final', label: 'Quarter Final' },
+                                { key: 'enable_semi_final', label: 'Semi Final' },
+                              ] as const
+                            ).map((opt) => (
+                              <label key={opt.key} style={{ display: 'flex', gap: 6, alignItems: 'center', fontWeight: 800 }}>
+                                <input
+                                  type="checkbox"
+                                  checked={Boolean(draftRules[item.category.id]?.[opt.key])}
+                                  onChange={(e) =>
+                                    updateDraft(item.category.id, { [opt.key]: e.target.checked } as Partial<CategoryRule>)
+                                  }
+                                />
+                                {opt.label}
+                              </label>
+                            ))}
+                          </div>
+                          <input
+                            placeholder="Final classes (comma)"
+                            value={(draftRules[item.category.id]?.enabled_final_classes ?? []).join(',')}
+                            onChange={(e) =>
+                              updateDraft(item.category.id, {
+                                enabled_final_classes: e.target.value
+                                  .split(',')
+                                  .map((v) => v.trim())
+                                  .filter(Boolean),
+                              })
+                            }
+                            style={{ padding: 10, borderRadius: 10, border: '2px solid #111', fontWeight: 800 }}
+                          />
+                          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                            <button
+                              type="button"
+                              onClick={() => addRule(item.category.id)}
+                              disabled={advancedSaving}
+                              style={{
+                                padding: '8px 12px',
+                                borderRadius: 10,
+                                border: '2px solid #111',
+                                background: '#2ecc71',
+                                fontWeight: 900,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Add Rule
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        onClick={() => saveRules(item.category.id)}
+                        disabled={advancedSaving}
+                        style={{
+                          padding: '8px 12px',
+                          borderRadius: 10,
+                          border: '2px solid #111',
+                          background: '#bfead2',
+                          fontWeight: 900,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Save Rules
+                      </button>
                     </div>
 
                     {previewOpen[item.category.id] && (
