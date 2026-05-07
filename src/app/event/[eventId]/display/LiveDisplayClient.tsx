@@ -307,7 +307,7 @@ export default function LiveDisplayClient({
           <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-slate-100/10 blur-3xl" />
           <div className="pointer-events-none absolute -top-24 right-0 h-72 w-72 rounded-full bg-amber-200/10 blur-3xl" />
           <div className="relative z-10 grid gap-5 px-6 py-6">
-            <div className="flex items-start justify-between gap-6">
+            <div className="grid items-start gap-6 xl:grid-cols-[1fr_auto_340px]">
               <div className="grid gap-2">
                 <h1 className="text-3xl font-black tracking-tight text-white drop-shadow-[0_4px_16px_rgba(15,23,42,0.32)] md:text-5xl">
                   {publicEventTitle}
@@ -315,13 +315,13 @@ export default function LiveDisplayClient({
                 <p className="text-base font-black uppercase tracking-[0.18em] text-amber-200">
                   {publicBrandName || categoryLabel || 'Live Feed'}
                 </p>
-                <div className="flex flex-wrap items-center gap-3">
-                  <span className="rounded-full border border-emerald-300/40 bg-emerald-300/10 px-4 py-2 text-base font-black uppercase tracking-[0.14em] text-emerald-200">
-                    Kategori Peserta: {categoryLabel || '-'}
-                  </span>
-                </div>
                 {publicTagline && <p className="text-base font-semibold text-slate-100/90">{publicTagline}</p>}
                 {event?.location && <p className="text-base font-semibold text-slate-200/85">{event.location}</p>}
+              </div>
+              <div className="flex justify-center xl:pt-3">
+                <span className="rounded-full border border-emerald-300/40 bg-emerald-300/10 px-5 py-3 text-center text-lg font-black uppercase tracking-[0.14em] text-emerald-200 shadow-[0_0_24px_rgba(52,211,153,0.15)]">
+                  Kategori Peserta: {categoryLabel || '-'}
+                </span>
               </div>
               <div className="grid min-w-[340px] gap-3">
                 <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/10 px-4 py-3 backdrop-blur-sm">
@@ -348,9 +348,6 @@ export default function LiveDisplayClient({
                       alt={sponsor.name || 'Sponsor'}
                       className="h-12 w-auto max-w-[140px] object-contain"
                     />
-                  ) : null}
-                  {sponsor.name ? (
-                    <span className="text-lg font-black uppercase tracking-[0.14em] text-amber-200">{sponsor.name}</span>
                   ) : null}
                 </div>
               ))}
@@ -382,7 +379,18 @@ export default function LiveDisplayClient({
                   <div className="p-6 text-lg font-semibold text-slate-500">Belum ada batch live yang aktif.</div>
                 ) : (
                   <div className="overflow-hidden">
-                    <table className="w-full table-fixed border-collapse text-xs md:text-sm">
+                    <table className="w-full border-collapse text-xs md:text-sm">
+                      <colgroup>
+                        <col className="w-[80px]" />
+                        <col className="w-[92px]" />
+                        <col />
+                        <col className="w-[160px]" />
+                        <col className="w-[62px]" />
+                        <col className="w-[62px]" />
+                        <col className="w-[88px]" />
+                        <col className="w-[88px]" />
+                        <col className="w-[116px]" />
+                      </colgroup>
                       <thead>
                         <tr className="bg-sky-100/90 text-left font-black uppercase tracking-[0.12em] text-slate-700">
                           {['Rank', 'Plate', 'Panggilan', 'Komunitas', 'M1', 'M2', 'Penalty', 'Total', 'Class'].map((h) => (
@@ -409,8 +417,8 @@ export default function LiveDisplayClient({
                             <td className="px-3 py-3">
                               <div className="flex items-center gap-3">
                                 {riderPhotoCell(displayName(row), row.no_plate, row.photo_thumbnail_url)}
-                                <div className="min-w-0">
-                                  <div className="truncate text-base font-black italic tracking-wide text-slate-900">{displayName(row)}</div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="truncate text-lg font-black italic tracking-wide text-slate-900">{displayName(row)}</div>
                                 </div>
                               </div>
                             </td>
@@ -445,7 +453,13 @@ export default function LiveDisplayClient({
                   <div className="p-6 text-lg font-semibold text-slate-400">Belum ada moto berikutnya untuk ditampilkan.</div>
                 ) : (
                   <div className="overflow-hidden">
-                    <table className="w-full table-fixed border-collapse text-xs md:text-sm">
+                    <table className="w-full border-collapse text-xs md:text-sm">
+                      <colgroup>
+                        <col className="w-[88px]" />
+                        <col className="w-[92px]" />
+                        <col />
+                        <col className="w-[140px]" />
+                      </colgroup>
                       <thead>
                         <tr className="bg-slate-800 text-left font-black uppercase tracking-[0.12em] text-slate-300">
                           {['Gate', 'Plate', 'Panggilan', 'Komunitas'].map((h) => (
@@ -468,8 +482,8 @@ export default function LiveDisplayClient({
                             <td className="px-3 py-3">
                               <div className="flex items-center gap-3">
                                 {riderPhotoCell(displayName(row), row.no_plate, row.photo_thumbnail_url)}
-                                <div className="min-w-0">
-                                  <div className="truncate text-base font-black italic tracking-wide text-white">{displayName(row)}</div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="truncate text-lg font-black italic tracking-wide text-white">{displayName(row)}</div>
                                 </div>
                               </div>
                             </td>
