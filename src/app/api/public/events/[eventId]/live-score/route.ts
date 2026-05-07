@@ -42,6 +42,7 @@ type StageRow = {
   club: string | null
   photo_thumbnail_url?: string | null
   point: number | null
+  penalty_total: number | null
   rank: number | null
   status: 'FINISH' | 'DNF' | 'DNS' | 'PENDING'
 }
@@ -72,6 +73,13 @@ const parseBatchKey = (name: string) => {
   const match = name.match(/moto\s*(\d+)\s*(?:-\s*)?batch\s*(\d+)/i)
   if (!match) return null
   return { motoIndex: Number(match[1]), batchIndex: Number(match[2]) }
+}
+
+const resolvePenaltyStagesForMoto = (name: string): Array<'QUARTER' | 'SEMI' | 'FINAL' | 'ALL'> => {
+  if (/^quarter final/i.test(name)) return ['QUARTER', 'ALL']
+  if (/^semi final/i.test(name)) return ['SEMI', 'ALL']
+  if (/^final /i.test(name)) return ['FINAL', 'ALL']
+  return ['ALL']
 }
 
 export async function GET(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
@@ -181,19 +189,30 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       statusMap.set(row.rider_id, row.participation_status)
     }
   }
-  const penaltyMap = new Map<string, number>()
+  const qualificationPenaltyMap = new Map<string, number>()
+  const stagePenaltyMap = new Map<string, number>()
   if (riderIds.length > 0) {
     const { data: penalties, error: penaltyError } = await adminClient
       .from('rider_penalties')
-      .select('rider_id, penalty_point, rider_penalty_approvals!inner(approval_status)')
+      .select('rider_id, penalty_point, stage, rider_penalty_approvals!inner(approval_status)')
       .eq('event_id', eventId)
-      .eq('stage', 'MOTO')
       .eq('rider_penalty_approvals.approval_status', 'APPROVED')
       .in('rider_id', riderIds)
     if (penaltyError) return NextResponse.json({ error: penaltyError.message }, { status: 400 })
     for (const row of penalties ?? []) {
-      const current = penaltyMap.get(row.rider_id) ?? 0
-      penaltyMap.set(row.rider_id, current + Number(row.penalty_point ?? 0))
+      const amount = Number(row.penalty_point ?? 0)
+      if (row.stage === 'MOTO') {
+        const current = qualificationPenaltyMap.get(row.rider_id) ?? 0
+        qualificationPenaltyMap.set(row.rider_id, current + amount)
+      }
+      if (row.stage === 'ALL') {
+        const current = stagePenaltyMap.get(`${row.rider_id}:ALL`) ?? 0
+        stagePenaltyMap.set(`${row.rider_id}:ALL`, current + amount)
+      }
+      if (row.stage === 'QUARTER' || row.stage === 'SEMI' || row.stage === 'FINAL') {
+        const current = stagePenaltyMap.get(`${row.rider_id}:${row.stage}`) ?? 0
+        stagePenaltyMap.set(`${row.rider_id}:${row.stage}`, current + amount)
+      }
     }
   }
   const { data: riders, error: riderError } = await adminClient
@@ -258,7 +277,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         const basePoint = [point1, point2, point3].filter((v) => v !== null).length
           ? [point1, point2, point3].reduce<number>((acc, v) => acc + (v ?? 0), 0)
           : null
-        const penaltyTotal = penaltyMap.get(riderId) ?? 0
+        const penaltyTotal = qualificationPenaltyMap.get(riderId) ?? 0
         const penaltyTotalForDq = basePoint !== null ? penaltyTotal : 0
         const penaltyTotalDisplay = basePoint !== null ? penaltyTotal : null
         const totalPoint = basePoint !== null ? basePoint + penaltyTotal : null
@@ -373,10 +392,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       return res?.finish_order ?? null
     }
 
+    const stagePenaltyStages = resolvePenaltyStagesForMoto(moto.moto_name)
     const rows: StageRow[] = riderIdsInMoto.map((riderId) => {
       const rider = riderMap.get(riderId)
       const res = resultRows.find((r) => r.moto_id === moto.id && r.rider_id === riderId) ?? null
       const status = (res?.result_status ?? 'PENDING') as StageRow['status']
+      const penaltyTotal = stagePenaltyStages.reduce((sum, stageKey) => {
+        return sum + (stagePenaltyMap.get(`${riderId}:${stageKey}`) ?? 0)
+      }, 0)
       return {
         rider_id: riderId,
         gate: gateMap.get(riderId) ?? null,
@@ -385,6 +408,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         club: rider?.club ?? '-',
         photo_thumbnail_url: rider?.photo_thumbnail_url ?? null,
         point: pointForResult(res),
+        penalty_total: penaltyTotal || null,
         rank: res?.result_status === 'FINISH' ? res.finish_order ?? null : null,
         status,
       }

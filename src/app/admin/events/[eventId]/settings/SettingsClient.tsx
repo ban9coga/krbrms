@@ -769,10 +769,14 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
 
   const updateDraft = (categoryId: string, patch: Partial<Omit<CategoryRule, 'category_id'>>) => {
     setDraftRules((prev) => {
-      const prevRest = { ...(prev[categoryId] ?? {}) }
-      delete prevRest.category_id
-      const patchRest = { ...(patch as Partial<CategoryRule>) }
-      delete patchRest.category_id
+      const prevRest = Object.fromEntries(
+        Object.entries((prev[categoryId] ?? {}) as Partial<CategoryRule>).filter(
+          ([key]) => key !== 'category_id'
+        )
+      ) as Partial<CategoryRule>
+      const patchRest = Object.fromEntries(
+        Object.entries(patch as Partial<CategoryRule>).filter(([key]) => key !== 'category_id')
+      ) as Partial<CategoryRule>
       const next = {
         ...prevRest,
         ...patchRest,
