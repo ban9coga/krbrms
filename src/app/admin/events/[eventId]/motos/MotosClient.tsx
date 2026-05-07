@@ -114,7 +114,8 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     try {
       const catRes = await fetch(`/api/events/${eventId}/categories`)
       const catJson = await catRes.json()
-      setCategories((catJson.data ?? []).filter((c: CategoryItem) => c.enabled))
+      const enabledCategories = (catJson.data ?? []).filter((c: CategoryItem) => c.enabled)
+      setCategories(enabledCategories)
 
       const eventJson = await apiFetch(`/api/events/${eventId}`)
       setEventStatus(eventJson?.data?.status ?? null)
@@ -124,6 +125,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       const motoRows = (motoJson.data ?? []) as MotoItem[]
       setMotos(motoRows)
       const categoryIds = Array.from(new Set(motoRows.map((m) => m.category_id))).filter(Boolean)
+      setHiddenCategoryIds(categoryIds)
       await loadGateOrders(categoryIds)
     } finally {
       setLoading(false)
@@ -330,9 +332,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
   return (
     <div style={{ maxWidth: 980 }} className="motos-print-root">
       <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
-        <div style={{ marginTop: 2, color: '#475569', fontWeight: 700 }}>
-          Cetak daftar moto: klik tombol, lalu pilih <strong>Save as PDF</strong> di dialog browser.
-        </div>
+        <div />
         <button
           type="button"
           onClick={() => window.print()}
@@ -350,13 +350,6 @@ export default function MotosClient({ eventId }: { eventId: string }) {
         </button>
       </div>
       <h1 style={{ fontSize: 26, fontWeight: 950, margin: 0 }}>Motos</h1>
-      <div style={{ marginTop: 8, color: '#333', fontWeight: 700 }}>
-        Moto dibuat melalui Live Draw. Di halaman ini hanya untuk melihat dan mengatur status moto.
-      </div>
-      <div className="no-print" style={{ marginTop: 8, color: '#475569', fontWeight: 700 }}>
-        Alur status resmi: <strong>UPCOMING -&gt; LIVE -&gt; PROVISIONAL -&gt; PROTEST_REVIEW -&gt; LOCKED</strong>.
-        Status <strong>FINISHED</strong> dipensiunkan dari kontrol halaman ini.
-      </div>
       {eventStatus && eventStatus !== 'LIVE' && (
         <div
           className="no-print"
@@ -425,11 +418,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                 {isHidden ? 'Tampilkan' : 'Sembunyikan'}
               </button>
             </div>
-            {isHidden ? (
-              <div style={{ color: '#64748b', fontWeight: 800, fontSize: 13 }}>
-                Card kategori disembunyikan.
-              </div>
-            ) : (
+            {isHidden ? null : (
               <div style={{ display: 'grid', gap: 8 }}>
                 {list.map((m) => (
                   <div
