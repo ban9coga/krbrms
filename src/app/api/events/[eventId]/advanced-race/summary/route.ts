@@ -10,6 +10,7 @@ type MotoRow = {
   id: string
   category_id: string
   moto_name: string
+  status?: string | null
 }
 
 type MotoRiderRow = {
@@ -84,7 +85,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
 
   const { data: motoRows, error: motoError } = await adminClient
     .from('motos')
-    .select('category_id, moto_name')
+    .select('id, category_id, moto_name, status')
     .eq('event_id', eventId)
     .in('category_id', categoryIds)
   if (motoError) return NextResponse.json({ error: motoError.message }, { status: 400 })
@@ -103,6 +104,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         semiReady: boolean
         canRunQualification: boolean
         canComputeAdvances: boolean
+        allQualificationLocked: boolean
+        allCategoryMotosLocked: boolean
       }
     }
   > = {}
@@ -120,6 +123,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         semiReady: false,
         canRunQualification: false,
         canComputeAdvances: false,
+        allQualificationLocked: false,
+        allCategoryMotosLocked: false,
       },
     }
   }
@@ -161,6 +166,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     const semiMotos = categoryMotos.filter((row) => /^Semi Final/i.test(row.moto_name))
     const qualificationProgress = buildQualificationProgress(qualificationMotos, typedAssignedRows, typedResultRows)
     const qualificationRun = (summary[id]?.stageCounts?.QUALIFICATION ?? 0) > 0
+    const allQualificationLocked =
+      qualificationMotos.length > 0 &&
+      qualificationMotos.every((moto) => (moto.status ?? '').toUpperCase() === 'LOCKED')
+    const allCategoryMotosLocked =
+      categoryMotos.length > 0 && categoryMotos.every((moto) => (moto.status ?? '').toUpperCase() === 'LOCKED')
 
     summary[id].readiness = {
       qualificationTotalBatches: qualificationProgress.total,
@@ -179,6 +189,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
             ? areAllMotosComplete(semiMotos, typedAssignedRows, typedResultRows)
             : false
         ),
+      allQualificationLocked,
+      allCategoryMotosLocked,
     }
   }
 

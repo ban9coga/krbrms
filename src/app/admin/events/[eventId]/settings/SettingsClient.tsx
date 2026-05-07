@@ -382,6 +382,8 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
           semiReady: boolean
           canRunQualification: boolean
           canComputeAdvances: boolean
+          allQualificationLocked: boolean
+          allCategoryMotosLocked: boolean
         }
       }
     >
@@ -706,6 +708,8 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
               semiReady: boolean
               canRunQualification: boolean
               canComputeAdvances: boolean
+              allQualificationLocked: boolean
+              allCategoryMotosLocked: boolean
             }
           }
         >
@@ -2193,11 +2197,15 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
               const canComputeAdvances = advancedEnabled && (readiness?.canComputeAdvances ?? false)
               const qualificationNotice = !advancedEnabled
                 ? 'Aktifkan Advanced Stage dulu.'
+                : readiness?.allQualificationLocked
+                ? 'Semua moto qualification sudah LOCKED. Cek dulu apakah hasilnya memang final sebelum menjalankan ulang AMS.'
                 : qualificationReady
                 ? 'Qualification lengkap. Run Qualification siap dijalankan.'
                 : `Belum siap. Lengkapi Moto 1 dan Moto 2 semua batch dulu (${readiness?.qualificationCompleteBatches ?? 0}/${readiness?.qualificationTotalBatches ?? 0} batch complete).`
               const computeNotice = !advancedEnabled
                 ? 'Aktifkan Advanced Stage dulu.'
+                : readiness?.allCategoryMotosLocked
+                ? 'Semua moto kategori ini sudah LOCKED. Buka ulang hanya jika memang perlu koreksi workflow AMS.'
                 : !qualificationRun
                 ? 'Run Qualification belum dijalankan.'
                 : canComputeAdvances
