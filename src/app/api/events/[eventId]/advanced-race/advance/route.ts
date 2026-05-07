@@ -35,6 +35,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Moto under protest review.' }, { status: 409 })
   }
 
+  const { data: qualificationRows, error: qualificationError } = await adminClient
+    .from('race_stage_result')
+    .select('id')
+    .eq('category_id', categoryId)
+    .eq('stage', 'QUALIFICATION')
+    .limit(1)
+  if (qualificationError) return NextResponse.json({ error: qualificationError.message }, { status: 400 })
+  if (!qualificationRows || qualificationRows.length === 0) {
+    return NextResponse.json({ warning: 'Run Qualification belum dijalankan.' })
+  }
+
   const result = await syncAdvancedRaceProgress(eventId, categoryId)
   if (!result.ok) {
     return NextResponse.json({ warning: result.warning ?? 'Advance skipped.' })

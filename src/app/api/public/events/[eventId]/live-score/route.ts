@@ -75,6 +75,37 @@ const parseBatchKey = (name: string) => {
   return { motoIndex: Number(match[1]), batchIndex: Number(match[2]) }
 }
 
+const isMotoComplete = (motoId: string, gateRows: GateRow[], resultRows: ResultRow[]) => {
+  const assignedRiders = gateRows.filter((row) => row.moto_id === motoId).map((row) => row.rider_id)
+  if (assignedRiders.length === 0) return false
+  const completedRiders = new Set(resultRows.filter((row) => row.moto_id === motoId).map((row) => row.rider_id))
+  return assignedRiders.every((riderId) => completedRiders.has(riderId))
+}
+
+const buildQualificationProgress = (motoRows: MotoRow[], gateRows: GateRow[], resultRows: ResultRow[]) => {
+  const batchMap = new Map<number, { moto1?: string; moto2?: string }>()
+
+  for (const moto of motoRows) {
+    const parsed = parseBatchKey(moto.moto_name)
+    if (!parsed) continue
+    const entry = batchMap.get(parsed.batchIndex) ?? {}
+    if (parsed.motoIndex === 1) entry.moto1 = moto.id
+    if (parsed.motoIndex === 2) entry.moto2 = moto.id
+    batchMap.set(parsed.batchIndex, entry)
+  }
+
+  const completeBatchIds = Array.from(batchMap.values()).filter((entry) => {
+    if (!entry.moto1 || !entry.moto2) return false
+    return isMotoComplete(entry.moto1, gateRows, resultRows) && isMotoComplete(entry.moto2, gateRows, resultRows)
+  })
+
+  return {
+    total: batchMap.size,
+    complete: completeBatchIds.length,
+    ready: batchMap.size > 0 && completeBatchIds.length === batchMap.size,
+  }
+}
+
 const resolvePenaltyStagesForMoto = (name: string): Array<'QUARTER' | 'SEMI' | 'FINAL' | 'ALL'> => {
   if (/^quarter final/i.test(name)) return ['QUARTER', 'ALL']
   if (/^semi final/i.test(name)) return ['SEMI', 'ALL']
@@ -236,6 +267,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
 
   const batchEntries = Array.from(batchMap.entries()).filter(([, entry]) => entry.moto1)
   const hasMultipleBatches = batchEntries.length > 1
+  const qualificationProgress = buildQualificationProgress(motoRows, gateRows, resultRows)
+  const showAdvancedClasses = qualificationProgress.ready
 
   const batches = batchEntries
     .map(([batchIndex, entry]) => {
@@ -359,7 +392,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
           return {
             ...r,
             rank_point: rank,
-            class_label: classForRank(rank),
+            class_label: showAdvancedClasses ? classForRank(rank) : null,
           }
         })
         .sort((a, b) => (a.gate_moto1 ?? 9999) - (b.gate_moto1 ?? 9999))
@@ -379,7 +412,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     })
     .sort((a, b) => a.batch_index - b.batch_index)
 
-  const stageMotos = motoRows.filter((m) => !parseBatchKey(m.moto_name))
+  const stageMotos = showAdvancedClasses ? motoRows.filter((m) => !parseBatchKey(m.moto_name)) : []
   const stageGroups: StageGroup[] = stageMotos.map((moto) => {
     const gates = gateRows.filter((g) => g.moto_id === moto.id)
     const gateMap = new Map(gates.map((g) => [g.rider_id, g.gate_position]))

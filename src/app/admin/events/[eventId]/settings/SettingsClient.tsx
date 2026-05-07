@@ -370,7 +370,20 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
   const [summaryByCategory, setSummaryByCategory] = useState<
     Record<
       string,
-      { stageCounts: Record<string, number>; motoCounts: { quarter: number; semi: number; final: number } }
+      {
+        stageCounts: Record<string, number>
+        motoCounts: { quarter: number; semi: number; final: number }
+        readiness: {
+          qualificationTotalBatches: number
+          qualificationCompleteBatches: number
+          qualificationReady: boolean
+          qualificationRun: boolean
+          quarterReady: boolean
+          semiReady: boolean
+          canRunQualification: boolean
+          canComputeAdvances: boolean
+        }
+      }
     >
   >({})
   const [sections, setSections] = useState<{ basic: boolean; business: boolean; appearance: boolean; advanced: boolean }>({
@@ -678,7 +691,25 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
       }
       setRulesByCategory(grouped)
       const summaryRes = await apiFetch(`/api/events/${eventId}/advanced-race/summary`)
-      setSummaryByCategory((summaryRes.data ?? {}) as Record<string, { stageCounts: Record<string, number>; motoCounts: { quarter: number; semi: number; final: number } }>)
+      setSummaryByCategory(
+        (summaryRes.data ?? {}) as Record<
+          string,
+          {
+            stageCounts: Record<string, number>
+            motoCounts: { quarter: number; semi: number; final: number }
+            readiness: {
+              qualificationTotalBatches: number
+              qualificationCompleteBatches: number
+              qualificationReady: boolean
+              qualificationRun: boolean
+              quarterReady: boolean
+              semiReady: boolean
+              canRunQualification: boolean
+              canComputeAdvances: boolean
+            }
+          }
+        >
+      )
     } catch (err) {
       console.warn(err)
     } finally {
@@ -2153,6 +2184,25 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
           <div style={{ display: 'grid', gap: 10 }}>
             {advancedItems.map((item) => {
               const isOpen = advancedOpen[item.category.id] ?? false
+              const summary = summaryByCategory[item.category.id]
+              const readiness = summary?.readiness
+              const advancedEnabled = item.config?.enabled ?? false
+              const qualificationReady = readiness?.qualificationReady ?? false
+              const qualificationRun = readiness?.qualificationRun ?? false
+              const canRunQualification = advancedEnabled && (readiness?.canRunQualification ?? false)
+              const canComputeAdvances = advancedEnabled && (readiness?.canComputeAdvances ?? false)
+              const qualificationNotice = !advancedEnabled
+                ? 'Aktifkan Advanced Stage dulu.'
+                : qualificationReady
+                ? 'Qualification lengkap. Run Qualification siap dijalankan.'
+                : `Belum siap. Lengkapi Moto 1 dan Moto 2 semua batch dulu (${readiness?.qualificationCompleteBatches ?? 0}/${readiness?.qualificationTotalBatches ?? 0} batch complete).`
+              const computeNotice = !advancedEnabled
+                ? 'Aktifkan Advanced Stage dulu.'
+                : !qualificationRun
+                ? 'Run Qualification belum dijalankan.'
+                : canComputeAdvances
+                ? 'Stage source sudah lengkap. Compute QF/SF/Final siap dijalankan.'
+                : 'Belum ada hasil stage lanjutan yang lengkap untuk dihitung.'
               return (
               <div
                 key={item.category.id}
@@ -2196,14 +2246,15 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
                   <button
                     type="button"
                     onClick={() => runQualification(item.category.id)}
-                    disabled={advancedSaving || !(item.config?.enabled ?? false)}
+                    disabled={advancedSaving || !canRunQualification}
+                    title={qualificationNotice}
                     style={{
                       padding: '8px 12px',
                       borderRadius: 10,
                       border: '2px solid #111',
-                      background: item.config?.enabled ? '#bfead2' : '#eee',
+                      background: canRunQualification ? '#bfead2' : '#eee',
                       fontWeight: 900,
-                      cursor: item.config?.enabled ? 'pointer' : 'not-allowed',
+                      cursor: canRunQualification ? 'pointer' : 'not-allowed',
                     }}
                   >
                     Run Qualification
@@ -2211,14 +2262,15 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
                   <button
                     type="button"
                     onClick={() => runAdvances(item.category.id)}
-                    disabled={advancedSaving || !(item.config?.enabled ?? false)}
+                    disabled={advancedSaving || !canComputeAdvances}
+                    title={computeNotice}
                     style={{
                       padding: '8px 12px',
                       borderRadius: 10,
                       border: '2px solid #111',
-                      background: item.config?.enabled ? '#d7ecff' : '#eee',
+                      background: canComputeAdvances ? '#d7ecff' : '#eee',
                       fontWeight: 900,
-                      cursor: item.config?.enabled ? 'pointer' : 'not-allowed',
+                      cursor: canComputeAdvances ? 'pointer' : 'not-allowed',
                     }}
                   >
                     Compute QF/SF/Final
@@ -2238,6 +2290,32 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
                   >
                     {previewOpen[item.category.id] ? 'Hide Preview' : 'Preview Results'}
                   </button>
+                </div>
+                <div style={{ display: 'grid', gap: 6 }}>
+                  <div
+                    style={{
+                      padding: '10px 12px',
+                      borderRadius: 12,
+                      border: '1px solid #cbd5e1',
+                      background: '#fff',
+                      fontWeight: 800,
+                      color: qualificationReady ? '#166534' : '#92400e',
+                    }}
+                  >
+                    Run Qualification: {qualificationNotice}
+                  </div>
+                  <div
+                    style={{
+                      padding: '10px 12px',
+                      borderRadius: 12,
+                      border: '1px solid #cbd5e1',
+                      background: '#fff',
+                      fontWeight: 800,
+                      color: canComputeAdvances ? '#166534' : '#475569',
+                    }}
+                  >
+                    Compute QF/SF/Final: {computeNotice}
+                  </div>
                 </div>
 
                 {isOpen && (
@@ -2522,6 +2600,10 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
                         {summaryByCategory[item.category.id]?.stageCounts?.QUARTER_FINAL ?? 0} | SF=
                         {summaryByCategory[item.category.id]?.stageCounts?.SEMI_FINAL ?? 0} | F=
                         {summaryByCategory[item.category.id]?.stageCounts?.FINAL ?? 0}
+                      </div>
+                      <div style={{ fontWeight: 800, color: '#333' }}>
+                        Qualification progress: {readiness?.qualificationCompleteBatches ?? 0}/
+                        {readiness?.qualificationTotalBatches ?? 0} batch complete
                       </div>
                       <div style={{ fontWeight: 800, color: '#333' }}>
                         Motos: QF={summaryByCategory[item.category.id]?.motoCounts?.quarter ?? 0} | SF=

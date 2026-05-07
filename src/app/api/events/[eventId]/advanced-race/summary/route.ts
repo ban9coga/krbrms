@@ -7,9 +7,60 @@ type StageRow = {
 }
 
 type MotoRow = {
+  id: string
   category_id: string
   moto_name: string
 }
+
+type MotoRiderRow = {
+  moto_id: string
+  rider_id: string
+}
+
+type ResultRow = {
+  moto_id: string
+  rider_id: string
+}
+
+const parseBatchKey = (name: string) => {
+  const match = name.match(/moto\s*(\d+)\s*(?:-\s*)?batch\s*(\d+)/i)
+  if (!match) return null
+  return { motoIndex: Number(match[1]), batchIndex: Number(match[2]) }
+}
+
+const isMotoComplete = (motoId: string, assignedRows: MotoRiderRow[], resultRows: ResultRow[]) => {
+  const assignedRiders = assignedRows.filter((row) => row.moto_id === motoId).map((row) => row.rider_id)
+  if (assignedRiders.length === 0) return false
+  const completedRiders = new Set(resultRows.filter((row) => row.moto_id === motoId).map((row) => row.rider_id))
+  return assignedRiders.every((riderId) => completedRiders.has(riderId))
+}
+
+const buildQualificationProgress = (motoRows: MotoRow[], assignedRows: MotoRiderRow[], resultRows: ResultRow[]) => {
+  const batchMap = new Map<number, { moto1?: string; moto2?: string }>()
+
+  for (const moto of motoRows) {
+    const parsed = parseBatchKey(moto.moto_name)
+    if (!parsed) continue
+    const entry = batchMap.get(parsed.batchIndex) ?? {}
+    if (parsed.motoIndex === 1) entry.moto1 = moto.id
+    if (parsed.motoIndex === 2) entry.moto2 = moto.id
+    batchMap.set(parsed.batchIndex, entry)
+  }
+
+  const completeBatchIds = Array.from(batchMap.values()).filter((entry) => {
+    if (!entry.moto1 || !entry.moto2) return false
+    return isMotoComplete(entry.moto1, assignedRows, resultRows) && isMotoComplete(entry.moto2, assignedRows, resultRows)
+  })
+
+  return {
+    total: batchMap.size,
+    complete: completeBatchIds.length,
+    ready: batchMap.size > 0 && completeBatchIds.length === batchMap.size,
+  }
+}
+
+const areAllMotosComplete = (motos: MotoRow[], assignedRows: MotoRiderRow[], resultRows: ResultRow[]) =>
+  motos.length > 0 && motos.every((moto) => isMotoComplete(moto.id, assignedRows, resultRows))
 
 export async function GET(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const auth = await requireAdmin(req.headers.get('authorization'))
@@ -43,6 +94,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     {
       stageCounts: Record<string, number>
       motoCounts: { quarter: number; semi: number; final: number }
+      readiness: {
+        qualificationTotalBatches: number
+        qualificationCompleteBatches: number
+        qualificationReady: boolean
+        qualificationRun: boolean
+        quarterReady: boolean
+        semiReady: boolean
+        canRunQualification: boolean
+        canComputeAdvances: boolean
+      }
     }
   > = {}
 
@@ -50,6 +111,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     summary[id] = {
       stageCounts: { QUALIFICATION: 0, QUARTER_FINAL: 0, SEMI_FINAL: 0, FINAL: 0 },
       motoCounts: { quarter: 0, semi: 0, final: 0 },
+      readiness: {
+        qualificationTotalBatches: 0,
+        qualificationCompleteBatches: 0,
+        qualificationReady: false,
+        qualificationRun: false,
+        quarterReady: false,
+        semiReady: false,
+        canRunQualification: false,
+        canComputeAdvances: false,
+      },
     }
   }
 
@@ -59,12 +130,56 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       (summary[row.category_id].stageCounts[row.stage] ?? 0) + 1
   }
 
-  for (const row of (motoRows ?? []) as MotoRow[]) {
+  const typedMotoRows = (motoRows ?? []) as MotoRow[]
+
+  for (const row of typedMotoRows) {
     const name = row.moto_name.toLowerCase()
     if (!summary[row.category_id]) continue
     if (name.startsWith('quarter final')) summary[row.category_id].motoCounts.quarter += 1
     else if (name.startsWith('semi final')) summary[row.category_id].motoCounts.semi += 1
     else if (name.startsWith('final ')) summary[row.category_id].motoCounts.final += 1
+  }
+
+  const motoIds = typedMotoRows.map((row) => row.id)
+  const { data: assignedRows, error: assignedError } = motoIds.length
+    ? await adminClient.from('moto_riders').select('moto_id, rider_id').in('moto_id', motoIds)
+    : { data: [], error: null }
+  if (assignedError) return NextResponse.json({ error: assignedError.message }, { status: 400 })
+
+  const { data: resultRows, error: resultError } = motoIds.length
+    ? await adminClient.from('results').select('moto_id, rider_id').in('moto_id', motoIds)
+    : { data: [], error: null }
+  if (resultError) return NextResponse.json({ error: resultError.message }, { status: 400 })
+
+  const typedAssignedRows = (assignedRows ?? []) as MotoRiderRow[]
+  const typedResultRows = (resultRows ?? []) as ResultRow[]
+
+  for (const id of categoryIds) {
+    const categoryMotos = typedMotoRows.filter((row) => row.category_id === id)
+    const qualificationMotos = categoryMotos.filter((row) => parseBatchKey(row.moto_name))
+    const quarterMotos = categoryMotos.filter((row) => /^Quarter Final/i.test(row.moto_name))
+    const semiMotos = categoryMotos.filter((row) => /^Semi Final/i.test(row.moto_name))
+    const qualificationProgress = buildQualificationProgress(qualificationMotos, typedAssignedRows, typedResultRows)
+    const qualificationRun = (summary[id]?.stageCounts?.QUALIFICATION ?? 0) > 0
+
+    summary[id].readiness = {
+      qualificationTotalBatches: qualificationProgress.total,
+      qualificationCompleteBatches: qualificationProgress.complete,
+      qualificationReady: qualificationProgress.ready,
+      qualificationRun,
+      quarterReady: areAllMotosComplete(quarterMotos, typedAssignedRows, typedResultRows),
+      semiReady: areAllMotosComplete(semiMotos, typedAssignedRows, typedResultRows),
+      canRunQualification: qualificationProgress.ready,
+      canComputeAdvances:
+        qualificationRun &&
+        (
+          (summary[id]?.motoCounts?.quarter ?? 0) > 0
+            ? areAllMotosComplete(quarterMotos, typedAssignedRows, typedResultRows)
+            : (summary[id]?.motoCounts?.semi ?? 0) > 0
+            ? areAllMotosComplete(semiMotos, typedAssignedRows, typedResultRows)
+            : false
+        ),
+    }
   }
 
   return NextResponse.json({ data: summary })
