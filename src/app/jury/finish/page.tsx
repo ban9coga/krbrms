@@ -127,10 +127,11 @@ export default function JuryFinishPage() {
         return compareMotoSequence(a, b)
       })
       setMotos(sortedMotos)
-      const selectedStillExists = sortedMotos.some((m) => m.id === selectedMotoId)
-      if (!selectedStillExists && sortedMotos.length) {
-        const liveMoto = sortedMotos.find((m) => isMotoLive(m.status))
-        setSelectedMotoId((liveMoto ?? sortedMotos[0]).id)
+      const selectableMotoRows = sortedMotos.filter((m) => !['LOCKED', 'FINISHED'].includes((m.status ?? '').toUpperCase()))
+      const selectedStillExists = selectableMotoRows.some((m) => m.id === selectedMotoId)
+      if (!selectedStillExists && selectableMotoRows.length) {
+        const liveMoto = selectableMotoRows.find((m) => isMotoLive(m.status))
+        setSelectedMotoId((liveMoto ?? selectableMotoRows[0]).id)
       }
     }
     loadAll()
@@ -215,6 +216,10 @@ export default function JuryFinishPage() {
   const selectedCategoryLabel = selectedMoto
     ? categoryLabel.get(selectedMoto.category_id ?? '') ?? 'Unknown Category'
     : null
+  const selectableMotos = useMemo(
+    () => motos.filter((m) => !['LOCKED', 'FINISHED'].includes((m.status ?? '').toUpperCase())),
+    [motos]
+  )
 
   const availableRiders = useMemo(() => {
     const finished = new Set(finishOrder)
@@ -361,7 +366,8 @@ export default function JuryFinishPage() {
     }
   }
 
-  const onCardPointerDown = (riderId: string) => {
+  const onCardPointerDown = (event: React.PointerEvent<HTMLButtonElement>, riderId: string) => {
+    event.preventDefault()
     setPressedId(riderId)
     longPressFired.current[riderId] = false
     if (pressTimers.current[riderId]) clearTimeout(pressTimers.current[riderId] as ReturnType<typeof setTimeout>)
@@ -371,7 +377,8 @@ export default function JuryFinishPage() {
     }, LONG_PRESS_MS)
   }
 
-  const onCardPointerUp = (riderId: string) => {
+  const onCardPointerUp = (event: React.PointerEvent<HTMLButtonElement>, riderId: string) => {
+    event.preventDefault()
     setPressedId(null)
     const timer = pressTimers.current[riderId]
     if (timer) clearTimeout(timer)
@@ -395,15 +402,17 @@ export default function JuryFinishPage() {
         <section className="public-hero">
           <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-amber-400/15 blur-3xl" />
           <div className="pointer-events-none absolute -top-24 right-0 h-72 w-72 rounded-full bg-sky-400/15 blur-3xl" />
-          <div className="relative z-10 grid gap-2">
+          <div className="relative z-10 grid gap-3">
             <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-amber-300">Jury Finish</p>
-            <h1 className="text-3xl font-black tracking-tight text-white md:text-5xl">Live Finish Input</h1>
-            <p className="max-w-2xl text-sm font-semibold text-slate-200 sm:text-base">
-              Tap rider untuk finish. Tahan 800ms untuk DNF.
-            </p>
-            <p className="text-xs font-semibold text-slate-300">
-              {selectedCategoryLabel ?? 'Pilih moto'} | {selectedMoto?.moto_name ?? '-'}
-            </p>
+            <div className="rounded-[22px] border border-emerald-300/30 bg-emerald-300/10 px-5 py-4 shadow-[0_0_28px_rgba(52,211,153,0.12)]">
+              <div className="text-xs font-extrabold uppercase tracking-[0.18em] text-emerald-200">Kategori Aktif</div>
+              <div className="mt-2 text-3xl font-black tracking-tight text-white md:text-5xl">
+                {selectedCategoryLabel ?? 'Pilih Moto'}
+              </div>
+              <div className="mt-2 text-sm font-semibold text-slate-200 sm:text-base">
+                {selectedMoto?.moto_name ?? 'Belum ada moto dipilih'} | Tap rider untuk finish, tahan 800ms untuk DNF.
+              </div>
+            </div>
           </div>
         </section>
 
@@ -430,8 +439,8 @@ export default function JuryFinishPage() {
             <div className="grid gap-2">
               <label className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">Moto</label>
               <select value={selectedMotoId} onChange={(e) => setSelectedMotoId(e.target.value)} className="public-filter">
-                {motos.length === 0 && <option value="">Belum ada moto/batch</option>}
-                {motos.map((m) => (
+                {selectableMotos.length === 0 && <option value="">Belum ada moto aktif</option>}
+                {selectableMotos.map((m) => (
                   <option key={m.id} value={m.id} disabled={!isMotoLive(m.status)}>
                     {m.moto_order}. {m.moto_name} - {categoryLabel.get(m.category_id ?? '') ?? 'Unknown'} - {m.status}
                   </option>
@@ -468,9 +477,10 @@ export default function JuryFinishPage() {
                 <button
                   key={r.id}
                   type="button"
-                  onPointerDown={() => onCardPointerDown(r.id)}
-                  onPointerUp={() => onCardPointerUp(r.id)}
+                  onPointerDown={(event) => onCardPointerDown(event, r.id)}
+                  onPointerUp={(event) => onCardPointerUp(event, r.id)}
                   onPointerLeave={() => onCardPointerLeave(r.id)}
+                  onPointerCancel={() => onCardPointerLeave(r.id)}
                   disabled={role === 'RACE_DIRECTOR' || motoLocked || !selectedMotoLive}
                   style={{
                     height: 120,
@@ -488,6 +498,10 @@ export default function JuryFinishPage() {
                     cursor: role === 'RACE_DIRECTOR' || motoLocked || !selectedMotoLive ? 'not-allowed' : 'pointer',
                     transform: pressedId === r.id ? 'translateY(4px)' : 'translateY(0)',
                     transition: 'transform 0.08s ease',
+                    userSelect: 'none',
+                    WebkitUserSelect: 'none',
+                    WebkitTouchCallout: 'none',
+                    touchAction: 'manipulation',
                   }}
                 >
                   <div style={{ lineHeight: 1 }}>{r.no_plate_display}</div>

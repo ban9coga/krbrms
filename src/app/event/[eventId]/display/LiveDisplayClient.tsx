@@ -163,12 +163,18 @@ export default function LiveDisplayClient({
   }, [eventId, scoreCategoryIds.join(',')])
 
   const activeMoto = useMemo(() => eventMotos.find((m) => isMotoLive(m.status)) ?? null, [eventMotos])
+  const provisionalMoto = useMemo(
+    () => eventMotos.find((m) => (m.status ?? '').toUpperCase() === 'PROVISIONAL') ?? null,
+    [eventMotos]
+  )
   const queueMoto = useMemo(() => {
-    if (!activeMoto) return null
-    const activeIndex = eventMotos.findIndex((m) => m.id === activeMoto.id)
-    return activeIndex >= 0 ? eventMotos[activeIndex + 1] ?? null : null
-  }, [eventMotos, activeMoto])
-  const activeLiveScore = activeMoto ? liveScoreByCategory[activeMoto.category_id] : null
+    const anchorMoto = provisionalMoto ?? activeMoto
+    if (!anchorMoto) return null
+    const anchorIndex = eventMotos.findIndex((m) => m.id === anchorMoto.id)
+    return anchorIndex >= 0 ? eventMotos[anchorIndex + 1] ?? null : null
+  }, [eventMotos, activeMoto, provisionalMoto])
+  const displayMoto = provisionalMoto ?? activeMoto
+  const activeLiveScore = displayMoto ? liveScoreByCategory[displayMoto.category_id] : null
   const queueLiveScore = queueMoto ? liveScoreByCategory[queueMoto.category_id] : null
   const categoryLabel = activeLiveScore?.categoryLabel ?? ''
   const batches = useMemo(() => activeLiveScore?.batches ?? [], [activeLiveScore])
@@ -182,9 +188,9 @@ export default function LiveDisplayClient({
   const queueSortedBatches = useMemo(() => [...queueBatches].sort((a, b) => a.batch_index - b.batch_index), [queueBatches])
 
   const activeBatch = useMemo(() => {
-    if (!activeMoto) return null
-    return sortedBatches.find((b) => b.moto1_id === activeMoto.id || b.moto2_id === activeMoto.id || b.moto3_id === activeMoto.id) ?? null
-  }, [sortedBatches, activeMoto])
+    if (!displayMoto) return null
+    return sortedBatches.find((b) => b.moto1_id === displayMoto.id || b.moto2_id === displayMoto.id || b.moto3_id === displayMoto.id) ?? null
+  }, [sortedBatches, displayMoto])
 
   const liveBatchView = useMemo(() => {
     if (!activeBatch) return null
@@ -326,7 +332,7 @@ export default function LiveDisplayClient({
               <div className="grid min-w-[340px] gap-3">
                 <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/10 px-4 py-3 backdrop-blur-sm">
                   <span className="text-sm font-bold uppercase tracking-[0.14em] text-slate-300">Current Feed</span>
-                  <span className="text-lg font-black text-white">{activeMoto?.moto_name ?? '-'}</span>
+                  <span className="text-lg font-black text-white">{displayMoto?.moto_name ?? '-'}</span>
                 </div>
                 <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/10 px-4 py-3 backdrop-blur-sm">
                   <span className="text-sm font-bold uppercase tracking-[0.14em] text-slate-300">Status</span>
@@ -381,15 +387,15 @@ export default function LiveDisplayClient({
                   <div className="overflow-hidden">
                     <table className="w-full border-collapse text-xs md:text-sm">
                       <colgroup>
-                        <col className="w-[80px]" />
-                        <col className="w-[92px]" />
-                        <col />
-                        <col className="w-[160px]" />
-                        <col className="w-[62px]" />
-                        <col className="w-[62px]" />
-                        <col className="w-[88px]" />
-                        <col className="w-[88px]" />
-                        <col className="w-[116px]" />
+                        <col style={{ width: '76px' }} />
+                        <col style={{ width: '92px' }} />
+                        <col style={{ width: '36%' }} />
+                        <col style={{ width: '15%' }} />
+                        <col style={{ width: '54px' }} />
+                        <col style={{ width: '54px' }} />
+                        <col style={{ width: '76px' }} />
+                        <col style={{ width: '76px' }} />
+                        <col style={{ width: '108px' }} />
                       </colgroup>
                       <thead>
                         <tr className="bg-sky-100/90 text-left font-black uppercase tracking-[0.12em] text-slate-700">
@@ -455,10 +461,10 @@ export default function LiveDisplayClient({
                   <div className="overflow-hidden">
                     <table className="w-full border-collapse text-xs md:text-sm">
                       <colgroup>
-                        <col className="w-[88px]" />
-                        <col className="w-[92px]" />
-                        <col />
-                        <col className="w-[140px]" />
+                        <col style={{ width: '82px' }} />
+                        <col style={{ width: '92px' }} />
+                        <col style={{ width: '42%' }} />
+                        <col style={{ width: '18%' }} />
                       </colgroup>
                       <thead>
                         <tr className="bg-slate-800 text-left font-black uppercase tracking-[0.12em] text-slate-300">
@@ -505,7 +511,7 @@ export default function LiveDisplayClient({
               <span className={`h-3 w-3 rounded-full ${trackState.dotClass} ${isMotoLive(activeMoto?.status) ? 'animate-pulse' : ''}`} />
               <span className={`text-lg font-black uppercase tracking-[0.16em] ${trackState.textClass}`}>{trackState.label}</span>
             </div>
-            <div className="text-lg font-bold text-slate-200">Moto: {activeMoto?.moto_name ?? '-'}</div>
+            <div className="text-lg font-bold text-slate-200">Moto: {displayMoto?.moto_name ?? '-'}</div>
             <div className="text-lg font-bold text-slate-200">Kategori: {categoryLabel || '-'}</div>
           </div>
         </section>
