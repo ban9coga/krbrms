@@ -234,6 +234,28 @@ export default function LiveDisplayClient({
   const publicEventTitle = business?.public_event_title?.trim() || event?.name || 'Live Display'
   const publicBrandName = business?.public_brand_name?.trim() || ''
   const publicTagline = business?.public_tagline?.trim() || ''
+  const displaySponsors = useMemo(() => {
+    const structuredSponsors =
+      business?.sponsors
+        ?.filter((s) => s?.is_active !== false && s?.show_on_live_display !== false)
+        .sort((a, b) => (a?.sort_order ?? 999) - (b?.sort_order ?? 999))
+        .map((s) => ({
+          name: s?.name?.trim() || '',
+          logo:
+            (s?.use_dark_variant ? s?.logo_dark_url : null) ||
+            s?.logo_url ||
+            s?.logo_dark_url ||
+            null,
+        }))
+        .filter((s) => s.name || s.logo) ?? []
+
+    if (structuredSponsors.length > 0) return structuredSponsors
+
+    return (event?.sponsor_logo_urls ?? []).map((logo, index) => ({
+      name: `Sponsor ${index + 1}`,
+      logo,
+    }))
+  }, [business?.sponsors, event?.sponsor_logo_urls])
   const trackState = useMemo(() => {
     if (!activeMoto) {
       return {
@@ -293,6 +315,11 @@ export default function LiveDisplayClient({
                 <p className="text-base font-black uppercase tracking-[0.18em] text-amber-200">
                   {publicBrandName || categoryLabel || 'Live Feed'}
                 </p>
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="rounded-full border border-emerald-300/40 bg-emerald-300/10 px-4 py-2 text-base font-black uppercase tracking-[0.14em] text-emerald-200">
+                    Kategori Peserta: {categoryLabel || '-'}
+                  </span>
+                </div>
                 {publicTagline && <p className="text-base font-semibold text-slate-100/90">{publicTagline}</p>}
                 {event?.location && <p className="text-base font-semibold text-slate-200/85">{event.location}</p>}
               </div>
@@ -309,6 +336,27 @@ export default function LiveDisplayClient({
             </div>
           </div>
         </section>
+
+        {displaySponsors.length > 0 && (
+          <section className="overflow-hidden rounded-[22px] border border-amber-300/20 bg-slate-900/90 shadow-xl">
+            <div className="live-display-marquee flex min-w-max items-center gap-10 px-6 py-4">
+              {[...displaySponsors, ...displaySponsors].map((sponsor, index) => (
+                <div key={`${sponsor.name || 'sponsor'}-${index}`} className="flex items-center gap-4 whitespace-nowrap">
+                  {sponsor.logo ? (
+                    <img
+                      src={sponsor.logo}
+                      alt={sponsor.name || 'Sponsor'}
+                      className="h-12 w-auto max-w-[140px] object-contain"
+                    />
+                  ) : null}
+                  {sponsor.name ? (
+                    <span className="text-lg font-black uppercase tracking-[0.14em] text-amber-200">{sponsor.name}</span>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {loading && <LoadingState />}
         {!loading && event?.is_public === false && <EmptyState label="Event ini sedang disembunyikan dari publik." />}
@@ -337,7 +385,7 @@ export default function LiveDisplayClient({
                     <table className="w-full table-fixed border-collapse text-xs md:text-sm">
                       <thead>
                         <tr className="bg-sky-100/90 text-left font-black uppercase tracking-[0.12em] text-slate-700">
-                          {['Rank', 'Plate', 'Panggilan', 'M1', 'M2', 'Penalty', 'Total', 'Class'].map((h) => (
+                          {['Rank', 'Plate', 'Panggilan', 'Komunitas', 'M1', 'M2', 'Penalty', 'Total', 'Class'].map((h) => (
                             <th key={h} className="px-3 py-3">
                               {h}
                             </th>
@@ -362,14 +410,15 @@ export default function LiveDisplayClient({
                               <div className="flex items-center gap-3">
                                 {riderPhotoCell(displayName(row), row.no_plate, row.photo_thumbnail_url)}
                                 <div className="min-w-0">
-                                  <div className="truncate text-lg font-black italic tracking-wide text-slate-900">{displayName(row)}</div>
+                                  <div className="truncate text-base font-black italic tracking-wide text-slate-900">{displayName(row)}</div>
                                 </div>
                               </div>
                             </td>
-                            <td className="px-3 py-3 text-sm font-extrabold text-slate-700">{row.point_moto1 ?? '-'}</td>
-                            <td className="px-3 py-3 text-sm font-extrabold text-slate-700">{row.point_moto2 ?? '-'}</td>
-                            <td className="px-3 py-3 text-sm font-extrabold text-amber-600">{row.penalty_total ?? '-'}</td>
-                            <td className="px-3 py-3 text-2xl font-black text-slate-900">{row.total_point ?? '-'}</td>
+                            <td className="px-3 py-3 text-sm font-bold text-slate-600">{row.club || '-'}</td>
+                            <td className="px-2 py-3 text-sm font-extrabold text-slate-700">{row.point_moto1 ?? '-'}</td>
+                            <td className="px-2 py-3 text-sm font-extrabold text-slate-700">{row.point_moto2 ?? '-'}</td>
+                            <td className="px-2 py-3 text-sm font-extrabold text-amber-600">{row.penalty_total ?? '-'}</td>
+                            <td className="px-2 py-3 text-xl font-black text-slate-900">{row.total_point ?? '-'}</td>
                             <td className="px-3 py-3 text-[11px] font-extrabold uppercase tracking-[0.08em] text-slate-600">
                               {row.class_label || '-'}
                             </td>
@@ -399,7 +448,7 @@ export default function LiveDisplayClient({
                     <table className="w-full table-fixed border-collapse text-xs md:text-sm">
                       <thead>
                         <tr className="bg-slate-800 text-left font-black uppercase tracking-[0.12em] text-slate-300">
-                          {['Queue', 'Gate', 'Plate', 'Panggilan'].map((h) => (
+                          {['Gate', 'Plate', 'Panggilan', 'Komunitas'].map((h) => (
                             <th key={h} className="px-3 py-3">
                               {h}
                             </th>
@@ -414,17 +463,17 @@ export default function LiveDisplayClient({
                               index === 0 ? 'bg-amber-300/10' : index % 2 === 0 ? 'bg-slate-900' : 'bg-slate-950'
                             }`}
                           >
-                            <td className="px-3 py-3 text-xl font-black text-amber-200">{row.queue}</td>
                             <td className="px-3 py-3 text-xl font-black text-white">{row.gate ?? '-'}</td>
                             <td className="px-3 py-3 text-sm font-black text-slate-200">{row.no_plate}</td>
                             <td className="px-3 py-3">
                               <div className="flex items-center gap-3">
                                 {riderPhotoCell(displayName(row), row.no_plate, row.photo_thumbnail_url)}
                                 <div className="min-w-0">
-                                  <div className="truncate text-lg font-black italic tracking-wide text-white">{displayName(row)}</div>
+                                  <div className="truncate text-base font-black italic tracking-wide text-white">{displayName(row)}</div>
                                 </div>
                               </div>
                             </td>
+                            <td className="px-3 py-3 text-sm font-bold text-slate-300">{row.club || '-'}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -447,6 +496,21 @@ export default function LiveDisplayClient({
           </div>
         </section>
       </main>
+      <style>{`
+        @keyframes live-display-marquee {
+          0% {
+            transform: translateX(0);
+          }
+          100% {
+            transform: translateX(-50%);
+          }
+        }
+
+        .live-display-marquee {
+          animation: live-display-marquee 26s linear infinite;
+          will-change: transform;
+        }
+      `}</style>
     </div>
   )
 }
