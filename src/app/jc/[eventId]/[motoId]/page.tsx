@@ -175,7 +175,7 @@ export default function JCPage() {
         apiFetch(`/api/jury/motos/${selectedMotoId}/riders`),
         apiFetch(`/api/jury/events/${eventId}/rider-status?moto_id=${selectedMotoId}`),
         apiFetch(`/api/jury/motos/${selectedMotoId}/safety-checks`),
-        apiFetch(`/api/jury/events/${eventId}/rider-penalties`),
+        apiFetch(`/api/jury/events/${eventId}/rider-penalties?moto_id=${selectedMotoId}`),
       ])
 
       setLocked(!!lockRes.data)

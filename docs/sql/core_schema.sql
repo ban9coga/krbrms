@@ -410,6 +410,7 @@ create table if not exists rider_penalties (
   id uuid primary key default uuid_generate_v4(),
   rider_id uuid not null references riders(id) on delete cascade,
   event_id uuid not null references events(id) on delete cascade,
+  moto_id uuid references motos(id) on delete cascade,
   stage penalty_stage not null default 'ALL',
   rule_code text not null,
   penalty_point int not null,
@@ -421,6 +422,8 @@ create index if not exists idx_rider_penalties_event
   on rider_penalties(event_id);
 create index if not exists idx_rider_penalties_rider
   on rider_penalties(rider_id);
+create index if not exists idx_rider_penalties_moto
+  on rider_penalties(moto_id);
 
 create table if not exists event_absent_config (
   event_id uuid primary key references events(id) on delete cascade,

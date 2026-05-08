@@ -76,6 +76,9 @@ export default function JuryFinishPage() {
     return json
   }
 
+  const normalizedRole = String(role ?? '').trim().toUpperCase()
+  const canResetMoto = normalizedRole === 'RACE_DIRECTOR' || normalizedRole === 'SUPER_ADMIN' || normalizedRole === 'ADMIN'
+
   useEffect(() => {
     const loadEvents = async () => {
       const res = await apiFetch('/api/jury/events?status=LIVE')
@@ -190,7 +193,7 @@ export default function JuryFinishPage() {
       }
       setParticipationByRider(statusMap)
       if (eventId) {
-        const penaltiesRes = await apiFetch(`/api/jury/events/${eventId}/rider-penalties`)
+        const penaltiesRes = await apiFetch(`/api/jury/events/${eventId}/rider-penalties?moto_id=${selectedMotoId}`)
         const map: Record<string, number> = {}
         for (const row of penaltiesRes.data ?? []) {
           const approval = Array.isArray(row.rider_penalty_approvals)
@@ -347,20 +350,52 @@ export default function JuryFinishPage() {
 
 
   const handleResetResults = async () => {
-    if (role === 'RACE_DIRECTOR' || motoLocked) return
+    if (!canResetMoto || motoLocked) return
     if (!selectedMoto || !hasSubmitted) return
     const ok = confirm('Reset results untuk moto ini?')
     if (!ok) return
+    const reason = window.prompt('Alasan reset results moto ini', 'Perbaikan hasil checker/finisher')
+    if (reason === null) return
     setSaving(true)
     try {
-      await apiFetch(`/api/jury/motos/${selectedMoto.id}/results`, { method: 'DELETE' })
+      await apiFetch(`/api/race-director/motos/${selectedMoto.id}/reset-results`, {
+        method: 'POST',
+        body: JSON.stringify({ reason: reason.trim() || 'Reset moto results' }),
+      })
       setFinishOrder([])
       setDnfRiders([])
       setActions([])
       setHasSubmitted(false)
+      setPenaltiesByRider({})
+      setParticipationByRider({})
       setMotos((prev) =>
         prev.map((m) => (m.id === selectedMoto.id ? { ...m, status: 'LIVE' } : m))
       )
+      alert('Results moto berhasil direset.')
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Gagal reset results moto.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleResetPenalties = async () => {
+    if (!canResetMoto || motoLocked) return
+    if (!selectedMoto) return
+    const ok = confirm('Reset penalty MOTO untuk moto ini?')
+    if (!ok) return
+    const reason = window.prompt('Alasan reset penalty moto ini', 'Penalty checker perlu dibersihkan')
+    if (reason === null) return
+    setSaving(true)
+    try {
+      await apiFetch(`/api/race-director/motos/${selectedMoto.id}/reset-penalties`, {
+        method: 'POST',
+        body: JSON.stringify({ reason: reason.trim() || 'Reset moto penalties' }),
+      })
+      setPenaltiesByRider({})
+      alert('Penalty moto berhasil direset.')
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Gagal reset penalty moto.')
     } finally {
       setSaving(false)
     }
@@ -604,10 +639,18 @@ export default function JuryFinishPage() {
           <button
             type="button"
             onClick={handleResetResults}
-            disabled={!hasSubmitted || saving || role === 'RACE_DIRECTOR' || motoLocked}
+            disabled={!hasSubmitted || saving || !canResetMoto || motoLocked}
             className="w-full rounded-xl border border-amber-300 bg-amber-100 px-4 py-3 text-sm font-extrabold uppercase tracking-[0.1em] text-amber-800 transition-colors hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
           >
             Reset Result
+          </button>
+          <button
+            type="button"
+            onClick={handleResetPenalties}
+            disabled={saving || !canResetMoto || motoLocked}
+            className="w-full rounded-xl border border-rose-300 bg-rose-100 px-4 py-3 text-sm font-extrabold uppercase tracking-[0.1em] text-rose-800 transition-colors hover:bg-rose-200 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Reset Penalty
           </button>
           <button
             type="button"

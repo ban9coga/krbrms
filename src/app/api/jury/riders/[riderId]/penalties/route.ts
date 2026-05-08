@@ -84,6 +84,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ riderId
       {
         rider_id: riderId,
         event_id,
+        moto_id: moto_id ?? null,
         stage,
         rule_code: resolvedRule.code,
         penalty_point: resolvedRule.penalty_point,
@@ -110,6 +111,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ riderId
       action_type: 'PENALTY_APPROVAL',
       performed_by: 'SYSTEM',
       rider_id: riderId,
+      moto_id: moto_id ?? null,
       event_id,
       reason: 'BMX mode: penalty auto-approved',
     },
