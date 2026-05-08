@@ -38,6 +38,16 @@ const getAuthenticatedUser = async (authHeader?: string | null) => {
   return data.user
 }
 
+export const verifyPasswordForAuthHeader = async (authHeader: string | null | undefined, password: string) => {
+  const user = await getAuthenticatedUser(authHeader)
+  if (!user?.email || !password) return false
+  const { error } = await authClient.auth.signInWithPassword({
+    email: user.email,
+    password,
+  })
+  return !error
+}
+
 const getGlobalRole = (user: AuthUser) => {
   const meta = (user.user_metadata ?? {}) as Record<string, unknown>
   const appMeta = (user.app_metadata ?? {}) as Record<string, unknown>

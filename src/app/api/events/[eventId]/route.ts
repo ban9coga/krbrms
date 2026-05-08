@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { adminClient, requireAdmin } from '../../../../lib/auth'
+import { adminClient, requireAdmin, verifyPasswordForAuthHeader } from '../../../../lib/auth'
 import { syncAdvancedRaceProgress } from '../../../../services/advancedRaceAuto'
 import type { BusinessSettings } from '../../../../lib/eventService'
 type DrawMode = 'internal_live_draw' | 'external_draw'
@@ -201,10 +201,38 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ eventI
   })
 }
 
-export async function DELETE(_: Request, { params }: { params: Promise<{ eventId: string }> }) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params
-  const auth = await requireAdmin(_.headers.get('authorization'), eventId)
+  const auth = await requireAdmin(req.headers.get('authorization'), eventId)
   if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (auth.role !== 'SUPER_ADMIN') {
+    return NextResponse.json({ error: 'Hanya Central Admin yang boleh menghapus event.' }, { status: 403 })
+  }
+
+  const body = await req.json().catch(() => ({}))
+  const confirmationName = typeof body?.confirmation_name === 'string' ? body.confirmation_name.trim() : ''
+  const confirmationPassword = typeof body?.confirmation_password === 'string' ? body.confirmation_password : ''
+
+  const { data: eventRow, error: eventError } = await adminClient
+    .from('events')
+    .select('id, name')
+    .eq('id', eventId)
+    .maybeSingle()
+
+  if (eventError) return NextResponse.json({ error: eventError.message }, { status: 400 })
+  if (!eventRow) return NextResponse.json({ error: 'Event not found' }, { status: 404 })
+  if (!confirmationName || confirmationName !== eventRow.name) {
+    return NextResponse.json(
+      { error: 'Nama event konfirmasi tidak cocok. Tulis ulang nama event persis seperti yang ditampilkan.' },
+      { status: 400 }
+    )
+  }
+
+  const passwordOk = await verifyPasswordForAuthHeader(req.headers.get('authorization'), confirmationPassword)
+  if (!passwordOk) {
+    return NextResponse.json({ error: 'Password Central Admin tidak valid.' }, { status: 403 })
+  }
+
   const { error } = await adminClient.from('events').delete().eq('id', eventId)
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json({ ok: true })

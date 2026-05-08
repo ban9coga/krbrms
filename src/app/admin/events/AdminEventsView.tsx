@@ -230,11 +230,29 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
 
   const handleDelete = async (event: EventItem) => {
     if (!window.confirm(`Hapus event "${event.name}"? Semua data terkait akan ikut terhapus.`)) return
+    const confirmationName = window.prompt(`Ketik ulang nama event untuk konfirmasi:\n${event.name}`, '')
+    if (confirmationName === null) return
+    if (confirmationName.trim() !== event.name) {
+      setFeedback({ type: 'error', message: 'Nama event konfirmasi tidak cocok. Event tidak dihapus.' })
+      return
+    }
+    const confirmationPassword = window.prompt('Masukkan password Central Admin untuk menghapus event ini.', '')
+    if (confirmationPassword === null) return
+    if (!confirmationPassword) {
+      setFeedback({ type: 'error', message: 'Password Central Admin wajib diisi untuk hapus event.' })
+      return
+    }
 
     await runEventAction(
       `delete-${event.id}`,
       async () => {
-        await apiFetch(`/api/events/${event.id}`, { method: 'DELETE' })
+        await apiFetch(`/api/events/${event.id}`, {
+          method: 'DELETE',
+          body: JSON.stringify({
+            confirmation_name: confirmationName.trim(),
+            confirmation_password: confirmationPassword,
+          }),
+        })
       },
       `Event "${event.name}" berhasil dihapus.`
     )
