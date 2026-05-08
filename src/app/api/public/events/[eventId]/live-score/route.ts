@@ -212,12 +212,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   if (riderIds.length > 0) {
     const { data: statuses, error: statusError } = await adminClient
       .from('rider_participation_status')
-      .select('rider_id, participation_status')
+      .select('moto_id, rider_id, participation_status')
       .eq('event_id', eventId)
       .in('rider_id', riderIds)
     if (statusError) return NextResponse.json({ error: statusError.message }, { status: 400 })
     for (const row of statuses ?? []) {
-      statusMap.set(row.rider_id, row.participation_status)
+      statusMap.set(`${row.moto_id}:${row.rider_id}`, row.participation_status)
     }
   }
   const qualificationPenaltyMap = new Map<string, number>()
@@ -297,7 +297,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         const lastPos1 = gate1Map.size || null
         const lastPos2 = gate2Map.size || null
         const lastPos3 = gate3Map.size || null
-        const riderStatus = statusMap.get(riderId) ?? 'ACTIVE'
+        const riderStatus = statusMap.get(`${moto1.id}:${riderId}`) ?? 'ACTIVE'
         const pointForResult = (res: ResultRow | null, lastPos: number | null) => {
           const status = res?.result_status ?? 'FINISH'
           if (status === 'DNS') return 9

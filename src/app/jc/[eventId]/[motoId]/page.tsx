@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import CheckerTopbar from '../../../../components/CheckerTopbar'
 import { compareMotoSequence } from '../../../../lib/motoSequence'
@@ -173,7 +173,7 @@ export default function JCPage() {
       const [lockRes, riderRes, statusRes, safetyRes, penaltiesRes] = await Promise.all([
         apiFetch(`/api/jury/motos/${selectedMotoId}/lock-status`),
         apiFetch(`/api/jury/motos/${selectedMotoId}/riders`),
-        apiFetch(`/api/jury/events/${eventId}/rider-status`),
+        apiFetch(`/api/jury/events/${eventId}/rider-status?moto_id=${selectedMotoId}`),
         apiFetch(`/api/jury/motos/${selectedMotoId}/safety-checks`),
         apiFetch(`/api/jury/events/${eventId}/rider-penalties`),
       ])
@@ -320,8 +320,10 @@ export default function JCPage() {
     return map
   }, [penaltyRules])
 
-  const isSafetyOk = (riderId: string) =>
-    requiredSafety.every((item) => safetyChecks[riderId]?.[item.id] === true)
+  const isSafetyOk = useCallback(
+    (riderId: string) => requiredSafety.every((item) => safetyChecks[riderId]?.[item.id] === true),
+    [requiredSafety, safetyChecks]
+  )
 
   const applySafetyPenalty = async (riderId: string, requirement: SafetyRequirement) => {
     const rawRuleCode = requirement.penalty_code?.trim()
@@ -359,16 +361,18 @@ export default function JCPage() {
 
   const activeCount = useMemo(() => {
     return riderList.filter((r) => statuses[r.id]?.participation_status === 'ACTIVE').length
-  }, [riderList, statuses, safetyChecks])
+  }, [riderList, statuses])
   const warningCount = useMemo(() => {
     return riderList.filter((r) => statuses[r.id]?.participation_status === 'ACTIVE' && !isSafetyOk(r.id)).length
-  }, [riderList, statuses, safetyChecks])
+  }, [riderList, statuses, isSafetyOk])
 
   const handleSaveStatus = async (riderId: string, status: StatusRow['participation_status'], order: number) => {
     if (!selectedMotoId) return
     if (!selectedMotoLive || locked) return
+    const previousStatus = statuses[riderId]
     setSaving(true)
     setWarningMessage(null)
+    setErrorMessage(null)
     try {
       setStatuses((prev) => ({
         ...prev,
@@ -408,6 +412,15 @@ export default function JCPage() {
         })
       }
       await loadMoto(true)
+    } catch (err: unknown) {
+      setStatuses((prev) => {
+        const next = { ...prev }
+        if (previousStatus) next[riderId] = previousStatus
+        else delete next[riderId]
+        return next
+      })
+      setErrorMessage(err instanceof Error ? err.message : 'Gagal menyimpan status rider.')
+      await loadMoto(true)
     } finally {
       setSaving(false)
     }
@@ -418,6 +431,7 @@ export default function JCPage() {
     if (!selectedMotoLive || locked) return
     setSaving(true)
     setWarningMessage(null)
+    setErrorMessage(null)
     try {
       const missingPenaltyReasons = new Set<string>()
       for (const r of riderList) {
@@ -446,6 +460,9 @@ export default function JCPage() {
           `Sebagian rider lanjut dengan WARNING. Auto-penalty dilewati: ${Array.from(missingPenaltyReasons).join(', ')}.`
         )
       }
+      await loadMoto(true)
+    } catch (err: unknown) {
+      setErrorMessage(err instanceof Error ? err.message : 'Gagal menjalankan All Ready.')
       await loadMoto(true)
     } finally {
       setSaving(false)
@@ -715,8 +732,18 @@ export default function JCPage() {
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
                   <div>
-                    <div style={{ fontSize: 18, fontWeight: 900 }}>{r.no_plate_display}</div>
-                    <div style={{ fontSize: 16, fontWeight: 800 }}>{r.name}</div>
+                    <div
+                      style={{
+                        fontSize: 34,
+                        lineHeight: 1,
+                        fontWeight: 950,
+                        letterSpacing: '0.04em',
+                        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace',
+                      }}
+                    >
+                      {r.no_plate_display}
+                    </div>
+                    <div style={{ fontSize: 15, fontWeight: 800, marginTop: 6 }}>{r.name}</div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: 12, fontWeight: 800 }}>Gate #{r.gate_position ?? '-'}</div>
@@ -765,7 +792,7 @@ export default function JCPage() {
                                 is_checked: nextChecked,
                               }),
                             })
-                          } catch (err) {
+                          } catch {
                             // revert on failure
                             setSafetyChecks((prev) => ({
                               ...prev,

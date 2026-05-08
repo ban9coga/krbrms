@@ -54,14 +54,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
 
   const { data: statuses, error: stError } = await adminClient
     .from('rider_participation_status')
-    .select('rider_id, participation_status')
+    .select('moto_id, rider_id, participation_status')
     .eq('event_id', eventId)
   if (stError) return NextResponse.json({ error: stError.message }, { status: 400 })
-  const statusMap = new Map((statuses ?? []).map((s) => [s.rider_id, s.participation_status]))
+  const statusMap = new Map((statuses ?? []).map((s) => [`${s.moto_id}:${s.rider_id}`, s.participation_status]))
 
   const { data: statusUpdates, error: statusUpdatesError } = await adminClient
     .from('rider_status_updates')
-    .select('rider_id, proposed_status, approval_status, created_at')
+    .select('moto_id, rider_id, proposed_status, approval_status, created_at')
     .eq('event_id', eventId)
     .order('created_at', { ascending: false })
   if (statusUpdatesError) return NextResponse.json({ error: statusUpdatesError.message }, { status: 400 })
@@ -70,8 +70,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     { proposed_status: string; approval_status: string }
   >()
   for (const row of statusUpdates ?? []) {
-    if (!latestUpdateMap.has(row.rider_id)) {
-      latestUpdateMap.set(row.rider_id, {
+    const key = `${row.moto_id}:${row.rider_id}`
+    if (!latestUpdateMap.has(key)) {
+      latestUpdateMap.set(key, {
         proposed_status: row.proposed_status,
         approval_status: row.approval_status,
       })
@@ -108,8 +109,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     let absent = 0
     let warnings = 0
     for (const riderId of riders) {
-      const approvedStatus = statusMap.get(riderId) ?? null
-      const latestUpdate = latestUpdateMap.get(riderId)
+      const riderKey = `${m.id}:${riderId}`
+      const approvedStatus = statusMap.get(riderKey) ?? null
+      const latestUpdate = latestUpdateMap.get(riderKey)
       const status =
         approvedStatus ??
         (latestUpdate?.approval_status === 'PENDING' ? latestUpdate.proposed_status : null)

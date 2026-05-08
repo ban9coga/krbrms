@@ -9,7 +9,7 @@ export async function POST(req: Request) {
 
   const { data: update, error } = await adminClient
     .from('rider_status_updates')
-    .select('id, event_id, rider_id, proposed_status')
+    .select('id, event_id, moto_id, rider_id, proposed_status')
     .eq('id', update_id)
     .maybeSingle()
 
@@ -36,12 +36,13 @@ export async function POST(req: Request) {
         [
           {
             event_id: update.event_id,
+            moto_id: update.moto_id ?? null,
             rider_id: update.rider_id,
             participation_status: update.proposed_status,
             registration_order: 0,
           },
         ],
-        { onConflict: 'event_id,rider_id' }
+        { onConflict: 'event_id,moto_id,rider_id' }
       )
   }
 
@@ -50,6 +51,7 @@ export async function POST(req: Request) {
       action_type: 'STATUS_APPROVAL',
       performed_by: auth.user.id,
       rider_id: update.rider_id,
+      moto_id: update.moto_id ?? null,
       event_id: update.event_id,
       reason: reason ?? null,
     },

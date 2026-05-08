@@ -377,6 +377,7 @@ create table if not exists event_feature_flags (
 create table if not exists rider_participation_status (
   id uuid primary key default uuid_generate_v4(),
   event_id uuid not null references events(id) on delete cascade,
+  moto_id uuid references motos(id) on delete cascade,
   rider_id uuid not null references riders(id) on delete cascade,
   participation_status participation_status not null default 'ACTIVE',
   registration_order int not null default 0,
@@ -385,6 +386,9 @@ create table if not exists rider_participation_status (
 
 create unique index if not exists uq_rider_participation_event_rider
   on rider_participation_status(event_id, rider_id);
+
+create unique index if not exists uq_rider_participation_event_moto_rider
+  on rider_participation_status(event_id, moto_id, rider_id);
 
 create table if not exists event_penalty_rules (
   id uuid primary key default uuid_generate_v4(),
@@ -450,6 +454,7 @@ create table if not exists event_approval_modes (
 create table if not exists rider_status_updates (
   id uuid primary key default uuid_generate_v4(),
   event_id uuid not null references events(id) on delete cascade,
+  moto_id uuid references motos(id) on delete cascade,
   rider_id uuid not null references riders(id) on delete cascade,
   proposed_status participation_status not null,
   created_by text not null,

@@ -11,7 +11,7 @@ export async function GET(req: Request) {
 
   const { data: statusUpdates } = await adminClient
     .from('rider_status_updates')
-    .select('id, event_id, rider_id, proposed_status, approval_status, created_by, created_at')
+    .select('id, event_id, moto_id, rider_id, proposed_status, approval_status, created_by, created_at')
     .eq('event_id', eventId)
     .eq('approval_status', 'PENDING')
 

@@ -160,7 +160,7 @@ export default function JuryFinishPage() {
       }
       const [res, statusRes, resultRes] = await Promise.all([
         apiFetch(`/api/jury/motos/${selectedMotoId}/riders`),
-        apiFetch(`/api/jury/events/${eventId}/rider-status`),
+        apiFetch(`/api/jury/events/${eventId}/rider-status?moto_id=${selectedMotoId}`),
         apiFetch(`/api/jury/motos/${selectedMotoId}/results`),
       ])
       setRiders((res.data ?? []) as RiderItem[])

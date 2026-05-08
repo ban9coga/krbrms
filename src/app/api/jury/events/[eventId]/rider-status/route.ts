@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../../lib/auth'
 import { assertMotoEditable, assertMotoNotUnderProtest } from '../../../../../../lib/motoLock'
+import { isMotoLive } from '../../../../../../lib/motoStatus'
 import { requireJury } from '../../../../../../services/juryAuth'
 
 const getApprovalMode = async (eventId: string) => {
@@ -27,19 +28,25 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const { eventId } = await params
   const auth = await requireJury(req, ['CHECKER', 'FINISHER', 'RACE_DIRECTOR', 'ADMIN', 'super_admin'], eventId)
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+  const { searchParams } = new URL(req.url)
+  const motoId = searchParams.get('moto_id')
 
-  const { data: approvedRows, error: approvedError } = await adminClient
+  let approvedQuery = adminClient
     .from('rider_participation_status')
-    .select('rider_id, participation_status')
+    .select('rider_id, participation_status, moto_id')
     .eq('event_id', eventId)
+  if (motoId) approvedQuery = approvedQuery.eq('moto_id', motoId)
+  const { data: approvedRows, error: approvedError } = await approvedQuery
 
   if (approvedError) return NextResponse.json({ error: approvedError.message }, { status: 400 })
 
-  const { data: updates, error: updatesError } = await adminClient
+  let updatesQuery = adminClient
     .from('rider_status_updates')
-    .select('rider_id, proposed_status, approval_status, created_at')
+    .select('rider_id, proposed_status, approval_status, created_at, moto_id')
     .eq('event_id', eventId)
     .order('created_at', { ascending: false })
+  if (motoId) updatesQuery = updatesQuery.eq('moto_id', motoId)
+  const { data: updates, error: updatesError } = await updatesQuery
 
   if (updatesError) return NextResponse.json({ error: updatesError.message }, { status: 400 })
 
@@ -83,8 +90,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
   const body = await req.json()
   const { rider_id, participation_status, registration_order = 0, moto_id } = body ?? {}
-  if (!rider_id || !participation_status) {
-    return NextResponse.json({ error: 'rider_id and participation_status required' }, { status: 400 })
+  if (!rider_id || !participation_status || !moto_id) {
+    return NextResponse.json({ error: 'rider_id, participation_status, and moto_id required' }, { status: 400 })
   }
   if (!['ACTIVE', 'DNS', 'ABSENT'].includes(participation_status)) {
     return NextResponse.json({ error: 'Invalid status for jury start' }, { status: 400 })
@@ -101,18 +108,22 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       return NextResponse.json({ error: err instanceof Error ? err.message : 'Moto locked.' }, { status: 409 })
     }
   }
-  if (moto_id) {
-    const { data: moto, error: motoError } = await adminClient
-      .from('motos')
-      .select('id, status')
-      .eq('id', moto_id)
-      .maybeSingle()
-    if (motoError) return NextResponse.json({ error: motoError.message }, { status: 400 })
-    try {
-      assertMotoNotUnderProtest((moto as { status?: string | null })?.status ?? null)
-    } catch (err: unknown) {
-      return NextResponse.json({ error: err instanceof Error ? err.message : 'Moto under protest review.' }, { status: 409 })
-    }
+  const { data: moto, error: motoError } = await adminClient
+    .from('motos')
+    .select('id, event_id, status')
+    .eq('id', moto_id)
+    .maybeSingle()
+  if (motoError) return NextResponse.json({ error: motoError.message }, { status: 400 })
+  if (!moto || moto.event_id !== eventId) {
+    return NextResponse.json({ error: 'Moto not found in event.' }, { status: 404 })
+  }
+  try {
+    assertMotoNotUnderProtest((moto as { status?: string | null })?.status ?? null)
+  } catch (err: unknown) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Moto under protest review.' }, { status: 409 })
+  }
+  if (!isMotoLive(moto.status)) {
+    return NextResponse.json({ error: 'Checker hanya bisa update status saat moto masih LIVE.' }, { status: 409 })
   }
 
   const approvalMode = await getApprovalMode(eventId)
@@ -123,6 +134,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     .insert([
       {
         event_id: eventId,
+        moto_id,
         rider_id,
         proposed_status: participation_status,
         created_by: auth.user.id,
@@ -143,12 +155,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
         [
           {
             event_id: eventId,
+            moto_id,
             rider_id,
             participation_status,
             registration_order,
           },
         ],
-        { onConflict: 'event_id,rider_id' }
+        { onConflict: 'event_id,moto_id,rider_id' }
       )
   }
 
@@ -157,6 +170,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       action_type: 'STATUS_APPROVAL',
       performed_by: shouldAutoApply ? 'SYSTEM' : auth.user.id,
       rider_id,
+      moto_id,
       event_id: eventId,
       reason: shouldAutoApply
         ? participation_status === 'ACTIVE'
