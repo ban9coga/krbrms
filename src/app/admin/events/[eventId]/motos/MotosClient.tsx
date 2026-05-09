@@ -134,8 +134,6 @@ export default function MotosClient({ eventId }: { eventId: string }) {
 
   useEffect(() => {
     load()
-    const interval = setInterval(() => load(), 15000)
-    return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
 
@@ -366,7 +364,23 @@ export default function MotosClient({ eventId }: { eventId: string }) {
   return (
     <div style={{ maxWidth: 980 }} className="motos-print-root">
       <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
-        <div />
+        <button
+          type="button"
+          onClick={() => load()}
+          disabled={loading}
+          style={{
+            padding: '10px 12px',
+            borderRadius: 12,
+            border: '2px solid #111',
+            background: '#dcfce7',
+            fontWeight: 900,
+            cursor: loading ? 'not-allowed' : 'pointer',
+            whiteSpace: 'nowrap',
+            opacity: loading ? 0.6 : 1,
+          }}
+        >
+          {loading ? 'Loading...' : 'Refresh'}
+        </button>
         <button
           type="button"
           onClick={() => window.print()}
