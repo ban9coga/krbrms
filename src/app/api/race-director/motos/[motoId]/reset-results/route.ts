@@ -15,7 +15,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
   if (motoError) return NextResponse.json({ error: motoError.message }, { status: 400 })
   if (!moto) return NextResponse.json({ error: 'Moto not found' }, { status: 404 })
 
-  const auth = await requireJury(req, ['RACE_DIRECTOR', 'super_admin', 'admin'], moto.event_id)
+  const auth = await requireJury(req, ['RACE_DIRECTOR', 'super_admin', 'admin', 'central_admin'], moto.event_id)
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
   const currentStatus = String(moto.status ?? '').toUpperCase()

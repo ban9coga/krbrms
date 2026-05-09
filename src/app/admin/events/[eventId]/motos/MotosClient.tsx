@@ -323,6 +323,38 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     }
   }
 
+  const handleResetResults = async (motoId: string) => {
+    const moto = motos.find((m) => m.id === motoId)
+    if (!moto) return
+
+    const currentStatus = String(moto.status ?? '').toUpperCase()
+    if (currentStatus === 'LOCKED') {
+      alert('Moto masih LOCKED. Unlock dulu sebelum reset results.')
+      return
+    }
+    if (currentStatus === 'PROTEST_REVIEW') {
+      alert('Moto sedang PROTEST_REVIEW. Selesaikan review dulu sebelum reset.')
+      return
+    }
+
+    const ok = confirm(`Reset results untuk moto: ${moto.moto_name}?`)
+    if (!ok) return
+
+    const reason = window.prompt('Alasan reset results moto ini', 'Perbaikan hasil input')
+    if (reason === null) return
+
+    try {
+      await apiFetch(`/api/race-director/motos/${motoId}/reset-results`, {
+        method: 'POST',
+        body: JSON.stringify({ reason: reason.trim() || 'Reset moto results' }),
+      })
+      alert('Results berhasil direset!')
+      await load()
+    } catch (err: unknown) {
+      alert(getErrorMessage(err))
+    }
+  }
+
   const toggleCategoryCard = (categoryId: string) => {
     setHiddenCategoryIds((prev) =>
       prev.includes(categoryId) ? prev.filter((id) => id !== categoryId) : [...prev, categoryId]
@@ -493,6 +525,22 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                           }}
                         >
                           Lock Moto
+                        </button>
+                      )}
+                      {m.status !== 'LOCKED' && m.status !== 'PROTEST_REVIEW' && (
+                        <button
+                          type="button"
+                          onClick={() => handleResetResults(m.id)}
+                          style={{
+                            padding: '8px 12px',
+                            borderRadius: 999,
+                            border: '2px solid #111',
+                            background: '#fee2e2',
+                            fontWeight: 900,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Reset Result
                         </button>
                       )}
                       <button
