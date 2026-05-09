@@ -134,7 +134,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
 
   useEffect(() => {
     load()
-    const interval = setInterval(() => load(), 3000)
+    const interval = setInterval(() => load(), 15000)
     return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
