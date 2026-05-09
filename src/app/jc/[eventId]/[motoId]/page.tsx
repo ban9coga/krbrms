@@ -78,6 +78,7 @@ export default function JCPage() {
   const [penaltyRules, setPenaltyRules] = useState<PenaltyRule[]>([])
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [warningMessage, setWarningMessage] = useState<string | null>(null)
+  const [allReadyDone, setAllReadyDone] = useState(false)
 
   const getToken = async () => {
     const { data } = await supabase.auth.getSession()
@@ -167,6 +168,7 @@ export default function JCPage() {
 
   const loadMoto = async (silent = false) => {
     if (!selectedMotoId || !eventId) return
+    setAllReadyDone(false)
     if (!silent) setLoading(true)
     if (!silent) setErrorMessage(null)
     try {
@@ -460,6 +462,7 @@ export default function JCPage() {
           `Sebagian rider lanjut dengan WARNING. Auto-penalty dilewati: ${Array.from(missingPenaltyReasons).join(', ')}.`
         )
       }
+      setAllReadyDone(true)
       await loadMoto(true)
     } catch (err: unknown) {
       setErrorMessage(err instanceof Error ? err.message : 'Gagal menjalankan All Ready.')
@@ -495,6 +498,7 @@ export default function JCPage() {
               onChange={(e) => {
                 const next = e.target.value
                 setSelectedMotoId(next)
+                setAllReadyDone(false)
                 router.replace(`/jc/${eventId}/${next}`)
               }}
               className="jc-moto-select"
@@ -598,7 +602,7 @@ export default function JCPage() {
             className="jc-action-btn jc-primary"
             type="button"
             onClick={handleAllReady}
-            disabled={saving || bannerDisabled || locked || !canGateReady}
+            disabled={saving || bannerDisabled || locked || !canGateReady || allReadyDone}
             style={{
               padding: '14px 18px',
               borderRadius: 999,
@@ -611,6 +615,24 @@ export default function JCPage() {
           >
             All Ready
           </button>
+          {allReadyDone && (
+            <button
+              className="jc-action-btn"
+              type="button"
+              onClick={() => setAllReadyDone(false)}
+              disabled={saving || bannerDisabled || locked}
+              style={{
+                padding: '10px 14px',
+                borderRadius: 999,
+                border: '2px solid #b91c1c',
+                background: '#fee2e2',
+                color: '#7f1d1d',
+                fontWeight: 900,
+              }}
+            >
+              Reset Disabled
+            </button>
+          )}
           <button
             className="jc-action-btn"
             type="button"
