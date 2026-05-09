@@ -127,13 +127,7 @@ export default function EventCard({
           </Link>
         </div>
 
-        {event.status === 'UPCOMING' && (!registrationOpen || !canRegister) && (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
-            {registrationOpen
-              ? 'Pendaftaran event ini ditutup karena semua slot kategori sudah penuh.'
-              : 'Pendaftaran event ini sedang ditutup oleh panitia.'}
-          </div>
-        )}
+
 
         {mapsUrl && mapsQrUrl && (
           <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:grid-cols-[74px_1fr] sm:items-center">
