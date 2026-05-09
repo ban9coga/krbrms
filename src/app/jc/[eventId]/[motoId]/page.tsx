@@ -166,9 +166,9 @@ export default function JCPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
 
-  const loadMoto = async (silent = false) => {
+  const loadMoto = async (silent = false, preserveAllReadyDone = false) => {
     if (!selectedMotoId || !eventId) return
-    setAllReadyDone(false)
+    if (!preserveAllReadyDone) setAllReadyDone(false)
     if (!silent) setLoading(true)
     if (!silent) setErrorMessage(null)
     try {
@@ -462,8 +462,8 @@ export default function JCPage() {
           `Sebagian rider lanjut dengan WARNING. Auto-penalty dilewati: ${Array.from(missingPenaltyReasons).join(', ')}.`
         )
       }
+      await loadMoto(true, true)
       setAllReadyDone(true)
-      await loadMoto(true)
     } catch (err: unknown) {
       setErrorMessage(err instanceof Error ? err.message : 'Gagal menjalankan All Ready.')
       await loadMoto(true)
