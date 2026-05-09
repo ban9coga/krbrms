@@ -166,7 +166,7 @@ export default function JCPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
 
-  const loadMoto = async (silent = false, preserveAllReadyDone = false) => {
+  const loadMoto = async (silent = false, preserveAllReadyDone = silent) => {
     if (!selectedMotoId || !eventId) return
     if (!preserveAllReadyDone) setAllReadyDone(false)
     if (!silent) setLoading(true)
@@ -616,22 +616,27 @@ export default function JCPage() {
             All Ready
           </button>
           {allReadyDone && (
-            <button
-              className="jc-action-btn"
-              type="button"
-              onClick={() => setAllReadyDone(false)}
-              disabled={saving || bannerDisabled || locked}
-              style={{
-                padding: '10px 14px',
-                borderRadius: 999,
-                border: '2px solid #b91c1c',
-                background: '#fee2e2',
-                color: '#7f1d1d',
-                fontWeight: 900,
-              }}
-            >
-              Reset Disabled
-            </button>
+            <div style={{ display: 'grid', gap: 8 }}>
+              <div style={{ padding: '12px 14px', borderRadius: 12, background: '#dcfce7', fontWeight: 900, textAlign: 'center' }}>
+                ✓ All Ready Sudah Dijalankan
+              </div>
+              <button
+                className="jc-action-btn"
+                type="button"
+                onClick={() => setAllReadyDone(false)}
+                disabled={saving || bannerDisabled || locked}
+                style={{
+                  padding: '10px 14px',
+                  borderRadius: 999,
+                  border: '2px solid #b91c1c',
+                  background: '#fee2e2',
+                  color: '#7f1d1d',
+                  fontWeight: 900,
+                }}
+              >
+                Reset Disabled
+              </button>
+            </div>
           )}
           <button
             className="jc-action-btn"
