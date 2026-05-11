@@ -464,6 +464,8 @@ export default function JCPage() {
       }
       await loadMoto(true, true)
       setAllReadyDone(true)
+      alert(`All Ready tersimpan untuk ${selectedCategoryLabel} | ${selectedMoto?.moto_name ?? 'Moto'}`)
+      await loadMoto(false, true)
     } catch (err: unknown) {
       setErrorMessage(err instanceof Error ? err.message : 'Gagal menjalankan All Ready.')
       await loadMoto(true)

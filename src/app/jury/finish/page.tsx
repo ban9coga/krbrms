@@ -74,7 +74,7 @@ export default function JuryFinishPage() {
     return (liveMoto ?? selectableRows[0]).id
   }, [])
 
-  const apiFetch = async (url: string, options: RequestInit = {}) => {
+  const apiFetch = useCallback(async (url: string, options: RequestInit = {}) => {
     const { data } = await supabase.auth.getSession()
     const token = data.session?.access_token
     const headers: Record<string, string> = {}
@@ -84,7 +84,7 @@ export default function JuryFinishPage() {
     const json = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(json?.error || 'Request failed')
     return json
-  }
+  }, [])
 
   const normalizedRole = String(role ?? '').trim().toUpperCase()
   const canResetMoto = normalizedRole === 'RACE_DIRECTOR' || normalizedRole === 'SUPER_ADMIN' || normalizedRole === 'ADMIN'
@@ -95,9 +95,8 @@ export default function JuryFinishPage() {
       setEvents(res.data ?? [])
       if (!eventId && res.data?.length) setEventId(res.data[0].id)
     }
-    loadEvents()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    void loadEvents()
+  }, [apiFetch, eventId])
 
   useEffect(() => {
     const loadRole = async () => {
@@ -160,66 +159,67 @@ export default function JuryFinishPage() {
       const res = await apiFetch(`/api/jury/motos/${selectedMotoId}/lock-status`)
       setMotoLocked(!!res.data)
     }
-    loadLock()
-  }, [selectedMotoId])
+    void loadLock()
+  }, [apiFetch, selectedMotoId])
 
-  useEffect(() => {
-    const loadRiders = async () => {
-      if (!eventId || !selectedMotoId) {
-        setRiders([])
-        setFinishOrder([])
-        setDnfRiders([])
-        setActions([])
-        setPenaltiesByRider({})
-        setParticipationByRider({})
-        return
-      }
-      const [res, statusRes, resultRes] = await Promise.all([
-        apiFetch(`/api/jury/motos/${selectedMotoId}/riders`),
-        apiFetch(`/api/jury/events/${eventId}/rider-status?moto_id=${selectedMotoId}`),
-        apiFetch(`/api/jury/motos/${selectedMotoId}/results`),
-      ])
-      setRiders((res.data ?? []) as RiderItem[])
-      const existingResults = (resultRes.data ?? []) as Array<{
-        rider_id: string
-        finish_order?: number | null
-        result_status?: string | null
-      }>
-      const finishFromServer = [...existingResults]
-        .filter((r) => r.result_status === 'FINISH' && r.finish_order != null)
-        .sort((a, b) => Number(a.finish_order ?? 9999) - Number(b.finish_order ?? 9999))
-        .map((r) => r.rider_id)
-      const dnfFromServer = existingResults
-        .filter((r) => r.result_status === 'DNF')
-        .map((r) => r.rider_id)
-      setFinishOrder(finishFromServer)
-      setDnfRiders(dnfFromServer)
+  const loadRiders = useCallback(async () => {
+    if (!eventId || !selectedMotoId) {
+      setRiders([])
+      setFinishOrder([])
+      setDnfRiders([])
       setActions([])
-      const currentMotoStatus = motos.find((m) => m.id === selectedMotoId)?.status
-      const motoIsLive = isMotoLive(currentMotoStatus)
-      setHasSubmitted(!motoIsLive && existingResults.length > 0)
-      const statusMap: Record<string, string> = {}
-      for (const row of statusRes.data ?? []) {
-        if (row?.rider_id && row?.participation_status) {
-          statusMap[row.rider_id] = row.participation_status
-        }
-      }
-      setParticipationByRider(statusMap)
-      if (eventId) {
-        const penaltiesRes = await apiFetch(`/api/jury/events/${eventId}/rider-penalties?moto_id=${selectedMotoId}`)
-        const map: Record<string, number> = {}
-        for (const row of penaltiesRes.data ?? []) {
-          const approval = Array.isArray(row.rider_penalty_approvals)
-            ? row.rider_penalty_approvals[0]?.approval_status
-            : row.rider_penalty_approvals?.approval_status
-          if (approval !== 'APPROVED') continue
-          map[row.rider_id] = (map[row.rider_id] ?? 0) + Number(row.penalty_point ?? 0)
-        }
-        setPenaltiesByRider(map)
+      setPenaltiesByRider({})
+      setParticipationByRider({})
+      return
+    }
+    const [res, statusRes, resultRes] = await Promise.all([
+      apiFetch(`/api/jury/motos/${selectedMotoId}/riders`),
+      apiFetch(`/api/jury/events/${eventId}/rider-status?moto_id=${selectedMotoId}`),
+      apiFetch(`/api/jury/motos/${selectedMotoId}/results`),
+    ])
+    setRiders((res.data ?? []) as RiderItem[])
+    const existingResults = (resultRes.data ?? []) as Array<{
+      rider_id: string
+      finish_order?: number | null
+      result_status?: string | null
+    }>
+    const finishFromServer = [...existingResults]
+      .filter((r) => r.result_status === 'FINISH' && r.finish_order != null)
+      .sort((a, b) => Number(a.finish_order ?? 9999) - Number(b.finish_order ?? 9999))
+      .map((r) => r.rider_id)
+    const dnfFromServer = existingResults
+      .filter((r) => r.result_status === 'DNF')
+      .map((r) => r.rider_id)
+    setFinishOrder(finishFromServer)
+    setDnfRiders(dnfFromServer)
+    setActions([])
+    const currentMotoStatus = motos.find((m) => m.id === selectedMotoId)?.status
+    const motoIsLive = isMotoLive(currentMotoStatus)
+    setHasSubmitted(!motoIsLive && existingResults.length > 0)
+    const statusMap: Record<string, string> = {}
+    for (const row of statusRes.data ?? []) {
+      if (row?.rider_id && row?.participation_status) {
+        statusMap[row.rider_id] = row.participation_status
       }
     }
-    loadRiders()
-  }, [eventId, selectedMotoId, motos])
+    setParticipationByRider(statusMap)
+    if (eventId) {
+      const penaltiesRes = await apiFetch(`/api/jury/events/${eventId}/rider-penalties?moto_id=${selectedMotoId}`)
+      const map: Record<string, number> = {}
+      for (const row of penaltiesRes.data ?? []) {
+        const approval = Array.isArray(row.rider_penalty_approvals)
+          ? row.rider_penalty_approvals[0]?.approval_status
+          : row.rider_penalty_approvals?.approval_status
+        if (approval !== 'APPROVED') continue
+        map[row.rider_id] = (map[row.rider_id] ?? 0) + Number(row.penalty_point ?? 0)
+      }
+      setPenaltiesByRider(map)
+    }
+  }, [apiFetch, eventId, motos, selectedMotoId])
+
+  useEffect(() => {
+    void loadRiders()
+  }, [loadRiders])
 
   const categoryLabel = useMemo(() => {
     const map = new Map<string, string>()
@@ -356,6 +356,8 @@ export default function JuryFinishPage() {
       } else {
         alert('Submit completed.')
       }
+      await loadAll()
+      await loadRiders()
     } finally {
       setSaving(false)
     }
