@@ -212,16 +212,22 @@ export default function JCPage() {
         is_checked: boolean
       }>
       if (requirements.length > 0) setSafetyRequirements(requirements)
-      if (checks.length > 0) {
-        setSafetyChecks((prev) => {
-          const next = { ...prev }
-          for (const row of checks) {
-            const current = next[row.rider_id] ?? {}
-            next[row.rider_id] = { ...current, [row.requirement_id]: row.is_checked }
+      setSafetyChecks((prev) => {
+        const next = { ...prev }
+        for (const rider of (riderRes.data ?? []) as RiderItem[]) {
+          const current = next[rider.id] ?? {}
+          const updated: Record<string, boolean> = { ...current }
+          for (const item of requirements) {
+            if (typeof updated[item.id] !== 'boolean') updated[item.id] = true
           }
-          return next
-        })
-      }
+          next[rider.id] = updated
+        }
+        for (const row of checks) {
+          const current = next[row.rider_id] ?? {}
+          next[row.rider_id] = { ...current, [row.requirement_id]: row.is_checked }
+        }
+        return next
+      })
       const penaltyMap: Record<string, Set<string>> = {}
       for (const row of penaltiesRes.data ?? []) {
         const set = penaltyMap[row.rider_id] ?? new Set<string>()
@@ -253,7 +259,7 @@ export default function JCPage() {
         const current = next[rider.id] ?? {}
         const updated: Record<string, boolean> = { ...current }
         for (const item of safetyRequirements) {
-          if (typeof updated[item.id] !== 'boolean') updated[item.id] = false
+          if (typeof updated[item.id] !== 'boolean') updated[item.id] = true
         }
         next[rider.id] = updated
       }
@@ -475,6 +481,7 @@ export default function JCPage() {
   }
 
   const bannerDisabled = !selectedMotoLive
+  const interactionDisabled = saving || bannerDisabled || locked || allReadyDone
   const canGateReady =
     riderList.length > 0 &&
     riderList.every((r) => {
@@ -604,7 +611,7 @@ export default function JCPage() {
             className="jc-action-btn jc-primary"
             type="button"
             onClick={handleAllReady}
-            disabled={saving || bannerDisabled || locked || !canGateReady || allReadyDone}
+            disabled={interactionDisabled || !canGateReady}
             style={{
               padding: '14px 18px',
               borderRadius: 999,
@@ -667,7 +674,7 @@ export default function JCPage() {
                 }
               }
             }}
-            disabled={saving || bannerDisabled || locked || !hasSafetyRequirements}
+            disabled={interactionDisabled || !hasSafetyRequirements}
             style={{
               padding: '10px 14px',
               borderRadius: 999,
@@ -733,7 +740,7 @@ export default function JCPage() {
             const rawStatus = statuses[r.id]?.participation_status
             const currentStatus = rawStatus ?? 'UNSET'
             const hasStatus = typeof rawStatus === 'string'
-            const statusDisabled = saving || bannerDisabled || locked
+            const statusDisabled = interactionDisabled
             const safetyOk = isSafetyOk(r.id)
             const statusBadge =
               !hasStatus
@@ -829,7 +836,7 @@ export default function JCPage() {
                             }))
                           }
                         }}
-                        disabled={saving || bannerDisabled || locked}
+                        disabled={interactionDisabled}
                         style={{
                           padding: '10px 8px',
                           borderRadius: 12,
