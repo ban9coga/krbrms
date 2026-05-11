@@ -137,42 +137,41 @@ export function computeQualificationAdvancesFromRanks(
   primaryAdvance: Pick<StageAdvance, 'toStage' | 'finalClass'> = { toStage: 'QUARTER_FINAL' },
   customRules?: CustomSplitRule[]
 ): StageAdvance[] {
-  if (Array.isArray(customRules) && customRules.length > 0) {
-    const orderedRules = [...customRules].sort(
-      (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.rankFrom - b.rankFrom || a.rankTo - b.rankTo
-    )
-    return ranked.reduce<StageAdvance[]>((acc, row, index) => {
-      const slot = index + 1
-      const rule = orderedRules.find((item) => slot >= item.rankFrom && slot <= item.rankTo)
-      if (!rule) return acc
-      if (rule.targetStage === 'FINAL') {
-        acc.push({ riderId: row.riderId, toStage: 'FINAL', finalClass: rule.targetFinalClass ?? 'ELITE' })
-        return acc
-      }
-      acc.push({ riderId: row.riderId, toStage: rule.targetStage })
-      return acc
-    }, [])
-  }
-
   const advances: StageAdvance[] = []
   const primaryRows = ranked.slice(0, 4)
   const consolationRows = ranked.slice(primaryRows.length)
   const splitRemainderHalf = Math.ceil(consolationRows.length / 2)
+  const orderedRules = Array.isArray(customRules) && customRules.length > 0
+    ? [...customRules].sort(
+        (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.rankFrom - b.rankFrom || a.rankTo - b.rankTo
+      )
+    : []
 
   for (const [index, row] of ranked.entries()) {
-    if (index < primaryRows.length) {
-      applyPrimaryAdvance(advances, row.riderId, primaryAdvance)
-    } else if (primaryAdvance.toStage === 'FINAL') {
-      advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass: 'NOVICE' })
-    } else if (primaryAdvance.toStage === 'SEMI_FINAL') {
-      const consolationIndex = index - primaryRows.length
-      const finalClass: FinalClass = consolationIndex < splitRemainderHalf ? 'PRO' : 'ROOKIE'
-      advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass })
+    const slot = index + 1
+    const customRule = orderedRules.find((item) => slot >= item.rankFrom && slot <= item.rankTo)
+
+    if (customRule) {
+      if (customRule.targetStage === 'FINAL') {
+        advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass: customRule.targetFinalClass ?? 'ELITE' })
+      } else {
+        advances.push({ riderId: row.riderId, toStage: customRule.targetStage })
+      }
     } else {
-      const qualificationLowerClasses: FinalClass[] = ['ADVANCED', 'ACADEMY', 'AMATEUR', 'BEGINNER']
-      const finalClass = qualificationLowerClasses[index - primaryRows.length]
-      if (finalClass) {
+      if (index < primaryRows.length) {
+        applyPrimaryAdvance(advances, row.riderId, primaryAdvance)
+      } else if (primaryAdvance.toStage === 'FINAL') {
+        advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass: 'NOVICE' })
+      } else if (primaryAdvance.toStage === 'SEMI_FINAL') {
+        const consolationIndex = index - primaryRows.length
+        const finalClass: FinalClass = consolationIndex < splitRemainderHalf ? 'PRO' : 'ROOKIE'
         advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass })
+      } else {
+        const qualificationLowerClasses: FinalClass[] = ['ADVANCED', 'ACADEMY', 'AMATEUR', 'BEGINNER']
+        const finalClass = qualificationLowerClasses[index - primaryRows.length]
+        if (finalClass) {
+          advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass })
+        }
       }
     }
   }
