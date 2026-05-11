@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../../lib/auth'
 import { requireJury } from '../../../../../../services/juryAuth'
 
+const isQualificationMoto = (motoName: string): boolean => {
+  const match = motoName.match(/moto\s*(\d+)\s*(?:-\s*)?batch\s*(\d+)/i)
+  return !!match
+}
+
 export async function POST(req: Request, { params }: { params: Promise<{ motoId: string }> }) {
   const { motoId } = await params
   const body = await req.json().catch(() => ({}))
@@ -9,7 +14,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
 
   const { data: moto, error: motoError } = await adminClient
     .from('motos')
-    .select('id, event_id, status')
+    .select('id, event_id, category_id, status, moto_name')
     .eq('id', motoId)
     .maybeSingle()
   if (motoError) return NextResponse.json({ error: motoError.message }, { status: 400 })
@@ -73,6 +78,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
       .eq('stage', 'MOTO')
       .in('rider_id', riderIds)
     if (penaltyDeleteError) return NextResponse.json({ error: penaltyDeleteError.message }, { status: 400 })
+
+    if (isQualificationMoto(moto.moto_name)) {
+      const { error: stageDeleteError } = await adminClient
+        .from('race_stage_result')
+        .delete()
+        .eq('category_id', moto.category_id)
+        .in('rider_id', riderIds)
+        .in('stage', ['QUARTER_FINAL', 'SEMI_FINAL', 'FINAL'])
+      if (stageDeleteError) return NextResponse.json({ error: stageDeleteError.message }, { status: 400 })
+    }
   }
 
   const { error: motoUpdateError } = await adminClient
