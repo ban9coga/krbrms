@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import bcrypt from 'bcrypt'
 import { adminClient } from '../../../../../../lib/auth'
 import { requireJury } from '../../../../../../services/juryAuth'
 
@@ -17,11 +18,7 @@ const verifyCentralAdminPassword = async (eventId: string, password: string, use
   if (error || !event?.central_admin_password_hash) return false
 
   const hash = event.central_admin_password_hash
-  const saltMatch = hash.match(/^\$2[aby]\$\d+\$/)
-  if (!saltMatch) return false
-
   try {
-    const bcrypt = require('bcrypt')
     return await bcrypt.compare(password, hash)
   } catch {
     return false

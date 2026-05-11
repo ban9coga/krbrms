@@ -331,12 +331,13 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     let password = ''
 
     if (currentStatus === 'LOCKED') {
-      password = window.prompt('Moto LOCKED. Masukkan password central admin untuk reset:', '')
-      if (password === null) return
-      if (!password.trim()) {
+      const pwd = window.prompt('Moto LOCKED. Masukkan password central admin untuk reset:', '')
+      if (pwd === null) return
+      if (!pwd.trim()) {
         alert('Password harus diisi.')
         return
       }
+      password = pwd
     }
     if (currentStatus === 'PROTEST_REVIEW') {
       alert('Moto sedang PROTEST_REVIEW. Selesaikan review dulu sebelum reset.')
