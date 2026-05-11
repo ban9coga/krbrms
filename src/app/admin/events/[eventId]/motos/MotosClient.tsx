@@ -328,9 +328,15 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     if (!moto) return
 
     const currentStatus = String(moto.status ?? '').toUpperCase()
+    let password = ''
+
     if (currentStatus === 'LOCKED') {
-      alert('Moto masih LOCKED. Unlock dulu sebelum reset results.')
-      return
+      password = window.prompt('Moto LOCKED. Masukkan password central admin untuk reset:', '')
+      if (password === null) return
+      if (!password.trim()) {
+        alert('Password harus diisi.')
+        return
+      }
     }
     if (currentStatus === 'PROTEST_REVIEW') {
       alert('Moto sedang PROTEST_REVIEW. Selesaikan review dulu sebelum reset.')
@@ -346,7 +352,10 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     try {
       await apiFetch(`/api/race-director/motos/${motoId}/reset-results`, {
         method: 'POST',
-        body: JSON.stringify({ reason: reason.trim() || 'Reset moto results' }),
+        body: JSON.stringify({
+          reason: reason.trim() || 'Reset moto results',
+          ...(password && { password }),
+        }),
       })
       alert('Results berhasil direset!')
       await load()
