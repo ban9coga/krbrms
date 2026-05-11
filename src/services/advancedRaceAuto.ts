@@ -4,6 +4,7 @@ import { adminClient } from '../lib/auth'
 import { resolveCategoryConfig } from './categoryResolver'
 import { assertMotoNotUnderProtest } from '../lib/motoLock'
 import {
+  type CustomSplitRule,
   computeQualification,
   computeQualificationAdvancesFromRanks,
   computeQuarterFinal,
@@ -38,6 +39,39 @@ type StageResultSeedRow = {
   batch_id: string | null
   position: number | null
   points: number | null
+}
+
+type CustomSplitRuleRow = {
+  category_id: string
+  source_stage: 'QUALIFICATION' | 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL'
+  rank_from: number
+  rank_to: number
+  target_stage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL'
+  target_final_class: string | null
+  sort_order: number
+}
+
+async function loadQualificationCustomSplitRules(categoryId: string): Promise<CustomSplitRule[]> {
+  const { data, error } = await adminClient
+    .from('race_category_custom_split_rule')
+    .select('category_id, source_stage, rank_from, rank_to, target_stage, target_final_class, sort_order')
+    .eq('category_id', categoryId)
+    .eq('source_stage', 'QUALIFICATION')
+    .order('sort_order', { ascending: true })
+    .order('rank_from', { ascending: true })
+
+  if (error) {
+    console.warn(error.message)
+    return []
+  }
+
+  return ((data ?? []) as CustomSplitRuleRow[]).map((row) => ({
+    rankFrom: Number(row.rank_from),
+    rankTo: Number(row.rank_to),
+    targetStage: row.target_stage,
+    targetFinalClass: row.target_final_class as CustomSplitRule['targetFinalClass'],
+    sortOrder: Number(row.sort_order ?? 0),
+  }))
 }
 
 const parseBatchKey = (name: string) => {
@@ -296,10 +330,13 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
 
   if (batches.length === 0) return { ok: false, warning: 'No qualifying batches found.' }
 
+  const customQualificationRules = await loadQualificationCustomSplitRules(categoryId)
+
   const { batchRanks, advances } = computeQualification(
     batches.map((b) => ({ batchId: b.batchId, riders: b.riders, finishes: b.finishes })),
     undefined,
-    resolveQualificationPrimaryAdvance(resolved.stages)
+    resolveQualificationPrimaryAdvance(resolved.stages),
+    customQualificationRules
   )
 
   const filteredAdvances = advances.filter((row) => {
@@ -698,12 +735,14 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
   const pendingQuarterRiders = new Set<string>()
   const pendingSemiRiders = new Set<string>()
   const pendingFinalAssignments = new Map<string, string>()
+  const customQualificationRules = await loadQualificationCustomSplitRules(categoryId)
 
   Object.values(qualificationRanksByBatch).forEach((rankedRows) => {
     const orderedRanks = [...rankedRows].sort((a, b) => a.rank - b.rank || a.points - b.points || a.riderId.localeCompare(b.riderId))
     const advances = computeQualificationAdvancesFromRanks(
       orderedRanks,
-      resolveQualificationPrimaryAdvance(resolved.stages)
+      resolveQualificationPrimaryAdvance(resolved.stages),
+      customQualificationRules
     )
 
     advances.forEach((advance) => {

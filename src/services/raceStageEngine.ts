@@ -33,6 +33,14 @@ export type FinalClass =
   | 'PRO'
   | 'ELITE'
 
+export type CustomSplitRule = {
+  rankFrom: number
+  rankTo: number
+  targetStage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL'
+  targetFinalClass?: FinalClass | null
+  sortOrder?: number
+}
+
 export type FinalFinish = {
   riderId: string
   finishOrder: number | null
@@ -126,8 +134,26 @@ const rankByPoints = (scores: Record<string, number>): RankedRider[] => {
 
 export function computeQualificationAdvancesFromRanks(
   ranked: RankedRider[],
-  primaryAdvance: Pick<StageAdvance, 'toStage' | 'finalClass'> = { toStage: 'QUARTER_FINAL' }
+  primaryAdvance: Pick<StageAdvance, 'toStage' | 'finalClass'> = { toStage: 'QUARTER_FINAL' },
+  customRules?: CustomSplitRule[]
 ): StageAdvance[] {
+  if (Array.isArray(customRules) && customRules.length > 0) {
+    const orderedRules = [...customRules].sort(
+      (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.rankFrom - b.rankFrom || a.rankTo - b.rankTo
+    )
+    return ranked.reduce<StageAdvance[]>((acc, row, index) => {
+      const slot = index + 1
+      const rule = orderedRules.find((item) => slot >= item.rankFrom && slot <= item.rankTo)
+      if (!rule) return acc
+      if (rule.targetStage === 'FINAL') {
+        acc.push({ riderId: row.riderId, toStage: 'FINAL', finalClass: rule.targetFinalClass ?? 'ELITE' })
+        return acc
+      }
+      acc.push({ riderId: row.riderId, toStage: rule.targetStage })
+      return acc
+    }, [])
+  }
+
   const advances: StageAdvance[] = []
   const primaryRows = ranked.slice(0, 4)
   const consolationRows = ranked.slice(primaryRows.length)
@@ -157,7 +183,8 @@ export function computeQualificationAdvancesFromRanks(
 export function computeQualification(
   batches: BatchInput[],
   pointResolver: PointResolver = defaultPointResolver,
-  primaryAdvance: Pick<StageAdvance, 'toStage' | 'finalClass'> = { toStage: 'QUARTER_FINAL' }
+  primaryAdvance: Pick<StageAdvance, 'toStage' | 'finalClass'> = { toStage: 'QUARTER_FINAL' },
+  customRules?: CustomSplitRule[]
 ): { batchRanks: Record<string, RankedRider[]>; advances: StageAdvance[] } {
   const advances: StageAdvance[] = []
   const batchRanks: Record<string, RankedRider[]> = {}
@@ -173,7 +200,7 @@ export function computeQualification(
 
     const ranked = rankByPoints(scoreMap)
     batchRanks[batch.batchId] = ranked
-    advances.push(...computeQualificationAdvancesFromRanks(ranked, primaryAdvance))
+    advances.push(...computeQualificationAdvancesFromRanks(ranked, primaryAdvance, customRules))
   }
 
   return { batchRanks, advances }
