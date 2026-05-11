@@ -268,7 +268,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const batchEntries = Array.from(batchMap.entries()).filter(([, entry]) => entry.moto1)
   const hasMultipleBatches = batchEntries.length > 1
   const qualificationProgress = buildQualificationProgress(motoRows, gateRows, resultRows)
-  const showAdvancedClasses = qualificationProgress.ready
+  const showAdvancedClasses = !hasMultipleBatches || qualificationProgress.ready
 
   const batches = batchEntries
     .map(([batchIndex, entry]) => {
@@ -370,7 +370,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       )
 
       const classForRank = (rank: number | null | undefined) => {
-        if (!hasMultipleBatches) return null
+        if (!hasMultipleBatches) return 'ELITE'
         if (!rank) return null
         if (rank >= 1 && rank <= 4) return formatStageAdvanceLabel(resolveQualificationPrimaryAdvance(resolvedCategory.stages))
         if (!resolvedCategory.stages.enableSemiFinal && !resolvedCategory.stages.enableQuarterFinal) return 'FINAL NOVICE'
