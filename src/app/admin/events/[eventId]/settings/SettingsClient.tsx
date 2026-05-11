@@ -1,5 +1,6 @@
 'use client'
 
+import { useSearchParams } from 'next/navigation'
 import { useEffect, useMemo, useState, type DragEvent } from 'react'
 import SponsorMarquee from '../../../../../components/SponsorMarquee'
 import { formatAppRoleLabel } from '../../../../../lib/roles'
@@ -354,6 +355,7 @@ const sanitizeSponsorDrafts = (items: SponsorDraft[]): EventSponsor[] =>
     .filter(Boolean) as EventSponsor[]
 
 export default function SettingsClient({ eventId }: { eventId: string }) {
+  const searchParams = useSearchParams()
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [row, setRow] = useState<SettingsRow | null>(null)
@@ -667,6 +669,16 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
     loadStaffAssignments()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
+
+  useEffect(() => {
+    if (searchParams.get('section') !== 'advanced') return
+    setSections({
+      basic: false,
+      business: false,
+      appearance: false,
+      advanced: true,
+    })
+  }, [searchParams])
 
   const loadAdvanced = async () => {
     if (!eventId) return
