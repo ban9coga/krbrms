@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../../../lib/supabaseClient'
 import { compareMotoSequence } from '../../../lib/motoSequence'
 import { isMotoLive } from '../../../lib/motoStatus'
@@ -64,6 +64,16 @@ export default function JuryFinishPage() {
   const pressTimers = useRef<Record<string, ReturnType<typeof setTimeout> | null>>({})
   const longPressFired = useRef<Record<string, boolean>>({})
 
+  const pickNextSelectableMotoId = useCallback((list: MotoItem[], currentMotoId: string) => {
+    const selectableRows = list.filter((m) => !['LOCKED', 'FINISHED'].includes((m.status ?? '').toUpperCase()))
+    if (!selectableRows.length) return ''
+    if (currentMotoId && selectableRows.some((m) => m.id === currentMotoId)) {
+      return currentMotoId
+    }
+    const liveMoto = selectableRows.find((m) => isMotoLive(m.status))
+    return (liveMoto ?? selectableRows[0]).id
+  }, [])
+
   const apiFetch = async (url: string, options: RequestInit = {}) => {
     const { data } = await supabase.auth.getSession()
     const token = data.session?.access_token
@@ -102,44 +112,47 @@ export default function JuryFinishPage() {
     loadRole()
   }, [])
 
-  useEffect(() => {
-    const loadAll = async () => {
-      if (!eventId) return
-      const [motoRes, catRes] = await Promise.all([
-        fetch(`/api/motos?event_id=${eventId}`),
-        fetch(`/api/events/${eventId}/categories`),
-      ])
-      const motoJson = await motoRes.json()
-      const catJson = await catRes.json()
-      const catRows = (catJson.data ?? []) as CategoryItem[]
-      setCategories(catRows)
-      const yearMap = new Map<string, number>()
-      const genderMap = new Map<string, string>()
-      for (const c of catRows) {
-        yearMap.set(c.id, c.year ?? 0)
-        if (c.gender) genderMap.set(c.id, c.gender)
-      }
-      const sortedMotos = [...(motoJson.data ?? [])].sort((a: MotoItem, b: MotoItem) => {
-        const ay = yearMap.get(a.category_id ?? '') ?? 0
-        const by = yearMap.get(b.category_id ?? '') ?? 0
-        if (by !== ay) return by - ay
-        const order = { BOY: 0, GIRL: 1, MIX: 2 } as const
-        const ag = order[(genderMap.get(a.category_id ?? '') as keyof typeof order) ?? 'MIX'] ?? 9
-        const bg = order[(genderMap.get(b.category_id ?? '') as keyof typeof order) ?? 'MIX'] ?? 9
-        if (ag !== bg) return ag - bg
-        return compareMotoSequence(a, b)
-      })
-      setMotos(sortedMotos)
-      const selectableMotoRows = sortedMotos.filter((m) => !['LOCKED', 'FINISHED'].includes((m.status ?? '').toUpperCase()))
-      const selectedStillExists = selectableMotoRows.some((m) => m.id === selectedMotoId)
-      if (!selectedStillExists && selectableMotoRows.length) {
-        const liveMoto = selectableMotoRows.find((m) => isMotoLive(m.status))
-        setSelectedMotoId((liveMoto ?? selectableMotoRows[0]).id)
-      }
+  const loadAll = useCallback(async () => {
+    if (!eventId) return
+    const [motoRes, catRes] = await Promise.all([
+      fetch(`/api/motos?event_id=${eventId}`),
+      fetch(`/api/events/${eventId}/categories`),
+    ])
+    const motoJson = await motoRes.json()
+    const catJson = await catRes.json()
+    const catRows = (catJson.data ?? []) as CategoryItem[]
+    setCategories(catRows)
+    const yearMap = new Map<string, number>()
+    const genderMap = new Map<string, string>()
+    for (const c of catRows) {
+      yearMap.set(c.id, c.year ?? 0)
+      if (c.gender) genderMap.set(c.id, c.gender)
     }
+    const sortedMotos = [...(motoJson.data ?? [])].sort((a: MotoItem, b: MotoItem) => {
+      const ay = yearMap.get(a.category_id ?? '') ?? 0
+      const by = yearMap.get(b.category_id ?? '') ?? 0
+      if (by !== ay) return by - ay
+      const order = { BOY: 0, GIRL: 1, MIX: 2 } as const
+      const ag = order[(genderMap.get(a.category_id ?? '') as keyof typeof order) ?? 'MIX'] ?? 9
+      const bg = order[(genderMap.get(b.category_id ?? '') as keyof typeof order) ?? 'MIX'] ?? 9
+      if (ag !== bg) return ag - bg
+      return compareMotoSequence(a, b)
+    })
+    setMotos(sortedMotos)
+    setSelectedMotoId((prev) => pickNextSelectableMotoId(sortedMotos, prev))
+  }, [eventId, pickNextSelectableMotoId])
+
+  useEffect(() => {
     loadAll()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [eventId])
+  }, [loadAll])
+
+  useEffect(() => {
+    if (!eventId) return
+    const interval = window.setInterval(() => {
+      void loadAll()
+    }, 5000)
+    return () => window.clearInterval(interval)
+  }, [eventId, loadAll])
 
   useEffect(() => {
     const loadLock = async () => {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import CheckerTopbar from '../../components/CheckerTopbar'
 import { isMotoLive } from '../../lib/motoStatus'
@@ -39,14 +39,23 @@ export default function JCSelectorPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const categoryMap = useMemo(() => new Map(categories.map((c) => [c.id, c.label])), [categories])
 
-  const getToken = async () => {
+  const pickNextMotoId = useCallback((list: MotoItem[], currentMotoId: string) => {
+    if (!list.length) return ''
+    const liveMotos = list.filter((m) => isMotoLive(m.status))
+    if (currentMotoId && list.some((m) => m.id === currentMotoId && isMotoLive(m.status))) {
+      return currentMotoId
+    }
+    return (liveMotos[0] ?? list[0]).id
+  }, [])
+
+  const getToken = useCallback(async () => {
     const { data } = await supabase.auth.getSession()
     if (data.session?.access_token) return data.session.access_token
     const refreshed = await supabase.auth.refreshSession()
     return refreshed.data.session?.access_token ?? null
-  }
+  }, [])
 
-  const apiFetch = async (url: string, options: RequestInit = {}, retryUnauthorized = true) => {
+  const apiFetch = useCallback(async (url: string, options: RequestInit = {}, retryUnauthorized = true) => {
     const token = await getToken()
     const headers: Record<string, string> = {
       ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
@@ -65,70 +74,77 @@ export default function JCSelectorPage() {
       throw new Error(json?.error || 'Request failed')
     }
     return json
-  }
+  }, [getToken])
+
+  const loadEvents = useCallback(async () => {
+    setLoading(true)
+    setErrorMessage(null)
+    try {
+      const res = await apiFetch('/api/jury/events?status=LIVE,UPCOMING')
+      const list = (res.data ?? []) as EventItem[]
+      setEvents(list)
+      const liveEvents = list.filter((ev) => String(ev.status).toUpperCase() === 'LIVE')
+      setSingleLiveEventId(liveEvents.length === 1 ? liveEvents[0].id : null)
+      setEventId((prev) => {
+        if (prev && list.some((ev) => ev.id === prev)) return prev
+        return (liveEvents[0] ?? list[0])?.id ?? ''
+      })
+    } catch (err: unknown) {
+      setErrorMessage(err instanceof Error ? err.message : 'Gagal memuat event JC.')
+    } finally {
+      setLoading(false)
+    }
+  }, [apiFetch])
+
+  const loadMotos = useCallback(async () => {
+    if (!eventId) return
+    setLoading(true)
+    setErrorMessage(null)
+    try {
+      const [motoRes, categoryRes] = await Promise.all([
+        fetch(`/api/motos?event_id=${eventId}`),
+        fetch(`/api/events/${eventId}/categories`),
+      ])
+      const motoJson = await motoRes.json()
+      const categoryJson = await categoryRes.json()
+      const list = (motoJson.data ?? []) as MotoItem[]
+      setCategories((categoryJson.data ?? []) as CategoryItem[])
+      list.sort(compareMotoSequence)
+      setMotos(list)
+      setMotoId((prev) => pickNextMotoId(list, prev))
+
+      const liveMotos = list.filter((m) => isMotoLive(m.status))
+      if (
+        !didAutoRedirect &&
+        singleLiveEventId &&
+        eventId === singleLiveEventId &&
+        liveMotos.length === 1
+      ) {
+        setDidAutoRedirect(true)
+        router.replace(`/jc/${eventId}/${liveMotos[0].id}`)
+      }
+    } catch (err: unknown) {
+      setErrorMessage(err instanceof Error ? err.message : 'Gagal memuat moto.')
+    } finally {
+      setLoading(false)
+    }
+  }, [didAutoRedirect, eventId, pickNextMotoId, router, singleLiveEventId])
 
   useEffect(() => {
-    const loadEvents = async () => {
-      setLoading(true)
-      setErrorMessage(null)
-      try {
-        const res = await apiFetch('/api/jury/events?status=LIVE,UPCOMING')
-        const list = (res.data ?? []) as EventItem[]
-        setEvents(list)
-        const liveEvents = list.filter((ev) => String(ev.status).toUpperCase() === 'LIVE')
-        setSingleLiveEventId(liveEvents.length === 1 ? liveEvents[0].id : null)
-        if (!eventId && list.length) {
-          setEventId((liveEvents[0] ?? list[0]).id)
-        }
-      } catch (err: unknown) {
-        setErrorMessage(err instanceof Error ? err.message : 'Gagal memuat event JC.')
-      } finally {
-        setLoading(false)
-      }
-    }
     loadEvents()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [loadEvents])
 
   useEffect(() => {
-    const loadMotos = async () => {
-      if (!eventId) return
-      setLoading(true)
-      setErrorMessage(null)
-      try {
-        const [motoRes, categoryRes] = await Promise.all([
-          fetch(`/api/motos?event_id=${eventId}`),
-          fetch(`/api/events/${eventId}/categories`),
-        ])
-        const motoJson = await motoRes.json()
-        const categoryJson = await categoryRes.json()
-        const list = (motoJson.data ?? []) as MotoItem[]
-        setCategories((categoryJson.data ?? []) as CategoryItem[])
-        list.sort(compareMotoSequence)
-        setMotos(list)
-        const liveMotos = list.filter((m) => isMotoLive(m.status))
-        if (list.length) {
-          setMotoId((liveMotos[0] ?? list[0]).id)
-        } else {
-          setMotoId('')
-        }
-        if (
-          !didAutoRedirect &&
-          singleLiveEventId &&
-          eventId === singleLiveEventId &&
-          liveMotos.length === 1
-        ) {
-          setDidAutoRedirect(true)
-          router.replace(`/jc/${eventId}/${liveMotos[0].id}`)
-        }
-      } catch (err: unknown) {
-        setErrorMessage(err instanceof Error ? err.message : 'Gagal memuat moto.')
-      } finally {
-        setLoading(false)
-      }
-    }
     loadMotos()
-  }, [didAutoRedirect, eventId, router, singleLiveEventId])
+  }, [loadMotos])
+
+  useEffect(() => {
+    if (!eventId) return
+    const interval = window.setInterval(() => {
+      void loadMotos()
+    }, 5000)
+    return () => window.clearInterval(interval)
+  }, [eventId, loadMotos])
 
   return (
     <div className="public-page">
