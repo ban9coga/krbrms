@@ -553,7 +553,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                           Lock Moto
                         </button>
                       )}
-                      {m.status !== 'LOCKED' && m.status !== 'PROTEST_REVIEW' && (
+                      {m.status !== 'PROTEST_REVIEW' && (
                         <button
                           type="button"
                           onClick={() => handleResetResults(m.id)}
@@ -561,12 +561,12 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                             padding: '8px 12px',
                             borderRadius: 999,
                             border: '2px solid #111',
-                            background: '#fee2e2',
+                            background: m.status === 'LOCKED' ? '#fef3c7' : '#fee2e2',
                             fontWeight: 900,
                             cursor: 'pointer',
                           }}
                         >
-                          Reset Result
+                          {m.status === 'LOCKED' ? 'Reset Result (🔒)' : 'Reset Result'}
                         </button>
                       )}
                       <button
