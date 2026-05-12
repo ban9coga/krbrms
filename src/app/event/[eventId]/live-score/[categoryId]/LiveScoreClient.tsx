@@ -239,6 +239,11 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
 )}
 
         <section className="grid gap-4">
+  {tableRowsByBatch.length === 0 && !loading && (
+    <article className="public-panel-dark">
+      <p className="text-slate-400 text-sm text-center py-8">Belum ada batch tersedia.</p>
+    </article>
+  )}
           {tableRowsByBatch.map((batch) => (
             <article key={batch.batch_index} className="public-panel-dark">
               <div className="mb-3 flex items-center justify-between gap-2">
