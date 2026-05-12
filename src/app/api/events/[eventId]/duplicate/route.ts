@@ -7,6 +7,16 @@ const buildInsertRows = <T extends { id?: string | null }>(
   mapRow: (row: T) => Record<string, unknown> | null
 ) => (rows ?? []).map(mapRow).filter((row): row is Record<string, unknown> => Boolean(row))
 
+const toRecordArray = (value: unknown): Record<string, unknown>[] => {
+  if (!Array.isArray(value)) return []
+  return value.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
+}
+
+const toRecord = (value: unknown): Record<string, unknown> | null => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  return value as Record<string, unknown>
+}
+
 export async function POST(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params
   const auth = await requireAdmin(req.headers.get('authorization'), eventId)
@@ -134,7 +144,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     const copySimpleEventTable = async (table: string, select: string, mapRow: (row: Record<string, unknown>) => Record<string, unknown> | null) => {
       const { data, error } = await adminClient.from(table).select(select).eq('event_id', eventId)
       if (error) throw new Error(error.message)
-      const inserts = buildInsertRows(data as Record<string, unknown>[] | null | undefined, mapRow)
+      const inserts = buildInsertRows(toRecordArray(data), mapRow)
       if (inserts.length === 0) return
       const { error: insertError } = await adminClient.from(table).insert(inserts)
       if (insertError) throw new Error(insertError.message)
@@ -143,8 +153,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     const copySimplePrimaryEventTable = async (table: string, select: string, mapRow: (row: Record<string, unknown>) => Record<string, unknown>) => {
       const { data, error } = await adminClient.from(table).select(select).eq('event_id', eventId).maybeSingle()
       if (error) throw new Error(error.message)
-      if (!data) return
-      const { error: insertError } = await adminClient.from(table).insert([mapRow(data as Record<string, unknown>)])
+      const row = toRecord(data)
+      if (!row) return
+      const { error: insertError } = await adminClient.from(table).insert([mapRow(row)])
       if (insertError) throw new Error(insertError.message)
     }
 
@@ -216,7 +227,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       if (categoryIds.length === 0) return
       const { data, error } = await adminClient.from(table).select(select).in('category_id', categoryIds)
       if (error) throw new Error(error.message)
-      const inserts = buildInsertRows(data as Record<string, unknown>[] | null | undefined, (row) => {
+      const inserts = buildInsertRows(toRecordArray(data), (row) => {
         const mappedCategoryId = categoryIdMap.get(String(row.category_id ?? ''))
         if (!mappedCategoryId) return null
         return mapRow(row, randomUUID(), mappedCategoryId)
