@@ -74,6 +74,16 @@ async function loadQualificationCustomSplitRules(categoryId: string): Promise<Cu
   }))
 }
 
+const resolveAllowedFinalClasses = (resolvedFinalClasses: string[], customRules: CustomSplitRule[]) => {
+  const allowed = new Set(resolvedFinalClasses)
+  customRules.forEach((rule) => {
+    if (rule.targetStage === 'FINAL' && rule.targetFinalClass) {
+      allowed.add(rule.targetFinalClass)
+    }
+  })
+  return allowed
+}
+
 const parseBatchKey = (name: string) => {
   const match = name.match(/moto\s*(\d+)\s*-\s*batch\s*(\d+)/i)
   if (!match) return null
@@ -331,6 +341,11 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
   if (batches.length === 0) return { ok: false, warning: 'No qualifying batches found.' }
 
   const customQualificationRules = await loadQualificationCustomSplitRules(categoryId)
+  const qualificationReady = batches.every((batch) => batch.riders.length > 0 && batch.finishes.length >= batch.riders.length * 2)
+  if (!qualificationReady) {
+    return { ok: false, warning: 'Qualification incomplete.' }
+  }
+  const allowedFinalClasses = resolveAllowedFinalClasses(resolved.finalClasses, customQualificationRules)
 
   const { batchRanks, advances } = computeQualification(
     batches.map((b) => ({ batchId: b.batchId, riders: b.riders, finishes: b.finishes })),
@@ -343,30 +358,18 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
     if (row.toStage === 'QUARTER_FINAL' && !resolved.stages.enableQuarterFinal) return false
     if (row.toStage === 'SEMI_FINAL' && !resolved.stages.enableSemiFinal) return false
     if (row.toStage === 'FINAL') {
-      return resolved.finalClasses.includes(row.finalClass ?? '')
+      return allowedFinalClasses.has(row.finalClass ?? '')
     }
     return true
   })
 
-  // Only clear stages for batches that are complete to allow incremental updates.
-  const completedBatchIds = batches
-    .filter((b) => {
-      const totalMotoRiders = b.riders.length * 2
-      return b.finishes.length >= totalMotoRiders
-    })
-    .map((b) => b.batchId)
-
-  if (completedBatchIds.length > 0) {
-    await adminClient
-      .from('race_stage_result')
-      .delete()
-      .eq('category_id', categoryId)
-      .in('batch_id', completedBatchIds)
-      .in('stage', ['QUALIFICATION'])
-  }
+  await adminClient
+    .from('race_stage_result')
+    .delete()
+    .eq('category_id', categoryId)
+    .in('stage', ['QUALIFICATION'])
 
   const qualificationRows = Object.entries(batchRanks).flatMap(([batchId, ranks]) => {
-    if (!completedBatchIds.includes(batchId)) return []
     return ranks.map((row) => ({
       rider_id: row.riderId,
       category_id: categoryId,
@@ -392,7 +395,6 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
   }
 
   const advanceRows = filteredAdvances
-    .filter((row) => completedRiderIds.has(row.riderId))
     .map((row) => ({
       rider_id: row.riderId,
       category_id: categoryId,

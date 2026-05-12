@@ -53,6 +53,12 @@ type StageGroup = {
   rows: StageRow[]
 }
 
+type StageAssignmentRow = {
+  rider_id: string
+  stage: 'QUALIFICATION' | 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL'
+  final_class: string | null
+}
+
 const shuffle = <T,>(items: T[]) => {
   const out = [...items]
   for (let i = out.length - 1; i > 0; i--) {
@@ -266,9 +272,24 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   }
 
   const batchEntries = Array.from(batchMap.entries()).filter(([, entry]) => entry.moto1)
-  const hasMultipleBatches = batchEntries.length > 1
   const qualificationProgress = buildQualificationProgress(motoRows, gateRows, resultRows)
-  const showAdvancedClasses = !hasMultipleBatches || qualificationProgress.ready
+  const showAdvancedClasses = qualificationProgress.ready
+
+  const { data: stageAssignments, error: stageAssignmentError } = await adminClient
+    .from('race_stage_result')
+    .select('rider_id, stage, final_class')
+    .eq('category_id', categoryId)
+    .in('stage', ['QUARTER_FINAL', 'SEMI_FINAL', 'FINAL'])
+  if (stageAssignmentError) return NextResponse.json({ error: stageAssignmentError.message }, { status: 400 })
+
+  const stageAssignmentMap = new Map<string, string>()
+  ;((stageAssignments ?? []) as StageAssignmentRow[]).forEach((row) => {
+    if (row.stage === 'FINAL') {
+      stageAssignmentMap.set(row.rider_id, `FINAL ${row.final_class ?? 'ELITE'}`)
+      return
+    }
+    stageAssignmentMap.set(row.rider_id, row.stage.replace(/_/g, ' '))
+  })
 
   const batches = batchEntries
     .map(([batchIndex, entry]) => {
@@ -370,7 +391,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       )
 
       const classForRank = (rank: number | null | undefined) => {
-        if (!hasMultipleBatches) return 'ELITE'
         if (!rank) return null
         if (rank >= 1 && rank <= 4) return formatStageAdvanceLabel(resolveQualificationPrimaryAdvance(resolvedCategory.stages))
         if (!resolvedCategory.stages.enableSemiFinal && !resolvedCategory.stages.enableQuarterFinal) return 'FINAL NOVICE'
@@ -392,7 +412,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
           return {
             ...r,
             rank_point: rank,
-            class_label: showAdvancedClasses ? classForRank(rank) : null,
+            class_label: showAdvancedClasses ? (stageAssignmentMap.get(r.rider_id) ?? classForRank(rank)) : null,
           }
         })
         .sort((a, b) => (a.gate_moto1 ?? 9999) - (b.gate_moto1 ?? 9999))
