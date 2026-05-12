@@ -89,7 +89,7 @@ const isMotoComplete = (motoId: string, gateRows: GateRow[], resultRows: ResultR
 }
 
 const buildQualificationProgress = (motoRows: MotoRow[], gateRows: GateRow[], resultRows: ResultRow[]) => {
-  const batchMap = new Map<number, { moto1?: string; moto2?: string }>()
+  const batchMap = new Map<number, { moto1?: string; moto2?: string; moto3?: string }>()
 
   for (const moto of motoRows) {
     const parsed = parseBatchKey(moto.moto_name)
@@ -97,18 +97,27 @@ const buildQualificationProgress = (motoRows: MotoRow[], gateRows: GateRow[], re
     const entry = batchMap.get(parsed.batchIndex) ?? {}
     if (parsed.motoIndex === 1) entry.moto1 = moto.id
     if (parsed.motoIndex === 2) entry.moto2 = moto.id
+    if (parsed.motoIndex === 3) entry.moto3 = moto.id
     batchMap.set(parsed.batchIndex, entry)
   }
 
+  const requiredMotoCount = batchMap.size === 1 && Array.from(batchMap.values()).some((entry) => entry.moto3) ? 3 : 2
+
   const completeBatchIds = Array.from(batchMap.values()).filter((entry) => {
     if (!entry.moto1 || !entry.moto2) return false
-    return isMotoComplete(entry.moto1, gateRows, resultRows) && isMotoComplete(entry.moto2, gateRows, resultRows)
+    if (requiredMotoCount >= 3 && !entry.moto3) return false
+    return (
+      isMotoComplete(entry.moto1, gateRows, resultRows) &&
+      isMotoComplete(entry.moto2, gateRows, resultRows) &&
+      (requiredMotoCount < 3 || isMotoComplete(entry.moto3 as string, gateRows, resultRows))
+    )
   })
 
   return {
     total: batchMap.size,
     complete: completeBatchIds.length,
     ready: batchMap.size > 0 && completeBatchIds.length === batchMap.size,
+    requiredMotoCount,
   }
 }
 

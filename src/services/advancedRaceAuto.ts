@@ -203,8 +203,18 @@ const isMotoComplete = (motoId: string, assignedRows: MotoRiderRow[], resultRows
   return assignedRiders.every((riderId) => completedRiders.has(riderId))
 }
 
-const buildQualificationProgress = (motoRows: MotoRow[], assignedRows: MotoRiderRow[], resultRows: ResultRow[]) => {
-  const batchMap = new Map<number, { moto1?: string; moto2?: string }>()
+const resolveQualificationMotoRequirement = (batchCount: number, configuredMotoCount?: number | null) => {
+  if (batchCount === 1 && Number(configuredMotoCount ?? 2) >= 3) return 3
+  return 2
+}
+
+const buildQualificationProgress = (
+  motoRows: MotoRow[],
+  assignedRows: MotoRiderRow[],
+  resultRows: ResultRow[],
+  configuredMotoCount?: number | null
+) => {
+  const batchMap = new Map<number, { moto1?: string; moto2?: string; moto3?: string }>()
 
   for (const moto of motoRows) {
     const parsed = parseBatchKey(moto.moto_name)
@@ -212,18 +222,27 @@ const buildQualificationProgress = (motoRows: MotoRow[], assignedRows: MotoRider
     const entry = batchMap.get(parsed.batchIndex) ?? {}
     if (parsed.motoIndex === 1) entry.moto1 = moto.id
     if (parsed.motoIndex === 2) entry.moto2 = moto.id
+    if (parsed.motoIndex === 3) entry.moto3 = moto.id
     batchMap.set(parsed.batchIndex, entry)
   }
 
+  const requiredMotoCount = resolveQualificationMotoRequirement(batchMap.size, configuredMotoCount)
+
   const completeBatchIds = Array.from(batchMap.values()).filter((entry) => {
     if (!entry.moto1 || !entry.moto2) return false
-    return isMotoComplete(entry.moto1, assignedRows, resultRows) && isMotoComplete(entry.moto2, assignedRows, resultRows)
+    if (requiredMotoCount >= 3 && !entry.moto3) return false
+    return (
+      isMotoComplete(entry.moto1, assignedRows, resultRows) &&
+      isMotoComplete(entry.moto2, assignedRows, resultRows) &&
+      (requiredMotoCount < 3 || isMotoComplete(entry.moto3 as string, assignedRows, resultRows))
+    )
   })
 
   return {
     total: batchMap.size,
     complete: completeBatchIds.length,
     ready: batchMap.size > 0 && completeBatchIds.length === batchMap.size,
+    requiredMotoCount,
   }
 }
 
@@ -348,29 +367,33 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
   if (riderError) return { ok: false, warning: riderError.message }
   const motoRiderRows = (motoRiders ?? []) as MotoRiderRow[]
 
-  const batchMap = new Map<number, { moto1?: MotoRow; moto2?: MotoRow }>()
+  const batchMap = new Map<number, { moto1?: MotoRow; moto2?: MotoRow; moto3?: MotoRow }>()
   for (const moto of motoRows) {
     const parsed = parseBatchKey(moto.moto_name)
     if (!parsed) continue
     const entry = batchMap.get(parsed.batchIndex) ?? {}
     if (parsed.motoIndex === 1) entry.moto1 = moto
     if (parsed.motoIndex === 2) entry.moto2 = moto
+    if (parsed.motoIndex === 3) entry.moto3 = moto
     batchMap.set(parsed.batchIndex, entry)
   }
 
+  const requiredMotoCount = resolveQualificationMotoRequirement(batchMap.size, config.qualification_moto_count)
+
   const batches = Array.from(batchMap.entries())
-    .filter(([, entry]) => entry.moto1 && entry.moto2)
+    .filter(([, entry]) => entry.moto1 && entry.moto2 && (requiredMotoCount < 3 || entry.moto3))
     .map(([batchIndex, entry]) => {
       const moto1 = entry.moto1 as MotoRow
       const moto2 = entry.moto2 as MotoRow
+      const moto3 = entry.moto3 ?? null
       const riders = motoRiderRows
         .filter((row) => row.moto_id === moto1.id)
         .map((row) => row.rider_id)
       const finishes = resultRows
-        .filter((row) => row.moto_id === moto1.id || row.moto_id === moto2.id)
+        .filter((row) => row.moto_id === moto1.id || row.moto_id === moto2.id || (moto3 ? row.moto_id === moto3.id : false))
         .map((row) => ({
           riderId: row.rider_id,
-          motoIndex: row.moto_id === moto1.id ? 1 : 2,
+          motoIndex: row.moto_id === moto1.id ? 1 : row.moto_id === moto2.id ? 2 : 3,
           finishOrder: row.finish_order,
         }))
       return { batchId: moto1.id, batchIndex, riders, finishes }
@@ -379,7 +402,9 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
   if (batches.length === 0) return { ok: false, warning: 'No qualifying batches found.' }
 
   const customQualificationRules = await loadQualificationCustomSplitRules(categoryId)
-  const qualificationReady = batches.every((batch) => batch.riders.length > 0 && batch.finishes.length >= batch.riders.length * 2)
+  const qualificationReady = batches.every(
+    (batch) => batch.riders.length > 0 && batch.finishes.length >= batch.riders.length * requiredMotoCount
+  )
   if (!qualificationReady) {
     return { ok: false, warning: 'Qualification incomplete.' }
   }
@@ -475,7 +500,7 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
 export async function generateStageMotos(eventId: string, categoryId: string) {
   const { data: config } = await adminClient
     .from('race_stage_config')
-    .select('enabled, max_riders_per_race')
+    .select('enabled, max_riders_per_race, qualification_moto_count')
     .eq('event_id', eventId)
     .eq('category_id', categoryId)
     .maybeSingle()
@@ -514,7 +539,12 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
 
   const categoryMotoRiderRows = (categoryMotoRiders ?? []) as MotoRiderRow[]
   const categoryResultRows = (categoryResults ?? []) as ResultRow[]
-  const qualificationProgress = buildQualificationProgress(existingMotoRows, categoryMotoRiderRows, categoryResultRows)
+  const qualificationProgress = buildQualificationProgress(
+    existingMotoRows,
+    categoryMotoRiderRows,
+    categoryResultRows,
+    config.qualification_moto_count
+  )
   const existingQuarterMotos = existingMotoRows.filter((moto) => /^Quarter Final/i.test(moto.moto_name))
   const existingSemiMotos = existingMotoRows.filter((moto) => /^Semi Final/i.test(moto.moto_name))
   const existingFinalMotos = existingMotoRows.filter((moto) => /^Final /i.test(moto.moto_name))
