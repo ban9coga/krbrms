@@ -328,16 +328,9 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     if (!moto) return
 
     const currentStatus = String(moto.status ?? '').toUpperCase()
-    let password = ''
-
     if (currentStatus === 'LOCKED') {
-      const pwd = window.prompt('Moto LOCKED. Masukkan password central admin untuk reset:', '')
-      if (pwd === null) return
-      if (!pwd.trim()) {
-        alert('Password harus diisi.')
-        return
-      }
-      password = pwd
+      alert('Moto masih LOCKED. Unlock dulu sebelum reset results.')
+      return
     }
     if (currentStatus === 'PROTEST_REVIEW') {
       alert('Moto sedang PROTEST_REVIEW. Selesaikan review dulu sebelum reset.')
@@ -353,10 +346,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     try {
       await apiFetch(`/api/race-director/motos/${motoId}/reset-results`, {
         method: 'POST',
-        body: JSON.stringify({
-          reason: reason.trim() || 'Reset moto results',
-          ...(password && { password }),
-        }),
+        body: JSON.stringify({ reason: reason.trim() || 'Reset moto results' }),
       })
       alert('Results berhasil direset!')
       await load()
@@ -553,7 +543,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                           Lock Moto
                         </button>
                       )}
-                      {m.status !== 'PROTEST_REVIEW' && (
+                      {m.status !== 'LOCKED' && m.status !== 'PROTEST_REVIEW' && (
                         <button
                           type="button"
                           onClick={() => handleResetResults(m.id)}
@@ -561,12 +551,12 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                             padding: '8px 12px',
                             borderRadius: 999,
                             border: '2px solid #111',
-                            background: m.status === 'LOCKED' ? '#fef3c7' : '#fee2e2',
+                            background: '#fee2e2',
                             fontWeight: 900,
                             cursor: 'pointer',
                           }}
                         >
-                          {m.status === 'LOCKED' ? 'Reset Result (🔒)' : 'Reset Result'}
+                          Reset Result
                         </button>
                       )}
                       <button

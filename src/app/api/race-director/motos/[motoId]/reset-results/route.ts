@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server'
-import bcrypt from 'bcrypt'
 import { adminClient } from '../../../../../../lib/auth'
 import { requireJury } from '../../../../../../services/juryAuth'
 
@@ -8,28 +7,10 @@ const isQualificationMoto = (motoName: string): boolean => {
   return !!match
 }
 
-const verifyCentralAdminPassword = async (eventId: string, password: string, userId: string): Promise<boolean> => {
-  const { data: event, error } = await adminClient
-    .from('events')
-    .select('central_admin_password_hash')
-    .eq('id', eventId)
-    .maybeSingle()
-
-  if (error || !event?.central_admin_password_hash) return false
-
-  const hash = event.central_admin_password_hash
-  try {
-    return await bcrypt.compare(password, hash)
-  } catch {
-    return false
-  }
-}
-
 export async function POST(req: Request, { params }: { params: Promise<{ motoId: string }> }) {
   const { motoId } = await params
   const body = await req.json().catch(() => ({}))
   const reason = typeof body?.reason === 'string' && body.reason.trim() ? body.reason.trim() : 'Reset moto results'
-  const password = typeof body?.password === 'string' ? body.password : ''
 
   const { data: moto, error: motoError } = await adminClient
     .from('motos')
@@ -44,10 +25,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
 
   const currentStatus = String(moto.status ?? '').toUpperCase()
   if (currentStatus === 'LOCKED') {
-    const isPasswordValid = await verifyCentralAdminPassword(moto.event_id, password, auth.user.id)
-    if (!isPasswordValid) {
-      return NextResponse.json({ error: 'Password central admin tidak valid. Reset moto locked ditolak.' }, { status: 401 })
-    }
+    return NextResponse.json({ error: 'Moto masih LOCKED. Unlock dulu sebelum reset results.' }, { status: 409 })
   }
   if (currentStatus === 'PROTEST_REVIEW') {
     return NextResponse.json({ error: 'Moto sedang PROTEST_REVIEW. Selesaikan review dulu sebelum reset.' }, { status: 409 })
