@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../lib/auth'
+import {
+  computeQualificationAndStore,
+  generateStageMotos,
+} from '../../../../../services/advancedRaceAuto'
 
 type CustomRuleInput = {
   id?: string
@@ -84,20 +88,39 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     return NextResponse.json({ error: 'rank_to must be greater than or equal to rank_from' }, { status: 400 })
   }
 
-  await adminClient.from('race_category_custom_split_rule').delete().eq('category_id', categoryId)
-
-  if (normalizedRules.length === 0) {
-    return NextResponse.json({ data: [] })
-  }
-
-  const { data, error } = await adminClient
+  const { error: deleteError } = await adminClient
     .from('race_category_custom_split_rule')
-    .insert(normalizedRules)
-    .select('id, category_id, source_stage, rank_from, rank_to, target_stage, target_final_class, sort_order')
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 })
+    .delete()
+    .eq('category_id', categoryId)
+  if (deleteError) {
+    return NextResponse.json({ error: deleteError.message }, { status: 400 })
   }
 
-  return NextResponse.json({ data: data ?? [] })
+  let savedRules: unknown[] = []
+  if (normalizedRules.length > 0) {
+    const { data, error } = await adminClient
+      .from('race_category_custom_split_rule')
+      .insert(normalizedRules)
+      .select('id, category_id, source_stage, rank_from, rank_to, target_stage, target_final_class, sort_order')
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
+    savedRules = data ?? []
+  }
+
+  const qualificationResult = await computeQualificationAndStore(eventId, categoryId)
+  let warning = qualificationResult.ok ? null : qualificationResult.warning ?? null
+
+  if (qualificationResult.ok) {
+    const stageMotoResult = await generateStageMotos(eventId, categoryId)
+    if (!stageMotoResult.ok) {
+      warning = stageMotoResult.warning ?? warning
+    }
+  }
+
+  return NextResponse.json({
+    data: savedRules,
+    warning,
+  })
 }
