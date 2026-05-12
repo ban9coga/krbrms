@@ -125,7 +125,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       const motoRows = (motoJson.data ?? []) as MotoItem[]
       setMotos(motoRows)
       const categoryIds = Array.from(new Set(motoRows.map((m) => m.category_id))).filter(Boolean)
-      setHiddenCategoryIds(categoryIds)
+      setHiddenCategoryIds([])
       await loadGateOrders(categoryIds)
     } finally {
       setLoading(false)
