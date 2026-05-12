@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto'
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../lib/auth'
 
-const buildInsertRows = <T extends { id?: string | null }>(
+const buildInsertRows = <T,>(
   rows: T[] | null | undefined,
   mapRow: (row: T) => Record<string, unknown> | null
 ) => (rows ?? []).map(mapRow).filter((row): row is Record<string, unknown> => Boolean(row))
