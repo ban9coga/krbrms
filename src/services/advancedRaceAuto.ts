@@ -51,6 +51,13 @@ type CustomSplitRuleRow = {
   sort_order: number
 }
 
+type QualificationRankRow = {
+  riderId: string
+  points: number
+  rank: number
+  batchId: string | null
+}
+
 async function loadQualificationCustomSplitRules(categoryId: string): Promise<CustomSplitRule[]> {
   const { data, error } = await adminClient
     .from('race_category_custom_split_rule')
@@ -220,6 +227,35 @@ const buildQualificationProgress = (motoRows: MotoRow[], assignedRows: MotoRider
   }
 }
 
+const sortQualificationRankRows = (rows: QualificationRankRow[]) =>
+  [...rows].sort((a, b) => {
+    if (a.points !== b.points) return a.points - b.points
+    if (a.rank !== b.rank) return a.rank - b.rank
+    const batchDiff = (a.batchId ?? '').localeCompare(b.batchId ?? '')
+    if (batchDiff !== 0) return batchDiff
+    return a.riderId.localeCompare(b.riderId)
+  })
+
+const rankCombinedQualificationRows = (rows: QualificationRankRow[]) => {
+  const sorted = sortQualificationRankRows(rows)
+  let currentRank = 0
+  let lastPoints: number | null = null
+  let lastBatchRank: number | null = null
+
+  return sorted.map((row, index) => {
+    if (lastPoints === null || row.points !== lastPoints || row.rank !== lastBatchRank) {
+      currentRank = index + 1
+      lastPoints = row.points
+      lastBatchRank = row.rank
+    }
+    return {
+      riderId: row.riderId,
+      points: row.points,
+      rank: currentRank,
+    }
+  })
+}
+
 const areAllMotosComplete = (motos: MotoRow[], assignedRows: MotoRiderRow[], resultRows: ResultRow[]) =>
   motos.length > 0 && motos.every((moto) => isMotoComplete(moto.id, assignedRows, resultRows))
 
@@ -356,8 +392,28 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
     customQualificationRules,
     { singleBatchFinalElite: batches.length === 1 }
   )
+  const useCombinedCustomSplit = customQualificationRules.length > 0 && batches.length > 1
+  const combinedQualificationRanks = useCombinedCustomSplit
+    ? rankCombinedQualificationRows(
+        Object.entries(batchRanks).flatMap(([batchId, ranks]) =>
+          ranks.map((row) => ({
+            riderId: row.riderId,
+            points: row.points,
+            rank: row.rank,
+            batchId,
+          }))
+        )
+      )
+    : []
+  const effectiveAdvances = useCombinedCustomSplit
+    ? computeQualificationAdvancesFromRanks(
+        combinedQualificationRanks,
+        resolveQualificationPrimaryAdvance(resolved.stages),
+        customQualificationRules
+      )
+    : advances
 
-  const filteredAdvances = advances.filter((row) => {
+  const filteredAdvances = effectiveAdvances.filter((row) => {
     if (row.toStage === 'QUARTER_FINAL' && !resolved.stages.enableQuarterFinal) return false
     if (row.toStage === 'SEMI_FINAL' && !resolved.stages.enableSemiFinal) return false
     if (row.toStage === 'FINAL') {
@@ -794,27 +850,45 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
   const pendingSemiRiders = new Set<string>()
   const pendingFinalAssignments = new Map<string, string>()
   const customQualificationRules = await loadQualificationCustomSplitRules(categoryId)
+  const qualificationBatchCount = Object.keys(qualificationRanksByBatch).length
+  const useCombinedCustomSplit = customQualificationRules.length > 0 && qualificationBatchCount > 1
+  const qualificationAdvances = useCombinedCustomSplit
+    ? computeQualificationAdvancesFromRanks(
+        rankCombinedQualificationRows(
+          Object.entries(qualificationRanksByBatch).flatMap(([batchId, rankedRows]) =>
+            rankedRows.map((row) => ({
+              riderId: row.riderId,
+              points: row.points,
+              rank: row.rank,
+              batchId,
+            }))
+          )
+        ),
+        resolveQualificationPrimaryAdvance(resolved.stages),
+        customQualificationRules
+      )
+    : Object.values(qualificationRanksByBatch).flatMap((rankedRows) => {
+        const orderedRanks = [...rankedRows].sort(
+          (a, b) => a.rank - b.rank || a.points - b.points || a.riderId.localeCompare(b.riderId)
+        )
+        return computeQualificationAdvancesFromRanks(
+          orderedRanks,
+          resolveQualificationPrimaryAdvance(resolved.stages),
+          customQualificationRules,
+          { singleBatchFinalElite: qualificationBatchCount === 1 }
+        )
+      })
 
-  Object.values(qualificationRanksByBatch).forEach((rankedRows) => {
-    const orderedRanks = [...rankedRows].sort((a, b) => a.rank - b.rank || a.points - b.points || a.riderId.localeCompare(b.riderId))
-    const advances = computeQualificationAdvancesFromRanks(
-      orderedRanks,
-      resolveQualificationPrimaryAdvance(resolved.stages),
-      customQualificationRules,
-      { singleBatchFinalElite: Object.keys(qualificationRanksByBatch).length === 1 }
-    )
-
-    advances.forEach((advance) => {
-      if (advance.toStage === 'QUARTER_FINAL') {
-        pendingQuarterRiders.add(advance.riderId)
-        return
-      }
-      if (advance.toStage === 'SEMI_FINAL') {
-        pendingSemiRiders.add(advance.riderId)
-        return
-      }
-      addFinalAssignment(pendingFinalAssignments, advance.riderId, advance.finalClass)
-    })
+  qualificationAdvances.forEach((advance) => {
+    if (advance.toStage === 'QUARTER_FINAL') {
+      pendingQuarterRiders.add(advance.riderId)
+      return
+    }
+    if (advance.toStage === 'SEMI_FINAL') {
+      pendingSemiRiders.add(advance.riderId)
+      return
+    }
+    addFinalAssignment(pendingFinalAssignments, advance.riderId, advance.finalClass)
   })
 
   const completedQuarterRiders = new Set<string>()
