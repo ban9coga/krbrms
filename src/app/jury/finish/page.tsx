@@ -148,10 +148,11 @@ export default function JuryFinishPage() {
   useEffect(() => {
     if (!eventId) return
     const interval = window.setInterval(() => {
+      if (selectedMotoLive && !hasSubmitted) return
       void loadAll()
     }, 5000)
     return () => window.clearInterval(interval)
-  }, [eventId, loadAll])
+  }, [eventId, hasSubmitted, loadAll, selectedMotoLive])
 
   useEffect(() => {
     const loadLock = async () => {
@@ -161,6 +162,22 @@ export default function JuryFinishPage() {
     }
     void loadLock()
   }, [apiFetch, selectedMotoId])
+
+  const categoryLabel = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const c of categories) map.set(c.id, c.label)
+    return map
+  }, [categories])
+
+  const selectedMoto = useMemo(() => motos.find((m) => m.id === selectedMotoId) ?? null, [motos, selectedMotoId])
+  const selectedMotoLive = isMotoLive(selectedMoto?.status)
+  const selectedCategoryLabel = selectedMoto
+    ? categoryLabel.get(selectedMoto.category_id ?? '') ?? 'Unknown Category'
+    : null
+  const selectableMotos = useMemo(
+    () => motos.filter((m) => !['LOCKED', 'FINISHED'].includes((m.status ?? '').toUpperCase())),
+    [motos]
+  )
 
   const loadRiders = useCallback(async () => {
     if (!eventId || !selectedMotoId) {
@@ -193,9 +210,7 @@ export default function JuryFinishPage() {
     setFinishOrder(finishFromServer)
     setDnfRiders(dnfFromServer)
     setActions([])
-    const currentMotoStatus = motos.find((m) => m.id === selectedMotoId)?.status
-    const motoIsLive = isMotoLive(currentMotoStatus)
-    setHasSubmitted(!motoIsLive && existingResults.length > 0)
+    setHasSubmitted(!isMotoLive(selectedMoto?.status) && existingResults.length > 0)
     const statusMap: Record<string, string> = {}
     for (const row of statusRes.data ?? []) {
       if (row?.rider_id && row?.participation_status) {
@@ -215,27 +230,11 @@ export default function JuryFinishPage() {
       }
       setPenaltiesByRider(map)
     }
-  }, [apiFetch, eventId, motos, selectedMotoId])
+  }, [apiFetch, eventId, selectedMoto, selectedMotoId])
 
   useEffect(() => {
     void loadRiders()
   }, [loadRiders])
-
-  const categoryLabel = useMemo(() => {
-    const map = new Map<string, string>()
-    for (const c of categories) map.set(c.id, c.label)
-    return map
-  }, [categories])
-
-  const selectedMoto = useMemo(() => motos.find((m) => m.id === selectedMotoId) ?? null, [motos, selectedMotoId])
-  const selectedMotoLive = isMotoLive(selectedMoto?.status)
-  const selectedCategoryLabel = selectedMoto
-    ? categoryLabel.get(selectedMoto.category_id ?? '') ?? 'Unknown Category'
-    : null
-  const selectableMotos = useMemo(
-    () => motos.filter((m) => !['LOCKED', 'FINISHED'].includes((m.status ?? '').toUpperCase())),
-    [motos]
-  )
 
   const availableRiders = useMemo(() => {
     const finished = new Set(finishOrder)
