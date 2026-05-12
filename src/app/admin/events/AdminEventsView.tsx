@@ -325,6 +325,18 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
     )
   }
 
+  const handleDuplicate = async (event: EventItem) => {
+    await runEventAction(
+      `duplicate-${event.id}`,
+      async () => {
+        await apiFetch(`/api/events/${event.id}/duplicate`, {
+          method: 'POST',
+        })
+      },
+      `Event "${event.name}" berhasil diduplikasi.`
+    )
+  }
+
   const filteredEvents = useMemo(() => {
     const q = query.trim().toLowerCase()
 
@@ -694,6 +706,9 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
                   </button>
                   <button type="button" onClick={() => void handleEdit(event)} className={subtleButtonClass} disabled={busy}>
                     Edit Basics
+                  </button>
+                  <button type="button" onClick={() => void handleDuplicate(event)} className={subtleButtonClass} disabled={busy}>
+                    Duplicate Event
                   </button>
                   <button
                     type="button"
