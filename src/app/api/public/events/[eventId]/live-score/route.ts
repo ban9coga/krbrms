@@ -59,14 +59,6 @@ type StageAssignmentRow = {
   final_class: string | null
 }
 
-type CustomSplitRuleRow = {
-  rank_from: number
-  rank_to: number
-  target_stage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL'
-  target_final_class: string | null
-  sort_order: number
-}
-
 const shuffle = <T,>(items: T[]) => {
   const out = [...items]
   for (let i = out.length - 1; i > 0; i--) {
@@ -233,6 +225,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       statusMap.set(`${row.moto_id}:${row.rider_id}`, row.participation_status)
     }
   }
+
   const qualificationPenaltyMap = new Map<string, number>()
   const stagePenaltyMap = new Map<string, number>()
   if (riderIds.length > 0) {
@@ -259,6 +252,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       }
     }
   }
+
   const { data: riders, error: riderError } = await adminClient
     .from('riders')
     .select('id, name, rider_nickname, no_plate_display, club, photo_thumbnail_url')
@@ -299,17 +293,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     stageAssignmentMap.set(row.rider_id, row.stage.replace(/_/g, ' '))
   })
 
-  // FIX: Load custom split rules untuk kategori ini
-  const { data: customSplitRules, error: customSplitError } = await adminClient
-    .from('custom_final_split_rules')
-    .select('rank_from, rank_to, target_stage, target_final_class, sort_order')
-    .eq('category_id', categoryId)
-    .order('sort_order', { ascending: true })
-  if (customSplitError) return NextResponse.json({ error: customSplitError.message }, { status: 400 })
-  const customRules = (customSplitRules ?? []) as CustomSplitRuleRow[]
-
-  const isSingleBatch = batchEntries.length === 1
-
   const batches = batchEntries
     .map(([batchIndex, entry]) => {
       const moto1 = entry.moto1 as MotoRow
@@ -321,9 +304,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       const gate1Map = new Map(gates1.map((g) => [g.rider_id, g.gate_position]))
       const gate2Map = new Map(gates2.map((g) => [g.rider_id, g.gate_position]))
       const gate3Map = new Map(gates3.map((g) => [g.rider_id, g.gate_position]))
-      const riderIdsInBatch = Array.from(
-        new Set([...gate1Map.keys(), ...gate2Map.keys(), ...gate3Map.keys()])
-      )
+      const riderIdsInBatch = Array.from(new Set([...gate1Map.keys(), ...gate2Map.keys(), ...gate3Map.keys()]))
 
       const rows = riderIdsInBatch.map((riderId) => {
         const rider = riderMap.get(riderId)
@@ -362,18 +343,18 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
           penaltyTotalForDq >= 7
             ? 'DQ'
             : riderStatus === 'ABSENT'
-            ? 'DNS'
-            : moto1Result?.result_status === 'DNS' || (moto2 ? moto2Result?.result_status === 'DNS' : false)
-            ? 'DNS'
-            : moto3Result?.result_status === 'DNF' ||
-              (moto2 ? moto2Result?.result_status === 'DNF' : false) ||
-              moto1Result?.result_status === 'DNF'
-            ? 'DNF'
-            : moto1Result?.result_status === 'FINISH' &&
-              (!moto2 || moto2Result?.result_status === 'FINISH') &&
-              (!moto3 || moto3Result?.result_status === 'FINISH')
-            ? 'FINISHED'
-            : 'DNS'
+              ? 'DNS'
+              : moto1Result?.result_status === 'DNS' || (moto2 ? moto2Result?.result_status === 'DNS' : false)
+                ? 'DNS'
+                : moto3Result?.result_status === 'DNF' ||
+                    (moto2 ? moto2Result?.result_status === 'DNF' : false) ||
+                    moto1Result?.result_status === 'DNF'
+                  ? 'DNF'
+                  : moto1Result?.result_status === 'FINISH' &&
+                      (!moto2 || moto2Result?.result_status === 'FINISH') &&
+                      (!moto3 || moto3Result?.result_status === 'FINISH')
+                    ? 'FINISHED'
+                    : 'DNS'
         return {
           rider_id: riderId,
           gate_moto1: gate1Map.get(riderId) ?? null,
@@ -409,27 +390,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
           .map((r) => [r.rider_id, r.rank])
       )
 
-      // FIX: classForRank sekarang respek custom rules dan single batch
       const classForRank = (rank: number | null | undefined) => {
         if (!rank) return null
-
-        // Prioritas 1: custom split rules
-        const customRule = customRules.find((r) => rank >= r.rank_from && rank <= r.rank_to)
-        if (customRule) {
-          if (customRule.target_stage === 'FINAL') {
-            return `FINAL ${customRule.target_final_class ?? 'ELITE'}`
-          }
-          return customRule.target_stage.replace(/_/g, ' ')
-        }
-
-        // Prioritas 2: single batch tanpa custom rules → semua FINAL ELITE
-        if (isSingleBatch) return 'FINAL ELITE'
-
-        // Prioritas 3: logic AMS standar (multi-batch)
-        if (rank >= 1 && rank <= 4)
-          return formatStageAdvanceLabel(resolveQualificationPrimaryAdvance(resolvedCategory.stages))
-        if (!resolvedCategory.stages.enableSemiFinal && !resolvedCategory.stages.enableQuarterFinal)
-          return 'FINAL NOVICE'
+        if (rank >= 1 && rank <= 4) return formatStageAdvanceLabel(resolveQualificationPrimaryAdvance(resolvedCategory.stages))
+        if (!resolvedCategory.stages.enableSemiFinal && !resolvedCategory.stages.enableQuarterFinal) return 'FINAL NOVICE'
         if (resolvedCategory.stages.enableSemiFinal && !resolvedCategory.stages.enableQuarterFinal) {
           if (rank === 5 || rank === 6) return 'FINAL PRO'
           if (rank === 7 || rank === 8) return 'FINAL ROOKIE'
