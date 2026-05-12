@@ -323,6 +323,24 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     }
   }
 
+  const handleUnlockMoto = async (motoId: string) => {
+    const moto = motos.find((m) => m.id === motoId)
+    if (!moto) return
+
+    const ok = confirm(`Unlock moto: ${moto.moto_name}? Moto akan kembali ke status PROVISIONAL.`)
+    if (!ok) return
+
+    try {
+      await apiFetch(`/api/motos/${motoId}/status`, {
+        method: 'POST',
+        body: JSON.stringify({ status: 'PROVISIONAL' }),
+      })
+      await load()
+    } catch (err: unknown) {
+      alert(getErrorMessage(err))
+    }
+  }
+
   const handleResetResults = async (motoId: string) => {
     const moto = motos.find((m) => m.id === motoId)
     if (!moto) return
@@ -541,6 +559,23 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                           }}
                         >
                           Lock Moto
+                        </button>
+                      )}
+                      {m.status === 'LOCKED' && (
+                        <button
+                          type="button"
+                          onClick={() => handleUnlockMoto(m.id)}
+                          disabled={eventStatus !== 'LIVE'}
+                          style={{
+                            padding: '8px 12px',
+                            borderRadius: 999,
+                            border: '2px solid #111',
+                            background: '#e0f2fe',
+                            fontWeight: 900,
+                            cursor: eventStatus === 'LIVE' ? 'pointer' : 'not-allowed',
+                          }}
+                        >
+                          Unlock Moto
                         </button>
                       )}
                       {m.status !== 'LOCKED' && m.status !== 'PROTEST_REVIEW' && (
