@@ -290,6 +290,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   if (stageAssignmentError) return NextResponse.json({ error: stageAssignmentError.message }, { status: 400 })
 
   const stageAssignmentMap = new Map<string, string>()
+  // Public live score should reflect the stored AMS assignments, not recompute custom split rules ad hoc.
   ;((stageAssignments ?? []) as StageAssignmentRow[]).forEach((row) => {
     if (row.stage === 'FINAL') {
       stageAssignmentMap.set(row.rider_id, `FINAL ${row.final_class ?? 'ELITE'}`)
