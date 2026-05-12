@@ -330,9 +330,6 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
   if (!config?.enabled) return { ok: false, warning: 'Advanced race disabled.' }
 
   const resolved = await resolveCategoryConfig(categoryId)
-  if (!resolved.stages.enableQualification) {
-    return { ok: false, warning: resolved.warning ?? 'Qualification disabled by resolver.' }
-  }
 
   const { data: motos, error: motoError } = await adminClient
     .from('motos')
@@ -379,6 +376,10 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
   }
 
   const requiredMotoCount = resolveQualificationMotoRequirement(batchMap.size, config.qualification_moto_count)
+  const allowSingleBatchThreeMotoQualification = batchMap.size === 1 && requiredMotoCount >= 3
+  if (!resolved.stages.enableQualification && !allowSingleBatchThreeMotoQualification) {
+    return { ok: false, warning: resolved.warning ?? 'Qualification disabled by resolver.' }
+  }
 
   const batches = Array.from(batchMap.entries())
     .filter(([, entry]) => entry.moto1 && entry.moto2 && (requiredMotoCount < 3 || entry.moto3))

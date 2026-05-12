@@ -100,7 +100,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
 
   if (!isQualificationReady(qualificationMotoRows, (assignedRows ?? []) as MotoRiderRow[], (resultRows ?? []) as ResultRow[])) {
     return NextResponse.json(
-      { warning: 'Belum ada hasil qualification lengkap. Selesaikan Moto 1 dan Moto 2 semua batch dulu.' },
+      { warning: 'Belum ada hasil qualification lengkap. Selesaikan semua moto qualification yang diperlukan dulu.' },
       { status: 200 }
     )
   }
