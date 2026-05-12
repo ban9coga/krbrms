@@ -192,11 +192,15 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ riderI
   // Ensure the category row exists for the (possibly updated) DOB/gender.
   const nextPrimaryCategoryId = await resolveCategory(rider.event_id, nextBirthYear, nextGender)
 
-  const { data: existingExtraCategory } = await adminClient
+  const { data: existingExtraCategoryRows } = await adminClient
     .from('rider_extra_categories')
     .select('id, category_id, categories(id, year, year_min, year_max, gender)')
     .eq('rider_id', riderId)
-    .maybeSingle()
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(1)
+
+  const existingExtraCategory = (existingExtraCategoryRows ?? [])[0] ?? null
 
   const linkedCategoryRaw = existingExtraCategory?.categories
   const linkedExtraCategory = (

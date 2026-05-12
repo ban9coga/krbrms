@@ -1,13 +1,11 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../lib/auth'
+import { getLatestRiderExtraCategory, saveRiderExtraCategory } from '../../../../../lib/riderExtraCategory'
 
 export async function GET(_: Request, { params }: { params: Promise<{ riderId: string }> }) {
   const { riderId } = await params
-  const { data } = await adminClient
-    .from('rider_extra_categories')
-    .select('id, category_id')
-    .eq('rider_id', riderId)
-    .maybeSingle()
+  const { data, error } = await getLatestRiderExtraCategory(riderId)
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json({ data: data ?? null })
 }
 
@@ -52,20 +50,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ riderId:
     return NextResponse.json({ error: 'Gender must match for extra category' }, { status: 400 })
   }
 
-  const { data, error } = await adminClient
-    .from('rider_extra_categories')
-    .upsert(
-      [
-        {
-          rider_id: riderId,
-          event_id: rider.event_id,
-          category_id: categoryId,
-        },
-      ],
-      { onConflict: 'rider_id' }
-    )
-    .select('id, category_id')
-    .single()
+  const { data, error } = await saveRiderExtraCategory({
+    riderId,
+    eventId: rider.event_id,
+    categoryId,
+  })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json({ data })

@@ -4,6 +4,7 @@ import {
   isMissingPrimaryCategoryColumnError,
   missingPrimaryCategoryMigrationMessage,
 } from '../../../lib/categoryAssignment'
+import { saveRiderExtraCategory } from '../../../lib/riderExtraCategory'
 
 const MIN_BIRTH_YEAR = 2016
 const MAX_BIRTH_YEAR = 2025
@@ -343,16 +344,11 @@ export async function POST(req: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
   if (validatedExtraCategoryId) {
-    const { error: extraError } = await adminClient.from('rider_extra_categories').upsert(
-      [
-        {
-          rider_id: data.id,
-          event_id,
-          category_id: validatedExtraCategoryId,
-        },
-      ],
-      { onConflict: 'rider_id' }
-    )
+    const { error: extraError } = await saveRiderExtraCategory({
+      riderId: data.id,
+      eventId: event_id,
+      categoryId: validatedExtraCategoryId,
+    })
 
     if (extraError) {
       return NextResponse.json({ error: extraError.message }, { status: 400 })
