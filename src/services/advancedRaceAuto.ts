@@ -187,6 +187,8 @@ const buildGateRows = (motoId: string, riderIds: string[]) => {
   }))
 }
 
+const hasMotoResults = (motoId: string, resultRows: ResultRow[]) => resultRows.some((row) => row.moto_id === motoId)
+
 const isMotoComplete = (motoId: string, assignedRows: MotoRiderRow[], resultRows: ResultRow[]) => {
   const assignedRiders = assignedRows.filter((row) => row.moto_id === motoId).map((row) => row.rider_id)
   if (assignedRiders.length === 0) return false
@@ -573,6 +575,59 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
   const existingFinalClasses = new Set(
     existingFinalMotos.map((moto) => moto.moto_name.replace(/^Final\s+/i, '').trim().toUpperCase())
   )
+  const existingFinalMotoRiders = existingFinalMotos.length
+    ? (
+        await adminClient
+          .from('moto_riders')
+          .select('moto_id, rider_id')
+          .in('moto_id', existingFinalMotos.map((m) => m.id))
+      ).data ?? []
+    : []
+  const existingFinalRiderMap = new Map<string, string[]>()
+  for (const row of existingFinalMotoRiders as MotoRiderRow[]) {
+    const list = existingFinalRiderMap.get(row.moto_id) ?? []
+    list.push(row.rider_id)
+    existingFinalRiderMap.set(row.moto_id, list)
+  }
+
+  for (const moto of existingFinalMotos) {
+    const finalClass = moto.moto_name.replace(/^Final\s+/i, '').trim().toUpperCase()
+    const desiredRiders = finals[finalClass] ?? []
+    const finalReady = isFinalClassReady(finalClass, resolved.stages, readiness)
+    const motoHasResults = hasMotoResults(moto.id, categoryResultRows)
+    const currentRiders = [...(existingFinalRiderMap.get(moto.id) ?? [])].sort((a, b) => a.localeCompare(b))
+    const orderedDesiredRiders = orderRidersBySeedRows(
+      desiredRiders,
+      resolveFinalSeedRows(finalClass, qualificationRows, quarterResultRows, semiResultRows)
+    )
+    const desiredSorted = [...orderedDesiredRiders].sort((a, b) => a.localeCompare(b))
+
+    if ((!finalReady || desiredRiders.length === 0) && !motoHasResults) {
+      await adminClient.from('motos').delete().eq('id', moto.id)
+      existingFinalClasses.delete(finalClass)
+      continue
+    }
+
+    if (!motoHasResults) {
+      const sameAssignments =
+        currentRiders.length === desiredSorted.length &&
+        currentRiders.every((riderId, index) => riderId === desiredSorted[index])
+
+      if (!sameAssignments) {
+        await adminClient.from('moto_gate_positions').delete().eq('moto_id', moto.id)
+        await adminClient.from('moto_riders').delete().eq('moto_id', moto.id)
+        if (orderedDesiredRiders.length > 0) {
+          await adminClient
+            .from('moto_riders')
+            .insert(orderedDesiredRiders.map((riderId) => ({ moto_id: moto.id, rider_id: riderId })))
+          if (gateTableReady) {
+            await adminClient.from('moto_gate_positions').insert(buildGateRows(moto.id, orderedDesiredRiders))
+          }
+        }
+      }
+    }
+  }
+
   const finalsToCreate = FINAL_CLASS_ORDER.filter(
     (key) => (finals[key] ?? []).length > 0 && !existingFinalClasses.has(key) && isFinalClassReady(key, resolved.stages, readiness)
   )
