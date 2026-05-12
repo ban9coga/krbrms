@@ -351,7 +351,8 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
     batches.map((b) => ({ batchId: b.batchId, riders: b.riders, finishes: b.finishes })),
     undefined,
     resolveQualificationPrimaryAdvance(resolved.stages),
-    customQualificationRules
+    customQualificationRules,
+    { singleBatchFinalElite: batches.length === 1 }
   )
 
   const filteredAdvances = advances.filter((row) => {
@@ -744,7 +745,8 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
     const advances = computeQualificationAdvancesFromRanks(
       orderedRanks,
       resolveQualificationPrimaryAdvance(resolved.stages),
-      customQualificationRules
+      customQualificationRules,
+      { singleBatchFinalElite: Object.keys(qualificationRanksByBatch).length === 1 }
     )
 
     advances.forEach((advance) => {

@@ -135,7 +135,10 @@ const rankByPoints = (scores: Record<string, number>): RankedRider[] => {
 export function computeQualificationAdvancesFromRanks(
   ranked: RankedRider[],
   primaryAdvance: Pick<StageAdvance, 'toStage' | 'finalClass'> = { toStage: 'QUARTER_FINAL' },
-  customRules?: CustomSplitRule[]
+  customRules?: CustomSplitRule[],
+  options?: {
+    singleBatchFinalElite?: boolean
+  }
 ): StageAdvance[] {
   const advances: StageAdvance[] = []
   const primaryRows = ranked.slice(0, 4)
@@ -146,6 +149,7 @@ export function computeQualificationAdvancesFromRanks(
         (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.rankFrom - b.rankFrom || a.rankTo - b.rankTo
       )
     : []
+  const singleBatchFinalElite = Boolean(options?.singleBatchFinalElite) && orderedRules.length === 0
 
   for (const [index, row] of ranked.entries()) {
     const slot = index + 1
@@ -157,6 +161,8 @@ export function computeQualificationAdvancesFromRanks(
       } else {
         advances.push({ riderId: row.riderId, toStage: customRule.targetStage })
       }
+    } else if (singleBatchFinalElite) {
+      advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass: 'ELITE' })
     } else {
       if (index < primaryRows.length) {
         applyPrimaryAdvance(advances, row.riderId, primaryAdvance)
@@ -183,7 +189,10 @@ export function computeQualification(
   batches: BatchInput[],
   pointResolver: PointResolver = defaultPointResolver,
   primaryAdvance: Pick<StageAdvance, 'toStage' | 'finalClass'> = { toStage: 'QUARTER_FINAL' },
-  customRules?: CustomSplitRule[]
+  customRules?: CustomSplitRule[],
+  options?: {
+    singleBatchFinalElite?: boolean
+  }
 ): { batchRanks: Record<string, RankedRider[]>; advances: StageAdvance[] } {
   const advances: StageAdvance[] = []
   const batchRanks: Record<string, RankedRider[]> = {}
@@ -199,7 +208,7 @@ export function computeQualification(
 
     const ranked = rankByPoints(scoreMap)
     batchRanks[batch.batchId] = ranked
-    advances.push(...computeQualificationAdvancesFromRanks(ranked, primaryAdvance, customRules))
+    advances.push(...computeQualificationAdvancesFromRanks(ranked, primaryAdvance, customRules, options))
   }
 
   return { batchRanks, advances }
