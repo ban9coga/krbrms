@@ -234,7 +234,9 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
         </section>
 
         {loading && <LoadingState />}
-        {!loading && batches.length === 0 && <EmptyState label="Belum ada batch." />}
+        {!loading && batches.length === 0 && stages.length === 0 && (
+  <EmptyState label="Belum ada data." />
+)}
 
         <section className="grid gap-4">
           {tableRowsByBatch.map((batch) => (
