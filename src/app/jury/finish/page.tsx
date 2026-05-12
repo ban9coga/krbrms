@@ -148,11 +148,12 @@ export default function JuryFinishPage() {
   useEffect(() => {
     if (!eventId) return
     const interval = window.setInterval(() => {
-      if (selectedMotoLive && !hasSubmitted) return
+      const currentSelectedMoto = motos.find((m) => m.id === selectedMotoId) ?? null
+      if (isMotoLive(currentSelectedMoto?.status) && !hasSubmitted) return
       void loadAll()
     }, 5000)
     return () => window.clearInterval(interval)
-  }, [eventId, hasSubmitted, loadAll, selectedMotoLive])
+  }, [eventId, hasSubmitted, loadAll, motos, selectedMotoId])
 
   useEffect(() => {
     const loadLock = async () => {
