@@ -74,6 +74,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
   const [showMotoRiderList, setShowMotoRiderList] = useState(false)
   const [loading, setLoading] = useState(false)
   const [eventStatus, setEventStatus] = useState<'UPCOMING' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED' | null>(null)
+  const [eventName, setEventName] = useState('Event')
 
   const getErrorMessage = (err: unknown) => (err instanceof Error ? err.message : 'Request failed')
 
@@ -119,6 +120,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
 
       const eventJson = await apiFetch(`/api/events/${eventId}`)
       setEventStatus(eventJson?.data?.status ?? null)
+      setEventName(eventJson?.data?.name ?? 'Event')
 
       const motoRes = await fetch(`/api/motos?event_id=${eventId}`)
       const motoJson = await motoRes.json()
@@ -379,6 +381,205 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     )
   }
 
+  const handlePrintMotoRiders = () => {
+    if (printGroups.length === 0) {
+      alert('Belum ada data rider per moto yang bisa dicetak.')
+      return
+    }
+
+    const sections = printGroups
+      .map((group) => {
+        const batchesHtml = group.batches
+          .map((batch) => {
+            const headers = batch.motoColumns
+              .map((col) => `<th>Gate ${col.label}</th>`)
+              .join('')
+            const motoMeta = batch.motoColumns
+              .map((col) => `${col.label}: ${col.moto_name} (${col.status})`)
+              .join(' | ')
+            const rows = batch.riderRows.length
+              ? batch.riderRows
+                  .map((row) => {
+                    const gates = batch.motoColumns
+                      .map((col) => `<td>${row.gates[col.key] ?? '-'}</td>`)
+                      .join('')
+                    return `
+                      <tr>
+                        ${gates}
+                        <td>${row.no_plate_display}</td>
+                        <td>${row.name}</td>
+                      </tr>
+                    `
+                  })
+                  .join('')
+              : `
+                <tr>
+                  <td colspan="${batch.motoColumns.length + 2}">Belum ada rider pada batch ini.</td>
+                </tr>
+              `
+
+            return `
+              <section class="batch-card">
+                <div class="batch-title">Batch ${batch.batchNo}</div>
+                <div class="batch-meta">${motoMeta}</div>
+                <table>
+                  <thead>
+                    <tr>
+                      ${headers}
+                      <th>No Plate</th>
+                      <th>Nama Rider</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${rows}
+                  </tbody>
+                </table>
+              </section>
+            `
+          })
+          .join('')
+
+        return `
+          <section class="category-section">
+            <h2>${group.categoryLabel}</h2>
+            ${batchesHtml}
+          </section>
+        `
+      })
+      .join('')
+
+    const html = `
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>Cetak Moto Seluruh Kategori</title>
+          <style>
+            * { box-sizing: border-box; }
+            body {
+              margin: 0;
+              padding: 24px;
+              font-family: Arial, sans-serif;
+              color: #0f172a;
+              background: #ffffff;
+            }
+            h1 {
+              margin: 0 0 6px;
+              font-size: 26px;
+            }
+            .subtitle {
+              margin-bottom: 18px;
+              font-size: 13px;
+              font-weight: 700;
+              color: #475569;
+            }
+            .category-section {
+              margin-bottom: 24px;
+              padding: 16px;
+              border: 2px solid #111827;
+              border-radius: 16px;
+              page-break-inside: avoid;
+            }
+            .category-section h2 {
+              margin: 0 0 12px;
+              font-size: 20px;
+            }
+            .batch-card {
+              margin-top: 12px;
+              padding: 12px;
+              border: 1px solid #cbd5e1;
+              border-radius: 12px;
+              background: #f8fafc;
+              page-break-inside: avoid;
+            }
+            .batch-title {
+              font-size: 15px;
+              font-weight: 900;
+              margin-bottom: 6px;
+            }
+            .batch-meta {
+              font-size: 11px;
+              font-weight: 700;
+              color: #475569;
+              margin-bottom: 10px;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              font-size: 12px;
+            }
+            th, td {
+              border-bottom: 1px solid #dbeafe;
+              padding: 6px 8px;
+              text-align: left;
+            }
+            th {
+              background: #e2e8f0;
+              font-weight: 900;
+            }
+            td {
+              font-weight: 700;
+            }
+            @media print {
+              body {
+                padding: 12px;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <h1>Data Rider Per Moto Seluruh Kategori</h1>
+          <div class="subtitle">${eventName}</div>
+          ${sections}
+          <script>
+            window.onload = function () {
+              window.print();
+            };
+          </script>
+        </body>
+      </html>
+    `
+
+    const iframe = document.createElement('iframe')
+    iframe.style.position = 'fixed'
+    iframe.style.right = '0'
+    iframe.style.bottom = '0'
+    iframe.style.width = '0'
+    iframe.style.height = '0'
+    iframe.style.border = '0'
+    iframe.style.visibility = 'hidden'
+    document.body.appendChild(iframe)
+
+    const printWindow = iframe.contentWindow
+    const printDoc = iframe.contentDocument || printWindow?.document
+    if (!printWindow || !printDoc) {
+      document.body.removeChild(iframe)
+      alert('Gagal membuka preview cetak. Refresh halaman lalu coba lagi.')
+      return
+    }
+
+    printDoc.open()
+    printDoc.write(html)
+    printDoc.close()
+
+    const cleanup = () => {
+      setTimeout(() => {
+        try {
+          document.body.removeChild(iframe)
+        } catch {
+          // no-op
+        }
+      }, 600)
+    }
+
+    printWindow.onafterprint = cleanup
+    setTimeout(() => {
+      printWindow.focus()
+      printWindow.print()
+      cleanup()
+    }, 350)
+  }
+
   return (
     <div style={{ maxWidth: 980 }} className="motos-print-root">
       <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
@@ -401,7 +602,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
         </button>
         <button
           type="button"
-          onClick={() => window.print()}
+          onClick={handlePrintMotoRiders}
           style={{
             padding: '10px 12px',
             borderRadius: 12,
@@ -412,7 +613,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
             whiteSpace: 'nowrap',
           }}
         >
-          Cetak / Save PDF
+          Cetak Rider Per Moto
         </button>
       </div>
       <h1 style={{ fontSize: 26, fontWeight: 950, margin: 0 }}>Motos</h1>
