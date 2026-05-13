@@ -652,7 +652,6 @@ export default function LiveDisplayClient({
                 )}
               </section>
 
-              {!showResultBoard || prepareQueue.length > 0 ? (
               <section className="rounded-[24px] border border-slate-700 bg-slate-900 shadow-2xl">
                 <div className="flex items-center justify-between border-b border-slate-800 px-6 py-4">
                   <div>
@@ -713,7 +712,6 @@ export default function LiveDisplayClient({
                   </div>
                 )}
               </section>
-              ) : null}
             </div>
           </>
         )}
