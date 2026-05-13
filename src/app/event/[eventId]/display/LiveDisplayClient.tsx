@@ -659,7 +659,7 @@ export default function LiveDisplayClient({
                       <table className="w-full border-collapse text-xs md:text-sm">
                         <thead>
                           <tr className="bg-slate-900 text-left font-black uppercase tracking-[0.12em] text-white">
-                            {['Rank', 'Plate', 'Panggilan', 'Komunitas', 'Point', 'Penalty', 'Status'].map((h) => (
+                          {['Rank', 'Plate', 'Nama Rider', 'Komunitas', 'Point', 'Penalty', 'Status'].map((h) => (
                               <th key={h} className="px-3 py-3">
                                 {h}
                               </th>
@@ -711,7 +711,7 @@ export default function LiveDisplayClient({
                       </colgroup>
                       <thead>
                         <tr className="bg-sky-100/90 text-left font-black uppercase tracking-[0.12em] text-slate-700">
-                          {['Gate', 'Rank', 'Plate', 'Panggilan', 'Komunitas', 'Point', 'Penalty', 'Status'].map((h) => (
+                          {['Gate', 'Rank', 'Plate', 'Nama Rider', 'Komunitas', 'Point', 'Penalty', 'Status'].map((h) => (
                             <th key={h} className="px-3 py-3">
                               {h}
                             </th>
@@ -770,7 +770,7 @@ export default function LiveDisplayClient({
                       </colgroup>
                       <thead>
                         <tr className="bg-sky-100/90 text-left font-black uppercase tracking-[0.12em] text-slate-700">
-                          {['Rank', 'Plate', 'Panggilan', 'Komunitas', 'M1', 'M2', ...(showLiveMoto3 ? ['M3'] : []), 'Penalty', 'Total', 'Class'].map((h) => (
+                          {['Rank', 'Plate', 'Nama Rider', 'Komunitas', 'M1', 'M2', ...(showLiveMoto3 ? ['M3'] : []), 'Penalty', 'Total', 'Class'].map((h) => (
                             <th key={h} className="px-3 py-3">
                               {h}
                             </th>
@@ -849,7 +849,7 @@ export default function LiveDisplayClient({
                       </colgroup>
                       <thead>
                         <tr className="bg-slate-800 text-left font-black uppercase tracking-[0.12em] text-slate-300">
-                          {['Gate', 'Plate', 'Panggilan', 'Komunitas'].map((h) => (
+                          {['Gate', 'Plate', 'Nama Rider', 'Komunitas'].map((h) => (
                             <th key={h} className="px-3 py-3">
                               {h}
                             </th>
