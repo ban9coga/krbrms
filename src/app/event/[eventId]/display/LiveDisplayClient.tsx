@@ -88,6 +88,9 @@ const gateByMoto = (row: Row, motoIndex: number) => {
   return row.gate_moto3
 }
 
+const displayName = (row: Pick<Row, 'rider_nickname' | 'name'> | { rider_nickname?: string | null; name: string }) =>
+  row.rider_nickname?.trim() || row.name
+
 export default function LiveDisplayClient({
   eventId,
   initialEvent = null,
@@ -399,9 +402,6 @@ export default function LiveDisplayClient({
       </div>
     )
   }
-
-  const displayName = (row: Pick<Row, 'rider_nickname' | 'name'> | { rider_nickname?: string | null; name: string }) =>
-    row.rider_nickname?.trim() || row.name
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">
