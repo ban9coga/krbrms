@@ -5,7 +5,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ eventId: s
   const { eventId } = await params
   const { data, error } = await adminClient
     .from('event_feature_flags')
-    .select('event_id, penalty_enabled, absent_enabled')
+    .select('event_id, penalty_enabled, absent_enabled, dns_enabled')
     .eq('event_id', eventId)
     .maybeSingle()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
@@ -17,15 +17,15 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ eventI
   if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { eventId } = await params
   const body = await req.json()
-  const { penalty_enabled, absent_enabled } = body ?? {}
+  const { penalty_enabled, absent_enabled, dns_enabled } = body ?? {}
 
   const { data, error } = await adminClient
     .from('event_feature_flags')
     .upsert(
-      [{ event_id: eventId, penalty_enabled: !!penalty_enabled, absent_enabled: !!absent_enabled }],
+      [{ event_id: eventId, penalty_enabled: !!penalty_enabled, absent_enabled: !!absent_enabled, dns_enabled: !!dns_enabled }],
       { onConflict: 'event_id' }
     )
-    .select('event_id, penalty_enabled, absent_enabled')
+    .select('event_id, penalty_enabled, absent_enabled, dns_enabled')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })

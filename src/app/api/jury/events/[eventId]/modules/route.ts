@@ -8,7 +8,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
   const { data, error } = await adminClient
     .from('event_feature_flags')
-    .select('event_id, penalty_enabled, absent_enabled')
+    .select('event_id, penalty_enabled, absent_enabled, dns_enabled')
     .eq('event_id', eventId)
     .maybeSingle()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })

@@ -5,6 +5,7 @@ create table if not exists event_feature_flags (
   event_id uuid primary key references events(id) on delete cascade,
   penalty_enabled boolean not null default false,
   absent_enabled boolean not null default false,
+  dns_enabled boolean not null default false,
   created_at timestamptz not null default now()
 );
 

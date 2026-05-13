@@ -38,6 +38,7 @@ type StatusRow = {
 type EventFlags = {
   penalty_enabled: boolean
   absent_enabled: boolean
+  dns_enabled: boolean
 }
 
 type SafetyRequirement = {
@@ -66,7 +67,7 @@ export default function JCPage() {
   const [selectedMotoId, setSelectedMotoId] = useState(initialMotoId)
   const [riders, setRiders] = useState<RiderItem[]>([])
   const [statuses, setStatuses] = useState<Record<string, StatusRow>>({})
-  const [flags, setFlags] = useState<EventFlags>({ penalty_enabled: true, absent_enabled: true })
+  const [flags, setFlags] = useState<EventFlags>({ penalty_enabled: true, absent_enabled: true, dns_enabled: true })
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [locked, setLocked] = useState(false)
@@ -126,7 +127,7 @@ export default function JCPage() {
         const flagJson = flagRes
         const catRows = (catJson.data ?? []) as CategoryItem[]
         setCategories(catRows)
-        setFlags(flagJson.data ?? { penalty_enabled: true, absent_enabled: true })
+        setFlags(flagJson.data ?? { penalty_enabled: true, absent_enabled: true, dns_enabled: true })
         const rawSafety = (safetyRes.data ?? []) as SafetyRequirement[]
         setPenaltyRules((ruleRes.data ?? []) as PenaltyRule[])
         const uniqueSafety = new Map<string, SafetyRequirement>()
@@ -402,23 +403,17 @@ export default function JCPage() {
           )
         }
       }
-      if (status === 'DNS') {
-        await apiFetch(`/api/jury/motos/${selectedMotoId}/results`, {
-          method: 'POST',
-          body: JSON.stringify({ results: [{ rider_id: riderId, result_status: 'DNS', finish_order: null }] }),
-        })
-      } else {
-        if (status === 'ABSENT' && !flags.absent_enabled) return
-        await apiFetch(`/api/jury/events/${eventId}/rider-status`, {
-          method: 'POST',
-          body: JSON.stringify({
-            rider_id: riderId,
-            participation_status: status,
-            registration_order: order,
-            moto_id: selectedMotoId,
-          }),
-        })
-      }
+      if (status === 'ABSENT' && !flags.absent_enabled) return
+      if (status === 'DNS' && !flags.dns_enabled) return
+      await apiFetch(`/api/jury/events/${eventId}/rider-status`, {
+        method: 'POST',
+        body: JSON.stringify({
+          rider_id: riderId,
+          participation_status: status,
+          registration_order: order,
+          moto_id: selectedMotoId,
+        }),
+      })
       await loadMoto(true)
     } catch (err: unknown) {
       setStatuses((prev) => {
@@ -444,7 +439,7 @@ export default function JCPage() {
       const missingPenaltyReasons = new Set<string>()
       for (const r of riderList) {
         const current = statuses[r.id]?.participation_status
-        if (current === 'ABSENT') continue
+        if (current === 'ABSENT' || current === 'DNS') continue
         for (const req of requiredSafety) {
           if (!safetyChecks[r.id]?.[req.id]) {
             const res = await applySafetyPenalty(r.id, req)
@@ -873,7 +868,7 @@ export default function JCPage() {
                     className="jc-action-btn"
                     type="button"
                     onClick={() => handleSaveStatus(r.id, 'DNS', r.gate_position ?? 0)}
-                    disabled={statusDisabled}
+                    disabled={statusDisabled || !flags.dns_enabled}
                     style={{
                       padding: '12px 14px',
                       borderRadius: 999,

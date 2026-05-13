@@ -6,6 +6,7 @@ import { supabase } from '../../../../../lib/supabaseClient'
 type FeatureFlags = {
   penalty_enabled: boolean
   absent_enabled: boolean
+  dns_enabled: boolean
 }
 
 type PenaltyRule = {
@@ -102,7 +103,7 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
       const statusJson = await statusRes.json()
       const reqJson = reqRes
 
-      setFlags(flagJson.data ?? { penalty_enabled: false, absent_enabled: false })
+      setFlags(flagJson.data ?? { penalty_enabled: false, absent_enabled: false, dns_enabled: false })
       setRules(ruleJson.data ?? [])
       setRequirements(reqJson.data ?? [])
 
@@ -320,7 +321,13 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
             <input
               type="checkbox"
               checked={flags?.penalty_enabled ?? false}
-              onChange={(e) => saveFlags({ penalty_enabled: e.target.checked, absent_enabled: flags?.absent_enabled ?? false })}
+              onChange={(e) =>
+                saveFlags({
+                  penalty_enabled: e.target.checked,
+                  absent_enabled: flags?.absent_enabled ?? false,
+                  dns_enabled: flags?.dns_enabled ?? false,
+                })
+              }
             />
             Enable Penalty Module
           </label>
@@ -328,9 +335,29 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
             <input
               type="checkbox"
               checked={flags?.absent_enabled ?? false}
-              onChange={(e) => saveFlags({ penalty_enabled: flags?.penalty_enabled ?? false, absent_enabled: e.target.checked })}
+              onChange={(e) =>
+                saveFlags({
+                  penalty_enabled: flags?.penalty_enabled ?? false,
+                  absent_enabled: e.target.checked,
+                  dns_enabled: flags?.dns_enabled ?? false,
+                })
+              }
             />
             Enable Absent Module
+          </label>
+          <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 900 }}>
+            <input
+              type="checkbox"
+              checked={flags?.dns_enabled ?? false}
+              onChange={(e) =>
+                saveFlags({
+                  penalty_enabled: flags?.penalty_enabled ?? false,
+                  absent_enabled: flags?.absent_enabled ?? false,
+                  dns_enabled: e.target.checked,
+                })
+              }
+            />
+            Enable DNS Module
           </label>
         </div>
       </div>
