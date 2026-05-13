@@ -50,6 +50,7 @@ type StageRow = {
   point: number | null
   penalty_total: number | null
   rank: number | null
+  status: 'FINISH' | 'DNF' | 'DNS' | 'PENDING'
 }
 
 type StageGroup = {
