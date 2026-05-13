@@ -385,19 +385,27 @@ export default function LiveDisplayClient({
     }
   }, [displayMoto])
 
-  const riderPhotoCell = (name: string, noPlate: string, photoUrl?: string | null) => {
+  const riderPhotoCell = (name: string, noPlate: string, photoUrl?: string | null, size: 'default' | 'podium' = 'default') => {
+    const imageClass =
+      size === 'podium'
+        ? 'h-20 w-20 rounded-full border-2 border-slate-300 object-cover shadow-md'
+        : 'h-14 w-14 rounded-full border-2 border-slate-300 object-cover shadow-sm'
+    const fallbackClass =
+      size === 'podium'
+        ? 'inline-flex h-20 w-20 items-center justify-center rounded-full border-2 border-slate-300 bg-slate-100 text-base font-black text-slate-700'
+        : 'inline-flex h-14 w-14 items-center justify-center rounded-full border-2 border-slate-300 bg-slate-100 text-xs font-black text-slate-700'
     if (photoUrl) {
       return (
         <img
           src={photoUrl}
           alt={name}
-          className="h-10 w-10 rounded-full border border-slate-300 object-cover shadow-sm"
+          className={imageClass}
           loading="lazy"
         />
       )
     }
     return (
-      <div className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-300 bg-slate-100 text-[10px] font-black text-slate-700">
+      <div className={fallbackClass}>
         {noPlate || '-'}
       </div>
     )
@@ -502,7 +510,7 @@ export default function LiveDisplayClient({
                           >
                             <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Rank {row.rank}</div>
                             <div className="mt-3 flex items-center gap-3">
-                              {riderPhotoCell(row.name, row.no_plate, row.photo_thumbnail_url)}
+                              {riderPhotoCell(row.name, row.no_plate, row.photo_thumbnail_url, 'podium')}
                               <div className="min-w-0">
                                 <div className="truncate text-lg font-black italic text-slate-900">{row.name}</div>
                                 <div className="text-sm font-bold text-slate-600">{row.no_plate} • {row.club || '-'}</div>
