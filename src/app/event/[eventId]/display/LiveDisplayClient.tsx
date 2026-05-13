@@ -440,22 +440,28 @@ export default function LiveDisplayClient({
   }, [displayMoto])
 
   const riderPhotoCell = (name: string, noPlate: string, photoUrl?: string | null, size: 'default' | 'podium' = 'default') => {
+    const frameClass =
+      size === 'podium'
+        ? 'h-20 w-20 overflow-hidden rounded-full border-2 border-slate-300 shadow-md'
+        : 'h-14 w-14 overflow-hidden rounded-full border-2 border-slate-300 shadow-sm'
     const imageClass =
       size === 'podium'
-        ? 'h-20 w-20 rounded-full border-2 border-slate-300 object-cover shadow-md'
-        : 'h-14 w-14 rounded-full border-2 border-slate-300 object-cover shadow-sm'
+        ? 'h-full w-full object-cover object-[center_24%] scale-[1.32]'
+        : 'h-full w-full object-cover object-[center_22%] scale-[1.22]'
     const fallbackClass =
       size === 'podium'
         ? 'inline-flex h-20 w-20 items-center justify-center rounded-full border-2 border-slate-300 bg-slate-100 text-base font-black text-slate-700'
         : 'inline-flex h-14 w-14 items-center justify-center rounded-full border-2 border-slate-300 bg-slate-100 text-xs font-black text-slate-700'
     if (photoUrl) {
       return (
-        <img
-          src={photoUrl}
-          alt={name}
-          className={imageClass}
-          loading="lazy"
-        />
+        <div className={frameClass}>
+          <img
+            src={photoUrl}
+            alt={name}
+            className={imageClass}
+            loading="lazy"
+          />
+        </div>
       )
     }
     return (
