@@ -81,14 +81,14 @@ export default function JCPage() {
   const [warningMessage, setWarningMessage] = useState<string | null>(null)
   const [allReadyDone, setAllReadyDone] = useState(false)
 
-  const getToken = async () => {
+  const getToken = useCallback(async () => {
     const { data } = await supabase.auth.getSession()
     if (data.session?.access_token) return data.session.access_token
     const refreshed = await supabase.auth.refreshSession()
     return refreshed.data.session?.access_token ?? null
-  }
+  }, [])
 
-  const apiFetch = async (url: string, options: RequestInit = {}, retryUnauthorized = true) => {
+  const apiFetch = useCallback(async (url: string, options: RequestInit = {}, retryUnauthorized = true) => {
     const token = await getToken()
     const headers: Record<string, string> = {
       ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
@@ -107,65 +107,65 @@ export default function JCPage() {
       throw new Error(json?.error || 'Request failed')
     }
     return json
-  }
+  }, [getToken])
+
+  const loadMotos = useCallback(async () => {
+    if (!eventId) return
+    setLoading(true)
+    setErrorMessage(null)
+    try {
+      const [motoRes, catRes, flagRes, safetyRes, ruleRes] = await Promise.all([
+        fetch(`/api/motos?event_id=${eventId}`),
+        fetch(`/api/events/${eventId}/categories`),
+        apiFetch(`/api/jury/events/${eventId}/modules`),
+        apiFetch(`/api/jury/events/${eventId}/safety-requirements`),
+        apiFetch(`/api/jury/events/${eventId}/penalties`),
+      ])
+      const motoJson = await motoRes.json()
+      const catJson = await catRes.json()
+      const flagJson = flagRes
+      const catRows = (catJson.data ?? []) as CategoryItem[]
+      setCategories(catRows)
+      setFlags(flagJson.data ?? { penalty_enabled: true, absent_enabled: true, dns_enabled: true })
+      const rawSafety = (safetyRes.data ?? []) as SafetyRequirement[]
+      setPenaltyRules((ruleRes.data ?? []) as PenaltyRule[])
+      const uniqueSafety = new Map<string, SafetyRequirement>()
+      for (const item of rawSafety) {
+        const key = item.label.trim().toLowerCase()
+        if (!uniqueSafety.has(key)) uniqueSafety.set(key, item)
+      }
+      setSafetyRequirements(Array.from(uniqueSafety.values()))
+
+      const yearMap = new Map<string, number>()
+      const genderMap = new Map<string, string>()
+      for (const c of catRows) {
+        yearMap.set(c.id, Number(c.year ?? 0))
+        if (c.gender) genderMap.set(c.id, c.gender)
+      }
+      const sortedMotos = [...(motoJson.data ?? [])].sort((a: MotoItem, b: MotoItem) => {
+        const ay = yearMap.get(a.category_id ?? '') ?? 0
+        const by = yearMap.get(b.category_id ?? '') ?? 0
+        if (by !== ay) return by - ay
+        const order = { BOY: 0, GIRL: 1, MIX: 2 } as const
+        const ag = order[(genderMap.get(a.category_id ?? '') as keyof typeof order) ?? 'MIX'] ?? 9
+        const bg = order[(genderMap.get(b.category_id ?? '') as keyof typeof order) ?? 'MIX'] ?? 9
+        if (ag !== bg) return ag - bg
+        return compareMotoSequence(a, b)
+      })
+      setMotos(sortedMotos)
+      if (!selectedMotoId && sortedMotos.length) {
+        setSelectedMotoId(sortedMotos[0].id)
+      }
+    } catch (err: unknown) {
+      setErrorMessage(err instanceof Error ? err.message : 'Gagal memuat data JC.')
+    } finally {
+      setLoading(false)
+    }
+  }, [apiFetch, eventId, selectedMotoId])
 
   useEffect(() => {
-    const loadMotos = async () => {
-      if (!eventId) return
-      setLoading(true)
-      setErrorMessage(null)
-      try {
-        const [motoRes, catRes, flagRes, safetyRes, ruleRes] = await Promise.all([
-          fetch(`/api/motos?event_id=${eventId}`),
-          fetch(`/api/events/${eventId}/categories`),
-          apiFetch(`/api/jury/events/${eventId}/modules`),
-          apiFetch(`/api/jury/events/${eventId}/safety-requirements`),
-          apiFetch(`/api/jury/events/${eventId}/penalties`),
-        ])
-        const motoJson = await motoRes.json()
-        const catJson = await catRes.json()
-        const flagJson = flagRes
-        const catRows = (catJson.data ?? []) as CategoryItem[]
-        setCategories(catRows)
-        setFlags(flagJson.data ?? { penalty_enabled: true, absent_enabled: true, dns_enabled: true })
-        const rawSafety = (safetyRes.data ?? []) as SafetyRequirement[]
-        setPenaltyRules((ruleRes.data ?? []) as PenaltyRule[])
-        const uniqueSafety = new Map<string, SafetyRequirement>()
-        for (const item of rawSafety) {
-          const key = item.label.trim().toLowerCase()
-          if (!uniqueSafety.has(key)) uniqueSafety.set(key, item)
-        }
-        setSafetyRequirements(Array.from(uniqueSafety.values()))
-
-        const yearMap = new Map<string, number>()
-        const genderMap = new Map<string, string>()
-        for (const c of catRows) {
-          yearMap.set(c.id, Number(c.year ?? 0))
-          if (c.gender) genderMap.set(c.id, c.gender)
-        }
-        const sortedMotos = [...(motoJson.data ?? [])].sort((a: MotoItem, b: MotoItem) => {
-          const ay = yearMap.get(a.category_id ?? '') ?? 0
-          const by = yearMap.get(b.category_id ?? '') ?? 0
-          if (by !== ay) return by - ay
-          const order = { BOY: 0, GIRL: 1, MIX: 2 } as const
-          const ag = order[(genderMap.get(a.category_id ?? '') as keyof typeof order) ?? 'MIX'] ?? 9
-          const bg = order[(genderMap.get(b.category_id ?? '') as keyof typeof order) ?? 'MIX'] ?? 9
-          if (ag !== bg) return ag - bg
-          return compareMotoSequence(a, b)
-        })
-        setMotos(sortedMotos)
-        if (!selectedMotoId && sortedMotos.length) {
-          setSelectedMotoId(sortedMotos[0].id)
-        }
-      } catch (err: unknown) {
-        setErrorMessage(err instanceof Error ? err.message : 'Gagal memuat data JC.')
-      } finally {
-        setLoading(false)
-      }
-    }
-    loadMotos()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [eventId])
+    void loadMotos()
+  }, [loadMotos])
 
   const loadMoto = async (silent = false, preserveAllReadyDone = silent) => {
     if (!selectedMotoId || !eventId) return
@@ -518,8 +518,28 @@ export default function JCPage() {
                 <option key={m.id} value={m.id}>
                   {m.moto_order}. {m.moto_name} - {categoryLabel.get(m.category_id ?? '') ?? 'Category'} - {m.status}
                 </option>
-              ))}
+                ))}
             </select>
+            <button
+              type="button"
+              onClick={async () => {
+                await loadMotos()
+                await loadMoto(false, true)
+              }}
+              disabled={loading || saving}
+              style={{
+                padding: '10px 14px',
+                borderRadius: 16,
+                border: '2px solid #111',
+                background: '#dcfce7',
+                fontWeight: 900,
+                cursor: loading || saving ? 'not-allowed' : 'pointer',
+                opacity: loading || saving ? 0.6 : 1,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Refresh Moto
+            </button>
           </div>
 
           <div style={{ fontWeight: 700, color: '#333' }}>Safety checklist sebelum race start.</div>
