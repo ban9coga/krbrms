@@ -327,28 +327,41 @@ export default function LiveDisplayClient({
   }, [orderedUpcomingMotos, sameCategoryQueueAfterDisplayMoto, nextCategoryCandidate])
   const queueLiveScore = queueMoto ? liveScoreByCategory[queueMoto.category_id] ?? null : null
   const queueBatches = useMemo(() => queueLiveScore?.batches ?? [], [queueLiveScore])
+  const queueStages = useMemo(() => queueLiveScore?.stages ?? [], [queueLiveScore])
   const queueTarget = useMemo(() => {
     if (!queueMoto) return null
     const batch =
       queueBatches.find(
         (item) => item.moto1_id === queueMoto.id || item.moto2_id === queueMoto.id || item.moto3_id === queueMoto.id
       ) ?? null
-    if (!batch) return null
-    const motoIndex: 1 | 2 | 3 =
-      batch.moto1_id === queueMoto.id ? 1 : batch.moto2_id === queueMoto.id ? 2 : 3
-    return {
-      batch,
-      motoIndex,
-      label: `Batch ${batch.batch_index} - Moto ${motoIndex}`,
+    if (batch) {
+      const motoIndex: 1 | 2 | 3 =
+        batch.moto1_id === queueMoto.id ? 1 : batch.moto2_id === queueMoto.id ? 2 : 3
+      return {
+        kind: 'batch' as const,
+        batch,
+        motoIndex,
+        label: `Batch ${batch.batch_index} - Moto ${motoIndex}`,
+      }
     }
-  }, [queueMoto, queueBatches])
+    const stage = queueStages.find((item) => item.moto_id === queueMoto.id) ?? null
+    if (stage) {
+      return {
+        kind: 'stage' as const,
+        stage,
+        label: stage.title,
+      }
+    }
+    return null
+  }, [queueMoto, queueBatches, queueStages])
 
   const hasData = useMemo(
     () =>
       displayBatches.some((batch) => batch.rows.length > 0) ||
       displayStages.some((stage) => stage.rows.length > 0) ||
-      queueBatches.some((batch) => batch.rows.length > 0),
-    [displayBatches, displayStages, queueBatches]
+      queueBatches.some((batch) => batch.rows.length > 0) ||
+      queueStages.some((stage) => stage.rows.length > 0),
+    [displayBatches, displayStages, queueBatches, queueStages]
   )
   const sortedBatches = useMemo(() => [...displayBatches].sort((a, b) => a.batch_index - b.batch_index), [displayBatches])
   const activeBatch = useMemo(() => {
@@ -413,6 +426,25 @@ export default function LiveDisplayClient({
 
   const prepareQueue = useMemo(() => {
     if (!queueTarget) return []
+    if (queueTarget.kind === 'stage') {
+      return [...queueTarget.stage.rows]
+        .sort((a, b) => {
+          const aGate = a.gate ?? Number.MAX_SAFE_INTEGER
+          const bGate = b.gate ?? Number.MAX_SAFE_INTEGER
+          if (aGate !== bGate) return aGate - bGate
+          return a.name.localeCompare(b.name)
+        })
+        .map((row, index) => ({
+          queue: index + 1,
+          rider_id: row.rider_id,
+          gate: row.gate,
+          no_plate: row.no_plate,
+          name: row.name,
+          rider_nickname: null,
+          club: row.club,
+          photo_thumbnail_url: row.photo_thumbnail_url ?? null,
+        }))
+    }
     return [...queueTarget.batch.rows]
       .sort((a, b) => (gateByMoto(a, queueTarget.motoIndex) ?? 9999) - (gateByMoto(b, queueTarget.motoIndex) ?? 9999))
       .filter((row) => gateByMoto(row, queueTarget.motoIndex) != null)
