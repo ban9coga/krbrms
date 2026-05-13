@@ -293,15 +293,6 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     }
   }
 
-  const handlePublishMoto = async (motoId: string) => {
-    try {
-      await apiFetch(`/api/motos/${motoId}/publish`, { method: 'POST' })
-      await load()
-    } catch (err: unknown) {
-      alert(getErrorMessage(err))
-    }
-  }
-
   const handleOpenReview = async (motoId: string) => {
     try {
       await apiFetch(`/api/jury/motos/${motoId}/open-review`, { method: 'POST' })
@@ -594,21 +585,6 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                           Reset Result
                         </button>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => handlePublishMoto(m.id)}
-                        disabled={m.status !== 'LOCKED' || !!m.is_published}
-                        style={{
-                          padding: '8px 12px',
-                          borderRadius: 999,
-                          border: '2px solid #111',
-                          background: m.status === 'LOCKED' && !m.is_published ? '#2ecc71' : '#fff',
-                          fontWeight: 900,
-                          cursor: m.status === 'LOCKED' && !m.is_published ? 'pointer' : 'not-allowed',
-                        }}
-                      >
-                        {m.is_published ? 'Published' : 'Publish'}
-                      </button>
                     </div>
                   </div>
                 ))}
