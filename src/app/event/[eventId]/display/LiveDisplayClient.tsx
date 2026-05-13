@@ -397,6 +397,15 @@ export default function LiveDisplayClient({
   const showLiveMoto3 = Boolean(
     liveBatchView?.moto3_id || liveBatchView?.rows.some((row) => row.point_moto3 !== null || row.gate_moto3 !== null)
   )
+  const isSingleBatchLockedFinalMoto = useMemo(() => {
+    if (!displayMoto || !liveBatchView) return false
+    return (
+      sortedBatches.length === 1 &&
+      Boolean(liveBatchView.moto3_id) &&
+      liveBatchView.moto3_id === displayMoto.id &&
+      (displayMoto.status ?? '').toUpperCase() === 'LOCKED'
+    )
+  }, [displayMoto, liveBatchView, sortedBatches])
   const resultBoard = useMemo(() => {
     if (activeMoto || provisionalMoto || !displayMoto) return null
     if (activeStageView) {
@@ -407,7 +416,9 @@ export default function LiveDisplayClient({
     }
     if (liveBatchView && (displayMoto.status ?? '').toUpperCase() === 'LOCKED') {
       return {
-        title: `${categoryLabel || 'Kategori'} Final Result`,
+        title: isSingleBatchLockedFinalMoto
+          ? `${categoryLabel || 'Kategori'} Race Result`
+          : `${categoryLabel || 'Kategori'} Final Result`,
         rows: liveBatchView.rows.map((row) => ({
           rider_id: row.rider_id,
           name: displayName(row),
@@ -421,9 +432,10 @@ export default function LiveDisplayClient({
       }
     }
     return null
-  }, [activeMoto, provisionalMoto, displayMoto, activeStageView, liveBatchView, categoryLabel])
+  }, [activeMoto, provisionalMoto, displayMoto, activeStageView, liveBatchView, categoryLabel, isSingleBatchLockedFinalMoto])
   const showResultBoard = Boolean(resultBoard)
   const podiumRows = resultBoard?.rows.filter((row) => row.rank && row.rank <= 3).slice(0, 3) ?? []
+  const resultBoardPointLabel = isSingleBatchLockedFinalMoto ? 'Total Point' : 'Point'
 
   const prepareQueue = useMemo(() => {
     if (!queueTarget) return []
@@ -649,7 +661,7 @@ export default function LiveDisplayClient({
                               </div>
                             </div>
                             <div className="mt-3 text-sm font-extrabold text-slate-700">
-                              Point {row.point ?? '-'}{row.penalty_total ? ` + Penalty ${row.penalty_total}` : ''}
+                              {resultBoardPointLabel} {row.point ?? '-'}{row.penalty_total ? ` + Penalty ${row.penalty_total}` : ''}
                             </div>
                           </div>
                         ))}
@@ -659,7 +671,7 @@ export default function LiveDisplayClient({
                       <table className="w-full border-collapse text-xs md:text-sm">
                         <thead>
                           <tr className="bg-slate-900 text-left font-black uppercase tracking-[0.12em] text-white">
-                          {['Rank', 'Plate', 'Nama Rider', 'Komunitas', 'Point', 'Penalty', 'Status'].map((h) => (
+                          {['Rank', 'Plate', 'Nama Rider', 'Komunitas', resultBoardPointLabel, 'Penalty', 'Status'].map((h) => (
                               <th key={h} className="px-3 py-3">
                                 {h}
                               </th>
