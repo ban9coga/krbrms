@@ -41,6 +41,8 @@ type EventFlags = {
   dns_enabled: boolean
 }
 
+const isLockedStatus = (status?: string | null) => String(status ?? '').toUpperCase() === 'LOCKED'
+
 type SafetyRequirement = {
   id: string
   label: string
@@ -153,8 +155,14 @@ export default function JCPage() {
         return compareMotoSequence(a, b)
       })
       setMotos(sortedMotos)
-      if (!selectedMotoId && sortedMotos.length) {
-        setSelectedMotoId(sortedMotos[0].id)
+      const nextSelectable = sortedMotos.filter((m) => !isLockedStatus(m.status))
+      if (!selectedMotoId && nextSelectable.length) {
+        setSelectedMotoId(nextSelectable[0].id)
+      } else if (selectedMotoId) {
+        const currentStillSelectable = nextSelectable.some((m) => m.id === selectedMotoId)
+        if (!currentStillSelectable) {
+          setSelectedMotoId(nextSelectable[0]?.id ?? '')
+        }
       }
     } catch (err: unknown) {
       setErrorMessage(err instanceof Error ? err.message : 'Gagal memuat data JC.')
@@ -274,6 +282,10 @@ export default function JCPage() {
     return map
   }, [categories])
 
+  const selectableMotos = useMemo(
+    () => motos.filter((m) => !isLockedStatus(m.status)),
+    [motos]
+  )
   const selectedMoto = useMemo(() => motos.find((m) => m.id === selectedMotoId) ?? null, [motos, selectedMotoId])
   const selectedMotoLive = isMotoLive(selectedMoto?.status)
   const selectedCategoryLabel = selectedMoto
@@ -514,7 +526,7 @@ export default function JCPage() {
                 fontWeight: 900,
               }}
             >
-              {motos.map((m) => (
+              {selectableMotos.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.moto_order}. {m.moto_name} - {categoryLabel.get(m.category_id ?? '') ?? 'Category'} - {m.status}
                 </option>

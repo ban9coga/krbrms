@@ -110,7 +110,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   }
   const { data: moto, error: motoError } = await adminClient
     .from('motos')
-    .select('id, event_id, status')
+    .select('id, event_id, category_id, moto_name, status')
     .eq('id', moto_id)
     .maybeSingle()
   if (motoError) return NextResponse.json({ error: motoError.message }, { status: 400 })
@@ -163,6 +163,36 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
         ],
         { onConflict: 'event_id,moto_id,rider_id' }
       )
+
+    if (participation_status === 'DNS') {
+      const { error: dnsResultError } = await adminClient
+        .from('results')
+        .upsert(
+          [
+            {
+              event_id: eventId,
+              moto_id,
+              rider_id,
+              finish_order: null,
+              result_status: 'DNS',
+            },
+          ],
+          { onConflict: 'moto_id,rider_id' }
+        )
+      if (dnsResultError) {
+        return NextResponse.json({ error: dnsResultError.message }, { status: 400 })
+      }
+    } else {
+      const { error: clearDnsResultError } = await adminClient
+        .from('results')
+        .delete()
+        .eq('moto_id', moto_id)
+        .eq('rider_id', rider_id)
+        .eq('result_status', 'DNS')
+      if (clearDnsResultError) {
+        return NextResponse.json({ error: clearDnsResultError.message }, { status: 400 })
+      }
+    }
   }
 
   await adminClient.from('audit_log').insert([
