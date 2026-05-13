@@ -31,7 +31,7 @@ const EVENT_NAV = (eventId: string): NavItem[] => [
   { label: 'Draw Setup', href: `/admin/events/${eventId}/live-draw`, icon: 'draw' },
   { label: 'Motos', href: `/admin/events/${eventId}/motos`, icon: 'motos' },
   { label: 'Advanced Multi-Stage', href: `/admin/events/${eventId}/advanced-race`, icon: 'advanced' },
-  { label: 'Custom Final Split', href: `/admin/events/${eventId}/custom-final-split`, icon: 'customSplit' },
+  { label: 'Final Class Rules', href: `/admin/events/${eventId}/custom-final-split`, icon: 'customSplit' },
   { label: 'Race Schedule', href: `/admin/events/${eventId}/schedule`, icon: 'schedule' },
   { label: 'Results Summary', href: `/admin/events/${eventId}/results`, icon: 'results' },
   { label: 'Penalties', href: `/admin/events/${eventId}/penalties`, icon: 'penalties' },

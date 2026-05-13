@@ -4,6 +4,7 @@ import {
   computeQualificationAndStore,
   generateStageMotos,
 } from '../../../../../services/advancedRaceAuto'
+import { resolveCategoryConfig } from '../../../../../services/categoryResolver'
 
 type CustomRuleInput = {
   id?: string
@@ -42,9 +43,23 @@ export async function GET(_: Request, { params }: { params: Promise<{ eventId: s
     return NextResponse.json({ error: ruleError.message }, { status: 400 })
   }
 
+  const categoryTotals = Object.fromEntries(
+    await Promise.all(
+      (categories ?? []).map(async (category) => {
+        const resolved = await resolveCategoryConfig(category.id as string)
+        return [category.id as string, resolved.totalRiders] as const
+      })
+    )
+  )
+
+  const enrichedCategories = (categories ?? []).map((category) => ({
+    ...category,
+    total_riders: categoryTotals[category.id as string] ?? 0,
+  }))
+
   return NextResponse.json({
     data: {
-      categories: categories ?? [],
+      categories: enrichedCategories,
       rules: rules ?? [],
     },
   })

@@ -8,6 +8,7 @@ type CategoryRow = {
   label: string
   year?: number | null
   gender?: 'BOY' | 'GIRL' | 'MIX' | null
+  total_riders?: number | null
 }
 
 type CustomSplitRule = {
@@ -163,7 +164,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
           gap: 8,
         }}
       >
-        <div style={{ fontSize: 26, fontWeight: 950 }}>Custom Final Split</div>
+        <div style={{ fontSize: 26, fontWeight: 950 }}>Final Class Rules</div>
         <div style={{ color: '#334155', fontWeight: 700 }}>
           Override split standar AMS per kategori. Dipakai kalau kamu butuh pola khusus seperti 9 rider: top 3 ke Final Elite, 3 berikutnya ke Final Novice.
         </div>
@@ -206,6 +207,9 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'start', flexWrap: 'wrap' }}>
                 <div style={{ display: 'grid', gap: 4 }}>
                   <div style={{ fontSize: 24, fontWeight: 950 }}>{category.label}</div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>
+                    Total Rider: {category.total_riders ?? 0}
+                  </div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#475569' }}>{categorySummary[category.id]}</div>
                 </div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
