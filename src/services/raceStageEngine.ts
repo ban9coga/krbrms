@@ -14,6 +14,7 @@ export type RankedRider = {
   riderId: string
   points: number
   rank: number
+  tieBreakers?: number[]
 }
 
 export type StageAdvance = {
@@ -113,20 +114,41 @@ const defaultPointResolver: PointResolver = (finishOrder) => {
   return finishOrder
 }
 
-const rankByPoints = (scores: Record<string, number>): RankedRider[] => {
+const compareTieBreakers = (a: number[] = [], b: number[] = []) => {
+  const length = Math.max(a.length, b.length)
+  for (let index = 0; index < length; index += 1) {
+    const av = a[index] ?? 9999
+    const bv = b[index] ?? 9999
+    if (av !== bv) return av - bv
+  }
+  return 0
+}
+
+const rankByPoints = (
+  scores: Record<string, number>,
+  tieBreakersByRider?: Record<string, number[]>
+): RankedRider[] => {
   const rows = Object.entries(scores)
-    .map(([riderId, points]) => ({ riderId, points }))
+    .map(([riderId, points]) => ({ riderId, points, tieBreakers: tieBreakersByRider?.[riderId] ?? [] }))
     .sort((a, b) => {
       if (a.points !== b.points) return a.points - b.points
+      const tieDiff = compareTieBreakers(a.tieBreakers, b.tieBreakers)
+      if (tieDiff !== 0) return tieDiff
       return a.riderId.localeCompare(b.riderId)
     })
 
   let currentRank = 0
   let lastPoints: number | null = null
+  let lastTieBreakers: number[] | null = null
   return rows.map((row, idx) => {
-    if (lastPoints === null || row.points !== lastPoints) {
+    if (
+      lastPoints === null ||
+      row.points !== lastPoints ||
+      compareTieBreakers(row.tieBreakers, lastTieBreakers ?? []) !== 0
+    ) {
       currentRank = idx + 1
       lastPoints = row.points
+      lastTieBreakers = row.tieBreakers
     }
     return { ...row, rank: currentRank }
   })
@@ -199,6 +221,7 @@ export function computeQualification(
 
   for (const batch of batches) {
     const scoreMap: Record<string, number> = {}
+    const tieBreakersByRider: Record<string, number[]> = {}
     for (const riderId of batch.riders) scoreMap[riderId] = 0
 
     for (const finish of batch.finishes) {
@@ -206,7 +229,21 @@ export function computeQualification(
       scoreMap[finish.riderId] += pointResolver(finish.finishOrder)
     }
 
-    const ranked = rankByPoints(scoreMap)
+    const maxMotoIndex = batch.finishes.reduce((max, finish) => Math.max(max, finish.motoIndex ?? 0), 0)
+    for (const riderId of batch.riders) {
+      const finishByMoto = new Map(
+        batch.finishes
+          .filter((finish) => finish.riderId === riderId)
+          .map((finish) => [finish.motoIndex, pointResolver(finish.finishOrder)])
+      )
+      const tieBreakers: number[] = []
+      for (let motoIndex = maxMotoIndex; motoIndex >= 1; motoIndex -= 1) {
+        tieBreakers.push(finishByMoto.get(motoIndex) ?? 9999)
+      }
+      tieBreakersByRider[riderId] = tieBreakers
+    }
+
+    const ranked = rankByPoints(scoreMap, tieBreakersByRider)
     batchRanks[batch.batchId] = ranked
     advances.push(...computeQualificationAdvancesFromRanks(ranked, primaryAdvance, customRules, options))
   }

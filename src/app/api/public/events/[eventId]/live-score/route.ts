@@ -344,9 +344,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         const penaltyTotalForDq = basePoint !== null ? penaltyTotal : 0
         const penaltyTotalDisplay = basePoint !== null ? penaltyTotal : null
         const totalPoint = basePoint !== null ? basePoint + penaltyTotal : null
-        const lastMotoResult = moto3Result ?? moto2Result ?? moto1Result ?? null
-        const tiebreakLastBest =
-          lastMotoResult?.result_status === 'FINISH' ? lastMotoResult.finish_order ?? null : null
+        const tiebreakers = [point3, point2, point1]
 
         const status =
           penaltyTotalForDq >= 7
@@ -380,7 +378,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
           penalty_total: penaltyTotalDisplay,
           total_point: totalPoint,
           status,
-          tiebreak_last_best: tiebreakLastBest,
+          tiebreakers,
         }
       })
 
@@ -388,9 +386,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         const aPoint = a.total_point ?? Number.MAX_SAFE_INTEGER
         const bPoint = b.total_point ?? Number.MAX_SAFE_INTEGER
         if (aPoint !== bPoint) return aPoint - bPoint
-        const aTie = a.tiebreak_last_best ?? Number.MAX_SAFE_INTEGER
-        const bTie = b.tiebreak_last_best ?? Number.MAX_SAFE_INTEGER
-        return aTie - bTie
+        const maxTieLength = Math.max(a.tiebreakers.length, b.tiebreakers.length)
+        for (let index = 0; index < maxTieLength; index += 1) {
+          const aTie = a.tiebreakers[index] ?? Number.MAX_SAFE_INTEGER
+          const bTie = b.tiebreakers[index] ?? Number.MAX_SAFE_INTEGER
+          if (aTie !== bTie) return aTie - bTie
+        }
+        return a.rider_id.localeCompare(b.rider_id)
       })
       const rankMap = new Map(
         rankedRows

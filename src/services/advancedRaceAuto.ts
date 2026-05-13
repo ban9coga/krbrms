@@ -56,6 +56,17 @@ type QualificationRankRow = {
   points: number
   rank: number
   batchId: string | null
+  tieBreakers?: number[]
+}
+
+const compareTieBreakers = (a: number[] = [], b: number[] = []) => {
+  const length = Math.max(a.length, b.length)
+  for (let index = 0; index < length; index += 1) {
+    const av = a[index] ?? 9999
+    const bv = b[index] ?? 9999
+    if (av !== bv) return av - bv
+  }
+  return 0
 }
 
 async function loadQualificationCustomSplitRules(categoryId: string): Promise<CustomSplitRule[]> {
@@ -248,6 +259,8 @@ const buildQualificationProgress = (
 const sortQualificationRankRows = (rows: QualificationRankRow[]) =>
   [...rows].sort((a, b) => {
     if (a.points !== b.points) return a.points - b.points
+    const tieDiff = compareTieBreakers(a.tieBreakers, b.tieBreakers)
+    if (tieDiff !== 0) return tieDiff
     if (a.rank !== b.rank) return a.rank - b.rank
     const batchDiff = (a.batchId ?? '').localeCompare(b.batchId ?? '')
     if (batchDiff !== 0) return batchDiff
@@ -259,12 +272,19 @@ const rankCombinedQualificationRows = (rows: QualificationRankRow[]) => {
   let currentRank = 0
   let lastPoints: number | null = null
   let lastBatchRank: number | null = null
+  let lastTieBreakers: number[] | null = null
 
   return sorted.map((row, index) => {
-    if (lastPoints === null || row.points !== lastPoints || row.rank !== lastBatchRank) {
+    if (
+      lastPoints === null ||
+      row.points !== lastPoints ||
+      compareTieBreakers(row.tieBreakers, lastTieBreakers ?? []) !== 0 ||
+      row.rank !== lastBatchRank
+    ) {
       currentRank = index + 1
       lastPoints = row.points
       lastBatchRank = row.rank
+      lastTieBreakers = row.tieBreakers ?? []
     }
     return {
       riderId: row.riderId,
@@ -426,6 +446,7 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
             points: row.points,
             rank: row.rank,
             batchId,
+            tieBreakers: row.tieBreakers ?? [],
           }))
         )
       )
