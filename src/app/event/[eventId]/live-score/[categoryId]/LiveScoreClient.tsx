@@ -168,11 +168,11 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
     <div className="public-page">
       <PublicTopbar theme="dark" />
       <main className="public-main">
-        <section className="public-hero">
-          <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-amber-400/15 blur-3xl" />
-          <div className="pointer-events-none absolute -top-24 right-0 h-72 w-72 rounded-full bg-sky-400/15 blur-3xl" />
-          <div className="relative z-10 flex flex-wrap items-start justify-between gap-4">
-            <div className="grid gap-2">
+        <section className="public-hero !rounded-[28px] px-4 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-7">
+          <div className="pointer-events-none absolute -bottom-16 -left-12 h-56 w-56 rounded-full bg-amber-400/15 blur-3xl sm:h-64 sm:w-64" />
+          <div className="pointer-events-none absolute -top-20 right-0 h-56 w-56 rounded-full bg-sky-400/15 blur-3xl sm:h-64 sm:w-64" />
+          <div className="relative z-10 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="grid gap-2 sm:gap-2.5">
               <Link
                 href={`/event/${eventId}#race-categories`}
                 className="inline-flex w-fit items-center rounded-full border border-white/30 bg-white/10 px-3 py-1.5 text-xs font-extrabold uppercase tracking-[0.12em] text-white transition-colors hover:bg-white/20"
@@ -182,7 +182,7 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
               <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-amber-300">
                 {publicBrandName || 'Live Score'}
               </p>
-              <h1 className="text-3xl font-black tracking-tight text-white md:text-5xl">
+              <h1 className="max-w-4xl text-3xl font-black tracking-tight text-white sm:text-4xl lg:text-[3.2rem] lg:leading-none">
                 {publicEventTitle}
               </h1>
               <p className="text-sm font-semibold text-slate-200 sm:text-base">
@@ -190,8 +190,8 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
               </p>
               {(publicTagline || showOperatingCommittee || showScoringSupport) && (
                 <div className="grid gap-2">
-                  {publicTagline && <p className="text-sm font-semibold text-slate-300">{publicTagline}</p>}
-                  <div className="flex flex-wrap gap-2 text-[11px] font-extrabold uppercase tracking-[0.12em] text-slate-300">
+                  {publicTagline && <p className="text-sm font-semibold text-slate-300 sm:text-[15px]">{publicTagline}</p>}
+                  <div className="flex flex-wrap gap-2 text-[10px] font-extrabold uppercase tracking-[0.12em] text-slate-300 sm:text-[11px]">
                     {showOperatingCommittee && (
                       <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
                         Operating Committee: {operatingCommitteeLabel}
@@ -206,7 +206,7 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                 </div>
               )}
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 lg:max-w-[420px] lg:justify-end">
               {(['GATE', 'RANK'] as const).map((mode) => (
                 <button
                   key={mode}
