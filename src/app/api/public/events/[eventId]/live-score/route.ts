@@ -442,7 +442,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     })
     .sort((a, b) => a.batch_index - b.batch_index)
 
-  const stageMotos = showAdvancedClasses ? motoRows.filter((m) => !parseBatchKey(m.moto_name)) : []
+  const stageMotos = motoRows.filter((m) => !parseBatchKey(m.moto_name))
   const stageGroups: StageGroup[] = stageMotos.map((moto) => {
     const gates = gateRows.filter((g) => g.moto_id === moto.id)
     const gateMap = new Map(gates.map((g) => [g.rider_id, g.gate_position]))
