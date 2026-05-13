@@ -89,6 +89,15 @@ const chunk = <T,>(items: T[], size: number) => {
   return batches
 }
 
+const parseMotoBatch = (motoName: string) => {
+  const match = motoName.match(/moto\s*(\d+)\s*-\s*batch\s*(\d+)/i)
+  if (!match) return { motoNo: 0, batchNo: 0 }
+  return {
+    motoNo: Number(match[1] ?? 0),
+    batchNo: Number(match[2] ?? 0),
+  }
+}
+
 const sameSet = (a: string[], b: string[]) => {
   if (a.length !== b.length) return false
   const setA = new Set(a)
