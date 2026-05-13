@@ -17,7 +17,21 @@ export async function GET(req: Request) {
   if (categoryId) query = query.eq('category_id', categoryId)
   const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-  const sorted = [...(data ?? [])].sort(compareMotoSequence)
+  const motoRows = data ?? []
+  const motoIds = motoRows.map((row) => row.id)
+  let lockMap = new Map<string, string | null>()
+  if (motoIds.length > 0) {
+    const { data: lockRows } = await adminClient
+      .from('moto_locks')
+      .select('moto_id, locked_at')
+      .in('moto_id', motoIds)
+    lockMap = new Map((lockRows ?? []).map((row) => [row.moto_id as string, (row.locked_at as string | null) ?? null]))
+  }
+  const enriched = motoRows.map((row) => ({
+    ...row,
+    locked_at: lockMap.get(row.id) ?? null,
+  }))
+  const sorted = [...enriched].sort(compareMotoSequence)
   return NextResponse.json({ data: sorted })
 }
 

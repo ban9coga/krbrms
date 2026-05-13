@@ -76,12 +76,30 @@ type MotoItem = {
   moto_name: string
   moto_order: number
   status: 'UPCOMING' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED'
+  provisional_at?: string | null
+  locked_at?: string | null
 }
 
 const isCompletedMoto = (status?: string | null) => {
   const normalized = (status ?? '').toUpperCase()
   return normalized === 'LOCKED' || normalized === 'FINISHED' || normalized === 'PROTEST_REVIEW'
 }
+
+const completedMotoTimestamp = (moto: MotoItem) => {
+  const candidate = moto.locked_at ?? moto.provisional_at ?? null
+  if (!candidate) return Number.NEGATIVE_INFINITY
+  const value = Date.parse(candidate)
+  return Number.isFinite(value) ? value : Number.NEGATIVE_INFINITY
+}
+
+const latestCompletedByRecency = (motos: MotoItem[]) =>
+  motos
+    .filter((moto) => isCompletedMoto(moto.status))
+    .sort((a, b) => {
+      const timeDiff = completedMotoTimestamp(b) - completedMotoTimestamp(a)
+      if (timeDiff !== 0) return timeDiff
+      return compareMotoSequence(b, a)
+    })[0] ?? null
 
 const gateByMoto = (row: Row, motoIndex: number) => {
   if (motoIndex === 1) return row.gate_moto1
@@ -146,7 +164,7 @@ export default function LiveDisplayClient({
     const data = ((json?.data ?? []) as MotoItem[]).sort(compareMotoSequence)
     const liveMoto = data.find((m) => isMotoLive(m.status)) ?? null
     const provisionalMoto = data.find((m) => (m.status ?? '').toUpperCase() === 'PROVISIONAL') ?? null
-    const latestCompletedMoto = [...data].reverse().find((m) => isCompletedMoto(m.status)) ?? null
+    const latestCompletedMoto = latestCompletedByRecency(data)
     const anchorMoto = provisionalMoto ?? liveMoto ?? latestCompletedMoto
     const anchorIndex = anchorMoto ? data.findIndex((m) => m.id === anchorMoto.id) : -1
     const nextMoto = anchorIndex >= 0 ? data[anchorIndex + 1] ?? null : null
@@ -216,10 +234,7 @@ export default function LiveDisplayClient({
     () => eventMotos.find((m) => (m.status ?? '').toUpperCase() === 'PROVISIONAL') ?? null,
     [eventMotos]
   )
-  const latestCompletedMoto = useMemo(
-    () => [...eventMotos].reverse().find((m) => isCompletedMoto(m.status)) ?? null,
-    [eventMotos]
-  )
+  const latestCompletedMoto = useMemo(() => latestCompletedByRecency(eventMotos), [eventMotos])
   const anchorMoto = provisionalMoto ?? activeMoto ?? latestCompletedMoto
   const categoryOrderMap = useMemo(() => {
     const sorted = [...categories].sort((a, b) => {
