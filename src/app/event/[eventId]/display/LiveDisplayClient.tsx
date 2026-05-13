@@ -275,22 +275,29 @@ export default function LiveDisplayClient({
     if (currentOrder < 0) return null
     return sortedCategories.find((category) => (categoryOrderMap.get(category.id) ?? -1) > currentOrder) ?? null
   }, [displayMoto, categoryOrderMap, sortedCategories])
-  const sameCategoryUpcomingMotos = useMemo(
-    () =>
-      displayMoto
-        ? orderedUpcomingMotos.filter((moto) => moto.category_id === displayMoto.category_id)
-        : [],
-    [displayMoto, orderedUpcomingMotos]
-  )
+  const sameCategoryQueueMoto = useMemo(() => {
+    if (!displayMoto) return null
+    const sameCategoryMotos = eventMotos
+      .filter((moto) => moto.category_id === displayMoto.category_id)
+      .sort(compareMotoSequence)
+    const currentIndex = sameCategoryMotos.findIndex((moto) => moto.id === displayMoto.id)
+    if (currentIndex < 0) return null
+    const blockedStatuses = new Set(['LOCKED', 'FINISHED', 'PROTEST_REVIEW'])
+    return (
+      sameCategoryMotos
+        .slice(currentIndex + 1)
+        .find((moto) => !blockedStatuses.has((moto.status ?? '').toUpperCase())) ?? null
+    )
+  }, [displayMoto, eventMotos])
   const queueMoto = useMemo(() => {
     const prioritizedMotos =
-      sameCategoryUpcomingMotos.length > 0
-        ? sameCategoryUpcomingMotos
+      sameCategoryQueueMoto
+        ? [sameCategoryQueueMoto]
         : nextCategoryCandidate
           ? orderedUpcomingMotos.filter((moto) => moto.category_id === nextCategoryCandidate.id)
           : orderedUpcomingMotos
     return prioritizedMotos[0] ?? null
-  }, [orderedUpcomingMotos, sameCategoryUpcomingMotos, nextCategoryCandidate])
+  }, [orderedUpcomingMotos, sameCategoryQueueMoto, nextCategoryCandidate])
   const queueLiveScore = queueMoto ? liveScoreByCategory[queueMoto.category_id] ?? null : null
   const queueBatches = useMemo(() => queueLiveScore?.batches ?? [], [queueLiveScore])
   const queueTarget = useMemo(() => {
@@ -697,7 +704,7 @@ export default function LiveDisplayClient({
                     <h2 className="text-2xl font-black uppercase tracking-[0.08em] text-white">Waiting Feed</h2>
                     <p className="text-sm font-semibold text-slate-400">{queueTarget?.label ?? 'Belum ada moto berikutnya'}</p>
                     <p className="text-sm font-bold uppercase tracking-[0.12em] text-amber-200">
-                      Kategori: {queueLiveScore?.categoryLabel ?? (sameCategoryUpcomingMotos.length > 0 ? categoryLabel : nextCategoryCandidate?.label) ?? '-'}
+                      Kategori: {queueLiveScore?.categoryLabel ?? (sameCategoryQueueMoto ? categoryLabel : nextCategoryCandidate?.label) ?? '-'}
                     </p>
                   </div>
                   <div className="rounded-full border border-amber-300/40 bg-amber-300/15 px-4 py-2 text-sm font-extrabold uppercase tracking-[0.12em] text-amber-200">
@@ -707,7 +714,7 @@ export default function LiveDisplayClient({
 
                 {prepareQueue.length === 0 ? (
                   <div className="p-6 text-lg font-semibold text-slate-400">
-                    {sameCategoryUpcomingMotos.length > 0
+                    {sameCategoryQueueMoto
                       ? `Moto berikutnya di kategori ${categoryLabel || '-'} belum punya gate yang siap ditampilkan.`
                       : nextCategoryCandidate
                       ? `Kategori berikutnya ${nextCategoryCandidate.label} belum punya moto/gate yang siap ditampilkan.`
