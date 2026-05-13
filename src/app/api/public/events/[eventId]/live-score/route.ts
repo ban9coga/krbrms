@@ -401,6 +401,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
 
       const classForRank = (rank: number | null | undefined) => {
         if (!rank) return null
+        if (batchEntries.length === 1 && rank >= 1 && rank <= 8) return 'FINAL ELITE'
         if (rank >= 1 && rank <= 4) return formatStageAdvanceLabel(resolveQualificationPrimaryAdvance(resolvedCategory.stages))
         if (!resolvedCategory.stages.enableSemiFinal && !resolvedCategory.stages.enableQuarterFinal) return 'FINAL NOVICE'
         if (resolvedCategory.stages.enableSemiFinal && !resolvedCategory.stages.enableQuarterFinal) {
