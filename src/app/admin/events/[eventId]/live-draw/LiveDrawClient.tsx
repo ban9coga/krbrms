@@ -477,7 +477,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     setDrawnOrder([])
     const shuffled = shuffle(riders)
     setWheelRiders(shuffled)
-    setResultModal(null)
+    setResultModal('draft')
 
     const count = shuffled.length
     const index = Math.floor(Math.random() * count)
@@ -1405,6 +1405,34 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
             <div style={{ overflowY: 'auto', padding: 22, display: 'grid', gap: 16 }}>
               {resultModal === 'draft' && (
                 <div style={{ display: 'grid', gap: 14 }}>
+                  {drawing && (
+                    <div
+                      style={{
+                        padding: '14px 16px',
+                        borderRadius: 16,
+                        border: '1px solid #93c5fd',
+                        background: '#eff6ff',
+                        color: '#1d4ed8',
+                        fontWeight: 900,
+                      }}
+                    >
+                      Sedang mengundi rider. Preview batch akan terisi otomatis setelah spin selesai.
+                    </div>
+                  )}
+                  {!drawing && batches.length === 0 && (
+                    <div
+                      style={{
+                        padding: '14px 16px',
+                        borderRadius: 16,
+                        border: '1px solid #cbd5e1',
+                        background: '#f8fafc',
+                        color: '#475569',
+                        fontWeight: 800,
+                      }}
+                    >
+                      Hasil draw belum tersedia.
+                    </div>
+                  )}
                   {batches.map((batch) => (
                     <div
                       key={batch.index}
