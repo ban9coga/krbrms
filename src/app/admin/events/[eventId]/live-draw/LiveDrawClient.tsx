@@ -474,6 +474,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     setDrawing(true)
     setSaveState('idle')
     setRollingName('Spinning...')
+    setDrawnOrder([])
     const shuffled = shuffle(riders)
     setWheelRiders(shuffled)
     setResultModal(null)
@@ -495,6 +496,8 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
 
     spinTimeoutRef.current = window.setTimeout(() => {
       if (rollingIntervalRef.current) window.clearInterval(rollingIntervalRef.current)
+      spinTimeoutRef.current = null
+      rollingIntervalRef.current = null
       setRollingName(shuffled[index].name)
       setDrawnOrder(shuffled)
       setDrawing(false)
@@ -894,6 +897,11 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
               {drawMode === 'external_draw' ? 'External Order' : 'Wheel Spin'}
             </div>
             <div style={{ fontSize: 22, fontWeight: 950, color: '#0f172a' }}>{rollingName}</div>
+            {drawing && (
+              <div style={{ color: '#1d4ed8', fontWeight: 900 }}>
+                Sedang mengundi rider, tunggu sampai hasil preview muncul otomatis.
+              </div>
+            )}
             <div style={{ color: '#444', fontWeight: 700 }}>
               Total rider: {riders.length} | Batch: {batches.length}
             </div>
