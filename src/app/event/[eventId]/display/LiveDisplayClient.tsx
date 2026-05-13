@@ -236,23 +236,63 @@ export default function LiveDisplayClient({
 
     return new Map(sorted.map((category, index) => [category.id, index]))
   }, [categories])
-  const queueMoto = useMemo(() => {
-    const upcoming = eventMotos
+  const orderedUpcomingMotos = useMemo(
+    () =>
+      eventMotos
       .filter((m) => (m.status ?? '').toUpperCase() === 'UPCOMING')
       .sort((a, b) => {
         const ac = categoryOrderMap.get(a.category_id) ?? Number.MAX_SAFE_INTEGER
         const bc = categoryOrderMap.get(b.category_id) ?? Number.MAX_SAFE_INTEGER
         if (ac !== bc) return ac - bc
         return compareMotoSequence(a, b)
-      })
-    return upcoming[0] ?? null
-  }, [eventMotos, categoryOrderMap])
+      }),
+    [eventMotos, categoryOrderMap]
+  )
   const displayMoto = provisionalMoto ?? activeMoto ?? latestCompletedMoto
   const activeLiveScore = displayMoto ? liveScoreByCategory[displayMoto.category_id] : null
-  const queueLiveScore = queueMoto ? liveScoreByCategory[queueMoto.category_id] : null
   const categoryLabel = activeLiveScore?.categoryLabel ?? ''
   const batches = useMemo(() => activeLiveScore?.batches ?? [], [activeLiveScore])
   const stages = useMemo(() => activeLiveScore?.stages ?? [], [activeLiveScore])
+  const queueCandidate = useMemo(() => {
+    for (const moto of orderedUpcomingMotos) {
+      const payload = liveScoreByCategory[moto.category_id]
+      const queueBatches = payload?.batches ?? []
+      const batch =
+        queueBatches.find(
+          (item) => item.moto1_id === moto.id || item.moto2_id === moto.id || item.moto3_id === moto.id
+        ) ?? null
+      if (!batch) continue
+      const motoIndex: 1 | 2 | 3 =
+        batch.moto1_id === moto.id ? 1 : batch.moto2_id === moto.id ? 2 : 3
+      const rows = [...batch.rows]
+        .sort((a, b) => (gateByMoto(a, motoIndex) ?? 9999) - (gateByMoto(b, motoIndex) ?? 9999))
+        .filter((row) => gateByMoto(row, motoIndex) != null)
+        .map((row, index) => ({
+          queue: index + 1,
+          rider_id: row.rider_id,
+          gate: gateByMoto(row, motoIndex),
+          no_plate: row.no_plate,
+          name: row.name,
+          rider_nickname: row.rider_nickname ?? null,
+          club: row.club,
+          photo_thumbnail_url: row.photo_thumbnail_url ?? null,
+        }))
+      if (rows.length === 0) continue
+      return {
+        moto,
+        queueLiveScore: payload,
+        queueTarget: {
+          batch,
+          motoIndex,
+          label: `Batch ${batch.batch_index} - Moto ${motoIndex}`,
+        },
+        rows,
+      }
+    }
+    return null
+  }, [orderedUpcomingMotos, liveScoreByCategory])
+  const queueMoto = queueCandidate?.moto ?? null
+  const queueLiveScore = queueCandidate?.queueLiveScore ?? null
   const queueBatches = useMemo(() => queueLiveScore?.batches ?? [], [queueLiveScore])
 
   const hasData = useMemo(
@@ -325,41 +365,8 @@ export default function LiveDisplayClient({
   const showResultBoard = Boolean(resultBoard)
   const podiumRows = resultBoard?.rows.filter((row) => row.rank && row.rank <= 3).slice(0, 3) ?? []
 
-  const queueTarget = useMemo(() => {
-    if (!queueMoto || queueSortedBatches.length === 0) return null
-    const batch =
-      queueSortedBatches.find(
-        (item) => item.moto1_id === queueMoto.id || item.moto2_id === queueMoto.id || item.moto3_id === queueMoto.id
-      ) ?? null
-    if (!batch) return null
-    const motoIndex: 1 | 2 | 3 =
-      batch.moto1_id === queueMoto.id ? 1 : batch.moto2_id === queueMoto.id ? 2 : 3
-    return {
-      batch,
-      motoIndex,
-      label: `Batch ${batch.batch_index} - Moto ${motoIndex}`,
-    }
-  }, [queueMoto, queueSortedBatches])
-
-  const prepareQueue = useMemo(() => {
-    if (!queueTarget) return []
-    const sorted = [...queueTarget.batch.rows].sort(
-      (a, b) => (gateByMoto(a, queueTarget.motoIndex) ?? 9999) - (gateByMoto(b, queueTarget.motoIndex) ?? 9999)
-    )
-
-    return sorted
-      .filter((row) => gateByMoto(row, queueTarget.motoIndex) != null)
-      .map((row, index) => ({
-        queue: index + 1,
-        rider_id: row.rider_id,
-        gate: gateByMoto(row, queueTarget.motoIndex),
-        no_plate: row.no_plate,
-        name: row.name,
-        rider_nickname: row.rider_nickname ?? null,
-        club: row.club,
-        photo_thumbnail_url: row.photo_thumbnail_url ?? null,
-      }))
-  }, [queueTarget])
+  const queueTarget = queueCandidate?.queueTarget ?? null
+  const prepareQueue = queueCandidate?.rows ?? []
 
   const business = event?.business_settings ?? null
   const publicEventTitle = business?.public_event_title?.trim() || event?.name || 'Live Display'
