@@ -24,6 +24,16 @@ type RiderRow = {
 
 type MotoStatus = 'UPCOMING' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED'
 
+const resolveQualificationMotoCount = async (eventId: string, categoryId: string) => {
+  const { data } = await adminClient
+    .from('race_stage_config')
+    .select('qualification_moto_count')
+    .eq('event_id', eventId)
+    .eq('category_id', categoryId)
+    .maybeSingle()
+  return Math.max(2, Number(data?.qualification_moto_count ?? 2))
+}
+
 const buildDeleteGuard = async (eventId: string, categoryId: string) => {
   const { data: motos, error: motoError } = await adminClient
     .from('motos')
@@ -244,6 +254,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   if (deleteGuard.error) {
     return NextResponse.json({ error: deleteGuard.error }, { status: 400 })
   }
+  const qualificationMotoCount = await resolveQualificationMotoCount(eventId, categoryId)
   return NextResponse.json({
     data,
     has_motos: (existingMotos ?? []).length > 0,
@@ -251,6 +262,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     delete_block_reason: deleteGuard.deleteBlockReason,
     locked_moto_count: deleteGuard.lockedCount,
     has_final_state: deleteGuard.hasFinalState,
+    qualification_moto_count: qualificationMotoCount,
   })
 }
 
@@ -273,6 +285,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
 
   const category = await loadCategory(eventId, categoryId)
   if (!category) return NextResponse.json({ error: 'Category not found' }, { status: 404 })
+  const qualificationMotoCount = await resolveQualificationMotoCount(eventId, categoryId)
 
   const { data: riders, error } = await loadRidersForCategory(eventId, category)
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
@@ -339,7 +352,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       }
     }
   }
-  const motoCount = riderIds.length <= 8 ? 3 : 2
+  const motoCount = batches.length === 1 && qualificationMotoCount >= 3 ? 3 : 2
   const orderFor = (motoIndex: number, batchIndex: number) =>
     baseOrder + (motoIndex - 1) * batches.length + batchIndex + 1
   const motoRecords = batches.flatMap((_, idx) => [

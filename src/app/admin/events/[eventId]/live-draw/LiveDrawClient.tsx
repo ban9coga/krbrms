@@ -98,10 +98,10 @@ type LiveDrawGuard = {
   reason: string | null
 }
 
-const formatMoto3Hint = (riderCount: number) =>
-  riderCount <= 8
-    ? 'Moto 3: urutan gate random (diupayakan beda dari Moto 1 & Moto 2).'
-    : 'Moto 3 tidak dibuat otomatis karena batch melebihi kapasitas gate.'
+const formatMoto3Hint = (qualificationMotoCount: number, totalBatches: number) =>
+  totalBatches === 1 && qualificationMotoCount >= 3
+    ? 'Moto 3 aktif: urutan gate random (diupayakan beda dari Moto 1 & Moto 2).'
+    : 'Moto 3 tidak dipakai untuk konfigurasi draw kategori ini.'
 
 export default function LiveDrawClient({ eventId }: { eventId: string }) {
   const [categories, setCategories] = useState<CategoryItem[]>([])
@@ -112,6 +112,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
   const [drawnOrder, setDrawnOrder] = useState<RiderItem[]>([])
   const [batchSize, setBatchSize] = useState(8)
   const [gatePositions, setGatePositions] = useState(8)
+  const [qualificationMotoCount, setQualificationMotoCount] = useState(2)
   const [drawMode, setDrawMode] = useState<DrawMode>('internal_live_draw')
   const [rollingName, setRollingName] = useState<string>('Ready')
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
@@ -413,6 +414,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
         canDelete: json?.can_delete !== false,
         reason: typeof json?.delete_block_reason === 'string' ? json.delete_block_reason : null,
       })
+      setQualificationMotoCount(Math.max(2, Number(json?.qualification_moto_count ?? 2)))
 
       if (locked) {
         const gateRes = await apiFetch(`/api/events/${eventId}/gate-order?categoryId=${categoryId}`)
@@ -1312,7 +1314,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                             ? 'Moto 2: urutan gate manual sesuai input external.'
                             : `Moto 2: urutan gate otomatis dibalik (Gate ${batch.riders.length} > 1).`}
                         </div>
-                        <div>{formatMoto3Hint(batch.riders.length)}</div>
+                        <div>{formatMoto3Hint(qualificationMotoCount, batches.length)}</div>
                       </div>
                     </div>
                   ))}
