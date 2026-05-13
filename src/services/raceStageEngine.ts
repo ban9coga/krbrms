@@ -40,6 +40,7 @@ export type CustomSplitRule = {
   targetStage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL'
   targetFinalClass?: FinalClass | null
   sortOrder?: number
+  splitBasis?: 'COMBINED' | 'PER_BATCH'
 }
 
 export type FinalFinish = {

@@ -14,6 +14,7 @@ type CustomRuleInput = {
   target_stage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL'
   target_final_class?: string | null
   sort_order: number
+  split_basis?: 'COMBINED' | 'PER_BATCH'
 }
 
 const targetKeyForRule = (rule: {
@@ -38,7 +39,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ eventId: s
   const { data: rules, error: ruleError } = categoryIds.length
     ? await adminClient
         .from('race_category_custom_split_rule')
-        .select('id, category_id, source_stage, rank_from, rank_to, target_stage, target_final_class, sort_order')
+        .select('id, category_id, source_stage, rank_from, rank_to, target_stage, target_final_class, sort_order, split_basis')
         .in('category_id', categoryIds)
         .order('sort_order', { ascending: true })
         .order('rank_from', { ascending: true })
@@ -101,6 +102,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       target_stage: rule.target_stage,
       target_final_class: rule.target_stage === 'FINAL' ? rule.target_final_class ?? null : null,
       sort_order: Number(rule.sort_order ?? index),
+      split_basis: rule.split_basis === 'PER_BATCH' ? 'PER_BATCH' : 'COMBINED',
     }))
     .sort((a, b) => a.sort_order - b.sort_order || a.rank_from - b.rank_from)
 
@@ -110,6 +112,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
 
   if (normalizedRules.some((rule) => rule.target_stage === 'FINAL' && !rule.target_final_class)) {
     return NextResponse.json({ error: 'Final rules must have a final class.' }, { status: 400 })
+  }
+
+  const splitBasisSet = new Set(normalizedRules.map((rule) => rule.split_basis))
+  if (splitBasisSet.size > 1) {
+    return NextResponse.json({ error: 'Semua rule dalam satu kategori harus memakai Rule Basis yang sama.' }, { status: 400 })
   }
 
   for (let index = 1; index < normalizedRules.length; index += 1) {
@@ -157,7 +164,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     const { data, error } = await adminClient
       .from('race_category_custom_split_rule')
       .insert(normalizedRules)
-      .select('id, category_id, source_stage, rank_from, rank_to, target_stage, target_final_class, sort_order')
+      .select('id, category_id, source_stage, rank_from, rank_to, target_stage, target_final_class, sort_order, split_basis')
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 })

@@ -20,12 +20,18 @@ type CustomSplitRule = {
   target_stage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL'
   target_final_class: string | null
   sort_order: number
+  split_basis: 'COMBINED' | 'PER_BATCH'
 }
 
 const FINAL_CLASS_OPTIONS = ['ELITE', 'NOVICE', 'PRO', 'ROOKIE', 'ADVANCED', 'ACADEMY', 'AMATEUR', 'BEGINNER']
 const TARGET_STAGE_OPTIONS: Array<CustomSplitRule['target_stage']> = ['FINAL', 'SEMI_FINAL', 'QUARTER_FINAL']
+const SPLIT_BASIS_OPTIONS: Array<CustomSplitRule['split_basis']> = ['COMBINED', 'PER_BATCH']
 
-const createEmptyRule = (categoryId: string, sortOrder: number): CustomSplitRule => ({
+const createEmptyRule = (
+  categoryId: string,
+  sortOrder: number,
+  splitBasis: CustomSplitRule['split_basis'] = 'COMBINED'
+): CustomSplitRule => ({
   category_id: categoryId,
   source_stage: 'QUALIFICATION',
   rank_from: Math.max(1, sortOrder + 1),
@@ -33,6 +39,7 @@ const createEmptyRule = (categoryId: string, sortOrder: number): CustomSplitRule
   target_stage: 'FINAL',
   target_final_class: 'ELITE',
   sort_order: sortOrder,
+  split_basis: splitBasis,
 })
 
 export default function CustomFinalSplitClient({ eventId }: { eventId: string }) {
@@ -65,7 +72,10 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
       const grouped: Record<string, CustomSplitRule[]> = {}
       for (const row of nextRules) {
         if (!grouped[row.category_id]) grouped[row.category_id] = []
-        grouped[row.category_id].push(row)
+        grouped[row.category_id].push({
+          ...row,
+          split_basis: row.split_basis === 'PER_BATCH' ? 'PER_BATCH' : 'COMBINED',
+        })
       }
       Object.keys(grouped).forEach((categoryId) => {
         grouped[categoryId] = grouped[categoryId]
@@ -75,7 +85,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
       setCategories(nextCategories)
       setRulesByCategory(grouped)
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Gagal memuat custom final split.')
+      alert(err instanceof Error ? err.message : 'Gagal memuat final class rules.')
     } finally {
       setLoading(false)
     }
@@ -93,7 +103,10 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
       summary[category.id] =
         rules.length === 0
           ? 'Belum ada custom split.'
-          : rules.map((rule) => `${rule.rank_from}-${rule.rank_to} → ${rule.target_stage === 'FINAL' ? rule.target_final_class : rule.target_stage}`).join(' | ')
+          : `${rules[0]?.split_basis === 'PER_BATCH' ? 'Top N Per Batch' : 'Combined Rank'} | ` +
+            rules
+              .map((rule) => `${rule.rank_from}-${rule.rank_to} -> ${rule.target_stage === 'FINAL' ? rule.target_final_class : rule.target_stage}`)
+              .join(' | ')
     }
     return summary
   }, [categories, rulesByCategory])
@@ -109,8 +122,25 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
   const addRule = (categoryId: string) => {
     setRulesByCategory((prev) => {
       const current = [...(prev[categoryId] ?? [])]
-      current.push(createEmptyRule(categoryId, current.length))
+      const splitBasis = current[0]?.split_basis ?? 'COMBINED'
+      current.push(createEmptyRule(categoryId, current.length, splitBasis))
       return { ...prev, [categoryId]: current }
+    })
+  }
+
+  const updateSplitBasis = (categoryId: string, splitBasis: CustomSplitRule['split_basis']) => {
+    setRulesByCategory((prev) => {
+      const current = [...(prev[categoryId] ?? [])]
+      if (current.length === 0) {
+        return { ...prev, [categoryId]: [createEmptyRule(categoryId, 0, splitBasis)] }
+      }
+      return {
+        ...prev,
+        [categoryId]: current.map((rule) => ({
+          ...rule,
+          split_basis: splitBasis,
+        })),
+      }
     })
   }
 
@@ -132,12 +162,14 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
       rank_from: Number(rule.rank_from),
       rank_to: Number(rule.rank_to),
       target_final_class: rule.target_stage === 'FINAL' ? rule.target_final_class ?? 'ELITE' : null,
+      split_basis: rule.split_basis === 'PER_BATCH' ? 'PER_BATCH' : 'COMBINED',
     }))
     const category = categories.find((item) => item.id === categoryId)
     const totalRiders = Math.max(0, Number(category?.total_riders ?? 0))
     const highestCoveredRank = payload.reduce((max, rule) => Math.max(max, Number(rule.rank_to) || 0), 0)
+    const splitBasis = payload[0]?.split_basis ?? 'COMBINED'
 
-    if (totalRiders > 0 && payload.length > 0 && highestCoveredRank < totalRiders) {
+    if (splitBasis === 'COMBINED' && totalRiders > 0 && payload.length > 0 && highestCoveredRank < totalRiders) {
       alert(
         `Rule saat ini hanya mencakup rank 1-${highestCoveredRank}, sementara total rider kategori ini ${totalRiders}. Lengkapi rule sampai rank ${totalRiders} dulu.`
       )
@@ -154,9 +186,9 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
         }),
       })
       await load()
-      alert('Custom final split berhasil disimpan.')
+      alert('Final class rules berhasil disimpan.')
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Gagal menyimpan custom final split.')
+      alert(err instanceof Error ? err.message : 'Gagal menyimpan final class rules.')
     } finally {
       setSavingCategoryId(null)
     }
@@ -190,18 +222,21 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
           }}
         >
           Scope saat ini: custom split dipakai untuk hasil <b>Qualification</b>. Jadi rule di bawah akan override pembagian default batch qualification kategori itu.
+          <br />
+          <b>Combined Rank</b> berarti rank gabungan seluruh batch. <b>Top N Per Batch</b> berarti range rank dibaca ulang di masing-masing batch.
         </div>
       </div>
 
       {loading && (
         <div style={{ padding: 14, border: '2px dashed #111', borderRadius: 14, background: '#fff', fontWeight: 900 }}>
-          Loading custom split...
+          Loading final class rules...
         </div>
       )}
 
       {!loading &&
         categories.map((category) => {
           const rules = rulesByCategory[category.id] ?? []
+          const splitBasis = rules[0]?.split_basis ?? 'COMBINED'
           return (
             <section
               key={category.id}
@@ -220,9 +255,29 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
                   <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>
                     Total Rider: {category.total_riders ?? 0}
                   </div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>
+                    Rule Basis: {splitBasis === 'PER_BATCH' ? 'Top N Per Batch' : 'Combined Rank'}
+                  </div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#475569' }}>{categorySummary[category.id]}</div>
                 </div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <select
+                    value={splitBasis}
+                    onChange={(e) => updateSplitBasis(category.id, e.target.value as CustomSplitRule['split_basis'])}
+                    style={{
+                      padding: '8px 12px',
+                      borderRadius: 10,
+                      border: '2px solid #111',
+                      background: '#fff',
+                      fontWeight: 900,
+                    }}
+                  >
+                    {SPLIT_BASIS_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option === 'PER_BATCH' ? 'Top N Per Batch' : 'Combined Rank'}
+                      </option>
+                    ))}
+                  </select>
                   <button
                     type="button"
                     onClick={() => addRule(category.id)}
@@ -275,7 +330,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
                   }}
                 >
                   <label style={{ display: 'grid', gap: 6, fontWeight: 800 }}>
-                    <span>Rank From</span>
+                    <span>{splitBasis === 'PER_BATCH' ? 'Rank From Per Batch' : 'Rank From'}</span>
                     <input
                       type="number"
                       min={1}
@@ -286,7 +341,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
                   </label>
 
                   <label style={{ display: 'grid', gap: 6, fontWeight: 800 }}>
-                    <span>Rank To</span>
+                    <span>{splitBasis === 'PER_BATCH' ? 'Rank To Per Batch' : 'Rank To'}</span>
                     <input
                       type="number"
                       min={rule.rank_from}

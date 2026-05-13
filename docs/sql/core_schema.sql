@@ -618,6 +618,7 @@ create table if not exists race_category_custom_split_rule (
   rank_to int not null check (rank_to >= rank_from),
   target_stage race_stage not null,
   target_final_class final_class,
+  split_basis text not null default 'COMBINED' check (split_basis in ('COMBINED', 'PER_BATCH')),
   sort_order int not null default 0,
   created_at timestamptz not null default now()
 );

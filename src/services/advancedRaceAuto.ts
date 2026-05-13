@@ -49,6 +49,7 @@ type CustomSplitRuleRow = {
   target_stage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL'
   target_final_class: string | null
   sort_order: number
+  split_basis?: 'COMBINED' | 'PER_BATCH' | null
 }
 
 type QualificationRankRow = {
@@ -72,7 +73,7 @@ const compareTieBreakers = (a: number[] = [], b: number[] = []) => {
 async function loadQualificationCustomSplitRules(categoryId: string): Promise<CustomSplitRule[]> {
   const { data, error } = await adminClient
     .from('race_category_custom_split_rule')
-    .select('category_id, source_stage, rank_from, rank_to, target_stage, target_final_class, sort_order')
+    .select('category_id, source_stage, rank_from, rank_to, target_stage, target_final_class, sort_order, split_basis')
     .eq('category_id', categoryId)
     .eq('source_stage', 'QUALIFICATION')
     .order('sort_order', { ascending: true })
@@ -89,6 +90,7 @@ async function loadQualificationCustomSplitRules(categoryId: string): Promise<Cu
     targetStage: row.target_stage,
     targetFinalClass: row.target_final_class as CustomSplitRule['targetFinalClass'],
     sortOrder: Number(row.sort_order ?? 0),
+    splitBasis: row.split_basis === 'PER_BATCH' ? 'PER_BATCH' : 'COMBINED',
   }))
 }
 
@@ -440,7 +442,9 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
     customQualificationRules,
     { singleBatchFinalElite: batches.length === 1 }
   )
-  const useCombinedCustomSplit = customQualificationRules.length > 0 && batches.length > 1
+  const customSplitBasis = customQualificationRules[0]?.splitBasis ?? 'COMBINED'
+  const useCombinedCustomSplit =
+    customQualificationRules.length > 0 && customSplitBasis === 'COMBINED' && batches.length > 1
   const combinedQualificationRanks = useCombinedCustomSplit
     ? rankCombinedQualificationRows(
         Object.entries(batchRanks).flatMap(([batchId, ranks]) =>
@@ -904,7 +908,9 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
   const pendingFinalAssignments = new Map<string, string>()
   const customQualificationRules = await loadQualificationCustomSplitRules(categoryId)
   const qualificationBatchCount = Object.keys(qualificationRanksByBatch).length
-  const useCombinedCustomSplit = customQualificationRules.length > 0 && qualificationBatchCount > 1
+  const customSplitBasis = customQualificationRules[0]?.splitBasis ?? 'COMBINED'
+  const useCombinedCustomSplit =
+    customQualificationRules.length > 0 && customSplitBasis === 'COMBINED' && qualificationBatchCount > 1
   const qualificationAdvances = useCombinedCustomSplit
     ? computeQualificationAdvancesFromRanks(
         rankCombinedQualificationRows(
