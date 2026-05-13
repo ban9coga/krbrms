@@ -58,6 +58,17 @@ type StageGroup = {
   rows: StageRow[]
 }
 
+type ResultBoardRow = {
+  rider_id: string
+  name: string
+  no_plate: string
+  club: string | null
+  photo_thumbnail_url?: string | null
+  point: number | null
+  penalty_total: number | null
+  rank: number | null
+}
+
 type MotoItem = {
   id: string
   category_id: string
@@ -259,8 +270,33 @@ export default function LiveDisplayClient({
   const showLiveMoto3 = Boolean(
     liveBatchView?.moto3_id || liveBatchView?.rows.some((row) => row.point_moto3 !== null || row.gate_moto3 !== null)
   )
-  const showResultBoard = Boolean(activeStageView && !activeMoto && !provisionalMoto)
-  const podiumRows = activeStageView?.rows.filter((row) => row.rank && row.rank <= 3).slice(0, 3) ?? []
+  const resultBoard = useMemo(() => {
+    if (activeMoto || provisionalMoto || !displayMoto) return null
+    if (activeStageView) {
+      return {
+        title: activeStageView.title,
+        rows: activeStageView.rows as ResultBoardRow[],
+      }
+    }
+    if (liveBatchView && (displayMoto.status ?? '').toUpperCase() === 'LOCKED') {
+      return {
+        title: `${categoryLabel || 'Kategori'} Final Result`,
+        rows: liveBatchView.rows.map((row) => ({
+          rider_id: row.rider_id,
+          name: displayName(row),
+          no_plate: row.no_plate,
+          club: row.club,
+          photo_thumbnail_url: row.photo_thumbnail_url ?? null,
+          point: row.total_point,
+          penalty_total: row.penalty_total,
+          rank: row.rank_point,
+        })),
+      }
+    }
+    return null
+  }, [activeMoto, provisionalMoto, displayMoto, activeStageView, liveBatchView, categoryLabel])
+  const showResultBoard = Boolean(resultBoard)
+  const podiumRows = resultBoard?.rows.filter((row) => row.rank && row.rank <= 3).slice(0, 3) ?? []
 
   const queueTarget = useMemo(() => {
     if (!queueMoto || queueSortedBatches.length === 0) return null
@@ -435,7 +471,7 @@ export default function LiveDisplayClient({
                   <div>
                     <h2 className="text-2xl font-black uppercase tracking-[0.08em] text-slate-900">
                       {showResultBoard
-                        ? `${activeStageView?.title ?? 'Final Result'}`
+                        ? `${resultBoard?.title ?? 'Final Result'}`
                         : liveBatchView
                           ? `Batch ${liveBatchView.batch_index} - Live Results`
                           : 'Live Results'}
@@ -449,7 +485,7 @@ export default function LiveDisplayClient({
                   </div>
                 </div>
 
-                {showResultBoard && activeStageView ? (
+                {showResultBoard && resultBoard ? (
                   <div className="grid gap-4 p-4 md:p-6">
                     {podiumRows.length > 0 && (
                       <div className="grid gap-4 md:grid-cols-3">
@@ -491,7 +527,7 @@ export default function LiveDisplayClient({
                           </tr>
                         </thead>
                         <tbody>
-                          {activeStageView.rows.map((row, rowIndex) => (
+                          {resultBoard.rows.map((row, rowIndex) => (
                             <tr
                               key={`stage-${row.rider_id}`}
                               className={`border-t border-slate-100 ${
@@ -584,6 +620,7 @@ export default function LiveDisplayClient({
                 )}
               </section>
 
+              {!showResultBoard || prepareQueue.length > 0 ? (
               <section className="rounded-[24px] border border-slate-700 bg-slate-900 shadow-2xl">
                 <div className="flex items-center justify-between border-b border-slate-800 px-6 py-4">
                   <div>
@@ -641,6 +678,7 @@ export default function LiveDisplayClient({
                   </div>
                 )}
               </section>
+              ) : null}
             </div>
           </>
         )}
