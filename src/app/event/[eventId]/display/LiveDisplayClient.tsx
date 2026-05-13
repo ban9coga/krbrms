@@ -634,6 +634,9 @@ export default function LiveDisplayClient({
                   <div>
                     <h2 className="text-2xl font-black uppercase tracking-[0.08em] text-white">Waiting Feed</h2>
                     <p className="text-sm font-semibold text-slate-400">{queueTarget?.label ?? 'Belum ada moto berikutnya'}</p>
+                    <p className="text-sm font-bold uppercase tracking-[0.12em] text-amber-200">
+                      Kategori: {queueLiveScore?.categoryLabel ?? '-'}
+                    </p>
                   </div>
                   <div className="rounded-full border border-amber-300/40 bg-amber-300/15 px-4 py-2 text-sm font-extrabold uppercase tracking-[0.12em] text-amber-200">
                     Next Moto
