@@ -137,6 +137,15 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
 
+  useEffect(() => {
+    if (!eventId) return
+    const interval = window.setInterval(() => {
+      void load()
+    }, 5000)
+    return () => window.clearInterval(interval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventId])
+
   const categoryLabel = useMemo(() => {
     const map = new Map<string, string>()
     for (const c of categories) {

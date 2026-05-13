@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../../lib/auth'
 import { assertMotoEditable, assertMotoNotUnderProtest } from '../../../../../../lib/motoLock'
+import { promoteNextMotoToLive } from '../../../../../../services/motoProgression'
 import { requireJury } from '../../../../../../services/juryAuth'
 
 const isLockedMoto = async (motoId: string) => {
@@ -123,6 +124,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
     .from('motos')
     .update({ status: 'PROVISIONAL', provisional_at: new Date().toISOString() })
     .eq('id', motoId)
+
+  await promoteNextMotoToLive(moto.event_id, motoId)
 
   return NextResponse.json({ ok: true })
 }
