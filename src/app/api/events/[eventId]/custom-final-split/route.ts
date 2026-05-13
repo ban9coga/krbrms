@@ -16,6 +16,11 @@ type CustomRuleInput = {
   sort_order: number
 }
 
+const targetKeyForRule = (rule: {
+  target_stage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL'
+  target_final_class?: string | null
+}) => `${rule.target_stage}:${rule.target_stage === 'FINAL' ? rule.target_final_class ?? 'NULL' : '-'}`
+
 export async function GET(_: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params
 
@@ -101,6 +106,42 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
 
   if (normalizedRules.some((rule) => rule.rank_to < rule.rank_from)) {
     return NextResponse.json({ error: 'rank_to must be greater than or equal to rank_from' }, { status: 400 })
+  }
+
+  if (normalizedRules.some((rule) => rule.target_stage === 'FINAL' && !rule.target_final_class)) {
+    return NextResponse.json({ error: 'Final rules must have a final class.' }, { status: 400 })
+  }
+
+  for (let index = 1; index < normalizedRules.length; index += 1) {
+    const previous = normalizedRules[index - 1]
+    const current = normalizedRules[index]
+    if (current.rank_from <= previous.rank_to) {
+      return NextResponse.json(
+        {
+          error: `Rank range overlap detected between ${previous.rank_from}-${previous.rank_to} and ${current.rank_from}-${current.rank_to}.`,
+        },
+        { status: 400 }
+      )
+    }
+  }
+
+  const duplicateTarget = new Map<string, { rank_from: number; rank_to: number }>()
+  for (const rule of normalizedRules) {
+    const key = targetKeyForRule(rule)
+    const existing = duplicateTarget.get(key)
+    if (existing) {
+      const label =
+        rule.target_stage === 'FINAL'
+          ? `FINAL ${rule.target_final_class}`
+          : rule.target_stage.replace(/_/g, ' ')
+      return NextResponse.json(
+        {
+          error: `Duplicate target ${label} detected. Gabungkan jadi satu rule, misalnya ${existing.rank_from}-${rule.rank_to}.`,
+        },
+        { status: 400 }
+      )
+    }
+    duplicateTarget.set(key, { rank_from: rule.rank_from, rank_to: rule.rank_to })
   }
 
   const { error: deleteError } = await adminClient
