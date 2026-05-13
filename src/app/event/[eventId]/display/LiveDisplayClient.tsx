@@ -236,6 +236,23 @@ export default function LiveDisplayClient({
 
     return new Map(sorted.map((category, index) => [category.id, index]))
   }, [categories])
+  const sortedCategories = useMemo(
+    () =>
+      [...categories].sort((a, b) => {
+        const ayMax = typeof a.year_max === 'number' ? a.year_max : typeof a.year_min === 'number' ? a.year_min : 0
+        const byMax = typeof b.year_max === 'number' ? b.year_max : typeof b.year_min === 'number' ? b.year_min : 0
+        if (byMax !== ayMax) return byMax - ayMax
+        const ayMin = typeof a.year_min === 'number' ? a.year_min : ayMax
+        const byMin = typeof b.year_min === 'number' ? b.year_min : byMax
+        if (byMin !== ayMin) return byMin - ayMin
+        const genderOrder = { BOY: 0, GIRL: 1, MIX: 2 } as const
+        const ag = genderOrder[a.gender] ?? 9
+        const bg = genderOrder[b.gender] ?? 9
+        if (ag !== bg) return ag - bg
+        return a.label.localeCompare(b.label)
+      }),
+    [categories]
+  )
   const orderedUpcomingMotos = useMemo(
     () =>
       eventMotos
@@ -253,8 +270,14 @@ export default function LiveDisplayClient({
   const categoryLabel = activeLiveScore?.categoryLabel ?? ''
   const batches = useMemo(() => activeLiveScore?.batches ?? [], [activeLiveScore])
   const stages = useMemo(() => activeLiveScore?.stages ?? [], [activeLiveScore])
+  const nextCategoryCandidate = useMemo(() => {
+    const currentOrder = displayMoto ? categoryOrderMap.get(displayMoto.category_id) ?? -1 : -1
+    if (currentOrder < 0) return null
+    return sortedCategories.find((category) => (categoryOrderMap.get(category.id) ?? -1) > currentOrder) ?? null
+  }, [displayMoto, categoryOrderMap, sortedCategories])
   const queueCandidate = useMemo(() => {
     for (const moto of orderedUpcomingMotos) {
+      if (nextCategoryCandidate && moto.category_id !== nextCategoryCandidate.id) continue
       const payload = liveScoreByCategory[moto.category_id]
       const queueBatches = payload?.batches ?? []
       const batch =
@@ -290,7 +313,7 @@ export default function LiveDisplayClient({
       }
     }
     return null
-  }, [orderedUpcomingMotos, liveScoreByCategory])
+  }, [orderedUpcomingMotos, liveScoreByCategory, nextCategoryCandidate])
   const queueMoto = queueCandidate?.moto ?? null
   const queueLiveScore = queueCandidate?.queueLiveScore ?? null
   const queueBatches = useMemo(() => queueLiveScore?.batches ?? [], [queueLiveScore])
@@ -665,7 +688,7 @@ export default function LiveDisplayClient({
                     <h2 className="text-2xl font-black uppercase tracking-[0.08em] text-white">Waiting Feed</h2>
                     <p className="text-sm font-semibold text-slate-400">{queueTarget?.label ?? 'Belum ada moto berikutnya'}</p>
                     <p className="text-sm font-bold uppercase tracking-[0.12em] text-amber-200">
-                      Kategori: {queueLiveScore?.categoryLabel ?? '-'}
+                      Kategori: {queueLiveScore?.categoryLabel ?? nextCategoryCandidate?.label ?? '-'}
                     </p>
                   </div>
                   <div className="rounded-full border border-amber-300/40 bg-amber-300/15 px-4 py-2 text-sm font-extrabold uppercase tracking-[0.12em] text-amber-200">
@@ -674,7 +697,11 @@ export default function LiveDisplayClient({
                 </div>
 
                 {prepareQueue.length === 0 ? (
-                  <div className="p-6 text-lg font-semibold text-slate-400">Belum ada moto berikutnya untuk ditampilkan.</div>
+                  <div className="p-6 text-lg font-semibold text-slate-400">
+                    {nextCategoryCandidate
+                      ? `Kategori berikutnya ${nextCategoryCandidate.label} belum punya moto/gate yang siap ditampilkan.`
+                      : 'Belum ada moto berikutnya untuk ditampilkan.'}
+                  </div>
                 ) : (
                   <div className="overflow-hidden">
                     <table className="w-full border-collapse text-xs md:text-sm">
