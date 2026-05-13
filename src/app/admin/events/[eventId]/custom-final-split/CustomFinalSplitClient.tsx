@@ -133,6 +133,16 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
       rank_to: Number(rule.rank_to),
       target_final_class: rule.target_stage === 'FINAL' ? rule.target_final_class ?? 'ELITE' : null,
     }))
+    const category = categories.find((item) => item.id === categoryId)
+    const totalRiders = Math.max(0, Number(category?.total_riders ?? 0))
+    const highestCoveredRank = payload.reduce((max, rule) => Math.max(max, Number(rule.rank_to) || 0), 0)
+
+    if (totalRiders > 0 && payload.length > 0 && highestCoveredRank < totalRiders) {
+      alert(
+        `Rule saat ini hanya mencakup rank 1-${highestCoveredRank}, sementara total rider kategori ini ${totalRiders}. Lengkapi rule sampai rank ${totalRiders} dulu.`
+      )
+      return
+    }
 
     setSavingCategoryId(categoryId)
     try {
