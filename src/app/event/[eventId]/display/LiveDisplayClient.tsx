@@ -700,9 +700,10 @@ export default function LiveDisplayClient({
                   <div className="overflow-hidden">
                     <table className="w-full border-collapse text-xs md:text-sm">
                       <colgroup>
+                        <col style={{ width: '72px' }} />
                         <col style={{ width: '76px' }} />
                         <col style={{ width: '92px' }} />
-                        <col style={{ width: '36%' }} />
+                        <col style={{ width: '32%' }} />
                         <col style={{ width: '15%' }} />
                         <col style={{ width: '72px' }} />
                         <col style={{ width: '88px' }} />
@@ -710,7 +711,7 @@ export default function LiveDisplayClient({
                       </colgroup>
                       <thead>
                         <tr className="bg-sky-100/90 text-left font-black uppercase tracking-[0.12em] text-slate-700">
-                          {['Rank', 'Plate', 'Panggilan', 'Komunitas', 'Point', 'Penalty', 'Status'].map((h) => (
+                          {['Gate', 'Rank', 'Plate', 'Panggilan', 'Komunitas', 'Point', 'Penalty', 'Status'].map((h) => (
                             <th key={h} className="px-3 py-3">
                               {h}
                             </th>
@@ -726,9 +727,10 @@ export default function LiveDisplayClient({
                                 ? 'bg-amber-50/75'
                                 : rowIndex % 2 === 0
                                   ? 'bg-sky-50/40'
-                                  : 'bg-white'
+                                : 'bg-white'
                             }`}
                           >
+                            <td className="px-3 py-3 text-xl font-black text-slate-700">{row.gate ?? '-'}</td>
                             <td className="px-3 py-3 text-2xl font-black text-emerald-700">{row.rank ?? '-'}</td>
                             <td className="px-3 py-3 text-sm font-black text-slate-700">{row.no_plate}</td>
                             <td className="px-3 py-3">
