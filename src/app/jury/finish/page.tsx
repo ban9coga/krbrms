@@ -493,41 +493,46 @@ export default function JuryFinishPage() {
           <section className="public-panel-light">
             <div className="mb-3 text-xs font-extrabold uppercase tracking-[0.15em] text-slate-500">Input Grid</div>
             <div className="input-grid">
-              {availableRiders.map((r) => (
-                <button
-                  key={r.id}
-                  type="button"
-                  onPointerDown={(event) => onCardPointerDown(event, r.id)}
-                  onPointerUp={(event) => onCardPointerUp(event, r.id)}
-                  onPointerLeave={() => onCardPointerLeave(r.id)}
-                  onPointerCancel={() => onCardPointerLeave(r.id)}
-                  disabled={role === 'RACE_DIRECTOR' || motoLocked || !selectedMotoLive}
-                  style={{
-                    height: 120,
-                    borderRadius: 16,
-                    border: '2px solid #0f172a',
-                    borderBottomWidth: 4,
-                    background: '#ffffff',
-                    color: '#0f172a',
-                    fontWeight: 900,
-                    fontSize: 44,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: role === 'RACE_DIRECTOR' || motoLocked || !selectedMotoLive ? 'not-allowed' : 'pointer',
-                    transform: pressedId === r.id ? 'translateY(4px)' : 'translateY(0)',
-                    transition: 'transform 0.08s ease',
-                    userSelect: 'none',
-                    WebkitUserSelect: 'none',
-                    WebkitTouchCallout: 'none',
-                    touchAction: 'manipulation',
-                  }}
-                >
-                  <div style={{ lineHeight: 1 }}>{r.no_plate_display}</div>
-                  <div style={{ marginTop: 6, fontSize: 12, fontWeight: 700, color: '#475569' }}>{r.name}</div>
-                </button>
-              ))}
+              {availableRiders.map((r) => {
+                const startStatus = participationByRider[r.id]
+                const isReady = startStatus !== 'DNS' && startStatus !== 'ABSENT'
+                return (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onPointerDown={(event) => onCardPointerDown(event, r.id)}
+                    onPointerUp={(event) => onCardPointerUp(event, r.id)}
+                    onPointerLeave={() => onCardPointerLeave(r.id)}
+                    onPointerCancel={() => onCardPointerLeave(r.id)}
+                    disabled={role === 'RACE_DIRECTOR' || motoLocked || !selectedMotoLive}
+                    style={{
+                      height: 120,
+                      borderRadius: 16,
+                      border: isReady ? '2px solid #15803d' : '2px solid #0f172a',
+                      borderBottomWidth: 4,
+                      background: isReady ? 'linear-gradient(180deg, #dcfce7 0%, #bbf7d0 100%)' : '#ffffff',
+                      color: '#0f172a',
+                      fontWeight: 900,
+                      fontSize: 44,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: role === 'RACE_DIRECTOR' || motoLocked || !selectedMotoLive ? 'not-allowed' : 'pointer',
+                      transform: pressedId === r.id ? 'translateY(4px)' : 'translateY(0)',
+                      transition: 'transform 0.08s ease',
+                      userSelect: 'none',
+                      WebkitUserSelect: 'none',
+                      WebkitTouchCallout: 'none',
+                      touchAction: 'manipulation',
+                      boxShadow: isReady ? '0 10px 24px rgba(22, 163, 74, 0.18)' : 'none',
+                    }}
+                  >
+                    <div style={{ lineHeight: 1 }}>{r.no_plate_display}</div>
+                    <div style={{ marginTop: 6, fontSize: 12, fontWeight: 700, color: isReady ? '#166534' : '#475569' }}>{r.name}</div>
+                  </button>
+                )
+              })}
               {availableRiders.length === 0 && (
                 <div className="col-span-full rounded-xl border border-slate-300 bg-white px-4 py-4 text-center text-sm font-semibold text-slate-500">
                   {selectedMotoLive ? 'Tidak ada rider yang tersisa di grid.' : 'Pilih moto LIVE terlebih dahulu.'}
@@ -561,9 +566,11 @@ export default function JuryFinishPage() {
                       <div className="font-semibold text-slate-700">
                         {r.no_plate_display} - {r.name}
                       </div>
-                      <span className={`rounded-full border px-2 py-0.5 text-[10px] font-extrabold tracking-[0.08em] ${badgeClass}`}>
-                        {status}
-                      </span>
+                      {status !== 'READY' && (
+                        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-extrabold tracking-[0.08em] ${badgeClass}`}>
+                          {status}
+                        </span>
+                      )}
                     </div>
                   )
                 })}
