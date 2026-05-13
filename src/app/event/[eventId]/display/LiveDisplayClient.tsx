@@ -609,6 +609,8 @@ export default function LiveDisplayClient({
                     <h2 className="text-2xl font-black uppercase tracking-[0.08em] text-slate-900">
                       {showResultBoard
                         ? `${resultBoard?.title ?? 'Final Result'}`
+                        : activeStageView
+                          ? activeStageView.title
                         : liveBatchView
                           ? `Batch ${liveBatchView.batch_index} - Live Results`
                           : 'Live Results'}
@@ -692,6 +694,60 @@ export default function LiveDisplayClient({
                         </tbody>
                       </table>
                     </div>
+                  </div>
+                ) : activeStageView ? (
+                  <div className="overflow-hidden">
+                    <table className="w-full border-collapse text-xs md:text-sm">
+                      <colgroup>
+                        <col style={{ width: '76px' }} />
+                        <col style={{ width: '92px' }} />
+                        <col style={{ width: '36%' }} />
+                        <col style={{ width: '15%' }} />
+                        <col style={{ width: '72px' }} />
+                        <col style={{ width: '88px' }} />
+                        <col style={{ width: '108px' }} />
+                      </colgroup>
+                      <thead>
+                        <tr className="bg-sky-100/90 text-left font-black uppercase tracking-[0.12em] text-slate-700">
+                          {['Rank', 'Plate', 'Panggilan', 'Komunitas', 'Point', 'Penalty', 'Status'].map((h) => (
+                            <th key={h} className="px-3 py-3">
+                              {h}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {activeStageView.rows.map((row, rowIndex) => (
+                          <tr
+                            key={`live-stage-${row.rider_id}`}
+                            className={`border-t border-slate-100 ${
+                              row.rank === 1
+                                ? 'bg-amber-50/75'
+                                : rowIndex % 2 === 0
+                                  ? 'bg-sky-50/40'
+                                  : 'bg-white'
+                            }`}
+                          >
+                            <td className="px-3 py-3 text-2xl font-black text-emerald-700">{row.rank ?? '-'}</td>
+                            <td className="px-3 py-3 text-sm font-black text-slate-700">{row.no_plate}</td>
+                            <td className="px-3 py-3">
+                              <div className="flex items-center gap-3">
+                                {riderPhotoCell(row.name, row.no_plate, row.photo_thumbnail_url)}
+                                <div className="min-w-0 flex-1">
+                                  <div className="truncate text-lg font-black italic tracking-wide text-slate-900">{row.name}</div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-3 py-3 text-sm font-bold text-slate-600">{row.club || '-'}</td>
+                            <td className="px-2 py-3 text-xl font-black text-slate-900">{row.point ?? '-'}</td>
+                            <td className="px-2 py-3 text-sm font-extrabold text-amber-600">{row.penalty_total ?? '-'}</td>
+                            <td className="px-3 py-3 text-[11px] font-extrabold uppercase tracking-[0.08em] text-slate-600">
+                              {row.status}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 ) : !liveBatchView ? (
                   <div className="p-6 text-lg font-semibold text-slate-500">Belum ada batch live yang aktif.</div>
