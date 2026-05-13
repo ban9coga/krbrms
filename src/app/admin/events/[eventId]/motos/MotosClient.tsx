@@ -42,9 +42,9 @@ const getAllowedMotoStatuses = (current: MotoItem['status']) => {
     case 'UPCOMING':
       return ['UPCOMING', 'LIVE'] as MotoItem['status'][]
     case 'LIVE':
-      return ['LIVE', 'PROVISIONAL'] as MotoItem['status'][]
+      return ['UPCOMING', 'LIVE', 'PROVISIONAL'] as MotoItem['status'][]
     case 'PROVISIONAL':
-      return ['PROVISIONAL'] as MotoItem['status'][]
+      return ['UPCOMING', 'PROVISIONAL'] as MotoItem['status'][]
     case 'PROTEST_REVIEW':
       return ['PROTEST_REVIEW'] as MotoItem['status'][]
     case 'LOCKED':
