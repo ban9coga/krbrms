@@ -44,6 +44,13 @@ const normalizeDrawMode = (value: unknown): DrawMode =>
   value === 'external_draw' ? 'external_draw' : 'internal_live_draw'
 
 const normalizePlateToken = (value: string) => value.toUpperCase().replace(/[^0-9A-Z]/g, '')
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
 
 const parseExternalTokens = (value: string) =>
   value
@@ -108,6 +115,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
   const [selectedCategory, setSelectedCategory] = useState<string>('')
   const [riders, setRiders] = useState<RiderItem[]>([])
   const [loading, setLoading] = useState(false)
+  const [eventName, setEventName] = useState('Event')
   const [drawing, setDrawing] = useState(false)
   const [drawnOrder, setDrawnOrder] = useState<RiderItem[]>([])
   const [batchSize, setBatchSize] = useState(8)
@@ -358,6 +366,10 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     setLoading(true)
     try {
       await loadSettings()
+      const eventRes = await apiFetch(`/api/events/${eventId}`)
+      if (eventRes.res.ok) {
+        setEventName(String(eventRes.json?.data?.name ?? 'Event'))
+      }
       const res = await fetch(`/api/events/${eventId}/categories`)
       const json = await res.json()
       const list = (json?.data ?? []) as CategoryItem[]
@@ -611,6 +623,135 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
   const handleOpenShareLink = () => {
     if (!selectedCategory || !publicShareUrl) return
     window.open(publicShareUrl, '_blank', 'noopener,noreferrer')
+  }
+
+  const handleDownloadLiveDrawPdf = () => {
+    if (lockedMotos.length === 0) {
+      alert('Belum ada moto tersimpan untuk diunduh.')
+      return
+    }
+
+    const grouped = new Map<number, GateMoto[]>()
+    lockedMotos.forEach((moto) => {
+      const parsed = parseMotoBatch(moto.moto_name)
+      const key = parsed.batchNo > 0 ? parsed.batchNo : 1
+      const list = grouped.get(key) ?? []
+      list.push(moto)
+      grouped.set(key, list)
+    })
+
+    const sections = Array.from(grouped.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([batchNo, motos]) => {
+        const orderedMotos = [...motos].sort((a, b) => {
+          const pa = parseMotoBatch(a.moto_name)
+          const pb = parseMotoBatch(b.moto_name)
+          if (pa.motoNo !== pb.motoNo) return pa.motoNo - pb.motoNo
+          return a.moto_order - b.moto_order
+        })
+        const riderMap = new Map<
+          string,
+          { name: string; noPlate: string; gates: Record<number, number> }
+        >()
+
+        orderedMotos.forEach((moto, motoIndex) => {
+          moto.gates.forEach((gate) => {
+            const existing = riderMap.get(gate.rider_id) ?? {
+              name: gate.name,
+              noPlate: gate.no_plate_display,
+              gates: {},
+            }
+            existing.gates[motoIndex + 1] = gate.gate_position
+            riderMap.set(gate.rider_id, existing)
+          })
+        })
+
+        const rows = Array.from(riderMap.values()).sort((a, b) => {
+          const gateA = a.gates[1] ?? 999
+          const gateB = b.gates[1] ?? 999
+          if (gateA !== gateB) return gateA - gateB
+          return a.name.localeCompare(b.name)
+        })
+
+        const headerCells = orderedMotos
+          .map((moto, index) => `<th>Gate M${index + 1}</th>`)
+          .join('')
+        const bodyRows = rows
+          .map((row) => {
+            const gateCells = orderedMotos
+              .map((_, index) => `<td>${row.gates[index + 1] ?? '-'}</td>`)
+              .join('')
+            return `<tr>${gateCells}<td>${escapeHtml(row.noPlate)}</td><td>${escapeHtml(row.name)}</td></tr>`
+          })
+          .join('')
+        const motoMeta = orderedMotos
+          .map((moto, index) => `<span>M${index + 1}: ${escapeHtml(moto.moto_name)}</span>`)
+          .join('')
+
+        return `
+          <section class="batch-card">
+            <div class="batch-head">
+              <h2>Batch ${batchNo}</h2>
+              <div class="moto-meta">${motoMeta}</div>
+            </div>
+            <table>
+              <thead>
+                <tr>${headerCells}<th>No Plate</th><th>Nama Rider</th></tr>
+              </thead>
+              <tbody>${bodyRows}</tbody>
+            </table>
+          </section>
+        `
+      })
+      .join('')
+
+    const html = `
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>Live Draw ${escapeHtml(selectedCategoryLabel)}</title>
+          <style>
+            @page { size: A4 portrait; margin: 14mm; }
+            body { font-family: Arial, sans-serif; color: #0f172a; margin: 0; }
+            .sheet { display: grid; gap: 16px; }
+            .header { border: 2px solid #0f172a; border-radius: 18px; padding: 18px 20px; }
+            .eyebrow { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.14em; color: #475569; }
+            h1 { margin: 6px 0 4px; font-size: 26px; }
+            .subtitle { font-size: 15px; font-weight: 700; color: #334155; }
+            .batch-card { border: 1px solid #cbd5e1; border-radius: 16px; padding: 14px; page-break-inside: avoid; }
+            .batch-head { display: grid; gap: 8px; margin-bottom: 10px; }
+            .batch-head h2 { margin: 0; font-size: 18px; }
+            .moto-meta { display: flex; flex-wrap: wrap; gap: 8px; font-size: 11px; font-weight: 700; color: #334155; }
+            .moto-meta span { border: 1px solid #cbd5e1; border-radius: 999px; padding: 4px 8px; }
+            table { width: 100%; border-collapse: collapse; font-size: 12px; }
+            th, td { border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left; }
+            th { background: #e2e8f0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
+            tbody tr:nth-child(even) td { background: #f8fafc; }
+          </style>
+        </head>
+        <body>
+          <div class="sheet">
+            <header class="header">
+              <div class="eyebrow">Live Draw Result</div>
+              <h1>${escapeHtml(eventName)}</h1>
+              <div class="subtitle">${escapeHtml(selectedCategoryLabel)}</div>
+            </header>
+            ${sections}
+          </div>
+          <script>window.print();</script>
+        </body>
+      </html>
+    `
+
+    const printWindow = window.open('', '_blank', 'noopener,noreferrer')
+    if (!printWindow) {
+      alert('Popup diblokir browser. Izinkan popup lalu coba lagi.')
+      return
+    }
+    printWindow.document.open()
+    printWindow.document.write(html)
+    printWindow.document.close()
   }
 
   return (
@@ -1446,6 +1587,20 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                 )}
                 {resultModal === 'saved' && (
                   <>
+                    <button
+                      type="button"
+                      onClick={handleDownloadLiveDrawPdf}
+                      style={{
+                        padding: '12px 16px',
+                        borderRadius: 12,
+                        border: '2px solid #111',
+                        background: '#dbeafe',
+                        fontWeight: 900,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Download PDF
+                    </button>
                     {!deleteGuard.canDelete && deleteGuard.reason && (
                       <div
                         style={{
