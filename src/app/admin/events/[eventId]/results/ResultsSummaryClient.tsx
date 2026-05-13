@@ -757,7 +757,24 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
         {`
           @media print {
             .no-print { display: none !important; }
-            body { background: #fff !important; }
+            html, body {
+              background:
+                radial-gradient(circle at top left, rgba(251, 191, 36, 0.18), transparent 28%),
+                radial-gradient(circle at top right, rgba(16, 185, 129, 0.16), transparent 26%),
+                #ffffff !important;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            .admin-surface,
+            .table-striped,
+            .table-striped th,
+            .table-striped td {
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            .admin-surface {
+              box-shadow: none !important;
+            }
             @page { margin: 14mm; }
           }
           @media (max-width: 860px) {

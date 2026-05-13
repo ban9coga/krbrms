@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { compareMotoSequence } from '../../../../../lib/motoSequence'
+import { buildBrandedPrintHtml } from '../../../../../lib/printTheme'
 import { supabase } from '../../../../../lib/supabaseClient'
 
 type CategoryItem = {
@@ -419,9 +420,14 @@ export default function MotosClient({ eventId }: { eventId: string }) {
               `
 
             return `
-              <section class="batch-card">
-                <div class="batch-title">Batch ${batch.batchNo}</div>
-                <div class="batch-meta">${motoMeta}</div>
+              <section class="section-card" style="margin-top: 12px;">
+                <div class="section-title">Batch ${batch.batchNo}</div>
+                <div class="meta-row">
+                  ${motoMeta
+                    .split(' | ')
+                    .map((item) => `<span class="meta-pill">${item}</span>`)
+                    .join('')}
+                </div>
                 <table>
                   <thead>
                     <tr>
@@ -440,105 +446,21 @@ export default function MotosClient({ eventId }: { eventId: string }) {
           .join('')
 
         return `
-          <section class="category-section">
-            <h2>${group.categoryLabel}</h2>
+          <section class="section-card">
+            <h2 class="section-title">${group.categoryLabel}</h2>
             ${batchesHtml}
           </section>
         `
       })
       .join('')
 
-    const html = `
-      <!doctype html>
-      <html>
-        <head>
-          <meta charset="utf-8" />
-          <title>Cetak Moto Seluruh Kategori</title>
-          <style>
-            * { box-sizing: border-box; }
-            body {
-              margin: 0;
-              padding: 24px;
-              font-family: Arial, sans-serif;
-              color: #0f172a;
-              background: #ffffff;
-            }
-            h1 {
-              margin: 0 0 6px;
-              font-size: 26px;
-            }
-            .subtitle {
-              margin-bottom: 18px;
-              font-size: 13px;
-              font-weight: 700;
-              color: #475569;
-            }
-            .category-section {
-              margin-bottom: 24px;
-              padding: 16px;
-              border: 2px solid #111827;
-              border-radius: 16px;
-              page-break-inside: avoid;
-            }
-            .category-section h2 {
-              margin: 0 0 12px;
-              font-size: 20px;
-            }
-            .batch-card {
-              margin-top: 12px;
-              padding: 12px;
-              border: 1px solid #cbd5e1;
-              border-radius: 12px;
-              background: #f8fafc;
-              page-break-inside: avoid;
-            }
-            .batch-title {
-              font-size: 15px;
-              font-weight: 900;
-              margin-bottom: 6px;
-            }
-            .batch-meta {
-              font-size: 11px;
-              font-weight: 700;
-              color: #475569;
-              margin-bottom: 10px;
-            }
-            table {
-              width: 100%;
-              border-collapse: collapse;
-              font-size: 12px;
-            }
-            th, td {
-              border-bottom: 1px solid #dbeafe;
-              padding: 6px 8px;
-              text-align: left;
-            }
-            th {
-              background: #e2e8f0;
-              font-weight: 900;
-            }
-            td {
-              font-weight: 700;
-            }
-            @media print {
-              body {
-                padding: 12px;
-              }
-            }
-          </style>
-        </head>
-        <body>
-          <h1>Data Rider Per Moto Seluruh Kategori</h1>
-          <div class="subtitle">${eventName}</div>
-          ${sections}
-          <script>
-            window.onload = function () {
-              window.print();
-            };
-          </script>
-        </body>
-      </html>
-    `
+    const html = buildBrandedPrintHtml({
+      title: 'Cetak Moto Seluruh Kategori',
+      eyebrow: 'Moto Print',
+      heading: 'Data Rider Per Moto Seluruh Kategori',
+      subtitle: eventName,
+      body: sections,
+    })
 
     const iframe = document.createElement('iframe')
     iframe.style.position = 'fixed'

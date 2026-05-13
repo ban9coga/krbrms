@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { buildBrandedPrintHtml } from '../../../../../lib/printTheme'
 import { supabase } from '../../../../../lib/supabaseClient'
 
 type CategoryItem = {
@@ -699,11 +700,10 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
           .join('')
 
         return `
-          <section class="batch-card">
-            <div class="batch-head">
-              <h2>Batch ${batchNo}</h2>
-              <div class="moto-meta">${motoMeta}</div>
-            </div>
+          <section class="section-card">
+            <h2 class="section-title">Batch ${batchNo}</h2>
+            <div class="meta-row">${motoMeta
+              .replace(/<span>/g, '<span class="meta-pill">')}</div>
             <table>
               <thead>
                 <tr>${headerCells}<th>No Plate</th><th>Nama Rider</th></tr>
@@ -715,44 +715,13 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       })
       .join('')
 
-    const html = `
-      <!doctype html>
-      <html>
-        <head>
-          <meta charset="utf-8" />
-          <title>Live Draw ${escapeHtml(selectedCategoryLabel)}</title>
-          <style>
-            @page { size: A4 portrait; margin: 14mm; }
-            body { font-family: Arial, sans-serif; color: #0f172a; margin: 0; }
-            .sheet { display: grid; gap: 16px; }
-            .header { border: 2px solid #0f172a; border-radius: 18px; padding: 18px 20px; }
-            .eyebrow { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.14em; color: #475569; }
-            h1 { margin: 6px 0 4px; font-size: 26px; }
-            .subtitle { font-size: 15px; font-weight: 700; color: #334155; }
-            .batch-card { border: 1px solid #cbd5e1; border-radius: 16px; padding: 14px; page-break-inside: avoid; }
-            .batch-head { display: grid; gap: 8px; margin-bottom: 10px; }
-            .batch-head h2 { margin: 0; font-size: 18px; }
-            .moto-meta { display: flex; flex-wrap: wrap; gap: 8px; font-size: 11px; font-weight: 700; color: #334155; }
-            .moto-meta span { border: 1px solid #cbd5e1; border-radius: 999px; padding: 4px 8px; }
-            table { width: 100%; border-collapse: collapse; font-size: 12px; }
-            th, td { border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left; }
-            th { background: #e2e8f0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
-            tbody tr:nth-child(even) td { background: #f8fafc; }
-          </style>
-        </head>
-        <body>
-          <div class="sheet">
-            <header class="header">
-              <div class="eyebrow">Live Draw Result</div>
-              <h1>${escapeHtml(eventName)}</h1>
-              <div class="subtitle">${escapeHtml(selectedCategoryLabel)}</div>
-            </header>
-            ${sections}
-          </div>
-          <script>window.print();</script>
-        </body>
-      </html>
-    `
+    const html = buildBrandedPrintHtml({
+      title: `Live Draw ${escapeHtml(selectedCategoryLabel)}`,
+      eyebrow: 'Live Draw Result',
+      heading: escapeHtml(eventName),
+      subtitle: escapeHtml(selectedCategoryLabel),
+      body: sections,
+    })
 
     const frame = printFrameRef.current
     if (!frame) {

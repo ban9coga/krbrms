@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState, type ClipboardEvent, type DragEvent } from 'react'
+import { buildBrandedPrintHtml } from '../../../../../lib/printTheme'
 import { supabase } from '../../../../../lib/supabaseClient'
 
 type CategoryItem = {
@@ -756,29 +757,15 @@ export default function RidersClient({ eventId }: { eventId: string }) {
         )
         .join('')
 
-      const html = `
-        <!doctype html>
-        <html>
-          <head>
-            <meta charset="utf-8" />
-            <title>${escapeHtml(title)}</title>
-            <style>
-              body { font-family: Arial, sans-serif; margin: 20px; color: #111827; }
-              h1 { margin: 0 0 8px 0; font-size: 20px; }
-              .meta { margin-bottom: 12px; font-size: 12px; color: #374151; }
-              table { width: 100%; border-collapse: collapse; font-size: 12px; }
-              th, td { border: 1px solid #d1d5db; padding: 6px 8px; text-align: left; }
-              th { background: #f3f4f6; font-weight: 700; }
-              @page { size: A4 portrait; margin: 12mm; }
-            </style>
-          </head>
-          <body>
-            <h1>${escapeHtml(title)}</h1>
-            <div class="meta">
-              Total Rider: ${exportRows.length} | Generated: ${escapeHtml(generatedAt)}${
-                query.trim() ? ` | Filter: ${escapeHtml(query.trim())}` : ''
-              }
-            </div>
+      const html = buildBrandedPrintHtml({
+        title: escapeHtml(title),
+        eyebrow: 'Rider Export',
+        heading: escapeHtml(title),
+        subtitle: `Total Rider: ${exportRows.length} | Generated: ${escapeHtml(generatedAt)}${
+          query.trim() ? ` | Filter: ${escapeHtml(query.trim())}` : ''
+        }`,
+        body: `
+          <section class="section-card">
             <table>
               <thead>
                 <tr>
@@ -794,9 +781,9 @@ export default function RidersClient({ eventId }: { eventId: string }) {
               </thead>
               <tbody>${tableRows}</tbody>
             </table>
-          </body>
-        </html>
-      `
+          </section>
+        `,
+      })
 
       openPrintPreview(html)
     } catch (err: unknown) {
@@ -1070,39 +1057,17 @@ export default function RidersClient({ eventId }: { eventId: string }) {
         })
         .join('')
 
-      const html = `
-        <!doctype html>
-        <html>
-          <head>
-            <meta charset="utf-8" />
-            <title>All Riders by Category</title>
-            <style>
-              body { font-family: Arial, sans-serif; margin: 16px; color: #111827; }
-              h1 { margin: 0 0 8px 0; font-size: 22px; }
-              h2 { margin: 0; font-size: 16px; }
-              .summary { margin-bottom: 18px; font-size: 12px; color: #374151; display: grid; gap: 4px; }
-              .summary strong { color: #111827; }
-              .category-section { margin-bottom: 18px; page-break-inside: avoid; }
-              .category-header { display: grid; gap: 6px; margin-bottom: 8px; }
-              .meta-row { display: flex; flex-wrap: wrap; gap: 10px; font-size: 11px; color: #475569; }
-              table { width: 100%; border-collapse: collapse; font-size: 11px; }
-              th, td { border: 1px solid #d1d5db; padding: 5px 6px; text-align: left; }
-              th { background: #0f172a; color: #fff; font-weight: 700; }
-              .empty { text-align: center; color: #64748b; font-style: italic; }
-              @page { size: A4 landscape; margin: 10mm; }
-            </style>
-          </head>
-          <body>
-            <h1>All Riders by Category</h1>
-            <div class="summary">
-              <div><strong>Generated:</strong> ${escapeHtml(generatedAt)}</div>
-              <div><strong>Jumlah Rider Terdaftar:</strong> ${escapeHtml(totalRegistered)}</div>
-              <div><strong>Jumlah Rider Ambil Up Class:</strong> ${escapeHtml(upClassCount)}</div>
-            </div>
-            ${sections}
-          </body>
-        </html>
-      `
+      const html = buildBrandedPrintHtml({
+        title: 'All Riders by Category',
+        eyebrow: 'Rider Export',
+        heading: 'All Riders by Category',
+        subtitle: `Generated: ${escapeHtml(generatedAt)} | Jumlah Rider Terdaftar: ${escapeHtml(totalRegistered)} | Jumlah Rider Ambil Up Class: ${escapeHtml(upClassCount)}`,
+        pageSize: 'A4 landscape',
+        body: sections
+          .replace(/class="category-section"/g, 'class="section-card"')
+          .replace(/class="category-header"/g, 'class="section-title"')
+          .replace(/class="meta-row"/g, 'class="meta-row"'),
+      })
 
       openPrintPreview(html)
     } catch (err: unknown) {
