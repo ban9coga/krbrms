@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import EmptyState from '../../../../components/EmptyState'
 import LoadingState from '../../../../components/LoadingState'
 import { getEventById, getEventCategories, type EventItem, type RiderCategory } from '../../../../lib/eventService'
-import { compareMotoSequence } from '../../../../lib/motoSequence'
+import { compareMotoSequence, parseMotoSequence } from '../../../../lib/motoSequence'
 import { isMotoLive } from '../../../../lib/motoStatus'
 
 type Row = {
@@ -219,6 +219,7 @@ export default function LiveDisplayClient({
     () => [...eventMotos].reverse().find((m) => isCompletedMoto(m.status)) ?? null,
     [eventMotos]
   )
+  const anchorMoto = provisionalMoto ?? activeMoto ?? latestCompletedMoto
   const categoryOrderMap = useMemo(() => {
     const sorted = [...categories].sort((a, b) => {
       const ayMax = typeof a.year_max === 'number' ? a.year_max : typeof a.year_min === 'number' ? a.year_min : 0
@@ -265,22 +266,19 @@ export default function LiveDisplayClient({
       }),
     [eventMotos, categoryOrderMap]
   )
-  const displayMoto = provisionalMoto ?? activeMoto ?? latestCompletedMoto
-  const activeLiveScore = displayMoto ? liveScoreByCategory[displayMoto.category_id] : null
+  const activeLiveScore = anchorMoto ? liveScoreByCategory[anchorMoto.category_id] : null
   const categoryLabel = activeLiveScore?.categoryLabel ?? ''
-  const batches = useMemo(() => activeLiveScore?.batches ?? [], [activeLiveScore])
-  const stages = useMemo(() => activeLiveScore?.stages ?? [], [activeLiveScore])
   const nextCategoryCandidate = useMemo(() => {
-    const currentOrder = displayMoto ? categoryOrderMap.get(displayMoto.category_id) ?? -1 : -1
+    const currentOrder = anchorMoto ? categoryOrderMap.get(anchorMoto.category_id) ?? -1 : -1
     if (currentOrder < 0) return null
     return sortedCategories.find((category) => (categoryOrderMap.get(category.id) ?? -1) > currentOrder) ?? null
-  }, [displayMoto, categoryOrderMap, sortedCategories])
+  }, [anchorMoto, categoryOrderMap, sortedCategories])
   const sameCategoryQueueMoto = useMemo(() => {
-    if (!displayMoto) return null
+    if (!anchorMoto) return null
     const sameCategoryMotos = eventMotos
-      .filter((moto) => moto.category_id === displayMoto.category_id)
+      .filter((moto) => moto.category_id === anchorMoto.category_id)
       .sort(compareMotoSequence)
-    const currentIndex = sameCategoryMotos.findIndex((moto) => moto.id === displayMoto.id)
+    const currentIndex = sameCategoryMotos.findIndex((moto) => moto.id === anchorMoto.id)
     if (currentIndex < 0) return null
     const blockedStatuses = new Set(['LOCKED', 'FINISHED', 'PROTEST_REVIEW'])
     return (
@@ -288,7 +286,17 @@ export default function LiveDisplayClient({
         .slice(currentIndex + 1)
         .find((moto) => !blockedStatuses.has((moto.status ?? '').toUpperCase())) ?? null
     )
-  }, [displayMoto, eventMotos])
+  }, [anchorMoto, eventMotos])
+  const displayMoto = useMemo(() => {
+    if (provisionalMoto || activeMoto) return provisionalMoto ?? activeMoto
+    if (!latestCompletedMoto) return null
+    const isQualificationMoto = Boolean(parseMotoSequence(latestCompletedMoto.moto_name))
+    if (isQualificationMoto && sameCategoryQueueMoto) return sameCategoryQueueMoto
+    return latestCompletedMoto
+  }, [provisionalMoto, activeMoto, latestCompletedMoto, sameCategoryQueueMoto])
+  const displayLiveScore = displayMoto ? liveScoreByCategory[displayMoto.category_id] : null
+  const displayBatches = useMemo(() => displayLiveScore?.batches ?? [], [displayLiveScore])
+  const displayStages = useMemo(() => displayLiveScore?.stages ?? [], [displayLiveScore])
   const queueMoto = useMemo(() => {
     const prioritizedMotos =
       sameCategoryQueueMoto
@@ -318,12 +326,12 @@ export default function LiveDisplayClient({
 
   const hasData = useMemo(
     () =>
-      batches.some((batch) => batch.rows.length > 0) ||
-      stages.some((stage) => stage.rows.length > 0) ||
+      displayBatches.some((batch) => batch.rows.length > 0) ||
+      displayStages.some((stage) => stage.rows.length > 0) ||
       queueBatches.some((batch) => batch.rows.length > 0),
-    [batches, stages, queueBatches]
+    [displayBatches, displayStages, queueBatches]
   )
-  const sortedBatches = useMemo(() => [...batches].sort((a, b) => a.batch_index - b.batch_index), [batches])
+  const sortedBatches = useMemo(() => [...displayBatches].sort((a, b) => a.batch_index - b.batch_index), [displayBatches])
   const activeBatch = useMemo(() => {
     if (!displayMoto) return null
     return sortedBatches.find((b) => b.moto1_id === displayMoto.id || b.moto2_id === displayMoto.id || b.moto3_id === displayMoto.id) ?? null
@@ -338,7 +346,7 @@ export default function LiveDisplayClient({
   }, [activeBatch])
   const activeStageView = useMemo(() => {
     if (!displayMoto) return null
-    const stage = stages.find((item) => item.moto_id === displayMoto.id) ?? null
+    const stage = displayStages.find((item) => item.moto_id === displayMoto.id) ?? null
     if (!stage) return null
     return {
       ...stage,
@@ -352,7 +360,7 @@ export default function LiveDisplayClient({
         return a.name.localeCompare(b.name)
       }),
     }
-  }, [displayMoto, stages])
+  }, [displayMoto, displayStages])
   const showLiveMoto3 = Boolean(
     liveBatchView?.moto3_id || liveBatchView?.rows.some((row) => row.point_moto3 !== null || row.gate_moto3 !== null)
   )
