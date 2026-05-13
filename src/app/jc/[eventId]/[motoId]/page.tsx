@@ -164,11 +164,13 @@ export default function JCPage() {
           setSelectedMotoId(nextSelectable[0]?.id ?? '')
         }
       }
+      return sortedMotos
     } catch (err: unknown) {
       setErrorMessage(err instanceof Error ? err.message : 'Gagal memuat data JC.')
     } finally {
       setLoading(false)
     }
+    return []
   }, [apiFetch, eventId, selectedMotoId])
 
   useEffect(() => {
@@ -532,10 +534,17 @@ export default function JCPage() {
                 </option>
                 ))}
             </select>
-            <button
+              <button
               type="button"
               onClick={async () => {
-                await loadMotos()
+                const refreshedMotos = (await loadMotos()) ?? []
+                const nextLiveMoto = refreshedMotos.find((m) => !isLockedStatus(m.status) && isMotoLive(m.status))
+                if (nextLiveMoto) {
+                  setSelectedMotoId(nextLiveMoto.id)
+                  setAllReadyDone(false)
+                  router.replace(`/jc/${eventId}/${nextLiveMoto.id}`)
+                  return
+                }
                 await loadMoto(false, true)
               }}
               disabled={loading || saving}

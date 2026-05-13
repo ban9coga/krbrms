@@ -112,7 +112,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   const qualificationResult = await computeQualificationAndStore(eventId, categoryId)
   let warning = qualificationResult.ok ? null : qualificationResult.warning ?? null
 
-  if (qualificationResult.ok) {
+  if (qualificationResult.ok && qualificationResult.warning !== 'Qualification not required for single batch.') {
     const stageMotoResult = await generateStageMotos(eventId, categoryId)
     if (!stageMotoResult.ok) {
       warning = stageMotoResult.warning ?? warning

@@ -212,58 +212,13 @@ const normalizeAdvancedRuleForGateSize = (rule: CategoryRule, gateSize: number):
   }
 }
 
-const standardBatchPresetCards = (gateSize: number) => {
-  const safeGateSize = Math.max(1, gateSize || 8)
-  return [
-    {
-      label: '1 Batch',
-      riderRange: `1-${safeGateSize} rider`,
-      summary: '3 moto final biasa',
-      finals: ['ELITE'],
-    },
-    {
-      label: '2 Batch',
-      riderRange: `${safeGateSize + 1}-${safeGateSize * 2} rider`,
-      summary: 'Qualification -> Final Elite + Final Novice (top 4 / bottom 4)',
-      finals: ['NOVICE', 'ELITE'],
-    },
-    {
-      label: '3 Batch',
-      riderRange: `${safeGateSize * 2 + 1}-${safeGateSize * 3} rider`,
-      summary: 'Qualification -> Semi Final -> Final Elite/Novice + Pro/Rookie dari heat',
-      finals: ['ROOKIE', 'PRO', 'NOVICE', 'ELITE'],
-    },
-    {
-      label: '4 Batch',
-      riderRange: `${safeGateSize * 3 + 1}-${safeGateSize * 4} rider`,
-      summary: 'Qualification -> Semi Final -> Final Elite/Novice + Pro/Rookie dari heat',
-      finals: ['ROOKIE', 'PRO', 'NOVICE', 'ELITE'],
-    },
-    {
-      label: '5 Batch',
-      riderRange: `${safeGateSize * 4 + 1}-${safeGateSize * 5} rider`,
-      summary: 'Qualification -> Quarter -> Semi -> Elite/Novice + Pro/Rookie + Adv/Academy/Amateur/Beginner',
-      finals: [...advancedFinalClassOrder],
-    },
-    {
-      label: '6 Batch',
-      riderRange: `${safeGateSize * 5 + 1}-${safeGateSize * 6} rider`,
-      summary: 'Qualification -> Quarter -> Semi -> Elite/Novice + Pro/Rookie + Adv/Academy/Amateur/Beginner',
-      finals: [...advancedFinalClassOrder],
-    },
-    {
-      label: '7 Batch',
-      riderRange: `${safeGateSize * 6 + 1}-${safeGateSize * 7} rider`,
-      summary: 'Qualification -> Quarter -> Semi -> Elite/Novice + Pro/Rookie + Adv/Academy/Amateur/Beginner',
-      finals: [...advancedFinalClassOrder],
-    },
-    {
-      label: '8 Batch',
-      riderRange: `${safeGateSize * 7 + 1}-${safeGateSize * 8} rider`,
-      summary: 'Qualification -> Quarter -> Semi -> Elite/Novice + Pro/Rookie + Adv/Academy/Amateur/Beginner',
-      finals: [...advancedFinalClassOrder],
-    },
-  ]
+const pickStandardBatchRule = (gateSize: number, totalRiders: number): CategoryRule => {
+  const standardRules = buildStandardBatchRules(gateSize)
+  const safeRiderCount = Math.max(1, Number(totalRiders) || 1)
+  return (
+    [...standardRules].reverse().find((rule) => safeRiderCount >= Number(rule.min_riders)) ??
+    standardRules[0]
+  )
 }
 
 const createEmptySponsorDraft = (index = 0): SponsorDraft => ({
@@ -377,6 +332,8 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
         stageCounts: Record<string, number>
         motoCounts: { quarter: number; semi: number; final: number }
         readiness: {
+          totalRiders: number
+          requiresQualification: boolean
           qualificationTotalBatches: number
           qualificationCompleteBatches: number
           qualificationReady: boolean
@@ -713,6 +670,8 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
             stageCounts: Record<string, number>
             motoCounts: { quarter: number; semi: number; final: number }
             readiness: {
+              totalRiders: number
+              requiresQualification: boolean
               qualificationTotalBatches: number
               qualificationCompleteBatches: number
               qualificationReady: boolean
@@ -863,20 +822,21 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
 
   const applyStandardBatchRules = (categoryId: string) => {
     const gateSize = Math.max(1, Number(form.race_gate_positions) || 8)
-    const standardRules = buildStandardBatchRules(gateSize).map((rule) => ({
-      ...rule,
+    const totalRiders = summaryByCategory[categoryId]?.readiness?.totalRiders ?? 1
+    const selectedRule = {
+      ...pickStandardBatchRule(gateSize, totalRiders),
       category_id: categoryId,
-    }))
+    }
     setRulesByCategory((prev) => ({
       ...prev,
-      [categoryId]: standardRules,
+      [categoryId]: [selectedRule],
     }))
     updateDraft(categoryId, {
-      min_riders: gateSize + 1,
-      enable_qualification: true,
-      enable_quarter_final: false,
-      enable_semi_final: false,
-      enabled_final_classes: ['NOVICE', 'ELITE'],
+      min_riders: selectedRule.min_riders,
+      enable_qualification: selectedRule.enable_qualification,
+      enable_quarter_final: selectedRule.enable_quarter_final,
+      enable_semi_final: selectedRule.enable_semi_final,
+      enabled_final_classes: selectedRule.enabled_final_classes,
     })
   }
 
@@ -2202,12 +2162,15 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
               const summary = summaryByCategory[item.category.id]
               const readiness = summary?.readiness
               const advancedEnabled = item.config?.enabled ?? false
+              const requiresQualification = readiness?.requiresQualification ?? false
               const qualificationReady = readiness?.qualificationReady ?? false
               const qualificationRun = readiness?.qualificationRun ?? false
               const canRunQualification = advancedEnabled && (readiness?.canRunQualification ?? false)
               const canComputeAdvances = advancedEnabled && (readiness?.canComputeAdvances ?? false)
               const qualificationNotice = !advancedEnabled
                 ? 'Aktifkan Advanced Stage dulu.'
+                : !requiresQualification
+                ? `Kategori ini hanya ${readiness?.totalRiders ?? 0} rider / 1 batch. Run Qualification tidak diperlukan.`
                 : readiness?.allQualificationLocked
                 ? 'Semua moto qualification sudah LOCKED. Cek dulu apakah hasilnya memang final sebelum menjalankan ulang AMS.'
                 : qualificationReady
@@ -2215,6 +2178,8 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                 : `Belum siap. Lengkapi Moto 1 dan Moto 2 semua batch dulu (${readiness?.qualificationCompleteBatches ?? 0}/${readiness?.qualificationTotalBatches ?? 0} batch complete).`
               const computeNotice = !advancedEnabled
                 ? 'Aktifkan Advanced Stage dulu.'
+                : !requiresQualification
+                ? 'Kategori 1 batch tidak perlu Compute QF/SF/Final.'
                 : readiness?.allCategoryMotosLocked
                 ? 'Semua moto kategori ini sudah LOCKED. Buka ulang hanya jika memang perlu koreksi workflow AMS.'
                 : !qualificationRun
@@ -2350,42 +2315,6 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                         gap: 10,
                       }}
                     >
-                      <div style={{ fontWeight: 900 }}>Preset Standar per Jumlah Batch</div>
-                      <div style={{ color: '#475569', fontWeight: 700, fontSize: 13 }}>
-                        Gate size saat ini: {Math.max(1, Number(form.race_gate_positions) || 8)} rider per batch. Jalur
-                        utama AMS pakai preset ini. Jadi untuk 12 rider kamu tidak perlu input angka 12 lagi, karena dia
-                        otomatis masuk rule 2 batch (9-16 rider).
-                      </div>
-                      <div style={{ color: '#334155', fontWeight: 700, fontSize: 12, lineHeight: 1.5 }}>
-                        Untuk 2 batch, top 4 tiap batch masuk Final Elite dan sisanya langsung Final Novice. Untuk 3-4 batch,
-                        top 4 tiap batch masuk Semi Final, lalu rider sisa dari heat langsung dibagi ke Final Pro dan Final Rookie.
-                        Untuk 5-8 batch, top 4 tiap batch masuk Quarter Final, rider sisa dari heat langsung dibagi ke Final
-                        Advanced, Academy, Amateur, dan Beginner; hasil Quarter Final lalu membentuk Final Pro dan Rookie; hasil
-                        Semi Final membentuk Final Elite dan Novice. Batch ganjil tetap dibagi otomatis ke heat berikutnya dengan
-                        pola sebar zig-zag, jadi isi heat bisa tidak rata tetapi urutan seed tetap mengikuti ranking stage.
-                      </div>
-                      <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
-                        {standardBatchPresetCards(Math.max(1, Number(form.race_gate_positions) || 8)).map((preset) => (
-                          <div
-                            key={preset.label}
-                            style={{
-                              borderRadius: 12,
-                              border: '2px solid #111',
-                              background: '#fff',
-                              padding: 10,
-                              display: 'grid',
-                              gap: 6,
-                            }}
-                          >
-                            <div style={{ fontWeight: 900 }}>{preset.label}</div>
-                            <div style={{ color: '#475569', fontWeight: 800, fontSize: 12 }}>{preset.riderRange}</div>
-                            <div style={{ fontWeight: 800, fontSize: 12 }}>{preset.summary}</div>
-                            <div style={{ color: '#334155', fontWeight: 700, fontSize: 12 }}>
-                              Finals: {preset.finals.join(', ')}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
                       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                         <button
                           type="button"

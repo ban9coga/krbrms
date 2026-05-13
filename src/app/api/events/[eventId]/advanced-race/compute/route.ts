@@ -79,6 +79,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   }
 
   const resolved = await resolveCategoryConfig(categoryId)
+  if (!resolved.stages.enableQualification) {
+    return NextResponse.json(
+      {
+        warning: 'Kategori 1 batch tidak perlu Run Qualification. Cukup jalankan 3 moto biasa tanpa membuat Final ELITE tambahan.',
+        data: {
+          stages: resolved.stages,
+          final_classes: resolved.finalClasses,
+          total_riders: resolved.totalRiders,
+          source: resolved.source,
+        },
+      },
+      { status: 200 }
+    )
+  }
 
   const { data: qualificationMotos, error: motoError } = await adminClient
     .from('motos')

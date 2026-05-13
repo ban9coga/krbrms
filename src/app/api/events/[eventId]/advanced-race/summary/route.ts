@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../../lib/auth'
+import { resolveCategoryConfig } from '../../../../../../services/categoryResolver'
 
 type StageRow = {
   category_id: string
@@ -96,6 +97,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       stageCounts: Record<string, number>
       motoCounts: { quarter: number; semi: number; final: number }
       readiness: {
+        totalRiders: number
+        requiresQualification: boolean
         qualificationTotalBatches: number
         qualificationCompleteBatches: number
         qualificationReady: boolean
@@ -114,10 +117,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     summary[id] = {
       stageCounts: { QUALIFICATION: 0, QUARTER_FINAL: 0, SEMI_FINAL: 0, FINAL: 0 },
       motoCounts: { quarter: 0, semi: 0, final: 0 },
-      readiness: {
-        qualificationTotalBatches: 0,
-        qualificationCompleteBatches: 0,
-        qualificationReady: false,
+        readiness: {
+          totalRiders: 0,
+          requiresQualification: false,
+          qualificationTotalBatches: 0,
+          qualificationCompleteBatches: 0,
+          qualificationReady: false,
         qualificationRun: false,
         quarterReady: false,
         semiReady: false,
@@ -158,6 +163,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
 
   const typedAssignedRows = (assignedRows ?? []) as MotoRiderRow[]
   const typedResultRows = (resultRows ?? []) as ResultRow[]
+  const resolvedByCategory = new Map<string, Awaited<ReturnType<typeof resolveCategoryConfig>>>()
+
+  for (const id of categoryIds) {
+    resolvedByCategory.set(id, await resolveCategoryConfig(id))
+  }
 
   for (const id of categoryIds) {
     const categoryMotos = typedMotoRows.filter((row) => row.category_id === id)
@@ -171,16 +181,21 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       qualificationMotos.every((moto) => (moto.status ?? '').toUpperCase() === 'LOCKED')
     const allCategoryMotosLocked =
       categoryMotos.length > 0 && categoryMotos.every((moto) => (moto.status ?? '').toUpperCase() === 'LOCKED')
+    const resolved = resolvedByCategory.get(id)
+    const requiresQualification = Boolean(resolved?.stages.enableQualification)
 
     summary[id].readiness = {
+      totalRiders: resolved?.totalRiders ?? 0,
+      requiresQualification,
       qualificationTotalBatches: qualificationProgress.total,
       qualificationCompleteBatches: qualificationProgress.complete,
       qualificationReady: qualificationProgress.ready,
       qualificationRun,
       quarterReady: areAllMotosComplete(quarterMotos, typedAssignedRows, typedResultRows),
       semiReady: areAllMotosComplete(semiMotos, typedAssignedRows, typedResultRows),
-      canRunQualification: qualificationProgress.ready,
+      canRunQualification: requiresQualification && qualificationProgress.ready,
       canComputeAdvances:
+        requiresQualification &&
         qualificationRun &&
         (
           (summary[id]?.motoCounts?.quarter ?? 0) > 0

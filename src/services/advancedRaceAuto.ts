@@ -349,6 +349,9 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
   if (!config?.enabled) return { ok: false, warning: 'Advanced race disabled.' }
 
   const resolved = await resolveCategoryConfig(categoryId)
+  if (!resolved.stages.enableQualification) {
+    return { ok: true, warning: 'Qualification not required for single batch.' }
+  }
 
   const { data: motos, error: motoError } = await adminClient
     .from('motos')
@@ -1079,6 +1082,9 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
 
 export async function syncAdvancedRaceProgress(eventId: string, categoryId: string) {
   const qualificationResult = await computeQualificationAndStore(eventId, categoryId)
+  if (qualificationResult.ok && qualificationResult.warning === 'Qualification not required for single batch.') {
+    return { ok: true, warning: qualificationResult.warning }
+  }
   if (!qualificationResult.ok && qualificationResult.warning !== 'No qualifying batches found.') {
     return qualificationResult
   }
