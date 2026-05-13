@@ -594,21 +594,38 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
                       const statusRow = statuses[r.id]
                       const statusValue = statusRow?.participation_status ?? 'ACTIVE'
                       const orderValue = statusRow?.registration_order ?? idx + 1
+                      const statusOptions: RiderStatus['participation_status'][] = ['ACTIVE', 'DNS', 'DNF', 'ABSENT']
                       return (
                         <div key={r.id} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 8, alignItems: 'center' }}>
                           <div style={{ fontWeight: 900 }}>{r.no_plate_display} • {r.name}</div>
-                          <select
-                            value={statusValue}
-                            onChange={(e) => {
-                              const next = e.target.value as RiderStatus['participation_status']
-                              setStatuses((prev) => ({ ...prev, [r.id]: { rider_id: r.id, participation_status: next, registration_order: orderValue } }))
-                            }}
-                            style={{ padding: '6px 8px', borderRadius: 10, border: '2px solid #111', fontWeight: 900 }}
-                          >
-                            {['ACTIVE','DNS','DNF','ABSENT'].map((s) => (
-                              <option key={s} value={s}>{s}</option>
-                            ))}
-                          </select>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                            {statusOptions.map((option) => {
+                              const isActive = statusValue === option
+                              return (
+                                <button
+                                  key={option}
+                                  type="button"
+                                  onClick={() =>
+                                    setStatuses((prev) => ({
+                                      ...prev,
+                                      [r.id]: { rider_id: r.id, participation_status: option, registration_order: orderValue },
+                                    }))
+                                  }
+                                  style={{
+                                    padding: '6px 10px',
+                                    borderRadius: 999,
+                                    border: '2px solid #111',
+                                    background: isActive ? '#dcfce7' : '#fff',
+                                    color: '#111',
+                                    fontWeight: 900,
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  {option}
+                                </button>
+                              )
+                            })}
+                          </div>
                           <button
                             type="button"
                             onClick={() => handleSaveStatus(r.id, statuses[r.id]?.participation_status ?? statusValue, orderValue)}

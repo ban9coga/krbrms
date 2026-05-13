@@ -852,7 +852,7 @@ export default function JCPage() {
                   })}
                 </div>
 
-                <div className="jc-status-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+                <div className="jc-status-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
                   <button
                     className="jc-action-btn jc-primary"
                     type="button"
@@ -868,6 +868,22 @@ export default function JCPage() {
                     }}
                   >
                     READY
+                  </button>
+                  <button
+                    className="jc-action-btn"
+                    type="button"
+                    onClick={() => handleSaveStatus(r.id, 'DNS', r.gate_position ?? 0)}
+                    disabled={statusDisabled}
+                    style={{
+                      padding: '12px 14px',
+                      borderRadius: 999,
+                      border: '2px solid #c2410c',
+                      background: '#ffedd5',
+                      color: '#9a3412',
+                      fontWeight: 900,
+                    }}
+                  >
+                    DNS
                   </button>
                   <button
                     className="jc-action-btn"
