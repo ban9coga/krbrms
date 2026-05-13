@@ -479,7 +479,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     setWheelRiders(shuffled)
     setDrawnOrder(shuffled)
     setHasDrawn(true)
-    setResultModal('draft')
+    setResultModal(null)
 
     const count = shuffled.length
     const index = Math.floor(Math.random() * count)
@@ -1416,7 +1416,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                         fontWeight: 900,
                       }}
                     >
-                      Sedang mengundi rider. Preview batch akan terisi otomatis setelah spin selesai.
+                      Sedang mengundi rider. Preview batch akan muncul otomatis setelah roulette selesai.
                     </div>
                   )}
                   {!drawing && batches.length === 0 && (
