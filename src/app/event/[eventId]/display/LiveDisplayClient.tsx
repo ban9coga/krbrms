@@ -275,9 +275,21 @@ export default function LiveDisplayClient({
     if (currentOrder < 0) return null
     return sortedCategories.find((category) => (categoryOrderMap.get(category.id) ?? -1) > currentOrder) ?? null
   }, [displayMoto, categoryOrderMap, sortedCategories])
+  const sameCategoryUpcomingMotos = useMemo(
+    () =>
+      displayMoto
+        ? orderedUpcomingMotos.filter((moto) => moto.category_id === displayMoto.category_id)
+        : [],
+    [displayMoto, orderedUpcomingMotos]
+  )
   const queueCandidate = useMemo(() => {
-    for (const moto of orderedUpcomingMotos) {
-      if (nextCategoryCandidate && moto.category_id !== nextCategoryCandidate.id) continue
+    const prioritizedMotos =
+      sameCategoryUpcomingMotos.length > 0
+        ? sameCategoryUpcomingMotos
+        : nextCategoryCandidate
+          ? orderedUpcomingMotos.filter((moto) => moto.category_id === nextCategoryCandidate.id)
+          : orderedUpcomingMotos
+    for (const moto of prioritizedMotos) {
       const payload = liveScoreByCategory[moto.category_id]
       const queueBatches = payload?.batches ?? []
       const batch =
@@ -313,7 +325,7 @@ export default function LiveDisplayClient({
       }
     }
     return null
-  }, [orderedUpcomingMotos, liveScoreByCategory, nextCategoryCandidate])
+  }, [orderedUpcomingMotos, sameCategoryUpcomingMotos, liveScoreByCategory, nextCategoryCandidate])
   const queueMoto = queueCandidate?.moto ?? null
   const queueLiveScore = queueCandidate?.queueLiveScore ?? null
   const queueBatches = useMemo(() => queueLiveScore?.batches ?? [], [queueLiveScore])
@@ -694,7 +706,7 @@ export default function LiveDisplayClient({
                     <h2 className="text-2xl font-black uppercase tracking-[0.08em] text-white">Waiting Feed</h2>
                     <p className="text-sm font-semibold text-slate-400">{queueTarget?.label ?? 'Belum ada moto berikutnya'}</p>
                     <p className="text-sm font-bold uppercase tracking-[0.12em] text-amber-200">
-                      Kategori: {queueLiveScore?.categoryLabel ?? nextCategoryCandidate?.label ?? '-'}
+                      Kategori: {queueLiveScore?.categoryLabel ?? (sameCategoryUpcomingMotos.length > 0 ? categoryLabel : nextCategoryCandidate?.label) ?? '-'}
                     </p>
                   </div>
                   <div className="rounded-full border border-amber-300/40 bg-amber-300/15 px-4 py-2 text-sm font-extrabold uppercase tracking-[0.12em] text-amber-200">
@@ -704,7 +716,9 @@ export default function LiveDisplayClient({
 
                 {prepareQueue.length === 0 ? (
                   <div className="p-6 text-lg font-semibold text-slate-400">
-                    {nextCategoryCandidate
+                    {sameCategoryUpcomingMotos.length > 0
+                      ? `Moto berikutnya di kategori ${categoryLabel || '-'} belum punya gate yang siap ditampilkan.`
+                      : nextCategoryCandidate
                       ? `Kategori berikutnya ${nextCategoryCandidate.label} belum punya moto/gate yang siap ditampilkan.`
                       : 'Belum ada moto berikutnya untuk ditampilkan.'}
                   </div>
