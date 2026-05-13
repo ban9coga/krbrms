@@ -1,6 +1,6 @@
-import { redirect } from 'next/navigation'
+import SettingsClient from '../settings/SettingsClient'
 
 export default async function AdminAdvancedRacePage({ params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params
-  redirect(`/admin/events/${eventId}/settings?section=advanced`)
+  return <SettingsClient eventId={eventId} mode="advanced" />
 }

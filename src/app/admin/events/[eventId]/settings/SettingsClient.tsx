@@ -354,8 +354,9 @@ const sanitizeSponsorDrafts = (items: SponsorDraft[]): EventSponsor[] =>
     })
     .filter(Boolean) as EventSponsor[]
 
-export default function SettingsClient({ eventId }: { eventId: string }) {
+export default function SettingsClient({ eventId, mode = 'full' }: { eventId: string; mode?: 'full' | 'advanced' }) {
   const searchParams = useSearchParams()
+  const advancedOnly = mode === 'advanced'
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [row, setRow] = useState<SettingsRow | null>(null)
@@ -671,14 +672,14 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
   }, [eventId])
 
   useEffect(() => {
-    if (searchParams.get('section') !== 'advanced') return
+    if (!advancedOnly && searchParams.get('section') !== 'advanced') return
     setSections({
       basic: false,
       business: false,
       appearance: false,
       advanced: true,
     })
-  }, [searchParams])
+  }, [advancedOnly, searchParams])
 
   const loadAdvanced = async () => {
     if (!eventId) return
@@ -1194,7 +1195,6 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
     form.business_payment_account_number || 'Belum diisi'
   } | Scoring Support ${form.business_scoring_support_name || 'Belum diisi'}`
   const appearanceSummary = 'Logo event + race format'
-  const advancedSummary = `${advancedItems.filter((i) => i.config?.enabled).length} enabled`
   const filteredAvailableUsers = useMemo(() => {
     const keyword = staffSearch.trim().toLowerCase()
     if (!keyword) return availableUsers
@@ -1207,59 +1207,58 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
 
   return (
     <div style={{ maxWidth: 980 }}>
-      <h1 style={{ fontSize: 26, fontWeight: 950, margin: 0 }}>Event Settings</h1>
+      <h1 style={{ fontSize: 26, fontWeight: 950, margin: 0 }}>{advancedOnly ? 'Advanced Multi-Stage' : 'Event Settings'}</h1>
       <div style={{ marginTop: 8, color: '#333', fontWeight: 700 }}>
-        Logo/sponsor & konfigurasi display/scoring per event.
+        {advancedOnly ? 'Kelola workflow AMS per kategori dari halaman khusus ini.' : 'Logo/sponsor & konfigurasi display/scoring per event.'}
       </div>
 
-      <div
-        style={{
-          marginTop: 16,
-          display: 'grid',
-          gap: 10,
-        }}
-      >
-        {[
-          { key: 'basic', label: 'Basic' },
-          { key: 'business', label: 'Business & Roles' },
-          { key: 'appearance', label: 'Display & Race Format' },
-          { key: 'advanced', label: 'Advanced Multi-Stage' },
-        ].map((section) => {
-          const isOpen = sections[section.key as keyof typeof sections]
-          const summary =
-            section.key === 'basic'
-              ? basicSummary
-              : section.key === 'business'
-              ? businessSummary
-              : section.key === 'appearance'
-              ? appearanceSummary
-              : advancedSummary
-          return (
-            <button
-              key={section.key}
-              type="button"
-              onClick={() => setSections((prev) => ({ ...prev, [section.key]: !prev[section.key as keyof typeof prev] }))}
-              style={{
-                padding: '10px 14px',
-                borderRadius: 12,
-                border: '2px solid #111',
-                background: isOpen ? '#bfead2' : '#fff',
-                fontWeight: 900,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                cursor: 'pointer',
-              }}
-            >
-              <span style={{ display: 'grid', gap: 2, textAlign: 'left' }}>
-                <span>{section.label}</span>
-                <span style={{ fontSize: 11, fontWeight: 800, color: '#333' }}>{summary}</span>
-              </span>
-              <span style={{ fontSize: 12 }}>{isOpen ? 'Hide' : 'Show'}</span>
-            </button>
-          )
-        })}
-      </div>
+      {!advancedOnly && (
+        <div
+          style={{
+            marginTop: 16,
+            display: 'grid',
+            gap: 10,
+          }}
+        >
+          {[
+            { key: 'basic', label: 'Basic' },
+            { key: 'business', label: 'Business & Roles' },
+            { key: 'appearance', label: 'Display & Race Format' },
+          ].map((section) => {
+            const isOpen = sections[section.key as keyof typeof sections]
+            const summary =
+              section.key === 'basic'
+                ? basicSummary
+                : section.key === 'business'
+                ? businessSummary
+                : appearanceSummary
+            return (
+              <button
+                key={section.key}
+                type="button"
+                onClick={() => setSections((prev) => ({ ...prev, [section.key]: !prev[section.key as keyof typeof prev] }))}
+                style={{
+                  padding: '10px 14px',
+                  borderRadius: 12,
+                  border: '2px solid #111',
+                  background: isOpen ? '#bfead2' : '#fff',
+                  fontWeight: 900,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  cursor: 'pointer',
+                }}
+              >
+                <span style={{ display: 'grid', gap: 2, textAlign: 'left' }}>
+                  <span>{section.label}</span>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: '#333' }}>{summary}</span>
+                </span>
+                <span style={{ fontSize: 12 }}>{isOpen ? 'Hide' : 'Show'}</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
 
       <div
         style={{
@@ -1280,7 +1279,7 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
 
         {!loading && (
           <>
-            {sections.basic && (
+            {!advancedOnly && sections.basic && (
               <>
                 <div style={{ fontWeight: 950, fontSize: 18 }}>Basic</div>
                 <input
@@ -1695,7 +1694,7 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
               </>
             )}
 
-            {sections.business && (
+            {!advancedOnly && sections.business && (
               <>
                 <div style={{ marginTop: 6, fontWeight: 950, fontSize: 18 }}>Business & Roles</div>
                 <div style={{ fontSize: 12, color: '#333', fontWeight: 700 }}>
@@ -2056,7 +2055,7 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
               </>
             )}
 
-            {sections.appearance && (
+            {!advancedOnly && sections.appearance && (
               <>
                 <div style={{ marginTop: 6, fontWeight: 950, fontSize: 18 }}>Display & Race Format</div>
                 <div style={{ marginTop: 10, fontWeight: 900 }}>Event Logo</div>
@@ -2167,7 +2166,7 @@ export default function SettingsClient({ eventId }: { eventId: string }) {
         )}
       </div>
 
-      {sections.advanced && (
+      {(advancedOnly || sections.advanced) && (
         <div
           style={{
             marginTop: 24,

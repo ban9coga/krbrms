@@ -416,6 +416,32 @@ export default function MotosClient({ eventId }: { eventId: string }) {
         </button>
       </div>
       <h1 style={{ fontSize: 26, fontWeight: 950, margin: 0 }}>Motos</h1>
+      <div
+        className="no-print"
+        style={{
+          marginTop: 10,
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 8,
+          padding: '8px 12px',
+          borderRadius: 999,
+          border: '2px solid #111',
+          background: '#ecfccb',
+          fontWeight: 900,
+          fontSize: 12,
+        }}
+      >
+        <span
+          style={{
+            width: 10,
+            height: 10,
+            borderRadius: 999,
+            background: '#16a34a',
+            display: 'inline-block',
+          }}
+        />
+        Auto Live Next aktif: setelah submit hasil, moto berikutnya akan otomatis menjadi LIVE.
+      </div>
       {eventStatus && eventStatus !== 'LIVE' && (
         <div
           className="no-print"
@@ -506,6 +532,18 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                       </div>
                       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontWeight: 800, fontSize: 12 }}>
                         <span>Status: {m.status}</span>
+                        {m.status === 'LIVE' && (
+                          <span
+                            style={{
+                              padding: '2px 8px',
+                              borderRadius: 999,
+                              border: '2px solid #111',
+                              background: '#bbf7d0',
+                            }}
+                          >
+                            Auto Live Next
+                          </span>
+                        )}
                         {m.status === 'PROVISIONAL' && m.provisional_at && (
                           <span>Provisional: {new Date(m.provisional_at).toLocaleString()}</span>
                         )}
