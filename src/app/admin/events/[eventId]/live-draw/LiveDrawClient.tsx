@@ -136,6 +136,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
   const [wheelRiders, setWheelRiders] = useState<RiderItem[]>([])
   const [wheelRotation, setWheelRotation] = useState(0)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const printFrameRef = useRef<HTMLIFrameElement | null>(null)
   const [hasDrawn, setHasDrawn] = useState(false)
   const [categoryLocked, setCategoryLocked] = useState(false)
   const [lockedMotos, setLockedMotos] = useState<GateMoto[]>([])
@@ -756,18 +757,28 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       </html>
     `
 
-    const printWindow = window.open('', '_blank', 'noopener,noreferrer')
-    if (!printWindow) {
-      alert('Popup diblokir browser. Izinkan popup lalu coba lagi.')
+    const frame = printFrameRef.current
+    if (!frame) {
+      alert('Frame print tidak tersedia. Refresh halaman lalu coba lagi.')
       return
     }
-    printWindow.document.open()
-    printWindow.document.write(html)
-    printWindow.document.close()
+
+    frame.onload = () => {
+      const win = frame.contentWindow
+      if (!win) return
+      win.focus()
+      win.print()
+    }
+    frame.srcdoc = html
   }
 
   return (
     <div style={{ maxWidth: 1020 }}>
+      <iframe
+        ref={printFrameRef}
+        title="live-draw-print-frame"
+        style={{ position: 'absolute', width: 0, height: 0, border: 0, visibility: 'hidden' }}
+      />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'end', gap: 12 }}>
         <div>
           <h1 style={{ fontSize: 26, fontWeight: 950, margin: 0 }}>
