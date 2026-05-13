@@ -285,8 +285,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
 
   const category = await loadCategory(eventId, categoryId)
   if (!category) return NextResponse.json({ error: 'Category not found' }, { status: 404 })
-  const qualificationMotoCount = await resolveQualificationMotoCount(eventId, categoryId)
-
   const { data: riders, error } = await loadRidersForCategory(eventId, category)
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
@@ -352,7 +350,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       }
     }
   }
-  const motoCount = batches.length === 1 && qualificationMotoCount >= 3 ? 3 : 2
+  const motoCount = batches.length === 1 ? 3 : 2
   const orderFor = (motoIndex: number, batchIndex: number) =>
     baseOrder + (motoIndex - 1) * batches.length + batchIndex + 1
   const motoRecords = batches.flatMap((_, idx) => [

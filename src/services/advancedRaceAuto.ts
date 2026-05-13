@@ -203,16 +203,15 @@ const isMotoComplete = (motoId: string, assignedRows: MotoRiderRow[], resultRows
   return assignedRiders.every((riderId) => completedRiders.has(riderId))
 }
 
-const resolveQualificationMotoRequirement = (batchCount: number, configuredMotoCount?: number | null) => {
-  if (batchCount === 1 && Number(configuredMotoCount ?? 2) >= 3) return 3
+const resolveQualificationMotoRequirement = (batchCount: number) => {
+  if (batchCount === 1) return 3
   return 2
 }
 
 const buildQualificationProgress = (
   motoRows: MotoRow[],
   assignedRows: MotoRiderRow[],
-  resultRows: ResultRow[],
-  configuredMotoCount?: number | null
+  resultRows: ResultRow[]
 ) => {
   const batchMap = new Map<number, { moto1?: string; moto2?: string; moto3?: string }>()
 
@@ -226,7 +225,7 @@ const buildQualificationProgress = (
     batchMap.set(parsed.batchIndex, entry)
   }
 
-  const requiredMotoCount = resolveQualificationMotoRequirement(batchMap.size, configuredMotoCount)
+  const requiredMotoCount = resolveQualificationMotoRequirement(batchMap.size)
 
   const completeBatchIds = Array.from(batchMap.values()).filter((entry) => {
     if (!entry.moto1 || !entry.moto2) return false
@@ -375,7 +374,7 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
     batchMap.set(parsed.batchIndex, entry)
   }
 
-  const requiredMotoCount = resolveQualificationMotoRequirement(batchMap.size, config.qualification_moto_count)
+  const requiredMotoCount = resolveQualificationMotoRequirement(batchMap.size)
   const allowSingleBatchThreeMotoQualification = batchMap.size === 1 && requiredMotoCount >= 3
   if (!resolved.stages.enableQualification && !allowSingleBatchThreeMotoQualification) {
     return { ok: false, warning: resolved.warning ?? 'Qualification disabled by resolver.' }
@@ -543,8 +542,7 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
   const qualificationProgress = buildQualificationProgress(
     existingMotoRows,
     categoryMotoRiderRows,
-    categoryResultRows,
-    config.qualification_moto_count
+    categoryResultRows
   )
   const existingQuarterMotos = existingMotoRows.filter((moto) => /^Quarter Final/i.test(moto.moto_name))
   const existingSemiMotos = existingMotoRows.filter((moto) => /^Semi Final/i.test(moto.moto_name))
