@@ -47,6 +47,11 @@ type MotoItem = {
   status: 'UPCOMING' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED'
 }
 
+const isCompletedMoto = (status?: string | null) => {
+  const normalized = (status ?? '').toUpperCase()
+  return normalized === 'LOCKED' || normalized === 'FINISHED' || normalized === 'PROTEST_REVIEW'
+}
+
 const gateByMoto = (row: Row, motoIndex: number) => {
   if (motoIndex === 1) return row.gate_moto1
   if (motoIndex === 2) return row.gate_moto2
@@ -102,10 +107,13 @@ export default function LiveDisplayClient({
     const json = await res.json()
     const data = ((json?.data ?? []) as MotoItem[]).sort(compareMotoSequence)
     const liveMoto = data.find((m) => isMotoLive(m.status)) ?? null
-    const liveIndex = liveMoto ? data.findIndex((m) => m.id === liveMoto.id) : -1
-    const nextMoto = liveIndex >= 0 ? data[liveIndex + 1] ?? null : null
+    const provisionalMoto = data.find((m) => (m.status ?? '').toUpperCase() === 'PROVISIONAL') ?? null
+    const latestCompletedMoto = [...data].reverse().find((m) => isCompletedMoto(m.status)) ?? null
+    const anchorMoto = provisionalMoto ?? liveMoto ?? latestCompletedMoto
+    const anchorIndex = anchorMoto ? data.findIndex((m) => m.id === anchorMoto.id) : -1
+    const nextMoto = anchorIndex >= 0 ? data[anchorIndex + 1] ?? null : null
     const categoryIds = Array.from(
-      new Set([liveMoto?.category_id, nextMoto?.category_id].filter((value): value is string => Boolean(value)))
+      new Set([anchorMoto?.category_id, nextMoto?.category_id].filter((value): value is string => Boolean(value)))
     )
     setEventMotos(data)
     setScoreCategoryIds(categoryIds)
@@ -119,7 +127,9 @@ export default function LiveDisplayClient({
     }
     const entries = await Promise.all(
       categoryIds.map(async (id) => {
-        const res = await fetch(`/api/public/events/${eventId}/live-score?category_id=${encodeURIComponent(id)}`)
+        const res = await fetch(
+          `/api/public/events/${eventId}/live-score?category_id=${encodeURIComponent(id)}&include_upcoming=1`
+        )
         const json = await res.json()
         const data = (json?.data ?? {}) as LiveScorePayload
         return [
@@ -167,13 +177,17 @@ export default function LiveDisplayClient({
     () => eventMotos.find((m) => (m.status ?? '').toUpperCase() === 'PROVISIONAL') ?? null,
     [eventMotos]
   )
+  const latestCompletedMoto = useMemo(
+    () => [...eventMotos].reverse().find((m) => isCompletedMoto(m.status)) ?? null,
+    [eventMotos]
+  )
   const queueMoto = useMemo(() => {
-    const anchorMoto = provisionalMoto ?? activeMoto
+    const anchorMoto = provisionalMoto ?? activeMoto ?? latestCompletedMoto
     if (!anchorMoto) return null
     const anchorIndex = eventMotos.findIndex((m) => m.id === anchorMoto.id)
     return anchorIndex >= 0 ? eventMotos[anchorIndex + 1] ?? null : null
-  }, [eventMotos, activeMoto, provisionalMoto])
-  const displayMoto = provisionalMoto ?? activeMoto
+  }, [eventMotos, activeMoto, provisionalMoto, latestCompletedMoto])
+  const displayMoto = provisionalMoto ?? activeMoto ?? latestCompletedMoto
   const activeLiveScore = displayMoto ? liveScoreByCategory[displayMoto.category_id] : null
   const queueLiveScore = queueMoto ? liveScoreByCategory[queueMoto.category_id] : null
   const categoryLabel = activeLiveScore?.categoryLabel ?? ''
@@ -199,6 +213,9 @@ export default function LiveDisplayClient({
       rows: [...activeBatch.rows].sort((a, b) => (a.rank_point ?? 9999) - (b.rank_point ?? 9999)),
     }
   }, [activeBatch])
+  const showLiveMoto3 = Boolean(
+    liveBatchView?.moto3_id || liveBatchView?.rows.some((row) => row.point_moto3 !== null || row.gate_moto3 !== null)
+  )
 
   const queueTarget = useMemo(() => {
     if (!queueMoto || queueSortedBatches.length === 0) return null
@@ -263,14 +280,14 @@ export default function LiveDisplayClient({
     }))
   }, [business?.sponsors, event?.sponsor_logo_urls])
   const trackState = useMemo(() => {
-    if (!activeMoto) {
+    if (!displayMoto) {
       return {
         label: 'Waiting Feed',
         dotClass: 'bg-amber-400',
         textClass: 'text-amber-300',
       }
     }
-    if (isMotoLive(activeMoto.status)) {
+    if (isMotoLive(displayMoto.status)) {
       return {
         label: 'Track Live',
         dotClass: 'bg-emerald-400 shadow-[0_0_14px_rgba(74,222,128,0.85)]',
@@ -278,11 +295,11 @@ export default function LiveDisplayClient({
       }
     }
     return {
-      label: activeMoto.status,
+      label: displayMoto.status,
       dotClass: 'bg-slate-400',
       textClass: 'text-slate-200',
     }
-  }, [activeMoto])
+  }, [displayMoto])
 
   const riderPhotoCell = (name: string, noPlate: string, photoUrl?: string | null) => {
     if (photoUrl) {
@@ -399,7 +416,7 @@ export default function LiveDisplayClient({
                       </colgroup>
                       <thead>
                         <tr className="bg-sky-100/90 text-left font-black uppercase tracking-[0.12em] text-slate-700">
-                          {['Rank', 'Plate', 'Panggilan', 'Komunitas', 'M1', 'M2', 'Penalty', 'Total', 'Class'].map((h) => (
+                          {['Rank', 'Plate', 'Panggilan', 'Komunitas', 'M1', 'M2', ...(showLiveMoto3 ? ['M3'] : []), 'Penalty', 'Total', 'Class'].map((h) => (
                             <th key={h} className="px-3 py-3">
                               {h}
                             </th>
@@ -431,6 +448,7 @@ export default function LiveDisplayClient({
                             <td className="px-3 py-3 text-sm font-bold text-slate-600">{row.club || '-'}</td>
                             <td className="px-2 py-3 text-sm font-extrabold text-slate-700">{row.point_moto1 ?? '-'}</td>
                             <td className="px-2 py-3 text-sm font-extrabold text-slate-700">{row.point_moto2 ?? '-'}</td>
+                            {showLiveMoto3 && <td className="px-2 py-3 text-sm font-extrabold text-slate-700">{row.point_moto3 ?? '-'}</td>}
                             <td className="px-2 py-3 text-sm font-extrabold text-amber-600">{row.penalty_total ?? '-'}</td>
                             <td className="px-2 py-3 text-xl font-black text-slate-900">{row.total_point ?? '-'}</td>
                             <td className="px-3 py-3 text-[11px] font-extrabold uppercase tracking-[0.08em] text-slate-600">
@@ -508,7 +526,7 @@ export default function LiveDisplayClient({
         <section className="sticky bottom-0 z-30 rounded-[24px] border border-slate-800 bg-slate-950/95 px-6 py-4 shadow-2xl backdrop-blur">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 border-l-4 border-amber-400 pl-4">
-              <span className={`h-3 w-3 rounded-full ${trackState.dotClass} ${isMotoLive(activeMoto?.status) ? 'animate-pulse' : ''}`} />
+              <span className={`h-3 w-3 rounded-full ${trackState.dotClass} ${isMotoLive(displayMoto?.status) ? 'animate-pulse' : ''}`} />
               <span className={`text-lg font-black uppercase tracking-[0.16em] ${trackState.textClass}`}>{trackState.label}</span>
             </div>
             <div className="text-lg font-bold text-slate-200">Moto: {displayMoto?.moto_name ?? '-'}</div>
