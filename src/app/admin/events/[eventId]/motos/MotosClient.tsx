@@ -35,6 +35,7 @@ type GateMotoItem = {
     rider_id: string
     name: string
     no_plate_display: string
+    club?: string | null
   }>
 }
 
@@ -229,6 +230,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                 rider_id: string
                 name: string
                 no_plate_display: string
+                club: string | null
                 gates: Record<number, number>
               }
             >()
@@ -245,6 +247,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                     rider_id: gate.rider_id,
                     name: gate.name,
                     no_plate_display: gate.no_plate_display,
+                    club: gate.club ?? null,
                     gates: { [col.key]: gate.gate_position },
                   })
                 }
@@ -278,7 +281,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       batches: Array<{
         batchNo: number
         motoColumns: Array<{ key: number; label: string; moto_name: string; status: MotoItem['status'] }>
-        riderRows: Array<{ rider_id: string; name: string; no_plate_display: string; gates: Record<number, number> }>
+        riderRows: Array<{ rider_id: string; name: string; no_plate_display: string; club: string | null; gates: Record<number, number> }>
       }>
     }>
   }, [categoriesSorted, gateOrdersByCategory])
@@ -409,13 +412,14 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                         ${gates}
                         <td>${row.no_plate_display}</td>
                         <td>${row.name}</td>
+                        <td>${row.club ?? '-'}</td>
                       </tr>
                     `
                   })
                   .join('')
               : `
                 <tr>
-                  <td colspan="${batch.motoColumns.length + 2}">Belum ada rider pada batch ini.</td>
+                  <td colspan="${batch.motoColumns.length + 3}">Belum ada rider pada batch ini.</td>
                 </tr>
               `
 
@@ -434,6 +438,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                       ${headers}
                       <th>No Plate</th>
                       <th>Nama Rider</th>
+                      <th>Komunitas</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -852,6 +857,9 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                         <th style={{ textAlign: 'left', padding: '6px 4px', borderBottom: '1px solid #cbd5e1', fontSize: 12 }}>
                           Nama Rider
                         </th>
+                        <th style={{ textAlign: 'left', padding: '6px 4px', borderBottom: '1px solid #cbd5e1', fontSize: 12 }}>
+                          Komunitas
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -871,12 +879,15 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                           <td style={{ padding: '6px 4px', borderBottom: '1px dashed #e2e8f0', fontWeight: 800 }}>
                             {row.name}
                           </td>
+                          <td style={{ padding: '6px 4px', borderBottom: '1px dashed #e2e8f0', fontWeight: 800 }}>
+                            {row.club ?? '-'}
+                          </td>
                         </tr>
                       ))}
                       {batch.riderRows.length === 0 && (
                         <tr>
                           <td
-                            colSpan={batch.motoColumns.length + 2}
+                            colSpan={batch.motoColumns.length + 3}
                             style={{ padding: '8px 4px', color: '#64748b', fontWeight: 700 }}
                           >
                             Belum ada rider pada batch ini.

@@ -43,9 +43,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
 
   if (gateError) return NextResponse.json({ error: gateError.message }, { status: 400 })
 
-  let gateByMoto = new Map<
+  const gateByMoto = new Map<
     string,
-    Array<{ gate_position: number; rider_id: string; name: string; no_plate_display: string }>
+    Array<{ gate_position: number; rider_id: string; name: string; no_plate_display: string; club: string | null }>
   >()
   const motoNameById = new Map<string, string>()
   for (const m of motos) motoNameById.set(m.id, m.moto_name)
@@ -54,12 +54,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     const riderIds = Array.from(new Set((gates ?? []).map((g) => g.rider_id)))
     const { data: riders, error: riderError } = await adminClient
       .from('riders')
-      .select('id, name, no_plate_display')
+      .select('id, name, no_plate_display, club')
       .in('id', riderIds)
 
     if (riderError) return NextResponse.json({ error: riderError.message }, { status: 400 })
 
-    const riderMap = new Map<string, { name: string; no_plate_display: string }>()
+    const riderMap = new Map<string, { name: string; no_plate_display: string; club: string | null }>()
     for (const r of riders ?? []) riderMap.set(r.id, r)
 
     for (const g of gates ?? []) {
@@ -71,6 +71,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         rider_id: g.rider_id,
         name: rider.name,
         no_plate_display: rider.no_plate_display,
+        club: rider.club ?? null,
       })
       gateByMoto.set(g.moto_id, list)
     }
@@ -86,20 +87,25 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     const riderIds = Array.from(new Set((assignments ?? []).map((a) => a.rider_id)))
     const { data: riders, error: riderError } = await adminClient
       .from('riders')
-      .select('id, name, no_plate_display')
+      .select('id, name, no_plate_display, club')
       .in('id', riderIds)
 
     if (riderError) return NextResponse.json({ error: riderError.message }, { status: 400 })
 
-    const riderMap = new Map<string, { name: string; no_plate_display: string }>()
+    const riderMap = new Map<string, { name: string; no_plate_display: string; club: string | null }>()
     for (const r of riders ?? []) riderMap.set(r.id, r)
 
-    const temp = new Map<string, Array<{ rider_id: string; name: string; no_plate_display: string }>>()
+    const temp = new Map<string, Array<{ rider_id: string; name: string; no_plate_display: string; club: string | null }>>()
     for (const a of assignments ?? []) {
       const rider = riderMap.get(a.rider_id)
       if (!rider) continue
       const list = temp.get(a.moto_id) ?? []
-      list.push({ rider_id: a.rider_id, name: rider.name, no_plate_display: rider.no_plate_display })
+      list.push({
+        rider_id: a.rider_id,
+        name: rider.name,
+        no_plate_display: rider.no_plate_display,
+        club: rider.club ?? null,
+      })
       temp.set(a.moto_id, list)
     }
 
@@ -119,6 +125,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
           rider_id: r.rider_id,
           name: r.name,
           no_plate_display: r.no_plate_display,
+          club: r.club ?? null,
         }))
       )
     }
