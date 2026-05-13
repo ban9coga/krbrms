@@ -37,6 +37,25 @@ type Batch = {
 type LiveScorePayload = {
   category?: string
   batches?: Batch[]
+  stages?: StageGroup[]
+}
+
+type StageRow = {
+  rider_id: string
+  gate: number | null
+  name: string
+  no_plate: string
+  club: string | null
+  photo_thumbnail_url?: string | null
+  point: number | null
+  penalty_total: number | null
+  rank: number | null
+}
+
+type StageGroup = {
+  title: string
+  moto_id: string
+  rows: StageRow[]
 }
 
 type MotoItem = {
@@ -67,7 +86,9 @@ export default function LiveDisplayClient({
 }) {
   const [event, setEvent] = useState<EventItem | null>(initialEvent)
   const [scoreCategoryIds, setScoreCategoryIds] = useState<string[]>([])
-  const [liveScoreByCategory, setLiveScoreByCategory] = useState<Record<string, { categoryLabel: string; batches: Batch[] }>>({})
+  const [liveScoreByCategory, setLiveScoreByCategory] = useState<
+    Record<string, { categoryLabel: string; batches: Batch[]; stages: StageGroup[] }>
+  >({})
   const [eventMotos, setEventMotos] = useState<MotoItem[]>([])
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
@@ -137,6 +158,7 @@ export default function LiveDisplayClient({
           {
             categoryLabel: data.category ?? '',
             batches: data.batches ?? [],
+            stages: data.stages ?? [],
           },
         ] as const
       })
@@ -192,11 +214,15 @@ export default function LiveDisplayClient({
   const queueLiveScore = queueMoto ? liveScoreByCategory[queueMoto.category_id] : null
   const categoryLabel = activeLiveScore?.categoryLabel ?? ''
   const batches = useMemo(() => activeLiveScore?.batches ?? [], [activeLiveScore])
+  const stages = useMemo(() => activeLiveScore?.stages ?? [], [activeLiveScore])
   const queueBatches = useMemo(() => queueLiveScore?.batches ?? [], [queueLiveScore])
 
   const hasData = useMemo(
-    () => batches.some((batch) => batch.rows.length > 0) || queueBatches.some((batch) => batch.rows.length > 0),
-    [batches, queueBatches]
+    () =>
+      batches.some((batch) => batch.rows.length > 0) ||
+      stages.some((stage) => stage.rows.length > 0) ||
+      queueBatches.some((batch) => batch.rows.length > 0),
+    [batches, stages, queueBatches]
   )
   const sortedBatches = useMemo(() => [...batches].sort((a, b) => a.batch_index - b.batch_index), [batches])
   const queueSortedBatches = useMemo(() => [...queueBatches].sort((a, b) => a.batch_index - b.batch_index), [queueBatches])
@@ -213,9 +239,28 @@ export default function LiveDisplayClient({
       rows: [...activeBatch.rows].sort((a, b) => (a.rank_point ?? 9999) - (b.rank_point ?? 9999)),
     }
   }, [activeBatch])
+  const activeStageView = useMemo(() => {
+    if (!displayMoto) return null
+    const stage = stages.find((item) => item.moto_id === displayMoto.id) ?? null
+    if (!stage) return null
+    return {
+      ...stage,
+      rows: [...stage.rows].sort((a, b) => {
+        const aRank = a.rank ?? Number.MAX_SAFE_INTEGER
+        const bRank = b.rank ?? Number.MAX_SAFE_INTEGER
+        if (aRank !== bRank) return aRank - bRank
+        const aGate = a.gate ?? Number.MAX_SAFE_INTEGER
+        const bGate = b.gate ?? Number.MAX_SAFE_INTEGER
+        if (aGate !== bGate) return aGate - bGate
+        return a.name.localeCompare(b.name)
+      }),
+    }
+  }, [displayMoto, stages])
   const showLiveMoto3 = Boolean(
     liveBatchView?.moto3_id || liveBatchView?.rows.some((row) => row.point_moto3 !== null || row.gate_moto3 !== null)
   )
+  const showResultBoard = Boolean(activeStageView && !activeMoto && !provisionalMoto)
+  const podiumRows = activeStageView?.rows.filter((row) => row.rank && row.rank <= 3).slice(0, 3) ?? []
 
   const queueTarget = useMemo(() => {
     if (!queueMoto || queueSortedBatches.length === 0) return null
@@ -389,16 +434,93 @@ export default function LiveDisplayClient({
                 <div className="flex items-center justify-between border-b border-sky-100 px-6 py-4">
                   <div>
                     <h2 className="text-2xl font-black uppercase tracking-[0.08em] text-slate-900">
-                      {liveBatchView ? `Batch ${liveBatchView.batch_index} - Live Results` : 'Live Results'}
+                      {showResultBoard
+                        ? `${activeStageView?.title ?? 'Final Result'}`
+                        : liveBatchView
+                          ? `Batch ${liveBatchView.batch_index} - Live Results`
+                          : 'Live Results'}
                     </h2>
-                    <p className="text-sm font-semibold text-slate-500">Urut otomatis berdasarkan rank terbaru.</p>
+                    <p className="text-sm font-semibold text-slate-500">
+                      {showResultBoard ? 'Hasil akhir moto terakhir yang baru selesai.' : 'Urut otomatis berdasarkan rank terbaru.'}
+                    </p>
                   </div>
                   <div className="rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-extrabold uppercase tracking-[0.12em] text-emerald-700">
-                    {refreshing ? 'Refreshing' : 'Live Feed'}
+                    {refreshing ? 'Refreshing' : showResultBoard ? 'Result Board' : 'Live Feed'}
                   </div>
                 </div>
 
-                {!liveBatchView ? (
+                {showResultBoard && activeStageView ? (
+                  <div className="grid gap-4 p-4 md:p-6">
+                    {podiumRows.length > 0 && (
+                      <div className="grid gap-4 md:grid-cols-3">
+                        {podiumRows.map((row) => (
+                          <div
+                            key={`podium-${row.rider_id}`}
+                            className={`rounded-[22px] border px-4 py-4 shadow-sm ${
+                              row.rank === 1
+                                ? 'border-amber-300 bg-amber-50'
+                                : row.rank === 2
+                                  ? 'border-slate-300 bg-slate-50'
+                                  : 'border-orange-200 bg-orange-50'
+                            }`}
+                          >
+                            <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Rank {row.rank}</div>
+                            <div className="mt-3 flex items-center gap-3">
+                              {riderPhotoCell(row.name, row.no_plate, row.photo_thumbnail_url)}
+                              <div className="min-w-0">
+                                <div className="truncate text-lg font-black italic text-slate-900">{row.name}</div>
+                                <div className="text-sm font-bold text-slate-600">{row.no_plate} • {row.club || '-'}</div>
+                              </div>
+                            </div>
+                            <div className="mt-3 text-sm font-extrabold text-slate-700">
+                              Point {row.point ?? '-'}{row.penalty_total ? ` + Penalty ${row.penalty_total}` : ''}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="overflow-hidden rounded-[18px] border border-slate-200">
+                      <table className="w-full border-collapse text-xs md:text-sm">
+                        <thead>
+                          <tr className="bg-slate-900 text-left font-black uppercase tracking-[0.12em] text-white">
+                            {['Rank', 'Plate', 'Panggilan', 'Komunitas', 'Point', 'Penalty', 'Status'].map((h) => (
+                              <th key={h} className="px-3 py-3">
+                                {h}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {activeStageView.rows.map((row, rowIndex) => (
+                            <tr
+                              key={`stage-${row.rider_id}`}
+                              className={`border-t border-slate-100 ${
+                                row.rank === 1 ? 'bg-amber-50/70' : rowIndex % 2 === 0 ? 'bg-white' : 'bg-slate-50/70'
+                              }`}
+                            >
+                              <td className="px-3 py-3 text-2xl font-black text-emerald-700">{row.rank ?? '-'}</td>
+                              <td className="px-3 py-3 text-sm font-black text-slate-700">{row.no_plate}</td>
+                              <td className="px-3 py-3">
+                                <div className="flex items-center gap-3">
+                                  {riderPhotoCell(row.name, row.no_plate, row.photo_thumbnail_url)}
+                                  <div className="min-w-0 flex-1">
+                                    <div className="truncate text-lg font-black italic tracking-wide text-slate-900">{row.name}</div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-3 py-3 text-sm font-bold text-slate-600">{row.club || '-'}</td>
+                              <td className="px-2 py-3 text-xl font-black text-slate-900">{row.point ?? '-'}</td>
+                              <td className="px-2 py-3 text-sm font-extrabold text-amber-600">{row.penalty_total ?? '-'}</td>
+                              <td className="px-3 py-3 text-[11px] font-extrabold uppercase tracking-[0.08em] text-slate-600">
+                                {row.rank ? 'Official Result' : 'Pending'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : !liveBatchView ? (
                   <div className="p-6 text-lg font-semibold text-slate-500">Belum ada batch live yang aktif.</div>
                 ) : (
                   <div className="overflow-hidden">
