@@ -477,6 +477,8 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     setDrawnOrder([])
     const shuffled = shuffle(riders)
     setWheelRiders(shuffled)
+    setDrawnOrder(shuffled)
+    setHasDrawn(true)
     setResultModal('draft')
 
     const count = shuffled.length
@@ -499,9 +501,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       spinTimeoutRef.current = null
       rollingIntervalRef.current = null
       setRollingName(shuffled[index].name)
-      setDrawnOrder(shuffled)
       setDrawing(false)
-      setHasDrawn(true)
       setResultModal('draft')
     }, 7200)
   }
