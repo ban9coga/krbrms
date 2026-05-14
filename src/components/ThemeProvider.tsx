@@ -30,7 +30,7 @@ function ThemeToggleButton() {
       onClick={toggleTheme}
       aria-label={isDark ? 'Aktifkan mode terang' : 'Aktifkan mode gelap'}
       title={isDark ? 'Mode terang' : 'Mode gelap'}
-      className="fixed bottom-4 right-4 z-[90] inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white/92 px-4 py-2.5 text-sm font-black text-slate-800 shadow-[0_14px_34px_rgba(15,23,42,0.18)] backdrop-blur transition hover:bg-white data-[theme=dark]:border-slate-600 data-[theme=dark]:bg-slate-900/92 data-[theme=dark]:text-slate-100"
+      className="fixed bottom-24 right-4 z-[90] inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white/92 px-4 py-2.5 text-sm font-black text-slate-800 shadow-[0_14px_34px_rgba(15,23,42,0.18)] backdrop-blur transition hover:bg-white data-[theme=dark]:border-slate-600 data-[theme=dark]:bg-slate-900/92 data-[theme=dark]:text-slate-100 md:bottom-4"
       data-theme={theme}
     >
       <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-current/20">

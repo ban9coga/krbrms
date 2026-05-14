@@ -202,7 +202,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900">
+    <div className="public-page bg-slate-100 text-slate-900">
       <PublicTopbar />
       <div className="mx-auto w-full max-w-[1500px] px-2 py-4 sm:px-4 md:px-6 md:py-8">
         {loading && <LoadingState label="Memuat detail event..." />}
