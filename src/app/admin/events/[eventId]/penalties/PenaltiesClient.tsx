@@ -7,6 +7,7 @@ type FeatureFlags = {
   penalty_enabled: boolean
   absent_enabled: boolean
   dns_enabled: boolean
+  dnf_enabled: boolean
 }
 
 type PenaltyRule = {
@@ -103,7 +104,7 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
       const statusJson = await statusRes.json()
       const reqJson = reqRes
 
-      setFlags(flagJson.data ?? { penalty_enabled: false, absent_enabled: false, dns_enabled: false })
+      setFlags(flagJson.data ?? { penalty_enabled: false, absent_enabled: false, dns_enabled: false, dnf_enabled: false })
       setRules(ruleJson.data ?? [])
       setRequirements(reqJson.data ?? [])
 
@@ -326,6 +327,7 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
                   penalty_enabled: e.target.checked,
                   absent_enabled: flags?.absent_enabled ?? false,
                   dns_enabled: flags?.dns_enabled ?? false,
+                  dnf_enabled: flags?.dnf_enabled ?? false,
                 })
               }
             />
@@ -340,6 +342,7 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
                   penalty_enabled: flags?.penalty_enabled ?? false,
                   absent_enabled: e.target.checked,
                   dns_enabled: flags?.dns_enabled ?? false,
+                  dnf_enabled: flags?.dnf_enabled ?? false,
                 })
               }
             />
@@ -354,11 +357,31 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
                   penalty_enabled: flags?.penalty_enabled ?? false,
                   absent_enabled: flags?.absent_enabled ?? false,
                   dns_enabled: e.target.checked,
+                  dnf_enabled: flags?.dnf_enabled ?? false,
                 })
               }
             />
             Enable DNS Module
           </label>
+          <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 900 }}>
+            <input
+              type="checkbox"
+              checked={flags?.dnf_enabled ?? false}
+              onChange={(e) =>
+                saveFlags({
+                  penalty_enabled: flags?.penalty_enabled ?? false,
+                  absent_enabled: flags?.absent_enabled ?? false,
+                  dns_enabled: flags?.dns_enabled ?? false,
+                  dnf_enabled: e.target.checked,
+                })
+              }
+            />
+            Enable DNF Module
+          </label>
+        </div>
+        <div style={{ display: 'grid', gap: 6, fontSize: 12, fontWeight: 800, color: '#334155' }}>
+          <div>DNS module: checker bisa menandai rider DNS. Nilai rider otomatis dihitung sebagai jumlah rider + 2.</div>
+          <div>DNF module: finisher bisa menandai rider DNF. Nilai rider otomatis dihitung sebagai posisi terakhir.</div>
         </div>
       </div>
 

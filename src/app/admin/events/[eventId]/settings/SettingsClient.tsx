@@ -385,8 +385,6 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     extra_price: '150000',
     require_jersey_size: false,
     scoring_base_mode: 'finish_order',
-    scoring_dns_points: '9',
-    scoring_dnf_points: 'last',
     scoring_dq_threshold: '7',
     scoring_tie_breaker: 'last_best',
     display_primary_color: '#2ecc71',
@@ -510,14 +508,6 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
           require_jersey_size: Boolean(data.require_jersey_size),
           scoring_base_mode:
             typeof scoring.base_points_mode === 'string' ? scoring.base_points_mode : 'finish_order',
-          scoring_dns_points:
-            typeof scoring.dns_points === 'number' ? String(scoring.dns_points) : '9',
-          scoring_dnf_points:
-            typeof scoring.dnf_points === 'number'
-              ? String(scoring.dnf_points)
-              : typeof scoring.dnf_points === 'string'
-              ? scoring.dnf_points
-              : 'last',
           scoring_dq_threshold:
             typeof scoring.dq_penalty_threshold === 'number'
               ? String(scoring.dq_penalty_threshold)
@@ -1017,21 +1007,8 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
   }
 
   const handleSave = async () => {
-    const dnsPoints = Number(form.scoring_dns_points)
-    const dnfPoints =
-      form.scoring_dnf_points.trim().toLowerCase() === 'last'
-        ? 'last'
-        : Number(form.scoring_dnf_points)
     const dqThreshold = Number(form.scoring_dq_threshold)
 
-    if (!Number.isFinite(dnsPoints) || dnsPoints < 0) {
-      alert('DNS points tidak valid.')
-      return
-    }
-    if (dnfPoints !== 'last' && (!Number.isFinite(dnfPoints) || dnfPoints < 0)) {
-      alert('DNF points tidak valid.')
-      return
-    }
     if (!Number.isFinite(dqThreshold) || dqThreshold < 0) {
       alert('DQ threshold tidak valid.')
       return
@@ -1039,8 +1016,6 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
 
     const scoring = {
       base_points_mode: form.scoring_base_mode,
-      dns_points: dnsPoints,
-      dnf_points: dnfPoints,
       dq_penalty_threshold: dqThreshold,
       tie_breaker: form.scoring_tie_breaker,
     }
@@ -1648,21 +1623,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                       <option value="last_best">last_best</option>
                     </select>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-                    <input
-                      type="number"
-                      min={0}
-                      placeholder="DNS points"
-                      value={form.scoring_dns_points}
-                      onChange={(e) => setForm({ ...form, scoring_dns_points: e.target.value })}
-                      style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
-                    />
-                    <input
-                      placeholder="DNF points (number or 'last')"
-                      value={form.scoring_dnf_points}
-                      onChange={(e) => setForm({ ...form, scoring_dnf_points: e.target.value })}
-                      style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
-                    />
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 10 }}>
                     <input
                       type="number"
                       min={0}
@@ -1672,8 +1633,12 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                       style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
                     />
                   </div>
-                  <div style={{ fontSize: 12, color: '#333', fontWeight: 700 }}>
-                    Scoring rules disimpan otomatis ke JSON scoring_rules saat Save.
+                  <div style={{ display: 'grid', gap: 6, fontSize: 12, color: '#333', fontWeight: 700 }}>
+                    <div>DNS dan DNF tidak lagi diatur dari scoring settings.</div>
+                    <div>Aturan aktif sekarang:</div>
+                    <div>DNS = jumlah rider + 2</div>
+                    <div>DNF = posisi terakhir</div>
+                    <div>Aktif/nonaktifkan modul DNS dan DNF dari menu Penalties.</div>
                   </div>
                 </div>
               </>

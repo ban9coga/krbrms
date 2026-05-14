@@ -39,6 +39,13 @@ type Action =
   | { type: 'finish'; riderId: string; position: number }
   | { type: 'dnf'; riderId: string }
 
+type EventFlags = {
+  penalty_enabled: boolean
+  absent_enabled: boolean
+  dns_enabled: boolean
+  dnf_enabled: boolean
+}
+
 const VIBRATE_MS = 30
 const LONG_PRESS_MS = 800
 
@@ -56,6 +63,12 @@ export default function JuryFinishPage() {
   const [pressedId, setPressedId] = useState<string | null>(null)
   const [penaltiesByRider, setPenaltiesByRider] = useState<Record<string, number>>({})
   const [participationByRider, setParticipationByRider] = useState<Record<string, string>>({})
+  const [flags, setFlags] = useState<EventFlags>({
+    penalty_enabled: true,
+    absent_enabled: true,
+    dns_enabled: true,
+    dnf_enabled: true,
+  })
 
   const [finishOrder, setFinishOrder] = useState<string[]>([])
   const [dnfRiders, setDnfRiders] = useState<string[]>([])
@@ -110,12 +123,21 @@ export default function JuryFinishPage() {
 
   const loadAll = useCallback(async () => {
     if (!eventId) return
-    const [motoRes, catRes] = await Promise.all([
+    const [motoRes, catRes, flagRes] = await Promise.all([
       fetch(`/api/motos?event_id=${eventId}`),
       fetch(`/api/events/${eventId}/categories`),
+      apiFetch(`/api/jury/events/${eventId}/modules`),
     ])
     const motoJson = await motoRes.json()
     const catJson = await catRes.json()
+    setFlags(
+      (flagRes.data as EventFlags | null) ?? {
+        penalty_enabled: true,
+        absent_enabled: true,
+        dns_enabled: true,
+        dnf_enabled: true,
+      }
+    )
     const catRows = (catJson.data ?? []) as CategoryItem[]
     setCategories(catRows)
     const yearMap = new Map<string, number>()
@@ -137,7 +159,7 @@ export default function JuryFinishPage() {
     setMotos(sortedMotos)
     setSelectedMotoId((prev) => pickNextSelectableMotoId(sortedMotos, prev))
     return sortedMotos
-  }, [eventId, pickNextSelectableMotoId])
+  }, [apiFetch, eventId, pickNextSelectableMotoId])
 
   useEffect(() => {
     loadAll()
@@ -286,7 +308,7 @@ export default function JuryFinishPage() {
   }
 
   const handleDNF = (riderId: string) => {
-    if (role === 'RACE_DIRECTOR' || motoLocked || !selectedMotoLive) return
+    if (role === 'RACE_DIRECTOR' || motoLocked || !selectedMotoLive || !flags.dnf_enabled) return
     if (finishOrder.includes(riderId) || dnfRiders.includes(riderId)) return
     setDnfRiders((prev) => [...prev, riderId])
     setActions((prev) => [...prev, { type: 'dnf', riderId }])
@@ -416,7 +438,10 @@ export default function JuryFinishPage() {
                 {selectedCategoryLabel ?? 'Pilih Moto'}
               </div>
               <div className="mt-2 text-sm font-semibold text-slate-200 sm:text-base">
-                {selectedMoto?.moto_name ?? 'Belum ada moto dipilih'} | Tap rider untuk finish, tahan 800ms untuk DNF.
+                {selectedMoto?.moto_name ?? 'Belum ada moto dipilih'} |{' '}
+                {flags.dnf_enabled
+                  ? 'Tap rider untuk finish, tahan 800ms untuk DNF.'
+                  : 'Tap rider untuk finish. Modul DNF sedang nonaktif.'}
               </div>
             </div>
           </div>
@@ -535,7 +560,11 @@ export default function JuryFinishPage() {
                 </div>
               )}
             </div>
-            <div className="mt-2 text-xs font-semibold text-slate-500">Tap = Finish. Long press 800ms = DNF.</div>
+            <div className="mt-2 text-xs font-semibold text-slate-500">
+              {flags.dnf_enabled
+                ? 'Tap = Finish. Long press 800ms = DNF.'
+                : 'Tap = Finish. DNF dimatikan dari menu Penalties.'}
+            </div>
 
             <div className="mt-4 border-t border-dashed border-slate-300 pt-4">
               <div className="mb-3 text-xs font-extrabold uppercase tracking-[0.15em] text-slate-500">Starter List</div>
