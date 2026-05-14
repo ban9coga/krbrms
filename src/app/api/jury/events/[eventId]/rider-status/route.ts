@@ -164,7 +164,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
         { onConflict: 'event_id,moto_id,rider_id' }
       )
 
-    if (participation_status === 'DNS') {
+    if (participation_status === 'DNS' || participation_status === 'ABSENT') {
       const { error: dnsResultError } = await adminClient
         .from('results')
         .upsert(
@@ -205,7 +205,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       reason: shouldAutoApply
         ? participation_status === 'ACTIVE'
           ? 'ACTIVE status auto-applied'
-          : 'AUTO mode: status applied'
+          : participation_status === 'ABSENT'
+            ? 'ABSENT status applied with DNS scoring'
+            : 'AUTO mode: status applied'
         : 'Status update submitted',
     },
   ])

@@ -24,7 +24,7 @@ const statusPriority: Record<ParticipationStatus, number> = {
   ACTIVE: 1,
   DNF: 2,
   DNS: 3,
-  ABSENT: 4,
+  ABSENT: 3,
 }
 
 export async function resolveRanking(params: {
@@ -49,23 +49,19 @@ export async function resolveRanking(params: {
       rider_id: row.rider_id,
       total_point: row.race_point + penalty.total,
       participation_status: row.participation_status,
-      rank_type: row.participation_status === 'ABSENT' ? 'ADMINISTRATIVE' : 'COMPETITIVE',
+      rank_type: 'COMPETITIVE',
       administrative_order: row.administrative_order,
     })
   }
 
-  // Competitive ranks remain unaffected by ABSENT riders.
   const competitive = resolved
-    .filter((r) => r.rank_type === 'COMPETITIVE')
     .sort((a, b) => {
       const status = statusPriority[a.participation_status] - statusPriority[b.participation_status]
       if (status !== 0) return status
       return a.total_point - b.total_point
     })
 
-  const administrative = resolved
-    .filter((r) => r.rank_type === 'ADMINISTRATIVE')
-    .sort((a, b) => (a.administrative_order ?? 0) - (b.administrative_order ?? 0))
+  const administrative: ResolvedRank[] = []
 
   return { competitive, administrative }
 }

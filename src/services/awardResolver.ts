@@ -27,7 +27,7 @@ export function resolveAwards(params: {
   const rows: AwardRow[] = []
 
   for (const r of params.ranks) {
-    if (r.rank_type === 'ADMINISTRATIVE' || r.participation_status === 'ABSENT') {
+    if (r.rank_type === 'ADMINISTRATIVE') {
       rows.push({ rider_id: r.rider_id, award_type: 'PARTICIPATION', rank_type: 'ADMINISTRATIVE' })
       continue
     }

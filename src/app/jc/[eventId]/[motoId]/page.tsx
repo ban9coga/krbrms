@@ -503,7 +503,11 @@ export default function JCPage() {
   }
 
   const bannerDisabled = !selectedMotoLive
-  const interactionDisabled = saving || bannerDisabled || locked || allReadyDone
+  const interactionDisabled = saving || bannerDisabled || locked
+  const safetyInteractionDisabled = interactionDisabled || allReadyDone
+  const readyDisabled = interactionDisabled || allReadyDone
+  const dnsDisabled = interactionDisabled || !allReadyDone || !flags.dns_enabled
+  const absentDisabled = interactionDisabled || allReadyDone || !flags.absent_enabled
   const canGateReady =
     riderList.length > 0 &&
     riderList.every((r) => {
@@ -676,7 +680,7 @@ export default function JCPage() {
           {allReadyDone && (
             <div style={{ display: 'grid', gap: 8 }}>
               <div style={{ padding: '12px 14px', borderRadius: 12, background: '#dcfce7', fontWeight: 900, textAlign: 'center' }}>
-                ✓ All Ready Sudah Dijalankan
+                DNS siap dipakai. READY dan ABSENT dikunci setelah All Ready.
               </div>
               <button
                 className="jc-action-btn"
@@ -723,7 +727,7 @@ export default function JCPage() {
                 }
               }
             }}
-            disabled={interactionDisabled || !hasSafetyRequirements}
+            disabled={safetyInteractionDisabled || !hasSafetyRequirements}
             style={{
               padding: '10px 14px',
               borderRadius: 999,
@@ -813,7 +817,6 @@ export default function JCPage() {
             const rawStatus = statuses[r.id]?.participation_status
             const currentStatus = rawStatus ?? 'UNSET'
             const hasStatus = typeof rawStatus === 'string'
-            const statusDisabled = interactionDisabled
             const safetyOk = isSafetyOk(r.id)
             const statusBadge =
               !hasStatus
@@ -909,7 +912,7 @@ export default function JCPage() {
                             }))
                           }
                         }}
-                        disabled={interactionDisabled}
+                        disabled={safetyInteractionDisabled}
                         style={{
                           padding: '10px 8px',
                           borderRadius: 12,
@@ -919,7 +922,7 @@ export default function JCPage() {
                           fontWeight: 900,
                         }}
                       >
-                        {item.label} {checked ? '✓' : ''}
+                        {item.label} {checked ? 'OK' : ''}
                       </button>
                     )
                   })}
@@ -930,7 +933,7 @@ export default function JCPage() {
                     className="jc-action-btn jc-primary"
                     type="button"
                     onClick={() => handleSaveStatus(r.id, 'ACTIVE', r.gate_position ?? 0)}
-                    disabled={statusDisabled}
+                    disabled={readyDisabled}
                     style={{
                       padding: '12px 14px',
                       borderRadius: 999,
@@ -946,7 +949,7 @@ export default function JCPage() {
                     className="jc-action-btn"
                     type="button"
                     onClick={() => handleSaveStatus(r.id, 'DNS', r.gate_position ?? 0)}
-                    disabled={statusDisabled || !flags.dns_enabled}
+                    disabled={dnsDisabled}
                     style={{
                       padding: '12px 14px',
                       borderRadius: 999,
@@ -962,7 +965,7 @@ export default function JCPage() {
                     className="jc-action-btn"
                     type="button"
                     onClick={() => handleSaveStatus(r.id, 'ABSENT', r.gate_position ?? 0)}
-                    disabled={statusDisabled || !flags.absent_enabled}
+                    disabled={absentDisabled}
                     style={{
                       padding: '12px 14px',
                       borderRadius: 999,
@@ -1050,3 +1053,4 @@ export default function JCPage() {
     </div>
   )
 }
+
