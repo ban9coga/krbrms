@@ -1,5 +1,5 @@
 alter table race_category_custom_split_rule
-  add column if not exists split_basis text not null default 'COMBINED';
+  add column if not exists batch_no int;
 
 alter table race_category_custom_split_rule
   drop constraint if exists race_category_custom_split_rule_split_basis_check;

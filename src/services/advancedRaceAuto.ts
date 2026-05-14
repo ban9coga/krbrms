@@ -49,7 +49,8 @@ type CustomSplitRuleRow = {
   target_stage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL'
   target_final_class: string | null
   sort_order: number
-  split_basis?: 'COMBINED' | 'PER_BATCH' | null
+  split_basis?: 'COMBINED' | 'PER_BATCH' | 'CUSTOM_PER_BATCH' | null
+  batch_no?: number | null
 }
 
 type QualificationRankRow = {
@@ -73,7 +74,7 @@ const compareTieBreakers = (a: number[] = [], b: number[] = []) => {
 async function loadQualificationCustomSplitRules(categoryId: string): Promise<CustomSplitRule[]> {
   const { data, error } = await adminClient
     .from('race_category_custom_split_rule')
-    .select('category_id, source_stage, rank_from, rank_to, target_stage, target_final_class, sort_order, split_basis')
+    .select('category_id, source_stage, rank_from, rank_to, target_stage, target_final_class, sort_order, split_basis, batch_no')
     .eq('category_id', categoryId)
     .eq('source_stage', 'QUALIFICATION')
     .order('sort_order', { ascending: true })
@@ -90,8 +91,20 @@ async function loadQualificationCustomSplitRules(categoryId: string): Promise<Cu
     targetStage: row.target_stage,
     targetFinalClass: row.target_final_class as CustomSplitRule['targetFinalClass'],
     sortOrder: Number(row.sort_order ?? 0),
-    splitBasis: row.split_basis === 'PER_BATCH' ? 'PER_BATCH' : 'COMBINED',
+    splitBasis: row.split_basis === 'CUSTOM_PER_BATCH' ? 'CUSTOM_PER_BATCH' : row.split_basis === 'PER_BATCH' ? 'PER_BATCH' : 'COMBINED',
+    batchNo: row.batch_no != null ? Number(row.batch_no) : null,
   }))
+}
+
+const filterCustomSplitRulesForBatch = (
+  rules: CustomSplitRule[],
+  splitBasis: CustomSplitRule['splitBasis'],
+  batchNo: number | null
+) => {
+  if (splitBasis === 'CUSTOM_PER_BATCH') {
+    return rules.filter((rule) => (rule.batchNo ?? null) === batchNo)
+  }
+  return rules
 }
 
 const resolveAllowedFinalClasses = (resolvedFinalClasses: string[], customRules: CustomSplitRule[]) => {
@@ -435,7 +448,7 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
   }
   const allowedFinalClasses = resolveAllowedFinalClasses(resolved.finalClasses, customQualificationRules)
 
-  const { batchRanks, advances } = computeQualification(
+  const { batchRanks } = computeQualification(
     batches.map((b) => ({ batchId: b.batchId, riders: b.riders, finishes: b.finishes })),
     undefined,
     resolveQualificationPrimaryAdvance(resolved.stages),
@@ -464,7 +477,14 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
         resolveQualificationPrimaryAdvance(resolved.stages),
         customQualificationRules
       )
-    : advances
+    : batches.flatMap((batch) =>
+        computeQualificationAdvancesFromRanks(
+          batchRanks[batch.batchId] ?? [],
+          resolveQualificationPrimaryAdvance(resolved.stages),
+          filterCustomSplitRulesForBatch(customQualificationRules, customSplitBasis, batch.batchIndex),
+          { singleBatchFinalElite: batches.length === 1 }
+        )
+      )
 
   const filteredAdvances = effectiveAdvances.filter((row) => {
     if (row.toStage === 'QUARTER_FINAL' && !resolved.stages.enableQuarterFinal) return false
@@ -821,7 +841,7 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
 
   const { data: existingMotos, error: motoError } = await adminClient
     .from('motos')
-    .select('id, status')
+    .select('id, moto_name, status')
     .eq('event_id', eventId)
     .eq('category_id', categoryId)
   if (motoError) return { ok: false, warning: motoError.message }
@@ -902,6 +922,14 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
       })
       return acc
     }, {})
+  const qualificationBatchIndexById = ((existingMotos ?? []) as Array<{ id: string; moto_name?: string | null }>)
+    .reduce<Record<string, number>>((acc, moto) => {
+      const parsed = parseBatchKey(moto.moto_name ?? '')
+      if (parsed && parsed.motoIndex === 1) {
+        acc[moto.id] = parsed.batchIndex
+      }
+      return acc
+    }, {})
 
   const pendingQuarterRiders = new Set<string>()
   const pendingSemiRiders = new Set<string>()
@@ -926,14 +954,15 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
         resolveQualificationPrimaryAdvance(resolved.stages),
         customQualificationRules
       )
-    : Object.values(qualificationRanksByBatch).flatMap((rankedRows) => {
+    : Object.entries(qualificationRanksByBatch).flatMap(([batchId, rankedRows]) => {
+        const batchIndex = qualificationBatchIndexById[batchId] ?? null
         const orderedRanks = [...rankedRows].sort(
           (a, b) => a.rank - b.rank || a.points - b.points || a.riderId.localeCompare(b.riderId)
         )
         return computeQualificationAdvancesFromRanks(
           orderedRanks,
           resolveQualificationPrimaryAdvance(resolved.stages),
-          customQualificationRules,
+          filterCustomSplitRulesForBatch(customQualificationRules, customSplitBasis, batchIndex),
           { singleBatchFinalElite: qualificationBatchCount === 1 }
         )
       })

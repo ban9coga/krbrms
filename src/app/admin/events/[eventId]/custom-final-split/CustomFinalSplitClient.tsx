@@ -20,12 +20,19 @@ type CustomSplitRule = {
   target_stage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL'
   target_final_class: string | null
   sort_order: number
-  split_basis: 'COMBINED' | 'PER_BATCH'
+  split_basis: 'COMBINED' | 'PER_BATCH' | 'CUSTOM_PER_BATCH'
+  batch_no: number | null
 }
 
 const FINAL_CLASS_OPTIONS = ['ELITE', 'NOVICE', 'PRO', 'ROOKIE', 'ADVANCED', 'ACADEMY', 'AMATEUR', 'BEGINNER']
 const TARGET_STAGE_OPTIONS: Array<CustomSplitRule['target_stage']> = ['FINAL', 'SEMI_FINAL', 'QUARTER_FINAL']
-const SPLIT_BASIS_OPTIONS: Array<CustomSplitRule['split_basis']> = ['COMBINED', 'PER_BATCH']
+const SPLIT_BASIS_OPTIONS: Array<CustomSplitRule['split_basis']> = ['COMBINED', 'PER_BATCH', 'CUSTOM_PER_BATCH']
+
+const splitBasisLabel = (value: CustomSplitRule['split_basis']) => {
+  if (value === 'PER_BATCH') return 'Top N Per Batch'
+  if (value === 'CUSTOM_PER_BATCH') return 'Custom Per Batch'
+  return 'Combined Rank'
+}
 
 const createEmptyRule = (
   categoryId: string,
@@ -40,6 +47,7 @@ const createEmptyRule = (
   target_final_class: 'ELITE',
   sort_order: sortOrder,
   split_basis: splitBasis,
+  batch_no: splitBasis === 'CUSTOM_PER_BATCH' ? 1 : null,
 })
 
 export default function CustomFinalSplitClient({ eventId }: { eventId: string }) {
@@ -74,7 +82,13 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
         if (!grouped[row.category_id]) grouped[row.category_id] = []
         grouped[row.category_id].push({
           ...row,
-          split_basis: row.split_basis === 'PER_BATCH' ? 'PER_BATCH' : 'COMBINED',
+          split_basis:
+            row.split_basis === 'CUSTOM_PER_BATCH'
+              ? 'CUSTOM_PER_BATCH'
+              : row.split_basis === 'PER_BATCH'
+                ? 'PER_BATCH'
+                : 'COMBINED',
+          batch_no: row.batch_no != null ? Number(row.batch_no) : null,
         })
       }
       Object.keys(grouped).forEach((categoryId) => {
@@ -103,9 +117,15 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
       summary[category.id] =
         rules.length === 0
           ? 'Belum ada custom split.'
-          : `${rules[0]?.split_basis === 'PER_BATCH' ? 'Top N Per Batch' : 'Combined Rank'} | ` +
+          : `${splitBasisLabel(rules[0]?.split_basis ?? 'COMBINED')} | ` +
             rules
-              .map((rule) => `${rule.rank_from}-${rule.rank_to} -> ${rule.target_stage === 'FINAL' ? rule.target_final_class : rule.target_stage}`)
+              .map((rule) => {
+                const rankLabel = `${rule.rank_from}-${rule.rank_to}`
+                const targetLabel = rule.target_stage === 'FINAL' ? rule.target_final_class : rule.target_stage
+                return rule.split_basis === 'CUSTOM_PER_BATCH'
+                  ? `Batch ${rule.batch_no ?? '?'} ${rankLabel} -> ${targetLabel}`
+                  : `${rankLabel} -> ${targetLabel}`
+              })
               .join(' | ')
     }
     return summary
@@ -139,6 +159,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
         [categoryId]: current.map((rule) => ({
           ...rule,
           split_basis: splitBasis,
+          batch_no: splitBasis === 'CUSTOM_PER_BATCH' ? rule.batch_no ?? 1 : null,
         })),
       }
     })
@@ -162,7 +183,13 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
       rank_from: Number(rule.rank_from),
       rank_to: Number(rule.rank_to),
       target_final_class: rule.target_stage === 'FINAL' ? rule.target_final_class ?? 'ELITE' : null,
-      split_basis: rule.split_basis === 'PER_BATCH' ? 'PER_BATCH' : 'COMBINED',
+      split_basis:
+        rule.split_basis === 'CUSTOM_PER_BATCH'
+          ? 'CUSTOM_PER_BATCH'
+          : rule.split_basis === 'PER_BATCH'
+            ? 'PER_BATCH'
+            : 'COMBINED',
+      batch_no: rule.split_basis === 'CUSTOM_PER_BATCH' ? Math.max(1, Number(rule.batch_no) || 1) : null,
     }))
     const category = categories.find((item) => item.id === categoryId)
     const totalRiders = Math.max(0, Number(category?.total_riders ?? 0))
@@ -224,6 +251,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
           Scope saat ini: custom split dipakai untuk hasil <b>Qualification</b>. Jadi rule di bawah akan override pembagian default batch qualification kategori itu.
           <br />
           <b>Combined Rank</b> berarti rank gabungan seluruh batch. <b>Top N Per Batch</b> berarti range rank dibaca ulang di masing-masing batch.
+          <b>Custom Per Batch</b> berarti tiap batch boleh punya rule sendiri, misalnya Batch 1 ambil top 4 dan Batch 2 ambil top 3.
         </div>
       </div>
 
@@ -256,7 +284,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
                     Total Rider: {category.total_riders ?? 0}
                   </div>
                   <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>
-                    Rule Basis: {splitBasis === 'PER_BATCH' ? 'Top N Per Batch' : 'Combined Rank'}
+                    Rule Basis: {splitBasisLabel(splitBasis)}
                   </div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#475569' }}>{categorySummary[category.id]}</div>
                 </div>
@@ -274,7 +302,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
                   >
                     {SPLIT_BASIS_OPTIONS.map((option) => (
                       <option key={option} value={option}>
-                        {option === 'PER_BATCH' ? 'Top N Per Batch' : 'Combined Rank'}
+                        {splitBasisLabel(option)}
                       </option>
                     ))}
                   </select>
@@ -329,8 +357,21 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
                     background: '#f8fafc',
                   }}
                 >
+                  {splitBasis === 'CUSTOM_PER_BATCH' && (
+                    <label style={{ display: 'grid', gap: 6, fontWeight: 800 }}>
+                      <span>Batch</span>
+                      <input
+                        type="number"
+                        min={1}
+                        value={rule.batch_no ?? 1}
+                        onChange={(e) => updateRule(category.id, index, { batch_no: Math.max(1, Number(e.target.value) || 1) })}
+                        style={{ padding: '10px 12px', borderRadius: 10, border: '2px solid #111', background: '#fff' }}
+                      />
+                    </label>
+                  )}
+
                   <label style={{ display: 'grid', gap: 6, fontWeight: 800 }}>
-                    <span>{splitBasis === 'PER_BATCH' ? 'Rank From Per Batch' : 'Rank From'}</span>
+                    <span>{splitBasis === 'COMBINED' ? 'Rank From' : 'Rank From Per Batch'}</span>
                     <input
                       type="number"
                       min={1}
@@ -341,7 +382,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
                   </label>
 
                   <label style={{ display: 'grid', gap: 6, fontWeight: 800 }}>
-                    <span>{splitBasis === 'PER_BATCH' ? 'Rank To Per Batch' : 'Rank To'}</span>
+                    <span>{splitBasis === 'COMBINED' ? 'Rank To' : 'Rank To Per Batch'}</span>
                     <input
                       type="number"
                       min={rule.rank_from}

@@ -14,13 +14,31 @@ type CustomRuleInput = {
   target_stage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL'
   target_final_class?: string | null
   sort_order: number
-  split_basis?: 'COMBINED' | 'PER_BATCH'
+  split_basis?: 'COMBINED' | 'PER_BATCH' | 'CUSTOM_PER_BATCH'
+  batch_no?: number | null
+}
+
+type NormalizedRule = {
+  category_id: string
+  source_stage: 'QUALIFICATION'
+  rank_from: number
+  rank_to: number
+  target_stage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL'
+  target_final_class: string | null
+  sort_order: number
+  split_basis: 'COMBINED' | 'PER_BATCH' | 'CUSTOM_PER_BATCH'
+  batch_no: number | null
 }
 
 const targetKeyForRule = (rule: {
   target_stage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL'
   target_final_class?: string | null
-}) => `${rule.target_stage}:${rule.target_stage === 'FINAL' ? rule.target_final_class ?? 'NULL' : '-'}`
+  batch_no?: number | null
+  split_basis?: 'COMBINED' | 'PER_BATCH' | 'CUSTOM_PER_BATCH'
+}) =>
+  `${rule.split_basis === 'CUSTOM_PER_BATCH' ? `BATCH:${rule.batch_no ?? 'NULL'}:` : ''}${rule.target_stage}:${
+    rule.target_stage === 'FINAL' ? rule.target_final_class ?? 'NULL' : '-'
+  }`
 
 export async function GET(_: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params
@@ -38,8 +56,8 @@ export async function GET(_: Request, { params }: { params: Promise<{ eventId: s
   const categoryIds = (categories ?? []).map((item) => item.id)
   const { data: rules, error: ruleError } = categoryIds.length
     ? await adminClient
-        .from('race_category_custom_split_rule')
-        .select('id, category_id, source_stage, rank_from, rank_to, target_stage, target_final_class, sort_order, split_basis')
+      .from('race_category_custom_split_rule')
+        .select('id, category_id, source_stage, rank_from, rank_to, target_stage, target_final_class, sort_order, split_basis, batch_no')
         .in('category_id', categoryIds)
         .order('sort_order', { ascending: true })
         .order('rank_from', { ascending: true })
@@ -93,8 +111,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     return NextResponse.json({ error: 'Category not found in event' }, { status: 404 })
   }
 
-  const normalizedRules = rules
-    .map((rule, index) => ({
+  const normalizedRules: NormalizedRule[] = rules
+    .map((rule, index): NormalizedRule => ({
       category_id: categoryId,
       source_stage: 'QUALIFICATION' as const,
       rank_from: Math.max(1, Number(rule.rank_from) || 1),
@@ -102,9 +120,22 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       target_stage: rule.target_stage,
       target_final_class: rule.target_stage === 'FINAL' ? rule.target_final_class ?? null : null,
       sort_order: Number(rule.sort_order ?? index),
-      split_basis: rule.split_basis === 'PER_BATCH' ? 'PER_BATCH' : 'COMBINED',
+      split_basis:
+        rule.split_basis === 'CUSTOM_PER_BATCH'
+          ? 'CUSTOM_PER_BATCH'
+          : rule.split_basis === 'PER_BATCH'
+            ? 'PER_BATCH'
+            : 'COMBINED',
+      batch_no:
+        rule.split_basis === 'CUSTOM_PER_BATCH'
+          ? Math.max(1, Number(rule.batch_no) || 1)
+          : null,
     }))
-    .sort((a, b) => a.sort_order - b.sort_order || a.rank_from - b.rank_from)
+    .sort((a, b) => {
+      const batchDiff = (a.batch_no ?? 0) - (b.batch_no ?? 0)
+      if (batchDiff !== 0) return batchDiff
+      return a.sort_order - b.sort_order || a.rank_from - b.rank_from
+    })
 
   if (normalizedRules.some((rule) => rule.rank_to < rule.rank_from)) {
     return NextResponse.json({ error: 'rank_to must be greater than or equal to rank_from' }, { status: 400 })
@@ -119,16 +150,33 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     return NextResponse.json({ error: 'Semua rule dalam satu kategori harus memakai Rule Basis yang sama.' }, { status: 400 })
   }
 
-  for (let index = 1; index < normalizedRules.length; index += 1) {
-    const previous = normalizedRules[index - 1]
-    const current = normalizedRules[index]
-    if (current.rank_from <= previous.rank_to) {
-      return NextResponse.json(
-        {
-          error: `Rank range overlap detected between ${previous.rank_from}-${previous.rank_to} and ${current.rank_from}-${current.rank_to}.`,
-        },
-        { status: 400 }
-      )
+  if (normalizedRules.some((rule) => rule.split_basis === 'CUSTOM_PER_BATCH' && !rule.batch_no)) {
+    return NextResponse.json({ error: 'Custom Per Batch wajib memilih batch untuk setiap rule.' }, { status: 400 })
+  }
+
+  const groupedRules = normalizedRules.reduce<Record<string, typeof normalizedRules>>((acc, rule) => {
+    const key = rule.split_basis === 'CUSTOM_PER_BATCH' ? String(rule.batch_no ?? 0) : 'ALL'
+    if (!acc[key]) acc[key] = []
+    acc[key].push(rule)
+    return acc
+  }, {})
+
+  for (const groupKey of Object.keys(groupedRules)) {
+    const scopedRules = [...groupedRules[groupKey]].sort((a, b) => a.rank_from - b.rank_from || a.rank_to - b.rank_to)
+    for (let index = 1; index < scopedRules.length; index += 1) {
+      const previous = scopedRules[index - 1]
+      const current = scopedRules[index]
+      if (current.rank_from <= previous.rank_to) {
+        return NextResponse.json(
+          {
+            error:
+              previous.split_basis === 'CUSTOM_PER_BATCH'
+                ? `Rank range overlap detected di Batch ${previous.batch_no} antara ${previous.rank_from}-${previous.rank_to} dan ${current.rank_from}-${current.rank_to}.`
+                : `Rank range overlap detected between ${previous.rank_from}-${previous.rank_to} and ${current.rank_from}-${current.rank_to}.`,
+          },
+          { status: 400 }
+        )
+      }
     }
   }
 
@@ -143,7 +191,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
           : rule.target_stage.replace(/_/g, ' ')
       return NextResponse.json(
         {
-          error: `Duplicate target ${label} detected. Gabungkan jadi satu rule, misalnya ${existing.rank_from}-${rule.rank_to}.`,
+          error:
+            rule.split_basis === 'CUSTOM_PER_BATCH'
+              ? `Duplicate target ${label} detected di Batch ${rule.batch_no}. Gabungkan jadi satu rule, misalnya ${existing.rank_from}-${rule.rank_to}.`
+              : `Duplicate target ${label} detected. Gabungkan jadi satu rule, misalnya ${existing.rank_from}-${rule.rank_to}.`,
         },
         { status: 400 }
       )
@@ -164,7 +215,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     const { data, error } = await adminClient
       .from('race_category_custom_split_rule')
       .insert(normalizedRules)
-      .select('id, category_id, source_stage, rank_from, rank_to, target_stage, target_final_class, sort_order, split_basis')
+      .select('id, category_id, source_stage, rank_from, rank_to, target_stage, target_final_class, sort_order, split_basis, batch_no')
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 })
