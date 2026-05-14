@@ -237,12 +237,6 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
   }
 
   const printGuide = () => {
-    const popup = window.open('', '_blank', 'noopener,noreferrer,width=1024,height=900')
-    if (!popup) {
-      alert('Popup diblokir browser. Izinkan popup untuk mencetak Race System Guide.')
-      return
-    }
-
     const sections = guideEntries
       .map(
         (entry) => `
@@ -257,7 +251,26 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
       )
       .join('')
 
-    popup.document.write(`<!doctype html>
+    const frame = document.createElement('iframe')
+    frame.style.position = 'fixed'
+    frame.style.right = '0'
+    frame.style.bottom = '0'
+    frame.style.width = '0'
+    frame.style.height = '0'
+    frame.style.border = '0'
+    frame.setAttribute('aria-hidden', 'true')
+    document.body.appendChild(frame)
+
+    const frameWindow = frame.contentWindow
+    const frameDocument = frame.contentDocument ?? frameWindow?.document
+    if (!frameWindow || !frameDocument) {
+      document.body.removeChild(frame)
+      alert('Gagal membuka dokumen cetak Race System Guide.')
+      return
+    }
+
+    frameDocument.open()
+    frameDocument.write(`<!doctype html>
 <html>
   <head>
     <meta charset="utf-8" />
@@ -294,7 +307,23 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
     </script>
   </body>
 </html>`)
-    popup.document.close()
+    frameDocument.close()
+    frameWindow.focus()
+    const cleanup = () => {
+      window.setTimeout(() => {
+        if (frame.parentNode) {
+          frame.parentNode.removeChild(frame)
+        }
+      }, 1000)
+    }
+    frameWindow.onafterprint = cleanup
+    window.setTimeout(() => {
+      try {
+        frameWindow.print()
+      } finally {
+        cleanup()
+      }
+    }, 250)
   }
 
   const updateRule = (categoryId: string, index: number, patch: Partial<CustomSplitRule>) => {
