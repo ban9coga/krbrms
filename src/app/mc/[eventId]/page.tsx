@@ -25,6 +25,15 @@ type RankingRow = {
   status: 'FINISH' | 'DNF' | 'DNS' | 'PENDING'
 }
 
+type NextMotoRiderRow = {
+  rider_id: string
+  rider_name: string
+  rider_nickname?: string | null
+  plate: string
+  club?: string | null
+  gate_position?: number | null
+}
+
 type NextMotoInfo = {
   id: string
   moto_name: string
@@ -44,7 +53,7 @@ type McResponse = {
     category?: string | null
     batch?: string | null
     ranking?: RankingRow[]
-    finish_order?: RankingRow[]
+    next_moto_riders?: NextMotoRiderRow[]
     next_moto?: NextMotoInfo | null
   }
 }
@@ -66,6 +75,7 @@ const resultStatusBadge = (status: RankingRow['status']) => {
 }
 
 const riderDisplayName = (row: RankingRow) => row.rider_nickname?.trim() || row.rider_name
+const nextMotoRiderDisplayName = (row: NextMotoRiderRow) => row.rider_nickname?.trim() || row.rider_name
 
 export default function McLivePage() {
   const params = useParams()
@@ -109,7 +119,7 @@ export default function McLivePage() {
   }, [eventId])
 
   const ranking = useMemo(() => (data?.ranking ?? []).slice(0, 8), [data])
-  const finishOrder = useMemo(() => (data?.finish_order ?? []).slice(0, 8), [data])
+  const nextMotoRiders = useMemo(() => (data?.next_moto_riders ?? []).slice(0, 8), [data])
 
   if (data?.under_review) {
     return (
@@ -230,42 +240,36 @@ export default function McLivePage() {
               </div>
 
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <div className="mb-3 text-lg font-black tracking-tight text-slate-900 md:text-2xl">Finish Order Moto Terkini</div>
+                <div className="mb-1 text-lg font-black tracking-tight text-slate-900 md:text-2xl">Data Rider Next Moto</div>
+                <div className="mb-3 text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">
+                  {data?.next_moto
+                    ? `${data.next_moto.category ?? '-'} | ${data.next_moto.batch ?? '-'} | ${data.next_moto.moto_label}`
+                    : 'Belum ada moto berikutnya'}
+                </div>
                 <div className="grid gap-2">
-                  {finishOrder.length === 0 && (
+                  {nextMotoRiders.length === 0 && (
                     <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm font-semibold text-slate-600">
-                      Belum ada finish order.
+                      Belum ada rider next moto.
                     </div>
                   )}
-                  {finishOrder.map((row, idx) => (
+                  {nextMotoRiders.map((row) => (
                     <div
-                      key={`finish-${row.rider_id}`}
+                      key={`next-${row.rider_id}`}
                       className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3"
                     >
                       <div className="min-w-0">
                         <div className="text-sm font-extrabold uppercase tracking-[0.12em] text-slate-500">
-                          {row.status === 'FINISH'
-                            ? `Finish #${row.finish_order ?? idx + 1}`
-                            : row.status === 'PENDING'
-                            ? `Gate ${row.gate_position ?? '-'}`
-                            : row.status}
+                          Gate {row.gate_position ?? '-'}
                         </div>
                         <div className="truncate text-base font-black text-slate-900 md:text-xl">
-                          {row.plate} - {riderDisplayName(row)}
+                          {row.plate} - {nextMotoRiderDisplayName(row)}
                         </div>
                         <div className="truncate text-sm font-bold text-slate-500 md:text-base">{row.club || '-'}</div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        {row.status !== 'FINISH' && (
-                          <span
-                            className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-[0.12em] ${resultStatusBadge(
-                              row.status
-                            )}`}
-                          >
-                            {row.status === 'PENDING' ? 'Starter' : row.status}
-                          </span>
-                        )}
-                        <div className="text-lg font-black text-sky-700 md:text-2xl">{row.total_point ?? '-'}</div>
+                      <div className="flex items-center gap-2 text-right">
+                        <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-extrabold uppercase tracking-[0.12em] text-slate-700">
+                          Starter
+                        </div>
                       </div>
                     </div>
                   ))}

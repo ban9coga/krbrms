@@ -32,6 +32,15 @@ type McRankingRow = {
   status: 'FINISH' | 'DNF' | 'DNS' | 'PENDING'
 }
 
+type NextMotoRiderRow = {
+  rider_id: string
+  rider_name: string
+  rider_nickname?: string | null
+  plate: string
+  club?: string | null
+  gate_position?: number | null
+}
+
 const pickCurrentMoto = (motos: MotoRow[]) => {
   const provisional = motos.filter((m) => m.status === 'PROVISIONAL')
   if (provisional.length > 0) return provisional[provisional.length - 1]
@@ -113,7 +122,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         category: null,
         batch: null,
         ranking: [],
-        finish_order: [],
+        next_moto_riders: [],
         next_moto: null,
       },
     })
@@ -214,18 +223,40 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     return a.plate.localeCompare(b.plate)
   })
 
-  const finishOrder = [...ranking].sort((a, b) => {
-    const aStatusWeight = a.status === 'FINISH' ? 0 : a.status === 'DNF' ? 1 : a.status === 'DNS' ? 2 : 3
-    const bStatusWeight = b.status === 'FINISH' ? 0 : b.status === 'DNF' ? 1 : b.status === 'DNS' ? 2 : 3
-    if (aStatusWeight !== bStatusWeight) return aStatusWeight - bStatusWeight
-    const aOrder = a.finish_order ?? Number.MAX_SAFE_INTEGER
-    const bOrder = b.finish_order ?? Number.MAX_SAFE_INTEGER
-    if (aOrder !== bOrder) return aOrder - bOrder
-    const aGate = a.gate_position ?? 9999
-    const bGate = b.gate_position ?? 9999
-    if (aGate !== bGate) return aGate - bGate
-    return a.plate.localeCompare(b.plate)
-  })
+  let nextMotoRiders: NextMotoRiderRow[] = []
+  if (nextMoto) {
+    const [{ data: nextMotoAssignments }, { data: nextMotoGates }] = await Promise.all([
+      adminClient.from('moto_riders').select('rider_id').eq('moto_id', nextMoto.id),
+      adminClient.from('moto_gate_positions').select('rider_id, gate_position').eq('moto_id', nextMoto.id),
+    ])
+    const nextGateMap = new Map((nextMotoGates ?? []).map((row) => [row.rider_id, Number(row.gate_position ?? 0) || null]))
+    const nextRiderIds = Array.from(new Set((nextMotoAssignments ?? []).map((row) => row.rider_id)))
+    if (nextRiderIds.length > 0) {
+      const { data: nextRiders } = await adminClient
+        .from('riders')
+        .select('id, name, rider_nickname, no_plate_display, club')
+        .in('id', nextRiderIds)
+      const nextRiderMap = new Map((nextRiders ?? []).map((row: RiderRow) => [row.id, row]))
+      nextMotoRiders = nextRiderIds
+        .map((riderId) => {
+          const rider = nextRiderMap.get(riderId)
+          return {
+            rider_id: riderId,
+            rider_name: rider?.name ?? '-',
+            rider_nickname: rider?.rider_nickname ?? null,
+            plate: rider?.no_plate_display ?? '-',
+            club: rider?.club ?? null,
+            gate_position: nextGateMap.get(riderId) ?? null,
+          }
+        })
+        .sort((a, b) => {
+          const aGate = a.gate_position ?? 9999
+          const bGate = b.gate_position ?? 9999
+          if (aGate !== bGate) return aGate - bGate
+          return a.plate.localeCompare(b.plate)
+        })
+    }
+  }
 
   return NextResponse.json({
     data: {
@@ -235,7 +266,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       category: currentCategoryLabel,
       batch: parseBatch(currentMoto.moto_name),
       ranking,
-      finish_order: finishOrder,
+      next_moto_riders: nextMotoRiders,
       next_moto: nextMoto
         ? {
             id: nextMoto.id,
