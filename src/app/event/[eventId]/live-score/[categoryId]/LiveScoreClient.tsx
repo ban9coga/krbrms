@@ -22,6 +22,7 @@ type Row = {
   penalty_total: number | null
   total_point: number | null
   rank_point: number | null
+  status: 'FINISHED' | 'DNF' | 'DNS' | 'PENDING' | 'DQ'
   class_label?: string | null
 }
 
@@ -43,12 +44,28 @@ type StageRow = {
   point: number | null
   penalty_total: number | null
   rank: number | null
+  status: 'FINISH' | 'DNF' | 'DNS' | 'PENDING'
 }
 
 type StageGroup = {
   title: string
   moto_id: string
   rows: StageRow[]
+}
+
+const statusBadgeClass = (status: string) => {
+  switch (status) {
+    case 'DNF':
+      return 'border-amber-300 bg-amber-50 text-amber-700'
+    case 'DNS':
+      return 'border-rose-300 bg-rose-50 text-rose-700'
+    case 'DQ':
+      return 'border-red-400 bg-red-100 text-red-800'
+    case 'PENDING':
+      return 'border-slate-300 bg-slate-100 text-slate-600'
+    default:
+      return 'border-emerald-300 bg-emerald-50 text-emerald-700'
+  }
 }
 
 export default function LiveScoreClient({ eventId, categoryId }: { eventId: string; categoryId: string }) {
@@ -298,7 +315,18 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                         {showMoto3 && <td>{row.point_moto3 ?? '-'}</td>}
                         <td className="font-extrabold text-amber-600">{row.penalty_total ?? '-'}</td>
                         <td className="font-extrabold text-sky-700">{row.total_point ?? '-'}</td>
-                        <td className="font-extrabold text-emerald-700">{row.rank_point ?? '-'}</td>
+                        <td className="font-extrabold text-emerald-700">
+                          <div className="flex flex-col gap-1">
+                            <span>{row.rank_point ?? '-'}</span>
+                            {row.status !== 'FINISHED' && (
+                              <span
+                                className={`inline-flex w-fit rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] ${statusBadgeClass(row.status)}`}
+                              >
+                                {row.status}
+                              </span>
+                            )}
+                          </div>
+                        </td>
                         <td className="whitespace-nowrap">{row.class_label || '-'}</td>
                       </tr>
                     ))}
@@ -341,7 +369,18 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                           <td className="whitespace-nowrap">{row.club || '-'}</td>
                           <td className="font-extrabold text-sky-700">{row.point ?? '-'}</td>
                           <td className="font-extrabold text-amber-600">{row.penalty_total ?? '-'}</td>
-                          <td className="whitespace-nowrap font-extrabold text-emerald-700">{row.rank ?? '-'}</td>
+                          <td className="whitespace-nowrap font-extrabold text-emerald-700">
+                            <div className="flex flex-col gap-1">
+                              <span>{row.rank ?? '-'}</span>
+                              {row.status !== 'FINISH' && (
+                                <span
+                                  className={`inline-flex w-fit rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] ${statusBadgeClass(row.status)}`}
+                                >
+                                  {row.status}
+                                </span>
+                              )}
+                            </div>
+                          </td>
                         </tr>
                       ))}
                     </tbody>

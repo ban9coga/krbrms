@@ -12,12 +12,6 @@ type MotoRow = {
   is_published: boolean | null
 }
 
-type ResultRow = {
-  rider_id: string
-  finish_order: number | null
-  result_status: 'FINISH' | 'DNF' | 'DNS' | null
-}
-
 type RiderRow = {
   id: string
   name: string
@@ -131,7 +125,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     const status = row.result_status ?? 'FINISH'
     const basePoint =
       status === 'DNS'
-        ? 9
+        ? ((lastPosition ?? 0) > 0 ? (lastPosition as number) + 2 : null)
         : status === 'DNF'
         ? lastPosition
         : row.finish_order ?? null

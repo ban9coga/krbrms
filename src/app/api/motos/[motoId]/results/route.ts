@@ -61,7 +61,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ motoId: st
     const status = (row.result_status ?? 'FINISH') as 'FINISH' | 'DNF' | 'DNS'
     const basePoint =
       status === 'DNS'
-        ? 9
+        ? ((lastPosition ?? 0) > 0 ? (lastPosition as number) + 2 : null)
         : status === 'DNF'
         ? lastPosition
         : row.finish_order ?? null

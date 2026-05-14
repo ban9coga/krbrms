@@ -53,6 +53,8 @@ type StageGroup = {
   rows: StageRow[]
 }
 
+type QualificationRowStatus = 'FINISHED' | 'DNF' | 'DNS' | 'PENDING' | 'DQ'
+
 type StageAssignmentRow = {
   rider_id: string
   stage: 'QUALIFICATION' | 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL'
@@ -119,6 +121,18 @@ const buildQualificationProgress = (motoRows: MotoRow[], gateRows: GateRow[], re
     ready: batchMap.size > 0 && completeBatchIds.length === batchMap.size,
     requiredMotoCount,
   }
+}
+
+const dnsPointForMoto = (riderCount: number | null) => {
+  if (!riderCount || riderCount <= 0) return null
+  return riderCount + 2
+}
+
+const pointForMotoResult = (res: ResultRow | null, riderCount: number | null) => {
+  const status = res?.result_status ?? null
+  if (status === 'DNS') return dnsPointForMoto(riderCount)
+  if (status === 'DNF') return riderCount
+  return res?.finish_order ?? null
 }
 
 const resolvePenaltyStagesForMoto = (name: string): Array<'QUARTER' | 'SEMI' | 'FINAL' | 'ALL'> => {
@@ -324,19 +338,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         const moto3Result = moto3
           ? resultRows.find((r) => r.moto_id === moto3.id && r.rider_id === riderId)
           : null
-        const lastPos1 = gate1Map.size || null
-        const lastPos2 = gate2Map.size || null
-        const lastPos3 = gate3Map.size || null
+        const riderCount1 = gate1Map.size || null
+        const riderCount2 = gate2Map.size || null
+        const riderCount3 = gate3Map.size || null
         const riderStatus = statusMap.get(`${moto1.id}:${riderId}`) ?? 'ACTIVE'
-        const pointForResult = (res: ResultRow | null, lastPos: number | null) => {
-          const status = res?.result_status ?? 'FINISH'
-          if (status === 'DNS') return 9
-          if (status === 'DNF') return lastPos
-          return res?.finish_order ?? null
-        }
-        const point1 = pointForResult(moto1Result ?? null, lastPos1)
-        const point2 = pointForResult(moto2Result ?? null, lastPos2)
-        const point3 = pointForResult(moto3Result ?? null, lastPos3)
+        const point1 = pointForMotoResult(moto1Result ?? null, riderCount1)
+        const point2 = pointForMotoResult(moto2Result ?? null, riderCount2)
+        const point3 = pointForMotoResult(moto3Result ?? null, riderCount3)
         const basePoint = [point1, point2, point3].filter((v) => v !== null).length
           ? [point1, point2, point3].reduce<number>((acc, v) => acc + (v ?? 0), 0)
           : null
@@ -346,7 +354,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         const totalPoint = basePoint !== null ? basePoint + penaltyTotal : null
         const tiebreakers = [point3, point2, point1]
 
-        const status =
+        const status: QualificationRowStatus =
           penaltyTotalForDq >= 7
             ? 'DQ'
             : riderStatus === 'ABSENT'
@@ -361,7 +369,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
                       (!moto2 || moto2Result?.result_status === 'FINISH') &&
                       (!moto3 || moto3Result?.result_status === 'FINISH')
                     ? 'FINISHED'
-                    : 'DNS'
+                    : 'PENDING'
         return {
           rider_id: riderId,
           gate_moto1: gate1Map.get(riderId) ?? null,
@@ -449,13 +457,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     const gates = gateRows.filter((g) => g.moto_id === moto.id)
     const gateMap = new Map(gates.map((g) => [g.rider_id, g.gate_position]))
     const riderIdsInMoto = Array.from(new Set(gates.map((g) => g.rider_id)))
-    const lastPos = gates.length || null
-    const pointForResult = (res: ResultRow | null) => {
-      const status = res?.result_status ?? 'FINISH'
-      if (status === 'DNS') return 9
-      if (status === 'DNF') return lastPos
-      return res?.finish_order ?? null
-    }
+    const riderCount = gates.length || null
 
     const stagePenaltyStages = resolvePenaltyStagesForMoto(moto.moto_name)
     const rows: StageRow[] = riderIdsInMoto.map((riderId) => {
@@ -472,11 +474,30 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         no_plate: rider?.no_plate_display ?? '-',
         club: rider?.club ?? '-',
         photo_thumbnail_url: rider?.photo_thumbnail_url ?? null,
-        point: pointForResult(res),
+        point: pointForMotoResult(res, riderCount),
         penalty_total: penaltyTotal || null,
-        rank: res?.result_status === 'FINISH' ? res.finish_order ?? null : null,
+        rank: null,
         status,
       }
+    })
+
+    const rankMap = new Map(
+      [...rows]
+        .filter((row) => row.point !== null)
+        .sort((a, b) => {
+          const aPoint = (a.point ?? Number.MAX_SAFE_INTEGER) + (a.penalty_total ?? 0)
+          const bPoint = (b.point ?? Number.MAX_SAFE_INTEGER) + (b.penalty_total ?? 0)
+          if (aPoint !== bPoint) return aPoint - bPoint
+          const aGate = a.gate ?? Number.MAX_SAFE_INTEGER
+          const bGate = b.gate ?? Number.MAX_SAFE_INTEGER
+          if (aGate !== bGate) return aGate - bGate
+          return a.rider_id.localeCompare(b.rider_id)
+        })
+        .map((row, index) => [row.rider_id, index + 1] as const)
+    )
+
+    rows.forEach((row) => {
+      row.rank = rankMap.get(row.rider_id) ?? null
     })
 
     return {
