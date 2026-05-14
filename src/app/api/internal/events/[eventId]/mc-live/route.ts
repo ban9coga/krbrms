@@ -15,7 +15,9 @@ type MotoRow = {
 type RiderRow = {
   id: string
   name: string
+  rider_nickname?: string | null
   no_plate_display: string
+  club?: string | null
 }
 
 type McRankingRow = {
@@ -23,7 +25,9 @@ type McRankingRow = {
   finish_order: number | null
   total_point: number | null
   rider_name: string
+  rider_nickname?: string | null
   plate: string
+  club?: string | null
   status: 'FINISH' | 'DNF' | 'DNS'
 }
 
@@ -140,7 +144,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const riderIds = Array.from(new Set((results ?? []).map((r) => r.rider_id)))
   const { data: riders } = await adminClient
     .from('riders')
-    .select('id, name, no_plate_display')
+    .select('id, name, rider_nickname, no_plate_display, club')
     .in('id', riderIds)
   const riderMap = new Map((riders ?? []).map((r: RiderRow) => [r.id, r]))
 
@@ -176,7 +180,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       finish_order: row.finish_order ?? null,
       total_point: total,
       rider_name: rider?.name ?? '-',
+      rider_nickname: rider?.rider_nickname ?? null,
       plate: rider?.no_plate_display ?? '-',
+      club: rider?.club ?? null,
       status,
     }
   })

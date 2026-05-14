@@ -18,7 +18,9 @@ type RankingRow = {
   finish_order: number | null
   total_point: number | null
   rider_name: string
+  rider_nickname?: string | null
   plate: string
+  club?: string | null
   status: 'FINISH' | 'DNF' | 'DNS'
 }
 
@@ -60,6 +62,8 @@ const resultStatusBadge = (status: RankingRow['status']) => {
   if (status === 'DNS') return 'border-rose-300 bg-rose-50 text-rose-700'
   return 'border-emerald-300 bg-emerald-50 text-emerald-700'
 }
+
+const riderDisplayName = (row: RankingRow) => row.rider_nickname?.trim() || row.rider_name
 
 export default function McLivePage() {
   const params = useParams()
@@ -181,7 +185,7 @@ export default function McLivePage() {
                   <table className="public-table" style={{ minWidth: 760 }}>
                     <thead>
                       <tr>
-                        {['Rank', 'Plate', 'Rider', 'Total Point', 'Status'].map((label) => (
+                        {['Rank', 'Plate', 'Rider', 'Komunitas', 'Total Point', 'Status'].map((label) => (
                           <th key={label}>{label}</th>
                         ))}
                       </tr>
@@ -191,7 +195,15 @@ export default function McLivePage() {
                         <tr key={row.rider_id}>
                           <td className="text-lg font-black text-slate-900 md:text-2xl">{idx + 1}</td>
                           <td className="text-base font-extrabold md:text-xl">{row.plate}</td>
-                          <td className="text-lg font-black text-slate-900 md:text-2xl">{row.rider_name}</td>
+                          <td>
+                            <div className="text-lg font-black text-slate-900 md:text-2xl">{riderDisplayName(row)}</div>
+                            {row.rider_nickname?.trim() && (
+                              <div className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500 md:text-sm">
+                                {row.rider_name}
+                              </div>
+                            )}
+                          </td>
+                          <td className="text-sm font-extrabold text-slate-700 md:text-lg">{row.club || '-'}</td>
                           <td className="text-xl font-black text-sky-700 md:text-3xl">{row.total_point ?? '-'}</td>
                           <td>
                             {row.status !== 'FINISH' ? (
@@ -233,8 +245,9 @@ export default function McLivePage() {
                           {row.status === 'FINISH' ? `Finish #${row.finish_order ?? idx + 1}` : row.status}
                         </div>
                         <div className="truncate text-base font-black text-slate-900 md:text-xl">
-                          {row.plate} - {row.rider_name}
+                          {row.plate} - {riderDisplayName(row)}
                         </div>
+                        <div className="truncate text-sm font-bold text-slate-500 md:text-base">{row.club || '-'}</div>
                       </div>
                       <div className="flex items-center gap-2">
                         {row.status !== 'FINISH' && (
