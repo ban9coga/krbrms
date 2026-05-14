@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import EmptyState from '../../../../components/EmptyState'
 import LoadingState from '../../../../components/LoadingState'
 import { getEventById, getEventCategories, type EventItem, type RiderCategory } from '../../../../lib/eventService'
-import { compareMotoSequence, parseMotoSequence } from '../../../../lib/motoSequence'
+import { compareMotoSequence } from '../../../../lib/motoSequence'
 import { isMotoLive } from '../../../../lib/motoStatus'
 
 type Row = {
@@ -23,6 +23,7 @@ type Row = {
   penalty_total: number | null
   total_point: number | null
   rank_point: number | null
+  status: 'FINISHED' | 'DNF' | 'DNS' | 'PENDING' | 'DQ'
   class_label?: string | null
 }
 
@@ -59,17 +60,6 @@ type StageGroup = {
   rows: StageRow[]
 }
 
-type ResultBoardRow = {
-  rider_id: string
-  name: string
-  no_plate: string
-  club: string | null
-  photo_thumbnail_url?: string | null
-  point: number | null
-  penalty_total: number | null
-  rank: number | null
-}
-
 type MotoItem = {
   id: string
   category_id: string
@@ -83,6 +73,26 @@ type MotoItem = {
 const isCompletedMoto = (status?: string | null) => {
   const normalized = (status ?? '').toUpperCase()
   return normalized === 'LOCKED' || normalized === 'FINISHED' || normalized === 'PROTEST_REVIEW'
+}
+
+const isBlockedQueueStatus = (status?: string | null) => {
+  const normalized = (status ?? '').toUpperCase()
+  return normalized === 'LOCKED' || normalized === 'FINISHED' || normalized === 'PROTEST_REVIEW'
+}
+
+const statusBadgeClass = (status?: string | null) => {
+  switch ((status ?? '').toUpperCase()) {
+    case 'DNF':
+      return 'border-amber-300 bg-amber-50 text-amber-700'
+    case 'DNS':
+      return 'border-rose-300 bg-rose-50 text-rose-700'
+    case 'DQ':
+      return 'border-red-400 bg-red-100 text-red-800'
+    case 'PENDING':
+      return 'border-slate-300 bg-slate-100 text-slate-600'
+    default:
+      return 'border-emerald-300 bg-emerald-50 text-emerald-700'
+  }
 }
 
 const completedMotoTimestamp = (moto: MotoItem) => {
@@ -253,23 +263,6 @@ export default function LiveDisplayClient({
 
     return new Map(sorted.map((category, index) => [category.id, index]))
   }, [categories])
-  const sortedCategories = useMemo(
-    () =>
-      [...categories].sort((a, b) => {
-        const ayMax = typeof a.year_max === 'number' ? a.year_max : typeof a.year_min === 'number' ? a.year_min : 0
-        const byMax = typeof b.year_max === 'number' ? b.year_max : typeof b.year_min === 'number' ? b.year_min : 0
-        if (byMax !== ayMax) return byMax - ayMax
-        const ayMin = typeof a.year_min === 'number' ? a.year_min : ayMax
-        const byMin = typeof b.year_min === 'number' ? b.year_min : byMax
-        if (byMin !== ayMin) return byMin - ayMin
-        const genderOrder = { BOY: 0, GIRL: 1, MIX: 2 } as const
-        const ag = genderOrder[a.gender] ?? 9
-        const bg = genderOrder[b.gender] ?? 9
-        if (ag !== bg) return ag - bg
-        return a.label.localeCompare(b.label)
-      }),
-    [categories]
-  )
   const orderedUpcomingMotos = useMemo(
     () =>
       eventMotos
@@ -284,63 +277,21 @@ export default function LiveDisplayClient({
   )
   const activeLiveScore = anchorMoto ? liveScoreByCategory[anchorMoto.category_id] : null
   const categoryLabel = activeLiveScore?.categoryLabel ?? ''
-  const nextCategoryCandidate = useMemo(() => {
-    const currentOrder = anchorMoto ? categoryOrderMap.get(anchorMoto.category_id) ?? -1 : -1
-    if (currentOrder < 0) return null
-    return sortedCategories.find((category) => (categoryOrderMap.get(category.id) ?? -1) > currentOrder) ?? null
-  }, [anchorMoto, categoryOrderMap, sortedCategories])
-  const sameCategoryQueueMoto = useMemo(() => {
-    if (!anchorMoto) return null
-    const sameCategoryMotos = eventMotos
-      .filter((moto) => moto.category_id === anchorMoto.category_id)
-      .sort(compareMotoSequence)
-    const currentIndex = sameCategoryMotos.findIndex((moto) => moto.id === anchorMoto.id)
-    if (currentIndex < 0) return null
-    const blockedStatuses = new Set(['LOCKED', 'FINISHED', 'PROTEST_REVIEW'])
-    return (
-      sameCategoryMotos
-        .slice(currentIndex + 1)
-        .find((moto) => !blockedStatuses.has((moto.status ?? '').toUpperCase())) ?? null
-    )
-  }, [anchorMoto, eventMotos])
   const displayMoto = useMemo(() => {
+    if (provisionalMoto) return provisionalMoto
     if (activeMoto) return activeMoto
-    if (provisionalMoto) {
-      const isQualificationMoto = Boolean(parseMotoSequence(provisionalMoto.moto_name))
-      if (isQualificationMoto && sameCategoryQueueMoto) return sameCategoryQueueMoto
-      return provisionalMoto
-    }
-    if (!latestCompletedMoto) return null
-    const isQualificationMoto = Boolean(parseMotoSequence(latestCompletedMoto.moto_name))
-    if (isQualificationMoto && sameCategoryQueueMoto) return sameCategoryQueueMoto
     return latestCompletedMoto
-  }, [provisionalMoto, activeMoto, latestCompletedMoto, sameCategoryQueueMoto])
+  }, [provisionalMoto, activeMoto, latestCompletedMoto])
   const displayLiveScore = displayMoto ? liveScoreByCategory[displayMoto.category_id] : null
   const displayBatches = useMemo(() => displayLiveScore?.batches ?? [], [displayLiveScore])
   const displayStages = useMemo(() => displayLiveScore?.stages ?? [], [displayLiveScore])
-  const sameCategoryQueueAfterDisplayMoto = useMemo(() => {
-    if (!displayMoto) return null
-    const sameCategoryMotos = eventMotos
-      .filter((moto) => moto.category_id === displayMoto.category_id)
-      .sort(compareMotoSequence)
-    const currentIndex = sameCategoryMotos.findIndex((moto) => moto.id === displayMoto.id)
-    if (currentIndex < 0) return null
-    const blockedStatuses = new Set(['LOCKED', 'FINISHED', 'PROTEST_REVIEW'])
-    return (
-      sameCategoryMotos
-        .slice(currentIndex + 1)
-        .find((moto) => !blockedStatuses.has((moto.status ?? '').toUpperCase())) ?? null
-    )
-  }, [displayMoto, eventMotos])
   const queueMoto = useMemo(() => {
-    const prioritizedMotos =
-      sameCategoryQueueAfterDisplayMoto
-        ? [sameCategoryQueueAfterDisplayMoto]
-        : nextCategoryCandidate
-          ? orderedUpcomingMotos.filter((moto) => moto.category_id === nextCategoryCandidate.id)
-          : orderedUpcomingMotos
-    return prioritizedMotos[0] ?? null
-  }, [orderedUpcomingMotos, sameCategoryQueueAfterDisplayMoto, nextCategoryCandidate])
+    if (!displayMoto) return orderedUpcomingMotos[0] ?? activeMoto ?? null
+    const sortedMotos = [...eventMotos].sort(compareMotoSequence)
+    const currentIndex = sortedMotos.findIndex((moto) => moto.id === displayMoto.id)
+    if (currentIndex < 0) return orderedUpcomingMotos[0] ?? null
+    return sortedMotos.slice(currentIndex + 1).find((moto) => !isBlockedQueueStatus(moto.status)) ?? null
+  }, [displayMoto, eventMotos, orderedUpcomingMotos, activeMoto])
   const queueLiveScore = queueMoto ? liveScoreByCategory[queueMoto.category_id] ?? null : null
   const queueBatches = useMemo(() => queueLiveScore?.batches ?? [], [queueLiveScore])
   const queueStages = useMemo(() => queueLiveScore?.stages ?? [], [queueLiveScore])
@@ -426,7 +377,17 @@ export default function LiveDisplayClient({
     if (activeStageView) {
       return {
         title: activeStageView.title,
-        rows: activeStageView.rows as ResultBoardRow[],
+        rows: activeStageView.rows.map((row) => ({
+          rider_id: row.rider_id,
+          name: row.name,
+          no_plate: row.no_plate,
+          club: row.club,
+          photo_thumbnail_url: row.photo_thumbnail_url ?? null,
+          point: row.point,
+          penalty_total: row.penalty_total,
+          rank: row.rank,
+          status: row.status,
+        })),
       }
     }
     if (liveBatchView && (displayMoto.status ?? '').toUpperCase() === 'LOCKED') {
@@ -443,6 +404,7 @@ export default function LiveDisplayClient({
           point: row.total_point,
           penalty_total: row.penalty_total,
           rank: row.rank_point,
+          status: row.status,
         })),
       }
     }
@@ -714,8 +676,14 @@ export default function LiveDisplayClient({
                               <td className="px-3 py-3 text-sm font-bold text-slate-600">{row.club || '-'}</td>
                               <td className="px-2 py-3 text-xl font-black text-slate-900">{row.point ?? '-'}</td>
                               <td className="px-2 py-3 text-sm font-extrabold text-amber-600">{row.penalty_total ?? '-'}</td>
-                              <td className="px-3 py-3 text-[11px] font-extrabold uppercase tracking-[0.08em] text-slate-600">
-                                {row.rank ? 'Official Result' : 'Pending'}
+                              <td className="px-3 py-3">
+                                <span
+                                  className={`inline-flex w-fit rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] ${statusBadgeClass(
+                                    row.status
+                                  )}`}
+                                >
+                                  {row.status === 'FINISHED' || row.status === 'FINISH' ? 'Official Result' : row.status}
+                                </span>
                               </td>
                             </tr>
                           ))}
@@ -849,7 +817,7 @@ export default function LiveDisplayClient({
                     <h2 className="text-2xl font-black uppercase tracking-[0.08em] text-white">Waiting Feed</h2>
                     <p className="text-sm font-semibold text-slate-400">{queueTarget?.label ?? 'Belum ada moto berikutnya'}</p>
                     <p className="text-sm font-bold uppercase tracking-[0.12em] text-amber-200">
-                      Kategori: {queueLiveScore?.categoryLabel ?? (sameCategoryQueueAfterDisplayMoto ? categoryLabel : nextCategoryCandidate?.label) ?? '-'}
+                      Kategori: {queueLiveScore?.categoryLabel ?? categories.find((category) => category.id === queueMoto?.category_id)?.label ?? '-'}
                     </p>
                   </div>
                   <div className="rounded-full border border-amber-300/40 bg-amber-300/15 px-4 py-2 text-sm font-extrabold uppercase tracking-[0.12em] text-amber-200">
@@ -859,10 +827,8 @@ export default function LiveDisplayClient({
 
                 {prepareQueue.length === 0 ? (
                   <div className="p-6 text-lg font-semibold text-slate-400">
-                    {sameCategoryQueueAfterDisplayMoto
-                      ? `Moto berikutnya di kategori ${categoryLabel || '-'} belum punya gate yang siap ditampilkan.`
-                      : nextCategoryCandidate
-                      ? `Kategori berikutnya ${nextCategoryCandidate.label} belum punya moto/gate yang siap ditampilkan.`
+                    {queueMoto
+                      ? `Moto berikutnya ${queueMoto.moto_name} belum punya gate yang siap ditampilkan.`
                       : 'Belum ada moto berikutnya untuk ditampilkan.'}
                   </div>
                 ) : (
