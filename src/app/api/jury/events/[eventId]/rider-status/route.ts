@@ -127,7 +127,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   }
 
   const approvalMode = await getApprovalMode(eventId)
-  const shouldAutoApply = approvalMode === 'AUTO' || participation_status === 'ACTIVE'
+  const shouldAutoApply =
+    approvalMode === 'AUTO' ||
+    participation_status === 'ACTIVE' ||
+    participation_status === 'DNS' ||
+    participation_status === 'ABSENT'
 
   const { data, error } = await adminClient
     .from('rider_status_updates')
