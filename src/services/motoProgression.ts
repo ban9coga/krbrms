@@ -4,6 +4,7 @@ import { adminClient } from '../lib/auth'
 
 type MotoQueueRow = {
   id: string
+  category_id: string
   moto_order: number
   status: string | null
 }
@@ -13,7 +14,7 @@ const normalizeStatus = (status?: string | null) => (status ?? '').toUpperCase()
 export async function promoteNextMotoToLive(eventId: string, currentMotoId: string) {
   const { data: currentMoto, error: currentError } = await adminClient
     .from('motos')
-    .select('id, moto_order, status')
+    .select('id, category_id, moto_order, status')
     .eq('id', currentMotoId)
     .maybeSingle()
 
@@ -23,7 +24,7 @@ export async function promoteNextMotoToLive(eventId: string, currentMotoId: stri
 
   const { data: eventMotos, error: eventError } = await adminClient
     .from('motos')
-    .select('id, moto_order, status')
+    .select('id, category_id, moto_order, status')
     .eq('event_id', eventId)
     .order('moto_order', { ascending: true })
 
@@ -42,6 +43,7 @@ export async function promoteNextMotoToLive(eventId: string, currentMotoId: stri
 
   const nextMoto = rows.find(
     (row) =>
+      row.category_id === currentMoto.category_id &&
       row.moto_order > (currentMoto.moto_order ?? 0) &&
       normalizeStatus(row.status) === 'UPCOMING'
   )
