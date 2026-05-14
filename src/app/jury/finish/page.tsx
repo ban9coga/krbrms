@@ -139,6 +139,7 @@ export default function JuryFinishPage() {
     })
     setMotos(sortedMotos)
     setSelectedMotoId((prev) => pickNextSelectableMotoId(sortedMotos, prev))
+    return sortedMotos
   }, [eventId, pickNextSelectableMotoId])
 
   useEffect(() => {
@@ -386,6 +387,16 @@ export default function JuryFinishPage() {
     }
   }
 
+  const handleRefreshMotoSelector = async () => {
+    const refreshedMotos = (await loadAll()) ?? []
+    const liveMoto = refreshedMotos.find((m) => isMotoLive(m.status))
+    if (liveMoto) {
+      setSelectedMotoId(liveMoto.id)
+      return
+    }
+    setSelectedMotoId((prev) => pickNextSelectableMotoId(refreshedMotos, prev))
+  }
+
   const onCardPointerDown = (event: React.PointerEvent<HTMLButtonElement>, riderId: string) => {
     event.preventDefault()
     setPressedId(riderId)
@@ -418,7 +429,7 @@ export default function JuryFinishPage() {
   return (
     <div className="public-page">
       <CheckerTopbar title="Jury Finish Panel" />
-      <main className="public-main max-w-[1500px]">
+      <main className="public-main max-w-[1500px] pb-36">
         <section className="public-hero">
           <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-amber-400/15 blur-3xl" />
           <div className="pointer-events-none absolute -top-24 right-0 h-72 w-72 rounded-full bg-sky-400/15 blur-3xl" />
@@ -458,14 +469,24 @@ export default function JuryFinishPage() {
             </div>
             <div className="grid gap-2">
               <label className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">Moto</label>
-              <select value={selectedMotoId} onChange={(e) => setSelectedMotoId(e.target.value)} className="public-filter">
-                {selectableMotos.length === 0 && <option value="">Belum ada moto aktif</option>}
-                {selectableMotos.map((m) => (
-                  <option key={m.id} value={m.id} disabled={!isMotoLive(m.status)}>
-                    {m.moto_order}. {m.moto_name} - {categoryLabel.get(m.category_id ?? '') ?? 'Unknown'} - {m.status}
-                  </option>
-                ))}
-              </select>
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+                <select value={selectedMotoId} onChange={(e) => setSelectedMotoId(e.target.value)} className="public-filter">
+                  {selectableMotos.length === 0 && <option value="">Belum ada moto aktif</option>}
+                  {selectableMotos.map((m) => (
+                    <option key={m.id} value={m.id} disabled={!isMotoLive(m.status)}>
+                      {m.moto_order}. {m.moto_name} - {categoryLabel.get(m.category_id ?? '') ?? 'Unknown'} - {m.status}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={handleRefreshMotoSelector}
+                  disabled={saving}
+                  className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-extrabold uppercase tracking-[0.08em] text-slate-800 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Refresh
+                </button>
+              </div>
             </div>
           </div>
         </section>
@@ -657,7 +678,18 @@ export default function JuryFinishPage() {
           grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 12px;
         }
-        @media (min-width: 1024px) {
+        .jf-footer {
+          position: sticky;
+          bottom: 8px;
+          z-index: 30;
+          background: rgba(241, 245, 249, 0.94);
+          backdrop-filter: blur(8px);
+          padding: 10px;
+          border-radius: 16px;
+          border: 1px solid rgba(148, 163, 184, 0.35);
+          box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+        }
+        @media (min-width: 1280px) {
           .layout-grid {
             grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
           }
@@ -667,13 +699,7 @@ export default function JuryFinishPage() {
         }
         @media (max-width: 640px) {
           .jf-footer {
-            position: sticky;
-            bottom: 8px;
-            background: rgba(241, 245, 249, 0.92);
-            backdrop-filter: blur(6px);
             padding: 8px;
-            border-radius: 14px;
-            border: 1px solid rgba(148, 163, 184, 0.35);
             flex-direction: column;
           }
           .jf-footer > button {
