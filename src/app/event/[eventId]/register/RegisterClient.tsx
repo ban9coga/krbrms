@@ -963,7 +963,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     `${filePickerClass} ${dragActiveKey === key ? 'border-amber-400 bg-amber-400/10' : ''}`
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#020817_0%,#041030_45%,#030712_100%)] text-slate-100">
+    <div className="public-page bg-[linear-gradient(180deg,#020817_0%,#041030_45%,#030712_100%)] text-slate-100">
       <PublicTopbar />
       <main className="mx-auto grid w-full max-w-[1200px] gap-4 px-4 pb-32 pt-6 sm:px-6 md:gap-5 md:pt-8">
         {success && (
@@ -1556,7 +1556,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         </div>
       )}
 
-      <div className="fixed bottom-4 left-1/2 z-40 flex w-[calc(100%-1.5rem)] max-w-[1200px] -translate-x-1/2 flex-col gap-3 rounded-2xl border border-slate-600 bg-slate-950/95 px-4 py-3 shadow-[0_18px_40px_rgba(2,6,23,0.45)] backdrop-blur md:flex-row md:items-center md:justify-between">
+      <div className="fixed bottom-24 left-1/2 z-40 flex w-[calc(100%-1.5rem)] max-w-[1200px] -translate-x-1/2 flex-col gap-3 rounded-2xl border border-slate-600 bg-slate-950/95 px-4 py-3 shadow-[0_18px_40px_rgba(2,6,23,0.45)] backdrop-blur md:bottom-4 md:flex-row md:items-center md:justify-between">
         <div className="grid gap-1">
           <div className="text-sm font-black text-slate-100 md:text-base">Total: {formatRupiah(totalAmount)}</div>
           <div className="text-xs font-semibold text-slate-400">

@@ -158,7 +158,7 @@ export default async function LandingPage() {
     }))
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f6fbf7', color: '#111', paddingBottom: '84px' }}>
+    <div className="public-page" style={{ background: '#f6fbf7', color: '#111' }}>
       <MarketingTopbar />
 
       <main>
