@@ -33,12 +33,12 @@ type McRankingRow = {
 }
 
 const pickCurrentMoto = (motos: MotoRow[]) => {
+  const provisional = motos.filter((m) => m.status === 'PROVISIONAL')
+  if (provisional.length > 0) return provisional[provisional.length - 1]
   const live = motos.filter((m) => m.status === 'LIVE')
   if (live.length > 0) return live[0]
-  const provisional = motos.filter((m) => m.status === 'PROVISIONAL')
-  if (provisional.length > 0) return provisional[0]
   const locked = motos.filter((m) => m.status === 'LOCKED')
-  if (locked.length > 0) return locked[0]
+  if (locked.length > 0) return locked[locked.length - 1]
   const upcoming = motos.filter((m) => m.status === 'UPCOMING')
   if (upcoming.length > 0) return upcoming[0]
   return motos[0] ?? null
