@@ -51,7 +51,21 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ eventI
     business_settings,
   } = body ?? {}
 
-  const normalizedRegistrationOpen = typeof registration_open === 'boolean' ? registration_open : true
+  const { data: existingRows, error: existingError } = await adminClient
+    .from('event_settings')
+    .select('registration_open')
+    .eq('event_id', eventId)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+
+  if (existingError) return NextResponse.json({ error: existingError.message }, { status: 400 })
+  const existingRow = (existingRows ?? [])[0] ?? null
+  const normalizedRegistrationOpen =
+    typeof registration_open === 'boolean'
+      ? registration_open
+      : typeof existingRow?.registration_open === 'boolean'
+      ? existingRow.registration_open
+      : true
 
   const { data, error } = await adminClient
     .from('event_settings')
