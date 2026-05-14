@@ -509,6 +509,26 @@ export default function JuryFinishPage() {
             Moto masih {selectedMoto.status}. Input hanya bisa saat LIVE.
           </section>
         )}
+        <section className="flex flex-wrap gap-2">
+          <span
+            className={`rounded-full border px-3 py-1 text-xs font-extrabold tracking-[0.12em] ${
+              flags.dns_enabled
+                ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                : 'border-rose-300 bg-rose-50 text-rose-800'
+            }`}
+          >
+            DNS {flags.dns_enabled ? 'ON' : 'OFF'}
+          </span>
+          <span
+            className={`rounded-full border px-3 py-1 text-xs font-extrabold tracking-[0.12em] ${
+              flags.dnf_enabled
+                ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                : 'border-rose-300 bg-rose-50 text-rose-800'
+            }`}
+          >
+            DNF {flags.dnf_enabled ? 'ON' : 'OFF'}
+          </span>
+        </section>
 
         <div className="layout-grid">
           <section className="public-panel-light">

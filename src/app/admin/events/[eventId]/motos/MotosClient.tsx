@@ -75,6 +75,8 @@ export default function MotosClient({ eventId }: { eventId: string }) {
   const [hiddenCategoryIds, setHiddenCategoryIds] = useState<string[]>([])
   const [showMotoRiderList, setShowMotoRiderList] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
   const [eventStatus, setEventStatus] = useState<'UPCOMING' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED' | null>(null)
   const [eventName, setEventName] = useState('Event')
 
@@ -111,9 +113,10 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     setGateOrdersByCategory(map)
   }
 
-  const load = async () => {
+  const load = async (mode: 'initial' | 'refresh' = 'initial') => {
     if (!eventId) return
-    setLoading(true)
+    if (mode === 'initial' && !hasLoadedOnce) setLoading(true)
+    else setRefreshing(true)
     try {
       const catRes = await fetch(`/api/events/${eventId}/categories`)
       const catJson = await catRes.json()
@@ -133,6 +136,8 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       await loadGateOrders(categoryIds)
     } finally {
       setLoading(false)
+      setRefreshing(false)
+      setHasLoadedOnce(true)
     }
   }
 
@@ -144,7 +149,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
   useEffect(() => {
     if (!eventId) return
     const interval = window.setInterval(() => {
-      void load()
+      void load('refresh')
     }, 5000)
     return () => window.clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -512,20 +517,20 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
         <button
           type="button"
-          onClick={() => load()}
-          disabled={loading}
+          onClick={() => load('refresh')}
+          disabled={loading || refreshing}
           style={{
             padding: '10px 12px',
             borderRadius: 12,
             border: '2px solid #111',
             background: '#dcfce7',
             fontWeight: 900,
-            cursor: loading ? 'not-allowed' : 'pointer',
+            cursor: loading || refreshing ? 'not-allowed' : 'pointer',
             whiteSpace: 'nowrap',
-            opacity: loading ? 0.6 : 1,
+            opacity: loading || refreshing ? 0.6 : 1,
           }}
         >
-          {loading ? 'Loading...' : 'Refresh'}
+          {loading || refreshing ? 'Refreshing...' : 'Refresh'}
         </button>
         <button
           type="button"
@@ -588,7 +593,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
 
 
       <div style={{ marginTop: 16, display: 'grid', gap: 16 }}>
-        {loading && (
+        {loading && motos.length === 0 && (
           <div className="no-print" style={{ padding: 14, borderRadius: 16, border: '2px dashed #111', background: '#fff', fontWeight: 900 }}>
             Loading...
           </div>

@@ -39,6 +39,7 @@ type EventFlags = {
   penalty_enabled: boolean
   absent_enabled: boolean
   dns_enabled: boolean
+  dnf_enabled: boolean
 }
 
 const isLockedStatus = (status?: string | null) => String(status ?? '').toUpperCase() === 'LOCKED'
@@ -69,7 +70,12 @@ export default function JCPage() {
   const [selectedMotoId, setSelectedMotoId] = useState(initialMotoId)
   const [riders, setRiders] = useState<RiderItem[]>([])
   const [statuses, setStatuses] = useState<Record<string, StatusRow>>({})
-  const [flags, setFlags] = useState<EventFlags>({ penalty_enabled: true, absent_enabled: true, dns_enabled: true })
+  const [flags, setFlags] = useState<EventFlags>({
+    penalty_enabled: true,
+    absent_enabled: true,
+    dns_enabled: true,
+    dnf_enabled: true,
+  })
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [locked, setLocked] = useState(false)
@@ -128,7 +134,14 @@ export default function JCPage() {
       const flagJson = flagRes
       const catRows = (catJson.data ?? []) as CategoryItem[]
       setCategories(catRows)
-      setFlags(flagJson.data ?? { penalty_enabled: true, absent_enabled: true, dns_enabled: true })
+      setFlags(
+        flagJson.data ?? {
+          penalty_enabled: true,
+          absent_enabled: true,
+          dns_enabled: true,
+          dnf_enabled: true,
+        }
+      )
       const rawSafety = (safetyRes.data ?? []) as SafetyRequirement[]
       setPenaltyRules((ruleRes.data ?? []) as PenaltyRule[])
       const uniqueSafety = new Map<string, SafetyRequirement>()
@@ -722,6 +735,30 @@ export default function JCPage() {
             MARK ALL SAFETY OK
           </button>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <span
+              style={{
+                padding: '6px 12px',
+                borderRadius: 999,
+                border: '2px solid #111',
+                background: flags.dns_enabled ? '#dcfce7' : '#fee2e2',
+                color: flags.dns_enabled ? '#166534' : '#991b1b',
+                fontWeight: 900,
+              }}
+            >
+              DNS {flags.dns_enabled ? 'ON' : 'OFF'}
+            </span>
+            <span
+              style={{
+                padding: '6px 12px',
+                borderRadius: 999,
+                border: '2px solid #111',
+                background: flags.dnf_enabled ? '#dcfce7' : '#fee2e2',
+                color: flags.dnf_enabled ? '#166534' : '#991b1b',
+                fontWeight: 900,
+              }}
+            >
+              DNF {flags.dnf_enabled ? 'ON' : 'OFF'}
+            </span>
             <span style={{ padding: '6px 12px', borderRadius: 999, border: '2px solid #111', fontWeight: 900 }}>
               Total: {summary.total}
             </span>
