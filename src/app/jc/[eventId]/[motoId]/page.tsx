@@ -508,14 +508,7 @@ export default function JCPage() {
   const readyDisabled = interactionDisabled || allReadyDone
   const dnsDisabled = interactionDisabled || !allReadyDone || !flags.dns_enabled
   const absentDisabled = interactionDisabled || allReadyDone || !flags.absent_enabled
-  const canGateReady =
-    riderList.length > 0 &&
-    riderList.every((r) => {
-      const status = statuses[r.id]?.participation_status ?? 'ACTIVE'
-      if (status === 'ABSENT') return true
-      if (status === 'ACTIVE') return true
-      return false
-    })
+  const canGateReady = riderList.length > 0
 
   return (
     <div className="jc-page" style={{ minHeight: '100vh', background: '#fff6da', color: '#111' }}>
