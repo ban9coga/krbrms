@@ -86,9 +86,6 @@ export default function JuryFinishPage() {
     return json
   }, [])
 
-  const normalizedRole = String(role ?? '').trim().toUpperCase()
-  const canResetMoto = normalizedRole === 'RACE_DIRECTOR' || normalizedRole === 'SUPER_ADMIN' || normalizedRole === 'ADMIN'
-
   useEffect(() => {
     const loadEvents = async () => {
       const res = await apiFetch('/api/jury/events?status=LIVE')
@@ -365,28 +362,6 @@ export default function JuryFinishPage() {
   }
 
 
-  const handleResetPenalties = async () => {
-    if (!canResetMoto || motoLocked) return
-    if (!selectedMoto) return
-    const ok = confirm('Reset penalty MOTO untuk moto ini?')
-    if (!ok) return
-    const reason = window.prompt('Alasan reset penalty moto ini', 'Penalty checker perlu dibersihkan')
-    if (reason === null) return
-    setSaving(true)
-    try {
-      await apiFetch(`/api/race-director/motos/${selectedMoto.id}/reset-penalties`, {
-        method: 'POST',
-        body: JSON.stringify({ reason: reason.trim() || 'Reset moto penalties' }),
-      })
-      setPenaltiesByRider({})
-      alert('Penalty moto berhasil direset.')
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Gagal reset penalty moto.')
-    } finally {
-      setSaving(false)
-    }
-  }
-
   const handleRefreshMotoSelector = async () => {
     const refreshedMotos = (await loadAll()) ?? []
     const liveMoto = refreshedMotos.find((m) => isMotoLive(m.status))
@@ -648,14 +623,6 @@ export default function JuryFinishPage() {
             className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-extrabold uppercase tracking-[0.1em] text-slate-800 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
           >
             Undo
-          </button>
-          <button
-            type="button"
-            onClick={handleResetPenalties}
-            disabled={saving || !canResetMoto || motoLocked}
-            className="w-full rounded-xl border border-rose-300 bg-rose-100 px-4 py-3 text-sm font-extrabold uppercase tracking-[0.1em] text-rose-800 transition-colors hover:bg-rose-200 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Reset Penalty
           </button>
           <button
             type="button"
