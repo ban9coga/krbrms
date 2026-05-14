@@ -175,9 +175,20 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
       }
 
       let systemText = ''
+      let allocationText = ''
       if (rules.length > 0) {
         const splitBasis = rules[0]?.split_basis ?? 'COMBINED'
         systemText = `Pembagian final memakai ${splitBasisLabel(splitBasis)}.`
+        const allocationMap = new Map<string, number>()
+        for (const rule of rules) {
+          const riderCount = Math.max(0, rule.rank_to - rule.rank_from + 1)
+          const targetLabel = rule.target_stage === 'FINAL' ? `Final ${rule.target_final_class}` : rule.target_stage.replace(/_/g, ' ')
+          allocationMap.set(targetLabel, (allocationMap.get(targetLabel) ?? 0) + riderCount)
+        }
+        const allocationParts = Array.from(allocationMap.entries()).map(([label, count]) => `${count} rider ${label}`)
+        if (allocationParts.length > 0) {
+          allocationText = `Total hasil pembagian: ${allocationParts.join(' dan ')}.`
+        }
       } else if (stageFlags.enableQuarterFinal) {
         systemText = 'Kategori ini memakai alur AMS standar: qualification, quarter final, semi final, lalu final class.'
       } else if (stageFlags.enableSemiFinal) {
@@ -223,6 +234,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
         title: category.label,
         intro: `${introParts.join(', ')}.`,
         systemText,
+        allocationText,
         ruleLines,
         stageLine,
       }
@@ -232,7 +244,11 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
   const guideText = useMemo(
     () =>
       guideEntries
-        .map((entry) => [entry.title, entry.intro, entry.systemText, entry.stageLine, ...entry.ruleLines].join('\n'))
+        .map((entry) =>
+          [entry.title, entry.intro, entry.systemText, entry.allocationText, entry.stageLine, ...entry.ruleLines]
+            .filter(Boolean)
+            .join('\n')
+        )
         .join('\n\n'),
     [guideEntries]
   )
@@ -267,6 +283,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
             <h2>${entry.title}</h2>
             <p>${entry.intro}</p>
             <p>${entry.systemText}</p>
+            ${entry.allocationText ? `<p>${entry.allocationText}</p>` : ''}
             <p>${entry.stageLine}</p>
             <ul>${entry.ruleLines.map((line) => `<li>${line}</li>`).join('')}</ul>
           </section>
@@ -852,6 +869,9 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
                   <div style={{ fontSize: 22, fontWeight: 950, color: themeSecondary }}>{entry.title}</div>
                   <div style={{ color: '#0f172a', fontWeight: 700, lineHeight: 1.5 }}>{entry.intro}</div>
                   <div style={{ color: '#334155', fontWeight: 700, lineHeight: 1.5 }}>{entry.systemText}</div>
+                  {entry.allocationText && (
+                    <div style={{ color: themePrimary, fontWeight: 900, lineHeight: 1.5 }}>{entry.allocationText}</div>
+                  )}
                   <div style={{ color: '#334155', fontWeight: 700, lineHeight: 1.5 }}>{entry.stageLine}</div>
                   <ul style={{ margin: '4px 0 0 18px', padding: 0, display: 'grid', gap: 6 }}>
                     {entry.ruleLines.map((line, index) => (
