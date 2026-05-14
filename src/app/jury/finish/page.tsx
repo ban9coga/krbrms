@@ -586,6 +586,25 @@ export default function JuryFinishPage() {
                 : 'Tap = Finish. DNF dimatikan dari menu Penalties.'}
             </div>
 
+            <div className="jf-actions mt-4 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={handleUndo}
+                disabled={actions.length === 0 || hasSubmitted || motoLocked}
+                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-extrabold uppercase tracking-[0.1em] text-slate-800 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Undo
+              </button>
+              <button
+                type="button"
+                onClick={handleSubmitHeat}
+                disabled={hasSubmitted || saving || role === 'RACE_DIRECTOR' || motoLocked || !selectedMotoLive}
+                className="w-full rounded-xl border border-emerald-300 bg-emerald-500 px-4 py-3 text-sm font-extrabold uppercase tracking-[0.1em] text-white transition-colors hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {saving ? 'Submitting...' : 'Submit Result'}
+              </button>
+            </div>
+
             <div className="mt-4 border-t border-dashed border-slate-300 pt-4">
               <div className="mb-3 text-xs font-extrabold uppercase tracking-[0.15em] text-slate-500">Starter List</div>
               <div className="grid gap-2">
@@ -664,24 +683,6 @@ export default function JuryFinishPage() {
           </aside>
         </div>
 
-        <div className="jf-footer mt-2 flex items-center justify-between gap-3">
-          <button
-            type="button"
-            onClick={handleUndo}
-            disabled={actions.length === 0 || hasSubmitted || motoLocked}
-            className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-extrabold uppercase tracking-[0.1em] text-slate-800 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Undo
-          </button>
-          <button
-            type="button"
-            onClick={handleSubmitHeat}
-            disabled={hasSubmitted || saving || role === 'RACE_DIRECTOR' || motoLocked || !selectedMotoLive}
-            className="w-full rounded-xl border border-emerald-300 bg-emerald-500 px-4 py-3 text-sm font-extrabold uppercase tracking-[0.1em] text-white transition-colors hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {saving ? 'Submitting...' : 'Submit Result'}
-          </button>
-        </div>
       </main>
       <style jsx>{`
         .layout-grid {
@@ -694,12 +695,8 @@ export default function JuryFinishPage() {
           grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 12px;
         }
-        .jf-footer {
-          position: sticky;
-          bottom: 8px;
-          z-index: 30;
+        .jf-actions {
           background: rgba(241, 245, 249, 0.94);
-          backdrop-filter: blur(8px);
           padding: 10px;
           border-radius: 16px;
           border: 1px solid rgba(148, 163, 184, 0.35);
@@ -714,11 +711,11 @@ export default function JuryFinishPage() {
           }
         }
         @media (max-width: 640px) {
-          .jf-footer {
+          .jf-actions {
             padding: 8px;
             flex-direction: column;
           }
-          .jf-footer > button {
+          .jf-actions > button {
             width: 100%;
           }
           .input-grid > button {
