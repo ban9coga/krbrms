@@ -638,6 +638,34 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     })
   }, [advancedOnly, searchParams])
 
+  const loadAdvancedSummary = async () => {
+    if (!eventId) return
+    const summaryRes = await apiFetch(`/api/events/${eventId}/advanced-race/summary`)
+    setSummaryByCategory(
+      (summaryRes.data ?? {}) as Record<
+        string,
+        {
+          stageCounts: Record<string, number>
+          motoCounts: { quarter: number; semi: number; final: number }
+          readiness: {
+            totalRiders: number
+            requiresQualification: boolean
+            qualificationTotalBatches: number
+            qualificationCompleteBatches: number
+            qualificationReady: boolean
+            qualificationRun: boolean
+            quarterReady: boolean
+            semiReady: boolean
+            canRunQualification: boolean
+            canComputeAdvances: boolean
+            allQualificationLocked: boolean
+            allCategoryMotosLocked: boolean
+          }
+        }
+      >
+    )
+  }
+
   const loadAdvanced = async () => {
     if (!eventId) return
     setAdvancedLoading(true)
@@ -662,30 +690,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
         })
       }
       setRulesByCategory(grouped)
-      const summaryRes = await apiFetch(`/api/events/${eventId}/advanced-race/summary`)
-      setSummaryByCategory(
-        (summaryRes.data ?? {}) as Record<
-          string,
-          {
-            stageCounts: Record<string, number>
-            motoCounts: { quarter: number; semi: number; final: number }
-            readiness: {
-              totalRiders: number
-              requiresQualification: boolean
-              qualificationTotalBatches: number
-              qualificationCompleteBatches: number
-              qualificationReady: boolean
-              qualificationRun: boolean
-              quarterReady: boolean
-              semiReady: boolean
-              canRunQualification: boolean
-              canComputeAdvances: boolean
-              allQualificationLocked: boolean
-              allCategoryMotosLocked: boolean
-            }
-          }
-        >
-      )
+      await loadAdvancedSummary()
     } catch (err) {
       console.warn(err)
     } finally {
@@ -697,6 +702,25 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     if (!eventId) return
     setAdvancedSaving(true)
     try {
+      setAdvancedItems((prev) =>
+        prev.map((item) =>
+          item.category.id === categoryId
+            ? {
+                ...item,
+                config: item.config
+                  ? { ...item.config, enabled }
+                  : {
+                      id: '',
+                      event_id: eventId,
+                      category_id: categoryId,
+                      enabled,
+                      max_riders_per_race: Math.max(1, Number(form.race_gate_positions) || 8),
+                      qualification_moto_count: 2,
+                    },
+              }
+            : item
+        )
+      )
       await apiFetch(`/api/events/${eventId}/advanced-race`, {
         method: 'POST',
         body: JSON.stringify({
@@ -704,9 +728,10 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
           enabled,
         }),
       })
-      await loadAdvanced()
+      await loadAdvancedSummary()
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Gagal menyimpan advanced config.')
+      await loadAdvanced()
     } finally {
       setAdvancedSaving(false)
     }
@@ -2568,44 +2593,46 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
         </div>
       )}
 
-      <div
-        style={{
-          position: 'sticky',
-          bottom: 12,
-          marginTop: 20,
-          border: '2px solid #111',
-          borderRadius: 16,
-          background: '#fff',
-          padding: 12,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 12,
-          boxShadow: '0 6px 18px rgba(0,0,0,0.08)',
-        }}
-      >
-        <div style={{ display: 'grid', gap: 2 }}>
-          <div style={{ fontWeight: 900 }}>Save Event Settings</div>
-          <div style={{ fontSize: 12, color: '#333', fontWeight: 700 }}>
-            {isDirty ? 'Unsaved changes' : `Saved: ${row?.updated_at ? new Date(row.updated_at).toLocaleString() : '-'}`}
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving}
+      {!advancedOnly && (
+        <div
           style={{
-            padding: '10px 16px',
-            borderRadius: 12,
+            position: 'sticky',
+            bottom: 12,
+            marginTop: 20,
             border: '2px solid #111',
-            background: '#2ecc71',
-            fontWeight: 950,
-            cursor: 'pointer',
+            borderRadius: 16,
+            background: '#fff',
+            padding: 12,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            boxShadow: '0 6px 18px rgba(0,0,0,0.08)',
           }}
         >
-          {saving ? 'Saving...' : 'Save Settings'}
-        </button>
-      </div>
+          <div style={{ display: 'grid', gap: 2 }}>
+            <div style={{ fontWeight: 900 }}>Save Event Settings</div>
+            <div style={{ fontSize: 12, color: '#333', fontWeight: 700 }}>
+              {isDirty ? 'Unsaved changes' : `Saved: ${row?.updated_at ? new Date(row.updated_at).toLocaleString() : '-'}`}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            style={{
+              padding: '10px 16px',
+              borderRadius: 12,
+              border: '2px solid #111',
+              background: '#2ecc71',
+              fontWeight: 950,
+              cursor: 'pointer',
+            }}
+          >
+            {saving ? 'Saving...' : 'Save Settings'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }
