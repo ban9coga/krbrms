@@ -21,7 +21,8 @@ type RankingRow = {
   rider_nickname?: string | null
   plate: string
   club?: string | null
-  status: 'FINISH' | 'DNF' | 'DNS'
+  gate_position?: number | null
+  status: 'FINISH' | 'DNF' | 'DNS' | 'PENDING'
 }
 
 type NextMotoInfo = {
@@ -60,6 +61,7 @@ const statusBadge = (moto?: MotoInfo | null) => {
 const resultStatusBadge = (status: RankingRow['status']) => {
   if (status === 'DNF') return 'border-amber-300 bg-amber-50 text-amber-700'
   if (status === 'DNS') return 'border-rose-300 bg-rose-50 text-rose-700'
+  if (status === 'PENDING') return 'border-slate-300 bg-slate-100 text-slate-700'
   return 'border-emerald-300 bg-emerald-50 text-emerald-700'
 }
 
@@ -212,7 +214,7 @@ export default function McLivePage() {
                                   row.status
                                 )}`}
                               >
-                                {row.status}
+                                {row.status === 'PENDING' ? 'Starter' : row.status}
                               </span>
                             ) : (
                               <span className="inline-flex rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-extrabold uppercase tracking-[0.12em] text-emerald-700">
@@ -242,7 +244,11 @@ export default function McLivePage() {
                     >
                       <div className="min-w-0">
                         <div className="text-sm font-extrabold uppercase tracking-[0.12em] text-slate-500">
-                          {row.status === 'FINISH' ? `Finish #${row.finish_order ?? idx + 1}` : row.status}
+                          {row.status === 'FINISH'
+                            ? `Finish #${row.finish_order ?? idx + 1}`
+                            : row.status === 'PENDING'
+                            ? `Gate ${row.gate_position ?? '-'}`
+                            : row.status}
                         </div>
                         <div className="truncate text-base font-black text-slate-900 md:text-xl">
                           {row.plate} - {riderDisplayName(row)}
@@ -256,7 +262,7 @@ export default function McLivePage() {
                               row.status
                             )}`}
                           >
-                            {row.status}
+                            {row.status === 'PENDING' ? 'Starter' : row.status}
                           </span>
                         )}
                         <div className="text-lg font-black text-sky-700 md:text-2xl">{row.total_point ?? '-'}</div>

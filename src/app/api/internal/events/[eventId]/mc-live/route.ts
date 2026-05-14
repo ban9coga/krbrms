@@ -28,7 +28,8 @@ type McRankingRow = {
   rider_nickname?: string | null
   plate: string
   club?: string | null
-  status: 'FINISH' | 'DNF' | 'DNS'
+  gate_position?: number | null
+  status: 'FINISH' | 'DNF' | 'DNS' | 'PENDING'
 }
 
 const pickCurrentMoto = (motos: MotoRow[]) => {
@@ -125,7 +126,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     currentIndex >= 0
       ? listForNext
           .slice(currentIndex + 1)
-          .find((row) => !['LOCKED', 'FINISHED', 'PROTEST_REVIEW'].includes((row.status ?? '').toUpperCase())) ?? null
+          .find((row) => ['UPCOMING', 'LIVE', 'PROVISIONAL'].includes((row.status ?? '').toUpperCase())) ??
+        listForNext.slice(currentIndex + 1)[0] ??
+        null
       : null
 
   const { data: results, error: resultError } = await adminClient
@@ -140,13 +143,20 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     .select('rider_id')
     .eq('moto_id', currentMoto.id)
   const lastPosition = (motoRiders ?? []).length || null
+  const { data: gatePositions } = await adminClient
+    .from('moto_gate_positions')
+    .select('rider_id, gate_position')
+    .eq('moto_id', currentMoto.id)
 
-  const riderIds = Array.from(new Set((results ?? []).map((r) => r.rider_id)))
+  const gateMap = new Map((gatePositions ?? []).map((row) => [row.rider_id, Number(row.gate_position ?? 0) || null]))
+
+  const riderIds = Array.from(new Set([...(results ?? []).map((r) => r.rider_id), ...((motoRiders ?? []).map((r) => r.rider_id))]))
   const { data: riders } = await adminClient
     .from('riders')
     .select('id, name, rider_nickname, no_plate_display, club')
     .in('id', riderIds)
   const riderMap = new Map((riders ?? []).map((r: RiderRow) => [r.id, r]))
+  const resultMap = new Map((results ?? []).map((row) => [row.rider_id, row]))
 
   const penaltyMap = new Map<string, number>()
   if (riderIds.length > 0) {
@@ -164,44 +174,57 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     }
   }
 
-  const ranking: McRankingRow[] = (results ?? []).map((row) => {
-    const rider = riderMap.get(row.rider_id)
-    const status = (row.result_status ?? 'FINISH') as 'FINISH' | 'DNF' | 'DNS'
+  const ranking: McRankingRow[] = riderIds.map((riderId) => {
+    const row = resultMap.get(riderId)
+    const rider = riderMap.get(riderId)
+    const status = ((row?.result_status ?? 'PENDING') as 'FINISH' | 'DNF' | 'DNS' | 'PENDING')
     const basePoint =
       status === 'DNS'
         ? ((lastPosition ?? 0) > 0 ? (lastPosition as number) + 2 : null)
         : status === 'DNF'
         ? lastPosition
-        : row.finish_order ?? null
-    const penalty = penaltyMap.get(row.rider_id) ?? 0
+        : status === 'FINISH'
+        ? row?.finish_order ?? null
+        : null
+    const penalty = penaltyMap.get(riderId) ?? 0
     const total = basePoint !== null ? basePoint + penalty : null
     return {
-      rider_id: row.rider_id,
-      finish_order: row.finish_order ?? null,
+      rider_id: riderId,
+      finish_order: row?.finish_order ?? null,
       total_point: total,
       rider_name: rider?.name ?? '-',
       rider_nickname: rider?.rider_nickname ?? null,
       plate: rider?.no_plate_display ?? '-',
       club: rider?.club ?? null,
+      gate_position: gateMap.get(riderId) ?? null,
       status,
     }
   })
 
   ranking.sort((a, b) => {
+    const aStatusWeight = a.status === 'FINISH' ? 0 : a.status === 'DNF' ? 1 : a.status === 'DNS' ? 2 : 3
+    const bStatusWeight = b.status === 'FINISH' ? 0 : b.status === 'DNF' ? 1 : b.status === 'DNS' ? 2 : 3
+    if (aStatusWeight !== bStatusWeight) return aStatusWeight - bStatusWeight
     const at = a.total_point ?? 9999
     const bt = b.total_point ?? 9999
     if (at !== bt) return at - bt
-    return (a.finish_order ?? 9999) - (b.finish_order ?? 9999)
+    const aGate = a.gate_position ?? 9999
+    const bGate = b.gate_position ?? 9999
+    if (aGate !== bGate) return aGate - bGate
+    return a.plate.localeCompare(b.plate)
   })
 
   const finishOrder = [...ranking].sort((a, b) => {
-    const aStatusWeight = a.status === 'FINISH' ? 0 : a.status === 'DNF' ? 1 : 2
-    const bStatusWeight = b.status === 'FINISH' ? 0 : b.status === 'DNF' ? 1 : 2
+    const aStatusWeight = a.status === 'FINISH' ? 0 : a.status === 'DNF' ? 1 : a.status === 'DNS' ? 2 : 3
+    const bStatusWeight = b.status === 'FINISH' ? 0 : b.status === 'DNF' ? 1 : b.status === 'DNS' ? 2 : 3
     if (aStatusWeight !== bStatusWeight) return aStatusWeight - bStatusWeight
     const aOrder = a.finish_order ?? Number.MAX_SAFE_INTEGER
     const bOrder = b.finish_order ?? Number.MAX_SAFE_INTEGER
     if (aOrder !== bOrder) return aOrder - bOrder
-    return a.total_point ?? 9999 - (b.total_point ?? 9999)
+    const aGate = a.gate_position ?? 9999
+    const bGate = b.gate_position ?? 9999
+    if (aGate !== bGate) return aGate - bGate
+    return a.plate.localeCompare(b.plate)
   })
 
   return NextResponse.json({
