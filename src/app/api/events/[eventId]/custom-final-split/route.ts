@@ -36,6 +36,11 @@ type StageConfigRow = {
   qualification_moto_count: number
 }
 
+type EventSettingsRow = {
+  event_logo_url?: string | null
+  display_theme?: Record<string, unknown> | null
+}
+
 const targetKeyForRule = (rule: {
   target_stage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL'
   target_final_class?: string | null
@@ -48,6 +53,25 @@ const targetKeyForRule = (rule: {
 
 export async function GET(_: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params
+  const { data: eventRow, error: eventError } = await adminClient
+    .from('events')
+    .select('id, name, community_name')
+    .eq('id', eventId)
+    .maybeSingle()
+
+  if (eventError) {
+    return NextResponse.json({ error: eventError.message }, { status: 400 })
+  }
+
+  const { data: settingsRow, error: settingsError } = await adminClient
+    .from('event_settings')
+    .select('event_logo_url, display_theme')
+    .eq('event_id', eventId)
+    .maybeSingle()
+
+  if (settingsError) {
+    return NextResponse.json({ error: settingsError.message }, { status: 400 })
+  }
 
   const { data: categories, error: categoryError } = await adminClient
     .from('categories')
@@ -113,6 +137,13 @@ export async function GET(_: Request, { params }: { params: Promise<{ eventId: s
 
   return NextResponse.json({
     data: {
+      event: {
+        id: eventRow?.id ?? eventId,
+        name: eventRow?.name ?? 'Race System Guide',
+        community_name: eventRow?.community_name ?? null,
+        event_logo_url: ((settingsRow as EventSettingsRow | null)?.event_logo_url ?? null) as string | null,
+        display_theme: (((settingsRow as EventSettingsRow | null)?.display_theme ?? {}) as Record<string, unknown>) ?? {},
+      },
       categories: enrichedCategories,
       rules: rules ?? [],
     },

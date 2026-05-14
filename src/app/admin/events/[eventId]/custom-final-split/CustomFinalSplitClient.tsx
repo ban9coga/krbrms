@@ -20,6 +20,14 @@ type CategoryRow = {
   qualification_moto_count?: number | null
 }
 
+type EventGuideMeta = {
+  id: string
+  name: string
+  community_name?: string | null
+  event_logo_url?: string | null
+  display_theme?: Record<string, unknown> | null
+}
+
 type CustomSplitRule = {
   id?: string
   category_id: string
@@ -63,6 +71,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
   const [loading, setLoading] = useState(false)
   const [savingCategoryId, setSavingCategoryId] = useState<string | null>(null)
   const [showGuide, setShowGuide] = useState(false)
+  const [eventMeta, setEventMeta] = useState<EventGuideMeta | null>(null)
   const [categories, setCategories] = useState<CategoryRow[]>([])
   const [rulesByCategory, setRulesByCategory] = useState<Record<string, CustomSplitRule[]>>({})
 
@@ -85,6 +94,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
     setLoading(true)
     try {
       const res = await apiFetch(`/api/events/${eventId}/custom-final-split`)
+      setEventMeta((res.data?.event ?? null) as EventGuideMeta | null)
       const nextCategories = (res.data?.categories ?? []) as CategoryRow[]
       const nextRules = (res.data?.rules ?? []) as CustomSplitRule[]
       const grouped: Record<string, CustomSplitRule[]> = {}
@@ -227,6 +237,19 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
     [guideEntries]
   )
 
+  const theme = (eventMeta?.display_theme ?? {}) as Record<string, unknown>
+  const themePrimary = typeof theme.primary_color === 'string' ? theme.primary_color : '#2563eb'
+  const themeSecondary = typeof theme.secondary_color === 'string' ? theme.secondary_color : '#0f172a'
+  const themeHeaderBg = typeof theme.header_bg === 'string' ? theme.header_bg : '#e0f2fe'
+  const themeCardBg = typeof theme.card_bg === 'string' ? theme.card_bg : '#ffffff'
+  const themeLogoUrl =
+    typeof eventMeta?.event_logo_url === 'string' && eventMeta.event_logo_url
+      ? eventMeta.event_logo_url
+      : typeof theme.logo_url === 'string' && theme.logo_url
+        ? theme.logo_url
+        : null
+  const themeSlogan = typeof theme.slogan === 'string' ? theme.slogan : ''
+
   const copyGuideText = async () => {
     try {
       await navigator.clipboard.writeText(guideText)
@@ -250,6 +273,10 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
         `
       )
       .join('')
+    const headerLogo = themeLogoUrl
+      ? `<div class="hero-logo-wrap"><img class="hero-logo" src="${themeLogoUrl}" alt="${eventMeta?.name ?? 'Event Logo'}" /></div>`
+      : ''
+    const subtitleParts = [eventMeta?.community_name, themeSlogan].filter(Boolean).join(' | ')
 
     const frame = document.createElement('iframe')
     frame.style.position = 'fixed'
@@ -278,25 +305,39 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
     <style>
       body { font-family: Arial, sans-serif; margin: 0; background: #f8fafc; color: #0f172a; }
       .page { padding: 28px; }
-      .hero { background: linear-gradient(135deg, #0f172a, #1d4ed8); color: white; padding: 24px; border-radius: 18px; margin-bottom: 18px; }
-      .hero h1 { margin: 0 0 8px; font-size: 28px; }
-      .hero p { margin: 0; font-size: 14px; opacity: 0.92; }
-      .guide-card { background: white; border: 2px solid #cbd5e1; border-radius: 16px; padding: 18px; margin-bottom: 14px; page-break-inside: avoid; }
-      .guide-card h2 { margin: 0 0 8px; font-size: 22px; }
+      .hero { background: linear-gradient(135deg, ${themeSecondary}, ${themePrimary}); color: white; padding: 24px; border-radius: 22px; margin-bottom: 18px; position: relative; overflow: hidden; }
+      .hero::after { content: ''; position: absolute; inset: auto -60px -80px auto; width: 220px; height: 220px; background: rgba(255,255,255,0.10); border-radius: 999px; }
+      .hero-top { display: flex; align-items: center; justify-content: space-between; gap: 18px; position: relative; z-index: 1; }
+      .hero-logo-wrap { width: 82px; height: 82px; border-radius: 20px; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.28); display: grid; place-items: center; flex: 0 0 auto; padding: 8px; }
+      .hero-logo { width: 100%; height: 100%; object-fit: contain; }
+      .hero-copy { flex: 1 1 auto; }
+      .hero-kicker { display: inline-block; margin-bottom: 8px; padding: 6px 10px; border-radius: 999px; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.22); font-size: 11px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; }
+      .hero h1 { margin: 0 0 8px; font-size: 30px; line-height: 1.05; }
+      .hero p { margin: 0; font-size: 14px; opacity: 0.94; }
+      .guide-card { background: ${themeCardBg}; border: 2px solid ${themeHeaderBg}; border-radius: 18px; padding: 18px; margin-bottom: 14px; page-break-inside: avoid; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08); }
+      .guide-card h2 { margin: 0 0 8px; font-size: 22px; color: ${themeSecondary}; }
       .guide-card p { margin: 0 0 8px; line-height: 1.5; }
       .guide-card ul { margin: 10px 0 0 18px; padding: 0; }
       .guide-card li { margin-bottom: 6px; line-height: 1.45; }
+      .guide-card li::marker { color: ${themePrimary}; }
       @media print {
         body { background: white; }
         .page { padding: 0; }
+        * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       }
     </style>
   </head>
   <body>
     <main class="page">
       <div class="hero">
-        <h1>Race System Guide</h1>
-        <p>Penjelasan otomatis sistem race per kategori untuk dibagikan ke wali rider dan panitia.</p>
+        <div class="hero-top">
+          ${headerLogo}
+          <div class="hero-copy">
+            <div class="hero-kicker">Race System Guide</div>
+            <h1>${eventMeta?.name ?? 'Race System Guide'}</h1>
+            <p>${subtitleParts || 'Penjelasan otomatis sistem race per kategori untuk dibagikan ke wali rider dan panitia.'}</p>
+          </div>
+        </div>
       </div>
       ${sections}
     </main>
@@ -740,19 +781,75 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
             </div>
 
             <div style={{ display: 'grid', gap: 12 }}>
+              <section
+                style={{
+                  border: `2px solid ${themeHeaderBg}`,
+                  borderRadius: 18,
+                  background: `linear-gradient(135deg, ${themeSecondary}, ${themePrimary})`,
+                  color: '#fff',
+                  padding: 18,
+                  display: 'flex',
+                  gap: 16,
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                }}
+              >
+                {themeLogoUrl && (
+                  <div
+                    style={{
+                      width: 82,
+                      height: 82,
+                      borderRadius: 18,
+                      background: 'rgba(255,255,255,0.12)',
+                      border: '1px solid rgba(255,255,255,0.24)',
+                      display: 'grid',
+                      placeItems: 'center',
+                      padding: 8,
+                    }}
+                  >
+                    <img src={themeLogoUrl} alt={eventMeta?.name ?? 'Event Logo'} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                  </div>
+                )}
+                <div style={{ display: 'grid', gap: 6 }}>
+                  <div
+                    style={{
+                      display: 'inline-flex',
+                      width: 'fit-content',
+                      padding: '6px 10px',
+                      borderRadius: 999,
+                      background: 'rgba(255,255,255,0.12)',
+                      border: '1px solid rgba(255,255,255,0.22)',
+                      fontSize: 11,
+                      fontWeight: 900,
+                      letterSpacing: '0.14em',
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    Race System Guide
+                  </div>
+                  <div style={{ fontSize: 28, fontWeight: 950 }}>{eventMeta?.name ?? 'Race System Guide'}</div>
+                  {(eventMeta?.community_name || themeSlogan) && (
+                    <div style={{ fontWeight: 700, color: 'rgba(255,255,255,0.92)' }}>
+                      {[eventMeta?.community_name, themeSlogan].filter(Boolean).join(' | ')}
+                    </div>
+                  )}
+                </div>
+              </section>
+
               {guideEntries.map((entry) => (
                 <section
                   key={entry.category.id}
                   style={{
-                    border: '2px solid #cbd5e1',
+                    border: `2px solid ${themeHeaderBg}`,
                     borderRadius: 16,
-                    background: '#f8fafc',
+                    background: themeCardBg,
                     padding: 16,
                     display: 'grid',
                     gap: 8,
+                    boxShadow: '0 10px 30px rgba(15, 23, 42, 0.08)',
                   }}
                 >
-                  <div style={{ fontSize: 22, fontWeight: 950 }}>{entry.title}</div>
+                  <div style={{ fontSize: 22, fontWeight: 950, color: themeSecondary }}>{entry.title}</div>
                   <div style={{ color: '#0f172a', fontWeight: 700, lineHeight: 1.5 }}>{entry.intro}</div>
                   <div style={{ color: '#334155', fontWeight: 700, lineHeight: 1.5 }}>{entry.systemText}</div>
                   <div style={{ color: '#334155', fontWeight: 700, lineHeight: 1.5 }}>{entry.stageLine}</div>
