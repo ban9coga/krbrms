@@ -18,11 +18,24 @@ type RiderRow = {
   no_plate_display: string
 }
 
+type McRankingRow = {
+  rider_id: string
+  finish_order: number | null
+  total_point: number | null
+  rider_name: string
+  plate: string
+  status: 'FINISH' | 'DNF' | 'DNS'
+}
+
 const pickCurrentMoto = (motos: MotoRow[]) => {
   const live = motos.filter((m) => m.status === 'LIVE')
   if (live.length > 0) return live[0]
   const provisional = motos.filter((m) => m.status === 'PROVISIONAL')
   if (provisional.length > 0) return provisional[0]
+  const locked = motos.filter((m) => m.status === 'LOCKED')
+  if (locked.length > 0) return locked[0]
+  const upcoming = motos.filter((m) => m.status === 'UPCOMING')
+  if (upcoming.length > 0) return upcoming[0]
   return motos[0] ?? null
 }
 
@@ -31,10 +44,22 @@ const parseBatch = (name: string) => {
   return match ? `Batch ${match[1]}` : '-'
 }
 
+const parseMotoLabel = (name: string) => {
+  const match = name.match(/moto\s*(\d+)/i)
+  return match ? `Moto ${match[1]}` : name
+}
+
 export async function GET(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params
   const auth = await requireJury(req, ['MC'], eventId)
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+  const { data: eventRow, error: eventError } = await adminClient
+    .from('events')
+    .select('id, name')
+    .eq('id', eventId)
+    .maybeSingle()
+  if (eventError) return NextResponse.json({ error: eventError.message }, { status: 400 })
 
   const { data: reviewMotos } = await adminClient
     .from('motos')
@@ -47,10 +72,17 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     .from('motos')
     .select('id, moto_name, moto_order, status, category_id, is_published')
     .eq('event_id', eventId)
-    .in('status', ['LIVE', 'PROVISIONAL', 'LOCKED'])
+    .in('status', ['UPCOMING', 'LIVE', 'PROVISIONAL', 'LOCKED', 'FINISHED'])
     .order('moto_order', { ascending: true })
 
   if (motoError) return NextResponse.json({ error: motoError.message }, { status: 400 })
+
+  const { data: categories, error: categoryError } = await adminClient
+    .from('categories')
+    .select('id, label')
+    .eq('event_id', eventId)
+  if (categoryError) return NextResponse.json({ error: categoryError.message }, { status: 400 })
+  const categoryMap = new Map((categories ?? []).map((row) => [row.id, row.label]))
 
   const sortedReviewMotos = [...(reviewMotos ?? [])].sort(compareMotoSequence)
   const underReview = sortedReviewMotos.length > 0
@@ -59,6 +91,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     return NextResponse.json({
       data: {
         under_review: true,
+        event_name: eventRow?.name ?? 'Event',
         review_moto: reviewMoto,
       },
     })
@@ -70,19 +103,26 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     return NextResponse.json({
       data: {
         under_review: false,
+        event_name: eventRow?.name ?? 'Event',
         moto: null,
         category: null,
         batch: null,
         ranking: [],
+        finish_order: [],
+        next_moto: null,
       },
     })
   }
 
-  const { data: category } = await adminClient
-    .from('categories')
-    .select('label')
-    .eq('id', currentMoto.category_id)
-    .maybeSingle()
+  const currentCategoryLabel = categoryMap.get(currentMoto.category_id) ?? null
+  const listForNext = [...((motos ?? []) as MotoRow[])].sort(compareMotoSequence)
+  const currentIndex = listForNext.findIndex((row) => row.id === currentMoto.id)
+  const nextMoto =
+    currentIndex >= 0
+      ? listForNext
+          .slice(currentIndex + 1)
+          .find((row) => !['LOCKED', 'FINISHED', 'PROTEST_REVIEW'].includes((row.status ?? '').toUpperCase())) ?? null
+      : null
 
   const { data: results, error: resultError } = await adminClient
     .from('results')
@@ -120,9 +160,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     }
   }
 
-  const ranking = (results ?? []).map((row) => {
+  const ranking: McRankingRow[] = (results ?? []).map((row) => {
     const rider = riderMap.get(row.rider_id)
-    const status = row.result_status ?? 'FINISH'
+    const status = (row.result_status ?? 'FINISH') as 'FINISH' | 'DNF' | 'DNS'
     const basePoint =
       status === 'DNS'
         ? ((lastPosition ?? 0) > 0 ? (lastPosition as number) + 2 : null)
@@ -137,6 +177,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       total_point: total,
       rider_name: rider?.name ?? '-',
       plate: rider?.no_plate_display ?? '-',
+      status,
     }
   })
 
@@ -147,13 +188,36 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     return (a.finish_order ?? 9999) - (b.finish_order ?? 9999)
   })
 
+  const finishOrder = [...ranking].sort((a, b) => {
+    const aStatusWeight = a.status === 'FINISH' ? 0 : a.status === 'DNF' ? 1 : 2
+    const bStatusWeight = b.status === 'FINISH' ? 0 : b.status === 'DNF' ? 1 : 2
+    if (aStatusWeight !== bStatusWeight) return aStatusWeight - bStatusWeight
+    const aOrder = a.finish_order ?? Number.MAX_SAFE_INTEGER
+    const bOrder = b.finish_order ?? Number.MAX_SAFE_INTEGER
+    if (aOrder !== bOrder) return aOrder - bOrder
+    return a.total_point ?? 9999 - (b.total_point ?? 9999)
+  })
+
   return NextResponse.json({
     data: {
       under_review: false,
+      event_name: eventRow?.name ?? 'Event',
       moto: currentMoto,
-      category: category?.label ?? null,
+      category: currentCategoryLabel,
       batch: parseBatch(currentMoto.moto_name),
       ranking,
+      finish_order: finishOrder,
+      next_moto: nextMoto
+        ? {
+            id: nextMoto.id,
+            moto_name: nextMoto.moto_name,
+            moto_label: parseMotoLabel(nextMoto.moto_name),
+            moto_order: nextMoto.moto_order,
+            status: nextMoto.status,
+            category: categoryMap.get(nextMoto.category_id) ?? null,
+            batch: parseBatch(nextMoto.moto_name),
+          }
+        : null,
     },
   })
 }

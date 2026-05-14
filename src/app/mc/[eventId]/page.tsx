@@ -19,25 +19,46 @@ type RankingRow = {
   total_point: number | null
   rider_name: string
   plate: string
+  status: 'FINISH' | 'DNF' | 'DNS'
+}
+
+type NextMotoInfo = {
+  id: string
+  moto_name: string
+  moto_label: string
+  moto_order: number
+  status: 'UPCOMING' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED'
+  category: string | null
+  batch: string | null
 }
 
 type McResponse = {
   data: {
     under_review: boolean
+    event_name?: string | null
     review_moto?: MotoInfo | null
     moto?: MotoInfo | null
     category?: string | null
     batch?: string | null
     ranking?: RankingRow[]
+    finish_order?: RankingRow[]
+    next_moto?: NextMotoInfo | null
   }
 }
 
 const statusBadge = (moto?: MotoInfo | null) => {
   if (!moto) return { label: 'NO MOTO', className: 'border-slate-300 bg-slate-100 text-slate-700' }
-  if (moto.status === 'LIVE') return { label: 'LIVE', className: 'border-emerald-300 bg-emerald-50 text-emerald-700' }
-  if (moto.status === 'PROVISIONAL') return { label: 'PROVISIONAL', className: 'border-amber-300 bg-amber-50 text-amber-700' }
-  if (moto.status === 'LOCKED') return { label: 'LOCKED', className: 'border-sky-300 bg-sky-50 text-sky-700' }
-  return { label: moto.status, className: 'border-slate-300 bg-slate-100 text-slate-700' }
+  if (moto.status === 'LIVE') return { label: 'Race Berlangsung', className: 'border-emerald-300 bg-emerald-50 text-emerald-700' }
+  if (moto.status === 'UPCOMING') return { label: 'Menunggu Start', className: 'border-slate-300 bg-slate-100 text-slate-700' }
+  if (moto.status === 'PROVISIONAL') return { label: 'Hasil Sementara', className: 'border-amber-300 bg-amber-50 text-amber-700' }
+  if (moto.status === 'LOCKED' || moto.status === 'FINISHED') return { label: 'Moto Selesai', className: 'border-sky-300 bg-sky-50 text-sky-700' }
+  return { label: 'Menunggu Start', className: 'border-slate-300 bg-slate-100 text-slate-700' }
+}
+
+const resultStatusBadge = (status: RankingRow['status']) => {
+  if (status === 'DNF') return 'border-amber-300 bg-amber-50 text-amber-700'
+  if (status === 'DNS') return 'border-rose-300 bg-rose-50 text-rose-700'
+  return 'border-emerald-300 bg-emerald-50 text-emerald-700'
 }
 
 export default function McLivePage() {
@@ -82,6 +103,7 @@ export default function McLivePage() {
   }, [eventId])
 
   const ranking = useMemo(() => (data?.ranking ?? []).slice(0, 8), [data])
+  const finishOrder = useMemo(() => (data?.finish_order ?? []).slice(0, 8), [data])
 
   if (data?.under_review) {
     return (
@@ -111,7 +133,12 @@ export default function McLivePage() {
               <h1 className="text-2xl font-black tracking-tight text-white md:text-4xl">
                 {data?.category ?? 'Kategori'} | {data?.batch ?? '-'} | {data?.moto?.moto_name ?? 'Moto'}
               </h1>
-              <p className="text-sm font-semibold text-slate-300">Event {eventId}</p>
+              <p className="text-lg font-extrabold text-slate-200">{data?.event_name ?? 'Event'}</p>
+              <p className="text-sm font-semibold text-slate-300">
+                {data?.next_moto
+                  ? `Next: ${data.next_moto.category ?? '-'} | ${data.next_moto.batch ?? '-'} | ${data.next_moto.moto_label}`
+                  : 'Belum ada moto berikutnya'}
+              </p>
             </div>
             <div className={`rounded-full border px-4 py-2 text-sm font-extrabold uppercase tracking-[0.12em] ${badge.className}`}>
               {badge.label}
@@ -121,7 +148,10 @@ export default function McLivePage() {
 
         <section className="public-panel-light">
           <div className="mb-3 flex items-center justify-between gap-2">
-            <h2 className="text-xl font-black tracking-tight text-slate-900">Ranking (Top 8)</h2>
+            <div className="grid gap-1">
+              <h2 className="text-xl font-black tracking-tight text-slate-900">Ranking (Top 8)</h2>
+              <div className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">Auto refresh aktif tiap 5 detik</div>
+            </div>
             <button
               type="button"
               onClick={() => load()}
@@ -144,30 +174,85 @@ export default function McLivePage() {
           )}
 
           {!loading && ranking.length > 0 && (
-            <>
-              <div className="table-mobile-hint">Geser kiri/kanan untuk lihat semua kolom.</div>
-              <div className="public-table-wrap">
-                <table className="public-table" style={{ minWidth: 640 }}>
-                  <thead>
-                    <tr>
-                      {['Rank', 'Plate', 'Rider', 'Total Point'].map((label) => (
-                        <th key={label}>{label}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {ranking.map((row, idx) => (
-                      <tr key={row.rider_id}>
-                        <td className="font-extrabold text-slate-900">{idx + 1}</td>
-                        <td>{row.plate}</td>
-                        <td className="font-extrabold text-slate-900">{row.rider_name}</td>
-                        <td className="font-extrabold text-sky-700">{row.total_point ?? '-'}</td>
+            <div className="grid gap-4 xl:grid-cols-[1.3fr_1fr]">
+              <div className="grid gap-2">
+                <div className="table-mobile-hint">Geser kiri/kanan untuk lihat semua kolom.</div>
+                <div className="public-table-wrap">
+                  <table className="public-table" style={{ minWidth: 760 }}>
+                    <thead>
+                      <tr>
+                        {['Rank', 'Plate', 'Rider', 'Total Point', 'Status'].map((label) => (
+                          <th key={label}>{label}</th>
+                        ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {ranking.map((row, idx) => (
+                        <tr key={row.rider_id}>
+                          <td className="text-lg font-black text-slate-900 md:text-2xl">{idx + 1}</td>
+                          <td className="text-base font-extrabold md:text-xl">{row.plate}</td>
+                          <td className="text-lg font-black text-slate-900 md:text-2xl">{row.rider_name}</td>
+                          <td className="text-xl font-black text-sky-700 md:text-3xl">{row.total_point ?? '-'}</td>
+                          <td>
+                            {row.status !== 'FINISH' ? (
+                              <span
+                                className={`inline-flex rounded-full border px-3 py-1 text-xs font-extrabold uppercase tracking-[0.12em] ${resultStatusBadge(
+                                  row.status
+                                )}`}
+                              >
+                                {row.status}
+                              </span>
+                            ) : (
+                              <span className="inline-flex rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-extrabold uppercase tracking-[0.12em] text-emerald-700">
+                                Finish
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="mb-3 text-lg font-black tracking-tight text-slate-900 md:text-2xl">Finish Order Moto Terkini</div>
+                <div className="grid gap-2">
+                  {finishOrder.length === 0 && (
+                    <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm font-semibold text-slate-600">
+                      Belum ada finish order.
+                    </div>
+                  )}
+                  {finishOrder.map((row, idx) => (
+                    <div
+                      key={`finish-${row.rider_id}`}
+                      className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3"
+                    >
+                      <div className="min-w-0">
+                        <div className="text-sm font-extrabold uppercase tracking-[0.12em] text-slate-500">
+                          {row.status === 'FINISH' ? `Finish #${row.finish_order ?? idx + 1}` : row.status}
+                        </div>
+                        <div className="truncate text-base font-black text-slate-900 md:text-xl">
+                          {row.plate} - {row.rider_name}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {row.status !== 'FINISH' && (
+                          <span
+                            className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-[0.12em] ${resultStatusBadge(
+                              row.status
+                            )}`}
+                          >
+                            {row.status}
+                          </span>
+                        )}
+                        <div className="text-lg font-black text-sky-700 md:text-2xl">{row.total_point ?? '-'}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           )}
 
           {error && <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-700">{error}</div>}
