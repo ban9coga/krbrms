@@ -30,6 +30,12 @@ type NormalizedRule = {
   batch_no: number | null
 }
 
+type StageConfigRow = {
+  category_id: string
+  max_riders_per_race: number
+  qualification_moto_count: number
+}
+
 const targetKeyForRule = (rule: {
   target_stage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL'
   target_final_class?: string | null
@@ -54,6 +60,18 @@ export async function GET(_: Request, { params }: { params: Promise<{ eventId: s
   }
 
   const categoryIds = (categories ?? []).map((item) => item.id)
+  const { data: stageConfigs, error: stageConfigError } = categoryIds.length
+    ? await adminClient
+        .from('race_stage_config')
+        .select('category_id, max_riders_per_race, qualification_moto_count')
+        .eq('event_id', eventId)
+        .in('category_id', categoryIds)
+    : { data: [], error: null }
+
+  if (stageConfigError) {
+    return NextResponse.json({ error: stageConfigError.message }, { status: 400 })
+  }
+
   const { data: rules, error: ruleError } = categoryIds.length
     ? await adminClient
       .from('race_category_custom_split_rule')
@@ -71,14 +89,26 @@ export async function GET(_: Request, { params }: { params: Promise<{ eventId: s
     await Promise.all(
       (categories ?? []).map(async (category) => {
         const resolved = await resolveCategoryConfig(category.id as string)
-        return [category.id as string, resolved.totalRiders] as const
+        return [category.id as string, resolved] as const
       })
     )
+  )
+  const stageConfigByCategory = new Map<string, StageConfigRow>(
+    ((stageConfigs ?? []) as StageConfigRow[]).map((row) => [row.category_id, row])
   )
 
   const enrichedCategories = (categories ?? []).map((category) => ({
     ...category,
-    total_riders: categoryTotals[category.id as string] ?? 0,
+    total_riders: categoryTotals[category.id as string]?.totalRiders ?? 0,
+    resolver_source: categoryTotals[category.id as string]?.source ?? 'default',
+    stages: categoryTotals[category.id as string]?.stages ?? {
+      enableQualification: false,
+      enableQuarterFinal: false,
+      enableSemiFinal: false,
+    },
+    final_classes: categoryTotals[category.id as string]?.finalClasses ?? [],
+    max_riders_per_race: stageConfigByCategory.get(category.id as string)?.max_riders_per_race ?? 8,
+    qualification_moto_count: stageConfigByCategory.get(category.id as string)?.qualification_moto_count ?? 2,
   }))
 
   return NextResponse.json({
