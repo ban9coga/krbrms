@@ -572,6 +572,25 @@ export default function LiveDisplayClient({
     </span>
   )
 
+  const renderRankCell = (rank?: number | null, status?: string | null) => {
+    const normalized = (status ?? '').toUpperCase()
+    const showStatusOnRank = normalized === 'DNS' || normalized === 'DNF' || normalized === 'DQ'
+    return (
+      <div className="flex flex-col items-start gap-1">
+        <span className="text-2xl font-black text-emerald-700">{rank ?? '-'}</span>
+        {showStatusOnRank ? renderStatusBadge(status) : null}
+      </div>
+    )
+  }
+
+  const renderFinalStatusCell = (status?: string | null) => {
+    const normalized = (status ?? '').toUpperCase()
+    if (normalized === 'DNS' || normalized === 'DNF' || normalized === 'DQ') {
+      return <span className="text-sm font-black text-slate-400">-</span>
+    }
+    return renderStatusBadge(status)
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 text-white">
       <main className="mx-auto flex min-h-screen w-full max-w-[1920px] flex-col gap-6 px-4 py-4">
@@ -690,7 +709,7 @@ export default function LiveDisplayClient({
                       <table className="w-full border-collapse text-xs md:text-sm">
                         <thead>
                           <tr className="bg-slate-900 text-left font-black uppercase tracking-[0.12em] text-white">
-                          {['Rank', 'Plate', 'Nama Rider', 'Komunitas', resultBoardPointLabel, 'Penalty', 'Status'].map((h) => (
+                          {['Plate', 'Nama Rider', 'Komunitas', resultBoardPointLabel, 'Penalty', 'Rank', 'Status'].map((h) => (
                               <th key={h} className="px-3 py-3">
                                 {h}
                               </th>
@@ -705,7 +724,6 @@ export default function LiveDisplayClient({
                                 row.rank === 1 ? 'bg-amber-50/70' : rowIndex % 2 === 0 ? 'bg-white' : 'bg-slate-50/70'
                               }`}
                             >
-                              <td className="px-3 py-3 text-2xl font-black text-emerald-700">{row.rank ?? '-'}</td>
                               <td className="px-3 py-3 text-sm font-black text-slate-700">{row.no_plate}</td>
                               <td className="px-3 py-3">
                                 <div className="flex items-center gap-3">
@@ -718,8 +736,9 @@ export default function LiveDisplayClient({
                               <td className="px-3 py-3 text-sm font-bold text-slate-600">{row.club || '-'}</td>
                               <td className="px-2 py-3 text-xl font-black text-slate-900">{row.point ?? '-'}</td>
                               <td className="px-2 py-3 text-sm font-extrabold text-amber-600">{row.penalty_total ?? '-'}</td>
+                              <td className="px-3 py-3">{renderRankCell(row.rank, row.status)}</td>
                               <td className="px-3 py-3">
-                                {renderStatusBadge(row.status)}
+                                {renderFinalStatusCell(row.status)}
                               </td>
                             </tr>
                           ))}
@@ -732,17 +751,17 @@ export default function LiveDisplayClient({
                     <table className="w-full border-collapse text-xs md:text-sm">
                       <colgroup>
                         <col style={{ width: '72px' }} />
-                        <col style={{ width: '76px' }} />
                         <col style={{ width: '92px' }} />
                         <col style={{ width: '32%' }} />
                         <col style={{ width: '15%' }} />
                         <col style={{ width: '72px' }} />
                         <col style={{ width: '88px' }} />
+                        <col style={{ width: '76px' }} />
                         <col style={{ width: '108px' }} />
                       </colgroup>
                       <thead>
                         <tr className="bg-sky-100/90 text-left font-black uppercase tracking-[0.12em] text-slate-700">
-                          {['Gate', 'Rank', 'Plate', 'Nama Rider', 'Komunitas', 'Point', 'Penalty', 'Status'].map((h) => (
+                          {['Gate', 'Plate', 'Nama Rider', 'Komunitas', 'Point', 'Penalty', 'Rank', 'Status'].map((h) => (
                             <th key={h} className="px-3 py-3">
                               {h}
                             </th>
@@ -762,7 +781,6 @@ export default function LiveDisplayClient({
                             }`}
                           >
                             <td className="px-3 py-3 text-xl font-black text-slate-700">{row.gate ?? '-'}</td>
-                            <td className="px-3 py-3 text-2xl font-black text-emerald-700">{row.rank ?? '-'}</td>
                             <td className="px-3 py-3 text-sm font-black text-slate-700">{row.no_plate}</td>
                             <td className="px-3 py-3">
                               <div className="flex items-center gap-3">
@@ -775,8 +793,9 @@ export default function LiveDisplayClient({
                             <td className="px-3 py-3 text-sm font-bold text-slate-600">{row.club || '-'}</td>
                             <td className="px-2 py-3 text-xl font-black text-slate-900">{row.point ?? '-'}</td>
                             <td className="px-2 py-3 text-sm font-extrabold text-amber-600">{row.penalty_total ?? '-'}</td>
+                            <td className="px-3 py-3">{renderRankCell(row.rank, row.status)}</td>
                             <td className="px-3 py-3">
-                              {renderStatusBadge(row.status)}
+                              {renderFinalStatusCell(row.status)}
                             </td>
                           </tr>
                         ))}
