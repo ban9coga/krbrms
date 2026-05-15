@@ -50,6 +50,24 @@ type RiderItem = {
   no_plate_display: string
 }
 
+type PenaltyRuleItem = {
+  id: string
+  code: string
+  description?: string | null
+  penalty_point: number
+  applies_to_stage: 'ALL' | 'MOTO' | 'QUARTER' | 'SEMI' | 'FINAL'
+  is_active: boolean
+}
+
+type PenaltyFormState = {
+  categoryId: string
+  riderId: string
+  ruleCode: string
+  stage: 'ALL' | 'MOTO' | 'QUARTER' | 'SEMI' | 'FINAL'
+  motoId: string
+  note: string
+}
+
 const normalizeRole = (value: string | null | undefined) => String(value ?? '').trim().toUpperCase()
 const getErrorMessage = (err: unknown) => (err instanceof Error ? err.message : 'Request failed')
 
@@ -67,6 +85,8 @@ export default function RaceDirectorApprovalPage() {
   const [lockedMap, setLockedMap] = useState<Record<string, boolean>>({})
   const [role, setRole] = useState<string | null>(null)
   const [riderMap, setRiderMap] = useState<Record<string, RiderItem>>({})
+  const [categoryRiders, setCategoryRiders] = useState<RiderItem[]>([])
+  const [penaltyRules, setPenaltyRules] = useState<PenaltyRuleItem[]>([])
   const [gateStatus, setGateStatus] = useState<
     Array<{
       moto_id: string
@@ -104,6 +124,15 @@ export default function RaceDirectorApprovalPage() {
   >([])
   const isFetchingRef = useRef(false)
   const noticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [penaltyForm, setPenaltyForm] = useState<PenaltyFormState>({
+    categoryId: '',
+    riderId: '',
+    ruleCode: '',
+    stage: 'ALL',
+    motoId: '',
+    note: '',
+  })
+  const [addingPenalty, setAddingPenalty] = useState(false)
 
   const apiFetch = useCallback(async (url: string, options: RequestInit = {}) => {
     const { data } = await supabase.auth.getSession()
@@ -298,6 +327,52 @@ export default function RaceDirectorApprovalPage() {
     if (firstEnabled?.id) setGateCategoryId(firstEnabled.id)
   }, [gateCategoryId, categoriesSorted])
 
+  useEffect(() => {
+    const firstEnabled = categoriesSorted[0]?.id ?? ''
+    setPenaltyForm((prev) => {
+      if (prev.categoryId || !firstEnabled) return prev
+      return { ...prev, categoryId: firstEnabled }
+    })
+  }, [categoriesSorted])
+
+  useEffect(() => {
+    const loadPenaltyRules = async () => {
+      if (!eventId) {
+        setPenaltyRules([])
+        return
+      }
+      try {
+        const res = await apiFetch(`/api/events/${eventId}/penalties`)
+        setPenaltyRules(((res.data ?? []) as PenaltyRuleItem[]).filter((rule) => rule.is_active !== false))
+      } catch (err: unknown) {
+        showNotice('error', getErrorMessage(err))
+      }
+    }
+    void loadPenaltyRules()
+  }, [apiFetch, eventId, showNotice])
+
+  useEffect(() => {
+    const loadCategoryRiders = async () => {
+      if (!eventId || !penaltyForm.categoryId) {
+        setCategoryRiders([])
+        return
+      }
+      try {
+        const qs = new URLSearchParams({
+          event_id: eventId,
+          category_id: penaltyForm.categoryId,
+          page: '1',
+          page_size: '200',
+        })
+        const res = await apiFetch(`/api/riders?${qs.toString()}`)
+        setCategoryRiders((res.data ?? []) as RiderItem[])
+      } catch (err: unknown) {
+        showNotice('error', getErrorMessage(err))
+      }
+    }
+    void loadCategoryRiders()
+  }, [apiFetch, eventId, penaltyForm.categoryId, showNotice])
+
   const filteredGateStatus = useMemo(() => {
     const enabledOnly = gateStatus.filter(
       (row) => typeof row.category_id === 'string' && enabledCategoryIds.has(row.category_id)
@@ -328,6 +403,18 @@ export default function RaceDirectorApprovalPage() {
   const sortedPenalties = useMemo(() => {
     return [...penalties].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
   }, [penalties])
+
+  const selectedPenaltyRule = useMemo(
+    () => penaltyRules.find((rule) => rule.code === penaltyForm.ruleCode) ?? null,
+    [penaltyForm.ruleCode, penaltyRules]
+  )
+
+  const penaltyFormMotos = useMemo(() => {
+    if (!penaltyForm.categoryId) return []
+    return (motosByCategory.get(penaltyForm.categoryId) ?? []).filter(
+      (m) => !['LOCKED', 'FINISHED'].includes((m.status ?? '').toUpperCase())
+    )
+  }, [motosByCategory, penaltyForm.categoryId])
 
   const timeAgo = (iso: string) => {
     const diff = Date.now() - new Date(iso).getTime()
@@ -426,6 +513,65 @@ export default function RaceDirectorApprovalPage() {
   const handleManualRefresh = async () => {
     const ok = await loadEventData({ silent: true, includeHeavy: true, showRefreshing: true, notifyOnError: true })
     if (ok) showNotice('success', 'Data diperbarui.')
+  }
+
+  const handlePenaltyFormChange = <K extends keyof PenaltyFormState>(key: K, value: PenaltyFormState[K]) => {
+    setPenaltyForm((prev) => {
+      const next = { ...prev, [key]: value }
+      if (key === 'categoryId') {
+        next.riderId = ''
+        next.motoId = ''
+      }
+      if (key === 'ruleCode') {
+        const rule = penaltyRules.find((item) => item.code === value)
+        if (rule && rule.applies_to_stage !== 'ALL') {
+          next.stage = rule.applies_to_stage
+        }
+      }
+      if (key === 'stage' && value !== 'MOTO') {
+        next.motoId = ''
+      }
+      return next
+    })
+  }
+
+  const handleAddPenalty = async () => {
+    if (!eventId) return
+    if (!penaltyForm.categoryId || !penaltyForm.riderId || !penaltyForm.ruleCode) {
+      showNotice('error', 'Kategori, rider, dan rule penalty wajib dipilih.')
+      return
+    }
+    if (penaltyForm.stage === 'MOTO' && !penaltyForm.motoId) {
+      showNotice('error', 'Pilih moto untuk penalty stage MOTO.')
+      return
+    }
+    setAddingPenalty(true)
+    try {
+      await apiFetch(`/api/race-director/riders/${penaltyForm.riderId}/penalties`, {
+        method: 'POST',
+        body: JSON.stringify({
+          event_id: eventId,
+          rule_code: penaltyForm.ruleCode,
+          stage: penaltyForm.stage,
+          moto_id: penaltyForm.motoId || null,
+          note: penaltyForm.note.trim() || null,
+        }),
+      })
+      const refreshed = await loadEventData({ silent: true, includeHeavy: true })
+      setPenaltyForm((prev) => ({
+        ...prev,
+        riderId: '',
+        ruleCode: '',
+        stage: 'ALL',
+        motoId: '',
+        note: '',
+      }))
+      showNotice(refreshed ? 'success' : 'error', refreshed ? 'Penalty rider berhasil ditambahkan.' : 'Penalty tersimpan, refresh gagal.')
+    } catch (err: unknown) {
+      showNotice('error', getErrorMessage(err))
+    } finally {
+      setAddingPenalty(false)
+    }
   }
 
   return (
@@ -594,6 +740,117 @@ export default function RaceDirectorApprovalPage() {
         </div>
 
         <div className="grid gap-4">
+          <section className="public-panel-light">
+            <div style={{ fontWeight: 900, fontSize: 18 }}>Tambah Penalty Rider</div>
+            <div style={{ marginTop: 6, fontSize: 13, fontWeight: 700, color: '#475569' }}>
+              Gunakan rules penalty yang sudah ada. Cocok untuk kasus pelanggaran wali rider yang menambah point ke rider.
+            </div>
+            <div style={{ marginTop: 12, display: 'grid', gap: 10 }}>
+              <div className="rd-form-grid" style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+                <div style={{ display: 'grid', gap: 6 }}>
+                  <label style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Kategori</label>
+                  <select
+                    value={penaltyForm.categoryId}
+                    onChange={(e) => handlePenaltyFormChange('categoryId', e.target.value)}
+                    className="public-filter"
+                  >
+                    <option value="">Pilih kategori</option>
+                    {categoriesSorted.map((cat) => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div style={{ display: 'grid', gap: 6 }}>
+                  <label style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Rider</label>
+                  <select
+                    value={penaltyForm.riderId}
+                    onChange={(e) => handlePenaltyFormChange('riderId', e.target.value)}
+                    className="public-filter"
+                  >
+                    <option value="">Pilih rider</option>
+                    {categoryRiders.map((rider) => (
+                      <option key={rider.id} value={rider.id}>
+                        {rider.no_plate_display} - {rider.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div style={{ display: 'grid', gap: 6 }}>
+                  <label style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Rule Penalty</label>
+                  <select
+                    value={penaltyForm.ruleCode}
+                    onChange={(e) => handlePenaltyFormChange('ruleCode', e.target.value)}
+                    className="public-filter"
+                  >
+                    <option value="">Pilih rule penalty</option>
+                    {penaltyRules.map((rule) => (
+                      <option key={rule.id} value={rule.code}>
+                        {rule.code} - {rule.penalty_point} pts
+                      </option>
+                    ))}
+                  </select>
+                  {selectedPenaltyRule && (
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b' }}>
+                      {selectedPenaltyRule.description || 'Tanpa deskripsi'} | Stage rule: {selectedPenaltyRule.applies_to_stage}
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: 'grid', gap: 6 }}>
+                  <label style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Stage</label>
+                  <select
+                    value={penaltyForm.stage}
+                    onChange={(e) => handlePenaltyFormChange('stage', e.target.value as PenaltyFormState['stage'])}
+                    className="public-filter"
+                    disabled={selectedPenaltyRule?.applies_to_stage !== 'ALL'}
+                  >
+                    {(['ALL', 'MOTO', 'QUARTER', 'SEMI', 'FINAL'] as const).map((stage) => (
+                      <option key={stage} value={stage}>
+                        {stage}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div style={{ display: 'grid', gap: 6 }}>
+                  <label style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Moto (opsional / wajib untuk MOTO)</label>
+                  <select
+                    value={penaltyForm.motoId}
+                    onChange={(e) => handlePenaltyFormChange('motoId', e.target.value)}
+                    className="public-filter"
+                    disabled={penaltyForm.stage !== 'MOTO'}
+                  >
+                    <option value="">Pilih moto</option>
+                    {penaltyFormMotos.map((moto) => (
+                      <option key={moto.id} value={moto.id}>
+                        {moto.moto_order}. {moto.moto_name} - {moto.status}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div style={{ display: 'grid', gap: 6 }}>
+                  <label style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Catatan</label>
+                  <input
+                    value={penaltyForm.note}
+                    onChange={(e) => handlePenaltyFormChange('note', e.target.value)}
+                    className="public-filter"
+                    placeholder="Contoh: pelanggaran oleh wali rider di area start"
+                  />
+                </div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  onClick={handleAddPenalty}
+                  disabled={addingPenalty || !eventId}
+                  className="inline-flex items-center justify-center rounded-xl border border-rose-300 bg-rose-100 px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.1em] text-rose-800 transition-colors hover:bg-rose-200 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {addingPenalty ? 'Menyimpan...' : 'Tambah Penalty'}
+                </button>
+              </div>
+            </div>
+          </section>
+
           <section className="public-panel-light">
             <div style={{ fontWeight: 900, fontSize: 18 }}>Status Updates</div>
             {statusUpdates.length === 0 && <div style={{ marginTop: 8 }}>Tidak ada status pending.</div>}
@@ -996,6 +1253,9 @@ export default function RaceDirectorApprovalPage() {
       )}
       <style jsx>{`
         @media (max-width: 640px) {
+          .rd-form-grid {
+            grid-template-columns: 1fr;
+          }
           .rd-action-grid {
             grid-template-columns: 1fr;
           }
