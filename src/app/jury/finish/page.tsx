@@ -79,6 +79,7 @@ export default function JuryFinishPage() {
   const pressedIdRef = useRef<string | null>(null)
   const savingRef = useRef(false)
   const actionsCountRef = useRef(0)
+  const localEditingRef = useRef(false)
 
   useEffect(() => {
     pressedIdRef.current = pressedId
@@ -91,6 +92,10 @@ export default function JuryFinishPage() {
   useEffect(() => {
     actionsCountRef.current = actions.length
   }, [actions.length])
+
+  useEffect(() => {
+    localEditingRef.current = Boolean(pressedId || saving || actions.length > 0)
+  }, [actions.length, pressedId, saving])
 
   const pickNextSelectableMotoId = useCallback((list: MotoItem[], currentMotoId: string) => {
     const selectableRows = list.filter((m) => !['LOCKED', 'FINISHED'].includes((m.status ?? '').toUpperCase()))
@@ -216,7 +221,7 @@ export default function JuryFinishPage() {
   )
 
   const loadRiders = useCallback(async (motoIdOverride?: string, force = false) => {
-    if (!force && (pressedIdRef.current || savingRef.current || actionsCountRef.current > 0)) return
+    if (!force && localEditingRef.current) return
     const targetMotoId = motoIdOverride ?? selectedMotoId
     if (!eventId || !targetMotoId) {
       setRiders([])
@@ -233,7 +238,7 @@ export default function JuryFinishPage() {
       apiFetch(`/api/jury/events/${eventId}/rider-status?moto_id=${targetMotoId}`),
       apiFetch(`/api/jury/motos/${targetMotoId}/results`),
     ])
-    if (!force && (pressedIdRef.current || savingRef.current || actionsCountRef.current > 0)) return
+    if (!force && localEditingRef.current) return
     setRiders((res.data ?? []) as RiderItem[])
     const existingResults = (resultRes.data ?? []) as Array<{
       rider_id: string
@@ -266,7 +271,7 @@ export default function JuryFinishPage() {
     setParticipationByRider(statusMap)
     if (eventId) {
       const penaltiesRes = await apiFetch(`/api/jury/events/${eventId}/rider-penalties?moto_id=${targetMotoId}`)
-      if (!force && (pressedIdRef.current || savingRef.current || actionsCountRef.current > 0)) return
+      if (!force && localEditingRef.current) return
       const map: Record<string, number> = {}
       for (const row of penaltiesRes.data ?? []) {
         const approval = Array.isArray(row.rider_penalty_approvals)
@@ -341,6 +346,7 @@ export default function JuryFinishPage() {
   const handleFinish = (riderId: string) => {
     if (role === 'RACE_DIRECTOR' || motoLocked || !selectedMotoLive) return
     if (finishOrder.includes(riderId) || dnfRiders.includes(riderId)) return
+    localEditingRef.current = true
     const position = finishOrder.length + 1
     setFinishOrder((prev) => [...prev, riderId])
     setActions((prev) => [...prev, { type: 'finish', riderId, position }])
@@ -351,6 +357,7 @@ export default function JuryFinishPage() {
   const handleDNF = (riderId: string) => {
     if (role === 'RACE_DIRECTOR' || motoLocked || !selectedMotoLive || !flags.dnf_enabled) return
     if (finishOrder.includes(riderId) || dnfRiders.includes(riderId)) return
+    localEditingRef.current = true
     setDnfRiders((prev) => [...prev, riderId])
     setActions((prev) => [...prev, { type: 'dnf', riderId }])
     vibrate()
@@ -359,6 +366,7 @@ export default function JuryFinishPage() {
 
   const handleUndo = () => {
     if (actions.length === 0) return
+    localEditingRef.current = actions.length - 1 > 0
     const last = actions[actions.length - 1]
     setActions((prev) => prev.slice(0, -1))
     if (last.type === 'finish') {
@@ -373,6 +381,7 @@ export default function JuryFinishPage() {
   const handleSubmitHeat = async () => {
     if (role === 'RACE_DIRECTOR' || motoLocked || !selectedMotoLive) return
     if (!selectedMoto) return
+    localEditingRef.current = true
     setSaving(true)
     try {
       const payload = [
@@ -442,6 +451,7 @@ export default function JuryFinishPage() {
 
   const onCardPointerDown = (event: React.PointerEvent<HTMLButtonElement>, riderId: string) => {
     event.preventDefault()
+    localEditingRef.current = true
     setPressedId(riderId)
     longPressFired.current[riderId] = false
     if (pressTimers.current[riderId]) clearTimeout(pressTimers.current[riderId] as ReturnType<typeof setTimeout>)
