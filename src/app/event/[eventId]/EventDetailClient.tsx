@@ -101,6 +101,11 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
     () => Math.max(0, totalFilledSlots - riderTotal),
     [totalFilledSlots, riderTotal]
   )
+  const birthYearLabel = (dateOfBirth?: string | null) => {
+    if (!dateOfBirth) return '-'
+    const year = String(dateOfBirth).slice(0, 4)
+    return /^\d{4}$/.test(year) ? year : '-'
+  }
   const eventDate = event ? new Date(event.event_date) : null
   const formattedDate = eventDate
     ? eventDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -588,7 +593,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                         <div className="text-sm font-black text-slate-900">{rider.no_plate_display}</div>
                         <div className="text-sm font-semibold text-slate-800">{rider.name}</div>
                         <div className="text-xs font-semibold text-slate-500">
-                          {rider.gender} - {rider.date_of_birth}
+                          Tahun lahir: {birthYearLabel(rider.date_of_birth)}
                         </div>
                       </div>
                     </div>
