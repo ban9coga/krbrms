@@ -485,7 +485,10 @@ export default function JCPage() {
           moto_id: selectedMotoId,
         }),
       })
-      await loadMoto(true)
+      setLastUpdated(new Date().toLocaleTimeString())
+      setTimeout(() => {
+        void loadMoto(true)
+      }, 350)
     } catch (err: unknown) {
       setStatuses((prev) => {
         const next = { ...prev }
