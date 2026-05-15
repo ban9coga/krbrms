@@ -76,6 +76,21 @@ export default function JuryFinishPage() {
 
   const pressTimers = useRef<Record<string, ReturnType<typeof setTimeout> | null>>({})
   const longPressFired = useRef<Record<string, boolean>>({})
+  const pressedIdRef = useRef<string | null>(null)
+  const savingRef = useRef(false)
+  const actionsCountRef = useRef(0)
+
+  useEffect(() => {
+    pressedIdRef.current = pressedId
+  }, [pressedId])
+
+  useEffect(() => {
+    savingRef.current = saving
+  }, [saving])
+
+  useEffect(() => {
+    actionsCountRef.current = actions.length
+  }, [actions.length])
 
   const pickNextSelectableMotoId = useCallback((list: MotoItem[], currentMotoId: string) => {
     const selectableRows = list.filter((m) => !['LOCKED', 'FINISHED'].includes((m.status ?? '').toUpperCase()))
@@ -200,7 +215,8 @@ export default function JuryFinishPage() {
     [motos]
   )
 
-  const loadRiders = useCallback(async (motoIdOverride?: string) => {
+  const loadRiders = useCallback(async (motoIdOverride?: string, force = false) => {
+    if (!force && (pressedIdRef.current || savingRef.current || actionsCountRef.current > 0)) return
     const targetMotoId = motoIdOverride ?? selectedMotoId
     if (!eventId || !targetMotoId) {
       setRiders([])
@@ -217,6 +233,7 @@ export default function JuryFinishPage() {
       apiFetch(`/api/jury/events/${eventId}/rider-status?moto_id=${targetMotoId}`),
       apiFetch(`/api/jury/motos/${targetMotoId}/results`),
     ])
+    if (!force && (pressedIdRef.current || savingRef.current || actionsCountRef.current > 0)) return
     setRiders((res.data ?? []) as RiderItem[])
     const existingResults = (resultRes.data ?? []) as Array<{
       rider_id: string
@@ -249,6 +266,7 @@ export default function JuryFinishPage() {
     setParticipationByRider(statusMap)
     if (eventId) {
       const penaltiesRes = await apiFetch(`/api/jury/events/${eventId}/rider-penalties?moto_id=${targetMotoId}`)
+      if (!force && (pressedIdRef.current || savingRef.current || actionsCountRef.current > 0)) return
       const map: Record<string, number> = {}
       for (const row of penaltiesRes.data ?? []) {
         const approval = Array.isArray(row.rider_penalty_approvals)
@@ -400,7 +418,7 @@ export default function JuryFinishPage() {
         alert('Submit completed.')
       }
       await loadAll()
-      await loadRiders()
+      await loadRiders(undefined, true)
     } finally {
       setSaving(false)
     }
@@ -412,13 +430,13 @@ export default function JuryFinishPage() {
     const liveMoto = refreshedMotos.find((m) => isMotoLive(m.status))
     if (liveMoto) {
       setSelectedMotoId(liveMoto.id)
-      await loadRiders(liveMoto.id)
+      await loadRiders(liveMoto.id, true)
       return
     }
     const nextMotoId = pickNextSelectableMotoId(refreshedMotos, selectedMotoId)
     setSelectedMotoId(nextMotoId)
     if (nextMotoId) {
-      await loadRiders(nextMotoId)
+      await loadRiders(nextMotoId, true)
     }
   }
 
