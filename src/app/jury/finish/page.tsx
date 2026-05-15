@@ -230,6 +230,9 @@ export default function JuryFinishPage() {
     const dnfFromServer = existingResults
       .filter((r) => r.result_status === 'DNF')
       .map((r) => r.rider_id)
+    const dnsFromServer = existingResults
+      .filter((r) => r.result_status === 'DNS')
+      .map((r) => r.rider_id)
     setFinishOrder(finishFromServer)
     setDnfRiders(dnfFromServer)
     setActions([])
@@ -239,6 +242,9 @@ export default function JuryFinishPage() {
       if (row?.rider_id && row?.participation_status) {
         statusMap[row.rider_id] = row.participation_status
       }
+    }
+    for (const riderId of dnsFromServer) {
+      statusMap[riderId] = 'DNS'
     }
     setParticipationByRider(statusMap)
     if (eventId) {
