@@ -57,6 +57,34 @@ type RiderGroup = {
   riders: RiderItem[]
 }
 
+function getSafetyVisual(label: string) {
+  const normalized = label.toLowerCase()
+
+  if (normalized.includes('helm') || normalized.includes('helmet')) {
+    return { icon: '⛑', shortLabel: 'Helm' }
+  }
+  if (normalized.includes('sarung tangan') || normalized.includes('glove') || normalized.includes('gloves')) {
+    return { icon: '🧤', shortLabel: 'Gloves' }
+  }
+  if (normalized.includes('siku') || normalized.includes('elbow')) {
+    return { icon: '💪', shortLabel: 'Siku' }
+  }
+  if (normalized.includes('lutut') || normalized.includes('knee')) {
+    return { icon: '🦵', shortLabel: 'Lutut' }
+  }
+  if (normalized.includes('jersey')) {
+    return { icon: '👕', shortLabel: 'Jersey' }
+  }
+  if (normalized.includes('sepatu') || normalized.includes('shoe')) {
+    return { icon: '👟', shortLabel: 'Sepatu' }
+  }
+  if (normalized.includes('celana') || normalized.includes('pants')) {
+    return { icon: '🩳', shortLabel: 'Celana' }
+  }
+
+  return { icon: '✓', shortLabel: label }
+}
+
 export default function PenaltiesClient({ eventId }: { eventId: string }) {
   const [flags, setFlags] = useState<FeatureFlags | null>(null)
   const [rules, setRules] = useState<PenaltyRule[]>([])
@@ -565,6 +593,31 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
           }}
         >
           <div style={{ fontWeight: 900 }}>Add Safety Requirement</div>
+          {requirementForm.label.trim() && (
+            <div
+              style={{
+                display: 'inline-grid',
+                justifyItems: 'center',
+                alignContent: 'center',
+                gap: 4,
+                minHeight: 78,
+                width: 112,
+                padding: 10,
+                borderRadius: 12,
+                border: '2px solid #111',
+                background: '#e5e7eb',
+                color: '#111',
+                fontWeight: 900,
+              }}
+            >
+              <span aria-hidden="true" style={{ fontSize: 24, lineHeight: 1 }}>
+                {getSafetyVisual(requirementForm.label).icon}
+              </span>
+              <span style={{ fontSize: 12, textAlign: 'center', lineHeight: 1.1 }}>
+                {getSafetyVisual(requirementForm.label).shortLabel}
+              </span>
+            </div>
+          )}
           <input
             placeholder="Label (contoh: Helm, Pelindung Lutut, Sarung Tangan)"
             value={requirementForm.label}
@@ -609,9 +662,42 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
           <div style={{ padding: 12, borderRadius: 12, border: '2px dashed #111' }}>Belum ada safety requirements.</div>
         )}
         <div style={{ display: 'grid', gap: 10 }}>
-          {requirements.map((req) => (
+          {requirements.map((req) => {
+            const visual = getSafetyVisual(req.label)
+            return (
             <div key={req.id} style={{ display: 'grid', gap: 8, padding: 12, borderRadius: 12, border: '2px solid #111' }}>
-              <div style={{ fontWeight: 900 }}>{req.label}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <div
+                  style={{
+                    display: 'inline-grid',
+                    justifyItems: 'center',
+                    alignContent: 'center',
+                    gap: 4,
+                    minHeight: 74,
+                    width: 96,
+                    padding: 8,
+                    borderRadius: 12,
+                    border: '2px solid #111',
+                    background: '#f1f5f9',
+                    color: '#111',
+                    fontWeight: 900,
+                  }}
+                  title={req.label}
+                >
+                  <span aria-hidden="true" style={{ fontSize: 24, lineHeight: 1 }}>
+                    {visual.icon}
+                  </span>
+                  <span style={{ fontSize: 12, textAlign: 'center', lineHeight: 1.1 }}>
+                    {visual.shortLabel}
+                  </span>
+                </div>
+                <div>
+                  <div style={{ fontWeight: 900 }}>{req.label}</div>
+                  <div style={{ fontSize: 11, color: '#333', fontWeight: 700 }}>
+                    Preview tombol checker
+                  </div>
+                </div>
+              </div>
               <div style={{ fontSize: 11, color: '#333', fontWeight: 700 }}>
                 Sort: {req.sort_order ?? 0} | {req.is_required ? 'Required' : 'Optional'}
               </div>
@@ -653,7 +739,7 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
                 </div>
               )}
             </div>
-          ))}
+          )})}
         </div>
       </div>
 
