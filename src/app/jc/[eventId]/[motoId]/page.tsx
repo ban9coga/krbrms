@@ -509,39 +509,71 @@ export default function JCPage() {
     setSaving(true)
     setWarningMessage(null)
     setErrorMessage(null)
+    const previousStatuses = statuses
+    const ridersToActivate = riderList.filter((r) => {
+      const current = statuses[r.id]?.participation_status
+      return current !== 'ABSENT' && current !== 'DNS'
+    })
+    setStatuses((prev) => {
+      const next = { ...prev }
+      for (const r of ridersToActivate) {
+        next[r.id] = {
+          rider_id: r.id,
+          participation_status: 'ACTIVE',
+          registration_order: r.registration_order,
+        }
+      }
+      return next
+    })
+    setAllReadyDone(true)
     try {
       const missingPenaltyReasons = new Set<string>()
-      for (const r of riderList) {
-        const current = statuses[r.id]?.participation_status
-        if (current === 'ABSENT' || current === 'DNS') continue
-        for (const req of requiredSafety) {
-          if (!safetyChecks[r.id]?.[req.id]) {
-            const res = await applySafetyPenalty(r.id, req)
-            if (!res.applied && res.reason) {
-              missingPenaltyReasons.add(res.reason)
-            }
+      const penaltyTasks = ridersToActivate.flatMap((r) =>
+        requiredSafety
+          .filter((req) => !safetyChecks[r.id]?.[req.id])
+          .map((req) => applySafetyPenalty(r.id, req))
+      )
+      const penaltyResults = await Promise.allSettled(penaltyTasks)
+      for (const result of penaltyResults) {
+        if (result.status === 'fulfilled') {
+          if (!result.value.applied && result.value.reason) {
+            missingPenaltyReasons.add(result.value.reason)
           }
+        } else {
+          missingPenaltyReasons.add(result.reason instanceof Error ? result.reason.message : 'auto-penalty gagal')
         }
-        await apiFetch(`/api/jury/events/${eventId}/rider-status`, {
-          method: 'POST',
-          body: JSON.stringify({
-            rider_id: r.id,
-            participation_status: 'ACTIVE',
-            registration_order: r.registration_order,
-            moto_id: selectedMotoId,
-          }),
-        })
+      }
+
+      const statusResults = await Promise.allSettled(
+        ridersToActivate.map((r) =>
+          apiFetch(`/api/jury/events/${eventId}/rider-status`, {
+            method: 'POST',
+            body: JSON.stringify({
+              rider_id: r.id,
+              participation_status: 'ACTIVE',
+              registration_order: r.registration_order,
+              moto_id: selectedMotoId,
+            }),
+          })
+        )
+      )
+      const rejectedStatus = statusResults.find((result) => result.status === 'rejected')
+      if (rejectedStatus?.status === 'rejected') {
+        throw rejectedStatus.reason
       }
       if (missingPenaltyReasons.size > 0) {
         setWarningMessage(
           `Sebagian rider lanjut dengan WARNING. Auto-penalty dilewati: ${Array.from(missingPenaltyReasons).join(', ')}.`
         )
       }
-      await loadMoto(true, true)
-      setAllReadyDone(true)
+      setLastUpdated(new Date().toLocaleTimeString())
       alert(`All Ready tersimpan untuk ${selectedCategoryLabel} | ${selectedMoto?.moto_name ?? 'Moto'}`)
-      await loadMoto(false, true)
+      setTimeout(() => {
+        void loadMoto(true, true)
+      }, 350)
     } catch (err: unknown) {
+      setStatuses(previousStatuses)
+      setAllReadyDone(false)
       setErrorMessage(err instanceof Error ? err.message : 'Gagal menjalankan All Ready.')
       await loadMoto(true)
     } finally {
