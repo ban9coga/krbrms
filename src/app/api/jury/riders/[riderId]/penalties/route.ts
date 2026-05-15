@@ -51,7 +51,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ riderId
 
   const { data: rule, error: ruleError } = await adminClient
     .from('event_penalty_rules')
-    .select('code, penalty_point, applies_to_stage, is_active')
+    .select('code, penalty_point, applies_to_stage, is_active, checker_enabled')
     .eq('event_id', event_id)
     .eq('code', rule_code)
     .maybeSingle()
@@ -68,6 +68,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ riderId
 
   if (!resolvedRule?.is_active) {
     return NextResponse.json({ error: 'Rule not found or inactive' }, { status: 400 })
+  }
+  if (!resolvedRule?.checker_enabled) {
+    return NextResponse.json({ error: 'Rule not enabled for checker auto/manual jury usage.' }, { status: 400 })
   }
 
   const applies = resolvedRule.applies_to_stage

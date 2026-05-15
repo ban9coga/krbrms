@@ -8,9 +8,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
   const { data, error } = await adminClient
     .from('event_penalty_rules')
-    .select('id, event_id, code, description, penalty_point, applies_to_stage, is_active')
+    .select('id, event_id, code, description, penalty_point, applies_to_stage, is_active, checker_enabled')
     .eq('event_id', eventId)
     .eq('is_active', true)
+    .eq('checker_enabled', true)
     .in('applies_to_stage', ['MOTO', 'ALL'])
     .order('code', { ascending: true })
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })

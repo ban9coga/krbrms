@@ -5,7 +5,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ eventId: s
   const { eventId } = await params
   const { data, error } = await adminClient
     .from('event_penalty_rules')
-    .select('id, event_id, code, description, penalty_point, applies_to_stage, is_active')
+    .select('id, event_id, code, description, penalty_point, applies_to_stage, is_active, checker_enabled, rd_enabled')
     .eq('event_id', eventId)
     .order('code', { ascending: true })
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
@@ -17,7 +17,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { eventId } = await params
   const body = await req.json()
-  const { code, description, penalty_point, applies_to_stage, is_active } = body ?? {}
+  const { code, description, penalty_point, applies_to_stage, is_active, checker_enabled, rd_enabled } = body ?? {}
   if (!code || !penalty_point) {
     return NextResponse.json({ error: 'code and penalty_point required' }, { status: 400 })
   }
@@ -31,9 +31,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
         penalty_point,
         applies_to_stage: applies_to_stage ?? 'ALL',
         is_active: is_active ?? true,
+        checker_enabled: checker_enabled ?? true,
+        rd_enabled: rd_enabled ?? true,
       },
     ])
-    .select('id, event_id, code, description, penalty_point, applies_to_stage, is_active')
+    .select('id, event_id, code, description, penalty_point, applies_to_stage, is_active, checker_enabled, rd_enabled')
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json({ data })

@@ -6,14 +6,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ eventI
   if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { eventId, ruleId } = await params
   const body = await req.json()
-  const { code, description, penalty_point, applies_to_stage, is_active } = body ?? {}
+  const { code, description, penalty_point, applies_to_stage, is_active, checker_enabled, rd_enabled } = body ?? {}
 
   const { data, error } = await adminClient
     .from('event_penalty_rules')
-    .update({ code, description, penalty_point, applies_to_stage, is_active })
+    .update({ code, description, penalty_point, applies_to_stage, is_active, checker_enabled, rd_enabled })
     .eq('id', ruleId)
     .eq('event_id', eventId)
-    .select('id, event_id, code, description, penalty_point, applies_to_stage, is_active')
+    .select('id, event_id, code, description, penalty_point, applies_to_stage, is_active, checker_enabled, rd_enabled')
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json({ data })

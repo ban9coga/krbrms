@@ -17,6 +17,8 @@ type PenaltyRule = {
   penalty_point: number
   applies_to_stage: 'MOTO' | 'QUARTER' | 'SEMI' | 'FINAL' | 'ALL'
   is_active: boolean
+  checker_enabled: boolean
+  rd_enabled: boolean
 }
 
 type SafetyRequirement = {
@@ -71,6 +73,8 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
     penalty_point: '',
     applies_to_stage: 'ALL' as PenaltyRule['applies_to_stage'],
     is_active: true,
+    checker_enabled: true,
+    rd_enabled: true,
   })
   const [requirementForm, setRequirementForm] = useState({
     label: '',
@@ -213,9 +217,19 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
           penalty_point: Number(ruleForm.penalty_point),
           applies_to_stage: ruleForm.applies_to_stage,
           is_active: ruleForm.is_active,
+          checker_enabled: ruleForm.checker_enabled,
+          rd_enabled: ruleForm.rd_enabled,
         }),
       })
-      setRuleForm({ code: '', description: '', penalty_point: '', applies_to_stage: 'ALL', is_active: true })
+      setRuleForm({
+        code: '',
+        description: '',
+        penalty_point: '',
+        applies_to_stage: 'ALL',
+        is_active: true,
+        checker_enabled: true,
+        rd_enabled: true,
+      })
       await loadAll()
     } finally {
       setSaving(false)
@@ -258,6 +272,9 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
       setSaving(false)
     }
   }
+
+  const checkerRules = rules.filter((rule) => rule.is_active && rule.checker_enabled)
+  const rdRules = rules.filter((rule) => rule.is_active && rule.rd_enabled)
 
   const handleCreateRequirement = async () => {
     if (!requirementForm.label.trim()) {
@@ -434,6 +451,22 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
             />
             Active
           </label>
+          <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 900 }}>
+            <input
+              type="checkbox"
+              checked={ruleForm.checker_enabled}
+              onChange={(e) => setRuleForm({ ...ruleForm, checker_enabled: e.target.checked })}
+            />
+            Checker Auto
+          </label>
+          <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 900 }}>
+            <input
+              type="checkbox"
+              checked={ruleForm.rd_enabled}
+              onChange={(e) => setRuleForm({ ...ruleForm, rd_enabled: e.target.checked })}
+            />
+            RD Manual
+          </label>
           <button
             type="button"
             onClick={handleCreateRule}
@@ -459,6 +492,30 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
                     onChange={(e) => setRules((prev) => prev.map((r) => (r.id === rule.id ? { ...r, is_active: e.target.checked } : r)))}
                   />
                   Active
+                </label>
+                <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <input
+                    type="checkbox"
+                    checked={rule.checker_enabled}
+                    onChange={(e) =>
+                      setRules((prev) =>
+                        prev.map((r) => (r.id === rule.id ? { ...r, checker_enabled: e.target.checked } : r))
+                      )
+                    }
+                  />
+                  Checker Auto
+                </label>
+                <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <input
+                    type="checkbox"
+                    checked={rule.rd_enabled}
+                    onChange={(e) =>
+                      setRules((prev) =>
+                        prev.map((r) => (r.id === rule.id ? { ...r, rd_enabled: e.target.checked } : r))
+                      )
+                    }
+                  />
+                  RD Manual
                 </label>
                 <button
                   type="button"
@@ -495,7 +552,7 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
       >
         <div style={{ fontWeight: 950, fontSize: 18 }}>Safety Checklist Mapping</div>
         <div style={{ fontSize: 12, color: '#444', fontWeight: 700 }}>
-          Hubungkan item safety dengan penalty rule. Wajib sebelum auto-penalty berjalan.
+          Hubungkan item safety dengan penalty rule. Hanya rules dengan toggle Checker Auto ON yang muncul di sini.
         </div>
         <div
           style={{
@@ -569,7 +626,7 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
                   style={{ padding: '8px 10px', borderRadius: 10, border: '2px solid #111', fontWeight: 800 }}
                 >
                   <option value="">-- Not linked --</option>
-                  {rules.map((rule) => (
+                  {checkerRules.map((rule) => (
                     <option key={rule.id} value={rule.code}>
                       {rule.code} | {rule.penalty_point} pts
                     </option>
@@ -598,6 +655,44 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
             </div>
           ))}
         </div>
+      </div>
+
+      <div
+        style={{
+          marginTop: 16,
+          background: '#fff',
+          border: '2px solid #111',
+          borderRadius: 16,
+          padding: 16,
+          display: 'grid',
+          gap: 10,
+        }}
+      >
+        <div style={{ fontWeight: 950, fontSize: 18 }}>RD Penalty Rules</div>
+        <div style={{ fontSize: 12, color: '#444', fontWeight: 700 }}>
+          Rules dengan toggle RD Manual ON akan tersedia di panel Race Director untuk keputusan manual, termasuk kasus pelanggaran wali rider yang berdampak ke rider.
+        </div>
+        {rdRules.length === 0 ? (
+          <div style={{ padding: 12, borderRadius: 12, border: '2px dashed #111', fontWeight: 800 }}>
+            Belum ada rule yang diaktifkan untuk RD.
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gap: 10 }}>
+            {rdRules.map((rule) => (
+              <div key={`rd-${rule.id}`} style={{ padding: 12, borderRadius: 12, border: '2px solid #111', background: '#f8fafc' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <div style={{ fontWeight: 900 }}>{rule.code}</div>
+                  <div style={{ fontSize: 11, fontWeight: 900, color: '#475569' }}>
+                    {rule.penalty_point} pts | {rule.applies_to_stage}
+                  </div>
+                </div>
+                <div style={{ marginTop: 6, fontSize: 12, color: '#334155', fontWeight: 700 }}>
+                  {rule.description || 'Tanpa deskripsi'}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {false && (
