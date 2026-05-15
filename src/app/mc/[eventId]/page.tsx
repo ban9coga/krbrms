@@ -22,7 +22,7 @@ type RankingRow = {
   plate: string
   club?: string | null
   gate_position?: number | null
-  status: 'FINISH' | 'DNF' | 'DNS' | 'PENDING'
+  status: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'PENDING'
 }
 
 type NextMotoRiderRow = {
@@ -68,6 +68,7 @@ const statusBadge = (moto?: MotoInfo | null) => {
 }
 
 const resultStatusBadge = (status: RankingRow['status']) => {
+  if (status === 'DQ') return 'border-red-400 bg-red-100 text-red-800'
   if (status === 'DNF') return 'border-amber-300 bg-amber-50 text-amber-700'
   if (status === 'DNS') return 'border-rose-300 bg-rose-50 text-rose-700'
   if (status === 'PENDING') return 'border-slate-300 bg-slate-100 text-slate-700'

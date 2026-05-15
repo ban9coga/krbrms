@@ -68,6 +68,13 @@ type PenaltyFormState = {
   note: string
 }
 
+type DqFormState = {
+  categoryId: string
+  riderId: string
+  motoId: string
+  reason: string
+}
+
 const normalizeRole = (value: string | null | undefined) => String(value ?? '').trim().toUpperCase()
 const getErrorMessage = (err: unknown) => (err instanceof Error ? err.message : 'Request failed')
 
@@ -133,6 +140,14 @@ export default function RaceDirectorApprovalPage() {
     note: '',
   })
   const [addingPenalty, setAddingPenalty] = useState(false)
+  const [dqForm, setDqForm] = useState<DqFormState>({
+    categoryId: '',
+    riderId: '',
+    motoId: '',
+    reason: '',
+  })
+  const [dqCategoryRiders, setDqCategoryRiders] = useState<RiderItem[]>([])
+  const [settingDq, setSettingDq] = useState(false)
 
   const apiFetch = useCallback(async (url: string, options: RequestInit = {}) => {
     const { data } = await supabase.auth.getSession()
@@ -333,6 +348,10 @@ export default function RaceDirectorApprovalPage() {
       if (prev.categoryId || !firstEnabled) return prev
       return { ...prev, categoryId: firstEnabled }
     })
+    setDqForm((prev) => {
+      if (prev.categoryId || !firstEnabled) return prev
+      return { ...prev, categoryId: firstEnabled }
+    })
   }, [categoriesSorted])
 
   useEffect(() => {
@@ -372,6 +391,28 @@ export default function RaceDirectorApprovalPage() {
     }
     void loadCategoryRiders()
   }, [apiFetch, eventId, penaltyForm.categoryId, showNotice])
+
+  useEffect(() => {
+    const loadDqCategoryRiders = async () => {
+      if (!eventId || !dqForm.categoryId) {
+        setDqCategoryRiders([])
+        return
+      }
+      try {
+        const qs = new URLSearchParams({
+          event_id: eventId,
+          category_id: dqForm.categoryId,
+          page: '1',
+          page_size: '200',
+        })
+        const res = await apiFetch(`/api/riders?${qs.toString()}`)
+        setDqCategoryRiders((res.data ?? []) as RiderItem[])
+      } catch (err: unknown) {
+        showNotice('error', getErrorMessage(err))
+      }
+    }
+    void loadDqCategoryRiders()
+  }, [apiFetch, dqForm.categoryId, eventId, showNotice])
 
   const filteredGateStatus = useMemo(() => {
     const enabledOnly = gateStatus.filter(
@@ -415,6 +456,11 @@ export default function RaceDirectorApprovalPage() {
       (m) => !['LOCKED', 'FINISHED'].includes((m.status ?? '').toUpperCase())
     )
   }, [motosByCategory, penaltyForm.categoryId])
+
+  const dqFormMotos = useMemo(() => {
+    if (!dqForm.categoryId) return []
+    return motosByCategory.get(dqForm.categoryId) ?? []
+  }, [dqForm.categoryId, motosByCategory])
 
   const timeAgo = (iso: string) => {
     const diff = Date.now() - new Date(iso).getTime()
@@ -535,6 +581,17 @@ export default function RaceDirectorApprovalPage() {
     })
   }
 
+  const handleDqFormChange = <K extends keyof DqFormState>(key: K, value: DqFormState[K]) => {
+    setDqForm((prev) => {
+      const next = { ...prev, [key]: value }
+      if (key === 'categoryId') {
+        next.riderId = ''
+        next.motoId = ''
+      }
+      return next
+    })
+  }
+
   const handleAddPenalty = async () => {
     if (!eventId) return
     if (!penaltyForm.categoryId || !penaltyForm.riderId || !penaltyForm.ruleCode) {
@@ -571,6 +628,41 @@ export default function RaceDirectorApprovalPage() {
       showNotice('error', getErrorMessage(err))
     } finally {
       setAddingPenalty(false)
+    }
+  }
+
+  const handleSetDq = async () => {
+    if (!dqForm.categoryId || !dqForm.riderId || !dqForm.motoId) {
+      showNotice('error', 'Kategori, moto, dan rider wajib dipilih untuk set DQ.')
+      return
+    }
+    setSettingDq(true)
+    try {
+      await apiFetch(`/api/race-director/motos/${dqForm.motoId}/override`, {
+        method: 'POST',
+        body: JSON.stringify({
+          results: [
+            {
+              rider_id: dqForm.riderId,
+              finish_order: null,
+              result_status: 'DQ',
+            },
+          ],
+          reason: dqForm.reason.trim() || 'Disqualification by Race Director',
+        }),
+      })
+      const refreshed = await loadEventData({ silent: true, includeHeavy: true })
+      setDqForm((prev) => ({
+        ...prev,
+        riderId: '',
+        motoId: '',
+        reason: '',
+      }))
+      showNotice(refreshed ? 'success' : 'error', refreshed ? 'Status DQ berhasil diterapkan.' : 'DQ tersimpan, refresh gagal.')
+    } catch (err: unknown) {
+      showNotice('error', getErrorMessage(err))
+    } finally {
+      setSettingDq(false)
     }
   }
 
@@ -740,6 +832,81 @@ export default function RaceDirectorApprovalPage() {
         </div>
 
         <div className="grid gap-4">
+          <section className="public-panel-light">
+            <div style={{ fontWeight: 900, fontSize: 18 }}>Set Rider DQ</div>
+            <div style={{ marginTop: 6, fontSize: 13, fontWeight: 700, color: '#475569' }}>
+              Gunakan untuk diskualifikasi manual oleh Race Director. DQ tidak lagi berasal dari threshold point penalty.
+            </div>
+            <div style={{ marginTop: 12, display: 'grid', gap: 10 }}>
+              <div className="rd-form-grid" style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+                <div style={{ display: 'grid', gap: 6 }}>
+                  <label style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Kategori</label>
+                  <select
+                    value={dqForm.categoryId}
+                    onChange={(e) => handleDqFormChange('categoryId', e.target.value)}
+                    className="public-filter"
+                  >
+                    <option value="">Pilih kategori</option>
+                    {categoriesSorted.map((cat) => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div style={{ display: 'grid', gap: 6 }}>
+                  <label style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Moto</label>
+                  <select
+                    value={dqForm.motoId}
+                    onChange={(e) => handleDqFormChange('motoId', e.target.value)}
+                    className="public-filter"
+                  >
+                    <option value="">Pilih moto</option>
+                    {dqFormMotos.map((moto) => (
+                      <option key={moto.id} value={moto.id}>
+                        {moto.moto_order}. {moto.moto_name} - {moto.status}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div style={{ display: 'grid', gap: 6 }}>
+                  <label style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Rider</label>
+                  <select
+                    value={dqForm.riderId}
+                    onChange={(e) => handleDqFormChange('riderId', e.target.value)}
+                    className="public-filter"
+                  >
+                    <option value="">Pilih rider</option>
+                    {dqCategoryRiders.map((rider) => (
+                      <option key={rider.id} value={rider.id}>
+                        {rider.no_plate_display} - {rider.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div style={{ display: 'grid', gap: 6 }}>
+                  <label style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Alasan DQ</label>
+                  <input
+                    value={dqForm.reason}
+                    onChange={(e) => handleDqFormChange('reason', e.target.value)}
+                    className="public-filter"
+                    placeholder="Contoh: cutting track / kontak fisik berbahaya"
+                  />
+                </div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  onClick={handleSetDq}
+                  disabled={settingDq || !eventId}
+                  className="inline-flex items-center justify-center rounded-xl border border-red-300 bg-red-100 px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.1em] text-red-800 transition-colors hover:bg-red-200 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {settingDq ? 'Menyimpan...' : 'Set DQ'}
+                </button>
+              </div>
+            </div>
+          </section>
+
           <section className="public-panel-light">
             <div style={{ fontWeight: 900, fontSize: 18 }}>Tambah Penalty Rider</div>
             <div style={{ marginTop: 6, fontSize: 13, fontWeight: 700, color: '#475569' }}>

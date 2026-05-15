@@ -29,7 +29,7 @@ type McRankingRow = {
   plate: string
   club?: string | null
   gate_position?: number | null
-  status: 'FINISH' | 'DNF' | 'DNS' | 'PENDING'
+  status: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'PENDING'
 }
 
 type NextMotoRiderRow = {
@@ -186,9 +186,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const ranking: McRankingRow[] = riderIds.map((riderId) => {
     const row = resultMap.get(riderId)
     const rider = riderMap.get(riderId)
-    const status = ((row?.result_status ?? 'PENDING') as 'FINISH' | 'DNF' | 'DNS' | 'PENDING')
+    const status = ((row?.result_status ?? 'PENDING') as 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'PENDING')
     const basePoint =
-      status === 'DNS'
+      status === 'DQ'
+        ? null
+        : status === 'DNS'
         ? ((lastPosition ?? 0) > 0 ? (lastPosition as number) + 2 : null)
         : status === 'DNF'
         ? lastPosition
@@ -211,8 +213,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   })
 
   ranking.sort((a, b) => {
-    const aStatusWeight = a.status === 'FINISH' ? 0 : a.status === 'DNF' ? 1 : a.status === 'DNS' ? 2 : 3
-    const bStatusWeight = b.status === 'FINISH' ? 0 : b.status === 'DNF' ? 1 : b.status === 'DNS' ? 2 : 3
+    const aStatusWeight = a.status === 'FINISH' ? 0 : a.status === 'DNF' ? 1 : a.status === 'DNS' ? 2 : a.status === 'DQ' ? 3 : 4
+    const bStatusWeight = b.status === 'FINISH' ? 0 : b.status === 'DNF' ? 1 : b.status === 'DNS' ? 2 : b.status === 'DQ' ? 3 : 4
     if (aStatusWeight !== bStatusWeight) return aStatusWeight - bStatusWeight
     const at = a.total_point ?? 9999
     const bt = b.total_point ?? 9999

@@ -385,7 +385,6 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     extra_price: '150000',
     require_jersey_size: false,
     scoring_base_mode: 'finish_order',
-    scoring_dq_threshold: '7',
     scoring_tie_breaker: 'last_best',
     display_primary_color: '#2ecc71',
     display_secondary_color: '#111111',
@@ -508,10 +507,6 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
           require_jersey_size: Boolean(data.require_jersey_size),
           scoring_base_mode:
             typeof scoring.base_points_mode === 'string' ? scoring.base_points_mode : 'finish_order',
-          scoring_dq_threshold:
-            typeof scoring.dq_penalty_threshold === 'number'
-              ? String(scoring.dq_penalty_threshold)
-              : '7',
           scoring_tie_breaker:
             typeof scoring.tie_breaker === 'string' ? scoring.tie_breaker : 'last_best',
           display_primary_color:
@@ -1007,16 +1002,8 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
   }
 
   const handleSave = async () => {
-    const dqThreshold = Number(form.scoring_dq_threshold)
-
-    if (!Number.isFinite(dqThreshold) || dqThreshold < 0) {
-      alert('DQ threshold tidak valid.')
-      return
-    }
-
     const scoring = {
       base_points_mode: form.scoring_base_mode,
-      dq_penalty_threshold: dqThreshold,
       tie_breaker: form.scoring_tie_breaker,
     }
     const theme = {
@@ -1623,18 +1610,9 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                       <option value="last_best">last_best</option>
                     </select>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 10 }}>
-                    <input
-                      type="number"
-                      min={0}
-                      placeholder="DQ threshold"
-                      value={form.scoring_dq_threshold}
-                      onChange={(e) => setForm({ ...form, scoring_dq_threshold: e.target.value })}
-                      style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
-                    />
-                  </div>
                   <div style={{ display: 'grid', gap: 6, fontSize: 12, color: '#333', fontWeight: 700 }}>
                     <div>DNS dan DNF tidak lagi diatur dari scoring settings.</div>
+                    <div>DQ sekarang diputuskan manual oleh Race Director, bukan dari threshold point penalty.</div>
                     <div>Aturan aktif sekarang:</div>
                     <div>DNS = jumlah rider + 2</div>
                     <div>DNF = posisi terakhir</div>

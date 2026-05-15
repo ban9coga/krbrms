@@ -22,7 +22,7 @@ type ResultRow = {
   moto_id: string
   rider_id: string
   finish_order: number | null
-  result_status?: 'FINISH' | 'DNF' | 'DNS' | null
+  result_status?: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | null
 }
 
 type RiderRow = {
@@ -44,7 +44,7 @@ type StageRow = {
   point: number | null
   penalty_total: number | null
   rank: number | null
-  status: 'FINISH' | 'DNF' | 'DNS' | 'PENDING'
+  status: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'PENDING'
 }
 
 type StageGroup = {
@@ -130,6 +130,7 @@ const dnsPointForMoto = (riderCount: number | null) => {
 
 const pointForMotoResult = (res: ResultRow | null, riderCount: number | null) => {
   const status = res?.result_status ?? null
+  if (status === 'DQ') return null
   if (status === 'DNS') return dnsPointForMoto(riderCount)
   if (status === 'DNF') return riderCount
   return res?.finish_order ?? null
@@ -345,17 +346,19 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         const point1 = pointForMotoResult(moto1Result ?? null, riderCount1)
         const point2 = pointForMotoResult(moto2Result ?? null, riderCount2)
         const point3 = pointForMotoResult(moto3Result ?? null, riderCount3)
+        const hasRecordedResult = Boolean(moto1Result || moto2Result || moto3Result)
         const basePoint = [point1, point2, point3].filter((v) => v !== null).length
           ? [point1, point2, point3].reduce<number>((acc, v) => acc + (v ?? 0), 0)
           : null
         const penaltyTotal = qualificationPenaltyMap.get(riderId) ?? 0
-        const penaltyTotalForDq = basePoint !== null ? penaltyTotal : 0
-        const penaltyTotalDisplay = basePoint !== null ? penaltyTotal : null
+        const penaltyTotalDisplay = hasRecordedResult ? penaltyTotal : null
         const totalPoint = basePoint !== null ? basePoint + penaltyTotal : null
         const tiebreakers = [point3, point2, point1]
 
         const status: QualificationRowStatus =
-          penaltyTotalForDq >= 7
+          moto1Result?.result_status === 'DQ' ||
+          (moto2 ? moto2Result?.result_status === 'DQ' : false) ||
+          (moto3 ? moto3Result?.result_status === 'DQ' : false)
             ? 'DQ'
             : riderStatus === 'ABSENT'
               ? 'DNS'

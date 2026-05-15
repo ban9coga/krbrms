@@ -30,6 +30,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
     result_status: row.result_status ?? 'FINISH',
   }))
 
+  const { data: assigned, error: assignedError } = await adminClient
+    .from('moto_riders')
+    .select('rider_id')
+    .eq('moto_id', motoId)
+  if (assignedError) return NextResponse.json({ error: assignedError.message }, { status: 400 })
+  const assignedSet = new Set((assigned ?? []).map((row) => row.rider_id))
+  if (assignedSet.size === 0) {
+    return NextResponse.json({ error: 'No riders assigned to moto' }, { status: 400 })
+  }
+  const invalid = payload.find((row) => !assignedSet.has(row.rider_id))
+  if (invalid) {
+    return NextResponse.json({ error: 'Rider not assigned to moto' }, { status: 400 })
+  }
+
   const { error } = await adminClient.from('results').upsert(payload, { onConflict: 'moto_id,rider_id' })
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 

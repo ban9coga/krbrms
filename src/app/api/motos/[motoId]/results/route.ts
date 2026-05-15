@@ -58,9 +58,11 @@ export async function GET(_: Request, { params }: { params: Promise<{ motoId: st
       Array.isArray(row.riders) ? row.riders[0] : row.riders
     const riderId = rider?.id
     const penalty_total = riderId ? penaltyMap.get(riderId) ?? 0 : 0
-    const status = (row.result_status ?? 'FINISH') as 'FINISH' | 'DNF' | 'DNS'
+    const status = (row.result_status ?? 'FINISH') as 'FINISH' | 'DNF' | 'DNS' | 'DQ'
     const basePoint =
-      status === 'DNS'
+      status === 'DQ'
+        ? null
+        : status === 'DNS'
         ? ((lastPosition ?? 0) > 0 ? (lastPosition as number) + 2 : null)
         : status === 'DNF'
         ? lastPosition
