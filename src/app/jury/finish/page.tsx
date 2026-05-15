@@ -257,6 +257,14 @@ export default function JuryFinishPage() {
     void loadRiders()
   }, [loadRiders])
 
+  useEffect(() => {
+    if (!eventId || !selectedMotoId || !selectedMotoLive) return
+    const interval = window.setInterval(() => {
+      void loadRiders()
+    }, 2000)
+    return () => window.clearInterval(interval)
+  }, [eventId, loadRiders, selectedMotoId, selectedMotoLive])
+
   const availableRiders = useMemo(() => {
     const finished = new Set(finishOrder)
     const dnf = new Set(dnfRiders)
