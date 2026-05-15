@@ -200,8 +200,9 @@ export default function JuryFinishPage() {
     [motos]
   )
 
-  const loadRiders = useCallback(async () => {
-    if (!eventId || !selectedMotoId) {
+  const loadRiders = useCallback(async (motoIdOverride?: string) => {
+    const targetMotoId = motoIdOverride ?? selectedMotoId
+    if (!eventId || !targetMotoId) {
       setRiders([])
       setFinishOrder([])
       setDnfRiders([])
@@ -210,10 +211,11 @@ export default function JuryFinishPage() {
       setParticipationByRider({})
       return
     }
+    const targetMoto = motos.find((m) => m.id === targetMotoId) ?? selectedMoto ?? null
     const [res, statusRes, resultRes] = await Promise.all([
-      apiFetch(`/api/jury/motos/${selectedMotoId}/riders`),
-      apiFetch(`/api/jury/events/${eventId}/rider-status?moto_id=${selectedMotoId}`),
-      apiFetch(`/api/jury/motos/${selectedMotoId}/results`),
+      apiFetch(`/api/jury/motos/${targetMotoId}/riders`),
+      apiFetch(`/api/jury/events/${eventId}/rider-status?moto_id=${targetMotoId}`),
+      apiFetch(`/api/jury/motos/${targetMotoId}/results`),
     ])
     setRiders((res.data ?? []) as RiderItem[])
     const existingResults = (resultRes.data ?? []) as Array<{
@@ -231,7 +233,7 @@ export default function JuryFinishPage() {
     setFinishOrder(finishFromServer)
     setDnfRiders(dnfFromServer)
     setActions([])
-    setHasSubmitted(!isMotoLive(selectedMoto?.status) && existingResults.length > 0)
+    setHasSubmitted(!isMotoLive(targetMoto?.status) && existingResults.length > 0)
     const statusMap: Record<string, string> = {}
     for (const row of statusRes.data ?? []) {
       if (row?.rider_id && row?.participation_status) {
@@ -240,7 +242,7 @@ export default function JuryFinishPage() {
     }
     setParticipationByRider(statusMap)
     if (eventId) {
-      const penaltiesRes = await apiFetch(`/api/jury/events/${eventId}/rider-penalties?moto_id=${selectedMotoId}`)
+      const penaltiesRes = await apiFetch(`/api/jury/events/${eventId}/rider-penalties?moto_id=${targetMotoId}`)
       const map: Record<string, number> = {}
       for (const row of penaltiesRes.data ?? []) {
         const approval = Array.isArray(row.rider_penalty_approvals)
@@ -251,7 +253,7 @@ export default function JuryFinishPage() {
       }
       setPenaltiesByRider(map)
     }
-  }, [apiFetch, eventId, selectedMoto, selectedMotoId])
+  }, [apiFetch, eventId, motos, selectedMoto, selectedMotoId])
 
   useEffect(() => {
     void loadRiders()
@@ -395,9 +397,14 @@ export default function JuryFinishPage() {
     const liveMoto = refreshedMotos.find((m) => isMotoLive(m.status))
     if (liveMoto) {
       setSelectedMotoId(liveMoto.id)
+      await loadRiders(liveMoto.id)
       return
     }
-    setSelectedMotoId((prev) => pickNextSelectableMotoId(refreshedMotos, prev))
+    const nextMotoId = pickNextSelectableMotoId(refreshedMotos, selectedMotoId)
+    setSelectedMotoId(nextMotoId)
+    if (nextMotoId) {
+      await loadRiders(nextMotoId)
+    }
   }
 
   const onCardPointerDown = (event: React.PointerEvent<HTMLButtonElement>, riderId: string) => {
