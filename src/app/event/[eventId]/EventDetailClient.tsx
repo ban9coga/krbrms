@@ -17,7 +17,6 @@ import {
   type MotoItem,
   type EventItem,
   type RiderCategory,
-  type RiderPublicItem,
 } from '../../../lib/eventService'
 
 const categoryCoverGradients = [
@@ -48,13 +47,8 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
     >
   >({})
   const [stageLoading, setStageLoading] = useState<Record<string, boolean>>({})
-  const [riders, setRiders] = useState<RiderPublicItem[]>([])
-  const [riderPage, setRiderPage] = useState(1)
-  const riderPageSize = 24
   const [riderTotal, setRiderTotal] = useState(0)
-  const [showRiders, setShowRiders] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [loadingMore, setLoadingMore] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -62,14 +56,12 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
       const [eventData, categoryData, riderData, motoRes] = await Promise.all([
         getEventById(eventId),
         getEventCategories(eventId),
-        getRidersByEvent(eventId, 1, riderPageSize),
+        getRidersByEvent(eventId, 1, 1),
         fetch(`/api/motos?event_id=${eventId}`),
       ])
       setEvent(eventData)
       setCategories(categoryData.filter((c) => c.enabled))
-      setRiders(riderData.data)
       setRiderTotal(riderData.total)
-      setRiderPage(1)
       const motoJson = await motoRes.json()
       const motos = (motoJson.data ?? []) as MotoItem[]
       setLiveMotos(motos.filter((m) => m.status === 'LIVE'))
@@ -78,21 +70,6 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
     if (eventId) load()
   }, [eventId])
 
-  const loadMore = async () => {
-    if (loadingMore) return
-    const nextPage = riderPage + 1
-    setLoadingMore(true)
-    try {
-      const data = await getRidersByEvent(eventId, nextPage, riderPageSize)
-      setRiders((prev) => [...prev, ...data.data])
-      setRiderTotal(data.total)
-      setRiderPage(nextPage)
-    } finally {
-      setLoadingMore(false)
-    }
-  }
-
-  const canLoadMore = riders.length < riderTotal
   const totalFilledSlots = useMemo(
     () => categories.reduce((sum, category) => sum + Math.max(0, Number(category.filled ?? 0)), 0),
     [categories]
@@ -101,11 +78,6 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
     () => Math.max(0, totalFilledSlots - riderTotal),
     [totalFilledSlots, riderTotal]
   )
-  const birthYearLabel = (dateOfBirth?: string | null) => {
-    if (!dateOfBirth) return '-'
-    const year = String(dateOfBirth).slice(0, 4)
-    return /^\d{4}$/.test(year) ? year : '-'
-  }
   const eventDate = event ? new Date(event.event_date) : null
   const formattedDate = eventDate
     ? eventDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -289,19 +261,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (event.status === 'UPCOMING') return
-                      setShowRiders((v) => !v)
-                    }}
-                    disabled={event.status === 'UPCOMING'}
-                    className={`rounded-2xl border p-4 text-left transition-colors ${
-                      event.status === 'UPCOMING'
-                        ? 'cursor-not-allowed border-slate-600 bg-slate-900/35 text-slate-400'
-                        : 'border-slate-500 bg-slate-900/50 text-white hover:border-amber-300/60'
-                    }`}
-                  >
+                  <div className="rounded-2xl border border-slate-500 bg-slate-900/50 p-4 text-white">
                     <p className="text-xs font-bold uppercase tracking-wide text-slate-300">Total Riders</p>
                     <p className="mt-2 text-3xl font-black">{event.status === 'UPCOMING' ? '-' : totalFilledSlots}</p>
                     <p className="mt-1 text-xs font-semibold text-slate-300">
@@ -309,10 +269,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                         ? 'Terkunci sampai LIVE'
                         : `${riderTotal} rider${upclassSlotCount > 0 ? ` + ${upclassSlotCount} rider upclass` : ''}`}
                     </p>
-                    <p className="mt-1 text-xs font-semibold text-slate-300">
-                      {event.status === 'UPCOMING' ? '' : showRiders ? 'Sembunyikan' : 'Klik untuk lihat'}
-                    </p>
-                  </button>
+                  </div>
 
                   <div className="rounded-2xl border border-slate-500 bg-slate-900/50 p-4 text-white">
                     <p className="text-xs font-bold uppercase tracking-wide text-slate-300">Total Categories</p>
@@ -551,67 +508,6 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
               )}
             </section>
 
-            {event.status === 'UPCOMING' ? (
-              <section className="rounded-[1.5rem] border border-slate-300 bg-white p-4 shadow-[0_12px_30px_rgba(15,23,42,0.1)] sm:p-6">
-                <div className="mb-3 flex items-center gap-2">
-                  <h2 className="text-2xl font-black tracking-tight text-slate-900">Riders</h2>
-                  <StatusBadge label="Locked" />
-                </div>
-                <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm font-semibold text-slate-600">
-                  Daftar rider akan muncul saat event LIVE.
-                </div>
-              </section>
-            ) : showRiders ? (
-              <section className="rounded-[1.5rem] border border-slate-300 bg-white p-4 shadow-[0_12px_30px_rgba(15,23,42,0.1)] sm:p-6">
-                <div className="mb-4 flex items-end justify-between gap-3">
-                  <h2 className="text-2xl font-black tracking-tight text-slate-900">Riders</h2>
-                  <div className="text-sm font-bold text-slate-600">Total: {riderTotal}</div>
-                </div>
-
-                {riders.length === 0 && (
-                  <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm font-semibold text-slate-600">
-                    Belum ada rider terdaftar.
-                  </div>
-                )}
-
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {riders.map((rider) => (
-                    <div key={rider.id} className="grid grid-cols-[64px_1fr] items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-3">
-                      <div className="grid h-16 w-16 place-items-center overflow-hidden rounded-xl border border-slate-300 bg-white text-xs font-black text-slate-700">
-                        {rider.photo_thumbnail_url ? (
-                          <img
-                            src={rider.photo_thumbnail_url}
-                            alt={rider.name}
-                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                            loading="lazy"
-                          />
-                        ) : (
-                          rider.no_plate_display
-                        )}
-                      </div>
-                      <div className="grid gap-1">
-                        <div className="text-sm font-black text-slate-900">{rider.no_plate_display}</div>
-                        <div className="text-sm font-semibold text-slate-800">{rider.name}</div>
-                        <div className="text-xs font-semibold text-slate-500">
-                          Tahun lahir: {birthYearLabel(rider.date_of_birth)}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {canLoadMore && (
-                  <button
-                    type="button"
-                    onClick={loadMore}
-                    disabled={loadingMore}
-                    className="mt-4 inline-flex items-center rounded-xl bg-amber-400 px-4 py-2 text-sm font-extrabold uppercase tracking-wide text-white transition-colors hover:bg-amber-300 disabled:cursor-not-allowed disabled:bg-amber-200"
-                  >
-                    {loadingMore ? 'Loading...' : 'Load More'}
-                  </button>
-                )}
-              </section>
-            ) : null}
           </div>
         )}
       </div>
