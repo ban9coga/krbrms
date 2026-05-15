@@ -43,6 +43,15 @@ type EventFlags = {
 }
 
 const isLockedStatus = (status?: string | null) => String(status ?? '').toUpperCase() === 'LOCKED'
+const pickNextCheckerMotoId = (list: MotoItem[], currentId: string, preferLive = false) => {
+  const selectable = list.filter((m) => !isLockedStatus(m.status))
+  if (preferLive) {
+    const liveMoto = selectable.find((m) => isMotoLive(m.status))
+    if (liveMoto) return liveMoto.id
+  }
+  if (currentId && selectable.some((m) => m.id === currentId)) return currentId
+  return selectable.find((m) => isMotoLive(m.status))?.id ?? selectable[0]?.id ?? ''
+}
 
 type SafetyRequirement = {
   id: string
@@ -161,10 +170,10 @@ export default function JCPage() {
     return json
   }, [getToken])
 
-  const loadMotos = useCallback(async () => {
+  const loadMotos = useCallback(async (silent = false, navigateToNext = false, preferLive = false) => {
     if (!eventId) return
-    setLoading(true)
-    setErrorMessage(null)
+    if (!silent) setLoading(true)
+    if (!silent) setErrorMessage(null)
     try {
       const [motoRes, catRes, flagRes, safetyRes, ruleRes] = await Promise.all([
         fetch(`/api/motos?event_id=${eventId}`),
@@ -212,26 +221,25 @@ export default function JCPage() {
         return compareMotoSequence(a, b)
       })
       setMotos(sortedMotos)
-      const nextSelectable = sortedMotos.filter((m) => !isLockedStatus(m.status))
-      if (!selectedMotoId && nextSelectable.length) {
-        setSelectedMotoId(nextSelectable[0].id)
-      } else if (selectedMotoId) {
-        const currentStillSelectable = nextSelectable.some((m) => m.id === selectedMotoId)
-        if (!currentStillSelectable) {
-          setSelectedMotoId(nextSelectable[0]?.id ?? '')
+      const nextMotoId = pickNextCheckerMotoId(sortedMotos, selectedMotoId, preferLive)
+      if (nextMotoId !== selectedMotoId) {
+        setSelectedMotoId(nextMotoId)
+        setAllReadyDone(false)
+        if (navigateToNext && nextMotoId) {
+          router.replace(`/jc/${eventId}/${nextMotoId}`)
         }
       }
       return sortedMotos
     } catch (err: unknown) {
       setErrorMessage(err instanceof Error ? err.message : 'Gagal memuat data JC.')
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
     return []
-  }, [apiFetch, eventId, selectedMotoId])
+  }, [apiFetch, eventId, router, selectedMotoId])
 
   useEffect(() => {
-    void loadMotos()
+    void loadMotos(false, true)
   }, [loadMotos])
 
   const loadMoto = async (silent = false, preserveAllReadyDone = silent) => {
@@ -249,6 +257,10 @@ export default function JCPage() {
       ])
 
       setLocked(!!lockRes.data)
+      if (lockRes.data) {
+        await loadMotos(true, true, true)
+        return
+      }
       setRiders((riderRes.data ?? []).slice(0, 8))
 
       const statusList = (statusRes.data ?? []) as Array<{
@@ -626,14 +638,9 @@ export default function JCPage() {
               <button
               type="button"
               onClick={async () => {
-                const refreshedMotos = (await loadMotos()) ?? []
-                const nextLiveMoto = refreshedMotos.find((m) => !isLockedStatus(m.status) && isMotoLive(m.status))
-                if (nextLiveMoto) {
-                  setSelectedMotoId(nextLiveMoto.id)
-                  setAllReadyDone(false)
-                  router.replace(`/jc/${eventId}/${nextLiveMoto.id}`)
-                  return
-                }
+                const refreshedMotos = (await loadMotos(false, true, true)) ?? []
+                const nextMotoId = pickNextCheckerMotoId(refreshedMotos, selectedMotoId, true)
+                if (nextMotoId && nextMotoId !== selectedMotoId) return
                 await loadMoto(false, true)
               }}
               disabled={loading || saving}
