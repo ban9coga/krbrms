@@ -95,6 +95,13 @@ const statusBadgeClass = (status?: string | null) => {
   }
 }
 
+const statusBadgeLabel = (status?: string | null) => {
+  const normalized = (status ?? '').toUpperCase()
+  if (normalized === 'FINISH' || normalized === 'FINISHED') return 'Official Result'
+  if (normalized === 'PENDING') return 'Pending'
+  return normalized || '-'
+}
+
 const completedMotoTimestamp = (moto: MotoItem) => {
   const candidate = moto.locked_at ?? moto.provisional_at ?? null
   if (!candidate) return Number.NEGATIVE_INFINITY
@@ -530,6 +537,16 @@ export default function LiveDisplayClient({
     )
   }
 
+  const renderStatusBadge = (status?: string | null) => (
+    <span
+      className={`inline-flex w-fit rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] ${statusBadgeClass(
+        status
+      )}`}
+    >
+      {statusBadgeLabel(status)}
+    </span>
+  )
+
   return (
     <div className="min-h-screen bg-slate-950 text-white">
       <main className="mx-auto flex min-h-screen w-full max-w-[1920px] flex-col gap-6 px-4 py-4">
@@ -677,13 +694,7 @@ export default function LiveDisplayClient({
                               <td className="px-2 py-3 text-xl font-black text-slate-900">{row.point ?? '-'}</td>
                               <td className="px-2 py-3 text-sm font-extrabold text-amber-600">{row.penalty_total ?? '-'}</td>
                               <td className="px-3 py-3">
-                                <span
-                                  className={`inline-flex w-fit rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] ${statusBadgeClass(
-                                    row.status
-                                  )}`}
-                                >
-                                  {row.status === 'FINISHED' || row.status === 'FINISH' ? 'Official Result' : row.status}
-                                </span>
+                                {renderStatusBadge(row.status)}
                               </td>
                             </tr>
                           ))}
@@ -739,8 +750,8 @@ export default function LiveDisplayClient({
                             <td className="px-3 py-3 text-sm font-bold text-slate-600">{row.club || '-'}</td>
                             <td className="px-2 py-3 text-xl font-black text-slate-900">{row.point ?? '-'}</td>
                             <td className="px-2 py-3 text-sm font-extrabold text-amber-600">{row.penalty_total ?? '-'}</td>
-                            <td className="px-3 py-3 text-[11px] font-extrabold uppercase tracking-[0.08em] text-slate-600">
-                              {row.status}
+                            <td className="px-3 py-3">
+                              {renderStatusBadge(row.status)}
                             </td>
                           </tr>
                         ))}
@@ -800,8 +811,13 @@ export default function LiveDisplayClient({
                             {showLiveMoto3 && <td className="px-2 py-3 text-sm font-extrabold text-slate-700">{row.point_moto3 ?? '-'}</td>}
                             <td className="px-2 py-3 text-sm font-extrabold text-amber-600">{row.penalty_total ?? '-'}</td>
                             <td className="px-2 py-3 text-xl font-black text-slate-900">{row.total_point ?? '-'}</td>
-                            <td className="px-3 py-3 text-[11px] font-extrabold uppercase tracking-[0.08em] text-slate-600">
-                              {row.class_label || '-'}
+                            <td className="px-3 py-3">
+                              <div className="flex flex-col items-start gap-1">
+                                {row.status !== 'FINISHED' ? renderStatusBadge(row.status) : null}
+                                <span className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-slate-600">
+                                  {row.class_label || (row.status === 'FINISHED' ? 'Official Result' : '-')}
+                                </span>
+                              </div>
                             </td>
                           </tr>
                         ))}
