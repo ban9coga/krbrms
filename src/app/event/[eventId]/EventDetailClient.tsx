@@ -93,6 +93,14 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
   }
 
   const canLoadMore = riders.length < riderTotal
+  const totalFilledSlots = useMemo(
+    () => categories.reduce((sum, category) => sum + Math.max(0, Number(category.filled ?? 0)), 0),
+    [categories]
+  )
+  const upclassSlotCount = useMemo(
+    () => Math.max(0, totalFilledSlots - riderTotal),
+    [totalFilledSlots, riderTotal]
+  )
   const eventDate = event ? new Date(event.event_date) : null
   const formattedDate = eventDate
     ? eventDate.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -290,9 +298,14 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                     }`}
                   >
                     <p className="text-xs font-bold uppercase tracking-wide text-slate-300">Total Riders</p>
-                    <p className="mt-2 text-3xl font-black">{event.status === 'UPCOMING' ? '-' : riderTotal}</p>
+                    <p className="mt-2 text-3xl font-black">{event.status === 'UPCOMING' ? '-' : totalFilledSlots}</p>
                     <p className="mt-1 text-xs font-semibold text-slate-300">
-                      {event.status === 'UPCOMING' ? 'Terkunci sampai LIVE' : showRiders ? 'Sembunyikan' : 'Klik untuk lihat'}
+                      {event.status === 'UPCOMING'
+                        ? 'Terkunci sampai LIVE'
+                        : `${riderTotal} rider${upclassSlotCount > 0 ? ` + ${upclassSlotCount} rider upclass` : ''}`}
+                    </p>
+                    <p className="mt-1 text-xs font-semibold text-slate-300">
+                      {event.status === 'UPCOMING' ? '' : showRiders ? 'Sembunyikan' : 'Klik untuk lihat'}
                     </p>
                   </button>
 
