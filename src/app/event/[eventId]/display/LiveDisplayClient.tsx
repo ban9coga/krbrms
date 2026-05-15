@@ -101,6 +101,9 @@ const statusBadgeClass = (status?: string | null) => {
 const statusBadgeLabel = (status?: string | null) => {
   const normalized = (status ?? '').toUpperCase()
   if (normalized === 'FINISH' || normalized === 'FINISHED') return 'Official Result'
+  if (normalized === 'DNS') return 'DNS - Tidak Start'
+  if (normalized === 'DNF') return 'DNF - Tidak Finish'
+  if (normalized === 'DQ') return 'DQ - Diskualifikasi'
   if (normalized === 'PENDING') return 'Pending'
   return normalized || '-'
 }
@@ -584,10 +587,6 @@ export default function LiveDisplayClient({
   }
 
   const renderFinalStatusCell = (status?: string | null) => {
-    const normalized = (status ?? '').toUpperCase()
-    if (normalized === 'DNS' || normalized === 'DNF' || normalized === 'DQ') {
-      return <span className="text-sm font-black text-slate-400">-</span>
-    }
     return renderStatusBadge(status)
   }
 
