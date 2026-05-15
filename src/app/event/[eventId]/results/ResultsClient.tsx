@@ -45,11 +45,13 @@ export default function ResultsClient({ eventId }: { eventId: string }) {
     business?.show_scoring_support_publicly &&
       (business?.scoring_support_label?.trim() || business?.scoring_support_name?.trim())
   )
+  const showMc = Boolean(business?.show_mc_publicly && business?.mc_name?.trim())
   const eventOwnerName = business?.event_owner_name?.trim() || ''
   const operatingCommitteeLabel =
     business?.operating_committee_label?.trim() || business?.operating_committee_name?.trim() || ''
   const scoringSupportLabel =
     business?.scoring_support_label?.trim() || business?.scoring_support_name?.trim() || ''
+  const mcName = business?.mc_name?.trim() || ''
 
   useEffect(() => {
     const load = async () => {
@@ -111,7 +113,7 @@ export default function ResultsClient({ eventId }: { eventId: string }) {
             <p className="max-w-3xl text-sm font-semibold text-slate-200 sm:text-base">
               {publicTagline || 'Pilih race category untuk melihat peringkat, live score, dan bikin story card hasil rider.'}
             </p>
-            {(showEventOwner || showOperatingCommittee || showScoringSupport) && (
+            {(showEventOwner || showOperatingCommittee || showScoringSupport || showMc) && (
               <div className="flex flex-wrap gap-2 text-xs font-extrabold uppercase tracking-[0.12em] text-slate-100">
                 {showEventOwner && (
                   <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">Event Owner: {eventOwnerName}</span>
@@ -125,6 +127,9 @@ export default function ResultsClient({ eventId }: { eventId: string }) {
                   <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
                     Scoring Support: {scoringSupportLabel}
                   </span>
+                )}
+                {showMc && (
+                  <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">MC: {mcName}</span>
                 )}
               </div>
             )}

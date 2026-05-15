@@ -405,11 +405,13 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     business_operating_committee_label: '',
     business_scoring_support_name: '',
     business_scoring_support_label: '',
+    business_mc_name: '',
     business_central_control_enabled: true,
     business_requires_platform_approval: false,
     business_show_event_owner_publicly: false,
     business_show_operating_committee_publicly: true,
     business_show_scoring_support_publicly: true,
+    business_show_mc_publicly: true,
     race_moto_per_batch: '3',
     race_gate_positions: '8',
     race_qualification_enabled: true,
@@ -547,6 +549,8 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
             typeof business.scoring_support_name === 'string' ? business.scoring_support_name : '',
           business_scoring_support_label:
             typeof business.scoring_support_label === 'string' ? business.scoring_support_label : '',
+          business_mc_name:
+            typeof business.mc_name === 'string' ? business.mc_name : '',
           business_central_control_enabled:
             typeof business.central_control_enabled === 'boolean' ? business.central_control_enabled : true,
           business_requires_platform_approval:
@@ -557,6 +561,8 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
             typeof business.show_operating_committee_publicly === 'boolean' ? business.show_operating_committee_publicly : true,
           business_show_scoring_support_publicly:
             typeof business.show_scoring_support_publicly === 'boolean' ? business.show_scoring_support_publicly : true,
+          business_show_mc_publicly:
+            typeof business.show_mc_publicly === 'boolean' ? business.show_mc_publicly : true,
           race_moto_per_batch:
             typeof format.moto_per_batch === 'number' ? String(format.moto_per_batch) : '3',
           race_gate_positions:
@@ -1036,11 +1042,13 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
       operating_committee_label: form.business_operating_committee_label.trim() || null,
       scoring_support_name: form.business_scoring_support_name.trim() || null,
       scoring_support_label: form.business_scoring_support_label.trim() || null,
+      mc_name: form.business_mc_name.trim() || null,
       central_control_enabled: Boolean(form.business_central_control_enabled),
       requires_platform_approval: Boolean(form.business_requires_platform_approval),
       show_event_owner_publicly: Boolean(form.business_show_event_owner_publicly),
       show_operating_committee_publicly: Boolean(form.business_show_operating_committee_publicly),
       show_scoring_support_publicly: Boolean(form.business_show_scoring_support_publicly),
+      show_mc_publicly: Boolean(form.business_show_mc_publicly),
       sponsor_section_enabled: Boolean(sponsorSectionEnabled),
       sponsor_section_title: sponsorSectionTitle.trim() || null,
       sponsor_section_subtitle: sponsorSectionSubtitle.trim() || null,
@@ -1673,6 +1681,11 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                           Scoring Support: {form.business_scoring_support_label || form.business_scoring_support_name}
                         </span>
                       )}
+                    {form.business_show_mc_publicly && form.business_mc_name && (
+                      <span style={{ borderRadius: 999, border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(255,255,255,0.08)', padding: '6px 12px', fontSize: 12, fontWeight: 900 }}>
+                        MC: {form.business_mc_name}
+                      </span>
+                    )}
                     <span style={{ borderRadius: 999, border: '1px solid rgba(251,191,36,0.4)', background: 'rgba(251,191,36,0.16)', padding: '6px 12px', fontSize: 12, fontWeight: 900, color: '#fde68a' }}>
                       Central Control: {form.business_central_control_enabled ? 'Active' : 'Off'}
                     </span>
@@ -1820,6 +1833,25 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                       onChange={(e) => setForm({ ...form, business_show_scoring_support_publicly: e.target.checked })}
                     />
                     Tampilkan scoring support di halaman publik
+                  </label>
+                </div>
+                <div style={{ display: 'grid', gap: 8, marginTop: 6 }}>
+                  <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                    MC / Announcer
+                  </div>
+                  <input
+                    placeholder="Nama MC / Announcer"
+                    value={form.business_mc_name}
+                    onChange={(e) => setForm({ ...form, business_mc_name: e.target.value })}
+                    style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                  />
+                  <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 800 }}>
+                    <input
+                      type="checkbox"
+                      checked={form.business_show_mc_publicly}
+                      onChange={(e) => setForm({ ...form, business_show_mc_publicly: e.target.checked })}
+                    />
+                    Tampilkan MC di halaman publik
                   </label>
                 </div>
                 <div style={{ display: 'grid', gap: 8, marginTop: 6 }}>

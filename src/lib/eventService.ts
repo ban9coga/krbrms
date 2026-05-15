@@ -50,6 +50,10 @@ export type BusinessSettings = {
   scoring_support_contact_name?: string | null
   scoring_support_contact_phone?: string | null
   scoring_support_contact_email?: string | null
+  mc_name?: string | null
+  mc_contact_name?: string | null
+  mc_contact_phone?: string | null
+  mc_contact_email?: string | null
   platform_label?: string | null
   platform_powered_by?: string | null
   central_control_enabled?: boolean | null
@@ -57,6 +61,7 @@ export type BusinessSettings = {
   show_event_owner_publicly?: boolean | null
   show_operating_committee_publicly?: boolean | null
   show_scoring_support_publicly?: boolean | null
+  show_mc_publicly?: boolean | null
   sponsor_section_enabled?: boolean | null
   sponsor_section_title?: string | null
   sponsor_section_subtitle?: string | null

@@ -531,6 +531,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     businessSettings?.show_scoring_support_publicly &&
       (businessSettings?.scoring_support_label?.trim() || businessSettings?.scoring_support_name?.trim())
   )
+  const showMc = Boolean(businessSettings?.show_mc_publicly && businessSettings?.mc_name?.trim())
   const eventOwnerName = businessSettings?.event_owner_name?.trim() || ''
   const operatingCommitteeLabel =
     businessSettings?.operating_committee_label?.trim() ||
@@ -538,6 +539,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     ''
   const scoringSupportLabel =
     businessSettings?.scoring_support_label?.trim() || businessSettings?.scoring_support_name?.trim() || ''
+  const mcName = businessSettings?.mc_name?.trim() || ''
   const lastAutoCategoryModalKeyRef = useRef('')
   const openSlotFullModal = useCallback((message: string) => {
     setSlotFullModal({
@@ -1003,7 +1005,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
             <p className="text-base font-semibold text-slate-200 md:text-lg">
               {publicTagline || eventName || 'Form registrasi event'}
             </p>
-            {(showEventOwner || showOperatingCommittee || showScoringSupport) && (
+            {(showEventOwner || showOperatingCommittee || showScoringSupport || showMc) && (
               <div className="mt-2 flex flex-wrap gap-2 text-xs font-extrabold uppercase tracking-[0.12em] text-slate-100">
                 {showEventOwner && (
                   <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">Event Owner: {eventOwnerName}</span>
@@ -1017,6 +1019,9 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                   <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
                     Scoring Support: {scoringSupportLabel}
                   </span>
+                )}
+                {showMc && (
+                  <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">MC: {mcName}</span>
                 )}
               </div>
             )}

@@ -74,11 +74,13 @@ export default function YearClient({ eventId, year }: { eventId: string; year: s
     business?.show_scoring_support_publicly &&
       (business?.scoring_support_label?.trim() || business?.scoring_support_name?.trim())
   )
+  const showMc = Boolean(business?.show_mc_publicly && business?.mc_name?.trim())
   const eventOwnerName = business?.event_owner_name?.trim() || ''
   const operatingCommitteeLabel =
     business?.operating_committee_label?.trim() || business?.operating_committee_name?.trim() || ''
   const scoringSupportLabel =
     business?.scoring_support_label?.trim() || business?.scoring_support_name?.trim() || ''
+  const mcName = business?.mc_name?.trim() || ''
 
   return (
     <div className="public-page">
@@ -96,7 +98,7 @@ export default function YearClient({ eventId, year }: { eventId: string; year: s
             <p className="max-w-2xl text-sm font-semibold text-slate-200 sm:text-base">
               {publicTagline || `Filter race category ${year} berdasarkan nama dan status race.`}
             </p>
-            {(showEventOwner || showOperatingCommittee || showScoringSupport) && (
+            {(showEventOwner || showOperatingCommittee || showScoringSupport || showMc) && (
               <div className="flex flex-wrap gap-2 text-xs font-extrabold uppercase tracking-[0.12em] text-slate-100">
                 {showEventOwner && (
                   <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">Event Owner: {eventOwnerName}</span>
@@ -110,6 +112,9 @@ export default function YearClient({ eventId, year }: { eventId: string; year: s
                   <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
                     Scoring Support: {scoringSupportLabel}
                   </span>
+                )}
+                {showMc && (
+                  <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">MC: {mcName}</span>
                 )}
               </div>
             )}

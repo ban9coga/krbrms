@@ -97,11 +97,13 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
     business?.show_scoring_support_publicly &&
       (business?.scoring_support_label?.trim() || business?.scoring_support_name?.trim())
   )
+  const showMc = Boolean(business?.show_mc_publicly && business?.mc_name?.trim())
   const eventOwnerName = business?.event_owner_name?.trim() || ''
   const operatingCommitteeLabel =
     business?.operating_committee_label?.trim() || business?.operating_committee_name?.trim() || ''
   const scoringSupportLabel =
     business?.scoring_support_label?.trim() || business?.scoring_support_name?.trim() || ''
+  const mcName = business?.mc_name?.trim() || ''
   const daysToEvent =
     eventDate ? Math.ceil((eventDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null
   const registrationOpen = event?.registration_open !== false
@@ -229,7 +231,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                         {formattedDate ?? '-'}
                       </span>
                     </div>
-                    {(showEventOwner || showOperatingCommittee || showScoringSupport) && (
+                    {(showEventOwner || showOperatingCommittee || showScoringSupport || showMc) && (
                       <div className="flex flex-wrap gap-2 text-xs font-extrabold uppercase tracking-[0.12em] text-slate-100">
                         {showEventOwner && (
                           <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
@@ -244,6 +246,11 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                         {showScoringSupport && (
                           <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
                             Scoring Support: {scoringSupportLabel}
+                          </span>
+                        )}
+                        {showMc && (
+                          <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
+                            MC: {mcName}
                           </span>
                         )}
                       </div>

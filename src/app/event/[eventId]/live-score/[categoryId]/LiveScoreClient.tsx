@@ -152,12 +152,14 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
     business?.operating_committee_label?.trim() || business?.operating_committee_name?.trim() || ''
   const scoringSupportLabel =
     business?.scoring_support_label?.trim() || business?.scoring_support_name?.trim() || ''
+  const mcName = business?.mc_name?.trim() || ''
   const showOperatingCommittee = Boolean(
     business?.show_operating_committee_publicly && operatingCommitteeLabel
   )
   const showScoringSupport = Boolean(
     business?.show_scoring_support_publicly && scoringSupportLabel
   )
+  const showMc = Boolean(business?.show_mc_publicly && mcName)
 
   const riderPhotoCell = (name: string, noPlate: string, photoUrl?: string | null) => {
     if (photoUrl) {
@@ -230,7 +232,7 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
               <p className="text-sm font-semibold text-slate-200 sm:text-base">
                 {categoryLabel || 'Category'}
               </p>
-              {(publicTagline || showOperatingCommittee || showScoringSupport) && (
+              {(publicTagline || showOperatingCommittee || showScoringSupport || showMc) && (
                 <div className="grid gap-2">
                   {publicTagline && <p className="text-sm font-semibold text-slate-300 sm:text-[15px]">{publicTagline}</p>}
                   <div className="flex flex-wrap gap-2 text-[10px] font-extrabold uppercase tracking-[0.12em] text-slate-300 sm:text-[11px]">
@@ -243,6 +245,9 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                       <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
                         Scoring Support: {scoringSupportLabel}
                       </span>
+                    )}
+                    {showMc && (
+                      <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">MC: {mcName}</span>
                     )}
                   </div>
                 </div>
