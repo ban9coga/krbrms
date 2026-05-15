@@ -59,6 +59,34 @@ type PenaltyRule = {
   applies_to_stage: string
 }
 
+function getSafetyVisual(label: string) {
+  const normalized = label.toLowerCase()
+
+  if (normalized.includes('helm') || normalized.includes('helmet')) {
+    return { icon: '⛑', shortLabel: 'Helm' }
+  }
+  if (normalized.includes('sarung tangan') || normalized.includes('glove') || normalized.includes('gloves')) {
+    return { icon: '🧤', shortLabel: 'Gloves' }
+  }
+  if (normalized.includes('siku') || normalized.includes('elbow')) {
+    return { icon: '💪', shortLabel: 'Siku' }
+  }
+  if (normalized.includes('lutut') || normalized.includes('knee')) {
+    return { icon: '🦵', shortLabel: 'Lutut' }
+  }
+  if (normalized.includes('jersey')) {
+    return { icon: '👕', shortLabel: 'Jersey' }
+  }
+  if (normalized.includes('sepatu') || normalized.includes('shoe')) {
+    return { icon: '👟', shortLabel: 'Sepatu' }
+  }
+  if (normalized.includes('celana') || normalized.includes('pants')) {
+    return { icon: '🩳', shortLabel: 'Celana' }
+  }
+
+  return { icon: '✓', shortLabel: label }
+}
+
 export default function JCPage() {
   const router = useRouter()
   const params = useParams()
@@ -877,6 +905,7 @@ export default function JCPage() {
                 <div className="jc-safety-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
                   {safetyRequirements.map((item) => {
                     const checked = safetyChecks[r.id]?.[item.id] === true
+                    const visual = getSafetyVisual(item.label)
                     return (
                       <button
                         className="jc-action-btn"
@@ -913,9 +942,33 @@ export default function JCPage() {
                           background: checked ? '#2ecc71' : '#e5e7eb',
                           color: checked ? '#fff' : '#111',
                           fontWeight: 900,
+                          display: 'grid',
+                          gap: 4,
+                          justifyItems: 'center',
+                          alignContent: 'center',
+                          minHeight: 74,
                         }}
+                        title={item.label}
                       >
-                        {item.label} {checked ? 'OK' : ''}
+                        <span
+                          aria-hidden="true"
+                          style={{
+                            fontSize: 24,
+                            lineHeight: 1,
+                          }}
+                        >
+                          {visual.icon}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: 12,
+                            lineHeight: 1.1,
+                            textAlign: 'center',
+                            wordBreak: 'break-word',
+                          }}
+                        >
+                          {visual.shortLabel}
+                        </span>
                       </button>
                     )
                   })}
