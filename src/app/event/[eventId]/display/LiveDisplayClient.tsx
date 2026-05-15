@@ -644,7 +644,7 @@ export default function LiveDisplayClient({
                         : activeStageView
                           ? activeStageView.title
                         : liveBatchView
-                          ? `Batch ${liveBatchView.batch_index} - ${displayMoto?.moto_name ?? 'Moto'} - Live Results`
+                          ? `${displayMoto?.moto_name ?? `Batch ${liveBatchView.batch_index}`} - Live Results`
                           : 'Live Results'}
                     </h2>
                     <p className="text-sm font-semibold text-slate-500">
