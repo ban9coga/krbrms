@@ -22,7 +22,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ motoId: 
 
   const { data: requirements, error: reqError } = await adminClient
     .from('event_safety_requirements')
-    .select('id, label, is_required, sort_order, penalty_code')
+    .select('id, label, is_required, sort_order, penalty_code, icon_key')
     .eq('event_id', moto.event_id)
     .order('sort_order', { ascending: true })
   if (reqError) return NextResponse.json({ error: reqError.message }, { status: 400 })

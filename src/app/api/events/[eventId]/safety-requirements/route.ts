@@ -8,7 +8,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
 
   const { data, error } = await adminClient
     .from('event_safety_requirements')
-    .select('id, event_id, label, is_required, sort_order, penalty_code')
+    .select('id, event_id, label, is_required, sort_order, penalty_code, icon_key')
     .eq('event_id', eventId)
     .order('sort_order', { ascending: true })
 
@@ -28,6 +28,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     typeof body?.penalty_code === 'string' && body.penalty_code.trim().length > 0
       ? body.penalty_code.trim()
       : null
+  const iconKey =
+    typeof body?.icon_key === 'string' && body.icon_key.trim().length > 0
+      ? body.icon_key.trim()
+      : null
 
   if (!label) return NextResponse.json({ error: 'label required' }, { status: 400 })
   if (!Number.isFinite(sortOrderRaw)) {
@@ -44,9 +48,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
         is_required: isRequired,
         sort_order: sortOrder,
         penalty_code: penaltyCode,
+        icon_key: iconKey,
       },
     ])
-    .select('id, event_id, label, is_required, sort_order, penalty_code')
+    .select('id, event_id, label, is_required, sort_order, penalty_code, icon_key')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
@@ -58,16 +63,16 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ eventI
   const auth = await requireAdmin(req.headers.get('authorization'), eventId)
   if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const body = await req.json()
-  const { id, penalty_code } = body ?? {}
+  const { id, penalty_code, icon_key } = body ?? {}
 
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
 
   const { data, error } = await adminClient
     .from('event_safety_requirements')
-    .update({ penalty_code: penalty_code || null })
+    .update({ penalty_code: penalty_code || null, icon_key: icon_key || null })
     .eq('id', id)
     .eq('event_id', eventId)
-    .select('id, event_id, label, is_required, sort_order, penalty_code')
+    .select('id, event_id, label, is_required, sort_order, penalty_code, icon_key')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })

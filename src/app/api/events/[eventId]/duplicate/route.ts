@@ -288,7 +288,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
 
     const { data: safetyRequirementRows, error: safetyRequirementError } = await adminClient
       .from('event_safety_requirements')
-      .select('id, label, is_required, sort_order, penalty_code')
+      .select('id, label, is_required, sort_order, penalty_code, icon_key')
       .eq('event_id', eventId)
       .order('sort_order', { ascending: true })
     if (safetyRequirementError) throw new Error(safetyRequirementError.message)
@@ -303,6 +303,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
         is_required: row.is_required,
         sort_order: row.sort_order,
         penalty_code: row.penalty_code,
+        icon_key: row.icon_key ?? null,
       }
     })
     if (safetyRequirementInserts.length > 0) {

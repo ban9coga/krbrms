@@ -50,6 +50,7 @@ type SafetyRequirement = {
   is_required: boolean
   sort_order?: number | null
   penalty_code?: string | null
+  icon_key?: string | null
 }
 
 type PenaltyRule = {
@@ -59,29 +60,44 @@ type PenaltyRule = {
   applies_to_stage: string
 }
 
-function getSafetyVisual(label: string) {
+const SAFETY_ICON_OPTIONS = [
+  { key: 'helmet', icon: '⛑', shortLabel: 'Helm' },
+  { key: 'gloves', icon: '🧤', shortLabel: 'Gloves' },
+  { key: 'elbow', icon: '💪', shortLabel: 'Siku' },
+  { key: 'knee', icon: '🦵', shortLabel: 'Lutut' },
+  { key: 'jersey', icon: '👕', shortLabel: 'Jersey' },
+  { key: 'shoes', icon: '👟', shortLabel: 'Sepatu' },
+  { key: 'pants', icon: '🩳', shortLabel: 'Celana' },
+]
+
+function getSafetyVisual(label: string, iconKey?: string | null) {
+  if (iconKey) {
+    const matched = SAFETY_ICON_OPTIONS.find((option) => option.key === iconKey)
+    if (matched) return matched
+  }
+
   const normalized = label.toLowerCase()
 
   if (normalized.includes('helm') || normalized.includes('helmet')) {
-    return { icon: '⛑', shortLabel: 'Helm' }
+    return SAFETY_ICON_OPTIONS[0]
   }
   if (normalized.includes('sarung tangan') || normalized.includes('glove') || normalized.includes('gloves')) {
-    return { icon: '🧤', shortLabel: 'Gloves' }
+    return SAFETY_ICON_OPTIONS[1]
   }
   if (normalized.includes('siku') || normalized.includes('elbow')) {
-    return { icon: '💪', shortLabel: 'Siku' }
+    return SAFETY_ICON_OPTIONS[2]
   }
   if (normalized.includes('lutut') || normalized.includes('knee')) {
-    return { icon: '🦵', shortLabel: 'Lutut' }
+    return SAFETY_ICON_OPTIONS[3]
   }
   if (normalized.includes('jersey')) {
-    return { icon: '👕', shortLabel: 'Jersey' }
+    return SAFETY_ICON_OPTIONS[4]
   }
   if (normalized.includes('sepatu') || normalized.includes('shoe')) {
-    return { icon: '👟', shortLabel: 'Sepatu' }
+    return SAFETY_ICON_OPTIONS[5]
   }
   if (normalized.includes('celana') || normalized.includes('pants')) {
-    return { icon: '🩳', shortLabel: 'Celana' }
+    return SAFETY_ICON_OPTIONS[6]
   }
 
   return { icon: '✓', shortLabel: label }
@@ -905,7 +921,7 @@ export default function JCPage() {
                 <div className="jc-safety-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
                   {safetyRequirements.map((item) => {
                     const checked = safetyChecks[r.id]?.[item.id] === true
-                    const visual = getSafetyVisual(item.label)
+                    const visual = getSafetyVisual(item.label, item.icon_key)
                     return (
                       <button
                         className="jc-action-btn"

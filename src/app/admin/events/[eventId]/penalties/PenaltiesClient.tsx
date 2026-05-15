@@ -27,6 +27,7 @@ type SafetyRequirement = {
   is_required: boolean
   sort_order?: number | null
   penalty_code?: string | null
+  icon_key?: string | null
 }
 
 type RiderItem = {
@@ -57,29 +58,44 @@ type RiderGroup = {
   riders: RiderItem[]
 }
 
-function getSafetyVisual(label: string) {
+const SAFETY_ICON_OPTIONS = [
+  { key: 'helmet', icon: '⛑', shortLabel: 'Helm' },
+  { key: 'gloves', icon: '🧤', shortLabel: 'Gloves' },
+  { key: 'elbow', icon: '💪', shortLabel: 'Siku' },
+  { key: 'knee', icon: '🦵', shortLabel: 'Lutut' },
+  { key: 'jersey', icon: '👕', shortLabel: 'Jersey' },
+  { key: 'shoes', icon: '👟', shortLabel: 'Sepatu' },
+  { key: 'pants', icon: '🩳', shortLabel: 'Celana' },
+]
+
+function getSafetyVisual(label: string, iconKey?: string | null) {
+  if (iconKey) {
+    const matched = SAFETY_ICON_OPTIONS.find((option) => option.key === iconKey)
+    if (matched) return matched
+  }
+
   const normalized = label.toLowerCase()
 
   if (normalized.includes('helm') || normalized.includes('helmet')) {
-    return { icon: '⛑', shortLabel: 'Helm' }
+    return SAFETY_ICON_OPTIONS[0]
   }
   if (normalized.includes('sarung tangan') || normalized.includes('glove') || normalized.includes('gloves')) {
-    return { icon: '🧤', shortLabel: 'Gloves' }
+    return SAFETY_ICON_OPTIONS[1]
   }
   if (normalized.includes('siku') || normalized.includes('elbow')) {
-    return { icon: '💪', shortLabel: 'Siku' }
+    return SAFETY_ICON_OPTIONS[2]
   }
   if (normalized.includes('lutut') || normalized.includes('knee')) {
-    return { icon: '🦵', shortLabel: 'Lutut' }
+    return SAFETY_ICON_OPTIONS[3]
   }
   if (normalized.includes('jersey')) {
-    return { icon: '👕', shortLabel: 'Jersey' }
+    return SAFETY_ICON_OPTIONS[4]
   }
   if (normalized.includes('sepatu') || normalized.includes('shoe')) {
-    return { icon: '👟', shortLabel: 'Sepatu' }
+    return SAFETY_ICON_OPTIONS[5]
   }
   if (normalized.includes('celana') || normalized.includes('pants')) {
-    return { icon: '🩳', shortLabel: 'Celana' }
+    return SAFETY_ICON_OPTIONS[6]
   }
 
   return { icon: '✓', shortLabel: label }
@@ -108,6 +124,7 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
     label: '',
     sort_order: '',
     is_required: true,
+    icon_key: '',
   })
 
   const apiFetch = async (url: string, options: RequestInit = {}) => {
@@ -293,7 +310,7 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
     try {
       await apiFetch(`/api/events/${eventId}/safety-requirements`, {
         method: 'PATCH',
-        body: JSON.stringify({ id: req.id, penalty_code: req.penalty_code ?? null }),
+        body: JSON.stringify({ id: req.id, penalty_code: req.penalty_code ?? null, icon_key: req.icon_key ?? null }),
       })
       await loadAll()
     } finally {
@@ -317,9 +334,10 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
           label: requirementForm.label.trim(),
           sort_order: requirementForm.sort_order.trim() ? Number(requirementForm.sort_order) : 0,
           is_required: requirementForm.is_required,
+          icon_key: requirementForm.icon_key || null,
         }),
       })
-      setRequirementForm({ label: '', sort_order: '', is_required: true })
+      setRequirementForm({ label: '', sort_order: '', is_required: true, icon_key: '' })
       await loadAll()
     } finally {
       setSaving(false)
@@ -611,10 +629,10 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
               }}
             >
               <span aria-hidden="true" style={{ fontSize: 24, lineHeight: 1 }}>
-                {getSafetyVisual(requirementForm.label).icon}
+                {getSafetyVisual(requirementForm.label, requirementForm.icon_key || null).icon}
               </span>
               <span style={{ fontSize: 12, textAlign: 'center', lineHeight: 1.1 }}>
-                {getSafetyVisual(requirementForm.label).shortLabel}
+                {getSafetyVisual(requirementForm.label, requirementForm.icon_key || null).shortLabel}
               </span>
             </div>
           )}
@@ -643,6 +661,18 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
               Required
             </label>
           </div>
+          <select
+            value={requirementForm.icon_key}
+            onChange={(e) => setRequirementForm((prev) => ({ ...prev, icon_key: e.target.value }))}
+            style={{ padding: 10, borderRadius: 10, border: '2px solid #111', fontWeight: 800 }}
+          >
+            <option value="">Auto detect dari label</option>
+            {SAFETY_ICON_OPTIONS.map((option) => (
+              <option key={option.key} value={option.key}>
+                {option.icon} {option.shortLabel}
+              </option>
+            ))}
+          </select>
           <button
             type="button"
             onClick={handleCreateRequirement}
@@ -663,7 +693,7 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
         )}
         <div style={{ display: 'grid', gap: 10 }}>
           {requirements.map((req) => {
-            const visual = getSafetyVisual(req.label)
+            const visual = getSafetyVisual(req.label, req.icon_key)
             return (
             <div key={req.id} style={{ display: 'grid', gap: 8, padding: 12, borderRadius: 12, border: '2px solid #111' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -702,6 +732,22 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
                 Sort: {req.sort_order ?? 0} | {req.is_required ? 'Required' : 'Optional'}
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <select
+                  value={req.icon_key ?? ''}
+                  onChange={(e) =>
+                    setRequirements((prev) =>
+                      prev.map((r) => (r.id === req.id ? { ...r, icon_key: e.target.value || null } : r))
+                    )
+                  }
+                  style={{ padding: '8px 10px', borderRadius: 10, border: '2px solid #111', fontWeight: 800 }}
+                >
+                  <option value="">Auto icon</option>
+                  {SAFETY_ICON_OPTIONS.map((option) => (
+                    <option key={`${req.id}-${option.key}`} value={option.key}>
+                      {option.icon} {option.shortLabel}
+                    </option>
+                  ))}
+                </select>
                 <select
                   value={req.penalty_code ?? ''}
                   onChange={(e) =>
