@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../../../../../lib/supabaseClient'
 
 type FeatureFlags = {
@@ -110,6 +110,7 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
   const [expandedCategoryId, setExpandedCategoryId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const [ruleForm, setRuleForm] = useState({
     code: '',
@@ -127,30 +128,45 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
     icon_key: '',
   })
 
-  const apiFetch = async (url: string, options: RequestInit = {}) => {
+  const getToken = useCallback(async () => {
     const { data } = await supabase.auth.getSession()
-    const token = data.session?.access_token
+    if (data.session?.access_token) return data.session.access_token
+    const refreshed = await supabase.auth.refreshSession()
+    return refreshed.data.session?.access_token ?? null
+  }, [])
+
+  const apiFetch = useCallback(async (url: string, options: RequestInit = {}, retryUnauthorized = true) => {
+    const token = await getToken()
     const headers: Record<string, string> = {}
     if (token) headers.Authorization = `Bearer ${token}`
     if (!(options.body instanceof FormData)) headers['Content-Type'] = 'application/json'
     const res = await fetch(url, { ...options, headers })
     const json = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(json?.error || 'Request failed')
+    if (!res.ok) {
+      if (res.status === 401 && retryUnauthorized) {
+        return apiFetch(url, options, false)
+      }
+      if (res.status === 401) {
+        throw new Error('Session login habis. Silakan login ulang.')
+      }
+      throw new Error(json?.error || 'Request failed')
+    }
     return json
-  }
+  }, [getToken])
 
   const loadAll = async () => {
     setLoading(true)
+    setErrorMessage(null)
     try {
       const [flagRes, ruleRes, statusRes, reqRes] = await Promise.all([
-        fetch(`/api/events/${eventId}/modules`),
-        fetch(`/api/events/${eventId}/penalties`),
-        fetch(`/api/events/${eventId}/rider-status`),
+        apiFetch(`/api/events/${eventId}/modules`),
+        apiFetch(`/api/events/${eventId}/penalties`),
+        apiFetch(`/api/events/${eventId}/rider-status`),
         apiFetch(`/api/events/${eventId}/safety-requirements`),
       ])
-      const flagJson = await flagRes.json()
-      const ruleJson = await ruleRes.json()
-      const statusJson = await statusRes.json()
+      const flagJson = flagRes
+      const ruleJson = ruleRes
+      const statusJson = statusRes
       const reqJson = reqRes
 
       setFlags(flagJson.data ?? { penalty_enabled: false, absent_enabled: false, dns_enabled: false, dnf_enabled: false })
@@ -223,6 +239,10 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
         if (prev && grouped.some((g) => g.id === prev)) return prev
         return grouped[0]?.id ?? null
       })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Gagal memuat data penalties.'
+      setErrorMessage(message)
+      alert(message)
     } finally {
       setLoading(false)
     }
@@ -242,6 +262,11 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
         body: JSON.stringify(next),
       })
       setFlags(json.data)
+      setErrorMessage(null)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Gagal menyimpan feature flags.'
+      setErrorMessage(message)
+      alert(message)
     } finally {
       setSaving(false)
     }
@@ -276,6 +301,11 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
         rd_enabled: true,
       })
       await loadAll()
+      setErrorMessage(null)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Gagal menambah penalty rule.'
+      setErrorMessage(message)
+      alert(message)
     } finally {
       setSaving(false)
     }
@@ -289,6 +319,11 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
         body: JSON.stringify(rule),
       })
       await loadAll()
+      setErrorMessage(null)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Gagal menyimpan penalty rule.'
+      setErrorMessage(message)
+      alert(message)
     } finally {
       setSaving(false)
     }
@@ -300,6 +335,11 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
     try {
       await apiFetch(`/api/events/${eventId}/penalties/${ruleId}`, { method: 'DELETE' })
       await loadAll()
+      setErrorMessage(null)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Gagal menghapus penalty rule.'
+      setErrorMessage(message)
+      alert(message)
     } finally {
       setSaving(false)
     }
@@ -313,6 +353,11 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
         body: JSON.stringify({ id: req.id, penalty_code: req.penalty_code ?? null, icon_key: req.icon_key ?? null }),
       })
       await loadAll()
+      setErrorMessage(null)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Gagal menyimpan safety mapping.'
+      setErrorMessage(message)
+      alert(message)
     } finally {
       setSaving(false)
     }
@@ -339,6 +384,11 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
       })
       setRequirementForm({ label: '', sort_order: '', is_required: true, icon_key: '' })
       await loadAll()
+      setErrorMessage(null)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Gagal menambah safety requirement.'
+      setErrorMessage(message)
+      alert(message)
     } finally {
       setSaving(false)
     }
@@ -356,6 +406,11 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
         }),
       })
       await loadAll()
+      setErrorMessage(null)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Gagal menyimpan rider status.'
+      setErrorMessage(message)
+      alert(message)
     } finally {
       setSaving(false)
     }
@@ -367,6 +422,21 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
       <div style={{ marginTop: 8, color: '#333', fontWeight: 700 }}>
         Modul ini optional dan hanya aktif jika di-enable untuk event ini.
       </div>
+      {errorMessage && (
+        <div
+          style={{
+            marginTop: 12,
+            padding: '10px 12px',
+            borderRadius: 12,
+            border: '2px solid #b91c1c',
+            background: '#fee2e2',
+            color: '#991b1b',
+            fontWeight: 800,
+          }}
+        >
+          {errorMessage}
+        </div>
+      )}
 
       <div
         style={{

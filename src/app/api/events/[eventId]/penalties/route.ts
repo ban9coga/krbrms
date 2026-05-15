@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../lib/auth'
 
-export async function GET(_: Request, { params }: { params: Promise<{ eventId: string }> }) {
+export async function GET(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params
+  const auth = await requireAdmin(req.headers.get('authorization'), eventId)
+  if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { data, error } = await adminClient
     .from('event_penalty_rules')
     .select('id, event_id, code, description, penalty_point, applies_to_stage, is_active, checker_enabled, rd_enabled')
