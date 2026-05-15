@@ -61,6 +61,8 @@ type StageAssignmentRow = {
   final_class: string | null
 }
 
+type QualificationMotoStatus = 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'PENDING'
+
 const shuffle = <T,>(items: T[]) => {
   const out = [...items]
   for (let i = out.length - 1; i > 0; i--) {
@@ -360,19 +362,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
           (moto2 ? moto2Result?.result_status === 'DQ' : false) ||
           (moto3 ? moto3Result?.result_status === 'DQ' : false)
             ? 'DQ'
-            : riderStatus === 'ABSENT'
-              ? 'DNS'
-              : moto1Result?.result_status === 'DNS' || (moto2 ? moto2Result?.result_status === 'DNS' : false)
-                ? 'DNS'
-                : moto3Result?.result_status === 'DNF' ||
-                    (moto2 ? moto2Result?.result_status === 'DNF' : false) ||
-                    moto1Result?.result_status === 'DNF'
-                  ? 'DNF'
-                  : moto1Result?.result_status === 'FINISH' &&
-                      (!moto2 || moto2Result?.result_status === 'FINISH') &&
-                      (!moto3 || moto3Result?.result_status === 'FINISH')
-                    ? 'FINISHED'
-                    : 'PENDING'
+            : riderStatus === 'ABSENT' && hasRecordedResult
+              ? 'FINISHED'
+              : moto1Result && (!moto2 || moto2Result) && (!moto3 || moto3Result)
+                ? 'FINISHED'
+                : 'PENDING'
         return {
           rider_id: riderId,
           gate_moto1: gate1Map.get(riderId) ?? null,
@@ -386,6 +380,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
           point_moto1: point1,
           point_moto2: point2,
           point_moto3: point3,
+          moto1_status: (moto1Result?.result_status ?? 'PENDING') as QualificationMotoStatus,
+          moto2_status: (moto2Result?.result_status ?? 'PENDING') as QualificationMotoStatus,
+          moto3_status: (moto3Result?.result_status ?? 'PENDING') as QualificationMotoStatus,
           penalty_total: penaltyTotalDisplay,
           total_point: totalPoint,
           status,

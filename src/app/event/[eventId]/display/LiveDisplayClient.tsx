@@ -20,6 +20,9 @@ type Row = {
   point_moto1: number | null
   point_moto2: number | null
   point_moto3: number | null
+  moto1_status?: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'PENDING' | null
+  moto2_status?: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'PENDING' | null
+  moto3_status?: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'PENDING' | null
   penalty_total: number | null
   total_point: number | null
   rank_point: number | null
@@ -100,6 +103,28 @@ const statusBadgeLabel = (status?: string | null) => {
   if (normalized === 'FINISH' || normalized === 'FINISHED') return 'Official Result'
   if (normalized === 'PENDING') return 'Pending'
   return normalized || '-'
+}
+
+const renderMotoResultCell = (
+  point: number | null,
+  status?: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'PENDING' | null
+) => {
+  const normalized = (status ?? 'PENDING').toUpperCase()
+  if (normalized === 'DNF' || normalized === 'DNS' || normalized === 'DQ') {
+    return (
+      <div className="flex flex-col items-start gap-1">
+        <span
+          className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] ${statusBadgeClass(
+            normalized
+          )}`}
+        >
+          {statusBadgeLabel(normalized)}
+        </span>
+        {point !== null ? <span className="text-[10px] font-black text-slate-500">{point}</span> : null}
+      </div>
+    )
+  }
+  return point ?? '-'
 }
 
 const completedMotoTimestamp = (moto: MotoItem) => {
@@ -619,7 +644,7 @@ export default function LiveDisplayClient({
                         : activeStageView
                           ? activeStageView.title
                         : liveBatchView
-                          ? `Batch ${liveBatchView.batch_index} - Live Results`
+                          ? `Batch ${liveBatchView.batch_index} - ${displayMoto?.moto_name ?? 'Moto'} - Live Results`
                           : 'Live Results'}
                     </h2>
                     <p className="text-sm font-semibold text-slate-500">
@@ -806,14 +831,14 @@ export default function LiveDisplayClient({
                               </div>
                             </td>
                             <td className="px-3 py-3 text-sm font-bold text-slate-600">{row.club || '-'}</td>
-                            <td className="px-2 py-3 text-sm font-extrabold text-slate-700">{row.point_moto1 ?? '-'}</td>
-                            <td className="px-2 py-3 text-sm font-extrabold text-slate-700">{row.point_moto2 ?? '-'}</td>
-                            {showLiveMoto3 && <td className="px-2 py-3 text-sm font-extrabold text-slate-700">{row.point_moto3 ?? '-'}</td>}
+                            <td className="px-2 py-3 text-sm font-extrabold text-slate-700">{renderMotoResultCell(row.point_moto1, row.moto1_status)}</td>
+                            <td className="px-2 py-3 text-sm font-extrabold text-slate-700">{renderMotoResultCell(row.point_moto2, row.moto2_status)}</td>
+                            {showLiveMoto3 && <td className="px-2 py-3 text-sm font-extrabold text-slate-700">{renderMotoResultCell(row.point_moto3, row.moto3_status)}</td>}
                             <td className="px-2 py-3 text-sm font-extrabold text-amber-600">{row.penalty_total ?? '-'}</td>
                             <td className="px-2 py-3 text-xl font-black text-slate-900">{row.total_point ?? '-'}</td>
                             <td className="px-3 py-3">
                               <div className="flex flex-col items-start gap-1">
-                                {row.status !== 'FINISHED' ? renderStatusBadge(row.status) : null}
+                                {row.status === 'DQ' || row.status === 'PENDING' ? renderStatusBadge(row.status) : null}
                                 <span className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-slate-600">
                                   {row.class_label || (row.status === 'FINISHED' ? 'Official Result' : '-')}
                                 </span>

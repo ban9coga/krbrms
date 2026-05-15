@@ -19,6 +19,9 @@ type Row = {
   point_moto1: number | null
   point_moto2: number | null
   point_moto3: number | null
+  moto1_status?: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'PENDING' | null
+  moto2_status?: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'PENDING' | null
+  moto3_status?: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'PENDING' | null
   penalty_total: number | null
   total_point: number | null
   rank_point: number | null
@@ -66,6 +69,28 @@ const statusBadgeClass = (status: string) => {
     default:
       return 'border-emerald-300 bg-emerald-50 text-emerald-700'
   }
+}
+
+const renderMotoResultCell = (
+  point: number | null,
+  status?: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'PENDING' | null
+) => {
+  const normalized = (status ?? 'PENDING').toUpperCase()
+  if (normalized === 'DNF' || normalized === 'DNS' || normalized === 'DQ') {
+    return (
+      <div className="flex flex-col items-start gap-1">
+        <span
+          className={`inline-flex w-fit rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] ${statusBadgeClass(
+            normalized
+          )}`}
+        >
+          {normalized}
+        </span>
+        {point !== null ? <span className="text-[10px] font-black text-slate-500">{point}</span> : null}
+      </div>
+    )
+  }
+  return point ?? '-'
 }
 
 export default function LiveScoreClient({ eventId, categoryId }: { eventId: string; categoryId: string }) {
@@ -310,15 +335,15 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                         <td className="whitespace-nowrap font-extrabold text-slate-900">{row.name}</td>
                         <td>{row.no_plate}</td>
                         <td className="whitespace-nowrap">{row.club || '-'}</td>
-                        <td>{row.point_moto1 ?? '-'}</td>
-                        <td>{row.point_moto2 ?? '-'}</td>
-                        {showMoto3 && <td>{row.point_moto3 ?? '-'}</td>}
+                        <td>{renderMotoResultCell(row.point_moto1, row.moto1_status)}</td>
+                        <td>{renderMotoResultCell(row.point_moto2, row.moto2_status)}</td>
+                        {showMoto3 && <td>{renderMotoResultCell(row.point_moto3, row.moto3_status)}</td>}
                         <td className="font-extrabold text-amber-600">{row.penalty_total ?? '-'}</td>
                         <td className="font-extrabold text-sky-700">{row.total_point ?? '-'}</td>
                         <td className="font-extrabold text-emerald-700">
                           <div className="flex flex-col gap-1">
                             <span>{row.rank_point ?? '-'}</span>
-                            {row.status !== 'FINISHED' && (
+                            {(row.status === 'DQ' || row.status === 'PENDING') && (
                               <span
                                 className={`inline-flex w-fit rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] ${statusBadgeClass(row.status)}`}
                               >
