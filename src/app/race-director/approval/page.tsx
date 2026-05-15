@@ -16,11 +16,23 @@ type StatusUpdate = {
 type PenaltyRow = {
   id: string
   rider_id: string
+  moto_id?: string | null
   stage: string
   rule_code: string
   penalty_point: number
   note?: string | null
   created_at: string
+}
+
+type ApprovedMotoPenaltyRow = PenaltyRow & {
+  moto_id: string
+  event_id: string
+  riders?: RiderItem | RiderItem[] | null
+  rider_penalty_approvals?: Array<{
+    approval_status: string
+    approved_at?: string | null
+    approved_by?: string | null
+  }>
 }
 
 type MotoRow = {
@@ -148,6 +160,12 @@ export default function RaceDirectorApprovalPage() {
   })
   const [dqCategoryRiders, setDqCategoryRiders] = useState<RiderItem[]>([])
   const [settingDq, setSettingDq] = useState(false)
+  const [penaltyReviewCategoryId, setPenaltyReviewCategoryId] = useState('')
+  const [penaltyReviewMotoId, setPenaltyReviewMotoId] = useState('')
+  const [approvedMotoPenalties, setApprovedMotoPenalties] = useState<ApprovedMotoPenaltyRow[]>([])
+  const [loadingApprovedPenalties, setLoadingApprovedPenalties] = useState(false)
+  const [voidReasons, setVoidReasons] = useState<Record<string, string>>({})
+  const [voidingPenaltyId, setVoidingPenaltyId] = useState<string | null>(null)
 
   const apiFetch = useCallback(async (url: string, options: RequestInit = {}) => {
     const { data } = await supabase.auth.getSession()
@@ -352,6 +370,7 @@ export default function RaceDirectorApprovalPage() {
       if (prev.categoryId || !firstEnabled) return prev
       return { ...prev, categoryId: firstEnabled }
     })
+    setPenaltyReviewCategoryId((prev) => prev || firstEnabled)
   }, [categoriesSorted])
 
   useEffect(() => {
@@ -461,6 +480,46 @@ export default function RaceDirectorApprovalPage() {
     if (!dqForm.categoryId) return []
     return motosByCategory.get(dqForm.categoryId) ?? []
   }, [dqForm.categoryId, motosByCategory])
+
+  const penaltyReviewMotos = useMemo(() => {
+    if (!penaltyReviewCategoryId) return []
+    return motosByCategory.get(penaltyReviewCategoryId) ?? []
+  }, [motosByCategory, penaltyReviewCategoryId])
+
+  useEffect(() => {
+    if (!penaltyReviewCategoryId) {
+      setPenaltyReviewMotoId('')
+      return
+    }
+    setPenaltyReviewMotoId((prev) => {
+      if (prev && penaltyReviewMotos.some((moto) => moto.id === prev)) return prev
+      return penaltyReviewMotos[0]?.id ?? ''
+    })
+  }, [penaltyReviewCategoryId, penaltyReviewMotos])
+
+  const loadApprovedMotoPenalties = useCallback(
+    async (targetMotoId = penaltyReviewMotoId) => {
+      if (!targetMotoId) {
+        setApprovedMotoPenalties([])
+        return
+      }
+      setLoadingApprovedPenalties(true)
+      try {
+        const res = await apiFetch(`/api/race-director/motos/${targetMotoId}/penalties`)
+        setApprovedMotoPenalties((res.data ?? []) as ApprovedMotoPenaltyRow[])
+      } catch (err: unknown) {
+        setApprovedMotoPenalties([])
+        showNotice('error', getErrorMessage(err))
+      } finally {
+        setLoadingApprovedPenalties(false)
+      }
+    },
+    [apiFetch, penaltyReviewMotoId, showNotice]
+  )
+
+  useEffect(() => {
+    void loadApprovedMotoPenalties()
+  }, [loadApprovedMotoPenalties])
 
   const timeAgo = (iso: string) => {
     const diff = Date.now() - new Date(iso).getTime()
@@ -663,6 +722,39 @@ export default function RaceDirectorApprovalPage() {
       showNotice('error', getErrorMessage(err))
     } finally {
       setSettingDq(false)
+    }
+  }
+
+  const getApprovedPenaltyRider = (penalty: ApprovedMotoPenaltyRow) => {
+    const rider = Array.isArray(penalty.riders) ? penalty.riders[0] : penalty.riders
+    return rider ?? riderMap[penalty.rider_id] ?? null
+  }
+
+  const handleVoidPenalty = async (penaltyId: string) => {
+    if (!penaltyReviewMotoId) return
+    const reason = (voidReasons[penaltyId] ?? '').trim()
+    if (!reason) {
+      showNotice('error', 'Alasan void penalty wajib diisi.')
+      return
+    }
+    setVoidingPenaltyId(penaltyId)
+    try {
+      await apiFetch(`/api/race-director/motos/${penaltyReviewMotoId}/penalties`, {
+        method: 'POST',
+        body: JSON.stringify({ penalty_id: penaltyId, reason }),
+      })
+      setVoidReasons((prev) => {
+        const next = { ...prev }
+        delete next[penaltyId]
+        return next
+      })
+      await loadApprovedMotoPenalties(penaltyReviewMotoId)
+      await loadEventData({ silent: true, includeHeavy: true })
+      showNotice('success', 'Penalty berhasil di-void dan audit log sudah dicatat.')
+    } catch (err: unknown) {
+      showNotice('error', getErrorMessage(err))
+    } finally {
+      setVoidingPenaltyId(null)
     }
   }
 
@@ -904,6 +996,136 @@ export default function RaceDirectorApprovalPage() {
                   {settingDq ? 'Menyimpan...' : 'Set DQ'}
                 </button>
               </div>
+            </div>
+          </section>
+
+          <section className="public-panel-light">
+            <div style={{ fontWeight: 900, fontSize: 18 }}>Void Penalty Moto</div>
+            <div style={{ marginTop: 6, fontSize: 13, fontWeight: 700, color: '#475569' }}>
+              Untuk koreksi protest: penalty approved bisa di-void oleh RD dengan alasan wajib. Point tidak dihitung lagi,
+              riwayat penalty tetap tersimpan.
+            </div>
+            <div style={{ marginTop: 12, display: 'grid', gap: 12 }}>
+              <div className="rd-form-grid" style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+                <div style={{ display: 'grid', gap: 6 }}>
+                  <label style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Kategori</label>
+                  <select
+                    value={penaltyReviewCategoryId}
+                    onChange={(e) => {
+                      setPenaltyReviewCategoryId(e.target.value)
+                      setApprovedMotoPenalties([])
+                    }}
+                    className="public-filter"
+                  >
+                    <option value="">Pilih kategori</option>
+                    {categoriesSorted.map((cat) => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div style={{ display: 'grid', gap: 6 }}>
+                  <label style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Moto</label>
+                  <select
+                    value={penaltyReviewMotoId}
+                    onChange={(e) => setPenaltyReviewMotoId(e.target.value)}
+                    className="public-filter"
+                  >
+                    <option value="">Pilih moto</option>
+                    {penaltyReviewMotos.map((moto) => (
+                      <option key={moto.id} value={moto.id}>
+                        {moto.moto_order}. {moto.moto_name} - {moto.status}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  onClick={() => void loadApprovedMotoPenalties()}
+                  disabled={!penaltyReviewMotoId || loadingApprovedPenalties}
+                  className="inline-flex items-center justify-center rounded-xl border border-sky-300 bg-sky-100 px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.1em] text-sky-800 transition-colors hover:bg-sky-200 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {loadingApprovedPenalties ? 'Memuat...' : 'Refresh Penalty'}
+                </button>
+              </div>
+
+              {loadingApprovedPenalties ? (
+                <div style={{ border: '2px dashed #111', borderRadius: 12, padding: 12, fontWeight: 900 }}>
+                  Memuat penalty approved...
+                </div>
+              ) : approvedMotoPenalties.length === 0 ? (
+                <div style={{ border: '2px dashed #111', borderRadius: 12, padding: 12, fontWeight: 800 }}>
+                  Belum ada penalty approved untuk moto ini.
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gap: 10 }}>
+                  {approvedMotoPenalties.map((penalty) => {
+                    const rider = getApprovedPenaltyRider(penalty)
+                    const riderLabel = rider ? `${rider.no_plate_display} - ${rider.name}` : penalty.rider_id
+                    const reason = voidReasons[penalty.id] ?? ''
+                    return (
+                      <div
+                        key={penalty.id}
+                        style={{
+                          border: '2px solid #111',
+                          borderRadius: 12,
+                          background: '#fff7ed',
+                          padding: 12,
+                          display: 'grid',
+                          gap: 10,
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+                          <div>
+                            <div style={{ fontWeight: 950 }}>{riderLabel}</div>
+                            <div style={{ marginTop: 3, fontSize: 12, fontWeight: 800, color: '#475569' }}>
+                              {penalty.rule_code} | {penalty.penalty_point} pts | {timeAgo(penalty.created_at)}
+                            </div>
+                            {penalty.note && (
+                              <div style={{ marginTop: 4, fontSize: 12, fontWeight: 700, color: '#64748b' }}>
+                                Catatan: {penalty.note}
+                              </div>
+                            )}
+                          </div>
+                          <span
+                            style={{
+                              alignSelf: 'flex-start',
+                              border: '2px solid #111',
+                              borderRadius: 999,
+                              background: '#dcfce7',
+                              padding: '4px 10px',
+                              fontSize: 12,
+                              fontWeight: 950,
+                            }}
+                          >
+                            APPROVED
+                          </span>
+                        </div>
+                        <div className="rd-form-grid" style={{ display: 'grid', gap: 8, gridTemplateColumns: '1fr auto' }}>
+                          <input
+                            value={reason}
+                            onChange={(e) => setVoidReasons((prev) => ({ ...prev, [penalty.id]: e.target.value }))}
+                            className="public-filter"
+                            placeholder="Alasan void penalty wajib diisi"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => void handleVoidPenalty(penalty.id)}
+                            disabled={voidingPenaltyId === penalty.id || !reason.trim()}
+                            className="inline-flex items-center justify-center rounded-xl border border-orange-300 bg-orange-100 px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.1em] text-orange-800 transition-colors hover:bg-orange-200 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {voidingPenaltyId === penalty.id ? 'Void...' : 'Void Penalty'}
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           </section>
 
