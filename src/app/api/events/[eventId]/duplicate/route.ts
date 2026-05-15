@@ -179,11 +179,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
 
     await copySimplePrimaryEventTable(
       'event_feature_flags',
-      'penalty_enabled, absent_enabled',
+      'penalty_enabled, absent_enabled, dns_enabled, dnf_enabled',
       (row) => ({
         event_id: newEventId,
         penalty_enabled: row.penalty_enabled,
         absent_enabled: row.absent_enabled,
+        dns_enabled: row.dns_enabled,
+        dnf_enabled: row.dnf_enabled,
       })
     )
 
@@ -268,7 +270,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
 
     const { data: eventPenaltyRuleRows, error: eventPenaltyRuleError } = await adminClient
       .from('event_penalty_rules')
-      .select('id, code, description, penalty_point, applies_to_stage, is_active')
+      .select('id, code, description, penalty_point, applies_to_stage, is_active, checker_enabled, rd_enabled')
       .eq('event_id', eventId)
       .order('created_at', { ascending: true })
     if (eventPenaltyRuleError) throw new Error(eventPenaltyRuleError.message)
@@ -280,6 +282,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       penalty_point: row.penalty_point,
       applies_to_stage: row.applies_to_stage,
       is_active: row.is_active,
+      checker_enabled: row.checker_enabled ?? true,
+      rd_enabled: row.rd_enabled ?? true,
     }))
     if (eventPenaltyRuleInserts.length > 0) {
       const { error } = await adminClient.from('event_penalty_rules').insert(eventPenaltyRuleInserts)
