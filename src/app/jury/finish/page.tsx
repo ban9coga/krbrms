@@ -280,6 +280,12 @@ export default function JuryFinishPage() {
     return finishOrder.map((id, idx) => ({ id, position: idx + 1 }))
   }, [finishOrder])
 
+  const dnsRiders = useMemo(() => {
+    return riders
+      .filter((r) => participationByRider[r.id] === 'DNS')
+      .map((r) => r.id)
+  }, [participationByRider, riders])
+
   const vibrate = () => {
     if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
       navigator.vibrate(VIBRATE_MS)
@@ -684,6 +690,23 @@ export default function JuryFinishPage() {
                     )
                   })}
                   {dnfRiders.length === 0 && <div className="text-sm font-semibold text-slate-500">Kosong.</div>}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-3">
+                <div className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-slate-500">DNS</div>
+                <div className="mt-2 grid gap-1.5">
+                  {dnsRiders.map((id) => {
+                    const rider = riders.find((r) => r.id === id)
+                    const penalty = penaltiesByRider[id] ?? 0
+                    return (
+                      <div key={id} className="text-sm font-semibold text-rose-700">
+                        {rider?.no_plate_display} - {rider?.name}
+                        {penalty ? ` (+${penalty})` : ''}
+                      </div>
+                    )
+                  })}
+                  {dnsRiders.length === 0 && <div className="text-sm font-semibold text-slate-500">Kosong.</div>}
                 </div>
               </div>
 
