@@ -59,6 +59,9 @@ type StageAssignmentRow = {
   rider_id: string
   stage: 'QUALIFICATION' | 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL'
   final_class: string | null
+  batch_id?: string | null
+  position?: number | null
+  points?: number | null
 }
 
 type QualificationMotoStatus = 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'PENDING'
@@ -317,7 +320,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
 
   const { data: stageAssignments, error: stageAssignmentError } = await adminClient
     .from('race_stage_result')
-    .select('rider_id, stage, final_class')
+    .select('rider_id, stage, final_class, batch_id, position, points')
     .eq('category_id', categoryId)
     .in('stage', ['QUARTER_FINAL', 'SEMI_FINAL', 'FINAL'])
   if (stageAssignmentError) return NextResponse.json({ error: stageAssignmentError.message }, { status: 400 })
@@ -331,6 +334,28 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     }
     stageAssignmentMap.set(row.rider_id, row.stage.replace(/_/g, ' '))
   })
+
+  const qualificationSeedMap = new Map<string, { points: number; position: number; batchOrder: number }>()
+  const { data: qualificationSeeds, error: qualificationSeedError } = await adminClient
+    .from('race_stage_result')
+    .select('rider_id, batch_id, position, points')
+    .eq('category_id', categoryId)
+    .eq('stage', 'QUALIFICATION')
+  if (qualificationSeedError) return NextResponse.json({ error: qualificationSeedError.message }, { status: 400 })
+  const qualificationBatchOrderById = new Map<string, number>()
+  for (const moto of motoRows) {
+    const parsed = parseBatchKey(moto.moto_name)
+    if (parsed && parsed.motoIndex === 1) {
+      qualificationBatchOrderById.set(moto.id, parsed.batchIndex)
+    }
+  }
+  for (const row of qualificationSeeds ?? []) {
+    qualificationSeedMap.set(row.rider_id, {
+      points: row.points ?? Number.MAX_SAFE_INTEGER,
+      position: row.position ?? Number.MAX_SAFE_INTEGER,
+      batchOrder: row.batch_id ? qualificationBatchOrderById.get(row.batch_id) ?? Number.MAX_SAFE_INTEGER : Number.MAX_SAFE_INTEGER,
+    })
+  }
 
   const batches = batchEntries
     .map(([batchIndex, entry]) => {
@@ -471,6 +496,20 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     const gateMap = new Map(gates.map((g) => [g.rider_id, g.gate_position]))
     const assignedRiderIds = motoRiderRows.filter((row) => row.moto_id === moto.id).map((row) => row.rider_id)
     const riderIdsInMoto = Array.from(new Set([...assignedRiderIds, ...gates.map((g) => g.rider_id)]))
+    if (gateMap.size === 0 && /^final /i.test(moto.moto_name)) {
+      const ordered = [...riderIdsInMoto].sort((a, b) => {
+        const seedA = qualificationSeedMap.get(a)
+        const seedB = qualificationSeedMap.get(b)
+        const pointsDiff = (seedA?.points ?? Number.MAX_SAFE_INTEGER) - (seedB?.points ?? Number.MAX_SAFE_INTEGER)
+        if (pointsDiff !== 0) return pointsDiff
+        const batchDiff = (seedA?.batchOrder ?? Number.MAX_SAFE_INTEGER) - (seedB?.batchOrder ?? Number.MAX_SAFE_INTEGER)
+        if (batchDiff !== 0) return batchDiff
+        const positionDiff = (seedA?.position ?? Number.MAX_SAFE_INTEGER) - (seedB?.position ?? Number.MAX_SAFE_INTEGER)
+        if (positionDiff !== 0) return positionDiff
+        return a.localeCompare(b)
+      })
+      ordered.forEach((riderId, index) => gateMap.set(riderId, index + 1))
+    }
     const riderCount = riderIdsInMoto.length || null
 
     const stagePenaltyStages = resolvePenaltyStagesForMoto(moto.moto_name)
