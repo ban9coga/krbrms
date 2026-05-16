@@ -139,6 +139,22 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
     .upsert(payload, { onConflict: 'moto_id,rider_id' })
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
+  const activeRows = payload
+    .filter((row) => row.result_status === 'FINISH' || row.result_status === 'DNF')
+    .map((row) => ({
+      event_id: moto.event_id,
+      moto_id: motoId,
+      rider_id: row.rider_id,
+      participation_status: 'ACTIVE',
+      registration_order: row.finish_order ?? 0,
+    }))
+  if (activeRows.length > 0) {
+    const { error: activeStatusError } = await adminClient
+      .from('rider_participation_status')
+      .upsert(activeRows, { onConflict: 'event_id,moto_id,rider_id' })
+    if (activeStatusError) return NextResponse.json({ error: activeStatusError.message }, { status: 400 })
+  }
+
   await adminClient
     .from('motos')
     .update({ status: 'PROVISIONAL', provisional_at: new Date().toISOString() })

@@ -55,6 +55,22 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     approvedMap.set(row.rider_id, row.participation_status)
   }
 
+  if (motoId) {
+    const { data: resultRows, error: resultError } = await adminClient
+      .from('results')
+      .select('rider_id, result_status')
+      .eq('moto_id', motoId)
+    if (resultError) return NextResponse.json({ error: resultError.message }, { status: 400 })
+    for (const row of resultRows ?? []) {
+      if (row.result_status === 'FINISH' || row.result_status === 'DNF') {
+        approvedMap.set(row.rider_id, 'ACTIVE')
+      }
+      if (row.result_status === 'DNS') {
+        approvedMap.set(row.rider_id, 'DNS')
+      }
+    }
+  }
+
   const latestUpdate = new Map<string, { proposed_status: string; approval_status: string }>()
   for (const row of updates ?? []) {
     if (!latestUpdate.has(row.rider_id)) {
