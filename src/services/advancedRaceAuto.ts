@@ -366,27 +366,6 @@ const isFinalClassReady = (
   return readiness.qualificationReady
 }
 
-const resolveFinalSeedRows = (
-  finalClass: string,
-  qualificationRows: StageResultSeedRow[],
-  quarterResultRows: StageResultSeedRow[],
-  semiResultRows: StageResultSeedRow[]
-) => {
-  if (finalClass === 'ADVANCED' || finalClass === 'ACADEMY' || finalClass === 'AMATEUR' || finalClass === 'BEGINNER') {
-    return qualificationRows
-  }
-
-  if (finalClass === 'PRO' || finalClass === 'ROOKIE') {
-    return quarterResultRows.length > 0 ? quarterResultRows : qualificationRows
-  }
-
-  if (finalClass === 'ELITE' || finalClass === 'NOVICE') {
-    return semiResultRows.length > 0 ? semiResultRows : qualificationRows
-  }
-
-  return qualificationRows
-}
-
 export async function computeQualificationAndStore(eventId: string, categoryId: string) {
   const { data: config } = await adminClient
     .from('race_stage_config')
@@ -655,7 +634,6 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
   const stageSeedRows = (stageRows ?? []) as StageResultSeedRow[]
   const qualificationRows = stageSeedRows.filter((row) => row.stage === 'QUALIFICATION')
   const quarterResultRows = stageSeedRows.filter((row) => row.stage === 'QUARTER_FINAL' && row.position !== null)
-  const semiResultRows = stageSeedRows.filter((row) => row.stage === 'SEMI_FINAL' && row.position !== null)
 
   const quarterRiders = orderRidersBySeedRows(
     stageSeedRows.filter((r) => r.stage === 'QUARTER_FINAL').map((r) => r.rider_id),
@@ -774,11 +752,7 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
     const finalReady = isFinalClassReady(finalClass, resolved.stages, readiness)
     const motoHasResults = hasMotoResults(moto.id, categoryResultRows)
     const currentRiders = [...(existingFinalRiderMap.get(moto.id) ?? [])].sort((a, b) => a.localeCompare(b))
-    const orderedDesiredRiders = orderFinalRidersBySeedRows(
-      desiredRiders,
-      resolveFinalSeedRows(finalClass, qualificationRows, quarterResultRows, semiResultRows),
-      seedBatchOrderById
-    )
+    const orderedDesiredRiders = orderFinalRidersBySeedRows(desiredRiders, qualificationRows, seedBatchOrderById)
     const desiredSorted = [...orderedDesiredRiders].sort((a, b) => a.localeCompare(b))
 
     if ((!finalReady || desiredRiders.length === 0) && !motoHasResults) {
@@ -830,8 +804,7 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
     if (motoError || !motoRows) return { ok: false, warning: motoError?.message || 'Failed to create Final motos.' }
     motoRows.forEach((m) => {
       const key = m.moto_name.replace('Final ', '')
-      const sourceRows = resolveFinalSeedRows(key, qualificationRows, quarterResultRows, semiResultRows)
-      const riders = orderFinalRidersBySeedRows(finals[key] ?? [], sourceRows, seedBatchOrderById)
+      const riders = orderFinalRidersBySeedRows(finals[key] ?? [], qualificationRows, seedBatchOrderById)
       riders.forEach((riderId) => newMotoRiders.push({ moto_id: m.id, rider_id: riderId }))
       newGatePositions.push(...buildSequentialGateRows(m.id, riders))
     })
