@@ -212,6 +212,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     const insertRows: GateRow[] = []
     for (const [motoId, riders] of grouped.entries()) {
       const moto = motoById.get(motoId)
+      if (moto?.moto_name && !parseBatchKey(moto.moto_name)) {
+        continue
+      }
       const baseOrder = [...riders].sort()
       let ordered = baseOrder
       if (moto?.moto_name && /moto\s*2\s*-/i.test(moto.moto_name)) {
