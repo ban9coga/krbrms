@@ -241,7 +241,17 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   if (resultError) return NextResponse.json({ error: resultError.message }, { status: 400 })
   const resultRows = (results ?? []) as ResultRow[]
 
-  const riderIds = Array.from(new Set(gateRows.map((g) => g.rider_id)))
+  const { data: assignedMotoRiders, error: assignedMotoRiderError } = await adminClient
+    .from('moto_riders')
+    .select('moto_id, rider_id')
+    .in('moto_id', motoIds)
+  if (assignedMotoRiderError) return NextResponse.json({ error: assignedMotoRiderError.message }, { status: 400 })
+  const motoRiderRows = (assignedMotoRiders ?? []) as Array<{ moto_id: string; rider_id: string }>
+
+  const riderIds = Array.from(new Set([
+    ...gateRows.map((g) => g.rider_id),
+    ...motoRiderRows.map((row) => row.rider_id),
+  ]))
   const statusMap = new Map<string, 'ACTIVE' | 'DNS' | 'DNF' | 'ABSENT'>()
   if (riderIds.length > 0) {
     const { data: statuses, error: statusError } = await adminClient
@@ -459,8 +469,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const stageGroups: StageGroup[] = stageMotos.map((moto) => {
     const gates = gateRows.filter((g) => g.moto_id === moto.id)
     const gateMap = new Map(gates.map((g) => [g.rider_id, g.gate_position]))
-    const riderIdsInMoto = Array.from(new Set(gates.map((g) => g.rider_id)))
-    const riderCount = gates.length || null
+    const assignedRiderIds = motoRiderRows.filter((row) => row.moto_id === moto.id).map((row) => row.rider_id)
+    const riderIdsInMoto = Array.from(new Set([...assignedRiderIds, ...gates.map((g) => g.rider_id)]))
+    const riderCount = riderIdsInMoto.length || null
 
     const stagePenaltyStages = resolvePenaltyStagesForMoto(moto.moto_name)
     const rows: StageRow[] = riderIdsInMoto.map((riderId) => {
