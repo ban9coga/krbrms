@@ -194,6 +194,62 @@ const orderFinalRidersBySeedRows = (
   return [...ordered, ...leftovers]
 }
 
+const buildQualificationSeedRowsFromCurrentResults = (
+  motoRows: MotoRow[],
+  motoRiderRows: MotoRiderRow[],
+  resultRows: ResultRow[]
+): StageResultSeedRow[] => {
+  const batchMap = new Map<number, { moto1?: MotoRow; moto2?: MotoRow; moto3?: MotoRow }>()
+  for (const moto of motoRows) {
+    const parsed = parseBatchKey(moto.moto_name)
+    if (!parsed) continue
+    const entry = batchMap.get(parsed.batchIndex) ?? {}
+    if (parsed.motoIndex === 1) entry.moto1 = moto
+    if (parsed.motoIndex === 2) entry.moto2 = moto
+    if (parsed.motoIndex === 3) entry.moto3 = moto
+    batchMap.set(parsed.batchIndex, entry)
+  }
+
+  const requiredMotoCount = resolveQualificationMotoRequirement(batchMap.size)
+  const batches = Array.from(batchMap.values())
+    .filter((entry) => entry.moto1 && entry.moto2 && (requiredMotoCount < 3 || entry.moto3))
+    .map((entry) => {
+      const moto1 = entry.moto1 as MotoRow
+      const moto2 = entry.moto2 as MotoRow
+      const moto3 = entry.moto3 ?? null
+      const riders = motoRiderRows.filter((row) => row.moto_id === moto1.id).map((row) => row.rider_id)
+      const finishes = resultRows
+        .filter((row) => row.moto_id === moto1.id || row.moto_id === moto2.id || (moto3 ? row.moto_id === moto3.id : false))
+        .map((row) => ({
+          riderId: row.rider_id,
+          motoIndex: row.moto_id === moto1.id ? 1 : row.moto_id === moto2.id ? 2 : 3,
+          finishOrder: row.finish_order,
+        }))
+      return { batchId: moto1.id, riders, finishes }
+    })
+
+  if (batches.length === 0) return []
+  const qualificationReady = batches.every(
+    (batch) => batch.riders.length > 0 && batch.finishes.length >= batch.riders.length * requiredMotoCount
+  )
+  if (!qualificationReady) return []
+
+  const { batchRanks } = computeQualification(
+    batches.map((batch) => ({ batchId: batch.batchId, riders: batch.riders, finishes: batch.finishes }))
+  )
+
+  return Object.entries(batchRanks).flatMap(([batchId, ranks]) =>
+    ranks.map((row) => ({
+      rider_id: row.riderId,
+      stage: 'QUALIFICATION' as const,
+      final_class: null,
+      batch_id: batchId,
+      position: row.rank,
+      points: row.points,
+    }))
+  )
+}
+
 const distributeSeededHeats = (orderedRiders: string[], maxRiders: number) => {
   if (orderedRiders.length === 0) return [] as string[][]
   const heatCount = Math.max(1, Math.ceil(orderedRiders.length / maxRiders))
@@ -633,6 +689,12 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
 
   const stageSeedRows = (stageRows ?? []) as StageResultSeedRow[]
   const qualificationRows = stageSeedRows.filter((row) => row.stage === 'QUALIFICATION')
+  const currentQualificationSeedRows = buildQualificationSeedRowsFromCurrentResults(
+    existingMotoRows,
+    categoryMotoRiderRows,
+    categoryResultRows
+  )
+  const finalGateSeedRows = currentQualificationSeedRows.length > 0 ? currentQualificationSeedRows : qualificationRows
   const quarterResultRows = stageSeedRows.filter((row) => row.stage === 'QUARTER_FINAL' && row.position !== null)
 
   const quarterRiders = orderRidersBySeedRows(
@@ -752,7 +814,7 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
     const finalReady = isFinalClassReady(finalClass, resolved.stages, readiness)
     const motoHasResults = hasMotoResults(moto.id, categoryResultRows)
     const currentRiders = [...(existingFinalRiderMap.get(moto.id) ?? [])].sort((a, b) => a.localeCompare(b))
-    const orderedDesiredRiders = orderFinalRidersBySeedRows(desiredRiders, qualificationRows, seedBatchOrderById)
+    const orderedDesiredRiders = orderFinalRidersBySeedRows(desiredRiders, finalGateSeedRows, seedBatchOrderById)
     const desiredSorted = [...orderedDesiredRiders].sort((a, b) => a.localeCompare(b))
 
     if ((!finalReady || desiredRiders.length === 0) && !motoHasResults) {
@@ -804,7 +866,7 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
     if (motoError || !motoRows) return { ok: false, warning: motoError?.message || 'Failed to create Final motos.' }
     motoRows.forEach((m) => {
       const key = m.moto_name.replace('Final ', '')
-      const riders = orderFinalRidersBySeedRows(finals[key] ?? [], qualificationRows, seedBatchOrderById)
+      const riders = orderFinalRidersBySeedRows(finals[key] ?? [], finalGateSeedRows, seedBatchOrderById)
       riders.forEach((riderId) => newMotoRiders.push({ moto_id: m.id, rider_id: riderId }))
       newGatePositions.push(...buildSequentialGateRows(m.id, riders))
     })
