@@ -309,7 +309,8 @@ const buildSequentialGateRows = (motoId: string, riderIds: string[]) =>
     gate_position: index + 1,
   }))
 
-const hasMotoResults = (motoId: string, resultRows: ResultRow[]) => resultRows.some((row) => row.moto_id === motoId)
+const hasMotoResults = (motoId: string, resultRows: ResultRow[]) =>
+  resultRows.some((row) => row.moto_id === motoId && row.finish_order !== null)
 
 const isMotoComplete = (motoId: string, assignedRows: MotoRiderRow[], resultRows: ResultRow[]) => {
   const assignedRiders = assignedRows.filter((row) => row.moto_id === motoId).map((row) => row.rider_id)
