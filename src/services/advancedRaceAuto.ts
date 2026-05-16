@@ -25,6 +25,7 @@ type ResultRow = {
   moto_id: string
   rider_id: string
   finish_order: number | null
+  result_status?: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | null
 }
 
 type MotoRiderRow = {
@@ -123,6 +124,17 @@ const parseBatchKey = (name: string) => {
   return { motoIndex: Number(match[1]), batchIndex: Number(match[2]) }
 }
 
+const dnsPointForMoto = (riderCount: number) => riderCount + 2
+
+const pointForRaceResult = (row: ResultRow | null | undefined, riderCount: number) => {
+  if (!row) return null
+  const status = row.result_status ?? 'FINISH'
+  if (status === 'DQ') return null
+  if (status === 'DNS') return dnsPointForMoto(riderCount)
+  if (status === 'DNF') return riderCount
+  return row.finish_order ?? null
+}
+
 const safeMotoNameExists = async (eventId: string, categoryId: string, prefix: string) => {
   const { data, error } = await adminClient
     .from('motos')
@@ -218,12 +230,13 @@ const buildQualificationSeedRowsFromCurrentResults = (
       const moto2 = entry.moto2 as MotoRow
       const moto3 = entry.moto3 ?? null
       const riders = motoRiderRows.filter((row) => row.moto_id === moto1.id).map((row) => row.rider_id)
+      const riderCount = riders.length
       const finishes = resultRows
         .filter((row) => row.moto_id === moto1.id || row.moto_id === moto2.id || (moto3 ? row.moto_id === moto3.id : false))
         .map((row) => ({
           riderId: row.rider_id,
           motoIndex: row.moto_id === moto1.id ? 1 : row.moto_id === moto2.id ? 2 : 3,
-          finishOrder: row.finish_order,
+          finishOrder: pointForRaceResult(row, riderCount),
         }))
       return { batchId: moto1.id, riders, finishes }
     })
@@ -458,7 +471,7 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
   const motoIds = motoRows.map((m) => m.id)
   const { data: results, error: resultError } = await adminClient
     .from('results')
-    .select('moto_id, rider_id, finish_order')
+    .select('moto_id, rider_id, finish_order, result_status')
     .in('moto_id', motoIds)
   if (resultError) return { ok: false, warning: resultError.message }
   const resultRows = (results ?? []) as ResultRow[]
@@ -496,12 +509,13 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
       const riders = motoRiderRows
         .filter((row) => row.moto_id === moto1.id)
         .map((row) => row.rider_id)
+      const riderCount = riders.length
       const finishes = resultRows
         .filter((row) => row.moto_id === moto1.id || row.moto_id === moto2.id || (moto3 ? row.moto_id === moto3.id : false))
         .map((row) => ({
           riderId: row.rider_id,
           motoIndex: row.moto_id === moto1.id ? 1 : row.moto_id === moto2.id ? 2 : 3,
-          finishOrder: row.finish_order,
+          finishOrder: pointForRaceResult(row, riderCount),
         }))
       return { batchId: moto1.id, batchIndex, riders, finishes }
     })
@@ -650,7 +664,7 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
   if (riderSnapshotError) return { ok: false, warning: riderSnapshotError.message }
 
   const { data: categoryResults, error: resultSnapshotError } = existingMotoIds.length
-    ? await adminClient.from('results').select('moto_id, rider_id, finish_order').in('moto_id', existingMotoIds)
+    ? await adminClient.from('results').select('moto_id, rider_id, finish_order, result_status').in('moto_id', existingMotoIds)
     : { data: [], error: null }
   if (resultSnapshotError) return { ok: false, warning: resultSnapshotError.message }
 
@@ -950,10 +964,10 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
   const motoIds = allMotos.map((m) => m.id)
   const { data: results, error: resultError } = await adminClient
     .from('results')
-    .select('moto_id, rider_id, finish_order')
+    .select('moto_id, rider_id, finish_order, result_status')
     .in('moto_id', motoIds)
   if (resultError) return { ok: false, warning: resultError.message }
-  const resultRows = (results ?? []) as Array<{ moto_id: string; rider_id: string; finish_order: number | null }>
+  const resultRows = (results ?? []) as ResultRow[]
 
   const { data: motoRiders, error: riderError } = await adminClient
     .from('moto_riders')
@@ -1075,9 +1089,10 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
 
     const riders = motoRiderRows.filter((r) => r.moto_id === moto.id).map((r) => r.rider_id)
     const scores: Record<string, number> = {}
+    const riderCount = riders.length
     riders.forEach((id) => {
       const row = resultRows.find((r) => r.moto_id === moto.id && r.rider_id === id)
-      scores[id] = row?.finish_order ?? 9999
+      scores[id] = pointForRaceResult(row, riderCount) ?? 9999
     })
     const ranked = rankByPoints(scores)
     const advances = computeQuarterFinal(ranked, resolveQuarterFinalPrimaryAdvance(resolved.stages))
@@ -1123,9 +1138,10 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
 
     const riders = motoRiderRows.filter((r) => r.moto_id === moto.id).map((r) => r.rider_id)
     const scores: Record<string, number> = {}
+    const riderCount = riders.length
     riders.forEach((id) => {
       const row = resultRows.find((r) => r.moto_id === moto.id && r.rider_id === id)
-      scores[id] = row?.finish_order ?? 9999
+      scores[id] = pointForRaceResult(row, riderCount) ?? 9999
     })
     const ranked = rankByPoints(scores)
     const advances = computeSemiFinal(ranked)
@@ -1164,16 +1180,18 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
 
     const finalClass = moto.moto_name.replace(/^Final\s+/i, '').trim().toUpperCase()
     const riders = motoRiderRows.filter((r) => r.moto_id === moto.id).map((r) => r.rider_id)
+    const riderCount = riders.length
     riders.forEach((id) => {
       completedFinalRiders.add(id)
       const row = resultRows.find((r) => r.moto_id === moto.id && r.rider_id === id)
+      const point = pointForRaceResult(row, riderCount)
       finalRows.push({
         rider_id: id,
         category_id: categoryId,
         stage: 'FINAL',
         final_class: finalClass,
-        position: row?.finish_order ?? null,
-        points: row?.finish_order ?? null,
+        position: point,
+        points: point,
       })
     })
   }
