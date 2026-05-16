@@ -196,6 +196,16 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
       stages.map((stage) => ({
         ...stage,
         rows: [...stage.rows].sort((a, b) => {
+          if (sortMode === 'GATE') {
+            const aGate = a.gate ?? Number.MAX_SAFE_INTEGER
+            const bGate = b.gate ?? Number.MAX_SAFE_INTEGER
+            if (aGate !== bGate) return aGate - bGate
+            const aRank = a.rank ?? Number.MAX_SAFE_INTEGER
+            const bRank = b.rank ?? Number.MAX_SAFE_INTEGER
+            if (aRank !== bRank) return aRank - bRank
+            return a.name.localeCompare(b.name)
+          }
+
           const aRank = a.rank ?? Number.MAX_SAFE_INTEGER
           const bRank = b.rank ?? Number.MAX_SAFE_INTEGER
           if (aRank !== bRank) return aRank - bRank
@@ -205,7 +215,7 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
           return a.name.localeCompare(b.name)
         }),
       })),
-    [stages]
+    [sortMode, stages]
   )
 
   return (
