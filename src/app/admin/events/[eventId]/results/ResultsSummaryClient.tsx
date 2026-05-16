@@ -43,6 +43,24 @@ type Batch = {
   rows: SummaryRow[]
 }
 
+type StageRow = {
+  rider_id: string
+  gate: number | null
+  name: string
+  no_plate: string
+  club: string | null
+  point: number | null
+  penalty_total: number | null
+  rank: number | null
+  status: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'PENDING'
+}
+
+type StageGroup = {
+  title: string
+  moto_id: string
+  rows: StageRow[]
+}
+
 type EventMeta = {
   name: string
   location?: string | null
@@ -64,10 +82,12 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
   const [eventMeta, setEventMeta] = useState<EventMeta | null>(null)
   const [selectedCategory, setSelectedCategory] = useState<string>('')
   const [batches, setBatches] = useState<Batch[]>([])
+  const [stages, setStages] = useState<StageGroup[]>([])
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'FINISHED' | 'DNF' | 'DNS' | 'DQ'>('ALL')
   const [batchFilter, setBatchFilter] = useState<'ALL' | string>('ALL')
+  const [resultView, setResultView] = useState<'QUALIFICATION' | 'STAGES'>('QUALIFICATION')
   const [penaltyMap, setPenaltyMap] = useState<Record<string, PenaltyRow[]>>({})
   const [storyData, setStoryData] = useState<ResultStoryCardData | null>(null)
   const [storyDownloading, setStoryDownloading] = useState(false)
@@ -118,10 +138,12 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
       if (!res.ok) {
         setErrorMsg(json?.error || 'Gagal memuat summary.')
         setBatches([])
+        setStages([])
         return
       }
       const data = json.data ?? {}
       const rawBatches = (data.batches ?? []) as Array<{ batch_index: number; rows: SummaryRow[] }>
+      const rawStages = (data.stages ?? []) as StageGroup[]
       const next = rawBatches.map((b) => ({
         batch_index: b.batch_index,
         rows: (b.rows ?? []).map((row) => ({
@@ -129,23 +151,39 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
           batch_index: b.batch_index,
         })),
       }))
+      const nextStages = rawStages.map((stage) => ({
+        ...stage,
+        rows: [...(stage.rows ?? [])].sort((a, b) => {
+          const rankDiff = (a.rank ?? 9999) - (b.rank ?? 9999)
+          if (rankDiff !== 0) return rankDiff
+          return (a.gate ?? 9999) - (b.gate ?? 9999)
+        }),
+      }))
       setBatches(next)
-      await loadPenalties(next)
+      setStages(nextStages)
+      await loadPenalties(next, nextStages)
       if (batchFilter !== 'ALL') {
-        const valid = next.some((b) => String(b.batch_index) === batchFilter)
+        const valid =
+          resultView === 'QUALIFICATION'
+            ? next.some((b) => String(b.batch_index) === batchFilter)
+            : nextStages.some((stage) => stage.moto_id === batchFilter)
         if (!valid) setBatchFilter('ALL')
       }
     } catch {
       setErrorMsg('Gagal memuat summary.')
       setBatches([])
+      setStages([])
     } finally {
       setLoading(false)
     }
   }
 
-  const loadPenalties = async (nextBatches: Batch[]) => {
+  const loadPenalties = async (nextBatches: Batch[], nextStages: StageGroup[] = []) => {
     const riderIds = Array.from(
-      new Set(nextBatches.flatMap((b) => b.rows.map((r) => r.rider_id)))
+      new Set([
+        ...nextBatches.flatMap((b) => b.rows.map((r) => r.rider_id)),
+        ...nextStages.flatMap((stage) => stage.rows.map((r) => r.rider_id)),
+      ])
     )
     if (riderIds.length === 0) {
       setPenaltyMap({})
@@ -193,6 +231,47 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
   }, [selectedCategory])
 
   const exportCsv = () => {
+    if (resultView === 'STAGES') {
+      const rows = stages.flatMap((stage) => stage.rows.map((row) => ({ ...row, stageTitle: stage.title })))
+      const filtered = statusFilter === 'ALL'
+        ? rows
+        : rows.filter((r) => (statusFilter === 'FINISHED' ? r.status === 'FINISH' : r.status === statusFilter))
+      if (filtered.length === 0) {
+        alert('Tidak ada data untuk diexport.')
+        return
+      }
+      const header = ['stage', 'rank', 'gate', 'name', 'no_plate', 'club', 'point', 'penalty', 'status']
+      const csv = [
+        `# Event,${publicEventTitle}`,
+        `# Brand,${publicBrandName || '-'}`,
+        `# Category,${categoryLabel}`,
+        `# View,Final / Advanced Stage`,
+        header.join(','),
+        ...filtered.map((r) =>
+          [
+            `"${r.stageTitle ?? ''}"`,
+            r.rank ?? '',
+            r.gate ?? '',
+            `"${r.name ?? ''}"`,
+            `"${r.no_plate ?? ''}"`,
+            `"${r.club ?? ''}"`,
+            r.point ?? '',
+            r.penalty_total ?? 0,
+            r.status ?? '',
+          ].join(',')
+        ),
+      ].join('\n')
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      const fileBase = `${(publicBrandName || publicEventTitle || 'results').replace(/[^a-z0-9]+/gi, '_')}_${categoryLabel.replace(/[^a-z0-9]+/gi, '_')}_finals`.toLowerCase()
+      a.download = `${fileBase}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+      return
+    }
+
     const rows = batches.flatMap((batch) => batch.rows)
     const filtered = statusFilter === 'ALL' ? rows : rows.filter((r) => r.status === statusFilter)
     if (filtered.length === 0) {
@@ -254,6 +333,48 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
   }
 
   const exportPerBatch = () => {
+    if (resultView === 'STAGES') {
+      if (stages.length === 0) {
+        alert('Tidak ada final/stage untuk diexport.')
+        return
+      }
+      stages.forEach((stage) => {
+        const rows = statusFilter === 'ALL'
+          ? stage.rows
+          : stage.rows.filter((r) => (statusFilter === 'FINISHED' ? r.status === 'FINISH' : r.status === statusFilter))
+        if (rows.length === 0) return
+        const header = ['rank', 'gate', 'name', 'no_plate', 'club', 'point', 'penalty', 'status']
+        const csv = [
+          `# Event,${publicEventTitle}`,
+          `# Brand,${publicBrandName || '-'}`,
+          `# Category,${categoryLabel}`,
+          `# Stage,${stage.title}`,
+          header.join(','),
+          ...rows.map((r) =>
+            [
+              r.rank ?? '',
+              r.gate ?? '',
+              `"${r.name ?? ''}"`,
+              `"${r.no_plate ?? ''}"`,
+              `"${r.club ?? ''}"`,
+              r.point ?? '',
+              r.penalty_total ?? 0,
+              r.status ?? '',
+            ].join(',')
+          ),
+        ].join('\n')
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        const fileBase = `${(publicBrandName || publicEventTitle || 'results').replace(/[^a-z0-9]+/gi, '_')}_${categoryLabel.replace(/[^a-z0-9]+/gi, '_')}_${stage.title.replace(/[^a-z0-9]+/gi, '_')}`.toLowerCase()
+        a.download = `${fileBase}.csv`
+        a.click()
+        URL.revokeObjectURL(url)
+      })
+      return
+    }
+
     if (batches.length === 0) {
       alert('Tidak ada batch untuk diexport.')
       return
@@ -365,7 +486,41 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
     scoringSupportLabel: scoringSupportLabel || null,
   })
 
+  const createStageStoryData = (row: StageRow, stageTitle: string): ResultStoryCardData => ({
+    eventTitle: publicEventTitle,
+    eventBrand: publicBrandName || publicEventTitle,
+    eventDate: eventMeta?.event_date ?? null,
+    eventLocation: eventMeta?.location ?? null,
+    categoryLabel,
+    classLabel: stageTitle,
+    riderName: row.name,
+    plateNumber: row.no_plate,
+    rankNumber: row.rank ?? null,
+    totalPoint: row.point ?? null,
+    statusLabel: row.status === 'FINISH' ? 'FINISHED' : row.status,
+    operatorLabel: operatingCommitteeLabel || null,
+    scoringSupportLabel: scoringSupportLabel || null,
+  })
+
   const summary = useMemo(() => {
+    if (resultView === 'STAGES') {
+      const rows =
+        batchFilter === 'ALL'
+          ? stages.flatMap((stage) => stage.rows)
+          : stages.find((stage) => stage.moto_id === batchFilter)?.rows ?? []
+      const filtered = statusFilter === 'ALL'
+        ? rows
+        : rows.filter((r) => (statusFilter === 'FINISHED' ? r.status === 'FINISH' : r.status === statusFilter))
+      if (filtered.length === 0) return { total: 0, avg: 0, top: [] as StageRow[] }
+      const validPoints = filtered.map((r) => r.point).filter((v) => v != null) as number[]
+      const avg = validPoints.length ? validPoints.reduce((a, b) => a + b, 0) / validPoints.length : 0
+      const top = [...filtered]
+        .filter((r) => r.rank != null)
+        .sort((a, b) => (a.rank ?? 9999) - (b.rank ?? 9999))
+        .slice(0, 3)
+      return { total: filtered.length, avg, top }
+    }
+
     const rows =
       batchFilter === 'ALL'
         ? batches.flatMap((b) => b.rows)
@@ -388,7 +543,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
       .sort((a, b) => (a.total_point ?? 9999) - (b.total_point ?? 9999))
       .slice(0, 3)
     return { total, avg, top }
-  }, [batches, statusFilter])
+  }, [batchFilter, batches, resultView, stages, statusFilter])
 
   return (
     <div style={{ maxWidth: 1020 }}>
@@ -417,16 +572,33 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
             ))}
           </select>
           <select
+            value={resultView}
+            onChange={(e) => {
+              setResultView(e.target.value as typeof resultView)
+              setBatchFilter('ALL')
+            }}
+            style={{ padding: '8px 12px', borderRadius: 10, border: '2px solid #111', fontWeight: 800 }}
+          >
+            <option value="QUALIFICATION">Qualification / Batch</option>
+            <option value="STAGES">Final / Advanced Stage</option>
+          </select>
+          <select
             value={batchFilter}
             onChange={(e) => setBatchFilter(e.target.value as typeof batchFilter)}
             style={{ padding: '8px 12px', borderRadius: 10, border: '2px solid #111', fontWeight: 800 }}
           >
-            <option value="ALL">All Batches</option>
-            {batches.map((b) => (
-              <option key={b.batch_index} value={String(b.batch_index)}>
-                Batch {b.batch_index}
-              </option>
-            ))}
+            <option value="ALL">{resultView === 'QUALIFICATION' ? 'All Batches' : 'All Finals / Stages'}</option>
+            {resultView === 'QUALIFICATION'
+              ? batches.map((b) => (
+                  <option key={b.batch_index} value={String(b.batch_index)}>
+                    Batch {b.batch_index}
+                  </option>
+                ))
+              : stages.map((stage) => (
+                  <option key={stage.moto_id} value={stage.moto_id}>
+                    {stage.title}
+                  </option>
+                ))}
           </select>
           <select
             value={statusFilter}
@@ -523,7 +695,12 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
             <div style={{ fontSize: 12, fontWeight: 800 }}>
               {summary.top.length === 0
                 ? '-'
-                : summary.top.map((r, idx) => `${idx + 1}. ${r.name} (${r.total_point})`).join(' | ')}
+                : summary.top
+                    .map((r, idx) => {
+                      const point = 'total_point' in r ? r.total_point : r.point
+                      return `${idx + 1}. ${r.name} (${point ?? '-'})`
+                    })
+                    .join(' | ')}
             </div>
           </div>
         </div>
@@ -538,13 +715,95 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
             {errorMsg}
           </div>
         )}
-        {!loading && !errorMsg && batches.length === 0 && (
+        {!loading && !errorMsg && resultView === 'QUALIFICATION' && batches.length === 0 && (
           <div style={{ padding: 12, border: '2px dashed #111', borderRadius: 12, background: '#fff', fontWeight: 900 }}>
             Belum ada hasil.
           </div>
         )}
+        {!loading && !errorMsg && resultView === 'STAGES' && stages.length === 0 && (
+          <div style={{ padding: 12, border: '2px dashed #111', borderRadius: 12, background: '#fff', fontWeight: 900 }}>
+            Belum ada final / advanced stage.
+          </div>
+        )}
 
-        {batches.map((batch) => {
+        {resultView === 'STAGES' && stages.map((stage) => {
+          if (batchFilter !== 'ALL' && stage.moto_id !== batchFilter) return null
+          const rows = statusFilter === 'ALL'
+            ? stage.rows
+            : stage.rows.filter((r) => (statusFilter === 'FINISHED' ? r.status === 'FINISH' : r.status === statusFilter))
+          if (rows.length === 0) return null
+          return (
+            <div key={stage.moto_id} style={{ border: '2px solid #111', borderRadius: 14, background: '#fff' }}>
+              <div style={{ padding: '10px 12px', borderBottom: '2px solid #111', fontWeight: 900 }}>
+                {stage.title}
+              </div>
+              <div className="table-mobile-hint" style={{ margin: '8px 12px 0 12px' }}>
+                Geser kiri/kanan untuk lihat semua kolom.
+              </div>
+              <div className="table-scroll-x" style={{ overscrollBehaviorX: 'contain', WebkitOverflowScrolling: 'touch' }}>
+                <table className="table-striped" style={{ width: '100%', borderCollapse: 'collapse', minWidth: 760 }}>
+                  <thead>
+                    <tr style={{ background: '#f5f5f5', textAlign: 'left' }}>
+                      {['Rank', 'Gate', 'Nama', 'No Plat', 'Komunitas', 'Point', 'Penalty', 'Status', 'Story'].map((h) => (
+                        <th key={h} style={{ padding: 8, borderBottom: '2px solid #111', fontWeight: 900 }}>
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((row) => (
+                      <tr key={`${stage.moto_id}-${row.rider_id}`} style={{ borderBottom: '1px solid #ddd' }}>
+                        <td style={{ padding: 8 }}>{row.rank ?? '-'}</td>
+                        <td style={{ padding: 8 }}>{row.gate ?? '-'}</td>
+                        <td style={{ padding: 8, fontWeight: 800 }}>{row.name}</td>
+                        <td style={{ padding: 8 }}>{row.no_plate}</td>
+                        <td style={{ padding: 8 }}>{row.club ?? '-'}</td>
+                        <td style={{ padding: 8, fontWeight: 900 }}>{row.point ?? '-'}</td>
+                        <td style={{ padding: 8 }}>
+                          {row.penalty_total ?? '-'}
+                          {penaltyMap[row.rider_id]?.length ? (
+                            <details style={{ marginTop: 4 }}>
+                              <summary style={{ cursor: 'pointer', fontWeight: 800 }}>Detail</summary>
+                              <div style={{ display: 'grid', gap: 4, paddingTop: 4 }}>
+                                {penaltyMap[row.rider_id].map((p, idx) => (
+                                  <div key={`${row.rider_id}-${idx}`} style={{ fontSize: 12 }}>
+                                    {p.rule_code ?? 'RULE'} · {p.penalty_point ?? 0} · {p.approval_status ?? '-'}
+                                  </div>
+                                ))}
+                              </div>
+                            </details>
+                          ) : null}
+                        </td>
+                        <td style={{ padding: 8 }}>{row.status === 'FINISH' ? 'FINISHED' : row.status}</td>
+                        <td style={{ padding: 8 }}>
+                          <button
+                            type="button"
+                            onClick={() => setStoryData(createStageStoryData(row, stage.title))}
+                            style={{
+                              padding: '8px 10px',
+                              borderRadius: 10,
+                              border: '2px solid #111',
+                              background: '#fbbf24',
+                              color: '#111',
+                              fontWeight: 900,
+                              cursor: 'pointer',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            Preview
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )
+        })}
+
+        {resultView === 'QUALIFICATION' && batches.map((batch) => {
           if (batchFilter !== 'ALL' && String(batch.batch_index) !== batchFilter) return null
           const rows = statusFilter === 'ALL'
             ? batch.rows
