@@ -1161,9 +1161,9 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
   }, [availableUsers, staffSearch])
 
   return (
-    <div style={{ maxWidth: 980 }}>
-      <h1 style={{ fontSize: 26, fontWeight: 950, margin: 0 }}>{advancedOnly ? 'Advanced Multi-Stage' : 'Event Settings'}</h1>
-      <div style={{ marginTop: 8, color: '#333', fontWeight: 700 }}>
+    <div style={{ maxWidth: 980, color: '#0f172a' }}>
+      <h1 style={{ fontSize: 26, fontWeight: 950, margin: 0, color: '#f8fafc' }}>{advancedOnly ? 'Advanced Multi-Stage' : 'Event Settings'}</h1>
+      <div style={{ marginTop: 8, color: '#475569', fontWeight: 700 }}>
         {advancedOnly ? 'Kelola workflow AMS per kategori dari halaman khusus ini.' : 'Logo/sponsor & konfigurasi display/scoring per event.'}
       </div>
 

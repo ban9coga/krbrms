@@ -159,7 +159,7 @@ export default async function LandingPage() {
     .sort((a, b) => {
       const at = new Date(a.event_date).getTime()
       const bt = new Date(b.event_date).getTime()
-      if (at !== bt) return at - bt
+      if (at !== bt) return bt - at
 
       const statusWeight: Record<EventStatus, number> = {
         LIVE: 0,
