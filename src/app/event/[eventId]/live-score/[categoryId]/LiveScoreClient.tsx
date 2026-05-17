@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from 'react'
 import EmptyState from '../../../../../components/EmptyState'
 import LoadingState from '../../../../../components/LoadingState'
 import PublicTopbar from '../../../../../components/PublicTopbar'
-import { getEventById, type EventItem } from '../../../../../lib/eventService'
+import { getEventById, getEventCategories, type EventItem, type RiderCategory } from '../../../../../lib/eventService'
 
 type Row = {
   rider_id: string
@@ -96,6 +96,7 @@ const renderMotoResultCell = (
 export default function LiveScoreClient({ eventId, categoryId }: { eventId: string; categoryId: string }) {
   const [loading, setLoading] = useState(false)
   const [event, setEvent] = useState<EventItem | null>(null)
+  const [categories, setCategories] = useState<RiderCategory[]>([])
   const [categoryLabel, setCategoryLabel] = useState('')
   const [batches, setBatches] = useState<Batch[]>([])
   const [stages, setStages] = useState<StageGroup[]>([])
@@ -116,8 +117,12 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
     const load = async () => {
       setLoading(true)
       try {
-        const eventData = await getEventById(eventId)
+        const [eventData, categoryData] = await Promise.all([
+          getEventById(eventId),
+          getEventCategories(eventId),
+        ])
         setEvent(eventData)
+        setCategories(categoryData.filter((category) => category.enabled))
         await loadLiveScore()
       } finally {
         setLoading(false)
@@ -160,6 +165,21 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
     business?.show_scoring_support_publicly && scoringSupportLabel
   )
   const showMc = Boolean(business?.show_mc_publicly && mcName)
+
+  const sortedCategories = useMemo(() => {
+    const genderOrder = { BOY: 0, GIRL: 1, MIX: 2 } as const
+    return [...categories].sort((a, b) => {
+      if (b.year !== a.year) return b.year - a.year
+      return genderOrder[a.gender] - genderOrder[b.gender]
+    })
+  }, [categories])
+
+  const currentCategoryIndex = useMemo(
+    () => sortedCategories.findIndex((category) => category.id === categoryId),
+    [categoryId, sortedCategories]
+  )
+
+  const nextCategory = currentCategoryIndex >= 0 ? sortedCategories[currentCategoryIndex + 1] ?? null : null
 
   const riderPhotoCell = (name: string, noPlate: string, photoUrl?: string | null) => {
     if (photoUrl) {
@@ -227,12 +247,26 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
           <div className="pointer-events-none absolute -top-20 right-0 h-56 w-56 rounded-full bg-sky-400/15 blur-3xl sm:h-64 sm:w-64" />
           <div className="relative z-10 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="grid gap-2 sm:gap-2.5">
-              <Link
-                href={`/event/${eventId}#race-categories`}
-                className="inline-flex w-fit items-center rounded-full border border-white/30 bg-white/10 px-3 py-1.5 text-xs font-extrabold uppercase tracking-[0.12em] text-white transition-colors hover:bg-white/20"
-              >
-                Back to Race Categories
-              </Link>
+              <div className="flex flex-wrap items-center gap-3">
+                <Link
+                  href={`/event/${eventId}#race-categories`}
+                  className="inline-flex min-h-[48px] items-center justify-center rounded-2xl border border-amber-300 bg-amber-400 px-4 py-3 text-sm font-black uppercase tracking-[0.12em] text-slate-950 shadow-[0_14px_32px_rgba(251,191,36,0.28)] transition-transform transition-colors hover:-translate-y-0.5 hover:bg-amber-300"
+                >
+                  Back to Categories
+                </Link>
+                {nextCategory ? (
+                  <Link
+                    href={`/event/${eventId}/live-score/${nextCategory.id}`}
+                    className="inline-flex min-h-[48px] items-center justify-center rounded-2xl border border-white/25 bg-white/12 px-4 py-3 text-sm font-black uppercase tracking-[0.12em] text-white shadow-[0_14px_32px_rgba(15,23,42,0.22)] transition-transform transition-colors hover:-translate-y-0.5 hover:bg-white/18"
+                  >
+                    Next Category: {nextCategory.label}
+                  </Link>
+                ) : (
+                  <span className="inline-flex min-h-[48px] items-center justify-center rounded-2xl border border-white/20 bg-white/8 px-4 py-3 text-sm font-black uppercase tracking-[0.12em] text-slate-300">
+                    Last Category
+                  </span>
+                )}
+              </div>
               <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-amber-300">
                 {publicBrandName || 'Live Score'}
               </p>
