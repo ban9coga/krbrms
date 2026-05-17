@@ -156,6 +156,18 @@ export default async function LandingPage() {
       event_scope: settingsMap.get(event.id)?.event_scope ?? 'PUBLIC',
       registration_open: settingsMap.get(event.id)?.registration_open ?? true,
     }))
+    .sort((a, b) => {
+      const at = new Date(a.event_date).getTime()
+      const bt = new Date(b.event_date).getTime()
+      if (at !== bt) return at - bt
+
+      const statusWeight: Record<EventStatus, number> = {
+        LIVE: 0,
+        UPCOMING: 1,
+        FINISHED: 2,
+      }
+      return statusWeight[a.status] - statusWeight[b.status]
+    })
 
   return (
     <div className="public-page" style={{ background: '#f6fbf7', color: '#111' }}>
