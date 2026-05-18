@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../../../lib/supabaseClient'
+import { useHighVisibility } from '../../../hooks/useHighVisibility'
 import { compareMotoSequence } from '../../../lib/motoSequence'
 import { isMotoLive } from '../../../lib/motoStatus'
 import CheckerTopbar from '../../../components/CheckerTopbar'
@@ -74,6 +75,7 @@ export default function JuryFinishPage() {
   const [dnfRiders, setDnfRiders] = useState<string[]>([])
   const [actions, setActions] = useState<Action[]>([])
   const [submitNotice, setSubmitNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const { highVisibility, toggleHighVisibility } = useHighVisibility('jury-finish-high-visibility')
 
   const pressTimers = useRef<Record<string, ReturnType<typeof setTimeout> | null>>({})
   const longPressFired = useRef<Record<string, boolean>>({})
@@ -489,10 +491,10 @@ export default function JuryFinishPage() {
             <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-amber-300">Jury Finish</p>
             <div className="rounded-[22px] border border-emerald-300/30 bg-emerald-300/10 px-5 py-4 shadow-[0_0_28px_rgba(52,211,153,0.12)]">
               <div className="text-xs font-extrabold uppercase tracking-[0.18em] text-emerald-200">Kategori Aktif</div>
-              <div className="mt-2 text-3xl font-black tracking-tight text-white md:text-5xl">
+              <div className={`${highVisibility ? 'text-4xl md:text-6xl' : 'text-3xl md:text-5xl'} mt-2 font-black tracking-tight text-white`}>
                 {selectedCategoryLabel ?? 'Pilih Moto'}
               </div>
-              <div className="mt-2 text-sm font-semibold text-slate-200 sm:text-base">
+              <div className={`${highVisibility ? 'text-base sm:text-lg' : 'text-sm sm:text-base'} mt-2 font-semibold text-slate-200`}>
                 {selectedMoto?.moto_name ?? 'Belum ada moto dipilih'} |{' '}
                 {flags.dnf_enabled
                   ? 'Tap rider untuk finish, tahan 800ms untuk DNF.'
@@ -543,6 +545,19 @@ export default function JuryFinishPage() {
                 </button>
               </div>
             </div>
+          </div>
+          <div className="mt-3 flex justify-end">
+            <button
+              type="button"
+              onClick={toggleHighVisibility}
+              className={`rounded-xl border px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.08em] transition-colors ${
+                highVisibility
+                  ? 'border-amber-300 bg-amber-100 text-amber-900 hover:bg-amber-200'
+                  : 'border-slate-300 bg-white text-slate-800 hover:bg-slate-100'
+              }`}
+            >
+              {highVisibility ? 'Mode Besar Aktif' : 'Mode Besar'}
+            </button>
           </div>
         </section>
 
@@ -613,14 +628,14 @@ export default function JuryFinishPage() {
                     onPointerCancel={() => onCardPointerLeave(r.id)}
                     disabled={role === 'RACE_DIRECTOR' || motoLocked || !selectedMotoLive}
                     style={{
-                      height: 120,
+                      height: highVisibility ? 144 : 120,
                       borderRadius: 16,
                       border: isReady ? '2px solid #15803d' : '2px solid #0f172a',
                       borderBottomWidth: 4,
                       background: isReady ? 'linear-gradient(180deg, #dcfce7 0%, #bbf7d0 100%)' : '#ffffff',
                       color: '#0f172a',
                       fontWeight: 900,
-                      fontSize: 44,
+                      fontSize: highVisibility ? 56 : 44,
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
@@ -636,7 +651,7 @@ export default function JuryFinishPage() {
                     }}
                   >
                     <div style={{ lineHeight: 1 }}>{r.no_plate_display}</div>
-                    <div style={{ marginTop: 6, fontSize: 12, fontWeight: 700, color: isReady ? '#166534' : '#475569' }}>{r.name}</div>
+                    <div style={{ marginTop: 6, fontSize: highVisibility ? 14 : 12, fontWeight: 700, color: isReady ? '#166534' : '#475569' }}>{r.name}</div>
                   </button>
                 )
               })}
@@ -712,13 +727,13 @@ export default function JuryFinishPage() {
             <div className="mb-3 text-xs font-extrabold uppercase tracking-[0.15em] text-slate-500">Live Result</div>
             <div className="grid gap-3">
               <div className="rounded-xl border border-slate-200 bg-white p-3">
-                <div className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-slate-500">Finish Order</div>
+                <div className={`${highVisibility ? 'text-xs' : 'text-[10px]'} font-extrabold uppercase tracking-[0.12em] text-slate-500`}>Finish Order</div>
                 <div className="mt-2 grid gap-1.5">
                   {finishSequence.map((f) => {
                     const rider = riders.find((r) => r.id === f.id)
                     const penalty = penaltiesByRider[f.id] ?? 0
                     return (
-                      <div key={f.id} className="text-sm font-semibold text-slate-700">
+                      <div key={f.id} className={`${highVisibility ? 'text-base' : 'text-sm'} font-semibold text-slate-700`}>
                         {f.position}. {rider?.no_plate_display} - {rider?.name}
                         {penalty ? ` (+${penalty})` : ''}
                       </div>
@@ -729,13 +744,13 @@ export default function JuryFinishPage() {
               </div>
 
               <div className="rounded-xl border border-slate-200 bg-white p-3">
-                <div className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-slate-500">DNF</div>
+                <div className={`${highVisibility ? 'text-xs' : 'text-[10px]'} font-extrabold uppercase tracking-[0.12em] text-slate-500`}>DNF</div>
                 <div className="mt-2 grid gap-1.5">
                   {dnfRiders.map((id) => {
                     const rider = riders.find((r) => r.id === id)
                     const penalty = penaltiesByRider[id] ?? 0
                     return (
-                      <div key={id} className="text-sm font-semibold text-amber-700">
+                      <div key={id} className={`${highVisibility ? 'text-base' : 'text-sm'} font-semibold text-amber-700`}>
                         {rider?.no_plate_display} - {rider?.name}
                         {penalty ? ` (+${penalty})` : ''}
                       </div>
@@ -746,13 +761,13 @@ export default function JuryFinishPage() {
               </div>
 
               <div className="rounded-xl border border-slate-200 bg-white p-3">
-                <div className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-slate-500">DNS</div>
+                <div className={`${highVisibility ? 'text-xs' : 'text-[10px]'} font-extrabold uppercase tracking-[0.12em] text-slate-500`}>DNS</div>
                 <div className="mt-2 grid gap-1.5">
                   {dnsRiders.map((id) => {
                     const rider = riders.find((r) => r.id === id)
                     const penalty = penaltiesByRider[id] ?? 0
                     return (
-                      <div key={id} className="text-sm font-semibold text-rose-700">
+                      <div key={id} className={`${highVisibility ? 'text-base' : 'text-sm'} font-semibold text-rose-700`}>
                         {rider?.no_plate_display} - {rider?.name}
                         {penalty ? ` (+${penalty})` : ''}
                       </div>

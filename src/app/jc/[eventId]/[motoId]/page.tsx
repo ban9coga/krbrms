@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import CheckerTopbar from '../../../../components/CheckerTopbar'
+import { useHighVisibility } from '../../../../hooks/useHighVisibility'
 import { compareMotoSequence } from '../../../../lib/motoSequence'
 import { supabase } from '../../../../lib/supabaseClient'
 import { isMotoLive } from '../../../../lib/motoStatus'
@@ -144,6 +145,7 @@ export default function JCPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [warningMessage, setWarningMessage] = useState<string | null>(null)
   const [allReadyDone, setAllReadyDone] = useState(false)
+  const { highVisibility, toggleHighVisibility } = useHighVisibility('jury-checker-high-visibility')
 
   const getToken = useCallback(async () => {
     const { data } = await supabase.auth.getSession()
@@ -595,7 +597,7 @@ export default function JCPage() {
       <div className="jc-container" style={{ maxWidth: 980, margin: '0 auto', padding: 20, display: 'grid', gap: 16 }}>
         <div style={{ display: 'grid', gap: 8 }}>
           <div className="jc-header-row" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ fontSize: 28, fontWeight: 900 }}>Jury Start</div>
+            <div style={{ fontSize: highVisibility ? 34 : 28, fontWeight: 900 }}>Jury Start</div>
             <div className="jc-summary-text" style={{ marginLeft: 'auto', fontWeight: 700 }}>
               {selectedCategoryLabel} - {selectedMoto?.moto_name ?? '-'} | Ready: {activeCount}/{summary.total}
               {warningCount > 0 ? ` | Warn: ${warningCount}` : ''}
@@ -644,6 +646,21 @@ export default function JCPage() {
               }}
             >
               Refresh Moto
+            </button>
+            <button
+              type="button"
+              onClick={toggleHighVisibility}
+              style={{
+                padding: '10px 14px',
+                borderRadius: 16,
+                border: '2px solid #111',
+                background: highVisibility ? '#fef3c7' : '#fff',
+                color: '#111',
+                fontWeight: 900,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {highVisibility ? 'Mode Besar Aktif' : 'Mode Besar'}
             </button>
           </div>
 
@@ -739,7 +756,7 @@ export default function JCPage() {
               background: '#2ecc71',
               color: '#fff',
               fontWeight: 900,
-              fontSize: 20,
+              fontSize: highVisibility ? 24 : 20,
             }}
           >
             All Ready
@@ -913,7 +930,7 @@ export default function JCPage() {
                   <div>
                     <div
                       style={{
-                        fontSize: 34,
+                        fontSize: highVisibility ? 42 : 34,
                         lineHeight: 1,
                         fontWeight: 950,
                         letterSpacing: '0.04em',
@@ -922,10 +939,10 @@ export default function JCPage() {
                     >
                       {r.no_plate_display}
                     </div>
-                    <div style={{ fontSize: 15, fontWeight: 800, marginTop: 6 }}>{r.name}</div>
+                    <div style={{ fontSize: highVisibility ? 18 : 15, fontWeight: 800, marginTop: 6 }}>{r.name}</div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: 12, fontWeight: 800 }}>Gate #{r.gate_position ?? '-'}</div>
+                    <div style={{ fontSize: highVisibility ? 14 : 12, fontWeight: 800 }}>Gate #{r.gate_position ?? '-'}</div>
                     <div
                       style={{
                         marginTop: 4,
@@ -934,7 +951,7 @@ export default function JCPage() {
                         border: '2px solid #111',
                         background: statusBadge,
                         fontWeight: 900,
-                        fontSize: 11,
+                        fontSize: highVisibility ? 12 : 11,
                       }}
                     >
                       {!hasStatus
@@ -982,7 +999,7 @@ export default function JCPage() {
                         }}
                         disabled={safetyInteractionDisabled}
                         style={{
-                          padding: '10px 8px',
+                          padding: highVisibility ? '12px 10px' : '10px 8px',
                           borderRadius: 12,
                           border: '2px solid #111',
                           background: checked ? '#2ecc71' : '#e5e7eb',
@@ -992,14 +1009,14 @@ export default function JCPage() {
                           gap: 4,
                           justifyItems: 'center',
                           alignContent: 'center',
-                          minHeight: 74,
+                          minHeight: highVisibility ? 88 : 74,
                         }}
                         title={item.label}
                       >
                         <span
                           aria-hidden="true"
                           style={{
-                            fontSize: 24,
+                            fontSize: highVisibility ? 28 : 24,
                             lineHeight: 1,
                           }}
                         >
@@ -1007,7 +1024,7 @@ export default function JCPage() {
                         </span>
                         <span
                           style={{
-                            fontSize: 12,
+                            fontSize: highVisibility ? 13 : 12,
                             lineHeight: 1.1,
                             textAlign: 'center',
                             wordBreak: 'break-word',
@@ -1027,12 +1044,13 @@ export default function JCPage() {
                     onClick={() => handleSaveStatus(r.id, 'ACTIVE', r.gate_position ?? 0)}
                     disabled={readyDisabled}
                     style={{
-                      padding: '12px 14px',
+                      padding: highVisibility ? '14px 16px' : '12px 14px',
                       borderRadius: 999,
                       border: '2px solid #1b5e20',
                       background: safetyOk ? '#2ecc71' : '#ffe9a8',
                       color: '#111',
                       fontWeight: 900,
+                      fontSize: highVisibility ? 16 : undefined,
                     }}
                   >
                     READY
@@ -1043,12 +1061,13 @@ export default function JCPage() {
                     onClick={() => handleSaveStatus(r.id, 'DNS', r.gate_position ?? 0)}
                     disabled={dnsDisabled}
                     style={{
-                      padding: '12px 14px',
+                      padding: highVisibility ? '14px 16px' : '12px 14px',
                       borderRadius: 999,
                       border: '2px solid #c2410c',
                       background: '#ffedd5',
                       color: '#9a3412',
                       fontWeight: 900,
+                      fontSize: highVisibility ? 16 : undefined,
                     }}
                   >
                     DNS
@@ -1059,12 +1078,13 @@ export default function JCPage() {
                     onClick={() => handleSaveStatus(r.id, 'ABSENT', r.gate_position ?? 0)}
                     disabled={absentDisabled}
                     style={{
-                      padding: '12px 14px',
+                      padding: highVisibility ? '14px 16px' : '12px 14px',
                       borderRadius: 999,
                       border: '2px solid #b91c1c',
                       background: '#fee2e2',
                       color: '#7f1d1d',
                       fontWeight: 900,
+                      fontSize: highVisibility ? 16 : undefined,
                     }}
                   >
                     ABSENT

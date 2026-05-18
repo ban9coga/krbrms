@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import PublicTopbar from '../../../components/PublicTopbar'
+import { useHighVisibility } from '../../../hooks/useHighVisibility'
 import { supabase } from '../../../lib/supabaseClient'
 
 type MotoInfo = {
@@ -85,6 +86,7 @@ export default function McLivePage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<string | null>(null)
+  const { highVisibility, toggleHighVisibility } = useHighVisibility('mc-high-visibility')
 
   const apiFetch = async (url: string, options: RequestInit = {}) => {
     const { data: sessionData } = await supabase.auth.getSession()
@@ -147,11 +149,11 @@ export default function McLivePage() {
           <div className="relative z-10 flex flex-wrap items-start justify-between gap-3">
             <div className="grid gap-1">
               <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-amber-300">MC Live Board</p>
-              <h1 className="text-2xl font-black tracking-tight text-white md:text-4xl">
+              <h1 className={`${highVisibility ? 'text-3xl md:text-5xl' : 'text-2xl md:text-4xl'} font-black tracking-tight text-white`}>
                 {data?.category ?? 'Kategori'} | {data?.batch ?? '-'} | {data?.moto?.moto_name ?? 'Moto'}
               </h1>
-              <p className="text-lg font-extrabold text-slate-200">{data?.event_name ?? 'Event'}</p>
-              <p className="text-sm font-semibold text-slate-300">
+              <p className={`${highVisibility ? 'text-xl md:text-2xl' : 'text-lg'} font-extrabold text-slate-200`}>{data?.event_name ?? 'Event'}</p>
+              <p className={`${highVisibility ? 'text-base md:text-lg' : 'text-sm'} font-semibold text-slate-300`}>
                 {data?.next_moto
                   ? `Next: ${data.next_moto.category ?? '-'} | ${data.next_moto.batch ?? '-'} | ${data.next_moto.moto_label}`
                   : 'Belum ada moto berikutnya'}
@@ -166,16 +168,29 @@ export default function McLivePage() {
         <section className="public-panel-light">
           <div className="mb-3 flex items-center justify-between gap-2">
             <div className="grid gap-1">
-              <h2 className="text-xl font-black tracking-tight text-slate-900">Ranking (Top 8)</h2>
+              <h2 className={`${highVisibility ? 'text-2xl md:text-3xl' : 'text-xl'} font-black tracking-tight text-slate-900`}>Ranking (Top 8)</h2>
               <div className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">Auto refresh aktif tiap 5 detik</div>
             </div>
-            <button
-              type="button"
-              onClick={() => load()}
-              className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1.5 text-xs font-extrabold uppercase tracking-[0.12em] text-slate-700 transition-colors hover:bg-slate-200"
-            >
-              Refresh
-            </button>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={toggleHighVisibility}
+                className={`rounded-full border px-3 py-1.5 text-xs font-extrabold uppercase tracking-[0.12em] transition-colors ${
+                  highVisibility
+                    ? 'border-amber-300 bg-amber-100 text-amber-900 hover:bg-amber-200'
+                    : 'border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                {highVisibility ? 'Mode Besar Aktif' : 'Mode Besar'}
+              </button>
+              <button
+                type="button"
+                onClick={() => load()}
+                className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1.5 text-xs font-extrabold uppercase tracking-[0.12em] text-slate-700 transition-colors hover:bg-slate-200"
+              >
+                Refresh
+              </button>
+            </div>
           </div>
 
           {loading && (
@@ -195,7 +210,7 @@ export default function McLivePage() {
               <div className="grid gap-2">
                 <div className="table-mobile-hint">Geser kiri/kanan untuk lihat semua kolom.</div>
                 <div className="public-table-wrap">
-                  <table className="public-table" style={{ minWidth: 760 }}>
+                  <table className="public-table" style={{ minWidth: highVisibility ? 900 : 760 }}>
                     <thead>
                       <tr>
                         {['Rank', 'Plate', 'Rider', 'Komunitas', 'Total Point', 'Status'].map((label) => (
@@ -206,18 +221,18 @@ export default function McLivePage() {
                     <tbody>
                       {ranking.map((row, idx) => (
                         <tr key={row.rider_id}>
-                          <td className="text-lg font-black text-slate-900 md:text-2xl">{idx + 1}</td>
-                          <td className="text-base font-extrabold md:text-xl">{row.plate}</td>
+                          <td className={`${highVisibility ? 'text-2xl md:text-3xl' : 'text-lg md:text-2xl'} font-black text-slate-900`}>{idx + 1}</td>
+                          <td className={`${highVisibility ? 'text-lg md:text-2xl' : 'text-base md:text-xl'} font-extrabold`}>{row.plate}</td>
                           <td>
-                            <div className="text-lg font-black text-slate-900 md:text-2xl">{riderDisplayName(row)}</div>
+                            <div className={`${highVisibility ? 'text-2xl md:text-3xl' : 'text-lg md:text-2xl'} font-black text-slate-900`}>{riderDisplayName(row)}</div>
                             {row.rider_nickname?.trim() && (
-                              <div className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500 md:text-sm">
+                              <div className={`${highVisibility ? 'text-sm md:text-base' : 'text-xs md:text-sm'} font-bold uppercase tracking-[0.12em] text-slate-500`}>
                                 {row.rider_name}
                               </div>
                             )}
                           </td>
-                          <td className="text-sm font-extrabold text-slate-700 md:text-lg">{row.club || '-'}</td>
-                          <td className="text-xl font-black text-sky-700 md:text-3xl">{row.total_point ?? '-'}</td>
+                          <td className={`${highVisibility ? 'text-base md:text-xl' : 'text-sm md:text-lg'} font-extrabold text-slate-700`}>{row.club || '-'}</td>
+                          <td className={`${highVisibility ? 'text-2xl md:text-4xl' : 'text-xl md:text-3xl'} font-black text-sky-700`}>{row.total_point ?? '-'}</td>
                           <td>
                             {row.status !== 'FINISH' ? (
                               <span
@@ -241,7 +256,7 @@ export default function McLivePage() {
               </div>
 
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <div className="mb-1 text-lg font-black tracking-tight text-slate-900 md:text-2xl">Data Rider Next Moto</div>
+                <div className={`${highVisibility ? 'text-2xl md:text-3xl' : 'text-lg md:text-2xl'} mb-1 font-black tracking-tight text-slate-900`}>Data Rider Next Moto</div>
                 <div className="mb-3 text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">
                   {data?.next_moto
                     ? `${data.next_moto.category ?? '-'} | ${data.next_moto.batch ?? '-'} | ${data.next_moto.moto_label}`
@@ -262,10 +277,10 @@ export default function McLivePage() {
                         <div className="text-sm font-extrabold uppercase tracking-[0.12em] text-slate-500">
                           Gate {row.gate_position ?? '-'}
                         </div>
-                        <div className="truncate text-base font-black text-slate-900 md:text-xl">
+                        <div className={`truncate ${highVisibility ? 'text-lg md:text-2xl' : 'text-base md:text-xl'} font-black text-slate-900`}>
                           {row.plate} - {nextMotoRiderDisplayName(row)}
                         </div>
-                        <div className="truncate text-sm font-bold text-slate-500 md:text-base">{row.club || '-'}</div>
+                        <div className={`truncate ${highVisibility ? 'text-base md:text-lg' : 'text-sm md:text-base'} font-bold text-slate-500`}>{row.club || '-'}</div>
                       </div>
                       <div className="flex items-center gap-2 text-right">
                         <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-extrabold uppercase tracking-[0.12em] text-slate-700">
