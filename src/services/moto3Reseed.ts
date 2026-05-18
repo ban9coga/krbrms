@@ -1,5 +1,3 @@
-'use server'
-
 import { adminClient } from '../lib/auth'
 
 type MotoLookupRow = {
