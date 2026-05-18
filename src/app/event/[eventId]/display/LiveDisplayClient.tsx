@@ -575,36 +575,36 @@ export default function LiveDisplayClient({
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">
-      <main className="mx-auto flex min-h-screen w-full max-w-[1920px] flex-col gap-6 px-4 py-4">
+      <main className="mx-auto flex min-h-screen w-full max-w-[1920px] flex-col gap-4 px-3 py-3 sm:gap-6 sm:px-4 sm:py-4">
         <section className="relative overflow-hidden rounded-[28px] border border-slate-700/70 bg-slate-900 shadow-2xl">
           <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(15,23,42,0.16)_0%,rgba(15,23,42,0.05)_32%,rgba(251,191,36,0.10)_100%)]" />
           <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-slate-100/10 blur-3xl" />
           <div className="pointer-events-none absolute -top-24 right-0 h-72 w-72 rounded-full bg-amber-200/10 blur-3xl" />
-          <div className="relative z-10 grid gap-5 px-6 py-6">
-            <div className="grid items-start gap-6 xl:grid-cols-[1fr_auto_340px]">
+          <div className="relative z-10 grid gap-4 px-4 py-5 sm:gap-5 sm:px-6 sm:py-6">
+            <div className="grid items-start gap-4 xl:grid-cols-[1fr_auto_340px] xl:gap-6">
               <div className="grid gap-2">
-                <h1 className="text-3xl font-black tracking-tight text-white drop-shadow-[0_4px_16px_rgba(15,23,42,0.32)] md:text-5xl">
+                <h1 className="text-2xl font-black tracking-tight text-white drop-shadow-[0_4px_16px_rgba(15,23,42,0.32)] sm:text-3xl md:text-5xl">
                   {publicEventTitle}
                 </h1>
-                <p className="text-base font-black uppercase tracking-[0.18em] text-amber-200">
+                <p className="text-sm font-black uppercase tracking-[0.16em] text-amber-200 sm:text-base sm:tracking-[0.18em]">
                   {publicBrandName || categoryLabel || 'Live Feed'}
                 </p>
-                {publicTagline && <p className="text-base font-semibold text-slate-100/90">{publicTagline}</p>}
-                {event?.location && <p className="text-base font-semibold text-slate-200/85">{event.location}</p>}
+                {publicTagline && <p className="text-sm font-semibold text-slate-100/90 sm:text-base">{publicTagline}</p>}
+                {event?.location && <p className="text-sm font-semibold text-slate-200/85 sm:text-base">{event.location}</p>}
               </div>
-              <div className="flex justify-center xl:pt-3">
-                <span className="rounded-full border border-emerald-300/40 bg-emerald-300/10 px-5 py-3 text-center text-lg font-black uppercase tracking-[0.14em] text-emerald-200 shadow-[0_0_24px_rgba(52,211,153,0.15)]">
+              <div className="flex justify-start xl:justify-center xl:pt-3">
+                <span className="rounded-full border border-emerald-300/40 bg-emerald-300/10 px-4 py-2.5 text-left text-sm font-black uppercase tracking-[0.12em] text-emerald-200 shadow-[0_0_24px_rgba(52,211,153,0.15)] sm:px-5 sm:py-3 sm:text-center sm:text-lg sm:tracking-[0.14em]">
                   Kategori Peserta: {categoryLabel || '-'}
                 </span>
               </div>
-              <div className="grid min-w-[340px] gap-3">
-                <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/10 px-4 py-3 backdrop-blur-sm">
+              <div className="grid gap-3 xl:min-w-[340px]">
+                <div className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/10 px-4 py-3 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
                   <span className="text-sm font-bold uppercase tracking-[0.14em] text-slate-300">Current Feed</span>
-                  <span className="text-lg font-black text-white">{displayMoto?.moto_name ?? '-'}</span>
+                  <span className="text-base font-black text-white sm:text-lg">{displayMoto?.moto_name ?? '-'}</span>
                 </div>
-                <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/10 px-4 py-3 backdrop-blur-sm">
+                <div className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/10 px-4 py-3 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
                   <span className="text-sm font-bold uppercase tracking-[0.14em] text-slate-300">Status</span>
-                  <span className={`text-lg font-black ${trackState.textClass}`}>{trackState.label}</span>
+                  <span className={`text-base font-black sm:text-lg ${trackState.textClass}`}>{trackState.label}</span>
                 </div>
               </div>
             </div>
@@ -635,11 +635,11 @@ export default function LiveDisplayClient({
 
         {!loading && event?.is_public !== false && hasData && (
           <>
-            <div className="grid gap-6 xl:grid-cols-[1.7fr_1fr]">
+            <div className="grid gap-4 xl:grid-cols-[1.7fr_1fr] xl:gap-6">
               <section className="rounded-[24px] border border-sky-200 bg-white shadow-2xl">
-                <div className="flex items-center justify-between border-b border-sky-100 px-6 py-4">
+                <div className="flex flex-col gap-3 border-b border-sky-100 px-4 py-4 sm:px-6 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <h2 className="text-2xl font-black uppercase tracking-[0.08em] text-slate-900">
+                    <h2 className="text-xl font-black uppercase tracking-[0.08em] text-slate-900 sm:text-2xl">
                       {showResultBoard
                         ? `${resultBoard?.title ?? 'Final Result'}`
                         : activeStageView
@@ -652,7 +652,7 @@ export default function LiveDisplayClient({
                       {showResultBoard ? 'Hasil akhir moto terakhir yang baru selesai.' : 'Urut otomatis berdasarkan rank terbaru.'}
                     </p>
                   </div>
-                  <div className="rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-extrabold uppercase tracking-[0.12em] text-emerald-700">
+                  <div className="w-fit rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-extrabold uppercase tracking-[0.12em] text-emerald-700 sm:text-sm">
                     {refreshing ? 'Refreshing' : showResultBoard ? 'Result Board' : 'Live Feed'}
                   </div>
                 </div>
@@ -687,7 +687,7 @@ export default function LiveDisplayClient({
                         ))}
                       </div>
                     )}
-                    <div className="overflow-hidden rounded-[18px] border border-slate-200">
+                    <div className="overflow-x-auto rounded-[18px] border border-slate-200">
                       <table className="w-full border-collapse text-xs md:text-sm">
                         <thead>
                           <tr className="bg-slate-900 text-left font-black uppercase tracking-[0.12em] text-white">
@@ -729,7 +729,7 @@ export default function LiveDisplayClient({
                     </div>
                   </div>
                 ) : activeStageView ? (
-                  <div className="overflow-hidden">
+                  <div className="overflow-x-auto">
                     <table className="w-full border-collapse text-xs md:text-sm">
                       <colgroup>
                         <col style={{ width: '72px' }} />
@@ -787,7 +787,7 @@ export default function LiveDisplayClient({
                 ) : !liveBatchView ? (
                   <div className="p-6 text-lg font-semibold text-slate-500">Belum ada batch live yang aktif.</div>
                 ) : (
-                  <div className="overflow-hidden">
+                  <div className="overflow-x-auto">
                     <table className="w-full border-collapse text-xs md:text-sm">
                       <colgroup>
                         <col style={{ width: '76px' }} />
@@ -854,15 +854,15 @@ export default function LiveDisplayClient({
               </section>
 
               <section className="rounded-[24px] border border-slate-700 bg-slate-900 shadow-2xl">
-                <div className="flex items-center justify-between border-b border-slate-800 px-6 py-4">
+                <div className="flex flex-col gap-3 border-b border-slate-800 px-4 py-4 sm:px-6 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <h2 className="text-2xl font-black uppercase tracking-[0.08em] text-white">Waiting Feed</h2>
+                    <h2 className="text-xl font-black uppercase tracking-[0.08em] text-white sm:text-2xl">Waiting Feed</h2>
                     <p className="text-sm font-semibold text-slate-400">{queueTarget?.label ?? 'Belum ada moto berikutnya'}</p>
                     <p className="text-sm font-bold uppercase tracking-[0.12em] text-amber-200">
                       Kategori: {queueLiveScore?.categoryLabel ?? categories.find((category) => category.id === queueMoto?.category_id)?.label ?? '-'}
                     </p>
                   </div>
-                  <div className="rounded-full border border-amber-300/40 bg-amber-300/15 px-4 py-2 text-sm font-extrabold uppercase tracking-[0.12em] text-amber-200">
+                  <div className="w-fit rounded-full border border-amber-300/40 bg-amber-300/15 px-4 py-2 text-xs font-extrabold uppercase tracking-[0.12em] text-amber-200 sm:text-sm">
                     Next Moto
                   </div>
                 </div>
@@ -874,7 +874,7 @@ export default function LiveDisplayClient({
                       : 'Belum ada moto berikutnya untuk ditampilkan.'}
                   </div>
                 ) : (
-                  <div className="overflow-hidden">
+                  <div className="overflow-x-auto">
                     <table className="w-full border-collapse text-xs md:text-sm">
                       <colgroup>
                         <col style={{ width: '82px' }} />
@@ -921,14 +921,14 @@ export default function LiveDisplayClient({
           </>
         )}
 
-        <section className="sticky bottom-0 z-30 rounded-[24px] border border-slate-800 bg-slate-950/95 px-6 py-4 shadow-2xl backdrop-blur">
-          <div className="flex items-center justify-between gap-4">
+        <section className="sticky bottom-0 z-30 rounded-[24px] border border-slate-800 bg-slate-950/95 px-4 py-4 shadow-2xl backdrop-blur sm:px-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
             <div className="flex items-center gap-3 border-l-4 border-amber-400 pl-4">
               <span className={`h-3 w-3 rounded-full ${trackState.dotClass} ${isMotoLive(displayMoto?.status) ? 'animate-pulse' : ''}`} />
-              <span className={`text-lg font-black uppercase tracking-[0.16em] ${trackState.textClass}`}>{trackState.label}</span>
+              <span className={`text-base font-black uppercase tracking-[0.14em] sm:text-lg sm:tracking-[0.16em] ${trackState.textClass}`}>{trackState.label}</span>
             </div>
-            <div className="text-lg font-bold text-slate-200">Moto: {displayMoto?.moto_name ?? '-'}</div>
-            <div className="text-lg font-bold text-slate-200">Kategori: {categoryLabel || '-'}</div>
+            <div className="text-sm font-bold text-slate-200 sm:text-lg">Moto: {displayMoto?.moto_name ?? '-'}</div>
+            <div className="text-sm font-bold text-slate-200 sm:text-lg">Kategori: {categoryLabel || '-'}</div>
           </div>
         </section>
       </main>
