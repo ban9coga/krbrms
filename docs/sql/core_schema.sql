@@ -385,9 +385,6 @@ create table if not exists rider_participation_status (
   created_at timestamptz not null default now()
 );
 
-create unique index if not exists uq_rider_participation_event_rider
-  on rider_participation_status(event_id, rider_id);
-
 create unique index if not exists uq_rider_participation_event_moto_rider
   on rider_participation_status(event_id, moto_id, rider_id);
 

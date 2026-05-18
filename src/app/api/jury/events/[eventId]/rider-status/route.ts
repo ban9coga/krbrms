@@ -3,6 +3,7 @@ import { adminClient } from '../../../../../../lib/auth'
 import { assertMotoEditable, assertMotoNotUnderProtest } from '../../../../../../lib/motoLock'
 import { isMotoLive } from '../../../../../../lib/motoStatus'
 import { requireJury } from '../../../../../../services/juryAuth'
+import { upsertRiderParticipationStatuses } from '../../../../../../services/riderParticipationStatus'
 
 const getApprovalMode = async (eventId: string) => {
   const { data } = await adminClient
@@ -169,20 +170,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
   if (shouldAutoApply) {
-    await adminClient
-      .from('rider_participation_status')
-      .upsert(
-        [
-          {
-            event_id: eventId,
-            moto_id,
-            rider_id,
-            participation_status,
-            registration_order,
-          },
-        ],
-        { onConflict: 'event_id,moto_id,rider_id' }
-      )
+    const { error: participationError } = await upsertRiderParticipationStatuses([
+      {
+        event_id: eventId,
+        moto_id,
+        rider_id,
+        participation_status,
+        registration_order,
+      },
+    ])
+    if (participationError) {
+      return NextResponse.json({ error: participationError.message }, { status: 400 })
+    }
 
     if (participation_status === 'DNS' || participation_status === 'ABSENT') {
       const { error: dnsResultError } = await adminClient

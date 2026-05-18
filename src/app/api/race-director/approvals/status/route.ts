@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../lib/auth'
 import { requireJury } from '../../../../../services/juryAuth'
+import { upsertRiderParticipationStatuses } from '../../../../../services/riderParticipationStatus'
 
 export async function POST(req: Request) {
   const body = await req.json()
@@ -30,20 +31,18 @@ export async function POST(req: Request) {
     .eq('id', update_id)
 
   if (approval_status === 'APPROVED') {
-    await adminClient
-      .from('rider_participation_status')
-      .upsert(
-        [
-          {
-            event_id: update.event_id,
-            moto_id: update.moto_id ?? null,
-            rider_id: update.rider_id,
-            participation_status: update.proposed_status,
-            registration_order: 0,
-          },
-        ],
-        { onConflict: 'event_id,moto_id,rider_id' }
-      )
+    const { error: participationError } = await upsertRiderParticipationStatuses([
+      {
+        event_id: update.event_id,
+        moto_id: update.moto_id ?? null,
+        rider_id: update.rider_id,
+        participation_status: update.proposed_status,
+        registration_order: 0,
+      },
+    ])
+    if (participationError) {
+      return NextResponse.json({ error: participationError.message }, { status: 400 })
+    }
   }
 
   await adminClient.from('audit_log').insert([

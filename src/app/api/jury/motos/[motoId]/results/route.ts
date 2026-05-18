@@ -3,6 +3,7 @@ import { adminClient } from '../../../../../../lib/auth'
 import { assertMotoEditable, assertMotoNotUnderProtest } from '../../../../../../lib/motoLock'
 import { promoteNextMotoToLive } from '../../../../../../services/motoProgression'
 import { reseedSingleBatchMoto3FromMoto } from '../../../../../../services/moto3Reseed'
+import { upsertRiderParticipationStatuses } from '../../../../../../services/riderParticipationStatus'
 import { requireJury } from '../../../../../../services/juryAuth'
 
 const isLockedMoto = async (motoId: string) => {
@@ -131,9 +132,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
       registration_order: row.finish_order ?? 0,
     }))
   if (activeRows.length > 0) {
-    const { error: activeStatusError } = await adminClient
-      .from('rider_participation_status')
-      .upsert(activeRows, { onConflict: 'event_id,moto_id,rider_id' })
+    const { error: activeStatusError } = await upsertRiderParticipationStatuses(activeRows)
     if (activeStatusError) return NextResponse.json({ error: activeStatusError.message }, { status: 400 })
   }
 
