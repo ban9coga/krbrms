@@ -92,75 +92,84 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
     return json
   }, [])
 
-  const loadGateOrders = useCallback(async (categoryIds: string[]) => {
-    if (categoryIds.length === 0) {
-      setGateOrdersByCategory({})
-      return
-    }
+  const loadGateOrders = useCallback(
+    async (categoryIds: string[]) => {
+      if (categoryIds.length === 0) {
+        setGateOrdersByCategory({})
+        return
+      }
 
-    const entries = await Promise.all(
-      categoryIds.map(async (categoryId) => {
-        const res = await fetch(`/api/events/${eventId}/gate-order?categoryId=${categoryId}`, { cache: 'no-store' })
-        const json = await res.json().catch(() => ({}))
-        if (!res.ok) return [categoryId, []] as const
-        return [categoryId, (json?.data ?? []) as GateMotoItem[]] as const
-      })
-    )
-
-    const nextMap: Record<string, GateMotoItem[]> = {}
-    for (const [categoryId, rows] of entries) {
-      nextMap[categoryId] = [...rows].sort(compareMotoSequence)
-    }
-    setGateOrdersByCategory(nextMap)
-  }, [eventId])
-
-  const loadData = useCallback(async (mode: 'initial' | 'refresh' = 'initial') => {
-    if (!eventId) return
-    if (mode === 'initial' && !hasLoadedOnce) setLoading(true)
-    else setRefreshing(true)
-
-    try {
-      const nonce = Date.now()
-      const [categoryRes, motoRes] = await Promise.all([
-        fetch(`/api/events/${eventId}/categories?_=${nonce}`, { cache: 'no-store' }),
-        fetch(`/api/motos?event_id=${eventId}&_=${nonce}`, { cache: 'no-store' }),
-      ])
-
-      const categoryJson = await categoryRes.json().catch(() => ({}))
-      const motoJson = await motoRes.json().catch(() => ({}))
-
-      const enabledCategories = ((categoryJson?.data ?? []) as CategoryItem[]).filter((category) => category.enabled)
-      const motoRows = (motoJson?.data ?? []) as MotoItem[]
-
-      setCategories(enabledCategories)
-      setMotos(motoRows)
-
-      const categoryIds = Array.from(new Set(motoRows.map((moto) => moto.category_id))).filter(Boolean)
-      await loadGateOrders(categoryIds)
-    } finally {
-      setLoading(false)
-      setRefreshing(false)
-      setHasLoadedOnce(true)
-    }
-  }, [eventId, hasLoadedOnce, loadGateOrders])
-
-  const saveCategorySequence = useCallback(async (nextCategories: CategoryItem[]) => {
-    setSavingSequence(true)
-    try {
-      await apiFetch(`/api/events/${eventId}/categories/sequence`, {
-        method: 'POST',
-        body: JSON.stringify({ category_ids: nextCategories.map((category) => category.id) }),
-      })
-      setCategories(
-        nextCategories.map((category, index) => ({
-          ...category,
-          sequence_order: index + 1,
-        }))
+      const entries = await Promise.all(
+        categoryIds.map(async (categoryId) => {
+          const res = await fetch(`/api/events/${eventId}/gate-order?categoryId=${categoryId}`, { cache: 'no-store' })
+          const json = await res.json().catch(() => ({}))
+          if (!res.ok) return [categoryId, []] as const
+          return [categoryId, (json?.data ?? []) as GateMotoItem[]] as const
+        })
       )
-    } finally {
-      setSavingSequence(false)
-    }
-  }, [apiFetch, eventId])
+
+      const nextMap: Record<string, GateMotoItem[]> = {}
+      for (const [categoryId, rows] of entries) {
+        nextMap[categoryId] = [...rows].sort(compareMotoSequence)
+      }
+      setGateOrdersByCategory(nextMap)
+    },
+    [eventId]
+  )
+
+  const loadData = useCallback(
+    async (mode: 'initial' | 'refresh' = 'initial') => {
+      if (!eventId) return
+      if (mode === 'initial' && !hasLoadedOnce) setLoading(true)
+      else setRefreshing(true)
+
+      try {
+        const nonce = Date.now()
+        const [categoryRes, motoRes] = await Promise.all([
+          fetch(`/api/events/${eventId}/categories?_=${nonce}`, { cache: 'no-store' }),
+          fetch(`/api/motos?event_id=${eventId}&_=${nonce}`, { cache: 'no-store' }),
+        ])
+
+        const categoryJson = await categoryRes.json().catch(() => ({}))
+        const motoJson = await motoRes.json().catch(() => ({}))
+
+        const enabledCategories = ((categoryJson?.data ?? []) as CategoryItem[]).filter((category) => category.enabled)
+        const motoRows = (motoJson?.data ?? []) as MotoItem[]
+
+        setCategories(enabledCategories)
+        setMotos(motoRows)
+
+        const categoryIds = Array.from(new Set(motoRows.map((moto) => moto.category_id))).filter(Boolean)
+        await loadGateOrders(categoryIds)
+      } finally {
+        setLoading(false)
+        setRefreshing(false)
+        setHasLoadedOnce(true)
+      }
+    },
+    [eventId, hasLoadedOnce, loadGateOrders]
+  )
+
+  const saveCategorySequence = useCallback(
+    async (nextCategories: CategoryItem[]) => {
+      setSavingSequence(true)
+      try {
+        await apiFetch(`/api/events/${eventId}/categories/sequence`, {
+          method: 'POST',
+          body: JSON.stringify({ category_ids: nextCategories.map((category) => category.id) }),
+        })
+        setCategories(
+          nextCategories.map((category, index) => ({
+            ...category,
+            sequence_order: index + 1,
+          }))
+        )
+      } finally {
+        setSavingSequence(false)
+      }
+    },
+    [apiFetch, eventId]
+  )
 
   useEffect(() => {
     void loadData('initial')
@@ -186,19 +195,6 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
     return [...categories].sort(compareCategoryOrder)
   }, [categories])
 
-  const motosByCategory = useMemo(() => {
-    const grouped = new Map<string, MotoItem[]>()
-    for (const moto of motos) {
-      const list = grouped.get(moto.category_id) ?? []
-      list.push(moto)
-      grouped.set(moto.category_id, list)
-    }
-    for (const list of grouped.values()) {
-      list.sort(compareMotoSequence)
-    }
-    return grouped
-  }, [motos])
-
   const globalMotoSequence = useMemo(() => {
     const categoryOrderMap = new Map(categoriesSorted.map((category, index) => [category.id, index]))
     return [...motos].sort((a, b) => {
@@ -209,12 +205,16 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
     })
   }, [categoriesSorted, motos])
 
-  const currentMoto = useMemo(() => {
-    return (
-      globalMotoSequence.find((moto) => moto.status === 'LIVE') ??
-      globalMotoSequence.find((moto) => moto.status === 'PROVISIONAL') ??
-      null
+  const gateMap = useMemo(() => {
+    return new Map(
+      Object.values(gateOrdersByCategory)
+        .flat()
+        .map((moto) => [moto.id, moto] as const)
     )
+  }, [gateOrdersByCategory])
+
+  const currentMoto = useMemo(() => {
+    return globalMotoSequence.find((moto) => moto.status === 'LIVE') ?? globalMotoSequence.find((moto) => moto.status === 'PROVISIONAL') ?? null
   }, [globalMotoSequence])
 
   const nextMoto = useMemo(() => {
@@ -248,15 +248,14 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
     }
   }
 
-  const moveMotoWithinCategory = async (categoryId: string, motoId: string, direction: -1 | 1) => {
-    const ordered = [...(motosByCategory.get(categoryId) ?? [])]
+  const moveMotoGlobal = async (motoId: string, direction: -1 | 1) => {
+    const ordered = [...globalMotoSequence]
     const index = ordered.findIndex((moto) => moto.id === motoId)
     const nextIndex = index + direction
     if (index < 0 || nextIndex < 0 || nextIndex >= ordered.length) return
 
-    const swapped = [...ordered]
-    const currentMoto = swapped[index]
-    const targetMoto = swapped[nextIndex]
+    const currentMoto = ordered[index]
+    const targetMoto = ordered[nextIndex]
     const currentOrder = currentMoto.moto_order
     const targetOrder = targetMoto.moto_order
 
@@ -290,7 +289,7 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
   if (loading && motos.length === 0) {
     return (
       <div style={{ padding: '20px', textAlign: 'center' }}>
-        <p style={{ fontSize: '16px', color: '#666' }}>Loading moto sequence...</p>
+        <p style={{ fontSize: '16px', color: '#666' }}>Loading global moto planner...</p>
       </div>
     )
   }
@@ -299,7 +298,7 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
     <div style={{ padding: '20px', maxWidth: '1400px', margin: '0 auto' }}>
       <div style={{ marginBottom: '30px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-          <h1 style={{ margin: 0, fontSize: '28px', fontWeight: 900 }}>Moto Sequence</h1>
+          <h1 style={{ margin: 0, fontSize: '28px', fontWeight: 900 }}>Global Moto Planner</h1>
           <button
             onClick={() => void loadData('refresh')}
             disabled={loading || refreshing || savingSequence}
@@ -308,8 +307,8 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
               borderRadius: '8px',
               border: '1px solid #ddd',
               background: '#fff',
-              cursor: loading || refreshing ? 'not-allowed' : 'pointer',
-              opacity: loading || refreshing ? 0.6 : 1,
+              cursor: loading || refreshing || savingSequence ? 'not-allowed' : 'pointer',
+              opacity: loading || refreshing || savingSequence ? 0.6 : 1,
               fontWeight: 600,
             }}
           >
@@ -317,7 +316,7 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
           </button>
         </div>
         <p style={{ margin: 0, color: '#666', fontSize: '14px' }}>
-          Master moto sequence for {categories.length} categories · {motos.length} motos total
+          Atur semua moto lintas kategori dalam satu daftar global. Planner ini jadi acuan urutan moto yang akan LIVE.
         </p>
       </div>
 
@@ -342,18 +341,14 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
           </div>
           {currentMoto ? (
             <div style={{ marginTop: '8px', display: 'grid', gap: '4px' }}>
-              <div style={{ fontSize: '18px', fontWeight: 900 }}>
-                {categoryLabel.get(currentMoto.category_id) || currentMoto.category_id}
-              </div>
+              <div style={{ fontSize: '18px', fontWeight: 900 }}>{categoryLabel.get(currentMoto.category_id) || currentMoto.category_id}</div>
               <div style={{ fontSize: '15px', fontWeight: 800 }}>{currentMoto.moto_name}</div>
               <div style={{ fontSize: '12px', fontWeight: 800, color: '#7c2d12' }}>
                 Status: {STATUS_LABELS[currentMoto.status] || currentMoto.status}
               </div>
             </div>
           ) : (
-            <div style={{ marginTop: '8px', fontSize: '14px', fontWeight: 700, color: '#9a3412' }}>
-              Belum ada moto LIVE / PROVISIONAL.
-            </div>
+            <div style={{ marginTop: '8px', fontSize: '14px', fontWeight: 700, color: '#9a3412' }}>Belum ada moto LIVE / PROVISIONAL.</div>
           )}
         </div>
 
@@ -370,61 +365,214 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
           </div>
           {nextMoto ? (
             <div style={{ marginTop: '8px', display: 'grid', gap: '4px' }}>
-              <div style={{ fontSize: '18px', fontWeight: 900 }}>
-                {categoryLabel.get(nextMoto.category_id) || nextMoto.category_id}
-              </div>
+              <div style={{ fontSize: '18px', fontWeight: 900 }}>{categoryLabel.get(nextMoto.category_id) || nextMoto.category_id}</div>
               <div style={{ fontSize: '15px', fontWeight: 800 }}>{nextMoto.moto_name}</div>
               <div style={{ fontSize: '12px', fontWeight: 800, color: '#3f6212' }}>
                 Menunggu menjadi LIVE setelah moto aktif selesai.
               </div>
             </div>
           ) : (
-            <div style={{ marginTop: '8px', fontSize: '14px', fontWeight: 700, color: '#3f6212' }}>
-              Tidak ada moto UPCOMING berikutnya.
-            </div>
+            <div style={{ marginTop: '8px', fontSize: '14px', fontWeight: 700, color: '#3f6212' }}>Tidak ada moto UPCOMING berikutnya.</div>
           )}
         </div>
       </div>
 
-      {categoriesSorted.map((category) => {
-        const categoryMotos = motosByCategory.get(category.id) ?? []
-        if (categoryMotos.length === 0) return null
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+          gap: '12px',
+          marginBottom: '24px',
+        }}
+      >
+        {categoriesSorted.map((category, index) => (
+          <div
+            key={category.id}
+            style={{
+              border: '1px solid #d1d5db',
+              borderRadius: '12px',
+              background: '#fff',
+              padding: '12px',
+              display: 'grid',
+              gap: '8px',
+            }}
+          >
+            <div style={{ fontSize: '11px', fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6b7280' }}>
+              Category Sequence #{index + 1}
+            </div>
+            <div style={{ fontSize: '15px', fontWeight: 900 }}>{category.label}</div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => void moveCategory(category.id, -1)}
+                disabled={savingSequence || categoriesSorted[0]?.id === category.id}
+                style={{
+                  padding: '6px 10px',
+                  borderRadius: '999px',
+                  border: '2px solid #111',
+                  background: '#fff',
+                  fontWeight: 900,
+                  cursor: savingSequence || categoriesSorted[0]?.id === category.id ? 'not-allowed' : 'pointer',
+                  opacity: savingSequence || categoriesSorted[0]?.id === category.id ? 0.5 : 1,
+                }}
+              >
+                Kategori Naik
+              </button>
+              <button
+                type="button"
+                onClick={() => void moveCategory(category.id, 1)}
+                disabled={savingSequence || categoriesSorted[categoriesSorted.length - 1]?.id === category.id}
+                style={{
+                  padding: '6px 10px',
+                  borderRadius: '999px',
+                  border: '2px solid #111',
+                  background: '#fff',
+                  fontWeight: 900,
+                  cursor:
+                    savingSequence || categoriesSorted[categoriesSorted.length - 1]?.id === category.id ? 'not-allowed' : 'pointer',
+                  opacity:
+                    savingSequence || categoriesSorted[categoriesSorted.length - 1]?.id === category.id ? 0.5 : 1,
+                }}
+              >
+                Kategori Turun
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
 
-        const gateRows = gateOrdersByCategory[category.id] ?? []
-        const gateMap = new Map(gateRows.map((moto) => [moto.id, moto]))
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '10px' }}>
+        {globalMotoSequence.map((moto, index) => {
+          const statusColor = STATUS_COLORS[moto.status] || '#999'
+          const statusLabel = STATUS_LABELS[moto.status] || moto.status
+          const riders = gateMap.get(moto.id)?.gates ?? []
 
-        return (
-          <div key={category.id} style={{ marginBottom: '40px' }}>
-            <div style={{ marginBottom: '12px', display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center' }}>
-              <div>
-                <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 800 }}>
-                  {categoryLabel.get(category.id) || category.id}
-                </h2>
-                <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#999' }}>
-                  Sequence #{categoriesSorted.findIndex((item) => item.id === category.id) + 1} · {categoryMotos.length} motos
-                </p>
+          return (
+            <div
+              key={moto.id}
+              style={{
+                border: `2px solid ${moto.id === nextMoto?.id ? '#16a34a' : moto.id === currentMoto?.id ? '#ea580c' : statusColor}`,
+                borderRadius: '12px',
+                padding: '12px',
+                background:
+                  moto.id === nextMoto?.id
+                    ? '#f0fdf4'
+                    : moto.id === currentMoto?.id
+                    ? '#fff7ed'
+                    : moto.status === 'LIVE'
+                    ? '#fff5f5'
+                    : '#f9fafb',
+                display: 'grid',
+                gridTemplateColumns: '180px minmax(220px, 280px) 1fr auto',
+                gap: '16px',
+                alignItems: 'start',
+              }}
+            >
+              <div style={{ display: 'grid', gap: '6px' }}>
+                <div style={{ fontSize: '12px', color: '#999' }}>Global #{index + 1}</div>
+                <div style={{ fontSize: '12px', color: '#999' }}>Order #{moto.moto_order}</div>
+                {moto.id === currentMoto?.id && (
+                  <div
+                    style={{
+                      display: 'inline-block',
+                      width: 'fit-content',
+                      padding: '3px 8px',
+                      borderRadius: '999px',
+                      background: '#ea580c',
+                      color: '#fff',
+                      fontSize: '10px',
+                      fontWeight: 900,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.08em',
+                    }}
+                  >
+                    Current Global Moto
+                  </div>
+                )}
+                {moto.id === nextMoto?.id && (
+                  <div
+                    style={{
+                      display: 'inline-block',
+                      width: 'fit-content',
+                      padding: '3px 8px',
+                      borderRadius: '999px',
+                      background: '#16a34a',
+                      color: '#fff',
+                      fontSize: '10px',
+                      fontWeight: 900,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.08em',
+                    }}
+                  >
+                    Next Global Moto
+                  </div>
+                )}
+                <div
+                  style={{
+                    display: 'inline-block',
+                    width: 'fit-content',
+                    padding: '4px 8px',
+                    borderRadius: '4px',
+                    background: statusColor,
+                    color: '#fff',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                  }}
+                >
+                  {statusLabel}
+                </div>
               </div>
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+
+              <div style={{ display: 'grid', gap: '6px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6b7280' }}>
+                  Category
+                </div>
+                <div style={{ fontSize: '16px', fontWeight: 900 }}>{categoryLabel.get(moto.category_id) || moto.category_id}</div>
+                <div style={{ fontSize: '15px', fontWeight: 800 }}>{moto.moto_name}</div>
+              </div>
+
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignContent: 'flex-start' }}>
+                {riders.length === 0 ? (
+                  <span style={{ color: '#999', fontSize: '13px' }}>No riders assigned</span>
+                ) : (
+                  riders.map((rider) => (
+                    <div
+                      key={`${moto.id}-${rider.rider_id}`}
+                      style={{
+                        padding: '4px 8px',
+                        borderRadius: '6px',
+                        background: '#e5e7eb',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                      }}
+                    >
+                      Gate {rider.gate_position}: {rider.no_plate_display} - {rider.name}
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-end' }}>
                 <button
                   type="button"
-                  onClick={() => void moveCategory(category.id, -1)}
-                  disabled={savingSequence || categoriesSorted[0]?.id === category.id}
+                  onClick={() => void moveMotoGlobal(moto.id, -1)}
+                  disabled={savingSequence || globalMotoSequence[0]?.id === moto.id}
                   style={{
                     padding: '6px 10px',
                     borderRadius: '999px',
                     border: '2px solid #111',
                     background: '#fff',
                     fontWeight: 900,
-                    cursor: savingSequence || categoriesSorted[0]?.id === category.id ? 'not-allowed' : 'pointer',
-                    opacity: savingSequence || categoriesSorted[0]?.id === category.id ? 0.5 : 1,
+                    cursor: savingSequence || globalMotoSequence[0]?.id === moto.id ? 'not-allowed' : 'pointer',
+                    opacity: savingSequence || globalMotoSequence[0]?.id === moto.id ? 0.5 : 1,
                   }}
                 >
-                  Naik
+                  Global Naik
                 </button>
                 <button
                   type="button"
-                  onClick={() => void moveCategory(category.id, 1)}
-                  disabled={savingSequence || categoriesSorted[categoriesSorted.length - 1]?.id === category.id}
+                  onClick={() => void moveMotoGlobal(moto.id, 1)}
+                  disabled={savingSequence || globalMotoSequence[globalMotoSequence.length - 1]?.id === moto.id}
                   style={{
                     padding: '6px 10px',
                     borderRadius: '999px',
@@ -432,172 +580,20 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
                     background: '#fff',
                     fontWeight: 900,
                     cursor:
-                      savingSequence || categoriesSorted[categoriesSorted.length - 1]?.id === category.id
+                      savingSequence || globalMotoSequence[globalMotoSequence.length - 1]?.id === moto.id
                         ? 'not-allowed'
                         : 'pointer',
                     opacity:
-                      savingSequence || categoriesSorted[categoriesSorted.length - 1]?.id === category.id ? 0.5 : 1,
+                      savingSequence || globalMotoSequence[globalMotoSequence.length - 1]?.id === moto.id ? 0.5 : 1,
                   }}
                 >
-                  Turun
+                  Global Turun
                 </button>
               </div>
             </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
-              {categoryMotos.map((moto) => {
-                const statusColor = STATUS_COLORS[moto.status] || '#999'
-                const statusLabel = STATUS_LABELS[moto.status] || moto.status
-                const riders = gateMap.get(moto.id)?.gates ?? []
-
-                return (
-                  <div
-                    key={moto.id}
-                    style={{
-                      border: `2px solid ${
-                        moto.id === nextMoto?.id ? '#16a34a' : moto.id === currentMoto?.id ? '#ea580c' : statusColor
-                      }`,
-                      borderRadius: '12px',
-                      padding: '12px',
-                      background:
-                        moto.id === nextMoto?.id
-                          ? '#f0fdf4'
-                          : moto.id === currentMoto?.id
-                          ? '#fff7ed'
-                          : moto.status === 'LIVE'
-                          ? '#fff5f5'
-                          : '#f9fafb',
-                      display: 'grid',
-                      gridTemplateColumns: '150px 1fr auto',
-                      gap: '16px',
-                      alignItems: 'start',
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontSize: '12px', color: '#999', marginBottom: '4px' }}>
-                        Order #{moto.moto_order}
-                      </div>
-                      <div style={{ fontWeight: 800, fontSize: '15px', marginBottom: '4px' }}>
-                        {moto.moto_name}
-                      </div>
-                      {moto.id === currentMoto?.id && (
-                        <div
-                          style={{
-                            display: 'inline-block',
-                            marginBottom: '6px',
-                            padding: '3px 8px',
-                            borderRadius: '999px',
-                            background: '#ea580c',
-                            color: '#fff',
-                            fontSize: '10px',
-                            fontWeight: 900,
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.08em',
-                          }}
-                        >
-                          Current Global Moto
-                        </div>
-                      )}
-                      {moto.id === nextMoto?.id && (
-                        <div
-                          style={{
-                            display: 'inline-block',
-                            marginBottom: '6px',
-                            padding: '3px 8px',
-                            borderRadius: '999px',
-                            background: '#16a34a',
-                            color: '#fff',
-                            fontSize: '10px',
-                            fontWeight: 900,
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.08em',
-                          }}
-                        >
-                          Next Global Moto
-                        </div>
-                      )}
-                      <div
-                        style={{
-                          display: 'inline-block',
-                          padding: '4px 8px',
-                          borderRadius: '4px',
-                          background: statusColor,
-                          color: '#fff',
-                          fontSize: '11px',
-                          fontWeight: 700,
-                        }}
-                      >
-                        {statusLabel}
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignContent: 'flex-start' }}>
-                      {riders.length === 0 ? (
-                        <span style={{ color: '#999', fontSize: '13px' }}>No riders assigned</span>
-                      ) : (
-                        riders.map((rider) => (
-                          <div
-                            key={`${moto.id}-${rider.rider_id}`}
-                            style={{
-                              padding: '4px 8px',
-                              borderRadius: '6px',
-                              background: '#e5e7eb',
-                              fontSize: '12px',
-                              fontWeight: 600,
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            Gate {rider.gate_position}: {rider.no_plate_display} - {rider.name}
-                          </div>
-                        ))
-                      )}
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-end' }}>
-                      <button
-                        type="button"
-                        onClick={() => void moveMotoWithinCategory(category.id, moto.id, -1)}
-                        disabled={savingSequence || categoryMotos[0]?.id === moto.id}
-                        style={{
-                          padding: '6px 10px',
-                          borderRadius: '999px',
-                          border: '2px solid #111',
-                          background: '#fff',
-                          fontWeight: 900,
-                          cursor: savingSequence || categoryMotos[0]?.id === moto.id ? 'not-allowed' : 'pointer',
-                          opacity: savingSequence || categoryMotos[0]?.id === moto.id ? 0.5 : 1,
-                        }}
-                      >
-                        Moto Naik
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void moveMotoWithinCategory(category.id, moto.id, 1)}
-                        disabled={savingSequence || categoryMotos[categoryMotos.length - 1]?.id === moto.id}
-                        style={{
-                          padding: '6px 10px',
-                          borderRadius: '999px',
-                          border: '2px solid #111',
-                          background: '#fff',
-                          fontWeight: 900,
-                          cursor:
-                            savingSequence || categoryMotos[categoryMotos.length - 1]?.id === moto.id
-                              ? 'not-allowed'
-                              : 'pointer',
-                          opacity:
-                            savingSequence || categoryMotos[categoryMotos.length - 1]?.id === moto.id ? 0.5 : 1,
-                        }}
-                      >
-                        Moto Turun
-                      </button>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )
-      })}
+          )
+        })}
+      </div>
 
       {!loading && motos.length === 0 && (
         <div
