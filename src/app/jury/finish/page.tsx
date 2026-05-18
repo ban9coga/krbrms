@@ -160,22 +160,7 @@ export default function JuryFinishPage() {
     )
     const catRows = (catJson.data ?? []) as CategoryItem[]
     setCategories(catRows)
-    const yearMap = new Map<string, number>()
-    const genderMap = new Map<string, string>()
-    for (const c of catRows) {
-      yearMap.set(c.id, c.year ?? 0)
-      if (c.gender) genderMap.set(c.id, c.gender)
-    }
-    const sortedMotos = [...(motoJson.data ?? [])].sort((a: MotoItem, b: MotoItem) => {
-      const ay = yearMap.get(a.category_id ?? '') ?? 0
-      const by = yearMap.get(b.category_id ?? '') ?? 0
-      if (by !== ay) return by - ay
-      const order = { BOY: 0, GIRL: 1, MIX: 2 } as const
-      const ag = order[(genderMap.get(a.category_id ?? '') as keyof typeof order) ?? 'MIX'] ?? 9
-      const bg = order[(genderMap.get(b.category_id ?? '') as keyof typeof order) ?? 'MIX'] ?? 9
-      if (ag !== bg) return ag - bg
-      return compareMotoSequence(a, b)
-    })
+    const sortedMotos = [...(motoJson.data ?? [])].sort(compareMotoSequence)
     setMotos(sortedMotos)
     setSelectedMotoId((prev) => pickNextSelectableMotoId(sortedMotos, prev))
     return sortedMotos
