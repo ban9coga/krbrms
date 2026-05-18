@@ -73,6 +73,7 @@ export default function JuryFinishPage() {
   const [finishOrder, setFinishOrder] = useState<string[]>([])
   const [dnfRiders, setDnfRiders] = useState<string[]>([])
   const [actions, setActions] = useState<Action[]>([])
+  const [submitNotice, setSubmitNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
   const pressTimers = useRef<Record<string, ReturnType<typeof setTimeout> | null>>({})
   const longPressFired = useRef<Record<string, boolean>>({})
@@ -372,6 +373,7 @@ export default function JuryFinishPage() {
     if (!selectedMoto) return
     localEditingRef.current = true
     setSaving(true)
+    setSubmitNotice(null)
     try {
       const payload = [
         ...finishSequence.map((f) => ({
@@ -411,12 +413,20 @@ export default function JuryFinishPage() {
       )
       if (selectedMoto) {
         const catLabel = categoryLabel.get(selectedMoto.category_id ?? '') ?? 'Unknown Category'
-        alert(`Submitted: ${catLabel} | ${selectedMoto.moto_name}`)
+        setSubmitNotice({
+          type: 'success',
+          message: `Submitted: ${catLabel} | ${selectedMoto.moto_name}`,
+        })
       } else {
-        alert('Submit completed.')
+        setSubmitNotice({ type: 'success', message: 'Submit completed.' })
       }
       await loadAll()
       await loadRiders(undefined, true)
+    } catch (error: unknown) {
+      setSubmitNotice({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'Submit result gagal.',
+      })
     } finally {
       setSaving(false)
     }
@@ -552,6 +562,17 @@ export default function JuryFinishPage() {
         {selectedMoto && !selectedMotoLive && (
           <section className="rounded-xl border border-amber-300 bg-amber-100 px-4 py-3 text-sm font-bold text-amber-800">
             Moto masih {selectedMoto.status}. Input hanya bisa saat LIVE.
+          </section>
+        )}
+        {submitNotice && (
+          <section
+            className={`rounded-xl px-4 py-3 text-sm font-bold ${
+              submitNotice.type === 'success'
+                ? 'border border-emerald-300 bg-emerald-50 text-emerald-800'
+                : 'border border-rose-300 bg-rose-50 text-rose-800'
+            }`}
+          >
+            {submitNotice.message}
           </section>
         )}
         <section className="flex flex-wrap gap-2">
