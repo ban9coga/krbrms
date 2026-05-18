@@ -191,23 +191,6 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     return grouped
   }, [motos])
 
-  const singleBatchMoto3ReadyByCategory = useMemo(() => {
-    const map = new Map<string, boolean>()
-    for (const [categoryId, list] of motosByCategory.entries()) {
-      const qualificationRows = list
-        .map((moto) => ({ moto, parsed: parseMotoBatch(moto.moto_name) }))
-        .filter((row) => row.parsed.batchNo > 0 && row.parsed.motoNo > 0)
-
-      const batchNos = new Set(qualificationRows.map((row) => row.parsed.batchNo))
-      const motoNos = new Set(
-        qualificationRows.filter((row) => row.parsed.batchNo === 1).map((row) => row.parsed.motoNo)
-      )
-
-      map.set(categoryId, batchNos.size === 1 && motoNos.has(1) && motoNos.has(2) && motoNos.has(3))
-    }
-    return map
-  }, [motosByCategory])
-
   const printGroups = useMemo(() => {
     return categoriesSorted
       .map((category) => {
@@ -405,25 +388,6 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     setHiddenCategoryIds((prev) =>
       prev.includes(categoryId) ? prev.filter((id) => id !== categoryId) : [...prev, categoryId]
     )
-  }
-
-  const handleReseedMoto3 = async (motoId: string) => {
-    const moto = motos.find((m) => m.id === motoId)
-    if (!moto) return
-
-    const ok = confirm(`Reseed gate Moto 3 berdasarkan total poin Moto 1 + Moto 2 untuk kategori ${categoryLabel.get(moto.category_id) ?? ''}?`)
-    if (!ok) return
-
-    try {
-      const json = await apiFetch(`/api/race-director/motos/${motoId}/reseed-moto3`, {
-        method: 'POST',
-        body: JSON.stringify({ reason: 'Manual reseed Moto 3 gate from motos page' }),
-      })
-      alert(`Gate ${json?.moto3_name ?? 'Moto 3'} berhasil diperbarui.`)
-      await load()
-    } catch (err: unknown) {
-      alert(getErrorMessage(err))
-    }
   }
 
   const handlePrintMotoRiders = () => {
@@ -799,22 +763,6 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                           }}
                         >
                           Reset Result
-                        </button>
-                      )}
-                      {singleBatchMoto3ReadyByCategory.get(m.category_id) && parseMotoBatch(m.moto_name).motoNo >= 2 && (
-                        <button
-                          type="button"
-                          onClick={() => handleReseedMoto3(m.id)}
-                          style={{
-                            padding: '8px 12px',
-                            borderRadius: 999,
-                            border: '2px solid #111',
-                            background: '#ddd6fe',
-                            fontWeight: 900,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          Reseed Moto 3
                         </button>
                       )}
                     </div>
