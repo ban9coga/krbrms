@@ -45,8 +45,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     .select('id, label, year, gender')
     .in('id', categoryIds)
   const categoryMap = new Map((categories ?? []).map((c) => [c.id, c.label as string]))
-  const categoryYear = new Map((categories ?? []).map((c) => [c.id, c.year as number]))
-  const categoryGender = new Map((categories ?? []).map((c) => [c.id, c.gender as string]))
 
   const motoIds = motoRows.map((m) => m.id)
   const { data: gates } = await adminClient
@@ -81,18 +79,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     ridersByMoto.set(row.moto_id, list)
   }
 
-  const sortedMotos = [...motoRows].sort((a, b) => {
-    const ay = categoryYear.get(a.category_id) ?? 0
-    const by = categoryYear.get(b.category_id) ?? 0
-    if (by !== ay) return by - ay
-    const genderOrder: Record<string, number> = { BOY: 0, GIRL: 1, MIX: 2 }
-    const ag = genderOrder[categoryGender.get(a.category_id) ?? 'MIX'] ?? 9
-    const bg = genderOrder[categoryGender.get(b.category_id) ?? 'MIX'] ?? 9
-    if (ag !== bg) return ag - bg
-    return compareMotoSequence(a, b)
-  })
+  const sortedMotos = [...motoRows].sort(compareMotoSequence)
 
-  const data = sortedMotos.map((moto) => {
+  const data = sortedMotos.map((moto, index) => {
     const riderIdsForMoto = ridersByMoto.get(moto.id) ?? []
     const rows = riderIdsForMoto
       .map((riderId) => {
@@ -111,6 +100,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       moto_id: moto.id,
       moto_name: moto.moto_name,
       moto_order: moto.moto_order,
+      global_order: index + 1,
       status: moto.status,
       category_label: categoryMap.get(moto.category_id) ?? 'Category',
       rows,

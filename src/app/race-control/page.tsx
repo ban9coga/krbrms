@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import CheckerTopbar from '../../components/CheckerTopbar'
 import { supabase } from '../../lib/supabaseClient'
@@ -16,6 +16,7 @@ type QueueMoto = {
   moto_id: string
   moto_name: string
   moto_order: number
+  global_order: number
   status: 'UPCOMING' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED'
   category_label: string
   rows: Array<{
@@ -66,7 +67,7 @@ export default function RaceControlPage() {
     loadEvents()
   }, [])
 
-  const loadQueue = async (id: string) => {
+  const loadQueue = useCallback(async (id: string) => {
     if (!id) return
     setLoading(true)
     try {
@@ -80,9 +81,9 @@ export default function RaceControlPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     if (!eventId) return
     setRefreshing(true)
     try {
@@ -90,7 +91,7 @@ export default function RaceControlPage() {
     } finally {
       setRefreshing(false)
     }
-  }
+  }, [eventId, loadQueue])
 
   useEffect(() => {
     void loadQueue(eventId)
@@ -101,7 +102,7 @@ export default function RaceControlPage() {
       void refresh()
     }, 10000)
     return () => clearInterval(interval)
-  }, [eventId])
+  }, [refresh])
 
   const activeQueue = useMemo(
     () => queue.filter((m) => m.status === 'LIVE' || m.status === 'UPCOMING'),
@@ -202,6 +203,9 @@ export default function RaceControlPage() {
             <article key={moto.moto_id} className="public-panel-light">
               <div className="flex flex-col gap-3 border-b border-slate-200 pb-4 sm:flex-row sm:items-start sm:justify-between">
                 <div className="grid gap-1">
+                  <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">
+                    Global #{moto.global_order}
+                  </div>
                   <div className="text-lg font-black tracking-tight text-slate-900">{moto.moto_name}</div>
                   <div className="text-sm font-semibold text-slate-600">{moto.category_label}</div>
                 </div>
@@ -212,8 +216,8 @@ export default function RaceControlPage() {
 
               <div className="mt-4 grid gap-3 sm:grid-cols-3">
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <div className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">Queue Order</div>
-                  <div className="mt-2 text-2xl font-black tracking-tight text-slate-900">M{moto.moto_order}</div>
+                  <div className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">Global Order</div>
+                  <div className="mt-2 text-2xl font-black tracking-tight text-slate-900">#{moto.global_order}</div>
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                   <div className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">Ready Riders</div>
