@@ -93,6 +93,28 @@ const renderMotoResultCell = (
   return point ?? '-'
 }
 
+const renderSortButtons = (
+  sortMode: 'GATE' | 'RANK',
+  setSortMode: (mode: 'GATE' | 'RANK') => void
+) => (
+  <div className="flex flex-wrap items-center gap-2">
+    {(['GATE', 'RANK'] as const).map((mode) => (
+      <button
+        key={mode}
+        type="button"
+        onClick={() => setSortMode(mode)}
+        className={`rounded-full border px-3 py-2 text-[10px] font-extrabold uppercase tracking-[0.12em] transition-colors sm:text-xs ${
+          sortMode === mode
+            ? 'border-amber-300 bg-amber-400 text-white'
+            : 'border-white/25 bg-white/10 text-white hover:bg-white/20'
+        }`}
+      >
+        Sort {mode}
+      </button>
+    ))}
+  </div>
+)
+
 export default function LiveScoreClient({ eventId, categoryId }: { eventId: string; categoryId: string }) {
   const [loading, setLoading] = useState(false)
   const [event, setEvent] = useState<EventItem | null>(null)
@@ -298,20 +320,6 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
               )}
             </div>
             <div className="flex flex-wrap items-center gap-2 lg:max-w-[420px] lg:justify-end">
-              {(['GATE', 'RANK'] as const).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => setSortMode(mode)}
-                  className={`rounded-full border px-3 py-2 text-xs font-extrabold uppercase tracking-[0.12em] transition-colors sm:text-sm ${
-                    sortMode === mode
-                      ? 'border-amber-300 bg-amber-400 text-white'
-                      : 'border-white/25 bg-white/10 text-white hover:bg-white/20'
-                  }`}
-                >
-                  Sort {mode}
-                </button>
-              ))}
               <button
                 type="button"
                 onClick={refresh}
@@ -337,13 +345,16 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
   )}
           {tableRowsByBatch.map((batch) => (
             <article key={batch.batch_index} className="public-panel-dark">
-              <div className="mb-3 flex items-center justify-between gap-2">
-                <h2 className="text-lg font-black uppercase tracking-[0.08em] text-white">
-                  Batch {batch.batch_index}
-                </h2>
-                <span className="rounded-full border border-slate-600 bg-slate-800 px-3 py-1 text-xs font-extrabold uppercase tracking-[0.1em] text-slate-200">
-                  Kualifikasi Moto
-                </span>
+              <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-lg font-black uppercase tracking-[0.08em] text-white">
+                    Batch {batch.batch_index}
+                  </h2>
+                  <span className="rounded-full border border-slate-600 bg-slate-800 px-3 py-1 text-xs font-extrabold uppercase tracking-[0.1em] text-slate-200">
+                    Kualifikasi Moto
+                  </span>
+                </div>
+                {renderSortButtons(sortMode, setSortMode)}
               </div>
               <div className="table-mobile-hint">
                 Geser kiri/kanan untuk lihat semua kolom.
@@ -415,11 +426,14 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
           <section className="grid gap-4">
             {sortedStages.map((stage) => (
               <article key={stage.moto_id} className="public-panel-dark">
-                <div className="mb-3 flex items-center justify-between gap-2">
-                  <h2 className="text-lg font-black uppercase tracking-[0.08em] text-white">{stage.title}</h2>
-                  <span className="rounded-full border border-slate-600 bg-slate-800 px-3 py-1 text-xs font-extrabold uppercase tracking-[0.1em] text-slate-200">
-                    Advanced Stage
-                  </span>
+                <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-lg font-black uppercase tracking-[0.08em] text-white">{stage.title}</h2>
+                    <span className="rounded-full border border-slate-600 bg-slate-800 px-3 py-1 text-xs font-extrabold uppercase tracking-[0.1em] text-slate-200">
+                      Advanced Stage
+                    </span>
+                  </div>
+                  {renderSortButtons(sortMode, setSortMode)}
                 </div>
                 <div className="table-mobile-hint">Geser kiri/kanan untuk lihat semua kolom.</div>
                 <div className="public-table-wrap">
