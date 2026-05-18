@@ -67,9 +67,6 @@ const parseMotoBatch = (motoName: string) => {
   }
 }
 
-const isSingleBatchMoto = (motoName: string) => parseMotoBatch(motoName).batchNo === 1
-
-
 export default function MotosClient({ eventId }: { eventId: string }) {
   const [categories, setCategories] = useState<CategoryItem[]>([])
   const [motos, setMotos] = useState<MotoItem[]>([])
@@ -192,6 +189,23 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     }
     return grouped
   }, [motos])
+
+  const singleBatchMoto3ReadyByCategory = useMemo(() => {
+    const map = new Map<string, boolean>()
+    for (const [categoryId, list] of motosByCategory.entries()) {
+      const qualificationRows = list
+        .map((moto) => ({ moto, parsed: parseMotoBatch(moto.moto_name) }))
+        .filter((row) => row.parsed.batchNo > 0 && row.parsed.motoNo > 0)
+
+      const batchNos = new Set(qualificationRows.map((row) => row.parsed.batchNo))
+      const motoNos = new Set(
+        qualificationRows.filter((row) => row.parsed.batchNo === 1).map((row) => row.parsed.motoNo)
+      )
+
+      map.set(categoryId, batchNos.size === 1 && motoNos.has(1) && motoNos.has(2) && motoNos.has(3))
+    }
+    return map
+  }, [motosByCategory])
 
   const printGroups = useMemo(() => {
     return categoriesSorted
@@ -786,7 +800,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                           Reset Result
                         </button>
                       )}
-                      {isSingleBatchMoto(m.moto_name) && parseMotoBatch(m.moto_name).motoNo >= 2 && (
+                      {singleBatchMoto3ReadyByCategory.get(m.category_id) && parseMotoBatch(m.moto_name).motoNo >= 2 && (
                         <button
                           type="button"
                           onClick={() => handleReseedMoto3(m.id)}
