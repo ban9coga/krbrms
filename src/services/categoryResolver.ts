@@ -77,7 +77,7 @@ export async function resolveCategoryConfig(categoryId: string, override?: Resol
 
     const eventId = category.event_id as string
     let riders:
-      | Array<{ primary_category_id?: string | null; birth_year?: number | null; date_of_birth?: string | null; gender: 'BOY' | 'GIRL' }>
+      | Array<{ id: string; primary_category_id?: string | null; birth_year?: number | null; date_of_birth?: string | null; gender: 'BOY' | 'GIRL' }>
       | null = null
     {
       const withPrimary = await adminClient
@@ -102,12 +102,14 @@ export async function resolveCategoryConfig(categoryId: string, override?: Resol
           return DEFAULT_RESULT(categoryId, eventId, 0, warning)
         }
         riders = (legacy.data ?? []) as Array<{
+          id: string
           birth_year?: number | null
           date_of_birth?: string | null
           gender: 'BOY' | 'GIRL'
         }>
       } else {
         riders = (withPrimary.data ?? []) as Array<{
+          id: string
           primary_category_id?: string | null
           birth_year?: number | null
           date_of_birth?: string | null
@@ -116,13 +118,33 @@ export async function resolveCategoryConfig(categoryId: string, override?: Resol
       }
     }
 
-    const primaryCategoryRiders =
-      (riders ?? []).filter((rider) =>
+    const primaryCategoryRiderIds = new Set(
+      (riders ?? [])
+        .filter((rider) =>
         riderBelongsToPrimaryCategory(
           rider as { primary_category_id?: string | null; birth_year?: number | null; date_of_birth?: string | null; gender: 'BOY' | 'GIRL' },
           category as { id: string; year: number; year_min?: number | null; year_max?: number | null; gender: 'BOY' | 'GIRL' | 'MIX' }
         )
-      ).length ?? 0
+        )
+        .map((rider) => rider.id)
+    )
+
+    let upclassCategoryRiderIds = new Set<string>()
+    const { data: extraCategoryRows, error: extraCategoryError } = await adminClient
+      .from('rider_extra_categories')
+      .select('rider_id')
+      .eq('event_id', eventId)
+      .eq('category_id', categoryId)
+
+    if (!extraCategoryError) {
+      upclassCategoryRiderIds = new Set((extraCategoryRows ?? []).map((row) => row.rider_id as string))
+    }
+
+    const registeredCategoryRiderIds = new Set([
+      ...primaryCategoryRiderIds,
+      ...upclassCategoryRiderIds,
+    ])
+
     let qualificationMotoRiderCount = 0
 
     const { data: qualificationMotos, error: qualificationMotoError } = await adminClient
@@ -144,7 +166,7 @@ export async function resolveCategoryConfig(categoryId: string, override?: Resol
       }
     }
 
-    const totalRiders = Math.max(primaryCategoryRiders, qualificationMotoRiderCount)
+    const totalRiders = Math.max(registeredCategoryRiderIds.size, qualificationMotoRiderCount)
 
     if (override) {
       return {
