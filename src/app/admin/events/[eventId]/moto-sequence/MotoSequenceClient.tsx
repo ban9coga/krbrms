@@ -248,6 +248,45 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
     }
   }
 
+  const moveMotoWithinCategory = async (categoryId: string, motoId: string, direction: -1 | 1) => {
+    const ordered = [...(motosByCategory.get(categoryId) ?? [])]
+    const index = ordered.findIndex((moto) => moto.id === motoId)
+    const nextIndex = index + direction
+    if (index < 0 || nextIndex < 0 || nextIndex >= ordered.length) return
+
+    const swapped = [...ordered]
+    const currentMoto = swapped[index]
+    const targetMoto = swapped[nextIndex]
+    const currentOrder = currentMoto.moto_order
+    const targetOrder = targetMoto.moto_order
+
+    setMotos((prev) =>
+      prev.map((moto) => {
+        if (moto.id === currentMoto.id) return { ...moto, moto_order: targetOrder }
+        if (moto.id === targetMoto.id) return { ...moto, moto_order: currentOrder }
+        return moto
+      })
+    )
+
+    setSavingSequence(true)
+    try {
+      await apiFetch(`/api/motos/${currentMoto.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ moto_order: targetOrder }),
+      })
+      await apiFetch(`/api/motos/${targetMoto.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ moto_order: currentOrder }),
+      })
+      await loadData('refresh')
+    } catch (error) {
+      console.error('Failed to save moto order:', error)
+      await loadData('refresh')
+    } finally {
+      setSavingSequence(false)
+    }
+  }
+
   if (loading && motos.length === 0) {
     return (
       <div style={{ padding: '20px', textAlign: 'center' }}>
@@ -512,6 +551,45 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
                           </div>
                         ))
                       )}
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-end' }}>
+                      <button
+                        type="button"
+                        onClick={() => void moveMotoWithinCategory(category.id, moto.id, -1)}
+                        disabled={savingSequence || categoryMotos[0]?.id === moto.id}
+                        style={{
+                          padding: '6px 10px',
+                          borderRadius: '999px',
+                          border: '2px solid #111',
+                          background: '#fff',
+                          fontWeight: 900,
+                          cursor: savingSequence || categoryMotos[0]?.id === moto.id ? 'not-allowed' : 'pointer',
+                          opacity: savingSequence || categoryMotos[0]?.id === moto.id ? 0.5 : 1,
+                        }}
+                      >
+                        Moto Naik
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void moveMotoWithinCategory(category.id, moto.id, 1)}
+                        disabled={savingSequence || categoryMotos[categoryMotos.length - 1]?.id === moto.id}
+                        style={{
+                          padding: '6px 10px',
+                          borderRadius: '999px',
+                          border: '2px solid #111',
+                          background: '#fff',
+                          fontWeight: 900,
+                          cursor:
+                            savingSequence || categoryMotos[categoryMotos.length - 1]?.id === moto.id
+                              ? 'not-allowed'
+                              : 'pointer',
+                          opacity:
+                            savingSequence || categoryMotos[categoryMotos.length - 1]?.id === moto.id ? 0.5 : 1,
+                        }}
+                      >
+                        Moto Turun
+                      </button>
                     </div>
                   </div>
                 )
