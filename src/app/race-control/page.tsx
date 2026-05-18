@@ -95,7 +95,7 @@ export default function RaceControlPage() {
 
   useEffect(() => {
     void loadQueue(eventId)
-  }, [eventId])
+  }, [eventId, loadQueue])
 
   useEffect(() => {
     const interval = setInterval(() => {
