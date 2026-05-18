@@ -209,7 +209,10 @@ export default function LiveDisplayClient({
     const latestCompletedMoto = latestCompletedByRecency(data)
     const anchorMoto = provisionalMoto ?? liveMoto ?? latestCompletedMoto
     const anchorIndex = anchorMoto ? data.findIndex((m) => m.id === anchorMoto.id) : -1
-    const nextMoto = anchorIndex >= 0 ? data[anchorIndex + 1] ?? null : null
+    const nextMoto =
+      anchorIndex >= 0
+        ? data.slice(anchorIndex + 1).find((m) => !isBlockedQueueStatus(m.status)) ?? null
+        : data.find((m) => !isBlockedQueueStatus(m.status)) ?? null
     const categoryIds = Array.from(
       new Set([anchorMoto?.category_id, nextMoto?.category_id].filter((value): value is string => Boolean(value)))
     )
@@ -278,35 +281,6 @@ export default function LiveDisplayClient({
   )
   const latestCompletedMoto = useMemo(() => latestCompletedByRecency(eventMotos), [eventMotos])
   const anchorMoto = provisionalMoto ?? activeMoto ?? latestCompletedMoto
-  const categoryOrderMap = useMemo(() => {
-    const sorted = [...categories].sort((a, b) => {
-      const ayMax = typeof a.year_max === 'number' ? a.year_max : typeof a.year_min === 'number' ? a.year_min : 0
-      const byMax = typeof b.year_max === 'number' ? b.year_max : typeof b.year_min === 'number' ? b.year_min : 0
-      if (byMax !== ayMax) return byMax - ayMax
-      const ayMin = typeof a.year_min === 'number' ? a.year_min : ayMax
-      const byMin = typeof b.year_min === 'number' ? b.year_min : byMax
-      if (byMin !== ayMin) return byMin - ayMin
-      const genderOrder = { BOY: 0, GIRL: 1, MIX: 2 } as const
-      const ag = genderOrder[a.gender] ?? 9
-      const bg = genderOrder[b.gender] ?? 9
-      if (ag !== bg) return ag - bg
-      return a.label.localeCompare(b.label)
-    })
-
-    return new Map(sorted.map((category, index) => [category.id, index]))
-  }, [categories])
-  const orderedUpcomingMotos = useMemo(
-    () =>
-      eventMotos
-      .filter((m) => (m.status ?? '').toUpperCase() === 'UPCOMING')
-      .sort((a, b) => {
-        const ac = categoryOrderMap.get(a.category_id) ?? Number.MAX_SAFE_INTEGER
-        const bc = categoryOrderMap.get(b.category_id) ?? Number.MAX_SAFE_INTEGER
-        if (ac !== bc) return ac - bc
-        return compareMotoSequence(a, b)
-      }),
-    [eventMotos, categoryOrderMap]
-  )
   const activeLiveScore = anchorMoto ? liveScoreByCategory[anchorMoto.category_id] : null
   const categoryLabel = activeLiveScore?.categoryLabel ?? ''
   const displayMoto = useMemo(() => {
@@ -318,12 +292,14 @@ export default function LiveDisplayClient({
   const displayBatches = useMemo(() => displayLiveScore?.batches ?? [], [displayLiveScore])
   const displayStages = useMemo(() => displayLiveScore?.stages ?? [], [displayLiveScore])
   const queueMoto = useMemo(() => {
-    if (!displayMoto) return orderedUpcomingMotos[0] ?? activeMoto ?? null
+    if (!displayMoto) {
+      return [...eventMotos].sort(compareMotoSequence).find((moto) => !isBlockedQueueStatus(moto.status)) ?? activeMoto ?? null
+    }
     const sortedMotos = [...eventMotos].sort(compareMotoSequence)
     const currentIndex = sortedMotos.findIndex((moto) => moto.id === displayMoto.id)
-    if (currentIndex < 0) return orderedUpcomingMotos[0] ?? null
+    if (currentIndex < 0) return sortedMotos.find((moto) => !isBlockedQueueStatus(moto.status)) ?? null
     return sortedMotos.slice(currentIndex + 1).find((moto) => !isBlockedQueueStatus(moto.status)) ?? null
-  }, [displayMoto, eventMotos, orderedUpcomingMotos, activeMoto])
+  }, [displayMoto, eventMotos, activeMoto])
   const queueLiveScore = queueMoto ? liveScoreByCategory[queueMoto.category_id] ?? null : null
   const queueBatches = useMemo(() => queueLiveScore?.batches ?? [], [queueLiveScore])
   const queueStages = useMemo(() => queueLiveScore?.stages ?? [], [queueLiveScore])
