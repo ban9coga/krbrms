@@ -11,7 +11,7 @@ import { supabase } from '../../lib/supabaseClient'
 type NavItem = {
   label: string
   href: string
-  icon: 'dashboard' | 'events' | 'users' | 'registrations' | 'riders' | 'categories' | 'draw' | 'motos' | 'advanced' | 'customSplit' | 'schedule' | 'results' | 'penalties' | 'settings'
+  icon: 'dashboard' | 'events' | 'users' | 'registrations' | 'riders' | 'categories' | 'draw' | 'motos' | 'sequence' | 'advanced' | 'customSplit' | 'schedule' | 'results' | 'penalties' | 'settings'
 }
 
 const BRAND = {
@@ -30,6 +30,7 @@ const EVENT_NAV = (eventId: string): NavItem[] => [
   { label: 'Categories', href: `/admin/events/${eventId}/categories`, icon: 'categories' },
   { label: 'Draw Setup', href: `/admin/events/${eventId}/live-draw`, icon: 'draw' },
   { label: 'Motos', href: `/admin/events/${eventId}/motos`, icon: 'motos' },
+  { label: 'Moto Sequence', href: `/admin/events/${eventId}/moto-sequence`, icon: 'sequence' },
   { label: 'Advanced Multi-Stage', href: `/admin/events/${eventId}/advanced-race`, icon: 'advanced' },
   { label: 'Final Class Rules', href: `/admin/events/${eventId}/custom-final-split`, icon: 'customSplit' },
   { label: 'Race Schedule', href: `/admin/events/${eventId}/schedule`, icon: 'schedule' },
@@ -129,6 +130,16 @@ function Icon({ type, active }: { type: NavItem['icon']; active: boolean }) {
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={common}>
         <path d="M5 16a3 3 0 1 0 0 .1M16 16a3 3 0 1 0 0 .1M8 16h5l2-5h3" strokeLinecap="round" strokeLinejoin="round" />
         <path d="M13 11 11 8H8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  }
+  if (type === 'sequence') {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={common}>
+        <path d="M5 7h6M5 12h10M5 17h14" strokeLinecap="round" />
+        <circle cx="18" cy="7" r="1.5" />
+        <circle cx="18" cy="12" r="1.5" />
+        <circle cx="18" cy="17" r="1.5" />
       </svg>
     )
   }
