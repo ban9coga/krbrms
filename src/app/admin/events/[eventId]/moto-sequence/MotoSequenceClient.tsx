@@ -3,37 +3,37 @@
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { compareMotoSequence } from '../../../../../lib/motoSequence'
-import { supabase } from '../../../../../lib/supabaseClient'
+
+type CategoryItem = {
+  id: string
+  label: string
+  enabled: boolean
+  year_min?: number | null
+  year_max?: number | null
+  gender: 'BOY' | 'GIRL' | 'MIX'
+}
 
 type MotoItem = {
   id: string
+  category_id: string
   moto_name: string
   moto_order: number
   status: 'UPCOMING' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED'
-  category_id: string
   is_published?: boolean | null
 }
 
-type MotoRiderRow = {
-  moto_id: string
-  rider_id: string
-}
-
-type MotoGateRow = {
-  moto_id: string
-  rider_id: string
-  gate_position?: number | null
-}
-
-type RiderRow = {
+type GateMotoItem = {
   id: string
-  no_plate_display: string
-  name: string
-}
-
-type MotoDisplayRider = {
-  rider: RiderRow
-  gatePosition: number | null
+  moto_name: string
+  moto_order: number
+  status: MotoItem['status']
+  gates: Array<{
+    gate_position: number
+    rider_id: string
+    name: string
+    no_plate_display: string
+    club?: string | null
+  }>
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -55,141 +55,112 @@ const STATUS_LABELS: Record<string, string> = {
 }
 
 export default function MotoSequenceClient({ eventId }: { eventId: string }) {
+  const [categories, setCategories] = useState<CategoryItem[]>([])
   const [motos, setMotos] = useState<MotoItem[]>([])
-  const [categories, setCategories] = useState<Map<string, string>>(new Map())
-  const [riderMap, setRiderMap] = useState<Map<string, RiderRow>>(new Map())
-  const [motoRiders, setMotoRiders] = useState<MotoRiderRow[]>([])
-  const [motoGates, setMotoGates] = useState<MotoGateRow[]>([])
+  const [gateOrdersByCategory, setGateOrdersByCategory] = useState<Record<string, GateMotoItem[]>>({})
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
 
-  const motosByCategory = useMemo(() => {
-    const grouped = new Map<string, MotoItem[]>()
-    for (const moto of motos) {
-      const categoryId = moto.category_id || 'UNKNOWN'
-      if (!grouped.has(categoryId)) grouped.set(categoryId, [])
-      grouped.get(categoryId)!.push(moto)
+  const loadGateOrders = useCallback(async (categoryIds: string[]) => {
+    if (categoryIds.length === 0) {
+      setGateOrdersByCategory({})
+      return
     }
 
-    for (const [, motoList] of grouped) {
-      motoList.sort(compareMotoSequence)
-    }
+    const entries = await Promise.all(
+      categoryIds.map(async (categoryId) => {
+        const res = await fetch(`/api/events/${eventId}/gate-order?categoryId=${categoryId}`, { cache: 'no-store' })
+        const json = await res.json().catch(() => ({}))
+        if (!res.ok) return [categoryId, []] as const
+        return [categoryId, (json?.data ?? []) as GateMotoItem[]] as const
+      })
+    )
 
-    return grouped
-  }, [motos])
+    const nextMap: Record<string, GateMotoItem[]> = {}
+    for (const [categoryId, rows] of entries) {
+      nextMap[categoryId] = [...rows].sort(compareMotoSequence)
+    }
+    setGateOrdersByCategory(nextMap)
+  }, [eventId])
 
   const loadData = useCallback(async (mode: 'initial' | 'refresh' = 'initial') => {
-    if (mode === 'initial') setLoading(true)
+    if (!eventId) return
+    if (mode === 'initial' && !hasLoadedOnce) setLoading(true)
     else setRefreshing(true)
 
     try {
-      const [{ data: catData }, { data: motoData }] = await Promise.all([
-        supabase.from('categories').select('id, label').eq('event_id', eventId),
-        supabase
-          .from('motos')
-          .select('id, moto_name, moto_order, status, category_id, is_published')
-          .eq('event_id', eventId)
-          .order('category_id', { ascending: true })
-          .order('moto_order', { ascending: true }),
+      const nonce = Date.now()
+      const [categoryRes, motoRes] = await Promise.all([
+        fetch(`/api/events/${eventId}/categories?_=${nonce}`, { cache: 'no-store' }),
+        fetch(`/api/motos?event_id=${eventId}&_=${nonce}`, { cache: 'no-store' }),
       ])
 
-      const categoryMap = new Map<string, string>()
-      for (const category of catData ?? []) {
-        categoryMap.set(category.id, category.label)
-      }
-      setCategories(categoryMap)
+      const categoryJson = await categoryRes.json().catch(() => ({}))
+      const motoJson = await motoRes.json().catch(() => ({}))
 
-      const safeMotos = (motoData ?? []) as MotoItem[]
-      setMotos(safeMotos)
+      const enabledCategories = ((categoryJson?.data ?? []) as CategoryItem[]).filter((category) => category.enabled)
+      const motoRows = (motoJson?.data ?? []) as MotoItem[]
 
-      const motoIds = safeMotos.map((moto) => moto.id)
-      if (motoIds.length === 0) {
-        setMotoRiders([])
-        setMotoGates([])
-        setRiderMap(new Map())
-        return
-      }
+      setCategories(enabledCategories)
+      setMotos(motoRows)
 
-      const [{ data: riderAssignments }, { data: gateRows }, { data: riders }] = await Promise.all([
-        supabase.from('moto_riders').select('moto_id, rider_id').in('moto_id', motoIds),
-        supabase
-          .from('moto_gate_positions')
-          .select('moto_id, rider_id, gate_position')
-          .in('moto_id', motoIds)
-          .order('gate_position', { ascending: true }),
-        supabase.from('riders').select('id, no_plate_display, name').eq('event_id', eventId),
-      ])
-
-      setMotoRiders((riderAssignments ?? []) as MotoRiderRow[])
-      setMotoGates((gateRows ?? []) as MotoGateRow[])
-
-      const nextRiderMap = new Map<string, RiderRow>()
-      for (const rider of riders ?? []) {
-        nextRiderMap.set(rider.id, rider)
-      }
-      setRiderMap(nextRiderMap)
-    } catch (err) {
-      console.error('Failed to load moto sequence data:', err)
+      const categoryIds = Array.from(new Set(motoRows.map((moto) => moto.category_id))).filter(Boolean)
+      await loadGateOrders(categoryIds)
     } finally {
       setLoading(false)
       setRefreshing(false)
+      setHasLoadedOnce(true)
     }
-  }, [eventId])
+  }, [eventId, hasLoadedOnce, loadGateOrders])
 
   useEffect(() => {
     void loadData('initial')
   }, [loadData])
 
   useEffect(() => {
-    const subscription = supabase
-      .channel(`motos:${eventId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'motos',
-          filter: `event_id=eq.${eventId}`,
-        },
-        () => {
-          void loadData('refresh')
-        }
-      )
-      .subscribe()
-
-    return () => {
-      void supabase.removeChannel(subscription)
-    }
+    if (!eventId) return
+    const interval = window.setInterval(() => {
+      void loadData('refresh')
+    }, 5000)
+    return () => window.clearInterval(interval)
   }, [eventId, loadData])
 
-  const getRidersForMoto = (motoId: string): MotoDisplayRider[] => {
-    const gateRows = motoGates
-      .filter((gate) => gate.moto_id === motoId)
-      .sort((a, b) => (a.gate_position ?? Number.MAX_SAFE_INTEGER) - (b.gate_position ?? Number.MAX_SAFE_INTEGER))
-
-    if (gateRows.length > 0) {
-      return gateRows
-        .map((gate) => ({
-          rider: riderMap.get(gate.rider_id),
-          gatePosition: gate.gate_position ?? null,
-        }))
-        .filter(
-          (entry): entry is { rider: RiderRow; gatePosition: number | null } => Boolean(entry.rider)
-        )
+  const categoryLabel = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const category of categories) {
+      map.set(category.id, category.label)
     }
+    return map
+  }, [categories])
 
-    return motoRiders
-      .filter((assignment) => assignment.moto_id === motoId)
-      .map((assignment, index) => ({
-        rider: riderMap.get(assignment.rider_id),
-        gatePosition: index + 1 as number | null,
-      }))
-      .filter(
-        (entry): entry is { rider: RiderRow; gatePosition: number | null } => Boolean(entry.rider)
-      )
-  }
+  const categoriesSorted = useMemo(() => {
+    return [...categories].sort((a, b) => {
+      const ayMax = typeof a.year_max === 'number' ? a.year_max : typeof a.year_min === 'number' ? a.year_min : 0
+      const byMax = typeof b.year_max === 'number' ? b.year_max : typeof b.year_min === 'number' ? b.year_min : 0
+      if (byMax !== ayMax) return byMax - ayMax
+      const ayMin = typeof a.year_min === 'number' ? a.year_min : ayMax
+      const byMin = typeof b.year_min === 'number' ? b.year_min : byMax
+      if (byMin !== ayMin) return byMin - ayMin
+      const order = { BOY: 0, GIRL: 1, MIX: 2 } as const
+      return (order[a.gender] ?? 9) - (order[b.gender] ?? 9)
+    })
+  }, [categories])
 
-  if (loading) {
+  const motosByCategory = useMemo(() => {
+    const grouped = new Map<string, MotoItem[]>()
+    for (const moto of motos) {
+      const list = grouped.get(moto.category_id) ?? []
+      list.push(moto)
+      grouped.set(moto.category_id, list)
+    }
+    for (const list of grouped.values()) {
+      list.sort(compareMotoSequence)
+    }
+    return grouped
+  }, [motos])
+
+  if (loading && motos.length === 0) {
     return (
       <div style={{ padding: '20px', textAlign: 'center' }}>
         <p style={{ fontSize: '16px', color: '#666' }}>Loading moto sequence...</p>
@@ -204,14 +175,14 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
           <h1 style={{ margin: 0, fontSize: '28px', fontWeight: 900 }}>Moto Sequence</h1>
           <button
             onClick={() => void loadData('refresh')}
-            disabled={refreshing}
+            disabled={loading || refreshing}
             style={{
               padding: '8px 16px',
               borderRadius: '8px',
               border: '1px solid #ddd',
               background: '#fff',
-              cursor: refreshing ? 'not-allowed' : 'pointer',
-              opacity: refreshing ? 0.6 : 1,
+              cursor: loading || refreshing ? 'not-allowed' : 'pointer',
+              opacity: loading || refreshing ? 0.6 : 1,
               fontWeight: 600,
             }}
           >
@@ -219,110 +190,118 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
           </button>
         </div>
         <p style={{ margin: 0, color: '#666', fontSize: '14px' }}>
-          Master moto sequence for {categories.size} categories · {motos.length} motos total
+          Master moto sequence for {categories.length} categories · {motos.length} motos total
         </p>
       </div>
 
-      {Array.from(motosByCategory.entries()).map(([categoryId, categoryMotos]) => (
-        <div key={categoryId} style={{ marginBottom: '40px' }}>
-          <div style={{ marginBottom: '12px' }}>
-            <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 800 }}>
-              {categories.get(categoryId) || categoryId}
-            </h2>
-            <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#999' }}>
-              {categoryMotos.length} motos
-            </p>
+      {categoriesSorted.map((category) => {
+        const categoryMotos = motosByCategory.get(category.id) ?? []
+        if (categoryMotos.length === 0) return null
+
+        const gateRows = gateOrdersByCategory[category.id] ?? []
+        const gateMap = new Map(gateRows.map((moto) => [moto.id, moto]))
+
+        return (
+          <div key={category.id} style={{ marginBottom: '40px' }}>
+            <div style={{ marginBottom: '12px' }}>
+              <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 800 }}>
+                {categoryLabel.get(category.id) || category.id}
+              </h2>
+              <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#999' }}>
+                {categoryMotos.length} motos
+              </p>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
+              {categoryMotos.map((moto) => {
+                const statusColor = STATUS_COLORS[moto.status] || '#999'
+                const statusLabel = STATUS_LABELS[moto.status] || moto.status
+                const riders = gateMap.get(moto.id)?.gates ?? []
+
+                return (
+                  <div
+                    key={moto.id}
+                    style={{
+                      border: `2px solid ${statusColor}`,
+                      borderRadius: '12px',
+                      padding: '12px',
+                      background: moto.status === 'LIVE' ? '#fff5f5' : '#f9fafb',
+                      display: 'grid',
+                      gridTemplateColumns: '150px 1fr auto',
+                      gap: '16px',
+                      alignItems: 'start',
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: '12px', color: '#999', marginBottom: '4px' }}>
+                        Order #{moto.moto_order}
+                      </div>
+                      <div style={{ fontWeight: 800, fontSize: '15px', marginBottom: '4px' }}>
+                        {moto.moto_name}
+                      </div>
+                      <div
+                        style={{
+                          display: 'inline-block',
+                          padding: '4px 8px',
+                          borderRadius: '4px',
+                          background: statusColor,
+                          color: '#fff',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                        }}
+                      >
+                        {statusLabel}
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignContent: 'flex-start' }}>
+                      {riders.length === 0 ? (
+                        <span style={{ color: '#999', fontSize: '13px' }}>No riders assigned</span>
+                      ) : (
+                        riders.map((rider) => (
+                          <div
+                            key={`${moto.id}-${rider.rider_id}`}
+                            style={{
+                              padding: '4px 8px',
+                              borderRadius: '6px',
+                              background: '#e5e7eb',
+                              fontSize: '12px',
+                              fontWeight: 600,
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            Gate {rider.gate_position}: {rider.no_plate_display} - {rider.name}
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <Link
+                        href={`/admin/events/${eventId}/motos`}
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: '6px',
+                          background: '#3b82f6',
+                          color: '#fff',
+                          textDecoration: 'none',
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Edit
+                      </Link>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </div>
+        )
+      })}
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
-            {categoryMotos.map((moto) => {
-              const riders = getRidersForMoto(moto.id)
-              const statusColor = STATUS_COLORS[moto.status] || '#999'
-              const statusLabel = STATUS_LABELS[moto.status] || moto.status
-
-              return (
-                <div
-                  key={moto.id}
-                  style={{
-                    border: `2px solid ${statusColor}`,
-                    borderRadius: '12px',
-                    padding: '12px',
-                    background: moto.status === 'LIVE' ? '#fff5f5' : '#f9fafb',
-                    display: 'grid',
-                    gridTemplateColumns: '150px 1fr auto',
-                    gap: '16px',
-                    alignItems: 'start',
-                  }}
-                >
-                  <div>
-                    <div style={{ fontSize: '12px', color: '#999', marginBottom: '4px' }}>
-                      Order #{moto.moto_order}
-                    </div>
-                    <div style={{ fontWeight: 800, fontSize: '15px', marginBottom: '4px' }}>
-                      {moto.moto_name}
-                    </div>
-                    <div
-                      style={{
-                        display: 'inline-block',
-                        padding: '4px 8px',
-                        borderRadius: '4px',
-                        background: statusColor,
-                        color: '#fff',
-                        fontSize: '11px',
-                        fontWeight: 700,
-                      }}
-                    >
-                      {statusLabel}
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignContent: 'flex-start' }}>
-                    {riders.length === 0 ? (
-                      <span style={{ color: '#999', fontSize: '13px' }}>No riders assigned</span>
-                    ) : (
-                      riders.map(({ rider, gatePosition }) => (
-                        <div
-                          key={rider.id}
-                          style={{
-                            padding: '4px 8px',
-                            borderRadius: '6px',
-                            background: '#e5e7eb',
-                            fontSize: '12px',
-                            fontWeight: 600,
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          Gate {gatePosition ?? '-'}: {rider.no_plate_display} - {rider.name}
-                        </div>
-                      ))
-                    )}
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <Link
-                      href={`/admin/events/${eventId}/motos`}
-                      style={{
-                        padding: '6px 12px',
-                        borderRadius: '6px',
-                        background: '#3b82f6',
-                        color: '#fff',
-                        textDecoration: 'none',
-                        fontSize: '12px',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Edit
-                    </Link>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      ))}
-
-      {motos.length === 0 && (
+      {!loading && motos.length === 0 && (
         <div
           style={{
             textAlign: 'center',
