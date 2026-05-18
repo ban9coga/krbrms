@@ -33,6 +33,31 @@ const statusBadgeClasses = (status: QueueMoto['status']) => {
   return 'border-slate-300 bg-slate-100 text-slate-700'
 }
 
+const queueSlotMeta = (index: number) => {
+  if (index === 0) {
+    return {
+      label: 'Current Global Moto',
+      chipClass: 'border-emerald-300 bg-emerald-100 text-emerald-800',
+      panelClass: 'border-emerald-200 bg-emerald-50/70',
+      accentClass: 'border-l-emerald-500',
+    }
+  }
+  if (index === 1) {
+    return {
+      label: 'Next Global Moto',
+      chipClass: 'border-amber-300 bg-amber-100 text-amber-800',
+      panelClass: 'border-amber-200 bg-amber-50/80',
+      accentClass: 'border-l-amber-500',
+    }
+  }
+  return {
+    label: 'On Deck',
+    chipClass: 'border-sky-300 bg-sky-100 text-sky-800',
+    panelClass: 'border-sky-200 bg-sky-50/80',
+    accentClass: 'border-l-sky-500',
+  }
+}
+
 export default function RaceControlPage() {
   const [events, setEvents] = useState<EventRow[]>([])
   const [eventId, setEventId] = useState('')
@@ -164,10 +189,38 @@ export default function RaceControlPage() {
           <div className="public-panel-light">
             <div className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">Operator Hint</div>
             <div className="mt-2 text-sm font-bold text-slate-700">
-              Swipe tabel ke samping untuk lihat semua kolom saat buka di iPhone atau Android.
+              Fokus ke 3 moto teratas: sekarang, berikutnya, lalu satu moto cadangan sesudahnya.
             </div>
           </div>
         </div>
+
+        {!loading && visibleQueue.length > 0 && (
+          <section className="grid gap-3 lg:grid-cols-3">
+            {visibleQueue.map((moto, index) => {
+              const slot = queueSlotMeta(index)
+              return (
+                <article
+                  key={`spotlight-${moto.moto_id}`}
+                  className={`rounded-[20px] border px-4 py-4 shadow-sm ${slot.panelClass}`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="grid gap-1">
+                      <div className={`inline-flex w-fit items-center rounded-full border px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.14em] ${slot.chipClass}`}>
+                        {slot.label}
+                      </div>
+                      <div className="text-xl font-black tracking-tight text-slate-900">{moto.moto_name}</div>
+                      <div className="text-sm font-extrabold text-slate-700">{moto.category_label}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">Global</div>
+                      <div className="text-2xl font-black text-slate-900">#{moto.global_order}</div>
+                    </div>
+                  </div>
+                </article>
+              )
+            })}
+          </section>
+        )}
 
         <section className="grid gap-4">
           {loading && (
@@ -182,12 +235,25 @@ export default function RaceControlPage() {
             </div>
           )}
 
-          {visibleQueue.map((moto) => (
-            <article key={moto.moto_id} className="public-panel-light">
+          {visibleQueue.map((moto, index) => {
+            const slot = queueSlotMeta(index)
+            const leadGates = moto.rows
+              .filter((row) => row.gate !== null)
+              .slice(0, 3)
+              .map((row) => `G${row.gate} ${row.no_plate}`)
+              .join(' • ')
+
+            return (
+            <article key={moto.moto_id} className={`public-panel-light border-l-4 ${slot.accentClass}`}>
               <div className="flex flex-col gap-3 border-b border-slate-200 pb-4 sm:flex-row sm:items-start sm:justify-between">
                 <div className="grid gap-1">
-                  <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">
-                    Global #{moto.global_order}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.14em] ${slot.chipClass}`}>
+                      {slot.label}
+                    </div>
+                    <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">
+                      Global #{moto.global_order}
+                    </div>
                   </div>
                   <div className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">{moto.moto_name}</div>
                   <div className="text-lg font-extrabold text-slate-700 sm:text-xl">{moto.category_label}</div>
@@ -208,7 +274,9 @@ export default function RaceControlPage() {
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                   <div className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">Callout</div>
-                  <div className="mt-2 text-sm font-bold text-slate-700">Gate dan komunitas sudah siap untuk announcer.</div>
+                  <div className="mt-2 text-sm font-bold text-slate-700">
+                    {leadGates || 'Gate dan komunitas sudah siap untuk announcer.'}
+                  </div>
                 </div>
               </div>
 
@@ -226,7 +294,7 @@ export default function RaceControlPage() {
                     </thead>
                     <tbody>
                       {moto.rows.map((row) => (
-                        <tr key={row.rider_id}>
+                        <tr key={row.rider_id} className={row.gate === 1 ? 'bg-amber-50/60' : undefined}>
                           <td className="font-extrabold text-slate-900">{row.gate ?? '-'}</td>
                           <td className="font-extrabold text-slate-900">{row.name}</td>
                           <td>{row.no_plate}</td>
@@ -238,7 +306,7 @@ export default function RaceControlPage() {
                 </div>
               </div>
             </article>
-          ))}
+          )})}
         </section>
       </main>
     </div>
