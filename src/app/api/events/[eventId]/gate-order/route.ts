@@ -50,85 +50,75 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const motoNameById = new Map<string, string>()
   for (const m of motos) motoNameById.set(m.id, m.moto_name)
 
-  if ((gates ?? []).length > 0) {
-    const riderIds = Array.from(new Set((gates ?? []).map((g) => g.rider_id)))
-    const { data: riders, error: riderError } = await adminClient
-      .from('riders')
-      .select('id, name, no_plate_display, club')
-      .in('id', riderIds)
+  const { data: assignments, error: assignError } = await adminClient
+    .from('moto_riders')
+    .select('moto_id, rider_id, created_at')
+    .in('moto_id', motoIds)
+    .order('created_at', { ascending: true })
 
-    if (riderError) return NextResponse.json({ error: riderError.message }, { status: 400 })
+  if (assignError) return NextResponse.json({ error: assignError.message }, { status: 400 })
 
-    const riderMap = new Map<string, { name: string; no_plate_display: string; club: string | null }>()
-    for (const r of riders ?? []) riderMap.set(r.id, r)
+  const riderIds = Array.from(
+    new Set([...(gates ?? []).map((gate) => gate.rider_id), ...(assignments ?? []).map((assignment) => assignment.rider_id)])
+  )
+  const { data: riders, error: riderError } = await adminClient
+    .from('riders')
+    .select('id, name, no_plate_display, club')
+    .in('id', riderIds)
 
-    for (const g of gates ?? []) {
-      const rider = riderMap.get(g.rider_id)
-      if (!rider) continue
-      const list = gateByMoto.get(g.moto_id) ?? []
-      list.push({
-        gate_position: g.gate_position,
-        rider_id: g.rider_id,
-        name: rider.name,
-        no_plate_display: rider.no_plate_display,
-        club: rider.club ?? null,
-      })
-      gateByMoto.set(g.moto_id, list)
+  if (riderError) return NextResponse.json({ error: riderError.message }, { status: 400 })
+
+  const riderMap = new Map<string, { name: string; no_plate_display: string; club: string | null }>()
+  for (const rider of riders ?? []) riderMap.set(rider.id, rider)
+
+  for (const gate of gates ?? []) {
+    const rider = riderMap.get(gate.rider_id)
+    if (!rider) continue
+    const list = gateByMoto.get(gate.moto_id) ?? []
+    list.push({
+      gate_position: gate.gate_position,
+      rider_id: gate.rider_id,
+      name: rider.name,
+      no_plate_display: rider.no_plate_display,
+      club: rider.club ?? null,
+    })
+    gateByMoto.set(gate.moto_id, list)
+  }
+
+  const temp = new Map<string, Array<{ rider_id: string; name: string; no_plate_display: string; club: string | null }>>()
+  for (const assignment of assignments ?? []) {
+    if (gateByMoto.has(assignment.moto_id)) continue
+    const rider = riderMap.get(assignment.rider_id)
+    if (!rider) continue
+    const list = temp.get(assignment.moto_id) ?? []
+    list.push({
+      rider_id: assignment.rider_id,
+      name: rider.name,
+      no_plate_display: rider.no_plate_display,
+      club: rider.club ?? null,
+    })
+    temp.set(assignment.moto_id, list)
+  }
+
+  for (const [motoId, list] of temp.entries()) {
+    const motoName = motoNameById.get(motoId) ?? ''
+    const meta = parseMotoMeta(motoName)
+    let ordered = [...list]
+    if (meta.motoNo === 2) {
+      ordered = [...list].reverse()
+    } else if (meta.motoNo === 3) {
+      ordered = rotateLeft(list, 1)
     }
-  } else {
-    const { data: assignments, error: assignError } = await adminClient
-      .from('moto_riders')
-      .select('moto_id, rider_id, created_at')
-      .in('moto_id', motoIds)
-      .order('created_at', { ascending: true })
-
-    if (assignError) return NextResponse.json({ error: assignError.message }, { status: 400 })
-
-    const riderIds = Array.from(new Set((assignments ?? []).map((a) => a.rider_id)))
-    const { data: riders, error: riderError } = await adminClient
-      .from('riders')
-      .select('id, name, no_plate_display, club')
-      .in('id', riderIds)
-
-    if (riderError) return NextResponse.json({ error: riderError.message }, { status: 400 })
-
-    const riderMap = new Map<string, { name: string; no_plate_display: string; club: string | null }>()
-    for (const r of riders ?? []) riderMap.set(r.id, r)
-
-    const temp = new Map<string, Array<{ rider_id: string; name: string; no_plate_display: string; club: string | null }>>()
-    for (const a of assignments ?? []) {
-      const rider = riderMap.get(a.rider_id)
-      if (!rider) continue
-      const list = temp.get(a.moto_id) ?? []
-      list.push({
-        rider_id: a.rider_id,
-        name: rider.name,
-        no_plate_display: rider.no_plate_display,
-        club: rider.club ?? null,
-      })
-      temp.set(a.moto_id, list)
-    }
-
-    for (const [motoId, list] of temp.entries()) {
-      const motoName = motoNameById.get(motoId) ?? ''
-      const meta = parseMotoMeta(motoName)
-      let ordered = [...list]
-      if (meta.motoNo === 2) {
-        ordered = [...list].reverse()
-      } else if (meta.motoNo === 3) {
-        ordered = rotateLeft(list, 1)
-      }
-      gateByMoto.set(
-        motoId,
-        ordered.map((r, idx) => ({
-          gate_position: idx + 1,
-          rider_id: r.rider_id,
-          name: r.name,
-          no_plate_display: r.no_plate_display,
-          club: r.club ?? null,
-        }))
-      )
-    }
+    gateByMoto.set(
+      motoId,
+      ordered.map((r, idx) => ({
+        gate_position: idx + 1,
+        rider_id: r.rider_id,
+        name: r.name,
+        no_plate_display: r.no_plate_display,
+        club: r.club ?? null,
+      }))
+    )
   }
 
   const sortedMotos = [...motos].sort(compareMotoSequence)
