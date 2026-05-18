@@ -54,6 +54,17 @@ const STATUS_LABELS: Record<string, string> = {
   LOCKED: 'Locked',
 }
 
+const compareCategoryOrder = (a: CategoryItem, b: CategoryItem) => {
+  const ayMax = typeof a.year_max === 'number' ? a.year_max : typeof a.year_min === 'number' ? a.year_min : 0
+  const byMax = typeof b.year_max === 'number' ? b.year_max : typeof b.year_min === 'number' ? b.year_min : 0
+  if (byMax !== ayMax) return byMax - ayMax
+  const ayMin = typeof a.year_min === 'number' ? a.year_min : ayMax
+  const byMin = typeof b.year_min === 'number' ? b.year_min : byMax
+  if (byMin !== ayMin) return byMin - ayMin
+  const order = { BOY: 0, GIRL: 1, MIX: 2 } as const
+  return (order[a.gender] ?? 9) - (order[b.gender] ?? 9)
+}
+
 export default function MotoSequenceClient({ eventId }: { eventId: string }) {
   const [categories, setCategories] = useState<CategoryItem[]>([])
   const [motos, setMotos] = useState<MotoItem[]>([])
@@ -135,16 +146,7 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
   }, [categories])
 
   const categoriesSorted = useMemo(() => {
-    return [...categories].sort((a, b) => {
-      const ayMax = typeof a.year_max === 'number' ? a.year_max : typeof a.year_min === 'number' ? a.year_min : 0
-      const byMax = typeof b.year_max === 'number' ? b.year_max : typeof b.year_min === 'number' ? b.year_min : 0
-      if (byMax !== ayMax) return byMax - ayMax
-      const ayMin = typeof a.year_min === 'number' ? a.year_min : ayMax
-      const byMin = typeof b.year_min === 'number' ? b.year_min : byMax
-      if (byMin !== ayMin) return byMin - ayMin
-      const order = { BOY: 0, GIRL: 1, MIX: 2 } as const
-      return (order[a.gender] ?? 9) - (order[b.gender] ?? 9)
-    })
+    return [...categories].sort(compareCategoryOrder)
   }, [categories])
 
   const motosByCategory = useMemo(() => {
@@ -159,6 +161,33 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
     }
     return grouped
   }, [motos])
+
+  const globalMotoSequence = useMemo(() => {
+    const categoryOrderMap = new Map(categoriesSorted.map((category, index) => [category.id, index]))
+    return [...motos].sort((a, b) => {
+      const categoryOrderA = categoryOrderMap.get(a.category_id) ?? Number.MAX_SAFE_INTEGER
+      const categoryOrderB = categoryOrderMap.get(b.category_id) ?? Number.MAX_SAFE_INTEGER
+      if (categoryOrderA !== categoryOrderB) return categoryOrderA - categoryOrderB
+      return compareMotoSequence(a, b)
+    })
+  }, [categoriesSorted, motos])
+
+  const currentMoto = useMemo(() => {
+    return (
+      globalMotoSequence.find((moto) => moto.status === 'LIVE') ??
+      globalMotoSequence.find((moto) => moto.status === 'PROVISIONAL') ??
+      null
+    )
+  }, [globalMotoSequence])
+
+  const nextMoto = useMemo(() => {
+    if (globalMotoSequence.length === 0) return null
+    const currentIndex = currentMoto ? globalMotoSequence.findIndex((moto) => moto.id === currentMoto.id) : -1
+    if (currentIndex >= 0) {
+      return globalMotoSequence.slice(currentIndex + 1).find((moto) => moto.status === 'UPCOMING') ?? null
+    }
+    return globalMotoSequence.find((moto) => moto.status === 'UPCOMING') ?? null
+  }, [currentMoto, globalMotoSequence])
 
   if (loading && motos.length === 0) {
     return (
@@ -194,6 +223,71 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
         </p>
       </div>
 
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+          gap: '12px',
+          marginBottom: '24px',
+        }}
+      >
+        <div
+          style={{
+            border: '2px solid #111',
+            borderRadius: '14px',
+            padding: '14px',
+            background: '#fff7ed',
+          }}
+        >
+          <div style={{ fontSize: '11px', fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#9a3412' }}>
+            Current Global Moto
+          </div>
+          {currentMoto ? (
+            <div style={{ marginTop: '8px', display: 'grid', gap: '4px' }}>
+              <div style={{ fontSize: '18px', fontWeight: 900 }}>
+                {categoryLabel.get(currentMoto.category_id) || currentMoto.category_id}
+              </div>
+              <div style={{ fontSize: '15px', fontWeight: 800 }}>{currentMoto.moto_name}</div>
+              <div style={{ fontSize: '12px', fontWeight: 800, color: '#7c2d12' }}>
+                Status: {STATUS_LABELS[currentMoto.status] || currentMoto.status}
+              </div>
+            </div>
+          ) : (
+            <div style={{ marginTop: '8px', fontSize: '14px', fontWeight: 700, color: '#9a3412' }}>
+              Belum ada moto LIVE / PROVISIONAL.
+            </div>
+          )}
+        </div>
+
+        <div
+          style={{
+            border: '2px solid #111',
+            borderRadius: '14px',
+            padding: '14px',
+            background: '#ecfccb',
+          }}
+        >
+          <div style={{ fontSize: '11px', fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#365314' }}>
+            Next Global Moto
+          </div>
+          {nextMoto ? (
+            <div style={{ marginTop: '8px', display: 'grid', gap: '4px' }}>
+              <div style={{ fontSize: '18px', fontWeight: 900 }}>
+                {categoryLabel.get(nextMoto.category_id) || nextMoto.category_id}
+              </div>
+              <div style={{ fontSize: '15px', fontWeight: 800 }}>{nextMoto.moto_name}</div>
+              <div style={{ fontSize: '12px', fontWeight: 800, color: '#3f6212' }}>
+                Menunggu menjadi LIVE setelah moto aktif selesai.
+              </div>
+            </div>
+          ) : (
+            <div style={{ marginTop: '8px', fontSize: '14px', fontWeight: 700, color: '#3f6212' }}>
+              Tidak ada moto UPCOMING berikutnya.
+            </div>
+          )}
+        </div>
+      </div>
+
       {categoriesSorted.map((category) => {
         const categoryMotos = motosByCategory.get(category.id) ?? []
         if (categoryMotos.length === 0) return null
@@ -222,10 +316,19 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
                   <div
                     key={moto.id}
                     style={{
-                      border: `2px solid ${statusColor}`,
+                      border: `2px solid ${
+                        moto.id === nextMoto?.id ? '#16a34a' : moto.id === currentMoto?.id ? '#ea580c' : statusColor
+                      }`,
                       borderRadius: '12px',
                       padding: '12px',
-                      background: moto.status === 'LIVE' ? '#fff5f5' : '#f9fafb',
+                      background:
+                        moto.id === nextMoto?.id
+                          ? '#f0fdf4'
+                          : moto.id === currentMoto?.id
+                          ? '#fff7ed'
+                          : moto.status === 'LIVE'
+                          ? '#fff5f5'
+                          : '#f9fafb',
                       display: 'grid',
                       gridTemplateColumns: '150px 1fr auto',
                       gap: '16px',
@@ -239,6 +342,42 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
                       <div style={{ fontWeight: 800, fontSize: '15px', marginBottom: '4px' }}>
                         {moto.moto_name}
                       </div>
+                      {moto.id === currentMoto?.id && (
+                        <div
+                          style={{
+                            display: 'inline-block',
+                            marginBottom: '6px',
+                            padding: '3px 8px',
+                            borderRadius: '999px',
+                            background: '#ea580c',
+                            color: '#fff',
+                            fontSize: '10px',
+                            fontWeight: 900,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.08em',
+                          }}
+                        >
+                          Current Global Moto
+                        </div>
+                      )}
+                      {moto.id === nextMoto?.id && (
+                        <div
+                          style={{
+                            display: 'inline-block',
+                            marginBottom: '6px',
+                            padding: '3px 8px',
+                            borderRadius: '999px',
+                            background: '#16a34a',
+                            color: '#fff',
+                            fontSize: '10px',
+                            fontWeight: 900,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.08em',
+                          }}
+                        >
+                          Next Global Moto
+                        </div>
+                      )}
                       <div
                         style={{
                           display: 'inline-block',
