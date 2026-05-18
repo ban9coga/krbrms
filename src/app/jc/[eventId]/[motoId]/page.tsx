@@ -49,8 +49,11 @@ const pickNextCheckerMotoId = (list: MotoItem[], currentId: string, preferLive =
     const liveMoto = selectable.find((m) => isMotoLive(m.status))
     if (liveMoto) return liveMoto.id
   }
+  if (currentId && selectable.some((m) => m.id === currentId && isMotoLive(m.status))) return currentId
+  const liveMoto = selectable.find((m) => isMotoLive(m.status))
+  if (liveMoto) return liveMoto.id
   if (currentId && selectable.some((m) => m.id === currentId)) return currentId
-  return selectable.find((m) => isMotoLive(m.status))?.id ?? selectable[0]?.id ?? ''
+  return selectable[0]?.id ?? ''
 }
 
 type SafetyRequirement = {

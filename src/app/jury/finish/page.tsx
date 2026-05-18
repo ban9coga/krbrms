@@ -100,11 +100,15 @@ export default function JuryFinishPage() {
   const pickNextSelectableMotoId = useCallback((list: MotoItem[], currentMotoId: string) => {
     const selectableRows = list.filter((m) => !['LOCKED', 'FINISHED'].includes((m.status ?? '').toUpperCase()))
     if (!selectableRows.length) return ''
-    if (currentMotoId && selectableRows.some((m) => m.id === currentMotoId)) {
+    if (currentMotoId && selectableRows.some((m) => m.id === currentMotoId && isMotoLive(m.status))) {
       return currentMotoId
     }
     const liveMoto = selectableRows.find((m) => isMotoLive(m.status))
-    return (liveMoto ?? selectableRows[0]).id
+    if (liveMoto) return liveMoto.id
+    if (currentMotoId && selectableRows.some((m) => m.id === currentMotoId)) {
+      return currentMotoId
+    }
+    return selectableRows[0].id
   }, [])
 
   const apiFetch = useCallback(async (url: string, options: RequestInit = {}) => {
