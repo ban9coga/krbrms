@@ -67,6 +67,8 @@ const parseMotoBatch = (motoName: string) => {
   }
 }
 
+const isSingleBatchMoto = (motoName: string) => parseMotoBatch(motoName).batchNo === 1
+
 
 export default function MotosClient({ eventId }: { eventId: string }) {
   const [categories, setCategories] = useState<CategoryItem[]>([])
@@ -388,6 +390,25 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     setHiddenCategoryIds((prev) =>
       prev.includes(categoryId) ? prev.filter((id) => id !== categoryId) : [...prev, categoryId]
     )
+  }
+
+  const handleReseedMoto3 = async (motoId: string) => {
+    const moto = motos.find((m) => m.id === motoId)
+    if (!moto) return
+
+    const ok = confirm(`Reseed gate Moto 3 berdasarkan total poin Moto 1 + Moto 2 untuk kategori ${categoryLabel.get(moto.category_id) ?? ''}?`)
+    if (!ok) return
+
+    try {
+      const json = await apiFetch(`/api/race-director/motos/${motoId}/reseed-moto3`, {
+        method: 'POST',
+        body: JSON.stringify({ reason: 'Manual reseed Moto 3 gate from motos page' }),
+      })
+      alert(`Gate ${json?.moto3_name ?? 'Moto 3'} berhasil diperbarui.`)
+      await load()
+    } catch (err: unknown) {
+      alert(getErrorMessage(err))
+    }
   }
 
   const handlePrintMotoRiders = () => {
@@ -763,6 +784,22 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                           }}
                         >
                           Reset Result
+                        </button>
+                      )}
+                      {isSingleBatchMoto(m.moto_name) && parseMotoBatch(m.moto_name).motoNo >= 2 && (
+                        <button
+                          type="button"
+                          onClick={() => handleReseedMoto3(m.id)}
+                          style={{
+                            padding: '8px 12px',
+                            borderRadius: 999,
+                            border: '2px solid #111',
+                            background: '#ddd6fe',
+                            fontWeight: 900,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Reseed Moto 3
                         </button>
                       )}
                     </div>
