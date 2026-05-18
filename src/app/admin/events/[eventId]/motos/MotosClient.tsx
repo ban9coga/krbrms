@@ -86,7 +86,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     const token = data.session?.access_token
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (token) headers.Authorization = `Bearer ${token}`
-    const res = await fetch(url, { ...options, headers })
+    const res = await fetch(url, { cache: 'no-store', ...options, headers })
     const json = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(json?.error || 'Request failed')
     return json
@@ -99,7 +99,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     }
     const entries = await Promise.all(
       categoryIds.map(async (categoryId) => {
-        const res = await fetch(`/api/events/${eventId}/gate-order?categoryId=${categoryId}`)
+        const res = await fetch(`/api/events/${eventId}/gate-order?categoryId=${categoryId}`, { cache: 'no-store' })
         const json = await res.json().catch(() => ({}))
         if (!res.ok) return [categoryId, []] as const
         return [categoryId, (json?.data ?? []) as GateMotoItem[]] as const
@@ -117,7 +117,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     if (mode === 'initial' && !hasLoadedOnce) setLoading(true)
     else setRefreshing(true)
     try {
-      const catRes = await fetch(`/api/events/${eventId}/categories`)
+      const catRes = await fetch(`/api/events/${eventId}/categories`, { cache: 'no-store' })
       const catJson = await catRes.json()
       const enabledCategories = (catJson.data ?? []).filter((c: CategoryItem) => c.enabled)
       setCategories(enabledCategories)
@@ -126,7 +126,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       setEventStatus(eventJson?.data?.status ?? null)
       setEventName(eventJson?.data?.name ?? 'Event')
 
-      const motoRes = await fetch(`/api/motos?event_id=${eventId}`)
+      const motoRes = await fetch(`/api/motos?event_id=${eventId}`, { cache: 'no-store' })
       const motoJson = await motoRes.json()
       const motoRows = (motoJson.data ?? []) as MotoItem[]
       setMotos(motoRows)
