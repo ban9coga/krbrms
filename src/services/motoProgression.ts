@@ -33,17 +33,10 @@ export async function promoteNextMotoToLive(eventId: string, currentMotoId: stri
   }
 
   const rows = (eventMotos ?? []) as MotoQueueRow[]
-  const hasOtherLiveMoto = rows.some(
-    (row) => row.id !== currentMotoId && normalizeStatus(row.status) === 'LIVE'
-  )
+  const categoryRows = rows.filter((row) => row.category_id === currentMoto.category_id)
 
-  if (hasOtherLiveMoto) {
-    return { ok: true as const, skipped: true as const }
-  }
-
-  const nextMoto = rows.find(
+  const nextMoto = categoryRows.find(
     (row) =>
-      row.category_id === currentMoto.category_id &&
       row.moto_order > (currentMoto.moto_order ?? 0) &&
       normalizeStatus(row.status) === 'UPCOMING'
   )
