@@ -117,7 +117,8 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     if (mode === 'initial' && !hasLoadedOnce) setLoading(true)
     else setRefreshing(true)
     try {
-      const catRes = await fetch(`/api/events/${eventId}/categories`, { cache: 'no-store' })
+      const nonce = Date.now()
+      const catRes = await fetch(`/api/events/${eventId}/categories?_=${nonce}`, { cache: 'no-store' })
       const catJson = await catRes.json()
       const enabledCategories = (catJson.data ?? []).filter((c: CategoryItem) => c.enabled)
       setCategories(enabledCategories)
@@ -126,7 +127,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       setEventStatus(eventJson?.data?.status ?? null)
       setEventName(eventJson?.data?.name ?? 'Event')
 
-      const motoRes = await fetch(`/api/motos?event_id=${eventId}`, { cache: 'no-store' })
+      const motoRes = await fetch(`/api/motos?event_id=${eventId}&_=${nonce}`, { cache: 'no-store' })
       const motoJson = await motoRes.json()
       const motoRows = (motoJson.data ?? []) as MotoItem[]
       setMotos(motoRows)
