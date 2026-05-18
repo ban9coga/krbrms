@@ -211,7 +211,9 @@ export default function LiveDisplayClient({
     const anchorIndex = anchorMoto ? data.findIndex((m) => m.id === anchorMoto.id) : -1
     const nextMoto =
       anchorIndex >= 0
-        ? data.slice(anchorIndex + 1).find((m) => !isBlockedQueueStatus(m.status)) ?? null
+        ? data.slice(anchorIndex + 1).find((m) => !isBlockedQueueStatus(m.status)) ??
+          data.find((m) => !isBlockedQueueStatus(m.status)) ??
+          null
         : data.find((m) => !isBlockedQueueStatus(m.status)) ?? null
     const categoryIds = Array.from(
       new Set([anchorMoto?.category_id, nextMoto?.category_id].filter((value): value is string => Boolean(value)))
@@ -298,7 +300,11 @@ export default function LiveDisplayClient({
     const sortedMotos = [...eventMotos].sort(compareMotoSequence)
     const currentIndex = sortedMotos.findIndex((moto) => moto.id === displayMoto.id)
     if (currentIndex < 0) return sortedMotos.find((moto) => !isBlockedQueueStatus(moto.status)) ?? null
-    return sortedMotos.slice(currentIndex + 1).find((moto) => !isBlockedQueueStatus(moto.status)) ?? null
+    return (
+      sortedMotos.slice(currentIndex + 1).find((moto) => !isBlockedQueueStatus(moto.status)) ??
+      sortedMotos.find((moto) => !isBlockedQueueStatus(moto.status)) ??
+      null
+    )
   }, [displayMoto, eventMotos, activeMoto])
   const queueLiveScore = queueMoto ? liveScoreByCategory[queueMoto.category_id] ?? null : null
   const queueBatches = useMemo(() => queueLiveScore?.batches ?? [], [queueLiveScore])

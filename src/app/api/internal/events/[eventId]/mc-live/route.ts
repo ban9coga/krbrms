@@ -136,9 +136,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       ? listForNext
           .slice(currentIndex + 1)
           .find((row) => ['UPCOMING', 'LIVE', 'PROVISIONAL'].includes((row.status ?? '').toUpperCase())) ??
+        listForNext.find((row) => ['UPCOMING', 'LIVE', 'PROVISIONAL'].includes((row.status ?? '').toUpperCase())) ??
         listForNext.slice(currentIndex + 1)[0] ??
         null
-      : null
+      : listForNext.find((row) => ['UPCOMING', 'LIVE', 'PROVISIONAL'].includes((row.status ?? '').toUpperCase())) ?? null
 
   const { data: results, error: resultError } = await adminClient
     .from('results')

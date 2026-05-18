@@ -45,6 +45,7 @@ export async function promoteNextMotoToLive(eventId: string, currentMotoId: stri
   const nextMoto = sortedEventMotos
     .slice(currentIndex + 1)
     .find((row) => normalizeStatus(row.status) === 'UPCOMING')
+    ?? sortedEventMotos.find((row) => normalizeStatus(row.status) === 'UPCOMING')
 
   if (!nextMoto) {
     return { ok: true as const, skipped: true as const }
