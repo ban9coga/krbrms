@@ -196,14 +196,8 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
   }, [categories])
 
   const globalMotoSequence = useMemo(() => {
-    const categoryOrderMap = new Map(categoriesSorted.map((category, index) => [category.id, index]))
-    return [...motos].sort((a, b) => {
-      const categoryOrderA = categoryOrderMap.get(a.category_id) ?? Number.MAX_SAFE_INTEGER
-      const categoryOrderB = categoryOrderMap.get(b.category_id) ?? Number.MAX_SAFE_INTEGER
-      if (categoryOrderA !== categoryOrderB) return categoryOrderA - categoryOrderB
-      return compareMotoSequence(a, b)
-    })
-  }, [categoriesSorted, motos])
+    return [...motos].sort(compareMotoSequence)
+  }, [motos])
 
   const gateMap = useMemo(() => {
     return new Map(
@@ -221,7 +215,11 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
     if (globalMotoSequence.length === 0) return null
     const currentIndex = currentMoto ? globalMotoSequence.findIndex((moto) => moto.id === currentMoto.id) : -1
     if (currentIndex >= 0) {
-      return globalMotoSequence.slice(currentIndex + 1).find((moto) => moto.status === 'UPCOMING') ?? null
+      return (
+        globalMotoSequence.slice(currentIndex + 1).find((moto) => moto.status === 'UPCOMING') ??
+        globalMotoSequence.find((moto) => moto.status === 'UPCOMING') ??
+        null
+      )
     }
     return globalMotoSequence.find((moto) => moto.status === 'UPCOMING') ?? null
   }, [currentMoto, globalMotoSequence])
