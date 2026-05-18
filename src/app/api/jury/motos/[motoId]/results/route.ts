@@ -142,14 +142,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
     .update({ status: 'PROVISIONAL', provisional_at: new Date().toISOString() })
     .eq('id', motoId)
 
+  const nextMotoResult = await promoteNextMotoToLive(moto.event_id, motoId)
   const moto3Reseed = await reseedSingleBatchMoto3FromMoto(motoId)
-  if (!moto3Reseed.ok) {
-    return NextResponse.json({ error: moto3Reseed.warning ?? 'Failed to reseed Moto 3 gates.' }, { status: 400 })
-  }
 
-  await promoteNextMotoToLive(moto.event_id, motoId)
-
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({
+    ok: true,
+    next_moto: nextMotoResult,
+    warning: moto3Reseed.ok ? null : moto3Reseed.warning ?? 'Moto 3 gate reseed skipped.',
+  })
 }
 
 
