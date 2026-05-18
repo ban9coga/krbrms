@@ -13,6 +13,7 @@ type MotoQueueRow = {
 
 type CategoryOrderRow = {
   id: string
+  sequence_order?: number | null
   year_min?: number | null
   year_max?: number | null
   gender?: 'BOY' | 'GIRL' | 'MIX' | null
@@ -21,6 +22,12 @@ type CategoryOrderRow = {
 const normalizeStatus = (status?: string | null) => (status ?? '').toUpperCase()
 
 const compareCategoryOrder = (a: CategoryOrderRow, b: CategoryOrderRow) => {
+  const aSequence = typeof a.sequence_order === 'number' ? a.sequence_order : null
+  const bSequence = typeof b.sequence_order === 'number' ? b.sequence_order : null
+  if (aSequence !== null || bSequence !== null) {
+    return (aSequence ?? Number.MAX_SAFE_INTEGER) - (bSequence ?? Number.MAX_SAFE_INTEGER)
+  }
+
   const ayMax = typeof a.year_max === 'number' ? a.year_max : typeof a.year_min === 'number' ? a.year_min : 0
   const byMax = typeof b.year_max === 'number' ? b.year_max : typeof b.year_min === 'number' ? b.year_min : 0
   if (byMax !== ayMax) return byMax - ayMax
@@ -58,7 +65,7 @@ export async function promoteNextMotoToLive(eventId: string, currentMotoId: stri
 
   const { data: categoryRows, error: categoryError } = await adminClient
     .from('categories')
-    .select('id, year_min, year_max, gender')
+    .select('id, sequence_order, year_min, year_max, gender')
     .eq('event_id', eventId)
 
   if (categoryError) {

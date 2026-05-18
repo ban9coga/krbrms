@@ -1,13 +1,14 @@
 'use client'
 
-import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { compareMotoSequence } from '../../../../../lib/motoSequence'
+import { supabase } from '../../../../../lib/supabaseClient'
 
 type CategoryItem = {
   id: string
   label: string
   enabled: boolean
+  sequence_order?: number | null
   year_min?: number | null
   year_max?: number | null
   gender: 'BOY' | 'GIRL' | 'MIX'
@@ -55,6 +56,12 @@ const STATUS_LABELS: Record<string, string> = {
 }
 
 const compareCategoryOrder = (a: CategoryItem, b: CategoryItem) => {
+  const aSequence = typeof a.sequence_order === 'number' ? a.sequence_order : null
+  const bSequence = typeof b.sequence_order === 'number' ? b.sequence_order : null
+  if (aSequence !== null || bSequence !== null) {
+    return (aSequence ?? Number.MAX_SAFE_INTEGER) - (bSequence ?? Number.MAX_SAFE_INTEGER)
+  }
+
   const ayMax = typeof a.year_max === 'number' ? a.year_max : typeof a.year_min === 'number' ? a.year_min : 0
   const byMax = typeof b.year_max === 'number' ? b.year_max : typeof b.year_min === 'number' ? b.year_min : 0
   if (byMax !== ayMax) return byMax - ayMax
@@ -71,7 +78,19 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
   const [gateOrdersByCategory, setGateOrdersByCategory] = useState<Record<string, GateMotoItem[]>>({})
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+  const [savingSequence, setSavingSequence] = useState(false)
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
+
+  const apiFetch = useCallback(async (url: string, options: RequestInit = {}) => {
+    const { data } = await supabase.auth.getSession()
+    const token = data.session?.access_token
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (token) headers.Authorization = `Bearer ${token}`
+    const res = await fetch(url, { ...options, headers })
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(json?.error || 'Request failed')
+    return json
+  }, [])
 
   const loadGateOrders = useCallback(async (categoryIds: string[]) => {
     if (categoryIds.length === 0) {
@@ -124,6 +143,24 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
       setHasLoadedOnce(true)
     }
   }, [eventId, hasLoadedOnce, loadGateOrders])
+
+  const saveCategorySequence = useCallback(async (nextCategories: CategoryItem[]) => {
+    setSavingSequence(true)
+    try {
+      await apiFetch(`/api/events/${eventId}/categories/sequence`, {
+        method: 'POST',
+        body: JSON.stringify({ category_ids: nextCategories.map((category) => category.id) }),
+      })
+      setCategories(
+        nextCategories.map((category, index) => ({
+          ...category,
+          sequence_order: index + 1,
+        }))
+      )
+    } finally {
+      setSavingSequence(false)
+    }
+  }, [apiFetch, eventId])
 
   useEffect(() => {
     void loadData('initial')
@@ -189,6 +226,28 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
     return globalMotoSequence.find((moto) => moto.status === 'UPCOMING') ?? null
   }, [currentMoto, globalMotoSequence])
 
+  const moveCategory = async (categoryId: string, direction: -1 | 1) => {
+    const ordered = [...categoriesSorted]
+    const index = ordered.findIndex((category) => category.id === categoryId)
+    const nextIndex = index + direction
+    if (index < 0 || nextIndex < 0 || nextIndex >= ordered.length) return
+    const swapped = [...ordered]
+    const [picked] = swapped.splice(index, 1)
+    swapped.splice(nextIndex, 0, picked)
+    setCategories(
+      swapped.map((category, idx) => ({
+        ...category,
+        sequence_order: idx + 1,
+      }))
+    )
+    try {
+      await saveCategorySequence(swapped)
+    } catch (error) {
+      console.error('Failed to save category sequence:', error)
+      await loadData('refresh')
+    }
+  }
+
   if (loading && motos.length === 0) {
     return (
       <div style={{ padding: '20px', textAlign: 'center' }}>
@@ -204,7 +263,7 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
           <h1 style={{ margin: 0, fontSize: '28px', fontWeight: 900 }}>Moto Sequence</h1>
           <button
             onClick={() => void loadData('refresh')}
-            disabled={loading || refreshing}
+            disabled={loading || refreshing || savingSequence}
             style={{
               padding: '8px 16px',
               borderRadius: '8px',
@@ -215,7 +274,7 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
               fontWeight: 600,
             }}
           >
-            {refreshing ? 'Refreshing...' : 'Refresh'}
+            {savingSequence ? 'Saving Order...' : refreshing ? 'Refreshing...' : 'Refresh'}
           </button>
         </div>
         <p style={{ margin: 0, color: '#666', fontSize: '14px' }}>
@@ -297,13 +356,53 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
 
         return (
           <div key={category.id} style={{ marginBottom: '40px' }}>
-            <div style={{ marginBottom: '12px' }}>
-              <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 800 }}>
-                {categoryLabel.get(category.id) || category.id}
-              </h2>
-              <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#999' }}>
-                {categoryMotos.length} motos
-              </p>
+            <div style={{ marginBottom: '12px', display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center' }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 800 }}>
+                  {categoryLabel.get(category.id) || category.id}
+                </h2>
+                <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#999' }}>
+                  Sequence #{categoriesSorted.findIndex((item) => item.id === category.id) + 1} · {categoryMotos.length} motos
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  onClick={() => void moveCategory(category.id, -1)}
+                  disabled={savingSequence || categoriesSorted[0]?.id === category.id}
+                  style={{
+                    padding: '6px 10px',
+                    borderRadius: '999px',
+                    border: '2px solid #111',
+                    background: '#fff',
+                    fontWeight: 900,
+                    cursor: savingSequence || categoriesSorted[0]?.id === category.id ? 'not-allowed' : 'pointer',
+                    opacity: savingSequence || categoriesSorted[0]?.id === category.id ? 0.5 : 1,
+                  }}
+                >
+                  Naik
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void moveCategory(category.id, 1)}
+                  disabled={savingSequence || categoriesSorted[categoriesSorted.length - 1]?.id === category.id}
+                  style={{
+                    padding: '6px 10px',
+                    borderRadius: '999px',
+                    border: '2px solid #111',
+                    background: '#fff',
+                    fontWeight: 900,
+                    cursor:
+                      savingSequence || categoriesSorted[categoriesSorted.length - 1]?.id === category.id
+                        ? 'not-allowed'
+                        : 'pointer',
+                    opacity:
+                      savingSequence || categoriesSorted[categoriesSorted.length - 1]?.id === category.id ? 0.5 : 1,
+                  }}
+                >
+                  Turun
+                </button>
+              </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
@@ -413,24 +512,6 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
                           </div>
                         ))
                       )}
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <Link
-                        href={`/admin/events/${eventId}/motos`}
-                        style={{
-                          padding: '6px 12px',
-                          borderRadius: '6px',
-                          background: '#3b82f6',
-                          color: '#fff',
-                          textDecoration: 'none',
-                          fontSize: '12px',
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        Edit
-                      </Link>
                     </div>
                   </div>
                 )

@@ -6,8 +6,9 @@ export async function GET(_: Request, { params }: { params: Promise<{ eventId: s
   const { eventId } = await params
   const { data: categories, error } = await adminClient
     .from('categories')
-    .select('id, year, year_min, year_max, capacity, gender, label, enabled')
+    .select('id, year, year_min, year_max, capacity, gender, label, enabled, sequence_order')
     .eq('event_id', eventId)
+    .order('sequence_order', { ascending: true })
     .order('year_min', { ascending: true })
     .order('gender', { ascending: true })
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
@@ -86,6 +87,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   }
 
   const year = yearMax
+  const { data: lastCategory } = await adminClient
+    .from('categories')
+    .select('sequence_order')
+    .eq('event_id', eventId)
+    .order('sequence_order', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
   const { data, error } = await adminClient
     .from('categories')
     .insert({
@@ -97,6 +106,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       label: normalizedLabel,
       capacity: normalizedCapacity,
       enabled: enabled !== false,
+      sequence_order: (Number(lastCategory?.sequence_order ?? 0) || 0) + 1,
     })
     .select('*')
     .single()
