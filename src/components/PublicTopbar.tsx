@@ -7,11 +7,11 @@ import { formatAppRoleLabel, normalizeAppRole } from '../lib/roles'
 import { supabase } from '../lib/supabaseClient'
 import { useTheme } from './ThemeProvider'
 import PublicBottomBar from './PublicBottomBar'
+import LiveEntryButton from './LiveEntryButton'
 
 const navItems = [
   { href: '/', label: 'Home' },
   { href: '/dashboard', label: 'Events' },
-  { href: '/dashboard#live-results', label: 'Live Results' },
 ]
 
 type PublicTopbarTheme = 'light' | 'dark'
@@ -169,6 +169,15 @@ export default function PublicTopbar({ theme }: PublicTopbarProps) {
                   </Link>
                 )
               })}
+              <LiveEntryButton
+                label="Live Results"
+                mode="results"
+                fallbackHref="/dashboard#live-results"
+                className={`transition-colors ${
+                  isDark ? 'hover:text-amber-300' : 'hover:text-amber-500'
+                }`}
+                activeClassName={isDark ? 'text-amber-300' : 'text-amber-500'}
+              />
             </nav>
 
             <div className="flex items-center gap-2">
@@ -231,6 +240,15 @@ export default function PublicTopbar({ theme }: PublicTopbarProps) {
                 </Link>
               )
             })}
+            <LiveEntryButton
+              label="Live Results"
+              mode="results"
+              fallbackHref="/dashboard#live-results"
+              className={`transition-colors ${
+                isDark ? 'hover:text-amber-300' : 'hover:text-amber-500'
+              }`}
+              activeClassName={isDark ? 'text-amber-300' : 'text-amber-500'}
+            />
           </nav>
         </div>
       </header>
