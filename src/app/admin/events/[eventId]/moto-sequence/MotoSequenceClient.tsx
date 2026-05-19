@@ -640,6 +640,72 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
         <p style={{ marginTop: '8px', color: '#64748b', fontSize: '13px', fontWeight: 700 }}>
           Tip: drag baris moto untuk menyusun ulang antrian global dengan lebih cepat.
         </p>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '12px' }}>
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '8px 12px',
+              borderRadius: '999px',
+              background: '#eef2ff',
+              color: '#3730a3',
+              fontSize: '12px',
+              fontWeight: 900,
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+            }}
+          >
+            <span>Active</span>
+            <span
+              style={{
+                minWidth: '24px',
+                height: '24px',
+                borderRadius: '999px',
+                background: '#4338ca',
+                color: '#fff',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '12px',
+              }}
+            >
+              {activeMotoSequence.length}
+            </span>
+          </div>
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '8px 12px',
+              borderRadius: '999px',
+              background: '#f1f5f9',
+              color: '#475569',
+              fontSize: '12px',
+              fontWeight: 900,
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+            }}
+          >
+            <span>Locked</span>
+            <span
+              style={{
+                minWidth: '24px',
+                height: '24px',
+                borderRadius: '999px',
+                background: '#64748b',
+                color: '#fff',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '12px',
+              }}
+            >
+              {lockedMotoSequence.length}
+            </span>
+          </div>
+        </div>
       </div>
 
       <div
