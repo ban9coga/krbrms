@@ -80,6 +80,8 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
   const [refreshing, setRefreshing] = useState(false)
   const [savingSequence, setSavingSequence] = useState(false)
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
+  const [draggingMotoId, setDraggingMotoId] = useState<string | null>(null)
+  const [dragOverMotoId, setDragOverMotoId] = useState<string | null>(null)
 
   const apiFetch = useCallback(async (url: string, options: RequestInit = {}) => {
     const { data } = await supabase.auth.getSession()
@@ -284,6 +286,64 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
     }
   }
 
+  const saveGlobalMotoOrder = useCallback(
+    async (orderedMotos: MotoItem[]) => {
+      const normalized = orderedMotos.map((moto, index) => ({
+        ...moto,
+        moto_order: index + 1,
+      }))
+
+      setMotos((prev) =>
+        prev.map((moto) => normalized.find((candidate) => candidate.id === moto.id) ?? moto)
+      )
+
+      setSavingSequence(true)
+      try {
+        const changed = normalized.filter((moto) => {
+          const current = motos.find((item) => item.id === moto.id)
+          return current && current.moto_order !== moto.moto_order
+        })
+
+        for (const moto of changed) {
+          await apiFetch(`/api/motos/${moto.id}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ moto_order: moto.moto_order }),
+          })
+        }
+
+        await loadData('refresh')
+      } catch (error) {
+        console.error('Failed to save dragged moto order:', error)
+        await loadData('refresh')
+      } finally {
+        setSavingSequence(false)
+      }
+    },
+    [apiFetch, loadData, motos]
+  )
+
+  const handleMotoDrop = async (targetMotoId: string) => {
+    if (!draggingMotoId || draggingMotoId === targetMotoId) {
+      setDraggingMotoId(null)
+      setDragOverMotoId(null)
+      return
+    }
+
+    const ordered = [...globalMotoSequence]
+    const sourceIndex = ordered.findIndex((moto) => moto.id === draggingMotoId)
+    const targetIndex = ordered.findIndex((moto) => moto.id === targetMotoId)
+
+    setDraggingMotoId(null)
+    setDragOverMotoId(null)
+
+    if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) return
+
+    const next = [...ordered]
+    const [picked] = next.splice(sourceIndex, 1)
+    next.splice(targetIndex, 0, picked)
+    await saveGlobalMotoOrder(next)
+  }
+
   if (loading && motos.length === 0) {
     return (
       <div style={{ padding: '20px', textAlign: 'center' }}>
@@ -315,6 +375,9 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
         </div>
         <p style={{ margin: 0, color: '#666', fontSize: '14px' }}>
           Atur semua moto lintas kategori dalam satu daftar global. Planner ini jadi acuan urutan moto yang akan LIVE.
+        </p>
+        <p style={{ marginTop: '8px', color: '#64748b', fontSize: '13px', fontWeight: 700 }}>
+          Tip: drag baris moto untuk menyusun ulang antrian global dengan lebih cepat.
         </p>
       </div>
 
@@ -448,6 +511,31 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
           return (
             <div
               key={moto.id}
+              draggable={!savingSequence}
+              onDragStart={() => {
+                if (savingSequence) return
+                setDraggingMotoId(moto.id)
+                setDragOverMotoId(moto.id)
+              }}
+              onDragOver={(event) => {
+                event.preventDefault()
+                if (!savingSequence) {
+                  setDragOverMotoId(moto.id)
+                }
+              }}
+              onDragLeave={() => {
+                if (dragOverMotoId === moto.id) {
+                  setDragOverMotoId(null)
+                }
+              }}
+              onDrop={(event) => {
+                event.preventDefault()
+                void handleMotoDrop(moto.id)
+              }}
+              onDragEnd={() => {
+                setDraggingMotoId(null)
+                setDragOverMotoId(null)
+              }}
               style={{
                 border: `2px solid ${moto.id === nextMoto?.id ? '#16a34a' : moto.id === currentMoto?.id ? '#ea580c' : statusColor}`,
                 borderRadius: '12px',
@@ -460,13 +548,39 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
                     : moto.status === 'LIVE'
                     ? '#fff5f5'
                     : '#f9fafb',
+                boxShadow:
+                  dragOverMotoId === moto.id && draggingMotoId && draggingMotoId !== moto.id
+                    ? '0 0 0 3px rgba(59, 130, 246, 0.2)'
+                    : draggingMotoId === moto.id
+                    ? '0 10px 24px rgba(15, 23, 42, 0.14)'
+                    : 'none',
+                opacity: draggingMotoId === moto.id ? 0.78 : 1,
                 display: 'grid',
                 gridTemplateColumns: '180px minmax(220px, 280px) 1fr auto',
                 gap: '16px',
                 alignItems: 'start',
+                cursor: savingSequence ? 'progress' : 'grab',
+                transition: 'box-shadow 120ms ease, opacity 120ms ease, transform 120ms ease',
               }}
             >
               <div style={{ display: 'grid', gap: '6px' }}>
+                <div
+                  style={{
+                    display: 'inline-block',
+                    width: 'fit-content',
+                    padding: '2px 8px',
+                    borderRadius: '999px',
+                    border: '1px dashed #94a3b8',
+                    background: '#fff',
+                    color: '#475569',
+                    fontSize: '10px',
+                    fontWeight: 900,
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  Drag
+                </div>
                 <div style={{ fontSize: '12px', color: '#999' }}>Global #{index + 1}</div>
                 <div style={{ fontSize: '12px', color: '#999' }}>Order #{moto.moto_order}</div>
                 {moto.id === currentMoto?.id && (
