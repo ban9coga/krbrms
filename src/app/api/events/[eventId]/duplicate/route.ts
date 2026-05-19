@@ -17,6 +17,25 @@ const toRecord = (value: unknown): Record<string, unknown> | null => {
   return value as Record<string, unknown>
 }
 
+const normalizePlateNumber = (value: unknown) => {
+  const text = typeof value === 'string' ? value.trim() : value == null ? '' : String(value).trim()
+  return text || null
+}
+
+const normalizePlateSuffix = (value: unknown) => {
+  if (typeof value !== 'string') return null
+  const text = value.trim().toUpperCase()
+  return text ? text.slice(0, 1) : null
+}
+
+const nextAvailablePlateSuffix = (used: Set<string>) => {
+  for (let code = 65; code <= 90; code += 1) {
+    const suffix = String.fromCharCode(code)
+    if (!used.has(suffix)) return suffix
+  }
+  return null
+}
+
 export async function POST(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params
   const auth = await requireAdmin(req.headers.get('authorization'), eventId)
@@ -86,9 +105,28 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     if (riderError) throw new Error(riderError.message)
 
     const riderIdMap = new Map<string, string>()
+    const usedPlatesByNumber = new Map<string, Set<string>>()
     const riderInserts = buildInsertRows(riderRows, (row) => {
       const newId = randomUUID()
       riderIdMap.set(row.id, newId)
+      const plateNumber = normalizePlateNumber(row.plate_number)
+      const requestedSuffix = normalizePlateSuffix(row.plate_suffix)
+      let plateSuffix = requestedSuffix
+
+      if (plateNumber) {
+        const used = usedPlatesByNumber.get(plateNumber) ?? new Set<string>()
+        const suffixKey = plateSuffix ?? '__NO_SUFFIX__'
+        if (used.has(suffixKey)) {
+          const replacement = nextAvailablePlateSuffix(used)
+          if (!replacement) {
+            throw new Error(`No available plate suffix left for duplicated plate ${plateNumber}`)
+          }
+          plateSuffix = replacement
+        }
+        used.add((plateSuffix ?? '__NO_SUFFIX__'))
+        usedPlatesByNumber.set(plateNumber, used)
+      }
+
       return {
         id: newId,
         event_id: newEventId,
@@ -99,8 +137,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
         primary_category_id:
           typeof row.primary_category_id === 'string' ? (categoryIdMap.get(row.primary_category_id) ?? null) : null,
         gender: row.gender,
-        plate_number: row.plate_number,
-        plate_suffix: row.plate_suffix,
+        plate_number: plateNumber,
+        plate_suffix: plateSuffix,
         club: row.club,
         photo_url: row.photo_url,
         photo_thumbnail_url: row.photo_thumbnail_url,
