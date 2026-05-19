@@ -72,6 +72,13 @@ const compareCategoryOrder = (a: CategoryItem, b: CategoryItem) => {
   return (order[a.gender] ?? 9) - (order[b.gender] ?? 9)
 }
 
+const compareLockedLast = (a: MotoItem, b: MotoItem) => {
+  const aLocked = a.status === 'LOCKED'
+  const bLocked = b.status === 'LOCKED'
+  if (aLocked !== bLocked) return aLocked ? 1 : -1
+  return compareMotoSequence(a, b)
+}
+
 export default function MotoSequenceClient({ eventId }: { eventId: string }) {
   const [categories, setCategories] = useState<CategoryItem[]>([])
   const [motos, setMotos] = useState<MotoItem[]>([])
@@ -198,7 +205,7 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
   }, [categories])
 
   const globalMotoSequence = useMemo(() => {
-    return [...motos].sort(compareMotoSequence)
+    return [...motos].sort(compareLockedLast)
   }, [motos])
 
   const gateMap = useMemo(() => {
@@ -467,35 +474,49 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
                 type="button"
                 onClick={() => void moveCategory(category.id, -1)}
                 disabled={savingSequence || categoriesSorted[0]?.id === category.id}
+                title="Naikkan kategori"
+                aria-label="Naikkan kategori"
                 style={{
-                  padding: '6px 10px',
+                  width: '38px',
+                  height: '38px',
                   borderRadius: '999px',
                   border: '2px solid #111',
                   background: '#fff',
                   fontWeight: 900,
+                  fontSize: '18px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                   cursor: savingSequence || categoriesSorted[0]?.id === category.id ? 'not-allowed' : 'pointer',
                   opacity: savingSequence || categoriesSorted[0]?.id === category.id ? 0.5 : 1,
                 }}
               >
-                Kategori Naik
+                ↑
               </button>
               <button
                 type="button"
                 onClick={() => void moveCategory(category.id, 1)}
                 disabled={savingSequence || categoriesSorted[categoriesSorted.length - 1]?.id === category.id}
+                title="Turunkan kategori"
+                aria-label="Turunkan kategori"
                 style={{
-                  padding: '6px 10px',
+                  width: '38px',
+                  height: '38px',
                   borderRadius: '999px',
                   border: '2px solid #111',
                   background: '#fff',
                   fontWeight: 900,
+                  fontSize: '18px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                   cursor:
                     savingSequence || categoriesSorted[categoriesSorted.length - 1]?.id === category.id ? 'not-allowed' : 'pointer',
                   opacity:
                     savingSequence || categoriesSorted[categoriesSorted.length - 1]?.id === category.id ? 0.5 : 1,
                 }}
               >
-                Kategori Turun
+                ↓
               </button>
             </div>
           </div>
@@ -698,28 +719,42 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
                   type="button"
                   onClick={() => void moveMotoGlobal(moto.id, -1)}
                   disabled={savingSequence || globalMotoSequence[0]?.id === moto.id}
+                  title="Naikkan moto di urutan global"
+                  aria-label="Naikkan moto di urutan global"
                   style={{
-                    padding: '6px 10px',
+                    width: '40px',
+                    height: '40px',
                     borderRadius: '999px',
                     border: '2px solid #111',
                     background: '#fff',
                     fontWeight: 900,
+                    fontSize: '18px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                     cursor: savingSequence || globalMotoSequence[0]?.id === moto.id ? 'not-allowed' : 'pointer',
                     opacity: savingSequence || globalMotoSequence[0]?.id === moto.id ? 0.5 : 1,
                   }}
                 >
-                  Global Naik
+                  ↑
                 </button>
                 <button
                   type="button"
                   onClick={() => void moveMotoGlobal(moto.id, 1)}
                   disabled={savingSequence || globalMotoSequence[globalMotoSequence.length - 1]?.id === moto.id}
+                  title="Turunkan moto di urutan global"
+                  aria-label="Turunkan moto di urutan global"
                   style={{
-                    padding: '6px 10px',
+                    width: '40px',
+                    height: '40px',
                     borderRadius: '999px',
                     border: '2px solid #111',
                     background: '#fff',
                     fontWeight: 900,
+                    fontSize: '18px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                     cursor:
                       savingSequence || globalMotoSequence[globalMotoSequence.length - 1]?.id === moto.id
                         ? 'not-allowed'
@@ -728,7 +763,7 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
                       savingSequence || globalMotoSequence[globalMotoSequence.length - 1]?.id === moto.id ? 0.5 : 1,
                   }}
                 >
-                  Global Turun
+                  ↓
                 </button>
               </div>
             </div>
