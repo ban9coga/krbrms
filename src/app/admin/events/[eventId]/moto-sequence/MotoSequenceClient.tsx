@@ -507,62 +507,91 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
           const statusColor = STATUS_COLORS[moto.status] || '#999'
           const statusLabel = STATUS_LABELS[moto.status] || moto.status
           const riders = gateMap.get(moto.id)?.gates ?? []
+          const showDropIndicator = dragOverMotoId === moto.id && draggingMotoId && draggingMotoId !== moto.id
 
           return (
-            <div
-              key={moto.id}
-              draggable={!savingSequence}
-              onDragStart={() => {
-                if (savingSequence) return
-                setDraggingMotoId(moto.id)
-                setDragOverMotoId(moto.id)
-              }}
-              onDragOver={(event) => {
-                event.preventDefault()
-                if (!savingSequence) {
+            <div key={moto.id} style={{ display: 'grid', gap: '6px' }}>
+              {showDropIndicator && (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '0 6px',
+                  }}
+                >
+                  <div style={{ flex: 1, height: '4px', borderRadius: '999px', background: '#2563eb' }} />
+                  <div
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: '999px',
+                      background: '#dbeafe',
+                      color: '#1d4ed8',
+                      fontSize: '11px',
+                      fontWeight: 900,
+                      letterSpacing: '0.08em',
+                      textTransform: 'uppercase',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    Drop Here
+                  </div>
+                  <div style={{ flex: 1, height: '4px', borderRadius: '999px', background: '#2563eb' }} />
+                </div>
+              )}
+              <div
+                draggable={!savingSequence}
+                onDragStart={() => {
+                  if (savingSequence) return
+                  setDraggingMotoId(moto.id)
                   setDragOverMotoId(moto.id)
-                }
-              }}
-              onDragLeave={() => {
-                if (dragOverMotoId === moto.id) {
+                }}
+                onDragOver={(event) => {
+                  event.preventDefault()
+                  if (!savingSequence) {
+                    setDragOverMotoId(moto.id)
+                  }
+                }}
+                onDragLeave={() => {
+                  if (dragOverMotoId === moto.id) {
+                    setDragOverMotoId(null)
+                  }
+                }}
+                onDrop={(event) => {
+                  event.preventDefault()
+                  void handleMotoDrop(moto.id)
+                }}
+                onDragEnd={() => {
+                  setDraggingMotoId(null)
                   setDragOverMotoId(null)
-                }
-              }}
-              onDrop={(event) => {
-                event.preventDefault()
-                void handleMotoDrop(moto.id)
-              }}
-              onDragEnd={() => {
-                setDraggingMotoId(null)
-                setDragOverMotoId(null)
-              }}
-              style={{
-                border: `2px solid ${moto.id === nextMoto?.id ? '#16a34a' : moto.id === currentMoto?.id ? '#ea580c' : statusColor}`,
-                borderRadius: '12px',
-                padding: '12px',
-                background:
-                  moto.id === nextMoto?.id
-                    ? '#f0fdf4'
-                    : moto.id === currentMoto?.id
-                    ? '#fff7ed'
-                    : moto.status === 'LIVE'
-                    ? '#fff5f5'
-                    : '#f9fafb',
-                boxShadow:
-                  dragOverMotoId === moto.id && draggingMotoId && draggingMotoId !== moto.id
-                    ? '0 0 0 3px rgba(59, 130, 246, 0.2)'
-                    : draggingMotoId === moto.id
-                    ? '0 10px 24px rgba(15, 23, 42, 0.14)'
-                    : 'none',
-                opacity: draggingMotoId === moto.id ? 0.78 : 1,
-                display: 'grid',
-                gridTemplateColumns: '180px minmax(220px, 280px) 1fr auto',
-                gap: '16px',
-                alignItems: 'start',
-                cursor: savingSequence ? 'progress' : 'grab',
-                transition: 'box-shadow 120ms ease, opacity 120ms ease, transform 120ms ease',
-              }}
-            >
+                }}
+                style={{
+                  border: `2px solid ${moto.id === nextMoto?.id ? '#16a34a' : moto.id === currentMoto?.id ? '#ea580c' : statusColor}`,
+                  borderRadius: '12px',
+                  padding: '12px',
+                  background:
+                    moto.id === nextMoto?.id
+                      ? '#f0fdf4'
+                      : moto.id === currentMoto?.id
+                      ? '#fff7ed'
+                      : moto.status === 'LIVE'
+                      ? '#fff5f5'
+                      : '#f9fafb',
+                  boxShadow:
+                    showDropIndicator
+                      ? '0 0 0 4px rgba(37, 99, 235, 0.16)'
+                      : draggingMotoId === moto.id
+                      ? '0 10px 24px rgba(15, 23, 42, 0.14)'
+                      : 'none',
+                  opacity: draggingMotoId === moto.id ? 0.78 : 1,
+                  display: 'grid',
+                  gridTemplateColumns: '180px minmax(220px, 280px) 1fr auto',
+                  gap: '16px',
+                  alignItems: 'start',
+                  cursor: savingSequence ? 'progress' : 'grab',
+                  transition: 'box-shadow 120ms ease, opacity 120ms ease, transform 120ms ease',
+                }}
+              >
               <div style={{ display: 'grid', gap: '6px' }}>
                 <div
                   style={{
@@ -702,6 +731,7 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
                   Global Turun
                 </button>
               </div>
+            </div>
             </div>
           )
         })}
