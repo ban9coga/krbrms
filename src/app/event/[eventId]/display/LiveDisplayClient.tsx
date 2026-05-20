@@ -152,6 +152,13 @@ const gateByMoto = (row: Row, motoIndex: number) => {
 const displayName = (row: Pick<Row, 'rider_nickname' | 'name'> | { rider_nickname?: string | null; name: string }) =>
   row.rider_nickname?.trim() || row.name
 
+const mobileInfoPill = (label: string, value: string | number | null | undefined, accent = 'text-slate-700') => (
+  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+    <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">{label}</div>
+    <div className={`mt-1 text-sm font-black ${accent}`}>{value ?? '-'}</div>
+  </div>
+)
+
 export default function LiveDisplayClient({
   eventId,
   initialEvent = null,
@@ -688,7 +695,7 @@ export default function LiveDisplayClient({
                       </div>
                     )}
                     <div className="overflow-x-auto rounded-[18px] border border-slate-200">
-                      <table className="w-full border-collapse text-xs md:text-sm">
+                      <table className="hidden w-full border-collapse text-xs md:table md:text-sm">
                         <thead>
                           <tr className="bg-slate-900 text-left font-black uppercase tracking-[0.12em] text-white">
                           {['Plate', 'Nama Rider', 'Komunitas', resultBoardPointLabel, 'Penalty', 'Rank', 'Status'].map((h) => (
@@ -726,11 +733,39 @@ export default function LiveDisplayClient({
                           ))}
                         </tbody>
                       </table>
+                      <div className="grid gap-3 p-3 md:hidden">
+                        {resultBoard.rows.map((row) => (
+                          <article
+                            key={`result-mobile-${row.rider_id}`}
+                            className="rounded-[20px] border border-slate-200 bg-white p-4 shadow-sm"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex min-w-0 items-center gap-3">
+                                {riderPhotoCell(row.name, row.no_plate, row.photo_thumbnail_url)}
+                                <div className="min-w-0">
+                                  <div className="truncate text-base font-black italic text-slate-900">{row.name}</div>
+                                  <div className="text-sm font-bold text-slate-600">{row.no_plate}</div>
+                                </div>
+                              </div>
+                              {renderRankCell(row.rank, row.status)}
+                            </div>
+                            <div className="mt-3 grid grid-cols-2 gap-2">
+                              {mobileInfoPill('Komunitas', row.club || '-')}
+                              {mobileInfoPill(resultBoardPointLabel, row.point)}
+                              {mobileInfoPill('Penalty', row.penalty_total, 'text-amber-600')}
+                              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                                <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Status</div>
+                                <div className="mt-1">{renderFinalStatusCell(row.status)}</div>
+                              </div>
+                            </div>
+                          </article>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 ) : activeStageView ? (
                   <div className="overflow-x-auto">
-                    <table className="w-full border-collapse text-xs md:text-sm">
+                    <table className="hidden w-full border-collapse text-xs md:table md:text-sm">
                       <colgroup>
                         <col style={{ width: '72px' }} />
                         <col style={{ width: '92px' }} />
@@ -783,12 +818,38 @@ export default function LiveDisplayClient({
                         ))}
                       </tbody>
                     </table>
+                    <div className="grid gap-3 p-3 md:hidden">
+                      {activeStageView.rows.map((row) => (
+                        <article
+                          key={`live-stage-mobile-${row.rider_id}`}
+                          className="rounded-[20px] border border-slate-200 bg-white p-4 shadow-sm"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex min-w-0 items-center gap-3">
+                              {riderPhotoCell(row.name, row.no_plate, row.photo_thumbnail_url)}
+                              <div className="min-w-0">
+                                <div className="truncate text-base font-black italic text-slate-900">{row.name}</div>
+                                <div className="text-sm font-bold text-slate-600">{row.no_plate}</div>
+                              </div>
+                            </div>
+                            {renderRankCell(row.rank, row.status)}
+                          </div>
+                          <div className="mt-3 grid grid-cols-2 gap-2">
+                            {mobileInfoPill('Gate', row.gate)}
+                            {mobileInfoPill('Point', row.point)}
+                            {mobileInfoPill('Penalty', row.penalty_total, 'text-amber-600')}
+                            {mobileInfoPill('Komunitas', row.club || '-')}
+                          </div>
+                          <div className="mt-3">{renderFinalStatusCell(row.status)}</div>
+                        </article>
+                      ))}
+                    </div>
                   </div>
                 ) : !liveBatchView ? (
                   <div className="p-6 text-lg font-semibold text-slate-500">Belum ada batch live yang aktif.</div>
                 ) : (
                   <div className="overflow-x-auto">
-                    <table className="w-full border-collapse text-xs md:text-sm">
+                    <table className="hidden w-full border-collapse text-xs md:table md:text-sm">
                       <colgroup>
                         <col style={{ width: '76px' }} />
                         <col style={{ width: '92px' }} />
@@ -849,6 +910,42 @@ export default function LiveDisplayClient({
                         ))}
                       </tbody>
                     </table>
+                    <div className="grid gap-3 p-3 md:hidden">
+                      {liveBatchView.rows.map((row) => (
+                        <article
+                          key={`live-batch-mobile-${row.rider_id}`}
+                          className="rounded-[20px] border border-slate-200 bg-white p-4 shadow-sm"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex min-w-0 items-center gap-3">
+                              {riderPhotoCell(displayName(row), row.no_plate, row.photo_thumbnail_url)}
+                              <div className="min-w-0">
+                                <div className="truncate text-base font-black italic text-slate-900">{displayName(row)}</div>
+                                <div className="text-sm font-bold text-slate-600">{row.no_plate}</div>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Rank</div>
+                              <div className="text-2xl font-black text-emerald-700">{row.rank_point ?? '-'}</div>
+                            </div>
+                          </div>
+                          <div className={`mt-3 grid gap-2 ${showLiveMoto3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                            {mobileInfoPill('M1', row.point_moto1)}
+                            {mobileInfoPill('M2', row.point_moto2)}
+                            {showLiveMoto3 ? mobileInfoPill('M3', row.point_moto3) : null}
+                            {mobileInfoPill('Penalty', row.penalty_total, 'text-amber-600')}
+                            {mobileInfoPill('Total', row.total_point, 'text-slate-900')}
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                              <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Class</div>
+                              <div className="mt-1 text-sm font-black text-slate-700">
+                                {row.class_label || (row.status === 'FINISHED' ? 'Official Result' : '-')}
+                              </div>
+                            </div>
+                          </div>
+                          {row.status === 'DQ' || row.status === 'PENDING' ? <div className="mt-3">{renderStatusBadge(row.status)}</div> : null}
+                        </article>
+                      ))}
+                    </div>
                   </div>
                 )}
               </section>
@@ -875,7 +972,7 @@ export default function LiveDisplayClient({
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
-                    <table className="w-full border-collapse text-xs md:text-sm">
+                    <table className="hidden w-full border-collapse text-xs md:table md:text-sm">
                       <colgroup>
                         <col style={{ width: '82px' }} />
                         <col style={{ width: '92px' }} />
@@ -914,6 +1011,34 @@ export default function LiveDisplayClient({
                         ))}
                       </tbody>
                     </table>
+                    <div className="grid gap-3 p-3 md:hidden">
+                      {prepareQueue.map((row, index) => (
+                        <article
+                          key={`prepare-mobile-${row.rider_id}`}
+                          className={`rounded-[20px] border p-4 shadow-sm ${
+                            index === 0 ? 'border-amber-300 bg-amber-300/10' : 'border-slate-700 bg-slate-900'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex min-w-0 items-center gap-3">
+                              {riderPhotoCell(displayName(row), row.no_plate, row.photo_thumbnail_url)}
+                              <div className="min-w-0">
+                                <div className="truncate text-base font-black italic text-white">{displayName(row)}</div>
+                                <div className="text-sm font-bold text-slate-300">{row.no_plate}</div>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Gate</div>
+                              <div className="text-2xl font-black text-white">{row.gate ?? '-'}</div>
+                            </div>
+                          </div>
+                          <div className="mt-3 rounded-2xl border border-slate-700 bg-slate-950/60 px-3 py-2">
+                            <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Komunitas</div>
+                            <div className="mt-1 text-sm font-black text-white">{row.club || '-'}</div>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
                   </div>
                 )}
               </section>
@@ -922,13 +1047,15 @@ export default function LiveDisplayClient({
         )}
 
         <section className="sticky bottom-0 z-30 rounded-[24px] border border-slate-800 bg-slate-950/95 px-4 py-4 shadow-2xl backdrop-blur sm:px-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <div className="grid gap-3 sm:flex sm:flex-row sm:items-center sm:justify-between sm:gap-4">
             <div className="flex items-center gap-3 border-l-4 border-amber-400 pl-4">
               <span className={`h-3 w-3 rounded-full ${trackState.dotClass} ${isMotoLive(displayMoto?.status) ? 'animate-pulse' : ''}`} />
               <span className={`text-base font-black uppercase tracking-[0.14em] sm:text-lg sm:tracking-[0.16em] ${trackState.textClass}`}>{trackState.label}</span>
             </div>
-            <div className="text-sm font-bold text-slate-200 sm:text-lg">Moto: {displayMoto?.moto_name ?? '-'}</div>
-            <div className="text-sm font-bold text-slate-200 sm:text-lg">Kategori: {categoryLabel || '-'}</div>
+            <div className="grid gap-1 sm:text-right">
+              <div className="text-sm font-bold text-slate-200 sm:text-lg">Moto: {displayMoto?.moto_name ?? '-'}</div>
+              <div className="text-sm font-bold text-slate-200 sm:text-lg">Kategori: {categoryLabel || '-'}</div>
+            </div>
           </div>
         </section>
       </main>
