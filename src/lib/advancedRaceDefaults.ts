@@ -25,6 +25,11 @@ export const QUALIFICATION_QUARTER_LOWER_CLASS_STRENGTH_ORDER = [
   'BEGINNER',
 ] as const
 
+export const QUALIFICATION_SEMI_LOWER_CLASS_STRENGTH_ORDER = [
+  'PRO',
+  'ROOKIE',
+] as const
+
 export const resolveDefaultAdvancedRaceConfig = (
   totalRiders: number,
   gateSize = 8
@@ -42,6 +47,13 @@ export const resolveDefaultAdvancedRaceConfig = (
     return {
       stages: { enableQualification: true, enableQuarterFinal: false, enableSemiFinal: false },
       finalClasses: ['NOVICE', 'ELITE'],
+    }
+  }
+
+  if (totalRiders <= safeGateSize * 3) {
+    return {
+      stages: { enableQualification: true, enableQuarterFinal: false, enableSemiFinal: true },
+      finalClasses: ['PRO', 'NOVICE', 'ELITE'],
     }
   }
 
@@ -67,3 +79,6 @@ export const resolveDefaultAdvancedRaceConfig = (
 
 export const resolveQuarterEnabledQualificationLowerClasses = (finalClasses: string[]) =>
   QUALIFICATION_QUARTER_LOWER_CLASS_STRENGTH_ORDER.filter((finalClass) => finalClasses.includes(finalClass))
+
+export const resolveSemiEnabledQualificationLowerClasses = (finalClasses: string[]) =>
+  QUALIFICATION_SEMI_LOWER_CLASS_STRENGTH_ORDER.filter((finalClass) => finalClasses.includes(finalClass))

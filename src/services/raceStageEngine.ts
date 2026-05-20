@@ -1,4 +1,7 @@
-import { resolveQuarterEnabledQualificationLowerClasses } from '../lib/advancedRaceDefaults'
+import {
+  resolveQuarterEnabledQualificationLowerClasses,
+  resolveSemiEnabledQualificationLowerClasses,
+} from '../lib/advancedRaceDefaults'
 
 export type RiderFinish = {
   riderId: string
@@ -165,6 +168,7 @@ export function computeQualificationAdvancesFromRanks(
   options?: {
     singleBatchFinalElite?: boolean
     quarterEnabledFinalClasses?: string[]
+    semiEnabledFinalClasses?: string[]
   }
 ): StageAdvance[] {
   const advances: StageAdvance[] = []
@@ -172,6 +176,7 @@ export function computeQualificationAdvancesFromRanks(
   const consolationRows = ranked.slice(primaryRows.length)
   const splitRemainderHalf = Math.ceil(consolationRows.length / 2)
   const quarterEnabledLowerClasses = resolveQuarterEnabledQualificationLowerClasses(options?.quarterEnabledFinalClasses ?? FINAL_CLASS_ORDER)
+  const semiEnabledLowerClasses = resolveSemiEnabledQualificationLowerClasses(options?.semiEnabledFinalClasses ?? FINAL_CLASS_ORDER)
   const orderedRules = Array.isArray(customRules) && customRules.length > 0
     ? [...customRules].sort(
         (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.rankFrom - b.rankFrom || a.rankTo - b.rankTo
@@ -198,8 +203,12 @@ export function computeQualificationAdvancesFromRanks(
         advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass: 'NOVICE' })
       } else if (primaryAdvance.toStage === 'SEMI_FINAL') {
         const consolationIndex = index - primaryRows.length
-        const finalClass: FinalClass = consolationIndex < splitRemainderHalf ? 'PRO' : 'ROOKIE'
-        advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass })
+        if (semiEnabledLowerClasses.length === 1) {
+          advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass: semiEnabledLowerClasses[0] as FinalClass })
+        } else {
+          const finalClass: FinalClass = consolationIndex < splitRemainderHalf ? 'PRO' : 'ROOKIE'
+          advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass })
+        }
       } else {
         const consolationIndex = index - primaryRows.length
         const totalConsolationCount = consolationRows.length
@@ -235,6 +244,7 @@ export function computeQualification(
   options?: {
     singleBatchFinalElite?: boolean
     quarterEnabledFinalClasses?: string[]
+    semiEnabledFinalClasses?: string[]
   }
 ): { batchRanks: Record<string, RankedRider[]>; advances: StageAdvance[] } {
   const advances: StageAdvance[] = []

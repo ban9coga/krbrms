@@ -536,7 +536,11 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
     undefined,
     resolveQualificationPrimaryAdvance(resolved.stages),
     customQualificationRules,
-    { singleBatchFinalElite: batches.length === 1, quarterEnabledFinalClasses: resolved.finalClasses }
+    {
+      singleBatchFinalElite: batches.length === 1,
+      quarterEnabledFinalClasses: resolved.finalClasses,
+      semiEnabledFinalClasses: resolved.finalClasses,
+    }
   )
   const customSplitBasis = customQualificationRules[0]?.splitBasis ?? 'COMBINED'
   const useCombinedCustomSplit =
@@ -559,14 +563,21 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
         combinedQualificationRanks,
         resolveQualificationPrimaryAdvance(resolved.stages),
         customQualificationRules,
-        { quarterEnabledFinalClasses: resolved.finalClasses }
+        {
+          quarterEnabledFinalClasses: resolved.finalClasses,
+          semiEnabledFinalClasses: resolved.finalClasses,
+        }
       )
     : batches.flatMap((batch) =>
         computeQualificationAdvancesFromRanks(
           batchRanks[batch.batchId] ?? [],
           resolveQualificationPrimaryAdvance(resolved.stages),
           filterCustomSplitRulesForBatch(customQualificationRules, customSplitBasis, batch.batchIndex),
-          { singleBatchFinalElite: batches.length === 1, quarterEnabledFinalClasses: resolved.finalClasses }
+          {
+            singleBatchFinalElite: batches.length === 1,
+            quarterEnabledFinalClasses: resolved.finalClasses,
+            semiEnabledFinalClasses: resolved.finalClasses,
+          }
         )
       )
 
@@ -1055,7 +1066,10 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
         ),
         resolveQualificationPrimaryAdvance(resolved.stages),
         customQualificationRules,
-        { quarterEnabledFinalClasses: resolved.finalClasses }
+        {
+          quarterEnabledFinalClasses: resolved.finalClasses,
+          semiEnabledFinalClasses: resolved.finalClasses,
+        }
       )
     : Object.entries(qualificationRanksByBatch).flatMap(([batchId, rankedRows]) => {
         const batchIndex = qualificationBatchIndexById[batchId] ?? null
@@ -1066,7 +1080,11 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
           orderedRanks,
           resolveQualificationPrimaryAdvance(resolved.stages),
           filterCustomSplitRulesForBatch(customQualificationRules, customSplitBasis, batchIndex),
-          { singleBatchFinalElite: qualificationBatchCount === 1, quarterEnabledFinalClasses: resolved.finalClasses }
+          {
+            singleBatchFinalElite: qualificationBatchCount === 1,
+            quarterEnabledFinalClasses: resolved.finalClasses,
+            semiEnabledFinalClasses: resolved.finalClasses,
+          }
         )
       })
 
