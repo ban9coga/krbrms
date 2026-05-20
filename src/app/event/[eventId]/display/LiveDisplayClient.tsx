@@ -581,9 +581,9 @@ export default function LiveDisplayClient({
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
-      <main className="mx-auto flex min-h-screen w-full max-w-[1920px] flex-col gap-4 px-3 py-3 sm:gap-6 sm:px-4 sm:py-4">
-        <section className="relative overflow-hidden rounded-[28px] border border-slate-700/70 bg-slate-900 shadow-2xl">
+    <div className="live-display-shell min-h-screen bg-slate-950 text-white">
+      <main className="live-display-main mx-auto flex min-h-screen w-full max-w-[1920px] flex-col gap-4 px-3 py-3 sm:gap-6 sm:px-4 sm:py-4">
+        <section className="live-display-hero relative overflow-hidden rounded-[28px] border border-slate-700/70 bg-slate-900 shadow-2xl">
           <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(15,23,42,0.16)_0%,rgba(15,23,42,0.05)_32%,rgba(251,191,36,0.10)_100%)]" />
           <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-slate-100/10 blur-3xl" />
           <div className="pointer-events-none absolute -top-24 right-0 h-72 w-72 rounded-full bg-amber-200/10 blur-3xl" />
@@ -619,7 +619,7 @@ export default function LiveDisplayClient({
         </section>
 
         {displaySponsors.length > 0 && (
-          <section className="overflow-hidden rounded-[22px] border border-amber-300/20 bg-slate-900/90 shadow-xl">
+          <section className="live-display-sponsors overflow-hidden rounded-[22px] border border-amber-300/20 bg-slate-900/90 shadow-xl">
             <div className="live-display-marquee flex min-w-max items-center gap-10 px-6 py-4">
               {[...displaySponsors, ...displaySponsors].map((sponsor, index) => (
                 <div key={`${sponsor.name || 'sponsor'}-${index}`} className="flex items-center gap-4 whitespace-nowrap">
@@ -642,8 +642,8 @@ export default function LiveDisplayClient({
 
         {!loading && event?.is_public !== false && hasData && (
           <>
-            <div className="grid gap-4 xl:grid-cols-[1.7fr_1fr] xl:gap-6">
-              <section className="rounded-[24px] border border-sky-200 bg-white shadow-2xl">
+            <div className="live-display-panels grid gap-4 xl:grid-cols-[1.7fr_1fr] xl:gap-6">
+              <section className="live-display-results rounded-[24px] border border-sky-200 bg-white shadow-2xl">
                 <div className="flex flex-col gap-3 border-b border-sky-100 px-4 py-4 sm:px-6 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <h2 className="text-xl font-black uppercase tracking-[0.08em] text-slate-900 sm:text-2xl">
@@ -733,7 +733,7 @@ export default function LiveDisplayClient({
                           ))}
                         </tbody>
                       </table>
-                      <div className="grid gap-3 p-3 md:hidden">
+                      <div className="live-display-mobile-cards grid gap-3 p-3 md:hidden">
                         {resultBoard.rows.map((row) => (
                           <article
                             key={`result-mobile-${row.rider_id}`}
@@ -818,7 +818,7 @@ export default function LiveDisplayClient({
                         ))}
                       </tbody>
                     </table>
-                    <div className="grid gap-3 p-3 md:hidden">
+                    <div className="live-display-mobile-cards grid gap-3 p-3 md:hidden">
                       {activeStageView.rows.map((row) => (
                         <article
                           key={`live-stage-mobile-${row.rider_id}`}
@@ -910,7 +910,7 @@ export default function LiveDisplayClient({
                         ))}
                       </tbody>
                     </table>
-                    <div className="grid gap-3 p-3 md:hidden">
+                    <div className="live-display-mobile-cards grid gap-3 p-3 md:hidden">
                       {liveBatchView.rows.map((row) => (
                         <article
                           key={`live-batch-mobile-${row.rider_id}`}
@@ -950,7 +950,7 @@ export default function LiveDisplayClient({
                 )}
               </section>
 
-              <section className="rounded-[24px] border border-slate-700 bg-slate-900 shadow-2xl">
+              <section className="live-display-queue rounded-[24px] border border-slate-700 bg-slate-900 shadow-2xl">
                 <div className="flex flex-col gap-3 border-b border-slate-800 px-4 py-4 sm:px-6 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <h2 className="text-xl font-black uppercase tracking-[0.08em] text-white sm:text-2xl">Waiting Feed</h2>
@@ -1011,7 +1011,7 @@ export default function LiveDisplayClient({
                         ))}
                       </tbody>
                     </table>
-                    <div className="grid gap-3 p-3 md:hidden">
+                    <div className="live-display-mobile-cards grid gap-3 p-3 md:hidden">
                       {prepareQueue.map((row, index) => (
                         <article
                           key={`prepare-mobile-${row.rider_id}`}
@@ -1046,7 +1046,7 @@ export default function LiveDisplayClient({
           </>
         )}
 
-        <section className="sticky bottom-0 z-30 rounded-[24px] border border-slate-800 bg-slate-950/95 px-4 py-4 shadow-2xl backdrop-blur sm:px-6">
+        <section className="live-display-footer sticky bottom-0 z-30 rounded-[24px] border border-slate-800 bg-slate-950/95 px-4 py-4 shadow-2xl backdrop-blur sm:px-6">
           <div className="grid gap-3 sm:flex sm:flex-row sm:items-center sm:justify-between sm:gap-4">
             <div className="flex items-center gap-3 border-l-4 border-amber-400 pl-4">
               <span className={`h-3 w-3 rounded-full ${trackState.dotClass} ${isMotoLive(displayMoto?.status) ? 'animate-pulse' : ''}`} />
@@ -1072,6 +1072,85 @@ export default function LiveDisplayClient({
         .live-display-marquee {
           animation: live-display-marquee 26s linear infinite;
           will-change: transform;
+        }
+
+        @media (max-width: 1024px) and (orientation: landscape) {
+          .live-display-main {
+            gap: 0.85rem;
+            padding-top: 0.75rem;
+            padding-bottom: 0.75rem;
+          }
+
+          .live-display-hero {
+            border-radius: 22px;
+          }
+
+          .live-display-hero .relative.z-10 {
+            padding: 1rem 1.1rem;
+          }
+
+          .live-display-hero h1 {
+            font-size: clamp(1.6rem, 3vw, 2.5rem);
+            line-height: 1.05;
+          }
+
+          .live-display-sponsors .live-display-marquee {
+            gap: 1.5rem;
+            padding-top: 0.65rem;
+            padding-bottom: 0.65rem;
+          }
+
+          .live-display-panels {
+            grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.95fr);
+            align-items: start;
+          }
+
+          .live-display-results,
+          .live-display-queue,
+          .live-display-footer {
+            border-radius: 20px;
+          }
+
+          .live-display-results > div:first-child,
+          .live-display-queue > div:first-child {
+            padding-top: 0.8rem;
+            padding-bottom: 0.8rem;
+          }
+
+          .live-display-mobile-cards {
+            gap: 0.65rem;
+            padding: 0.65rem;
+          }
+
+          .live-display-mobile-cards article {
+            padding: 0.8rem;
+            border-radius: 18px;
+          }
+
+          .live-display-mobile-cards .text-2xl {
+            font-size: 1.35rem;
+            line-height: 1.1;
+          }
+
+          .live-display-mobile-cards .text-base {
+            font-size: 0.95rem;
+            line-height: 1.15rem;
+          }
+
+          .live-display-mobile-cards .text-sm {
+            font-size: 0.78rem;
+            line-height: 1rem;
+          }
+
+          .live-display-mobile-cards img {
+            height: 2.5rem;
+            width: 2.5rem;
+          }
+
+          .live-display-footer {
+            padding-top: 0.8rem;
+            padding-bottom: 0.8rem;
+          }
         }
       `}</style>
     </div>
