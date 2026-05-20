@@ -236,6 +236,48 @@ export function computeQualificationAdvancesFromRanks(
   return advances
 }
 
+export function computeCombinedQualificationBucketAdvances(
+  ranked: RankedRider[],
+  stages: StageFlagsLike,
+  finalClasses: FinalClass[]
+): StageAdvance[] {
+  const advances: StageAdvance[] = []
+  const normalizedFinalClasses = [...finalClasses]
+  const lowerClassesDescendingStrength = normalizedFinalClasses
+    .filter((finalClass) => finalClass !== 'ELITE' && finalClass !== 'NOVICE')
+    .reverse()
+
+  if (stages.enableQuarterFinal) {
+    const quarterFinalists = ranked.slice(0, 16)
+    quarterFinalists.forEach((row) => advances.push({ riderId: row.riderId, toStage: 'QUARTER_FINAL' }))
+    lowerClassesDescendingStrength.forEach((finalClass, classIndex) => {
+      ranked.slice(16 + classIndex * 8, 16 + (classIndex + 1) * 8).forEach((row) => {
+        advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass })
+      })
+    })
+    return advances
+  }
+
+  if (stages.enableSemiFinal) {
+    const semiFinalists = ranked.slice(0, 16)
+    semiFinalists.forEach((row) => advances.push({ riderId: row.riderId, toStage: 'SEMI_FINAL' }))
+    lowerClassesDescendingStrength.forEach((finalClass, classIndex) => {
+      ranked.slice(16 + classIndex * 8, 16 + (classIndex + 1) * 8).forEach((row) => {
+        advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass })
+      })
+    })
+    return advances
+  }
+
+  ranked.slice(0, 8).forEach((row) => {
+    advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass: 'ELITE' })
+  })
+  ranked.slice(8, 16).forEach((row) => {
+    advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass: 'NOVICE' })
+  })
+  return advances
+}
+
 export function computeQualification(
   batches: BatchInput[],
   pointResolver: PointResolver = defaultPointResolver,
@@ -295,7 +337,12 @@ export function computeQuarterFinal(
       applyPrimaryAdvance(advances, row.riderId, primaryAdvance)
     } else {
       const consolationIndex = index - primaryRows.length
-      const finalClass: FinalClass = consolationIndex < splitRemainderHalf ? 'PRO' : 'ROOKIE'
+      const finalClass: FinalClass =
+        primaryAdvance.toStage === 'FINAL'
+          ? 'NOVICE'
+          : consolationIndex < splitRemainderHalf
+            ? 'PRO'
+            : 'ROOKIE'
       advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass })
     }
   }

@@ -6,6 +6,7 @@ import { assertMotoNotUnderProtest } from '../lib/motoLock'
 import {
   type CustomSplitRule,
   computeQualification,
+  computeCombinedQualificationBucketAdvances,
   computeQualificationAdvancesFromRanks,
   computeQuarterFinal,
   computeSemiFinal,
@@ -545,6 +546,7 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
   const customSplitBasis = customQualificationRules[0]?.splitBasis ?? 'COMBINED'
   const useCombinedCustomSplit =
     customQualificationRules.length > 0 && customSplitBasis === 'COMBINED' && batches.length > 1
+  const useDefaultCombinedBuckets = customQualificationRules.length === 0
   const combinedQualificationRanks = useCombinedCustomSplit
     ? rankCombinedQualificationRows(
         Object.entries(batchRanks).flatMap(([batchId, ranks]) =>
@@ -557,7 +559,19 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
           }))
         )
       )
-    : []
+    : useDefaultCombinedBuckets
+      ? rankCombinedQualificationRows(
+          Object.entries(batchRanks).flatMap(([batchId, ranks]) =>
+            ranks.map((row) => ({
+              riderId: row.riderId,
+              points: row.points,
+              rank: row.rank,
+              batchId,
+              tieBreakers: row.tieBreakers ?? [],
+            }))
+          )
+        )
+      : []
   const effectiveAdvances = useCombinedCustomSplit
     ? computeQualificationAdvancesFromRanks(
         combinedQualificationRanks,
@@ -568,6 +582,14 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
           semiEnabledFinalClasses: resolved.finalClasses,
         }
       )
+    : useDefaultCombinedBuckets
+      ? computeCombinedQualificationBucketAdvances(
+          combinedQualificationRanks,
+          resolved.stages,
+          resolved.finalClasses as Array<
+            'BEGINNER' | 'AMATEUR' | 'ACADEMY' | 'ADVANCED' | 'PRO' | 'ROOKIE' | 'NOVICE' | 'ELITE'
+          >
+        )
     : batches.flatMap((batch) =>
         computeQualificationAdvancesFromRanks(
           batchRanks[batch.batchId] ?? [],
@@ -1052,6 +1074,7 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
   const customSplitBasis = customQualificationRules[0]?.splitBasis ?? 'COMBINED'
   const useCombinedCustomSplit =
     customQualificationRules.length > 0 && customSplitBasis === 'COMBINED' && qualificationBatchCount > 1
+  const useDefaultCombinedBuckets = customQualificationRules.length === 0
   const qualificationAdvances = useCombinedCustomSplit
     ? computeQualificationAdvancesFromRanks(
         rankCombinedQualificationRows(
@@ -1071,6 +1094,23 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
           semiEnabledFinalClasses: resolved.finalClasses,
         }
       )
+    : useDefaultCombinedBuckets
+      ? computeCombinedQualificationBucketAdvances(
+          rankCombinedQualificationRows(
+            Object.entries(qualificationRanksByBatch).flatMap(([batchId, rankedRows]) =>
+              rankedRows.map((row) => ({
+                riderId: row.riderId,
+                points: row.points,
+                rank: row.rank,
+                batchId,
+              }))
+            )
+          ),
+          resolved.stages,
+          resolved.finalClasses as Array<
+            'BEGINNER' | 'AMATEUR' | 'ACADEMY' | 'ADVANCED' | 'PRO' | 'ROOKIE' | 'NOVICE' | 'ELITE'
+          >
+        )
     : Object.entries(qualificationRanksByBatch).flatMap(([batchId, rankedRows]) => {
         const batchIndex = qualificationBatchIndexById[batchId] ?? null
         const orderedRanks = [...rankedRows].sort(

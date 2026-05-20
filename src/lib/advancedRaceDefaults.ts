@@ -70,7 +70,7 @@ export const resolveDefaultAdvancedRaceConfig = (
   )
 
   return {
-    stages: { enableQualification: true, enableQuarterFinal: true, enableSemiFinal: true },
+    stages: { enableQualification: true, enableQuarterFinal: true, enableSemiFinal: false },
     finalClasses: ADVANCED_RACE_FINAL_CLASS_ORDER.slice(
       ADVANCED_RACE_FINAL_CLASS_ORDER.length - totalFinalClassCount
     ),
