@@ -6,7 +6,6 @@ import { assertMotoNotUnderProtest } from '../lib/motoLock'
 import {
   type CustomSplitRule,
   computeQualification,
-  computeCombinedQualificationBucketAdvances,
   computeQualificationAdvancesFromRanks,
   computeQuarterFinal,
   computeSemiFinal,
@@ -413,6 +412,93 @@ const rankCombinedQualificationRows = (rows: QualificationRankRow[]) => {
   })
 }
 
+const resolveHybridGuaranteedPerBatch = (stages: { enableQuarterFinal: boolean; enableSemiFinal: boolean }) => {
+  if (stages.enableQuarterFinal) return 2
+  if (stages.enableSemiFinal) return 4
+  return 4
+}
+
+const resolveHybridStageTargetCount = (stages: { enableQuarterFinal: boolean; enableSemiFinal: boolean }) => {
+  if (stages.enableQuarterFinal || stages.enableSemiFinal) return 16
+  return 8
+}
+
+const computeHybridQualificationAdvances = (
+  batchEntries: Array<{ batchId: string; ranked: Array<{ riderId: string; points: number; rank: number; tieBreakers?: number[] }> }>,
+  stages: { enableQuarterFinal: boolean; enableSemiFinal: boolean },
+  finalClasses: string[]
+) => {
+  type Candidate = { riderId: string; points: number; rank: number; tieBreakers?: number[]; batchId: string; guaranteed: boolean }
+  const guaranteedPerBatch = resolveHybridGuaranteedPerBatch(stages)
+  const stageTargetCount = resolveHybridStageTargetCount(stages)
+  const guaranteedIds = new Set<string>()
+  const candidates: Candidate[] = []
+
+  batchEntries.forEach(({ batchId, ranked }) => {
+    ranked.forEach((row, index) => {
+      const guaranteed = index < Math.min(guaranteedPerBatch, ranked.length)
+      if (guaranteed) guaranteedIds.add(row.riderId)
+      candidates.push({ ...row, batchId, guaranteed })
+    })
+  })
+
+  const combined = rankCombinedQualificationRows(
+    candidates.map((row) => ({
+      riderId: row.riderId,
+      points: row.points,
+      rank: row.rank,
+      batchId: row.batchId,
+      tieBreakers: row.tieBreakers ?? [],
+    }))
+  )
+
+  const combinedRankMap = new Map(combined.map((row, index) => [row.riderId, index]))
+  const orderedCandidates = [...candidates].sort((a, b) => {
+    const rankDiff = (combinedRankMap.get(a.riderId) ?? 9999) - (combinedRankMap.get(b.riderId) ?? 9999)
+    if (rankDiff !== 0) return rankDiff
+    return a.riderId.localeCompare(b.riderId)
+  })
+
+  const stageIds = new Set<string>(orderedCandidates.filter((row) => row.guaranteed).map((row) => row.riderId))
+  for (const row of orderedCandidates) {
+    if (stageIds.size >= stageTargetCount) break
+    stageIds.add(row.riderId)
+  }
+
+  const lowerFinalClasses = finalClasses
+    .filter((finalClass) => finalClass !== 'ELITE' && finalClass !== 'NOVICE')
+    .reverse()
+
+  const advances: Array<{ riderId: string; toStage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL'; finalClass?: string }> = []
+  const stageName = stages.enableQuarterFinal ? 'QUARTER_FINAL' : stages.enableSemiFinal ? 'SEMI_FINAL' : 'FINAL'
+
+  combined.forEach((row) => {
+    if (stageIds.has(row.riderId)) {
+      if (stageName === 'FINAL') {
+        advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass: 'ELITE' })
+      } else {
+        advances.push({ riderId: row.riderId, toStage: stageName })
+      }
+    }
+  })
+
+  if (stageName === 'FINAL') {
+    combined
+      .filter((row) => !stageIds.has(row.riderId))
+      .forEach((row) => advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass: 'NOVICE' }))
+    return advances
+  }
+
+  const remaining = combined.filter((row) => !stageIds.has(row.riderId))
+  lowerFinalClasses.forEach((finalClass, classIndex) => {
+    remaining.slice(classIndex * 8, (classIndex + 1) * 8).forEach((row) => {
+      advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass })
+    })
+  })
+
+  return advances
+}
+
 const areAllMotosComplete = (motos: MotoRow[], assignedRows: MotoRiderRow[], resultRows: ResultRow[]) =>
   motos.length > 0 && motos.every((moto) => isMotoComplete(moto.id, assignedRows, resultRows))
 
@@ -546,7 +632,7 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
   const customSplitBasis = customQualificationRules[0]?.splitBasis ?? 'COMBINED'
   const useCombinedCustomSplit =
     customQualificationRules.length > 0 && customSplitBasis === 'COMBINED' && batches.length > 1
-  const useDefaultCombinedBuckets = customQualificationRules.length === 0
+  const useDefaultHybrid = customQualificationRules.length === 0
   const combinedQualificationRanks = useCombinedCustomSplit
     ? rankCombinedQualificationRows(
         Object.entries(batchRanks).flatMap(([batchId, ranks]) =>
@@ -559,19 +645,7 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
           }))
         )
       )
-    : useDefaultCombinedBuckets
-      ? rankCombinedQualificationRows(
-          Object.entries(batchRanks).flatMap(([batchId, ranks]) =>
-            ranks.map((row) => ({
-              riderId: row.riderId,
-              points: row.points,
-              rank: row.rank,
-              batchId,
-              tieBreakers: row.tieBreakers ?? [],
-            }))
-          )
-        )
-      : []
+    : []
   const effectiveAdvances = useCombinedCustomSplit
     ? computeQualificationAdvancesFromRanks(
         combinedQualificationRanks,
@@ -582,9 +656,9 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
           semiEnabledFinalClasses: resolved.finalClasses,
         }
       )
-    : useDefaultCombinedBuckets
-      ? computeCombinedQualificationBucketAdvances(
-          combinedQualificationRanks,
+    : useDefaultHybrid
+      ? computeHybridQualificationAdvances(
+          Object.entries(batchRanks).map(([batchId, ranked]) => ({ batchId, ranked })),
           resolved.stages,
           resolved.finalClasses as Array<
             'BEGINNER' | 'AMATEUR' | 'ACADEMY' | 'ADVANCED' | 'PRO' | 'ROOKIE' | 'NOVICE' | 'ELITE'
@@ -1074,7 +1148,7 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
   const customSplitBasis = customQualificationRules[0]?.splitBasis ?? 'COMBINED'
   const useCombinedCustomSplit =
     customQualificationRules.length > 0 && customSplitBasis === 'COMBINED' && qualificationBatchCount > 1
-  const useDefaultCombinedBuckets = customQualificationRules.length === 0
+  const useDefaultHybrid = customQualificationRules.length === 0
   const qualificationAdvances = useCombinedCustomSplit
     ? computeQualificationAdvancesFromRanks(
         rankCombinedQualificationRows(
@@ -1094,18 +1168,17 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
           semiEnabledFinalClasses: resolved.finalClasses,
         }
       )
-    : useDefaultCombinedBuckets
-      ? computeCombinedQualificationBucketAdvances(
-          rankCombinedQualificationRows(
-            Object.entries(qualificationRanksByBatch).flatMap(([batchId, rankedRows]) =>
-              rankedRows.map((row) => ({
-                riderId: row.riderId,
-                points: row.points,
-                rank: row.rank,
-                batchId,
-              }))
-            )
-          ),
+    : useDefaultHybrid
+      ? computeHybridQualificationAdvances(
+          Object.entries(qualificationRanksByBatch).map(([batchId, ranked]) => ({
+            batchId,
+            ranked: ranked.map((row) => ({
+              riderId: row.riderId,
+              points: row.points,
+              rank: row.rank,
+              tieBreakers: [],
+            })),
+          })),
           resolved.stages,
           resolved.finalClasses as Array<
             'BEGINNER' | 'AMATEUR' | 'ACADEMY' | 'ADVANCED' | 'PRO' | 'ROOKIE' | 'NOVICE' | 'ELITE'
