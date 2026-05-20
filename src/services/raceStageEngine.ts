@@ -1,3 +1,5 @@
+import { resolveQuarterEnabledQualificationLowerClasses } from '../lib/advancedRaceDefaults'
+
 export type RiderFinish = {
   riderId: string
   motoIndex: number
@@ -162,12 +164,14 @@ export function computeQualificationAdvancesFromRanks(
   customRules?: CustomSplitRule[],
   options?: {
     singleBatchFinalElite?: boolean
+    quarterEnabledFinalClasses?: string[]
   }
 ): StageAdvance[] {
   const advances: StageAdvance[] = []
   const primaryRows = ranked.slice(0, 4)
   const consolationRows = ranked.slice(primaryRows.length)
   const splitRemainderHalf = Math.ceil(consolationRows.length / 2)
+  const quarterEnabledLowerClasses = resolveQuarterEnabledQualificationLowerClasses(options?.quarterEnabledFinalClasses ?? FINAL_CLASS_ORDER)
   const orderedRules = Array.isArray(customRules) && customRules.length > 0
     ? [...customRules].sort(
         (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.rankFrom - b.rankFrom || a.rankTo - b.rankTo
@@ -197,8 +201,22 @@ export function computeQualificationAdvancesFromRanks(
         const finalClass: FinalClass = consolationIndex < splitRemainderHalf ? 'PRO' : 'ROOKIE'
         advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass })
       } else {
-        const qualificationLowerClasses: FinalClass[] = ['ADVANCED', 'ACADEMY', 'AMATEUR', 'BEGINNER']
-        const finalClass = qualificationLowerClasses[index - primaryRows.length]
+        const consolationIndex = index - primaryRows.length
+        const totalConsolationCount = consolationRows.length
+        let finalClass: FinalClass | undefined
+        if (quarterEnabledLowerClasses.length > 0) {
+          let start = 0
+          const bucketBaseSize = Math.floor(totalConsolationCount / quarterEnabledLowerClasses.length)
+          const bucketRemainder = totalConsolationCount % quarterEnabledLowerClasses.length
+          for (let bucketIndex = 0; bucketIndex < quarterEnabledLowerClasses.length; bucketIndex += 1) {
+            const bucketSize = bucketBaseSize + (bucketIndex < bucketRemainder ? 1 : 0)
+            if (consolationIndex < start + bucketSize) {
+              finalClass = quarterEnabledLowerClasses[bucketIndex] as FinalClass
+              break
+            }
+            start += bucketSize
+          }
+        }
         if (finalClass) {
           advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass })
         }
@@ -216,6 +234,7 @@ export function computeQualification(
   customRules?: CustomSplitRule[],
   options?: {
     singleBatchFinalElite?: boolean
+    quarterEnabledFinalClasses?: string[]
   }
 ): { batchRanks: Record<string, RankedRider[]>; advances: StageAdvance[] } {
   const advances: StageAdvance[] = []

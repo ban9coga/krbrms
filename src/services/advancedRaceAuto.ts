@@ -536,7 +536,7 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
     undefined,
     resolveQualificationPrimaryAdvance(resolved.stages),
     customQualificationRules,
-    { singleBatchFinalElite: batches.length === 1 }
+    { singleBatchFinalElite: batches.length === 1, quarterEnabledFinalClasses: resolved.finalClasses }
   )
   const customSplitBasis = customQualificationRules[0]?.splitBasis ?? 'COMBINED'
   const useCombinedCustomSplit =
@@ -558,14 +558,15 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
     ? computeQualificationAdvancesFromRanks(
         combinedQualificationRanks,
         resolveQualificationPrimaryAdvance(resolved.stages),
-        customQualificationRules
+        customQualificationRules,
+        { quarterEnabledFinalClasses: resolved.finalClasses }
       )
     : batches.flatMap((batch) =>
         computeQualificationAdvancesFromRanks(
           batchRanks[batch.batchId] ?? [],
           resolveQualificationPrimaryAdvance(resolved.stages),
           filterCustomSplitRulesForBatch(customQualificationRules, customSplitBasis, batch.batchIndex),
-          { singleBatchFinalElite: batches.length === 1 }
+          { singleBatchFinalElite: batches.length === 1, quarterEnabledFinalClasses: resolved.finalClasses }
         )
       )
 
@@ -1053,7 +1054,8 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
           )
         ),
         resolveQualificationPrimaryAdvance(resolved.stages),
-        customQualificationRules
+        customQualificationRules,
+        { quarterEnabledFinalClasses: resolved.finalClasses }
       )
     : Object.entries(qualificationRanksByBatch).flatMap(([batchId, rankedRows]) => {
         const batchIndex = qualificationBatchIndexById[batchId] ?? null
@@ -1064,7 +1066,7 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
           orderedRanks,
           resolveQualificationPrimaryAdvance(resolved.stages),
           filterCustomSplitRulesForBatch(customQualificationRules, customSplitBasis, batchIndex),
-          { singleBatchFinalElite: qualificationBatchCount === 1 }
+          { singleBatchFinalElite: qualificationBatchCount === 1, quarterEnabledFinalClasses: resolved.finalClasses }
         )
       })
 

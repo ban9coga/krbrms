@@ -1,6 +1,7 @@
 'use server'
 
 import { adminClient } from '../lib/auth'
+import { resolveDefaultAdvancedRaceConfig } from '../lib/advancedRaceDefaults'
 import { isMissingPrimaryCategoryColumnError, riderBelongsToPrimaryCategory } from '../lib/categoryAssignment'
 
 export type StageFlags = {
@@ -32,34 +33,6 @@ const DEFAULT_RESULT = (categoryId: string, eventId: string, totalRiders: number
   source: 'default',
   warning,
 })
-
-const resolveDefaultAdvancedRace = (totalRiders: number) => {
-  if (totalRiders <= 8) {
-    return {
-      stages: { enableQualification: false, enableQuarterFinal: false, enableSemiFinal: false },
-      finalClasses: ['ELITE'],
-    }
-  }
-
-  if (totalRiders <= 16) {
-    return {
-      stages: { enableQualification: true, enableQuarterFinal: false, enableSemiFinal: false },
-      finalClasses: ['NOVICE', 'ELITE'],
-    }
-  }
-
-  if (totalRiders <= 32) {
-    return {
-      stages: { enableQualification: true, enableQuarterFinal: false, enableSemiFinal: true },
-      finalClasses: ['ROOKIE', 'PRO', 'NOVICE', 'ELITE'],
-    }
-  }
-
-  return {
-    stages: { enableQualification: true, enableQuarterFinal: true, enableSemiFinal: true },
-    finalClasses: ['BEGINNER', 'AMATEUR', 'ACADEMY', 'ADVANCED', 'ROOKIE', 'PRO', 'NOVICE', 'ELITE'],
-  }
-}
 
 export async function resolveCategoryConfig(categoryId: string, override?: ResolverOverride): Promise<CategoryResolveResult> {
   try {
@@ -168,6 +141,21 @@ export async function resolveCategoryConfig(categoryId: string, override?: Resol
 
     const totalRiders = Math.max(registeredCategoryRiderIds.size, qualificationMotoRiderCount)
 
+    const { data: settingsRow } = await adminClient
+      .from('event_settings')
+      .select('race_format_settings')
+      .eq('event_id', eventId)
+      .maybeSingle()
+
+    const raceFormatSettings =
+      settingsRow?.race_format_settings && typeof settingsRow.race_format_settings === 'object'
+        ? (settingsRow.race_format_settings as Record<string, unknown>)
+        : {}
+    const gateSize =
+      typeof raceFormatSettings.gate_positions === 'number'
+        ? Number(raceFormatSettings.gate_positions)
+        : Number(raceFormatSettings.gate_positions ?? 8)
+
     if (override) {
       return {
         categoryId,
@@ -194,7 +182,7 @@ export async function resolveCategoryConfig(categoryId: string, override?: Resol
 
     if (ruleError || !rule) {
       const total = totalRiders
-      const defaults = resolveDefaultAdvancedRace(total)
+      const defaults = resolveDefaultAdvancedRaceConfig(total, gateSize)
 
       return {
         categoryId,

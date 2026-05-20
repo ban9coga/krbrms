@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../../lib/auth'
+import { resolveDefaultAdvancedRaceConfig } from '../../../../../../lib/advancedRaceDefaults'
 
 type RuleInput = {
   min_riders: number
@@ -10,45 +11,14 @@ type RuleInput = {
 }
 
 const normalizeRuleForGateSize = (rule: RuleInput, gateSize: number): RuleInput => {
-  const safeGateSize = Math.max(1, Number(gateSize) || 8)
   const minRiders = Math.max(1, Number(rule.min_riders) || 1)
-
-  if (minRiders <= safeGateSize) {
-    return {
-      min_riders: 1,
-      enable_qualification: false,
-      enable_quarter_final: false,
-      enable_semi_final: false,
-      enabled_final_classes: ['ELITE'],
-    }
-  }
-
-  if (minRiders <= safeGateSize * 2) {
-    return {
-      min_riders: minRiders,
-      enable_qualification: true,
-      enable_quarter_final: false,
-      enable_semi_final: false,
-      enabled_final_classes: ['NOVICE', 'ELITE'],
-    }
-  }
-
-  if (minRiders <= safeGateSize * 4) {
-    return {
-      min_riders: minRiders,
-      enable_qualification: true,
-      enable_quarter_final: false,
-      enable_semi_final: true,
-      enabled_final_classes: ['ROOKIE', 'PRO', 'NOVICE', 'ELITE'],
-    }
-  }
-
+  const defaults = resolveDefaultAdvancedRaceConfig(minRiders, gateSize)
   return {
     min_riders: minRiders,
-    enable_qualification: true,
-    enable_quarter_final: true,
-    enable_semi_final: true,
-    enabled_final_classes: ['BEGINNER', 'AMATEUR', 'ACADEMY', 'ADVANCED', 'ROOKIE', 'PRO', 'NOVICE', 'ELITE'],
+    enable_qualification: defaults.stages.enableQualification,
+    enable_quarter_final: defaults.stages.enableQuarterFinal,
+    enable_semi_final: defaults.stages.enableSemiFinal,
+    enabled_final_classes: defaults.finalClasses,
   }
 }
 
