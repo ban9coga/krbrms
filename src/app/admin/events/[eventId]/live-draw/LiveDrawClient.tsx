@@ -187,6 +187,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
   const [resultModal, setResultModal] = useState<'draft' | 'saved' | null>(null)
   const [draggingRiderIndex, setDraggingRiderIndex] = useState<number | null>(null)
   const [dragTargetIndex, setDragTargetIndex] = useState<number | null>(null)
+  const [selectedRiderIndex, setSelectedRiderIndex] = useState<number | null>(null)
   const [deleteGuard, setDeleteGuard] = useState<LiveDrawGuard>({ canDelete: true, reason: null })
   const spinTimeoutRef = useRef<number | null>(null)
   const rollingIntervalRef = useRef<number | null>(null)
@@ -730,6 +731,12 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex || toIndex >= drawnOrder.length) return
     setDrawnOrder((prev) => moveItem(prev, fromIndex, toIndex))
     setSaveState('idle')
+  }
+
+  const clearReorderState = () => {
+    setDraggingRiderIndex(null)
+    setDragTargetIndex(null)
+    setSelectedRiderIndex(null)
   }
 
   const resetDraw = () => {
@@ -1709,6 +1716,41 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                       Seret rider untuk pindah gate atau batch. Tombol panah tetap bisa dipakai untuk koreksi cepat satu langkah.
                     </div>
                   )}
+                  {selectedRiderIndex !== null && drawnOrder[selectedRiderIndex] && (
+                    <div
+                      style={{
+                        padding: '14px 16px',
+                        borderRadius: 16,
+                        border: '1px solid #facc15',
+                        background: '#fffbeb',
+                        color: '#92400e',
+                        fontWeight: 800,
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        gap: 12,
+                        alignItems: 'center',
+                      }}
+                    >
+                      <span>
+                        Mode pindah aktif: <strong>{drawnOrder[selectedRiderIndex]?.no_plate_display}</strong>. Tap row tujuan untuk memindahkan rider ini.
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedRiderIndex(null)}
+                        style={{
+                          padding: '8px 10px',
+                          borderRadius: 10,
+                          border: '1px solid #d97706',
+                          background: '#fff',
+                          color: '#92400e',
+                          fontWeight: 900,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Batal
+                      </button>
+                    </div>
+                  )}
                   {!drawing && batches.length === 0 && (
                     <div
                       style={{
@@ -1758,46 +1800,86 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                           const isBatchEnd = idx === batch.riders.length - 1
                           const isDragging = draggingRiderIndex === globalIndex
                           const isDropTarget = dragTargetIndex === globalIndex && draggingRiderIndex !== globalIndex
+                          const isSelected = selectedRiderIndex === globalIndex
                           return (
                           <div
                             key={rider.id}
                             draggable
                             onDragStart={(e) => {
+                              e.dataTransfer.setData('text/plain', String(globalIndex))
                               e.dataTransfer.effectAllowed = 'move'
                               setDraggingRiderIndex(globalIndex)
                               setDragTargetIndex(globalIndex)
+                              setSelectedRiderIndex(null)
                             }}
                             onDragOver={(e) => {
                               e.preventDefault()
+                              e.dataTransfer.dropEffect = 'move'
                               if (dragTargetIndex !== globalIndex) setDragTargetIndex(globalIndex)
                             }}
                             onDrop={(e) => {
                               e.preventDefault()
-                              if (draggingRiderIndex !== null) {
-                                moveRiderByDrag(draggingRiderIndex, globalIndex)
+                              const rawIndex = e.dataTransfer.getData('text/plain')
+                              const fromIndex =
+                                rawIndex !== '' && !Number.isNaN(Number(rawIndex))
+                                  ? Number(rawIndex)
+                                  : draggingRiderIndex
+                              if (fromIndex !== null) {
+                                moveRiderByDrag(fromIndex, globalIndex)
                               }
-                              setDraggingRiderIndex(null)
-                              setDragTargetIndex(null)
+                              clearReorderState()
                             }}
                             onDragEnd={() => {
-                              setDraggingRiderIndex(null)
-                              setDragTargetIndex(null)
+                              clearReorderState()
+                            }}
+                            onClick={() => {
+                              if (selectedRiderIndex !== null && selectedRiderIndex !== globalIndex) {
+                                moveRiderByDrag(selectedRiderIndex, globalIndex)
+                                setSelectedRiderIndex(null)
+                              }
                             }}
                             style={{
                               display: 'grid',
-                              gridTemplateColumns: 'auto minmax(0, 1fr) auto auto',
+                              gridTemplateColumns: 'auto auto minmax(0, 1fr) auto auto',
                               alignItems: 'center',
                               gap: 12,
                               padding: '10px 12px',
                               borderRadius: 14,
-                              border: isDropTarget ? '2px dashed #2563eb' : '1px solid #dbeafe',
-                              background: isDropTarget ? '#dbeafe' : idx % 2 === 0 ? '#eff6ff' : '#f8fafc',
+                              border: isDropTarget ? '2px dashed #2563eb' : isSelected ? '2px solid #f59e0b' : '1px solid #dbeafe',
+                              background: isDropTarget ? '#dbeafe' : isSelected ? '#fffbeb' : idx % 2 === 0 ? '#eff6ff' : '#f8fafc',
                               fontWeight: 800,
                               opacity: isDragging ? 0.45 : 1,
-                              cursor: 'grab',
+                              cursor: selectedRiderIndex !== null && selectedRiderIndex !== globalIndex ? 'copy' : 'grab',
                               transform: isDropTarget ? 'scale(1.01)' : 'none',
                             }}
                           >
+                            <span
+                              draggable
+                              onDragStart={(e) => {
+                                e.stopPropagation()
+                                e.dataTransfer.setData('text/plain', String(globalIndex))
+                                e.dataTransfer.effectAllowed = 'move'
+                                setDraggingRiderIndex(globalIndex)
+                                setDragTargetIndex(globalIndex)
+                                setSelectedRiderIndex(null)
+                              }}
+                              title="Drag rider"
+                              style={{
+                                width: 28,
+                                height: 28,
+                                display: 'grid',
+                                placeItems: 'center',
+                                borderRadius: 8,
+                                border: '1px solid #94a3b8',
+                                background: '#fff',
+                                color: '#0f172a',
+                                fontWeight: 900,
+                                cursor: 'grab',
+                                userSelect: 'none',
+                              }}
+                            >
+                              ::
+                            </span>
                             <span
                               style={{
                                 minWidth: 66,
@@ -1817,7 +1899,31 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                             <div style={{ display: 'flex', gap: 6, justifySelf: 'end' }}>
                               <button
                                 type="button"
-                                onClick={() => moveRiderInPreview(globalIndex, -1)}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setSelectedRiderIndex((prev) => (prev === globalIndex ? null : globalIndex))
+                                }}
+                                title={isSelected ? 'Batalkan mode pindah' : 'Pilih rider untuk dipindahkan'}
+                                style={{
+                                  minWidth: 54,
+                                  height: 34,
+                                  padding: '0 10px',
+                                  borderRadius: 10,
+                                  border: '1px solid #94a3b8',
+                                  background: isSelected ? '#fef3c7' : '#fff',
+                                  color: '#0f172a',
+                                  fontWeight: 900,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                {isSelected ? 'Batal' : 'Pilih'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  moveRiderInPreview(globalIndex, -1)
+                                }}
                                 disabled={!canMoveUp}
                                 title={isBatchStart ? 'Geser ke batch/gate sebelumnya' : 'Naik satu gate'}
                                 style={{
@@ -1831,11 +1937,14 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                                   cursor: canMoveUp ? 'pointer' : 'not-allowed',
                                 }}
                               >
-                                ↑
+                                ^
                               </button>
                               <button
                                 type="button"
-                                onClick={() => moveRiderInPreview(globalIndex, 1)}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  moveRiderInPreview(globalIndex, 1)
+                                }}
                                 disabled={!canMoveDown}
                                 title={isBatchEnd ? 'Geser ke batch/gate berikutnya' : 'Turun satu gate'}
                                 style={{
@@ -1849,7 +1958,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                                   cursor: canMoveDown ? 'pointer' : 'not-allowed',
                                 }}
                               >
-                                ↓
+                                v
                               </button>
                             </div>
                           </div>
