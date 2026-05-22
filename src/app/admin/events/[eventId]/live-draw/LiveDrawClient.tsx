@@ -139,6 +139,22 @@ const formatMoto3Hint = (totalBatches: number) =>
     ? 'Moto 3 aktif: urutan gate random (diupayakan beda dari Moto 1 & Moto 2).'
     : 'Moto 3 tidak dipakai untuk konfigurasi draw kategori ini.'
 
+const moveItem = <T,>(items: T[], fromIndex: number, toIndex: number) => {
+  if (
+    fromIndex < 0 ||
+    toIndex < 0 ||
+    fromIndex >= items.length ||
+    toIndex >= items.length ||
+    fromIndex === toIndex
+  ) {
+    return items
+  }
+  const next = [...items]
+  const [item] = next.splice(fromIndex, 1)
+  next.splice(toIndex, 0, item)
+  return next
+}
+
 export default function LiveDrawClient({ eventId }: { eventId: string }) {
   const [categories, setCategories] = useState<CategoryItem[]>([])
   const [selectedCategory, setSelectedCategory] = useState<string>('')
@@ -185,6 +201,14 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     }
     return buildBatches(drawnOrder, batchSize)
   }, [batchMode, drawnOrder, batchSize, effectiveBatchCount])
+  const batchLayouts = useMemo(() => {
+    let cursor = 0
+    return batches.map((batch) => {
+      const startIndex = cursor
+      cursor += batch.riders.length
+      return { ...batch, startIndex }
+    })
+  }, [batches])
   const visibleWheelRiders = wheelRiders.length > 0 ? wheelRiders : riders
   const selectedCategoryLabel = useMemo(
     () => categories.find((category) => category.id === selectedCategory)?.label ?? 'Kategori',
@@ -691,6 +715,13 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     setHasDrawn(true)
     setSaveState('idle')
     setResultModal('draft')
+  }
+
+  const moveRiderInPreview = (fromIndex: number, direction: -1 | 1) => {
+    const toIndex = fromIndex + direction
+    if (fromIndex < 0 || toIndex < 0 || toIndex >= drawnOrder.length) return
+    setDrawnOrder((prev) => moveItem(prev, fromIndex, toIndex))
+    setSaveState('idle')
   }
 
   const resetDraw = () => {
@@ -1670,7 +1701,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                       Hasil draw belum tersedia.
                     </div>
                   )}
-                  {batches.map((batch) => (
+                  {batchLayouts.map((batch) => (
                     <div
                       key={batch.index}
                       style={{
@@ -1697,12 +1728,18 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                         </div>
                       </div>
                       <div style={{ display: 'grid', gap: 8 }}>
-                        {batch.riders.map((rider, idx) => (
+                        {batch.riders.map((rider, idx) => {
+                          const globalIndex = batch.startIndex + idx
+                          const canMoveUp = globalIndex > 0
+                          const canMoveDown = globalIndex < drawnOrder.length - 1
+                          const isBatchStart = idx === 0
+                          const isBatchEnd = idx === batch.riders.length - 1
+                          return (
                           <div
                             key={rider.id}
                             style={{
                               display: 'grid',
-                              gridTemplateColumns: 'auto minmax(0, 1fr) auto',
+                              gridTemplateColumns: 'auto minmax(0, 1fr) auto auto',
                               alignItems: 'center',
                               gap: 12,
                               padding: '10px 12px',
@@ -1728,8 +1765,46 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                             </span>
                             <span style={{ color: '#0f172a' }}>{rider.name}</span>
                             <span style={{ color: '#475569' }}>{rider.no_plate_display}</span>
+                            <div style={{ display: 'flex', gap: 6, justifySelf: 'end' }}>
+                              <button
+                                type="button"
+                                onClick={() => moveRiderInPreview(globalIndex, -1)}
+                                disabled={!canMoveUp}
+                                title={isBatchStart ? 'Geser ke batch/gate sebelumnya' : 'Naik satu gate'}
+                                style={{
+                                  width: 34,
+                                  height: 34,
+                                  borderRadius: 10,
+                                  border: '1px solid #94a3b8',
+                                  background: canMoveUp ? '#fff' : '#e2e8f0',
+                                  color: '#0f172a',
+                                  fontWeight: 900,
+                                  cursor: canMoveUp ? 'pointer' : 'not-allowed',
+                                }}
+                              >
+                                ↑
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => moveRiderInPreview(globalIndex, 1)}
+                                disabled={!canMoveDown}
+                                title={isBatchEnd ? 'Geser ke batch/gate berikutnya' : 'Turun satu gate'}
+                                style={{
+                                  width: 34,
+                                  height: 34,
+                                  borderRadius: 10,
+                                  border: '1px solid #94a3b8',
+                                  background: canMoveDown ? '#fff' : '#e2e8f0',
+                                  color: '#0f172a',
+                                  fontWeight: 900,
+                                  cursor: canMoveDown ? 'pointer' : 'not-allowed',
+                                }}
+                              >
+                                ↓
+                              </button>
+                            </div>
                           </div>
-                        ))}
+                        )})}
                       </div>
                       <div style={{ marginTop: 12, display: 'grid', gap: 6, color: '#475569', fontWeight: 700 }}>
                         <div>
