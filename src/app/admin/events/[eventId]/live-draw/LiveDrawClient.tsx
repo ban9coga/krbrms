@@ -1525,6 +1525,34 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                   <div style={{ color: '#334155', fontWeight: 700 }}>
                     Isi rider langsung per batch. Cocok untuk pembagian manual seperti 7,7,7,7,6,6.
                   </div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {externalPerBatchValidation.orderedBatches.map((batch, index) => (
+                      <div
+                        key={`batch-status-${index}`}
+                        style={{
+                          padding: '8px 10px',
+                          borderRadius: 999,
+                          border: '1px solid #cbd5e1',
+                          background:
+                            batch.length > 0
+                              ? externalTargetField.batchIndex === index
+                                ? '#dbeafe'
+                                : '#f8fafc'
+                              : '#fff7ed',
+                          color:
+                            batch.length > 0
+                              ? externalTargetField.batchIndex === index
+                                ? '#1d4ed8'
+                                : '#334155'
+                              : '#b45309',
+                          fontWeight: 900,
+                          fontSize: 12,
+                        }}
+                      >
+                        Batch {index + 1}: {batch.length} rider
+                      </div>
+                    ))}
+                  </div>
                   {Array.from({ length: externalPerBatchValidation.batchCount }, (_, index) => (
                     <div key={`batch-input-${index}`} style={{ display: 'grid', gap: 8, padding: 12, border: '1px solid #cbd5e1', borderRadius: 14, background: '#fff' }}>
                       <button
