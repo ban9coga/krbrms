@@ -26,6 +26,8 @@ type BatchItem = {
   riders: RiderItem[]
 }
 
+type BatchMode = 'AUTO_BY_GATE' | 'MANUAL_BATCH_COUNT'
+
 type GateMoto = {
   id: string
   moto_name: string
@@ -90,6 +92,23 @@ const chunk = <T,>(items: T[], size: number) => {
   return batches
 }
 
+const buildBatchesByCount = (riders: RiderItem[], batchCount: number) => {
+  const safeCount = Math.max(1, batchCount)
+  const total = riders.length
+  if (total === 0) return []
+  const baseSize = Math.floor(total / safeCount)
+  const remainder = total % safeCount
+  const batches: BatchItem[] = []
+  let cursor = 0
+  for (let index = 1; index <= safeCount; index += 1) {
+    const size = baseSize + (index <= remainder ? 1 : 0)
+    if (size <= 0) continue
+    batches.push({ index, riders: riders.slice(cursor, cursor + size) })
+    cursor += size
+  }
+  return batches
+}
+
 const parseMotoBatch = (motoName: string) => {
   const match = motoName.match(/moto\s*(\d+)\s*-\s*batch\s*(\d+)/i)
   if (!match) return { motoNo: 0, batchNo: 0 }
@@ -129,6 +148,8 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
   const [drawing, setDrawing] = useState(false)
   const [drawnOrder, setDrawnOrder] = useState<RiderItem[]>([])
   const [batchSize, setBatchSize] = useState(8)
+  const [batchMode, setBatchMode] = useState<BatchMode>('AUTO_BY_GATE')
+  const [manualBatchCount, setManualBatchCount] = useState(1)
   const [gatePositions, setGatePositions] = useState(8)
   const [drawMode, setDrawMode] = useState<DrawMode>('internal_live_draw')
   const [rollingName, setRollingName] = useState<string>('Ready')
@@ -143,13 +164,27 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
   const [openMotoId, setOpenMotoId] = useState<string | null>(null)
   const [externalOrderText, setExternalOrderText] = useState('')
   const [externalMoto2OrderText, setExternalMoto2OrderText] = useState('')
+  const [externalBatchInputMode, setExternalBatchInputMode] = useState<'GLOBAL' | 'PER_BATCH'>('GLOBAL')
+  const [externalBatchTexts, setExternalBatchTexts] = useState<string[]>([])
+  const [externalMoto2BatchTexts, setExternalMoto2BatchTexts] = useState<string[]>([])
   const [shareCopied, setShareCopied] = useState(false)
   const [resultModal, setResultModal] = useState<'draft' | 'saved' | null>(null)
   const [deleteGuard, setDeleteGuard] = useState<LiveDrawGuard>({ canDelete: true, reason: null })
   const spinTimeoutRef = useRef<number | null>(null)
   const rollingIntervalRef = useRef<number | null>(null)
 
-  const batches = useMemo(() => buildBatches(drawnOrder, batchSize), [drawnOrder, batchSize])
+  const effectiveBatchCount = useMemo(() => {
+    if (batchMode !== 'MANUAL_BATCH_COUNT') return null
+    const maxCount = Math.max(1, riders.length)
+    return Math.max(1, Math.min(maxCount, manualBatchCount))
+  }, [batchMode, manualBatchCount, riders.length])
+
+  const batches = useMemo(() => {
+    if (batchMode === 'MANUAL_BATCH_COUNT' && effectiveBatchCount) {
+      return buildBatchesByCount(drawnOrder, effectiveBatchCount)
+    }
+    return buildBatches(drawnOrder, batchSize)
+  }, [batchMode, drawnOrder, batchSize, effectiveBatchCount])
   const visibleWheelRiders = wheelRiders.length > 0 ? wheelRiders : riders
   const selectedCategoryLabel = useMemo(
     () => categories.find((category) => category.id === selectedCategory)?.label ?? 'Kategori',
@@ -298,6 +333,109 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     }
   }, [externalMoto2OrderText, riders, drawnOrder, externalValidation.orderedRiders, batchSize])
 
+  const externalPerBatchValidation = useMemo(() => {
+    const count = effectiveBatchCount ?? Math.max(1, Math.ceil(riders.length / Math.max(4, batchSize)))
+    const riderByPlate = new Map<string, RiderItem>()
+    for (const rider of riders) riderByPlate.set(normalizePlateToken(rider.no_plate_display), rider)
+
+    const seenRiderIds = new Set<string>()
+    const duplicateTokens: string[] = []
+    const unknownTokens: string[] = []
+    const duplicateRiders: string[] = []
+    const emptyBatches: number[] = []
+    const orderedBatches: RiderItem[][] = []
+
+    for (let batchIndex = 0; batchIndex < count; batchIndex += 1) {
+      const tokens = parseExternalTokens(externalBatchTexts[batchIndex] ?? '')
+      if (tokens.length === 0) {
+        emptyBatches.push(batchIndex + 1)
+        orderedBatches.push([])
+        continue
+      }
+      const batchSeen = new Set<string>()
+      const ordered: RiderItem[] = []
+      for (const token of tokens) {
+        if (batchSeen.has(token)) {
+          duplicateTokens.push(`B${batchIndex + 1}:${token}`)
+          continue
+        }
+        batchSeen.add(token)
+        const rider = riderByPlate.get(token)
+        if (!rider) {
+          unknownTokens.push(`B${batchIndex + 1}:${token}`)
+          continue
+        }
+        if (seenRiderIds.has(rider.id)) {
+          duplicateRiders.push(`B${batchIndex + 1}:${token}`)
+          continue
+        }
+        seenRiderIds.add(rider.id)
+        ordered.push(rider)
+      }
+      orderedBatches.push(ordered)
+    }
+
+    const missingRiders = riders.filter((rider) => !seenRiderIds.has(rider.id))
+    const allFilled = orderedBatches.every((batch) => batch.length > 0)
+    const isValid =
+      riders.length > 0 &&
+      allFilled &&
+      missingRiders.length === 0 &&
+      unknownTokens.length === 0 &&
+      duplicateTokens.length === 0 &&
+      duplicateRiders.length === 0
+
+    const moto2Provided = externalMoto2BatchTexts.some((text) => parseExternalTokens(text).length > 0)
+    const moto2UnknownTokens: string[] = []
+    const moto2DuplicateTokens: string[] = []
+    const moto2BatchMismatch: number[] = []
+    const orderedMoto2Batches: RiderItem[][] = []
+    let isValidMoto2 = true
+
+    if (moto2Provided) {
+      for (let batchIndex = 0; batchIndex < count; batchIndex += 1) {
+        const tokens = parseExternalTokens(externalMoto2BatchTexts[batchIndex] ?? '')
+        const batchSeen = new Set<string>()
+        const ordered: RiderItem[] = []
+        for (const token of tokens) {
+          if (batchSeen.has(token)) {
+            moto2DuplicateTokens.push(`B${batchIndex + 1}:${token}`)
+            continue
+          }
+          batchSeen.add(token)
+          const rider = riderByPlate.get(token)
+          if (!rider) {
+            moto2UnknownTokens.push(`B${batchIndex + 1}:${token}`)
+            continue
+          }
+          ordered.push(rider)
+        }
+        orderedMoto2Batches.push(ordered)
+        if (!sameSet(ordered.map((rider) => rider.id), (orderedBatches[batchIndex] ?? []).map((rider) => rider.id))) {
+          moto2BatchMismatch.push(batchIndex + 1)
+        }
+      }
+      isValidMoto2 = moto2UnknownTokens.length === 0 && moto2DuplicateTokens.length === 0 && moto2BatchMismatch.length === 0
+    }
+
+    return {
+      batchCount: count,
+      orderedBatches,
+      orderedMoto2Batches,
+      duplicateTokens,
+      unknownTokens,
+      duplicateRiders,
+      missingRiders,
+      emptyBatches,
+      isValid,
+      moto2Provided,
+      moto2UnknownTokens,
+      moto2DuplicateTokens,
+      moto2BatchMismatch,
+      isValidMoto2,
+    }
+  }, [effectiveBatchCount, riders, batchSize, externalBatchTexts, externalMoto2BatchTexts])
+
   useEffect(() => {
     if (drawMode !== 'internal_live_draw') return
     const canvas = canvasRef.current
@@ -360,6 +498,22 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       if (rollingIntervalRef.current) window.clearInterval(rollingIntervalRef.current)
     }
   }, [])
+
+  useEffect(() => {
+    if (riders.length === 0) {
+      setManualBatchCount(1)
+      return
+    }
+    const autoCount = Math.max(1, Math.ceil(riders.length / Math.max(4, batchSize)))
+    setManualBatchCount((prev) => Math.max(1, Math.min(Math.max(1, riders.length), prev || autoCount)))
+  }, [riders.length, batchSize])
+
+  useEffect(() => {
+    if (externalBatchInputMode !== 'PER_BATCH') return
+    const count = effectiveBatchCount ?? Math.max(1, Math.ceil(riders.length / Math.max(4, batchSize)))
+    setExternalBatchTexts((prev) => Array.from({ length: count }, (_, index) => prev[index] ?? ''))
+    setExternalMoto2BatchTexts((prev) => Array.from({ length: count }, (_, index) => prev[index] ?? ''))
+  }, [externalBatchInputMode, effectiveBatchCount, riders.length, batchSize])
 
   const apiFetch = async (url: string, options: RequestInit = {}) => {
     const { data } = await supabase.auth.getSession()
@@ -429,6 +583,8 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       setLockedMotos([])
       setExternalOrderText('')
       setExternalMoto2OrderText('')
+      setExternalBatchTexts([])
+      setExternalMoto2BatchTexts([])
       setWheelRiders([])
       setWheelRotation(0)
       setResultModal(null)
@@ -514,11 +670,23 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       alert('Kategori ini sudah terkunci. Reset moto dulu jika ingin ubah urutan.')
       return
     }
-    if (!externalValidation.isValid) {
-      alert('Urutan external belum valid. Pastikan semua rider terisi tepat satu kali.')
-      return
+    if (externalBatchInputMode === 'PER_BATCH') {
+      if (!externalPerBatchValidation.isValid) {
+        alert('Input external per batch belum valid. Pastikan semua rider terisi tepat satu kali di batch yang benar.')
+        return
+      }
+      if (externalPerBatchValidation.moto2Provided && !externalPerBatchValidation.isValidMoto2) {
+        alert('Input Moto 2 per batch belum valid. Pastikan rider per batch sama dengan Moto 1.')
+        return
+      }
+      setDrawnOrder(externalPerBatchValidation.orderedBatches.flat())
+    } else {
+      if (!externalValidation.isValid) {
+        alert('Urutan external belum valid. Pastikan semua rider terisi tepat satu kali.')
+        return
+      }
+      setDrawnOrder(externalValidation.orderedRiders)
     }
-    setDrawnOrder(externalValidation.orderedRiders)
     setRollingName('External order ready')
     setHasDrawn(true)
     setSaveState('idle')
@@ -537,6 +705,8 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     setSaveState('idle')
     setExternalOrderText('')
     setExternalMoto2OrderText('')
+    setExternalBatchTexts([])
+    setExternalMoto2BatchTexts([])
     setResultModal(null)
   }
 
@@ -565,6 +735,8 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       setSaveState('idle')
       setExternalOrderText('')
       setExternalMoto2OrderText('')
+      setExternalBatchTexts([])
+      setExternalMoto2BatchTexts([])
       setResultModal(null)
       setDeleteGuard({ canDelete: true, reason: null })
       await loadRiders(selectedCategory)
@@ -580,21 +752,36 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       alert(drawMode === 'external_draw' ? 'Klik "Gunakan Urutan External" dulu.' : 'Lakukan draw terlebih dulu.')
       return
     }
-    if (drawMode === 'external_draw' && externalMoto2Validation.isProvided && !externalMoto2Validation.isValidForMoto1) {
-      alert('Urutan Moto 2 manual belum valid per batch. Cek kembali input Moto 2.')
-      return
+    if (drawMode === 'external_draw') {
+      if (externalBatchInputMode === 'PER_BATCH') {
+        if (externalPerBatchValidation.moto2Provided && !externalPerBatchValidation.isValidMoto2) {
+          alert('Urutan Moto 2 manual per batch belum valid. Cek kembali input Moto 2.')
+          return
+        }
+      } else if (externalMoto2Validation.isProvided && !externalMoto2Validation.isValidForMoto1) {
+        alert('Urutan Moto 2 manual belum valid per batch. Cek kembali input Moto 2.')
+        return
+      }
     }
     setSaveState('saving')
     try {
+      const riderBatches = batches.map((batch) => batch.riders.map((rider) => rider.id))
       const manualMoto2Ids =
-        drawMode === 'external_draw' && externalMoto2Validation.isProvided
+        drawMode === 'external_draw' && externalBatchInputMode === 'GLOBAL' && externalMoto2Validation.isProvided
           ? externalMoto2Validation.orderedRiders.map((rider) => rider.id)
+          : []
+      const riderBatchesMoto2 =
+        drawMode === 'external_draw' && externalBatchInputMode === 'PER_BATCH' && externalPerBatchValidation.moto2Provided
+          ? externalPerBatchValidation.orderedMoto2Batches.map((batch) => batch.map((rider) => rider.id))
           : []
       const payload = {
         category_id: selectedCategory,
         rider_ids: drawnOrder.map((r) => r.id),
         batch_size: batchSize,
+        ...(batchMode === 'MANUAL_BATCH_COUNT' ? { batch_count: effectiveBatchCount } : {}),
+        ...(riderBatches.length > 0 ? { rider_batches: riderBatches } : {}),
         ...(manualMoto2Ids.length > 0 ? { rider_ids_moto2: manualMoto2Ids } : {}),
+        ...(riderBatchesMoto2.length > 0 ? { rider_batches_moto2: riderBatchesMoto2 } : {}),
       }
       const { res, json } = await apiFetch(`/api/events/${eventId}/live-draw`, {
         method: 'POST',
@@ -839,20 +1026,65 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
 
         <div style={{ display: 'grid', gap: 8 }}>
           <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-            Maks Rider per Batch
+            Format Batch
           </div>
-          <input
-            type="number"
-            min={4}
-            max={Math.max(4, gatePositions)}
-            value={batchSize}
-            onChange={(e) => {
-              const next = Number(e.target.value)
-              const maxGate = Math.max(4, gatePositions)
-              setBatchSize(Math.max(4, Math.min(maxGate, next)))
-            }}
-            style={{ padding: 12, borderRadius: 12, border: '2px solid #111', maxWidth: 160 }}
-          />
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800 }}>
+              <input
+                type="radio"
+                checked={batchMode === 'AUTO_BY_GATE'}
+                onChange={() => setBatchMode('AUTO_BY_GATE')}
+              />
+              Auto by gate size
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800 }}>
+              <input
+                type="radio"
+                checked={batchMode === 'MANUAL_BATCH_COUNT'}
+                onChange={() => setBatchMode('MANUAL_BATCH_COUNT')}
+              />
+              Manual batch count
+            </label>
+          </div>
+          {batchMode === 'AUTO_BY_GATE' ? (
+            <>
+              <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                Maks Rider per Batch
+              </div>
+              <input
+                type="number"
+                min={4}
+                max={Math.max(4, gatePositions)}
+                value={batchSize}
+                onChange={(e) => {
+                  const next = Number(e.target.value)
+                  const maxGate = Math.max(4, gatePositions)
+                  setBatchSize(Math.max(4, Math.min(maxGate, next)))
+                }}
+                style={{ padding: 12, borderRadius: 12, border: '2px solid #111', maxWidth: 160 }}
+              />
+            </>
+          ) : (
+            <>
+              <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                Jumlah Batch
+              </div>
+              <input
+                type="number"
+                min={1}
+                max={Math.max(1, riders.length)}
+                value={effectiveBatchCount ?? manualBatchCount}
+                onChange={(e) => {
+                  const next = Number(e.target.value)
+                  setManualBatchCount(Math.max(1, Math.min(Math.max(1, riders.length), next)))
+                }}
+                style={{ padding: 12, borderRadius: 12, border: '2px solid #111', maxWidth: 160 }}
+              />
+              <div style={{ color: '#475569', fontWeight: 800 }}>
+                Sistem akan membagi rider seimbang per batch. Contoh 40 rider / 6 batch menjadi 7,7,7,7,6,6.
+              </div>
+            </>
+          )}
         </div>
 
         <div
@@ -1054,105 +1286,133 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
             </div>
           ) : (
             <div style={{ display: 'grid', gap: 10 }}>
-              <div style={{ fontWeight: 900 }}>Paste urutan no plate (Moto 1)</div>
-              <div style={{ color: '#334155', fontWeight: 700 }}>
-                Format: satu plate per baris, atau dipisah koma. Contoh: <code>15B</code>, <code>19</code>,{' '}
-                <code>777</code>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800 }}>
+                  <input
+                    type="radio"
+                    checked={externalBatchInputMode === 'GLOBAL'}
+                    onChange={() => setExternalBatchInputMode('GLOBAL')}
+                  />
+                  Input global
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800 }}>
+                  <input
+                    type="radio"
+                    checked={externalBatchInputMode === 'PER_BATCH'}
+                    onChange={() => setExternalBatchInputMode('PER_BATCH')}
+                  />
+                  Input per batch
+                </label>
               </div>
-              <textarea
-                value={externalOrderText}
-                onChange={(e) => setExternalOrderText(e.target.value)}
-                rows={8}
-                placeholder={'15B\n19\n777'}
-                style={{
-                  width: '100%',
-                  borderRadius: 12,
-                  border: '2px solid #111',
-                  padding: 12,
-                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-                  fontSize: 14,
-                }}
-              />
-              <div style={{ display: 'grid', gap: 4, fontWeight: 800 }}>
-                <div>Token terbaca: {externalValidation.tokens.length}</div>
-                <div>Rider cocok: {externalValidation.orderedRiders.length}</div>
-                <div style={{ color: externalValidation.isValid ? '#166534' : '#b91c1c' }}>
-                  {externalValidation.isValid ? 'VALID - siap jadi moto' : 'BELUM VALID'}
-                </div>
-                {externalValidation.unknownTokens.length > 0 && (
-                  <div style={{ color: '#b91c1c' }}>
-                    Plate tidak dikenal: {externalValidation.unknownTokens.slice(0, 10).join(', ')}
+              {externalBatchInputMode === 'GLOBAL' ? (
+                <>
+                  <div style={{ fontWeight: 900 }}>Paste urutan no plate (Moto 1)</div>
+                  <div style={{ color: '#334155', fontWeight: 700 }}>
+                    Format: satu plate per baris, atau dipisah koma. Sistem akan membagi ke batch sesuai format batch di atas.
                   </div>
-                )}
-                {externalValidation.duplicateTokens.length > 0 && (
-                  <div style={{ color: '#b91c1c' }}>
-                    Plate duplikat: {externalValidation.duplicateTokens.slice(0, 10).join(', ')}
-                  </div>
-                )}
-                {externalValidation.duplicateRiders.length > 0 && (
-                  <div style={{ color: '#b91c1c' }}>
-                    Rider duplikat: {externalValidation.duplicateRiders.slice(0, 10).join(', ')}
-                  </div>
-                )}
-                {externalValidation.missingRiders.length > 0 && (
-                  <div style={{ color: '#b91c1c' }}>
-                    Belum terisi:{' '}
-                    {externalValidation.missingRiders
-                      .slice(0, 8)
-                      .map((rider) => rider.no_plate_display)
-                      .join(', ')}
-                  </div>
-                )}
-              </div>
-              <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
-                <div style={{ fontWeight: 900 }}>Urutan no plate Moto 2 (opsional, manual)</div>
-                <div style={{ color: '#334155', fontWeight: 700 }}>
-                  Kosongkan jika ingin otomatis dibalik. Jika diisi, wajib sama rider per batch dengan Moto 1.
-                </div>
-                <textarea
-                  value={externalMoto2OrderText}
-                  onChange={(e) => setExternalMoto2OrderText(e.target.value)}
-                  rows={8}
-                  placeholder={'19\n15B\n777'}
-                  style={{
-                    width: '100%',
-                    borderRadius: 12,
-                    border: '2px solid #111',
-                    padding: 12,
-                    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-                    fontSize: 14,
-                  }}
-                />
-                <div style={{ display: 'grid', gap: 4, fontWeight: 800 }}>
-                  <div>Token Moto 2: {externalMoto2Validation.tokens.length}</div>
-                  <div>
-                    Status Moto 2:{' '}
-                    <span style={{ color: externalMoto2Validation.isValidForMoto1 ? '#166534' : '#b91c1c' }}>
-                      {externalMoto2Validation.isProvided
-                        ? externalMoto2Validation.isValidForMoto1
-                          ? 'VALID MANUAL'
-                          : 'BELUM VALID'
-                        : 'AUTO REVERSE'}
-                    </span>
-                  </div>
-                  {externalMoto2Validation.unknownTokens.length > 0 && (
-                    <div style={{ color: '#b91c1c' }}>
-                      Plate tidak dikenal: {externalMoto2Validation.unknownTokens.slice(0, 10).join(', ')}
+                  <textarea
+                    value={externalOrderText}
+                    onChange={(e) => setExternalOrderText(e.target.value)}
+                    rows={8}
+                    placeholder={'15B\n19\n777'}
+                    style={{
+                      width: '100%',
+                      borderRadius: 12,
+                      border: '2px solid #111',
+                      padding: 12,
+                      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+                      fontSize: 14,
+                    }}
+                  />
+                  <div style={{ display: 'grid', gap: 4, fontWeight: 800 }}>
+                    <div>Token terbaca: {externalValidation.tokens.length}</div>
+                    <div>Rider cocok: {externalValidation.orderedRiders.length}</div>
+                    <div style={{ color: externalValidation.isValid ? '#166534' : '#b91c1c' }}>
+                      {externalValidation.isValid ? 'VALID - siap jadi moto' : 'BELUM VALID'}
                     </div>
-                  )}
-                  {externalMoto2Validation.duplicateTokens.length > 0 && (
-                    <div style={{ color: '#b91c1c' }}>
-                      Plate duplikat: {externalMoto2Validation.duplicateTokens.slice(0, 10).join(', ')}
+                  </div>
+                  <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
+                    <div style={{ fontWeight: 900 }}>Urutan no plate Moto 2 (opsional, manual)</div>
+                    <div style={{ color: '#334155', fontWeight: 700 }}>
+                      Kosongkan jika ingin otomatis dibalik. Jika diisi, wajib sama rider per batch dengan Moto 1.
                     </div>
-                  )}
-                  {externalMoto2Validation.batchMismatch.length > 0 && (
-                    <div style={{ color: '#b91c1c' }}>
-                      Batch mismatch: {externalMoto2Validation.batchMismatch.join(', ')}
+                    <textarea
+                      value={externalMoto2OrderText}
+                      onChange={(e) => setExternalMoto2OrderText(e.target.value)}
+                      rows={8}
+                      placeholder={'19\n15B\n777'}
+                      style={{
+                        width: '100%',
+                        borderRadius: 12,
+                        border: '2px solid #111',
+                        padding: 12,
+                        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+                        fontSize: 14,
+                      }}
+                    />
+                    <div style={{ display: 'grid', gap: 4, fontWeight: 800 }}>
+                      <div>Token Moto 2: {externalMoto2Validation.tokens.length}</div>
+                      <div>
+                        Status Moto 2:{' '}
+                        <span style={{ color: externalMoto2Validation.isValidForMoto1 ? '#166534' : '#b91c1c' }}>
+                          {externalMoto2Validation.isProvided
+                            ? externalMoto2Validation.isValidForMoto1
+                              ? 'VALID MANUAL'
+                              : 'BELUM VALID'
+                            : 'AUTO REVERSE'}
+                        </span>
+                      </div>
                     </div>
-                  )}
+                  </div>
+                </>
+              ) : (
+                <div style={{ display: 'grid', gap: 12 }}>
+                  <div style={{ color: '#334155', fontWeight: 700 }}>
+                    Isi rider langsung per batch. Cocok untuk pembagian manual seperti 7,7,7,7,6,6.
+                  </div>
+                  {Array.from({ length: externalPerBatchValidation.batchCount }, (_, index) => (
+                    <div key={`batch-input-${index}`} style={{ display: 'grid', gap: 8, padding: 12, border: '1px solid #cbd5e1', borderRadius: 14, background: '#fff' }}>
+                      <div style={{ fontWeight: 900 }}>Batch {index + 1} - Moto 1</div>
+                      <textarea
+                        value={externalBatchTexts[index] ?? ''}
+                        onChange={(e) => setExternalBatchTexts((prev) => {
+                          const next = [...prev]
+                          next[index] = e.target.value
+                          return next
+                        })}
+                        rows={4}
+                        placeholder={'15B\n19\n777'}
+                        style={{ width: '100%', borderRadius: 12, border: '2px solid #111', padding: 12, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', fontSize: 14 }}
+                      />
+                      <div style={{ fontWeight: 900 }}>Batch {index + 1} - Moto 2 (opsional)</div>
+                      <textarea
+                        value={externalMoto2BatchTexts[index] ?? ''}
+                        onChange={(e) => setExternalMoto2BatchTexts((prev) => {
+                          const next = [...prev]
+                          next[index] = e.target.value
+                          return next
+                        })}
+                        rows={4}
+                        placeholder={'19\n15B\n777'}
+                        style={{ width: '100%', borderRadius: 12, border: '2px solid #111', padding: 12, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', fontSize: 14 }}
+                      />
+                    </div>
+                  ))}
+                  <div style={{ display: 'grid', gap: 4, fontWeight: 800 }}>
+                    <div style={{ color: externalPerBatchValidation.isValid ? '#166534' : '#b91c1c' }}>
+                      {externalPerBatchValidation.isValid ? 'VALID - semua batch Moto 1 siap' : 'BELUM VALID'}
+                    </div>
+                    {externalPerBatchValidation.emptyBatches.length > 0 && <div style={{ color: '#b91c1c' }}>Batch kosong: {externalPerBatchValidation.emptyBatches.join(', ')}</div>}
+                    {externalPerBatchValidation.missingRiders.length > 0 && <div style={{ color: '#b91c1c' }}>Belum terisi: {externalPerBatchValidation.missingRiders.slice(0, 8).map((rider) => rider.no_plate_display).join(', ')}</div>}
+                    {externalPerBatchValidation.moto2Provided && (
+                      <div style={{ color: externalPerBatchValidation.isValidMoto2 ? '#166534' : '#b91c1c' }}>
+                        Moto 2 per batch: {externalPerBatchValidation.isValidMoto2 ? 'VALID MANUAL' : `BELUM VALID${externalPerBatchValidation.moto2BatchMismatch.length > 0 ? ` (batch mismatch ${externalPerBatchValidation.moto2BatchMismatch.join(', ')})` : ''}`}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-              {externalValidation.orderedRiders.length > 0 && (
+              )}
+              {externalBatchInputMode === 'GLOBAL' && externalValidation.orderedRiders.length > 0 && (
                 <div style={{ display: 'grid', gap: 6, maxHeight: 220, overflowY: 'auto' }}>
                   {externalValidation.orderedRiders.map((rider, idx) => (
                     <div

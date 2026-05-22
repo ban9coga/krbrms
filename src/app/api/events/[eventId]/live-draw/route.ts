@@ -89,6 +89,8 @@ const chunk = <T,>(items: T[], size: number) => {
   return batches
 }
 
+const flatten = <T,>(items: T[][]) => items.flat()
+
 const shuffle = <T,>(items: T[]) => {
   const arr = [...items]
   for (let i = arr.length - 1; i > 0; i -= 1) {
@@ -272,14 +274,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   const categoryId = body?.category_id as string | undefined
   const riderIds = (body?.rider_ids ?? []) as string[]
   const riderIdsMoto2 = (body?.rider_ids_moto2 ?? []) as string[]
+  const riderBatches = (body?.rider_batches ?? []) as string[][]
+  const riderBatchesMoto2 = (body?.rider_batches_moto2 ?? []) as string[][]
   const batchSize = Math.max(4, Math.min(8, Number(body?.batch_size ?? 8)))
   const hasCustomMoto2 = Array.isArray(riderIdsMoto2) && riderIdsMoto2.length > 0
+  const hasManualBatches = Array.isArray(riderBatches) && riderBatches.length > 0
+  const hasManualMoto2Batches = Array.isArray(riderBatchesMoto2) && riderBatchesMoto2.length > 0
 
   if (!categoryId) return NextResponse.json({ error: 'category_id required' }, { status: 400 })
-  if (!Array.isArray(riderIds) || riderIds.length === 0) {
+  if (!hasManualBatches && (!Array.isArray(riderIds) || riderIds.length === 0)) {
     return NextResponse.json({ error: 'rider_ids required' }, { status: 400 })
   }
-  if (hasCustomMoto2 && riderIdsMoto2.length !== riderIds.length) {
+  if (!hasManualBatches && hasCustomMoto2 && riderIdsMoto2.length !== riderIds.length) {
     return NextResponse.json({ error: 'rider_ids_moto2 length must match rider_ids' }, { status: 400 })
   }
 
@@ -289,21 +295,27 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
   const allowedIds = new Set((riders ?? []).map((r) => r.id))
-  const uniqueIds = new Set(riderIds)
-  if (uniqueIds.size !== riderIds.length) {
+  const effectiveBatches = hasManualBatches ? riderBatches.filter((batch) => Array.isArray(batch) && batch.length > 0) : chunk(riderIds, batchSize)
+  const effectiveRiderIds = hasManualBatches ? flatten(effectiveBatches) : riderIds
+  const uniqueIds = new Set(effectiveRiderIds)
+  if (uniqueIds.size !== effectiveRiderIds.length) {
     return NextResponse.json({ error: 'Duplicate rider_ids detected' }, { status: 400 })
   }
-  for (const id of riderIds) {
+  for (const id of effectiveRiderIds) {
     if (!allowedIds.has(id)) {
       return NextResponse.json({ error: 'rider_ids contains invalid rider' }, { status: 400 })
     }
   }
-  if (hasCustomMoto2) {
-    const uniqueMoto2Ids = new Set(riderIdsMoto2)
-    if (uniqueMoto2Ids.size !== riderIdsMoto2.length) {
+  if (hasManualBatches && uniqueIds.size !== allowedIds.size) {
+    return NextResponse.json({ error: 'Manual rider_batches must contain every rider in the category exactly once' }, { status: 400 })
+  }
+  if (hasCustomMoto2 || hasManualMoto2Batches) {
+    const effectiveMoto2Ids = hasManualMoto2Batches ? flatten(riderBatchesMoto2) : riderIdsMoto2
+    const uniqueMoto2Ids = new Set(effectiveMoto2Ids)
+    if (uniqueMoto2Ids.size !== effectiveMoto2Ids.length) {
       return NextResponse.json({ error: 'Duplicate rider_ids_moto2 detected' }, { status: 400 })
     }
-    for (const id of riderIdsMoto2) {
+    for (const id of effectiveMoto2Ids) {
       if (!allowedIds.has(id)) {
         return NextResponse.json({ error: 'rider_ids_moto2 contains invalid rider' }, { status: 400 })
       }
@@ -333,12 +345,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     .maybeSingle()
 
   const baseOrder = lastOrderRow?.moto_order ?? 0
-  const batches = chunk(riderIds, batchSize)
-  const moto2Batches = hasCustomMoto2 ? chunk(riderIdsMoto2, batchSize) : []
+  const batches = hasManualBatches ? effectiveBatches : chunk(riderIds, batchSize)
+  const moto2Batches = hasManualMoto2Batches ? riderBatchesMoto2.filter((batch) => Array.isArray(batch) && batch.length > 0) : hasCustomMoto2 ? chunk(riderIdsMoto2, batchSize) : []
   if (hasCustomMoto2 && moto2Batches.length !== batches.length) {
     return NextResponse.json({ error: 'rider_ids_moto2 batch shape invalid' }, { status: 400 })
   }
-  if (hasCustomMoto2) {
+  if (hasCustomMoto2 || hasManualMoto2Batches) {
     for (let i = 0; i < batches.length; i += 1) {
       const moto1Batch = batches[i]
       const moto2Batch = moto2Batches[i] ?? []
