@@ -488,6 +488,21 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       return { index: index + 1, riders: batch, startIndex }
     })
   }, [externalPerBatchValidation.orderedBatches])
+  const externalMoto1AssignedCount = useMemo(
+    () => externalPerBatchValidation.orderedBatches.reduce((total, batch) => total + batch.length, 0),
+    [externalPerBatchValidation.orderedBatches]
+  )
+  const externalMoto2AssignedCount = useMemo(
+    () => externalPerBatchValidation.orderedMoto2Batches.reduce((total, batch) => total + batch.length, 0),
+    [externalPerBatchValidation.orderedMoto2Batches]
+  )
+  const isExternalPerBatchMode = drawMode === 'external_draw' && externalBatchInputMode === 'PER_BATCH'
+  const displayedBatchCount = isExternalPerBatchMode ? externalPerBatchValidation.batchCount : batches.length
+  const applyButtonEnabled =
+    !loading &&
+    !categoryLocked &&
+    (isExternalPerBatchMode ? externalMoto1AssignedCount > 0 : externalValidation.tokens.length > 0)
+  const applyButtonReady = isExternalPerBatchMode ? externalPerBatchValidation.isValid : externalValidation.isValid
 
   useEffect(() => {
     if (drawMode !== 'internal_live_draw') return
@@ -1072,7 +1087,9 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
           </h1>
           <div style={{ marginTop: 8, color: '#333', fontWeight: 700 }}>
             {drawMode === 'external_draw'
-              ? 'Hasil draw dari luar sistem. Paste urutan plate Moto 1, opsional Moto 2 manual, lalu generate moto.'
+              ? externalBatchInputMode === 'PER_BATCH'
+                ? 'Hasil draw dari luar sistem. Pilih target batch, klik rider dari preview, lalu generate moto.'
+                : 'Hasil draw dari luar sistem. Paste urutan plate Moto 1, opsional Moto 2 manual, lalu generate moto.'
               : 'Draw manual dengan roulette, lalu simpan hasilnya sebagai Moto 1 & Moto 2 (gate Moto 2 otomatis dibalik).'}
           </div>
         </div>
@@ -1245,7 +1262,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
               </div>
             )}
             <div style={{ color: '#444', fontWeight: 700 }}>
-              Total rider: {riders.length} | Batch: {batches.length}
+              Total rider: {riders.length} | Batch: {displayedBatchCount}
             </div>
             <div style={{ color: '#444', fontWeight: 700 }}>
               Gate positions: {gatePositions}
@@ -1625,17 +1642,39 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                       </div>
                     ))}
                   </div>
-                  <div style={{ display: 'grid', gap: 4, fontWeight: 800 }}>
-                    <div style={{ color: externalPerBatchValidation.isValid ? '#166534' : '#b91c1c' }}>
-                      {externalPerBatchValidation.isValid ? 'VALID - semua batch Moto 1 siap' : 'BELUM VALID'}
+                  <div
+                    style={{
+                      display: 'grid',
+                      gap: 4,
+                      padding: '12px 14px',
+                      borderRadius: 14,
+                      border: `1px solid ${externalPerBatchValidation.isValid ? '#86efac' : '#fecaca'}`,
+                      background: externalPerBatchValidation.isValid ? '#f0fdf4' : '#fef2f2',
+                      color: externalPerBatchValidation.isValid ? '#166534' : '#b91c1c',
+                      fontWeight: 800,
+                    }}
+                  >
+                    <div>
+                      {externalPerBatchValidation.isValid
+                        ? `Moto 1 siap diproses - ${externalMoto1AssignedCount}/${riders.length} rider sudah ditempatkan`
+                        : `Moto 1 belum lengkap - ${externalMoto1AssignedCount}/${riders.length} rider sudah ditempatkan`}
                     </div>
-                    {externalPerBatchValidation.emptyBatches.length > 0 && <div style={{ color: '#b91c1c' }}>Batch kosong: {externalPerBatchValidation.emptyBatches.join(', ')}</div>}
-                    {externalPerBatchValidation.missingRiders.length > 0 && <div style={{ color: '#b91c1c' }}>Belum terisi: {externalPerBatchValidation.missingRiders.slice(0, 8).map((rider) => rider.no_plate_display).join(', ')}</div>}
-                    {externalPerBatchValidation.moto2Provided && (
-                      <div style={{ color: externalPerBatchValidation.isValidMoto2 ? '#166534' : '#b91c1c' }}>
-                        Moto 2 per batch: {externalPerBatchValidation.isValidMoto2 ? 'VALID MANUAL' : `BELUM VALID${externalPerBatchValidation.moto2BatchMismatch.length > 0 ? ` (batch mismatch ${externalPerBatchValidation.moto2BatchMismatch.join(', ')})` : ''}`}
+                    {externalPerBatchValidation.emptyBatches.length > 0 && (
+                      <div>Batch kosong: {externalPerBatchValidation.emptyBatches.join(', ')}</div>
+                    )}
+                    {externalPerBatchValidation.missingRiders.length > 0 && (
+                      <div>
+                        Belum terisi: {externalPerBatchValidation.missingRiders.slice(0, 8).map((rider) => rider.no_plate_display).join(', ')}
                       </div>
                     )}
+                    <div style={{ color: externalPerBatchValidation.isValidMoto2 ? '#166534' : '#92400e' }}>
+                      Moto 2:{' '}
+                      {externalPerBatchValidation.moto2Provided
+                        ? externalPerBatchValidation.isValidMoto2
+                          ? `manual siap - ${externalMoto2AssignedCount}/${externalMoto1AssignedCount} rider`
+                          : `manual belum sinkron${externalPerBatchValidation.moto2BatchMismatch.length > 0 ? ` (batch mismatch ${externalPerBatchValidation.moto2BatchMismatch.join(', ')})` : ''}`
+                        : 'otomatis reverse saat generate moto'}
+                    </div>
                   </div>
                   <div style={{ display: 'grid', gap: 12, marginTop: 8 }}>
                       <div
@@ -1648,7 +1687,9 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                           fontWeight: 800,
                         }}
                       >
-                        Editor batch langsung: drag handle <strong>::</strong> ke row tujuan, atau klik <strong>Pilih</strong> lalu tap rider tujuan.
+                        {externalTargetField.moto === 1
+                          ? 'Editor Batch Moto 1: drag handle :: ke row tujuan, atau klik Pilih lalu tap rider tujuan.'
+                          : 'Target Moto 2 aktif: klik rider di Preview Rider untuk menyusun urutan manual Moto 2. Editor batch di bawah tetap menunjukkan struktur Batch Moto 1.'}
                       </div>
                       {externalSelectedRider && externalBatchLayouts[externalSelectedRider.batchIndex]?.riders[externalSelectedRider.riderIndex] && (
                         <div
@@ -1891,17 +1932,17 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                 <button
                   type="button"
                   onClick={applyExternalOrder}
-                  disabled={loading || categoryLocked || externalValidation.tokens.length === 0}
+                  disabled={!applyButtonEnabled}
                   style={{
                     padding: '12px 16px',
                     borderRadius: 12,
                     border: '2px solid #111',
-                    background: externalValidation.isValid ? '#2ecc71' : '#fef3c7',
+                    background: applyButtonReady ? '#2ecc71' : '#fef3c7',
                     fontWeight: 900,
-                    cursor: categoryLocked ? 'not-allowed' : 'pointer',
+                    cursor: applyButtonEnabled ? 'pointer' : 'not-allowed',
                   }}
                 >
-                  Gunakan Urutan External
+                  {isExternalPerBatchMode ? 'Generate Moto dari Editor' : 'Gunakan Urutan External'}
                 </button>
                 {drawnOrder.length > 0 && !categoryLocked && (
                   <button
