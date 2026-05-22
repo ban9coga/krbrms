@@ -26,6 +26,11 @@ type BatchItem = {
   riders: RiderItem[]
 }
 
+type RiderBatchLocation = {
+  batchIndex: number
+  riderIndex: number
+}
+
 type BatchMode = 'AUTO_BY_GATE' | 'MANUAL_BATCH_COUNT'
 
 type GateMoto = {
@@ -155,6 +160,9 @@ const moveItem = <T,>(items: T[], fromIndex: number, toIndex: number) => {
   return next
 }
 
+const serializeBatchRiders = (batches: RiderItem[][]) =>
+  batches.map((batch) => batch.map((rider) => rider.no_plate_display).join('\n'))
+
 export default function LiveDrawClient({ eventId }: { eventId: string }) {
   const [categories, setCategories] = useState<CategoryItem[]>([])
   const [selectedCategory, setSelectedCategory] = useState<string>('')
@@ -188,6 +196,9 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
   const [draggingRiderIndex, setDraggingRiderIndex] = useState<number | null>(null)
   const [dragTargetIndex, setDragTargetIndex] = useState<number | null>(null)
   const [selectedRiderIndex, setSelectedRiderIndex] = useState<number | null>(null)
+  const [externalDraggingRider, setExternalDraggingRider] = useState<RiderBatchLocation | null>(null)
+  const [externalDropTarget, setExternalDropTarget] = useState<RiderBatchLocation | null>(null)
+  const [externalSelectedRider, setExternalSelectedRider] = useState<RiderBatchLocation | null>(null)
   const [deleteGuard, setDeleteGuard] = useState<LiveDrawGuard>({ canDelete: true, reason: null })
   const spinTimeoutRef = useRef<number | null>(null)
   const rollingIntervalRef = useRef<number | null>(null)
@@ -463,6 +474,15 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     }
   }, [effectiveBatchCount, riders, batchSize, externalBatchTexts, externalMoto2BatchTexts])
 
+  const externalBatchLayouts = useMemo(() => {
+    let cursor = 0
+    return externalPerBatchValidation.orderedBatches.map((batch, index) => {
+      const startIndex = cursor
+      cursor += batch.length
+      return { index: index + 1, riders: batch, startIndex }
+    })
+  }, [externalPerBatchValidation.orderedBatches])
+
   useEffect(() => {
     if (drawMode !== 'internal_live_draw') return
     const canvas = canvasRef.current
@@ -737,6 +757,42 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     setDraggingRiderIndex(null)
     setDragTargetIndex(null)
     setSelectedRiderIndex(null)
+  }
+
+  const clearExternalReorderState = () => {
+    setExternalDraggingRider(null)
+    setExternalDropTarget(null)
+    setExternalSelectedRider(null)
+  }
+
+  const moveExternalBatchRider = (from: RiderBatchLocation, to: RiderBatchLocation) => {
+    const sourceBatch = externalPerBatchValidation.orderedBatches[from.batchIndex]
+    const targetBatch = externalPerBatchValidation.orderedBatches[to.batchIndex]
+    if (!sourceBatch || !targetBatch) return
+    const movingRider = sourceBatch[from.riderIndex]
+    if (!movingRider) return
+
+    const nextMoto1 = externalPerBatchValidation.orderedBatches.map((batch) => [...batch])
+    nextMoto1[from.batchIndex].splice(from.riderIndex, 1)
+    const insertIndex =
+      from.batchIndex === to.batchIndex && from.riderIndex < to.riderIndex ? to.riderIndex - 1 : to.riderIndex
+    nextMoto1[to.batchIndex].splice(insertIndex, 0, movingRider)
+    setExternalBatchTexts(serializeBatchRiders(nextMoto1))
+
+    if (externalPerBatchValidation.moto2Provided) {
+      const nextMoto2 = externalPerBatchValidation.orderedMoto2Batches.map((batch) => [...batch])
+      const sourceMoto2Index = nextMoto2[from.batchIndex]?.findIndex((rider) => rider.id === movingRider.id) ?? -1
+      if (sourceMoto2Index >= 0) {
+        nextMoto2[from.batchIndex].splice(sourceMoto2Index, 1)
+        nextMoto2[to.batchIndex].push(movingRider)
+        setExternalMoto2BatchTexts(serializeBatchRiders(nextMoto2))
+      }
+    }
+
+    setDrawnOrder(nextMoto1.flat())
+    setHasDrawn(true)
+    setSaveState('idle')
+    clearExternalReorderState()
   }
 
   const resetDraw = () => {
@@ -1456,6 +1512,218 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                       </div>
                     )}
                   </div>
+                  {externalPerBatchValidation.orderedBatches.some((batch) => batch.length > 0) && (
+                    <div style={{ display: 'grid', gap: 12, marginTop: 8 }}>
+                      <div
+                        style={{
+                          padding: '14px 16px',
+                          borderRadius: 16,
+                          border: '1px solid #bfdbfe',
+                          background: '#f8fbff',
+                          color: '#1d4ed8',
+                          fontWeight: 800,
+                        }}
+                      >
+                        Editor batch langsung: drag handle <strong>::</strong> ke row tujuan, atau klik <strong>Pilih</strong> lalu tap rider tujuan.
+                      </div>
+                      {externalSelectedRider && externalBatchLayouts[externalSelectedRider.batchIndex]?.riders[externalSelectedRider.riderIndex] && (
+                        <div
+                          style={{
+                            padding: '14px 16px',
+                            borderRadius: 16,
+                            border: '1px solid #facc15',
+                            background: '#fffbeb',
+                            color: '#92400e',
+                            fontWeight: 800,
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            gap: 12,
+                            alignItems: 'center',
+                          }}
+                        >
+                          <span>
+                            Mode pindah aktif:{' '}
+                            <strong>
+                              {externalBatchLayouts[externalSelectedRider.batchIndex]?.riders[externalSelectedRider.riderIndex]?.no_plate_display}
+                            </strong>
+                            . Tap row tujuan untuk memindahkan rider ini.
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setExternalSelectedRider(null)}
+                            style={{
+                              padding: '8px 10px',
+                              borderRadius: 10,
+                              border: '1px solid #d97706',
+                              background: '#fff',
+                              color: '#92400e',
+                              fontWeight: 900,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Batal
+                          </button>
+                        </div>
+                      )}
+                      {externalBatchLayouts.map((batch, batchIndex) => (
+                        <div
+                          key={`external-editor-${batch.index}`}
+                          style={{
+                            border: '1px solid #cbd5e1',
+                            borderRadius: 18,
+                            padding: 14,
+                            background: '#fff',
+                            display: 'grid',
+                            gap: 8,
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
+                            <div style={{ fontWeight: 950, fontSize: 18, color: '#0f172a' }}>Batch {batch.index}</div>
+                            <div
+                              style={{
+                                padding: '6px 10px',
+                                borderRadius: 999,
+                                background: '#dbeafe',
+                                color: '#1d4ed8',
+                                fontWeight: 900,
+                                fontSize: 12,
+                              }}
+                            >
+                              {batch.riders.length} rider
+                            </div>
+                          </div>
+                          {batch.riders.map((rider, riderIndex) => {
+                            const location = { batchIndex, riderIndex }
+                            const isDragging =
+                              externalDraggingRider?.batchIndex === batchIndex &&
+                              externalDraggingRider?.riderIndex === riderIndex
+                            const isDropTarget =
+                              externalDropTarget?.batchIndex === batchIndex &&
+                              externalDropTarget?.riderIndex === riderIndex &&
+                              !isDragging
+                            const isSelected =
+                              externalSelectedRider?.batchIndex === batchIndex &&
+                              externalSelectedRider?.riderIndex === riderIndex
+                            return (
+                              <div
+                                key={`external-editor-rider-${rider.id}`}
+                                onClick={() => {
+                                  if (
+                                    externalSelectedRider &&
+                                    (externalSelectedRider.batchIndex !== batchIndex ||
+                                      externalSelectedRider.riderIndex !== riderIndex)
+                                  ) {
+                                    moveExternalBatchRider(externalSelectedRider, location)
+                                  }
+                                }}
+                                onDragOver={(e) => {
+                                  e.preventDefault()
+                                  e.dataTransfer.dropEffect = 'move'
+                                  setExternalDropTarget(location)
+                                }}
+                                onDrop={(e) => {
+                                  e.preventDefault()
+                                  const raw = e.dataTransfer.getData('text/plain')
+                                  if (!raw) return
+                                  const [fromBatchIndex, fromRiderIndex] = raw.split(':').map(Number)
+                                  if (Number.isNaN(fromBatchIndex) || Number.isNaN(fromRiderIndex)) return
+                                  moveExternalBatchRider(
+                                    { batchIndex: fromBatchIndex, riderIndex: fromRiderIndex },
+                                    location
+                                  )
+                                }}
+                                style={{
+                                  display: 'grid',
+                                  gridTemplateColumns: 'auto auto minmax(0, 1fr) auto',
+                                  alignItems: 'center',
+                                  gap: 12,
+                                  padding: '10px 12px',
+                                  borderRadius: 14,
+                                  border: isDropTarget ? '2px dashed #2563eb' : isSelected ? '2px solid #f59e0b' : '1px solid #dbeafe',
+                                  background: isDropTarget ? '#dbeafe' : isSelected ? '#fffbeb' : riderIndex % 2 === 0 ? '#eff6ff' : '#f8fafc',
+                                  fontWeight: 800,
+                                  opacity: isDragging ? 0.45 : 1,
+                                  cursor:
+                                    externalSelectedRider &&
+                                    (externalSelectedRider.batchIndex !== batchIndex || externalSelectedRider.riderIndex !== riderIndex)
+                                      ? 'copy'
+                                      : 'default',
+                                }}
+                              >
+                                <span
+                                  draggable
+                                  onDragStart={(e) => {
+                                    e.stopPropagation()
+                                    e.dataTransfer.setData('text/plain', `${batchIndex}:${riderIndex}`)
+                                    e.dataTransfer.effectAllowed = 'move'
+                                    setExternalDraggingRider(location)
+                                    setExternalDropTarget(location)
+                                    setExternalSelectedRider(null)
+                                  }}
+                                  onDragEnd={() => clearExternalReorderState()}
+                                  title="Drag rider"
+                                  style={{
+                                    width: 28,
+                                    height: 28,
+                                    display: 'grid',
+                                    placeItems: 'center',
+                                    borderRadius: 8,
+                                    border: '1px solid #94a3b8',
+                                    background: '#fff',
+                                    color: '#0f172a',
+                                    fontWeight: 900,
+                                    cursor: 'grab',
+                                    userSelect: 'none',
+                                  }}
+                                >
+                                  ::
+                                </span>
+                                <span
+                                  style={{
+                                    minWidth: 66,
+                                    textAlign: 'center',
+                                    padding: '6px 8px',
+                                    borderRadius: 999,
+                                    background: '#0f172a',
+                                    color: '#fff',
+                                    fontSize: 12,
+                                    fontWeight: 900,
+                                  }}
+                                >
+                                  Gate {riderIndex + 1}
+                                </span>
+                                <span style={{ color: '#0f172a' }}>
+                                  {rider.name} <span style={{ color: '#475569' }}>({rider.no_plate_display})</span>
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setExternalSelectedRider((prev) =>
+                                      prev?.batchIndex === batchIndex && prev?.riderIndex === riderIndex ? null : location
+                                    )
+                                  }}
+                                  style={{
+                                    minWidth: 54,
+                                    height: 34,
+                                    padding: '0 10px',
+                                    borderRadius: 10,
+                                    border: '1px solid #94a3b8',
+                                    background: isSelected ? '#fef3c7' : '#fff',
+                                    color: '#0f172a',
+                                    fontWeight: 900,
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  {isSelected ? 'Batal' : 'Pilih'}
+                                </button>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
               {externalBatchInputMode === 'GLOBAL' && externalValidation.orderedRiders.length > 0 && (
