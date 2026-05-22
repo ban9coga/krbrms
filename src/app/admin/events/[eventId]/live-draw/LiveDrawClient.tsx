@@ -185,6 +185,8 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
   const [externalMoto2BatchTexts, setExternalMoto2BatchTexts] = useState<string[]>([])
   const [shareCopied, setShareCopied] = useState(false)
   const [resultModal, setResultModal] = useState<'draft' | 'saved' | null>(null)
+  const [draggingRiderIndex, setDraggingRiderIndex] = useState<number | null>(null)
+  const [dragTargetIndex, setDragTargetIndex] = useState<number | null>(null)
   const [deleteGuard, setDeleteGuard] = useState<LiveDrawGuard>({ canDelete: true, reason: null })
   const spinTimeoutRef = useRef<number | null>(null)
   const rollingIntervalRef = useRef<number | null>(null)
@@ -720,6 +722,12 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
   const moveRiderInPreview = (fromIndex: number, direction: -1 | 1) => {
     const toIndex = fromIndex + direction
     if (fromIndex < 0 || toIndex < 0 || toIndex >= drawnOrder.length) return
+    setDrawnOrder((prev) => moveItem(prev, fromIndex, toIndex))
+    setSaveState('idle')
+  }
+
+  const moveRiderByDrag = (fromIndex: number, toIndex: number) => {
+    if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex || toIndex >= drawnOrder.length) return
     setDrawnOrder((prev) => moveItem(prev, fromIndex, toIndex))
     setSaveState('idle')
   }
@@ -1687,6 +1695,20 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                       Sedang mengundi rider. Preview batch akan muncul otomatis setelah roulette selesai.
                     </div>
                   )}
+                  {!drawing && batches.length > 0 && (
+                    <div
+                      style={{
+                        padding: '14px 16px',
+                        borderRadius: 16,
+                        border: '1px solid #bfdbfe',
+                        background: '#f8fbff',
+                        color: '#1d4ed8',
+                        fontWeight: 800,
+                      }}
+                    >
+                      Seret rider untuk pindah gate atau batch. Tombol panah tetap bisa dipakai untuk koreksi cepat satu langkah.
+                    </div>
+                  )}
                   {!drawing && batches.length === 0 && (
                     <div
                       style={{
@@ -1734,9 +1756,33 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                           const canMoveDown = globalIndex < drawnOrder.length - 1
                           const isBatchStart = idx === 0
                           const isBatchEnd = idx === batch.riders.length - 1
+                          const isDragging = draggingRiderIndex === globalIndex
+                          const isDropTarget = dragTargetIndex === globalIndex && draggingRiderIndex !== globalIndex
                           return (
                           <div
                             key={rider.id}
+                            draggable
+                            onDragStart={(e) => {
+                              e.dataTransfer.effectAllowed = 'move'
+                              setDraggingRiderIndex(globalIndex)
+                              setDragTargetIndex(globalIndex)
+                            }}
+                            onDragOver={(e) => {
+                              e.preventDefault()
+                              if (dragTargetIndex !== globalIndex) setDragTargetIndex(globalIndex)
+                            }}
+                            onDrop={(e) => {
+                              e.preventDefault()
+                              if (draggingRiderIndex !== null) {
+                                moveRiderByDrag(draggingRiderIndex, globalIndex)
+                              }
+                              setDraggingRiderIndex(null)
+                              setDragTargetIndex(null)
+                            }}
+                            onDragEnd={() => {
+                              setDraggingRiderIndex(null)
+                              setDragTargetIndex(null)
+                            }}
                             style={{
                               display: 'grid',
                               gridTemplateColumns: 'auto minmax(0, 1fr) auto auto',
@@ -1744,9 +1790,12 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                               gap: 12,
                               padding: '10px 12px',
                               borderRadius: 14,
-                              border: '1px solid #dbeafe',
-                              background: idx % 2 === 0 ? '#eff6ff' : '#f8fafc',
+                              border: isDropTarget ? '2px dashed #2563eb' : '1px solid #dbeafe',
+                              background: isDropTarget ? '#dbeafe' : idx % 2 === 0 ? '#eff6ff' : '#f8fafc',
                               fontWeight: 800,
+                              opacity: isDragging ? 0.45 : 1,
+                              cursor: 'grab',
+                              transform: isDropTarget ? 'scale(1.01)' : 'none',
                             }}
                           >
                             <span
