@@ -503,6 +503,23 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     !categoryLocked &&
     (isExternalPerBatchMode ? externalMoto1AssignedCount > 0 : externalValidation.tokens.length > 0)
   const applyButtonReady = isExternalPerBatchMode ? externalPerBatchValidation.isValid : externalValidation.isValid
+  const previewRidersForExternalBatch = useMemo(() => {
+    return riders.filter((rider) => {
+      const assignedInMoto1 = externalPerBatchValidation.orderedBatches.some((batch) =>
+        batch.some((item) => item.id === rider.id)
+      )
+      const assignedInMoto2 = externalPerBatchValidation.orderedMoto2Batches.some((batch) =>
+        batch.some((item) => item.id === rider.id)
+      )
+      if (externalTargetField.moto === 1) return !assignedInMoto1
+      return assignedInMoto1 && !assignedInMoto2
+    })
+  }, [
+    riders,
+    externalPerBatchValidation.orderedBatches,
+    externalPerBatchValidation.orderedMoto2Batches,
+    externalTargetField.moto,
+  ])
 
   useEffect(() => {
     if (drawMode !== 'internal_live_draw') return
@@ -1289,11 +1306,17 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                 Klik rider untuk masuk ke target aktif: <strong>Batch {externalTargetField.batchIndex + 1} - Moto {externalTargetField.moto}</strong>
               </div>
             )}
-            {riders.length === 0 ? (
-              <div style={{ fontWeight: 800, color: '#555' }}>Belum ada rider.</div>
+            {(isExternalPerBatchMode ? previewRidersForExternalBatch.length === 0 : riders.length === 0) ? (
+              <div style={{ fontWeight: 800, color: '#555' }}>
+                {isExternalPerBatchMode
+                  ? externalTargetField.moto === 1
+                    ? 'Semua rider sudah ditempatkan ke Moto 1.'
+                    : 'Semua rider yang tersedia untuk Moto 2 sudah ditempatkan.'
+                  : 'Belum ada rider.'}
+              </div>
             ) : (
               <div style={{ display: 'grid', gap: 6, maxHeight: 180, overflowY: 'auto' }}>
-                {riders.map((rider) => {
+                {(isExternalPerBatchMode ? previewRidersForExternalBatch : riders).map((rider) => {
                   const assignedInMoto1 = externalPerBatchValidation.orderedBatches.some((batch) =>
                     batch.some((item) => item.id === rider.id)
                   )
@@ -1321,8 +1344,8 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                       gap: 10,
                       padding: '6px 8px',
                       borderRadius: 8,
-                      border: assignedInMoto2 ? '1px solid #86efac' : assignedInMoto1 ? '1px solid #bfdbfe' : '1px solid #ddd',
-                      background: assignedInMoto2 ? '#f0fdf4' : assignedInMoto1 ? '#eff6ff' : '#fff',
+                      border: '1px solid #ddd',
+                      background: '#fff',
                       fontWeight: 800,
                       cursor: interactive ? (disabledForTarget ? 'default' : 'pointer') : 'default',
                       textAlign: 'left',
@@ -1331,23 +1354,25 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                   >
                     <span style={{ display: 'grid', gap: 2 }}>
                       <span>{rider.name}</span>
-                      <span style={{ color: '#64748b', fontSize: 12 }}>{statusLabel}</span>
+                      <span style={{ color: '#64748b', fontSize: 12 }}>
+                        {interactive
+                          ? externalTargetField.moto === 1
+                            ? 'Belum masuk Moto 1'
+                            : 'Siap dipilih untuk Moto 2'
+                          : statusLabel}
+                      </span>
                     </span>
                     <span style={{ display: 'grid', gap: 2, justifyItems: 'end' }}>
-                      <span>
-                        {rider.no_plate_display}
-                        {assignedInMoto1 ? ' [M1]' : ''}
-                        {assignedInMoto2 ? ' [M2]' : ''}
-                      </span>
+                      <span>{rider.no_plate_display}</span>
                       {interactive && (
                         <span
                           style={{
                             fontSize: 12,
-                            color: disabledForTarget ? '#64748b' : '#1d4ed8',
+                            color: '#1d4ed8',
                             fontWeight: 900,
                           }}
                         >
-                          {disabledForTarget ? 'Tetap di preview' : 'Klik untuk masuk'}
+                          Klik untuk masuk
                         </span>
                       )}
                     </span>
