@@ -776,10 +776,14 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
   }
 
   const assignPreviewRiderToExternalTarget = (rider: RiderItem) => {
-    const alreadyAssigned = externalPerBatchValidation.orderedBatches.some((batch) =>
+    const assignedInMoto1 = externalPerBatchValidation.orderedBatches.some((batch) =>
       batch.some((item) => item.id === rider.id)
     )
-    if (alreadyAssigned) return
+    const assignedInMoto2 = externalPerBatchValidation.orderedMoto2Batches.some((batch) =>
+      batch.some((item) => item.id === rider.id)
+    )
+    if (externalTargetField.moto === 1 && assignedInMoto1) return
+    if (externalTargetField.moto === 2 && (!assignedInMoto1 || assignedInMoto2)) return
 
     const setter = externalTargetField.moto === 1 ? setExternalBatchTexts : setExternalMoto2BatchTexts
     setter((prev) => {
@@ -1273,18 +1277,25 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
             ) : (
               <div style={{ display: 'grid', gap: 6, maxHeight: 180, overflowY: 'auto' }}>
                 {riders.map((rider) => {
-                  const alreadyAssigned = externalPerBatchValidation.orderedBatches.some((batch) =>
+                  const assignedInMoto1 = externalPerBatchValidation.orderedBatches.some((batch) =>
+                    batch.some((item) => item.id === rider.id)
+                  )
+                  const assignedInMoto2 = externalPerBatchValidation.orderedMoto2Batches.some((batch) =>
                     batch.some((item) => item.id === rider.id)
                   )
                   const interactive = drawMode === 'external_draw' && externalBatchInputMode === 'PER_BATCH'
+                  const disabledForTarget =
+                    externalTargetField.moto === 1
+                      ? assignedInMoto1
+                      : !assignedInMoto1 || assignedInMoto2
                   return (
                   <button
                     type="button"
                     key={rider.id}
                     onClick={() => {
-                      if (interactive && !alreadyAssigned) assignPreviewRiderToExternalTarget(rider)
+                      if (interactive && !disabledForTarget) assignPreviewRiderToExternalTarget(rider)
                     }}
-                    disabled={interactive ? alreadyAssigned : false}
+                    disabled={interactive ? disabledForTarget : false}
                     style={{
                       display: 'flex',
                       justifyContent: 'space-between',
@@ -1292,14 +1303,18 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                       padding: '6px 8px',
                       borderRadius: 8,
                       border: '1px solid #ddd',
-                      background: alreadyAssigned ? '#e2e8f0' : '#fff',
+                      background: disabledForTarget ? '#e2e8f0' : '#fff',
                       fontWeight: 800,
-                      cursor: interactive ? (alreadyAssigned ? 'not-allowed' : 'pointer') : 'default',
+                      cursor: interactive ? (disabledForTarget ? 'not-allowed' : 'pointer') : 'default',
                       textAlign: 'left',
                     }}
                   >
                     <span>{rider.name}</span>
-                    <span>{alreadyAssigned ? `${rider.no_plate_display} [OK]` : rider.no_plate_display}</span>
+                    <span>
+                      {rider.no_plate_display}
+                      {assignedInMoto1 ? ' [M1]' : ''}
+                      {assignedInMoto2 ? ' [M2]' : ''}
+                    </span>
                   </button>
                 )})}
               </div>
@@ -1523,7 +1538,64 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
               ) : (
                 <div style={{ display: 'grid', gap: 12 }}>
                   <div style={{ color: '#334155', fontWeight: 700 }}>
-                    Isi rider langsung per batch. Cocok untuk pembagian manual seperti 7,7,7,7,6,6.
+                    Isi rider langsung ke editor batch. Klik rider di preview untuk kirim ke target aktif, lalu rapikan urutan dari editor.
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: 10,
+                      flexWrap: 'wrap',
+                      alignItems: 'center',
+                      padding: '12px 14px',
+                      borderRadius: 14,
+                      border: '1px solid #bfdbfe',
+                      background: '#eff6ff',
+                    }}
+                  >
+                    <div style={{ fontWeight: 900, color: '#1d4ed8' }}>Target aktif</div>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      {Array.from({ length: externalPerBatchValidation.batchCount }, (_, index) => (
+                        <button
+                          key={`target-batch-${index}`}
+                          type="button"
+                          onClick={() => setExternalTargetField((prev) => ({ ...prev, batchIndex: index }))}
+                          style={{
+                            padding: '8px 10px',
+                            borderRadius: 999,
+                            border: '1px solid #93c5fd',
+                            background: externalTargetField.batchIndex === index ? '#dbeafe' : '#fff',
+                            color: externalTargetField.batchIndex === index ? '#1d4ed8' : '#334155',
+                            fontWeight: 900,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Batch {index + 1}
+                        </button>
+                      ))}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      {[1, 2].map((moto) => (
+                        <button
+                          key={`target-moto-${moto}`}
+                          type="button"
+                          onClick={() => setExternalTargetField((prev) => ({ ...prev, moto: moto as 1 | 2 }))}
+                          style={{
+                            padding: '8px 10px',
+                            borderRadius: 999,
+                            border: '1px solid #93c5fd',
+                            background: externalTargetField.moto === moto ? '#dbeafe' : '#fff',
+                            color: externalTargetField.moto === moto ? '#1d4ed8' : '#334155',
+                            fontWeight: 900,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Moto {moto}
+                        </button>
+                      ))}
+                    </div>
+                    <div style={{ fontWeight: 800, color: '#334155' }}>
+                      Batch {externalTargetField.batchIndex + 1} - Moto {externalTargetField.moto}
+                    </div>
                   </div>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     {externalPerBatchValidation.orderedBatches.map((batch, index) => (
@@ -1553,76 +1625,6 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                       </div>
                     ))}
                   </div>
-                  {Array.from({ length: externalPerBatchValidation.batchCount }, (_, index) => (
-                    <div key={`batch-input-${index}`} style={{ display: 'grid', gap: 8, padding: 12, border: '1px solid #cbd5e1', borderRadius: 14, background: '#fff' }}>
-                      <button
-                        type="button"
-                        onClick={() => setExternalTargetField({ batchIndex: index, moto: 1 })}
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          gap: 10,
-                          alignItems: 'center',
-                          padding: 0,
-                          border: 'none',
-                          background: 'transparent',
-                          fontWeight: 900,
-                          cursor: 'pointer',
-                          textAlign: 'left',
-                        }}
-                      >
-                        <span>Batch {index + 1} - Moto 1</span>
-                        {externalTargetField.batchIndex === index && externalTargetField.moto === 1 && (
-                          <span style={{ color: '#1d4ed8', fontSize: 12 }}>TARGET AKTIF</span>
-                        )}
-                      </button>
-                      <textarea
-                        value={externalBatchTexts[index] ?? ''}
-                        onChange={(e) => setExternalBatchTexts((prev) => {
-                          const next = [...prev]
-                          next[index] = e.target.value
-                          return next
-                        })}
-                        rows={4}
-                        placeholder={'15B\n19\n777'}
-                        onFocus={() => setExternalTargetField({ batchIndex: index, moto: 1 })}
-                        style={{ width: '100%', borderRadius: 12, border: '2px solid #111', padding: 12, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', fontSize: 14 }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setExternalTargetField({ batchIndex: index, moto: 2 })}
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          gap: 10,
-                          alignItems: 'center',
-                          padding: 0,
-                          border: 'none',
-                          background: 'transparent',
-                          fontWeight: 900,
-                          cursor: 'pointer',
-                          textAlign: 'left',
-                        }}
-                      >
-                        <span>Batch {index + 1} - Moto 2 (opsional)</span>
-                        {externalTargetField.batchIndex === index && externalTargetField.moto === 2 && (
-                          <span style={{ color: '#1d4ed8', fontSize: 12 }}>TARGET AKTIF</span>
-                        )}
-                      </button>
-                      <textarea
-                        value={externalMoto2BatchTexts[index] ?? ''}
-                        onChange={(e) => setExternalMoto2BatchTexts((prev) => {
-                          const next = [...prev]
-                          next[index] = e.target.value
-                          return next
-                        })}
-                        rows={4}
-                        placeholder={'19\n15B\n777'}
-                        onFocus={() => setExternalTargetField({ batchIndex: index, moto: 2 })}
-                        style={{ width: '100%', borderRadius: 12, border: '2px solid #111', padding: 12, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', fontSize: 14 }}
-                      />
-                    </div>
-                  ))}
                   <div style={{ display: 'grid', gap: 4, fontWeight: 800 }}>
                     <div style={{ color: externalPerBatchValidation.isValid ? '#166534' : '#b91c1c' }}>
                       {externalPerBatchValidation.isValid ? 'VALID - semua batch Moto 1 siap' : 'BELUM VALID'}
@@ -1635,8 +1637,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                       </div>
                     )}
                   </div>
-                  {externalPerBatchValidation.orderedBatches.some((batch) => batch.length > 0) && (
-                    <div style={{ display: 'grid', gap: 12, marginTop: 8 }}>
+                  <div style={{ display: 'grid', gap: 12, marginTop: 8 }}>
                       <div
                         style={{
                           padding: '14px 16px',
@@ -1843,10 +1844,23 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                               </div>
                             )
                           })}
+                          {batch.riders.length === 0 && (
+                            <div
+                              style={{
+                                padding: '14px 16px',
+                                borderRadius: 14,
+                                border: '1px dashed #cbd5e1',
+                                background: '#f8fafc',
+                                color: '#64748b',
+                                fontWeight: 800,
+                              }}
+                            >
+                              Batch ini masih kosong. Klik rider dari Preview Rider untuk mengisi ke target aktif.
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
-                  )}
                 </div>
               )}
               {externalBatchInputMode === 'GLOBAL' && externalValidation.orderedRiders.length > 0 && (
