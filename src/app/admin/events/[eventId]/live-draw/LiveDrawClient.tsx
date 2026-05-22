@@ -1305,6 +1305,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                     externalTargetField.moto === 1
                       ? assignedInMoto1
                       : !assignedInMoto1 || assignedInMoto2
+                  const statusLabel = assignedInMoto2 ? 'Sudah di Moto 2' : assignedInMoto1 ? 'Sudah di Moto 1' : 'Siap dipilih'
                   return (
                   <button
                     type="button"
@@ -1312,25 +1313,43 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                     onClick={() => {
                       if (interactive && !disabledForTarget) assignPreviewRiderToExternalTarget(rider)
                     }}
-                    disabled={interactive ? disabledForTarget : false}
+                    title={interactive ? statusLabel : undefined}
+                    aria-disabled={interactive ? disabledForTarget : false}
                     style={{
                       display: 'flex',
                       justifyContent: 'space-between',
                       gap: 10,
                       padding: '6px 8px',
                       borderRadius: 8,
-                      border: '1px solid #ddd',
-                      background: disabledForTarget ? '#e2e8f0' : '#fff',
+                      border: assignedInMoto2 ? '1px solid #86efac' : assignedInMoto1 ? '1px solid #bfdbfe' : '1px solid #ddd',
+                      background: assignedInMoto2 ? '#f0fdf4' : assignedInMoto1 ? '#eff6ff' : '#fff',
                       fontWeight: 800,
-                      cursor: interactive ? (disabledForTarget ? 'not-allowed' : 'pointer') : 'default',
+                      cursor: interactive ? (disabledForTarget ? 'default' : 'pointer') : 'default',
                       textAlign: 'left',
+                      opacity: 1,
                     }}
                   >
-                    <span>{rider.name}</span>
-                    <span>
-                      {rider.no_plate_display}
-                      {assignedInMoto1 ? ' [M1]' : ''}
-                      {assignedInMoto2 ? ' [M2]' : ''}
+                    <span style={{ display: 'grid', gap: 2 }}>
+                      <span>{rider.name}</span>
+                      <span style={{ color: '#64748b', fontSize: 12 }}>{statusLabel}</span>
+                    </span>
+                    <span style={{ display: 'grid', gap: 2, justifyItems: 'end' }}>
+                      <span>
+                        {rider.no_plate_display}
+                        {assignedInMoto1 ? ' [M1]' : ''}
+                        {assignedInMoto2 ? ' [M2]' : ''}
+                      </span>
+                      {interactive && (
+                        <span
+                          style={{
+                            fontSize: 12,
+                            color: disabledForTarget ? '#64748b' : '#1d4ed8',
+                            fontWeight: 900,
+                          }}
+                        >
+                          {disabledForTarget ? 'Tetap di preview' : 'Klik untuk masuk'}
+                        </span>
+                      )}
                     </span>
                   </button>
                 )})}
