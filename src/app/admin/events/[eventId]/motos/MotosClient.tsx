@@ -765,6 +765,20 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                           Reset Result
                         </button>
                       )}
+                      <button
+                        type="button"
+                        onClick={() => window.open(`/event/${eventId}/live-score/${encodeURIComponent(m.category_id)}`, '_blank', 'noopener,noreferrer')}
+                        style={{
+                          padding: '8px 12px',
+                          borderRadius: 999,
+                          border: '2px solid #111',
+                          background: '#dbeafe',
+                          fontWeight: 900,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Open Public Result
+                      </button>
                     </div>
                   </div>
                 ))}

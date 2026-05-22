@@ -1126,21 +1126,6 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
           >
             {shareCopied ? 'Copied' : 'Copy Share Link'}
           </button>
-          <button
-            type="button"
-            onClick={handleOpenShareLink}
-            disabled={!selectedCategory}
-            style={{
-              padding: '10px 12px',
-              borderRadius: 12,
-              border: '2px solid #111',
-              background: '#fef3c7',
-              fontWeight: 900,
-              cursor: selectedCategory ? 'pointer' : 'not-allowed',
-            }}
-          >
-            Open Public Result
-          </button>
         </div>
       </div>
 
