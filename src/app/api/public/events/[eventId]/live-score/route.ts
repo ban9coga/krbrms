@@ -55,15 +55,6 @@ type StageGroup = {
 
 type QualificationRowStatus = 'FINISHED' | 'DNF' | 'DNS' | 'PENDING' | 'DQ'
 
-type StageAssignmentRow = {
-  rider_id: string
-  stage: 'QUALIFICATION' | 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL'
-  final_class: string | null
-  batch_id?: string | null
-  position?: number | null
-  points?: number | null
-}
-
 type QualificationMotoStatus = 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'PENDING'
 
 const shuffle = <T,>(items: T[]) => {
@@ -318,23 +309,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const qualificationProgress = buildQualificationProgress(motoRows, gateRows, resultRows)
   const showAdvancedClasses = qualificationProgress.ready
 
-  const { data: stageAssignments, error: stageAssignmentError } = await adminClient
-    .from('race_stage_result')
-    .select('rider_id, stage, final_class, batch_id, position, points')
-    .eq('category_id', categoryId)
-    .in('stage', ['QUARTER_FINAL', 'SEMI_FINAL', 'FINAL'])
-  if (stageAssignmentError) return NextResponse.json({ error: stageAssignmentError.message }, { status: 400 })
-
-  const stageAssignmentMap = new Map<string, string>()
-  // Public live score should reflect the stored AMS assignments, not recompute custom split rules ad hoc.
-  ;((stageAssignments ?? []) as StageAssignmentRow[]).forEach((row) => {
-    if (row.stage === 'FINAL') {
-      stageAssignmentMap.set(row.rider_id, `FINAL ${row.final_class ?? 'ELITE'}`)
-      return
-    }
-    stageAssignmentMap.set(row.rider_id, row.stage.replace(/_/g, ' '))
-  })
-
   const qualificationSeedMap = new Map<string, { points: number; position: number; batchOrder: number }>()
   const { data: qualificationSeeds, error: qualificationSeedError } = await adminClient
     .from('race_stage_result')
@@ -470,7 +444,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
           return {
             ...r,
             rank_point: rank,
-            class_label: showAdvancedClasses ? (stageAssignmentMap.get(r.rider_id) ?? classForRank(rank)) : null,
+            class_label: showAdvancedClasses ? classForRank(rank) : null,
           }
         })
         .sort((a, b) => (a.gate_moto1 ?? 9999) - (b.gate_moto1 ?? 9999))
