@@ -85,7 +85,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
         .delete()
         .eq('category_id', moto.category_id)
         .in('rider_id', riderIds)
-        .in('stage', ['QUARTER_FINAL', 'SEMI_FINAL', 'FINAL'])
+        .in('stage', ['QUARTER_FINAL', 'REPECHAGE', 'SEMI_FINAL', 'FINAL'])
       if (stageDeleteError) return NextResponse.json({ error: stageDeleteError.message }, { status: 400 })
     }
   }

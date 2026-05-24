@@ -39,7 +39,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
       string,
       Array<{
         id: string
-        stage: 'QUALIFICATION' | 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL'
+        stage: 'QUALIFICATION' | 'QUARTER_FINAL' | 'REPECHAGE' | 'SEMI_FINAL' | 'FINAL'
         final_class: string | null
         position: number | null
         riders: { name: string; no_plate_display: string } | null
@@ -414,6 +414,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                         const stageLoadingFlag = stageLoading[m.category_id]
                         const stageGroups = {
                           QUARTER_FINAL: stageRows.filter((r) => r.stage === 'QUARTER_FINAL'),
+                          REPECHAGE: stageRows.filter((r) => r.stage === 'REPECHAGE'),
                           SEMI_FINAL: stageRows.filter((r) => r.stage === 'SEMI_FINAL'),
                           FINAL: stageRows.filter((r) => r.stage === 'FINAL'),
                         }
@@ -477,7 +478,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                                   <div className="text-sm font-semibold text-slate-300">Belum ada hasil stage.</div>
                                 ) : (
                                   <div className="grid gap-2">
-                                    {(['QUARTER_FINAL', 'SEMI_FINAL', 'FINAL'] as const).map((stage) => {
+                                    {(['QUARTER_FINAL', 'REPECHAGE', 'SEMI_FINAL', 'FINAL'] as const).map((stage) => {
                                       const rows = stageGroups[stage]
                                       if (!rows || rows.length === 0) return null
                                       return (

@@ -67,7 +67,7 @@ type PenaltyRuleItem = {
   code: string
   description?: string | null
   penalty_point: number
-  applies_to_stage: 'ALL' | 'MOTO' | 'QUARTER' | 'SEMI' | 'FINAL'
+  applies_to_stage: 'ALL' | 'MOTO' | 'QUARTER' | 'REPECHAGE' | 'SEMI' | 'FINAL'
   is_active: boolean
 }
 
@@ -75,7 +75,7 @@ type PenaltyFormState = {
   categoryId: string
   riderId: string
   ruleCode: string
-  stage: 'ALL' | 'MOTO' | 'QUARTER' | 'SEMI' | 'FINAL'
+  stage: 'ALL' | 'MOTO' | 'QUARTER' | 'REPECHAGE' | 'SEMI' | 'FINAL'
   motoId: string
   note: string
 }
@@ -1194,7 +1194,7 @@ export default function RaceDirectorApprovalPage() {
                     className="public-filter"
                     disabled={selectedPenaltyRule?.applies_to_stage !== 'ALL'}
                   >
-                    {(['ALL', 'MOTO', 'QUARTER', 'SEMI', 'FINAL'] as const).map((stage) => (
+                    {(['ALL', 'MOTO', 'QUARTER', 'REPECHAGE', 'SEMI', 'FINAL'] as const).map((stage) => (
                       <option key={stage} value={stage}>
                         {stage}
                       </option>

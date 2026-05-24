@@ -60,7 +60,7 @@ const buildDeleteGuard = async (eventId: string, categoryId: string) => {
   const typedStageRows = (stageRows ?? []) as Array<{ stage?: string | null; final_class?: string | null }>
   const hasFinalState = typedStageRows.some((row) => {
     const stage = String(row.stage ?? '').toUpperCase()
-    return stage === 'FINAL' || stage === 'SEMI_FINAL' || stage === 'QUARTER_FINAL'
+    return stage === 'FINAL' || stage === 'SEMI_FINAL' || stage === 'REPECHAGE' || stage === 'QUARTER_FINAL'
   })
 
   const reason =

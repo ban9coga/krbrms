@@ -132,8 +132,9 @@ const pointForMotoResult = (res: ResultRow | null, riderCount: number | null) =>
   return res?.finish_order ?? null
 }
 
-const resolvePenaltyStagesForMoto = (name: string): Array<'QUARTER' | 'SEMI' | 'FINAL' | 'ALL'> => {
+const resolvePenaltyStagesForMoto = (name: string): Array<'QUARTER' | 'REPECHAGE' | 'SEMI' | 'FINAL' | 'ALL'> => {
   if (/^quarter final/i.test(name)) return ['QUARTER', 'ALL']
+  if (/^repechage/i.test(name)) return ['REPECHAGE', 'ALL']
   if (/^semi final/i.test(name)) return ['SEMI', 'ALL']
   if (/^final /i.test(name)) return ['FINAL', 'ALL']
   return ['ALL']
@@ -279,7 +280,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         const current = stagePenaltyMap.get(`${row.rider_id}:ALL`) ?? 0
         stagePenaltyMap.set(`${row.rider_id}:ALL`, current + amount)
       }
-      if (row.stage === 'QUARTER' || row.stage === 'SEMI' || row.stage === 'FINAL') {
+      if (row.stage === 'QUARTER' || row.stage === 'REPECHAGE' || row.stage === 'SEMI' || row.stage === 'FINAL') {
         const current = stagePenaltyMap.get(`${row.rider_id}:${row.stage}`) ?? 0
         stagePenaltyMap.set(`${row.rider_id}:${row.stage}`, current + amount)
       }

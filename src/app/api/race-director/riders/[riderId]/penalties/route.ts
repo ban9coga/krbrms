@@ -3,9 +3,9 @@ import { adminClient } from '../../../../../../lib/auth'
 import { assertMotoEditable, assertMotoNotUnderProtest } from '../../../../../../lib/motoLock'
 import { requireJury } from '../../../../../../services/juryAuth'
 
-type PenaltyStage = 'ALL' | 'MOTO' | 'QUARTER' | 'SEMI' | 'FINAL'
+type PenaltyStage = 'ALL' | 'MOTO' | 'QUARTER' | 'REPECHAGE' | 'SEMI' | 'FINAL'
 
-const validStages: PenaltyStage[] = ['ALL', 'MOTO', 'QUARTER', 'SEMI', 'FINAL']
+const validStages: PenaltyStage[] = ['ALL', 'MOTO', 'QUARTER', 'REPECHAGE', 'SEMI', 'FINAL']
 
 export async function POST(req: Request, { params }: { params: Promise<{ riderId: string }> }) {
   const { riderId } = await params

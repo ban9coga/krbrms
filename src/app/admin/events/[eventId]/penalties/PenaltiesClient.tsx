@@ -15,7 +15,7 @@ type PenaltyRule = {
   code: string
   description: string | null
   penalty_point: number
-  applies_to_stage: 'MOTO' | 'QUARTER' | 'SEMI' | 'FINAL' | 'ALL'
+  applies_to_stage: 'MOTO' | 'QUARTER' | 'REPECHAGE' | 'SEMI' | 'FINAL' | 'ALL'
   is_active: boolean
   checker_enabled: boolean
   rd_enabled: boolean
@@ -555,7 +555,7 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
             onChange={(e) => setRuleForm({ ...ruleForm, applies_to_stage: e.target.value as PenaltyRule['applies_to_stage'] })}
             style={{ padding: 10, borderRadius: 10, border: '2px solid #111', fontWeight: 900 }}
           >
-            {['MOTO','QUARTER','SEMI','FINAL','ALL'].map((s) => (
+            {['MOTO', 'QUARTER', 'REPECHAGE', 'SEMI', 'FINAL', 'ALL'].map((s) => (
               <option key={s} value={s}>{s}</option>
             ))}
           </select>

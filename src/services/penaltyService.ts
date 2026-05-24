@@ -3,7 +3,7 @@
 import { adminClient } from '../lib/auth'
 import { assertMotoEditable } from '../lib/motoLock'
 
-export type PenaltyStage = 'MOTO' | 'QUARTER' | 'SEMI' | 'FINAL' | 'ALL'
+export type PenaltyStage = 'MOTO' | 'QUARTER' | 'REPECHAGE' | 'SEMI' | 'FINAL' | 'ALL'
 
 export type PenaltyRule = {
   id: string
