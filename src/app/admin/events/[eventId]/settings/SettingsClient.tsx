@@ -360,6 +360,8 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
   const [initialForm, setInitialForm] = useState<string>('')
   const [logoUploading, setLogoUploading] = useState(false)
   const [logoError, setLogoError] = useState<string>('')
+  const [registrationMediaUploading, setRegistrationMediaUploading] = useState<'qris' | 'jersey-chart' | null>(null)
+  const [registrationMediaError, setRegistrationMediaError] = useState<string>('')
   const [staffLoading, setStaffLoading] = useState(false)
   const [staffSaving, setStaffSaving] = useState(false)
   const [staffAssignments, setStaffAssignments] = useState<EventStaffAssignmentRow[]>([])
@@ -400,6 +402,8 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     business_payment_bank_name: '',
     business_payment_account_name: '',
     business_payment_account_number: '',
+    business_registration_qris_image_url: '',
+    business_registration_jersey_size_chart_url: '',
     business_event_owner_name: '',
     business_event_owner_type: 'COMMUNITY',
     business_operating_committee_name: '',
@@ -463,6 +467,23 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     })
     const json = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(json?.error || 'Gagal upload logo sponsor.')
+    return json?.url as string
+  }
+
+  const uploadRegistrationMedia = async (file: File, kind: 'qris' | 'jersey-chart') => {
+    const { data } = await supabase.auth.getSession()
+    const token = data.session?.access_token
+    if (!token) throw new Error('Session expired. Silakan login ulang.')
+    const body = new FormData()
+    body.append('file', file)
+    body.append('kind', kind)
+    const res = await fetch(`/api/events/${eventId}/registration-media`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body,
+    })
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(json?.error || 'Gagal upload media registrasi.')
     return json?.url as string
   }
 
@@ -538,6 +559,12 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
             typeof business.payment_account_name === 'string' ? business.payment_account_name : '',
           business_payment_account_number:
             typeof business.payment_account_number === 'string' ? business.payment_account_number : '',
+          business_registration_qris_image_url:
+            typeof business.registration_qris_image_url === 'string' ? business.registration_qris_image_url : '',
+          business_registration_jersey_size_chart_url:
+            typeof business.registration_jersey_size_chart_url === 'string'
+              ? business.registration_jersey_size_chart_url
+              : '',
           business_event_owner_name:
             typeof business.event_owner_name === 'string' ? business.event_owner_name : '',
           business_event_owner_type:
@@ -657,6 +684,25 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
         }
       >
     )
+  }
+
+  const handleRegistrationMediaUpload = async (file: File | null, kind: 'qris' | 'jersey-chart') => {
+    if (!file) return
+    setRegistrationMediaError('')
+    setRegistrationMediaUploading(kind)
+    try {
+      const url = await uploadRegistrationMedia(file, kind)
+      setForm((prev) => ({
+        ...prev,
+        ...(kind === 'qris'
+          ? { business_registration_qris_image_url: url }
+          : { business_registration_jersey_size_chart_url: url }),
+      }))
+    } catch (err) {
+      setRegistrationMediaError(err instanceof Error ? err.message : 'Gagal upload media registrasi.')
+    } finally {
+      setRegistrationMediaUploading(null)
+    }
   }
 
   const loadAdvanced = async () => {
@@ -1038,6 +1084,8 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
       payment_bank_name: form.business_payment_bank_name.trim() || null,
       payment_account_name: form.business_payment_account_name.trim() || null,
       payment_account_number: form.business_payment_account_number.trim() || null,
+      registration_qris_image_url: form.business_registration_qris_image_url.trim() || null,
+      registration_jersey_size_chart_url: form.business_registration_jersey_size_chart_url.trim() || null,
       event_owner_name: form.business_event_owner_name.trim() || null,
       event_owner_type: ownerType,
       operating_committee_name: form.business_operating_committee_name.trim() || null,
@@ -1599,6 +1647,66 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                   <div style={{ fontSize: 12, color: '#333', fontWeight: 700 }}>
                     Jika aktif, pendaftar harus memilih ukuran jersey (XS–XL).
                   </div>
+                  <input
+                    placeholder="URL gambar size chart jersey"
+                    value={form.business_registration_jersey_size_chart_url}
+                    onChange={(e) => setForm({ ...form, business_registration_jersey_size_chart_url: e.target.value })}
+                    style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                  />
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <label
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '10px 14px',
+                        borderRadius: 12,
+                        border: '2px solid #111',
+                        background: '#fff',
+                        fontWeight: 900,
+                        cursor: registrationMediaUploading ? 'wait' : 'pointer',
+                      }}
+                    >
+                      {registrationMediaUploading === 'jersey-chart' ? 'Uploading...' : 'Upload Size Chart'}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] ?? null
+                          void handleRegistrationMediaUpload(file, 'jersey-chart')
+                          e.currentTarget.value = ''
+                        }}
+                        style={{ display: 'none' }}
+                      />
+                    </label>
+                    {form.business_registration_jersey_size_chart_url && (
+                      <a
+                        href={form.business_registration_jersey_size_chart_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ fontWeight: 800, color: '#0f766e', textDecoration: 'underline' }}
+                      >
+                        Buka gambar
+                      </a>
+                    )}
+                  </div>
+                  {form.business_registration_jersey_size_chart_url && (
+                    <div
+                      style={{
+                        overflow: 'hidden',
+                        borderRadius: 14,
+                        border: '2px solid #111',
+                        background: '#fff',
+                        maxWidth: 360,
+                      }}
+                    >
+                      <img
+                        src={form.business_registration_jersey_size_chart_url}
+                        alt="Preview size chart jersey"
+                        style={{ display: 'block', width: '100%', height: 'auto' }}
+                      />
+                    </div>
+                  )}
                 </div>
                 <div style={{ display: 'grid', gap: 8, marginTop: 6 }}>
                   <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
@@ -1752,6 +1860,69 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                   <div style={{ fontSize: 12, color: '#333', fontWeight: 700 }}>
                     Data ini akan tampil di halaman pendaftaran sebagai rekening tujuan transfer.
                   </div>
+                  <input
+                    placeholder="URL gambar QRIS"
+                    value={form.business_registration_qris_image_url}
+                    onChange={(e) => setForm({ ...form, business_registration_qris_image_url: e.target.value })}
+                    style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                  />
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <label
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '10px 14px',
+                        borderRadius: 12,
+                        border: '2px solid #111',
+                        background: '#fff',
+                        fontWeight: 900,
+                        cursor: registrationMediaUploading ? 'wait' : 'pointer',
+                      }}
+                    >
+                      {registrationMediaUploading === 'qris' ? 'Uploading...' : 'Upload Gambar QRIS'}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] ?? null
+                          void handleRegistrationMediaUpload(file, 'qris')
+                          e.currentTarget.value = ''
+                        }}
+                        style={{ display: 'none' }}
+                      />
+                    </label>
+                    {form.business_registration_qris_image_url && (
+                      <a
+                        href={form.business_registration_qris_image_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ fontWeight: 800, color: '#0f766e', textDecoration: 'underline' }}
+                      >
+                        Buka gambar
+                      </a>
+                    )}
+                  </div>
+                  {form.business_registration_qris_image_url && (
+                    <div
+                      style={{
+                        overflow: 'hidden',
+                        borderRadius: 14,
+                        border: '2px solid #111',
+                        background: '#fff',
+                        maxWidth: 280,
+                      }}
+                    >
+                      <img
+                        src={form.business_registration_qris_image_url}
+                        alt="Preview QRIS"
+                        style={{ display: 'block', width: '100%', height: 'auto' }}
+                      />
+                    </div>
+                  )}
+                  {registrationMediaError && (
+                    <div style={{ fontSize: 12, color: '#b91c1c', fontWeight: 800 }}>{registrationMediaError}</div>
+                  )}
                 </div>
                 <div style={{ display: 'grid', gap: 8, marginTop: 6 }}>
                   <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>

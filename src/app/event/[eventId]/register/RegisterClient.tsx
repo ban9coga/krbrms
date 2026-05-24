@@ -518,8 +518,10 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   const paymentBankName = businessSettings?.payment_bank_name?.trim() || ''
   const paymentAccountName = businessSettings?.payment_account_name?.trim() || ''
   const paymentAccountNumber = businessSettings?.payment_account_number?.trim() || ''
+  const paymentQrisImageUrl = businessSettings?.registration_qris_image_url?.trim() || ''
+  const jerseySizeChartImageUrl = businessSettings?.registration_jersey_size_chart_url?.trim() || ''
   const whatsappGroupInviteUrl = normalizeExternalUrl(businessSettings?.whatsapp_group_invite_url)
-  const showPaymentDestination = Boolean(paymentBankName || paymentAccountName || paymentAccountNumber)
+  const showPaymentDestination = Boolean(paymentBankName || paymentAccountName || paymentAccountNumber || paymentQrisImageUrl)
   const showEventOwner = Boolean(
     businessSettings?.show_event_owner_publicly && businessSettings?.event_owner_name?.trim()
   )
@@ -1154,7 +1156,15 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                         </div>
                       </div>
                       <div className="bg-slate-100 p-2">
-                        <JerseySizeChartGraphic />
+                        {jerseySizeChartImageUrl ? (
+                          <img
+                            src={jerseySizeChartImageUrl}
+                            alt="Jersey size chart"
+                            className="block w-full h-auto"
+                          />
+                        ) : (
+                          <JerseySizeChartGraphic />
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1463,6 +1473,18 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                     </div>
                   )}
                 </div>
+                {paymentQrisImageUrl && (
+                  <div className="mt-4 overflow-hidden rounded-xl border border-amber-300/20 bg-white p-3">
+                    <div className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-slate-700">
+                      QRIS Pembayaran
+                    </div>
+                    <img
+                      src={paymentQrisImageUrl}
+                      alt="QRIS pembayaran"
+                      className="mt-3 block w-full max-w-[280px] rounded-lg"
+                    />
+                  </div>
+                )}
               </div>
             )}
             <input

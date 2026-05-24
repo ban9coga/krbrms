@@ -31,6 +31,8 @@ export type BusinessSettings = {
   payment_bank_name?: string | null
   payment_account_name?: string | null
   payment_account_number?: string | null
+  registration_qris_image_url?: string | null
+  registration_jersey_size_chart_url?: string | null
   public_contact_name?: string | null
   public_contact_phone?: string | null
   public_contact_email?: string | null
