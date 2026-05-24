@@ -197,6 +197,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
   const [externalBatchTexts, setExternalBatchTexts] = useState<string[]>([])
   const [externalMoto2BatchTexts, setExternalMoto2BatchTexts] = useState<string[]>([])
   const [externalTargetField, setExternalTargetField] = useState<ExternalTargetField>({ batchIndex: 0, moto: 1 })
+  const [externalBatchSearch, setExternalBatchSearch] = useState('')
   const [resultModal, setResultModal] = useState<'draft' | 'saved' | null>(null)
   const [draggingRiderIndex, setDraggingRiderIndex] = useState<number | null>(null)
   const [dragTargetIndex, setDragTargetIndex] = useState<number | null>(null)
@@ -519,6 +520,15 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     externalPerBatchValidation.orderedMoto2Batches,
     externalTargetField.moto,
   ])
+  const filteredPreviewRidersForExternalBatch = useMemo(() => {
+    const keyword = externalBatchSearch.trim().toLowerCase()
+    if (!keyword) return previewRidersForExternalBatch
+    return previewRidersForExternalBatch.filter((rider) => {
+      const name = rider.name.toLowerCase()
+      const plate = rider.no_plate_display.toLowerCase()
+      return name.includes(keyword) || plate.includes(keyword)
+    })
+  }, [externalBatchSearch, previewRidersForExternalBatch])
 
   useEffect(() => {
     if (drawMode !== 'internal_live_draw') return
@@ -1255,30 +1265,49 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
           <div style={{ display: 'grid', gap: 8 }}>
             <div style={{ fontWeight: 900 }}>Preview Rider</div>
             {drawMode === 'external_draw' && externalBatchInputMode === 'PER_BATCH' && (
-              <div
-                style={{
-                  padding: '10px 12px',
-                  borderRadius: 12,
-                  border: '1px solid #bfdbfe',
-                  background: '#eff6ff',
-                  color: '#1d4ed8',
-                  fontWeight: 800,
-                }}
-              >
-                Klik rider untuk masuk ke target aktif: <strong>Batch {externalTargetField.batchIndex + 1} - Moto {externalTargetField.moto}</strong>
+              <div style={{ display: 'grid', gap: 8 }}>
+                <div
+                  style={{
+                    padding: '10px 12px',
+                    borderRadius: 12,
+                    border: '1px solid #bfdbfe',
+                    background: '#eff6ff',
+                    color: '#1d4ed8',
+                    fontWeight: 800,
+                  }}
+                >
+                  Klik rider untuk masuk ke target aktif: <strong>Batch {externalTargetField.batchIndex + 1} - Moto {externalTargetField.moto}</strong>
+                </div>
+                <input
+                  type="text"
+                  value={externalBatchSearch}
+                  onChange={(e) => setExternalBatchSearch(e.target.value)}
+                  aria-label="Cari rider manual batch"
+                  placeholder="Cari rider manual batch atau no plate"
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: 12,
+                    border: '2px solid #111',
+                    background: '#fff',
+                    fontWeight: 700,
+                  }}
+                />
               </div>
             )}
-            {(isExternalPerBatchMode ? previewRidersForExternalBatch.length === 0 : riders.length === 0) ? (
+            {(isExternalPerBatchMode ? filteredPreviewRidersForExternalBatch.length === 0 : riders.length === 0) ? (
               <div style={{ fontWeight: 800, color: '#555' }}>
                 {isExternalPerBatchMode
-                  ? externalTargetField.moto === 1
-                    ? 'Semua rider sudah ditempatkan ke Moto 1.'
-                    : 'Semua rider yang tersedia untuk Moto 2 sudah ditempatkan.'
+                  ? externalBatchSearch.trim()
+                    ? 'Tidak ada rider yang cocok dengan pencarian ini.'
+                    : externalTargetField.moto === 1
+                      ? 'Semua rider sudah ditempatkan ke Moto 1.'
+                      : 'Semua rider yang tersedia untuk Moto 2 sudah ditempatkan.'
                   : 'Belum ada rider.'}
               </div>
             ) : (
               <div style={{ display: 'grid', gap: 6, maxHeight: 180, overflowY: 'auto' }}>
-                {(isExternalPerBatchMode ? previewRidersForExternalBatch : riders).map((rider) => {
+                {(isExternalPerBatchMode ? filteredPreviewRidersForExternalBatch : riders).map((rider) => {
                   const assignedInMoto1 = externalPerBatchValidation.orderedBatches.some((batch) =>
                     batch.some((item) => item.id === rider.id)
                   )
