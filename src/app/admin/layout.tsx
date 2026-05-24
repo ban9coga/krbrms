@@ -326,14 +326,51 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     const loadRole = async () => {
-      const { data } = await supabase.auth.getUser()
-      const user = data.user
+      const [{ data: userData }, { data: sessionData }] = await Promise.all([
+        supabase.auth.getUser(),
+        supabase.auth.getSession(),
+      ])
+      const user = userData.user
+      const token = sessionData.session?.access_token
 
       if (!user) {
         setAuthorized(false)
         setAuthChecked(true)
         router.replace('/login')
         return
+      }
+
+      setUserEmail(user.email ?? null)
+
+      if (token) {
+        try {
+          const accessRes = await fetch('/api/auth/backoffice-access', {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          })
+
+          if (accessRes.ok) {
+            const accessJson = await accessRes.json()
+            const backofficeRole =
+              typeof accessJson?.data?.role === 'string' ? accessJson.data.role : null
+
+            setUserRole(backofficeRole)
+
+            if (!isAllowedAdminPath(backofficeRole, pathname)) {
+              setAuthorized(false)
+              setAuthChecked(true)
+              router.replace('/admin/events')
+              return
+            }
+
+            setAuthorized(true)
+            setAuthChecked(true)
+            return
+          }
+        } catch {
+          // Fall back to metadata-based routing below.
+        }
       }
 
       const meta = (user.user_metadata ?? {}) as Record<string, unknown>
@@ -343,7 +380,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         (typeof appMeta.role === 'string' ? appMeta.role : null)
 
       setUserRole(role)
-      setUserEmail(user.email ?? null)
 
       if (!isAdminRole(role)) {
         setAuthorized(false)

@@ -48,6 +48,25 @@ export default function LoginPage() {
       document.cookie = `sb-access-token=${encodeURIComponent(accessToken)}; Path=/; Max-Age=${maxAge}; Secure; SameSite=Lax`
     }
 
+    if (accessToken) {
+      try {
+        const accessRes = await fetch('/api/auth/backoffice-access', {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+
+        if (accessRes.ok) {
+          const accessJson = await accessRes.json()
+          const backofficeHome = typeof accessJson?.data?.home === 'string' ? accessJson.data.home : '/admin'
+          window.location.href = backofficeHome
+          return
+        }
+      } catch {
+        // Fall back to metadata-based routing below.
+      }
+    }
+
     const user = data.user
     const meta = (user?.user_metadata ?? {}) as Record<string, unknown>
     const appMeta = (user?.app_metadata ?? {}) as Record<string, unknown>
