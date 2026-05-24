@@ -146,7 +146,7 @@ type LiveDrawGuard = {
 
 const formatMoto3Hint = (totalBatches: number) =>
   totalBatches === 1
-    ? 'Moto 3 aktif: urutan gate random (diupayakan beda dari Moto 1 & Moto 2).'
+    ? 'Moto 3 tidak dibuat saat draw. Moto 3 akan dibuat otomatis setelah hasil Moto 2 lengkap.'
     : 'Moto 3 tidak dipakai untuk konfigurasi draw kategori ini.'
 
 const moveItem = <T,>(items: T[], fromIndex: number, toIndex: number) => {
@@ -912,24 +912,44 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
   }
 
   const saveAsMoto = async () => {
-    if (!selectedCategory || drawnOrder.length === 0) {
-      alert(drawMode === 'external_draw' ? 'Klik "Gunakan Urutan External" dulu.' : 'Lakukan draw terlebih dulu.')
+    if (!selectedCategory) {
+      alert('Pilih kategori dulu.')
       return
     }
-    if (drawMode === 'external_draw') {
-      if (externalBatchInputMode === 'PER_BATCH') {
-        if (externalPerBatchValidation.moto2Provided && !externalPerBatchValidation.isValidMoto2) {
-          alert('Urutan Moto 2 manual per batch belum valid. Cek kembali input Moto 2.')
-          return
-        }
-      } else if (externalMoto2Validation.isProvided && !externalMoto2Validation.isValidForMoto1) {
+    if (drawMode === 'external_draw' && externalBatchInputMode === 'PER_BATCH') {
+      if (!externalPerBatchValidation.isValid) {
+        alert('Susunan batch Moto 1 belum lengkap/valid. Pastikan semua rider sudah ditempatkan.')
+        return
+      }
+      if (externalPerBatchValidation.moto2Provided && !externalPerBatchValidation.isValidMoto2) {
+        alert('Urutan Moto 2 manual per batch belum valid. Cek kembali input Moto 2.')
+        return
+      }
+    } else {
+      if (drawnOrder.length === 0) {
+        alert(drawMode === 'external_draw' ? 'Klik "Gunakan Urutan External" dulu.' : 'Lakukan draw terlebih dulu.')
+        return
+      }
+      if (
+        drawMode === 'external_draw' &&
+        externalBatchInputMode !== 'PER_BATCH' &&
+        externalMoto2Validation.isProvided &&
+        !externalMoto2Validation.isValidForMoto1
+      ) {
         alert('Urutan Moto 2 manual belum valid per batch. Cek kembali input Moto 2.')
         return
       }
     }
     setSaveState('saving')
     try {
-      const riderBatches = batches.map((batch) => batch.riders.map((rider) => rider.id))
+      const riderBatches =
+        drawMode === 'external_draw' && externalBatchInputMode === 'PER_BATCH'
+          ? externalPerBatchValidation.orderedBatches.map((batch) => batch.map((rider) => rider.id))
+          : batches.map((batch) => batch.riders.map((rider) => rider.id))
+      const riderIdsForMoto1 =
+        drawMode === 'external_draw' && externalBatchInputMode === 'PER_BATCH'
+          ? riderBatches.flat()
+          : drawnOrder.map((r) => r.id)
       const manualMoto2Ids =
         drawMode === 'external_draw' && externalBatchInputMode === 'GLOBAL' && externalMoto2Validation.isProvided
           ? externalMoto2Validation.orderedRiders.map((rider) => rider.id)
@@ -940,7 +960,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
           : []
       const payload = {
         category_id: selectedCategory,
-        rider_ids: drawnOrder.map((r) => r.id),
+        rider_ids: riderIdsForMoto1,
         batch_size: batchSize,
         ...(batchMode === 'MANUAL_BATCH_COUNT' ? { batch_count: effectiveBatchCount } : {}),
         ...(riderBatches.length > 0 ? { rider_batches: riderBatches } : {}),

@@ -626,22 +626,45 @@ export default function MotosClient({ eventId }: { eventId: string }) {
               <div style={{ fontWeight: 950, fontSize: 18 }}>
                 {categoryLabel.get(cat.id) ?? `Category ${cat.id}`}
               </div>
-              <button
-                type="button"
-                onClick={() => toggleCategoryCard(cat.id)}
-                className="no-print"
-                style={{
-                  padding: '6px 10px',
-                  borderRadius: 999,
-                  border: '2px solid #111',
-                  background: '#f8fafc',
-                  fontWeight: 900,
-                  fontSize: 12,
-                  cursor: 'pointer',
-                }}
-              >
-                {isHidden ? 'Tampilkan' : 'Sembunyikan'}
-              </button>
+              <div className="no-print" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <button
+                  type="button"
+                  onClick={() =>
+                    window.open(
+                      `/event/${eventId}/live-score/${encodeURIComponent(cat.id)}`,
+                      '_blank',
+                      'noopener,noreferrer'
+                    )
+                  }
+                  style={{
+                    padding: '6px 10px',
+                    borderRadius: 999,
+                    border: '2px solid #111',
+                    background: '#dbeafe',
+                    fontWeight: 900,
+                    fontSize: 12,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Open Public Result
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleCategoryCard(cat.id)}
+                  style={{
+                    padding: '6px 10px',
+                    borderRadius: 999,
+                    border: '2px solid #111',
+                    background: '#f8fafc',
+                    fontWeight: 900,
+                    fontSize: 12,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {isHidden ? 'Tampilkan' : 'Sembunyikan'}
+                </button>
+              </div>
             </div>
             {isHidden ? null : (
               <div style={{ display: 'grid', gap: 8 }}>

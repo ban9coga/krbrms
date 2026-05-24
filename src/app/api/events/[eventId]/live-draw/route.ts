@@ -91,48 +91,6 @@ const chunk = <T,>(items: T[], size: number) => {
 
 const flatten = <T,>(items: T[][]) => items.flat()
 
-const shuffle = <T,>(items: T[]) => {
-  const arr = [...items]
-  for (let i = arr.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[arr[i], arr[j]] = [arr[j], arr[i]]
-  }
-  return arr
-}
-
-const sameOrder = (a: string[], b: string[]) => {
-  if (a.length !== b.length) return false
-  for (let i = 0; i < a.length; i += 1) {
-    if (a[i] !== b[i]) return false
-  }
-  return true
-}
-
-const buildMoto3Order = (moto1Order: string[], moto2Order: string[]) => {
-  const base = [...moto1Order]
-  if (base.length <= 1) return base
-
-  // Try several random permutations that differ from Moto 1 and Moto 2.
-  const maxAttempts = Math.max(12, base.length * 4)
-  for (let i = 0; i < maxAttempts; i += 1) {
-    const candidate = shuffle(base)
-    if (!sameOrder(candidate, moto1Order) && !sameOrder(candidate, moto2Order)) {
-      return candidate
-    }
-  }
-
-  // Deterministic fallback: rotate order until it differs from Moto 1 and Moto 2.
-  for (let shift = 1; shift < base.length; shift += 1) {
-    const rotated = [...base.slice(shift), ...base.slice(0, shift)]
-    if (!sameOrder(rotated, moto1Order) && !sameOrder(rotated, moto2Order)) {
-      return rotated
-    }
-  }
-
-  // Edge case (typically 2 riders): only 2 permutations exist, so best effort.
-  return shuffle(base)
-}
-
 const sameSet = (a: string[], b: string[]) => {
   if (a.length !== b.length) return false
   const setA = new Set(a)
@@ -362,7 +320,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       }
     }
   }
-  const motoCount = batches.length === 1 ? 3 : 2
+  // Moto 3 is no longer created during draw setup.
+  // For single-batch categories, Moto 3 will be created after Moto 2 results are complete (via moto3Reseed service).
+  const motoCount = 2
   const orderFor = (motoIndex: number, batchIndex: number) =>
     baseOrder + (motoIndex - 1) * batches.length + batchIndex + 1
   const motoRecords = batches.flatMap((_, idx) => [
@@ -380,17 +340,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       moto_order: orderFor(2, idx),
       status: 'UPCOMING',
     },
-    ...(motoCount === 3
-      ? [
-          {
-            event_id: eventId,
-            category_id: categoryId,
-            moto_name: `Moto 3 - Batch ${idx + 1}`,
-            moto_order: orderFor(3, idx),
-            status: 'UPCOMING',
-          },
-        ]
-      : []),
   ])
 
   const { data: motoRows, error: motoError } = await adminClient
@@ -414,13 +363,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     const base = batchIndex * motoCount
     const moto1 = motoRows[base]
     const moto2 = motoRows[base + 1]
-    const moto3 = motoCount === 3 ? motoRows[base + 2] : null
     const moto2Order = hasCustomMoto2 ? (moto2Batches[batchIndex] ?? []) : [...batch].reverse()
-    const moto3Order = moto3 ? buildMoto3Order(batch, moto2Order) : null
     batch.forEach((riderId, idx) => {
       motoRiders.push({ moto_id: moto1.id, rider_id: riderId })
       motoRiders.push({ moto_id: moto2.id, rider_id: riderId })
-      if (moto3) motoRiders.push({ moto_id: moto3.id, rider_id: riderId })
       if (hasGateTable) {
         gatePositions.push({ moto_id: moto1.id, rider_id: riderId, gate_position: idx + 1 })
       }
@@ -429,11 +375,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       moto2Order.forEach((riderId, idx) => {
         gatePositions.push({ moto_id: moto2.id, rider_id: riderId, gate_position: idx + 1 })
       })
-      if (moto3 && moto3Order) {
-        moto3Order.forEach((riderId, idx) => {
-          gatePositions.push({ moto_id: moto3.id, rider_id: riderId, gate_position: idx + 1 })
-        })
-      }
     }
   })
 
