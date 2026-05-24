@@ -22,11 +22,12 @@ type AuthFailure = { ok: false }
 const roleWeight = (role: string) => {
   if (role === 'SUPER_ADMIN') return 0
   if (role === 'ADMIN') return 1
-  if (role === 'RACE_DIRECTOR') return 2
-  if (role === 'RACE_CONTROL') return 3
-  if (role === 'CHECKER') return 4
-  if (role === 'FINISHER') return 5
-  if (role === 'MC') return 6
+  if (role === 'REGISTRATION_APPROVER') return 2
+  if (role === 'RACE_DIRECTOR') return 3
+  if (role === 'RACE_CONTROL') return 4
+  if (role === 'CHECKER') return 5
+  if (role === 'FINISHER') return 6
+  if (role === 'MC') return 7
   return 99
 }
 
@@ -115,6 +116,26 @@ const getAnyAdminEventRole = async (userId: string) => {
   return prioritized[0] ?? null
 }
 
+const getAnyAllowedEventRole = async (userId: string, allowedRoles: string[]) => {
+  const allowed = allowedRoles.map((role) => normalizeAppRole(role)).filter(Boolean)
+  if (allowed.length === 0) return null
+
+  const { data, error } = await adminClient
+    .from('user_event_roles')
+    .select('role')
+    .eq('user_id', userId)
+    .eq('is_active', true)
+
+  if (error || !data?.length) return null
+
+  const prioritized = data
+    .map((row) => normalizeAppRole(typeof row.role === 'string' ? row.role : ''))
+    .filter((role) => allowed.includes(role))
+    .sort((a, b) => roleWeight(a) - roleWeight(b))
+
+  return prioritized[0] ?? null
+}
+
 export const requireAdmin = async (authHeader?: string | null, eventId?: string | null): Promise<AuthSuccess | AuthFailure> => {
   const user = await getAuthenticatedUser(authHeader)
   if (!user) return { ok: false }
@@ -133,6 +154,34 @@ export const requireAdmin = async (authHeader?: string | null, eventId?: string 
   const scopedAdminRole = await getAnyAdminEventRole(user.id)
   if (!scopedAdminRole) return { ok: false }
   return { ok: true, user, role: scopedAdminRole, eventRole: scopedAdminRole }
+}
+
+export const requireBackoffice = async (
+  authHeader?: string | null,
+  eventId?: string | null
+): Promise<AuthSuccess | AuthFailure> => {
+  const user = await getAuthenticatedUser(authHeader)
+  if (!user) return { ok: false }
+  const allowedRoles = ['SUPER_ADMIN', 'ADMIN', 'REGISTRATION_APPROVER']
+  const globalRole = getGlobalRole(user)
+  const eventRole = await getEventRole(user.id, eventId)
+
+  if (eventId) {
+    if (globalRole === 'SUPER_ADMIN' || globalRole === 'ADMIN') {
+      return { ok: true, user, role: globalRole, eventRole }
+    }
+    if (eventRole && allowedRoles.includes(eventRole)) {
+      return { ok: true, user, role: eventRole as string, eventRole }
+    }
+    return { ok: false }
+  }
+
+  if (allowedRoles.includes(globalRole)) {
+    return { ok: true, user, role: globalRole, eventRole }
+  }
+  const scopedRole = await getAnyAllowedEventRole(user.id, allowedRoles)
+  if (!scopedRole) return { ok: false }
+  return { ok: true, user, role: scopedRole, eventRole: scopedRole }
 }
 
 export const requireEventRole = async (

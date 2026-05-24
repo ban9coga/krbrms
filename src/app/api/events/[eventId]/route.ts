@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { adminClient, requireAdmin, verifyPasswordForAuthHeader } from '../../../../lib/auth'
+import { adminClient, requireAdmin, requireBackoffice, verifyPasswordForAuthHeader } from '../../../../lib/auth'
 import { syncAdvancedRaceProgress } from '../../../../services/advancedRaceAuto'
 import type { BusinessSettings } from '../../../../lib/eventService'
 type DrawMode = 'internal_live_draw' | 'external_draw'
@@ -64,7 +64,7 @@ const getLatestRaceFormatSettings = async (eventId: string) => {
 
 export async function GET(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params
-  const auth = await requireAdmin(req.headers.get('authorization'), eventId)
+  const auth = await requireBackoffice(req.headers.get('authorization'), eventId)
   const { data, error } = await adminClient
     .from('events')
     .select('id, name, location, event_date, status, is_public, created_at, updated_at')

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { adminClient, requireAdmin } from '../../../../../../lib/auth'
+import { adminClient, requireBackoffice } from '../../../../../../lib/auth'
 
 const REGISTRATION_STATUSES = ['PENDING', 'APPROVED', 'REJECTED'] as const
 const PAYMENT_FILTERS = ['ALL', 'NO_PAYMENT', 'PENDING', 'APPROVED', 'REJECTED'] as const
@@ -104,7 +104,7 @@ const paymentRegistrationIds = async (eventId: string, paymentFilter: (typeof PA
 
 export async function GET(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params
-  const auth = await requireAdmin(req.headers.get('authorization'), eventId)
+  const auth = await requireBackoffice(req.headers.get('authorization'), eventId)
   if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { searchParams } = new URL(req.url)

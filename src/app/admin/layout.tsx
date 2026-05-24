@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import { useTheme } from '../../components/ThemeProvider'
-import { formatAppRoleLabel, isEventAdminRole, normalizeAppRole } from '../../lib/roles'
+import { canAccessAdminWorkspace, formatAppRoleLabel, isRegistrationApproverRole, normalizeAppRole } from '../../lib/roles'
 import { supabase } from '../../lib/supabaseClient'
 
 type NavItem = {
@@ -49,7 +49,7 @@ const extractEventId = (pathname: string) => {
   return match?.[1] ?? null
 }
 
-const isAdminRole = (role: string | null) => isEventAdminRole(role)
+const isAdminRole = (role: string | null) => canAccessAdminWorkspace(role)
 
 const roleHome = (role: string | null) => {
   const normalized = normalizeAppRole(role)
@@ -58,6 +58,7 @@ const roleHome = (role: string | null) => {
   if (normalized === 'CHECKER') return '/jc'
   if (normalized === 'RACE_CONTROL') return '/race-control'
   if (normalized === 'MC') return '/mc'
+  if (normalized === 'REGISTRATION_APPROVER') return '/admin/events'
   if (normalized === 'ADMIN' || normalized === 'SUPER_ADMIN') return '/admin'
   return '/login'
 }
@@ -66,7 +67,17 @@ const getRoleTone = (role: string | null) => {
   const normalized = normalizeAppRole(role)
   if (normalized === 'SUPER_ADMIN') return 'border-rose-200 bg-rose-50 text-rose-700'
   if (normalized === 'ADMIN') return 'border-amber-200 bg-amber-50 text-amber-700'
+  if (normalized === 'REGISTRATION_APPROVER') return 'border-sky-200 bg-sky-50 text-sky-700'
   return 'border-slate-200 bg-slate-100 text-slate-600'
+}
+
+const isAllowedAdminPath = (role: string | null, pathname: string) => {
+  if (!isRegistrationApproverRole(role)) return true
+  if (pathname === '/admin' || pathname === '/admin/events') return true
+  return (
+    /^\/admin\/events\/[^/]+\/registrations(?:\/|$)/.test(pathname) ||
+    /^\/admin\/events\/[^/]+\/riders(?:\/|$)/.test(pathname)
+  )
 }
 
 function Icon({ type, active }: { type: NavItem['icon']; active: boolean }) {
@@ -274,8 +285,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [authChecked, setAuthChecked] = useState(false)
 
   const eventId = useMemo(() => extractEventId(pathname), [pathname])
-  const eventNav = useMemo(() => (eventId ? EVENT_NAV(eventId) : []), [eventId])
+  const eventNav = useMemo(() => {
+    if (!eventId) return []
+    const items = EVENT_NAV(eventId)
+    if (isRegistrationApproverRole(userRole)) {
+      return items.filter((item) => item.icon === 'registrations' || item.icon === 'riders')
+    }
+    return items
+  }, [eventId, userRole])
   const globalNav = useMemo(() => {
+    if (isRegistrationApproverRole(userRole)) {
+      return [{ label: 'Events', href: '/admin/events', icon: 'events' as const }]
+    }
     if ((userRole ?? '').toLowerCase() === 'super_admin') {
       return [...GLOBAL_NAV, { label: 'Users', href: '/admin/users', icon: 'users' as const }]
     }
@@ -331,12 +352,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         return
       }
 
+      if (!isAllowedAdminPath(role, pathname)) {
+        setAuthorized(false)
+        setAuthChecked(true)
+        router.replace('/admin/events')
+        return
+      }
+
       setAuthorized(true)
       setAuthChecked(true)
     }
 
     void loadRole()
-  }, [router])
+  }, [pathname, router])
 
   useEffect(() => {
     if (!authorized) return

@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { isRegistrationApproverRole, normalizeAppRole } from '../../../lib/roles'
 import { supabase } from '../../../lib/supabaseClient'
 
 type EventItem = {
@@ -94,6 +95,7 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
   const [loading, setLoading] = useState(false)
   const [creating, setCreating] = useState(false)
   const [canCreate, setCanCreate] = useState(false)
+  const [roleKey, setRoleKey] = useState<string | null>(null)
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [feedback, setFeedback] = useState<FeedbackState>(null)
   const [actionKey, setActionKey] = useState<string | null>(null)
@@ -142,7 +144,8 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
       const appMeta = (user?.app_metadata ?? {}) as Record<string, unknown>
       const metaRole = typeof meta.role === 'string' ? meta.role : null
       const appRole = typeof appMeta.role === 'string' ? appMeta.role : null
-      const role = String(metaRole || appRole || '').trim().toUpperCase()
+      const role = normalizeAppRole(metaRole || appRole || '')
+      setRoleKey(role)
       setCanCreate(role === 'SUPER_ADMIN')
     }
 
@@ -372,6 +375,8 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
       hiddenEvents,
     }
   }, [events])
+
+  const isRegistrationApprover = isRegistrationApproverRole(roleKey)
 
   return (
     <div className="admin-events-theme grid gap-6">
@@ -624,20 +629,25 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap gap-2">
-                      <Link href={`/admin/events/${event.id}/registrations`} className={primaryButtonClass}>
-                        Manage Event
-                      </Link>
-                      <Link href={`/admin/events/${event.id}/settings`} className={subtleButtonClass}>
-                        Event Settings
-                      </Link>
-                      <Link href={`/event/${event.id}`} className={subtleButtonClass}>
-                        Public Page
-                      </Link>
+                      <div className="flex flex-wrap gap-2">
+                        <Link href={`/admin/events/${event.id}/registrations`} className={primaryButtonClass}>
+                          Registrations
+                        </Link>
+                        <Link href={`/admin/events/${event.id}/riders`} className={subtleButtonClass}>
+                          Riders
+                        </Link>
+                        {!isRegistrationApprover && (
+                          <Link href={`/admin/events/${event.id}/settings`} className={subtleButtonClass}>
+                            Event Settings
+                          </Link>
+                        )}
+                        <Link href={`/event/${event.id}`} className={subtleButtonClass}>
+                          Public Page
+                        </Link>
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="grid gap-3 xl:min-w-[260px]">
+                  {!isRegistrationApprover && <div className="grid gap-3 xl:min-w-[260px]">
                     <label className="grid gap-2">
                       <span className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Status</span>
                       <select
@@ -680,10 +690,10 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
                         <option value="INTERNAL">Internal Event</option>
                       </select>
                     </label>
-                  </div>
+                  </div>}
                 </div>
 
-                <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-4">
+                {!isRegistrationApprover && <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-4">
                   <button
                     type="button"
                     onClick={() => void handleRegistrationOpen(event, !registrationOpen)}
@@ -723,7 +733,7 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
                       Saving…
                     </span>
                   )}
-                </div>
+                </div>}
               </article>
             )
           })}

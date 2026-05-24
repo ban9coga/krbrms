@@ -1969,6 +1969,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                           >
                             <option value="SUPER_ADMIN">{formatAppRoleLabel('SUPER_ADMIN')}</option>
                             <option value="ADMIN">{formatAppRoleLabel('ADMIN')}</option>
+                            <option value="REGISTRATION_APPROVER">{formatAppRoleLabel('REGISTRATION_APPROVER')}</option>
                             <option value="CHECKER">{formatAppRoleLabel('CHECKER')}</option>
                             <option value="FINISHER">{formatAppRoleLabel('FINISHER')}</option>
                             <option value="RACE_DIRECTOR">{formatAppRoleLabel('RACE_DIRECTOR')}</option>

@@ -1,6 +1,7 @@
 ﻿'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { isRegistrationApproverRole, normalizeAppRole } from '../../../../../lib/roles'
 import { supabase } from '../../../../../lib/supabaseClient'
 
 type CategoryItem = {
@@ -222,8 +223,10 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
   const [modal, setModal] = useState<ModalState>(null)
   const [modalNotes, setModalNotes] = useState('')
   const [showCategoryKpis, setShowCategoryKpis] = useState(false)
+  const [roleKey, setRoleKey] = useState<string | null>(null)
 
   const categoryMap = useMemo(() => new Map(categories.map((category) => [category.id, category.label])), [categories])
+  const isRegistrationApprover = isRegistrationApproverRole(roleKey)
   const categoryKpis = useMemo(
     () =>
       [...categories]
@@ -263,6 +266,19 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
     () => categoryKpis.reduce((sum, category) => sum + (category.pendingFilled ?? 0), 0),
     [categoryKpis]
   )
+
+  useEffect(() => {
+    const loadRole = async () => {
+      const { data } = await supabase.auth.getUser()
+      const meta = (data.user?.user_metadata ?? {}) as Record<string, unknown>
+      const appMeta = (data.user?.app_metadata ?? {}) as Record<string, unknown>
+      const role =
+        (typeof meta.role === 'string' ? meta.role : null) ||
+        (typeof appMeta.role === 'string' ? appMeta.role : null)
+      setRoleKey(normalizeAppRole(role))
+    }
+    void loadRole()
+  }, [])
   const totalFilledAcrossCategories = useMemo(
     () => categoryKpis.reduce((sum, category) => sum + (category.filled ?? 0), 0),
     [categoryKpis]
@@ -1221,14 +1237,16 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                       >
                         Reject
                       </button>
-                      <button
-                        type="button"
-                        disabled={savingKey === `registration:${registration.id}` || registration.status !== 'REJECTED'}
-                        onClick={() => openDeleteModal(registration)}
-                        className="rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-black text-slate-700 transition hover:border-slate-950 hover:text-slate-950 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
-                      >
-                        Delete
-                      </button>
+                        {!isRegistrationApprover && (
+                          <button
+                            type="button"
+                            disabled={savingKey === `registration:${registration.id}` || registration.status !== 'REJECTED'}
+                            onClick={() => openDeleteModal(registration)}
+                            className="rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-black text-slate-700 transition hover:border-slate-950 hover:text-slate-950 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                          >
+                            Delete
+                          </button>
+                        )}
                     </div>
                   </div>
 

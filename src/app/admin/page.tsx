@@ -1,9 +1,10 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import AdminEventsView from './events/AdminEventsView'
-import { formatAppRoleLabel } from '../../lib/roles'
+import { formatAppRoleLabel, normalizeAppRole } from '../../lib/roles'
 import { supabase } from '../../lib/supabaseClient'
 
 type DashboardMetrics = {
@@ -48,6 +49,7 @@ function KpiCard({
 }
 
 export default function AdminDashboardPage() {
+  const router = useRouter()
   const [email, setEmail] = useState<string | null>(null)
   const [role, setRole] = useState<string | null>(null)
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null)
@@ -72,7 +74,12 @@ export default function AdminDashboardPage() {
         const appMeta = (user?.app_metadata ?? {}) as Record<string, unknown>
         const metaRole = typeof meta.role === 'string' ? meta.role : null
         const appRole = typeof appMeta.role === 'string' ? appMeta.role : null
-        setRole(metaRole || appRole || null)
+        const resolvedRole = metaRole || appRole || null
+        setRole(resolvedRole)
+        if (normalizeAppRole(resolvedRole) === 'REGISTRATION_APPROVER') {
+          router.replace('/admin/events')
+          return
+        }
 
         const token = sessionData.session?.access_token
         const res = await fetch('/api/admin/dashboard', {
@@ -92,7 +99,7 @@ export default function AdminDashboardPage() {
     }
 
     void load()
-  }, [])
+  }, [router])
 
   const quickActions = useMemo(() => {
     const actions = [

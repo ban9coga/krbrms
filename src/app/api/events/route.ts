@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { adminClient, getAccessibleEventIds, requireAdmin } from '../../../lib/auth'
+import { adminClient, getAccessibleEventIds, requireAdmin, requireBackoffice } from '../../../lib/auth'
 
 type DrawMode = 'internal_live_draw' | 'external_draw'
 type EventScope = 'PUBLIC' | 'INTERNAL'
@@ -20,7 +20,7 @@ const parseRaceFormatSettings = (value: unknown): Record<string, unknown> => {
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
   const status = searchParams.get('status')
-  const auth = await requireAdmin(req.headers.get('authorization'))
+  const auth = await requireBackoffice(req.headers.get('authorization'))
   let query = adminClient
     .from('events')
     .select('id, name, location, event_date, status, is_public, created_at, updated_at')
@@ -31,7 +31,7 @@ export async function GET(req: Request) {
   if (!auth.ok) {
     query = query.eq('is_public', true)
   } else if (auth.role !== 'SUPER_ADMIN') {
-    const accessibleEventIds = await getAccessibleEventIds(auth.user.id, ['ADMIN', 'SUPER_ADMIN'])
+    const accessibleEventIds = await getAccessibleEventIds(auth.user.id, ['ADMIN', 'SUPER_ADMIN', 'REGISTRATION_APPROVER'])
     if (accessibleEventIds.length === 0) {
       return NextResponse.json({ data: [] })
     }

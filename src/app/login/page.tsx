@@ -25,6 +25,7 @@ export default function LoginPage() {
     if (role === 'CHECKER') return '/jc'
     if (role === 'RACE_CONTROL') return '/race-control'
     if (role === 'MC') return '/mc'
+    if (role === 'REGISTRATION_APPROVER') return '/admin/events'
     if (role === 'ADMIN' || role === 'SUPER_ADMIN') return '/admin'
     return '/dashboard'
   }

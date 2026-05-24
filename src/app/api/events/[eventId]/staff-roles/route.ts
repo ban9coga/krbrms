@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../lib/auth'
 import { normalizeAppRole } from '../../../../../lib/roles'
 
-const ASSIGNABLE_ROLES = ['SUPER_ADMIN', 'ADMIN', 'CHECKER', 'FINISHER', 'RACE_DIRECTOR', 'RACE_CONTROL', 'MC']
+const ASSIGNABLE_ROLES = ['SUPER_ADMIN', 'ADMIN', 'REGISTRATION_APPROVER', 'CHECKER', 'FINISHER', 'RACE_DIRECTOR', 'RACE_CONTROL', 'MC']
 
 type AssignmentPayload = {
   id?: string

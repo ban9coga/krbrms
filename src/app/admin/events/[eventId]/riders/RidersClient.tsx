@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type ClipboardEvent, type DragEvent } from 'react'
 import { buildBrandedPrintHtml } from '../../../../../lib/printTheme'
+import { isRegistrationApproverRole, normalizeAppRole } from '../../../../../lib/roles'
 import { supabase } from '../../../../../lib/supabaseClient'
 
 type CategoryItem = {
@@ -114,6 +115,7 @@ async function buildResizedBlobs(file: File) {
 
 export default function RidersClient({ eventId }: { eventId: string }) {
   const [loading, setLoading] = useState(false)
+  const [roleKey, setRoleKey] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [exportingAll, setExportingAll] = useState(false)
@@ -165,6 +167,20 @@ export default function RidersClient({ eventId }: { eventId: string }) {
   const [editPhotoStatus, setEditPhotoStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle')
   const [addExtraCategoryId, setAddExtraCategoryId] = useState<string | null>(null)
   const [extraCategoryId, setExtraCategoryId] = useState<string | null>(null)
+  const canManageRiders = !isRegistrationApproverRole(roleKey)
+
+  useEffect(() => {
+    const loadRole = async () => {
+      const { data } = await supabase.auth.getUser()
+      const meta = (data.user?.user_metadata ?? {}) as Record<string, unknown>
+      const appMeta = (data.user?.app_metadata ?? {}) as Record<string, unknown>
+      const role =
+        (typeof meta.role === 'string' ? meta.role : null) ||
+        (typeof appMeta.role === 'string' ? appMeta.role : null)
+      setRoleKey(normalizeAppRole(role))
+    }
+    void loadRole()
+  }, [])
 
   useEffect(() => {
     return () => {
@@ -486,6 +502,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
   }
 
   const handleDelete = async (riderId: string) => {
+    if (!canManageRiders) return
     if (eventStatus === 'LIVE') {
       alert('Event sudah LIVE. Rider tidak bisa dihapus.')
       return
@@ -1103,9 +1120,11 @@ export default function RidersClient({ eventId }: { eventId: string }) {
             <div className={labelClass}>Riders</div>
             <h1 className="text-3xl font-black tracking-tight text-slate-950">Riders</h1>
           </div>
-          <button type="button" onClick={() => setAddModalOpen(true)} className={buttonPrimaryClass}>
-            Add Rider
-          </button>
+            {canManageRiders && (
+              <button type="button" onClick={() => setAddModalOpen(true)} className={buttonPrimaryClass}>
+                Add Rider
+              </button>
+            )}
         </div>
       </section>
 
@@ -1294,19 +1313,21 @@ export default function RidersClient({ eventId }: { eventId: string }) {
                   </div>
                 </div>
 
-                <div className="flex flex-wrap gap-2 lg:flex-col">
-                  <button type="button" onClick={() => openEdit(rider)} className={buttonSecondaryClass}>
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    disabled={eventStatus === 'LIVE' || saving}
-                    onClick={() => handleDelete(rider.id)}
-                    className={buttonDangerClass}
-                  >
-                    Delete
-                  </button>
-                </div>
+                  {canManageRiders && (
+                    <div className="flex flex-wrap gap-2 lg:flex-col">
+                      <button type="button" onClick={() => openEdit(rider)} className={buttonSecondaryClass}>
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        disabled={eventStatus === 'LIVE' || saving}
+                        onClick={() => handleDelete(rider.id)}
+                        className={buttonDangerClass}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  )}
               </article>
             ))}
 
