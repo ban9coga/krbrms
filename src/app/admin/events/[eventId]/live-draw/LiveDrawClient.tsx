@@ -68,8 +68,22 @@ const escapeHtml = (value: string) =>
 const parseExternalTokens = (value: string) =>
   value
     .split(/[\n,;]+/)
-    .map((item) => normalizePlateToken(item.trim()))
+    .map((item) => item.trim())
     .filter(Boolean)
+
+const resolveRiderForToken = (riders: RiderItem[], token: string) => {
+  const trimmed = token.trim()
+  const exactKey = trimmed.toUpperCase()
+  const normalizedKey = normalizePlateToken(trimmed)
+
+  const exactMatch = riders.find((rider) => rider.no_plate_display.toUpperCase() === exactKey)
+  if (exactMatch) return exactMatch
+
+  const normalizedMatch = riders.find((rider) => normalizePlateToken(rider.no_plate_display) === normalizedKey)
+  if (normalizedMatch) return normalizedMatch
+
+  return riders.find((rider) => normalizePlateToken(`${rider.plate_number ?? ''}${rider.plate_suffix ?? ''}`) === normalizedKey)
+}
 
 const shuffle = <T,>(input: T[]) => {
   const arr = [...input]
@@ -237,8 +251,6 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
 
   const externalValidation = useMemo(() => {
     const tokens = parseExternalTokens(externalOrderText)
-    const riderByPlate = new Map<string, RiderItem>()
-    for (const rider of riders) riderByPlate.set(normalizePlateToken(rider.no_plate_display), rider)
 
     const seenToken = new Set<string>()
     const usedRiderIds = new Set<string>()
@@ -248,12 +260,13 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     const orderedRiders: RiderItem[] = []
 
     for (const token of tokens) {
-      if (seenToken.has(token)) {
+      const normalizedToken = normalizePlateToken(token)
+      if (seenToken.has(normalizedToken)) {
         duplicateTokens.push(token)
         continue
       }
-      seenToken.add(token)
-      const rider = riderByPlate.get(token)
+      seenToken.add(normalizedToken)
+      const rider = resolveRiderForToken(riders, token)
       if (!rider) {
         unknownTokens.push(token)
         continue
@@ -304,9 +317,6 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       }
     }
 
-    const riderByPlate = new Map<string, RiderItem>()
-    for (const rider of riders) riderByPlate.set(normalizePlateToken(rider.no_plate_display), rider)
-
     const seenToken = new Set<string>()
     const usedRiderIds = new Set<string>()
     const duplicateTokens: string[] = []
@@ -315,12 +325,13 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     const orderedRiders: RiderItem[] = []
 
     for (const token of tokens) {
-      if (seenToken.has(token)) {
+      const normalizedToken = normalizePlateToken(token)
+      if (seenToken.has(normalizedToken)) {
         duplicateTokens.push(token)
         continue
       }
-      seenToken.add(token)
-      const rider = riderByPlate.get(token)
+      seenToken.add(normalizedToken)
+      const rider = resolveRiderForToken(riders, token)
       if (!rider) {
         unknownTokens.push(token)
         continue
@@ -379,8 +390,6 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
 
   const externalPerBatchValidation = useMemo(() => {
     const count = effectiveBatchCount ?? Math.max(1, Math.ceil(riders.length / Math.max(4, batchSize)))
-    const riderByPlate = new Map<string, RiderItem>()
-    for (const rider of riders) riderByPlate.set(normalizePlateToken(rider.no_plate_display), rider)
 
     const seenRiderIds = new Set<string>()
     const duplicateTokens: string[] = []
@@ -399,12 +408,13 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       const batchSeen = new Set<string>()
       const ordered: RiderItem[] = []
       for (const token of tokens) {
-        if (batchSeen.has(token)) {
+        const normalizedToken = normalizePlateToken(token)
+        if (batchSeen.has(normalizedToken)) {
           duplicateTokens.push(`B${batchIndex + 1}:${token}`)
           continue
         }
-        batchSeen.add(token)
-        const rider = riderByPlate.get(token)
+        batchSeen.add(normalizedToken)
+        const rider = resolveRiderForToken(riders, token)
         if (!rider) {
           unknownTokens.push(`B${batchIndex + 1}:${token}`)
           continue
@@ -442,12 +452,13 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
         const batchSeen = new Set<string>()
         const ordered: RiderItem[] = []
         for (const token of tokens) {
-          if (batchSeen.has(token)) {
+          const normalizedToken = normalizePlateToken(token)
+          if (batchSeen.has(normalizedToken)) {
             moto2DuplicateTokens.push(`B${batchIndex + 1}:${token}`)
             continue
           }
-          batchSeen.add(token)
-          const rider = riderByPlate.get(token)
+          batchSeen.add(normalizedToken)
+          const rider = resolveRiderForToken(riders, token)
           if (!rider) {
             moto2UnknownTokens.push(`B${batchIndex + 1}:${token}`)
             continue
@@ -850,16 +861,6 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       from.batchIndex === to.batchIndex && from.riderIndex < to.riderIndex ? to.riderIndex - 1 : to.riderIndex
     nextMoto1[to.batchIndex].splice(insertIndex, 0, movingRider)
     setExternalBatchTexts(serializeBatchRiders(nextMoto1))
-
-    if (externalPerBatchValidation.moto2Provided) {
-      const nextMoto2 = externalPerBatchValidation.orderedMoto2Batches.map((batch) => [...batch])
-      const sourceMoto2Index = nextMoto2[from.batchIndex]?.findIndex((rider) => rider.id === movingRider.id) ?? -1
-      if (sourceMoto2Index >= 0) {
-        nextMoto2[from.batchIndex].splice(sourceMoto2Index, 1)
-        nextMoto2[to.batchIndex].push(movingRider)
-        setExternalMoto2BatchTexts(serializeBatchRiders(nextMoto2))
-      }
-    }
 
     setDrawnOrder(nextMoto1.flat())
     setHasDrawn(true)
