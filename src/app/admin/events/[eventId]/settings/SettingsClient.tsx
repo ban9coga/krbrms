@@ -68,7 +68,7 @@ type StageResultRow = {
   id: string
   rider_id: string
   category_id: string
-  stage: 'QUALIFICATION' | 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL'
+  stage: 'QUALIFICATION' | 'QUARTER_FINAL' | 'REPECHAGE' | 'SEMI_FINAL' | 'FINAL'
   batch_id: string | null
   final_class: string | null
   position: number | null
@@ -330,7 +330,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
       string,
       {
         stageCounts: Record<string, number>
-        motoCounts: { quarter: number; semi: number; final: number }
+        motoCounts: { quarter: number; repechage: number; semi: number; final: number }
         readiness: {
           totalRiders: number
           requiresQualification: boolean
@@ -339,6 +339,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
           qualificationReady: boolean
           qualificationRun: boolean
           quarterReady: boolean
+          repechageReady: boolean
           semiReady: boolean
           canRunQualification: boolean
           canComputeAdvances: boolean
@@ -637,7 +638,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
         string,
         {
           stageCounts: Record<string, number>
-          motoCounts: { quarter: number; semi: number; final: number }
+          motoCounts: { quarter: number; repechage: number; semi: number; final: number }
           readiness: {
             totalRiders: number
             requiresQualification: boolean
@@ -646,6 +647,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
             qualificationReady: boolean
             qualificationRun: boolean
             quarterReady: boolean
+            repechageReady: boolean
             semiReady: boolean
             canRunQualification: boolean
             canComputeAdvances: boolean
@@ -2505,7 +2507,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                         ) : (stagePreview[item.category.id] ?? []).length === 0 ? (
                           <div style={{ fontWeight: 800 }}>Belum ada hasil stage.</div>
                         ) : (
-                          ['QUALIFICATION', 'QUARTER_FINAL', 'SEMI_FINAL', 'FINAL'].map((stage) => {
+                          ['QUALIFICATION', 'QUARTER_FINAL', 'REPECHAGE', 'SEMI_FINAL', 'FINAL'].map((stage) => {
                             const rows = (stagePreview[item.category.id] ?? []).filter((r) => r.stage === stage)
                             if (rows.length === 0) return null
                             return (
@@ -2545,7 +2547,8 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                       <div style={{ fontWeight: 900 }}>Auto-Generate Summary</div>
                       <div style={{ fontWeight: 800, color: '#333' }}>
                         Stage results: Q={summaryByCategory[item.category.id]?.stageCounts?.QUALIFICATION ?? 0} | QF=
-                        {summaryByCategory[item.category.id]?.stageCounts?.QUARTER_FINAL ?? 0} | SF=
+                        {summaryByCategory[item.category.id]?.stageCounts?.QUARTER_FINAL ?? 0} | REP=
+                        {summaryByCategory[item.category.id]?.stageCounts?.REPECHAGE ?? 0} | SF=
                         {summaryByCategory[item.category.id]?.stageCounts?.SEMI_FINAL ?? 0} | F=
                         {summaryByCategory[item.category.id]?.stageCounts?.FINAL ?? 0}
                       </div>
@@ -2554,7 +2557,8 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                         {readiness?.qualificationTotalBatches ?? 0} batch complete
                       </div>
                       <div style={{ fontWeight: 800, color: '#333' }}>
-                        Motos: QF={summaryByCategory[item.category.id]?.motoCounts?.quarter ?? 0} | SF=
+                        Motos: QF={summaryByCategory[item.category.id]?.motoCounts?.quarter ?? 0} | REP=
+                        {summaryByCategory[item.category.id]?.motoCounts?.repechage ?? 0} | SF=
                         {summaryByCategory[item.category.id]?.motoCounts?.semi ?? 0} | Final=
                         {summaryByCategory[item.category.id]?.motoCounts?.final ?? 0}
                       </div>

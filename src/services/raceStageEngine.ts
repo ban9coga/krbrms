@@ -24,7 +24,7 @@ export type RankedRider = {
 
 export type StageAdvance = {
   riderId: string
-  toStage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL'
+  toStage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'REPECHAGE' | 'FINAL'
   finalClass?: FinalClass
 }
 
@@ -42,7 +42,7 @@ export type FinalClass =
 export type CustomSplitRule = {
   rankFrom: number
   rankTo: number
-  targetStage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL'
+  targetStage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'REPECHAGE' | 'FINAL'
   targetFinalClass?: FinalClass | null
   sortOrder?: number
   splitBasis?: 'COMBINED' | 'PER_BATCH' | 'CUSTOM_PER_BATCH'

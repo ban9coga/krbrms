@@ -31,10 +31,10 @@ type EventGuideMeta = {
 type CustomSplitRule = {
   id?: string
   category_id: string
-  source_stage: 'QUALIFICATION'
+  source_stage: 'QUALIFICATION' | 'QUARTER_FINAL' | 'SEMI_FINAL' | 'REPECHAGE'
   rank_from: number
   rank_to: number
-  target_stage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL'
+  target_stage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'REPECHAGE' | 'FINAL'
   target_final_class: string | null
   sort_order: number
   split_basis: 'COMBINED' | 'PER_BATCH' | 'CUSTOM_PER_BATCH'
@@ -42,7 +42,8 @@ type CustomSplitRule = {
 }
 
 const FINAL_CLASS_OPTIONS = ['ELITE', 'NOVICE', 'PRO', 'ROOKIE', 'ADVANCED', 'ACADEMY', 'AMATEUR', 'BEGINNER']
-const TARGET_STAGE_OPTIONS: Array<CustomSplitRule['target_stage']> = ['FINAL', 'SEMI_FINAL', 'QUARTER_FINAL']
+const SOURCE_STAGE_OPTIONS: Array<CustomSplitRule['source_stage']> = ['QUALIFICATION', 'QUARTER_FINAL', 'SEMI_FINAL', 'REPECHAGE']
+const TARGET_STAGE_OPTIONS: Array<CustomSplitRule['target_stage']> = ['FINAL', 'SEMI_FINAL', 'REPECHAGE', 'QUARTER_FINAL']
 const SPLIT_BASIS_OPTIONS: Array<CustomSplitRule['split_basis']> = ['COMBINED', 'PER_BATCH', 'CUSTOM_PER_BATCH']
 
 const splitBasisLabel = (value: CustomSplitRule['split_basis']) => {
@@ -50,6 +51,9 @@ const splitBasisLabel = (value: CustomSplitRule['split_basis']) => {
   if (value === 'CUSTOM_PER_BATCH') return 'Custom Per Batch'
   return 'Combined Rank'
 }
+
+const formatStageLabel = (value: CustomSplitRule['source_stage'] | CustomSplitRule['target_stage']) =>
+  value.replace(/_/g, ' ')
 
 const createEmptyRule = (
   categoryId: string,
@@ -141,10 +145,10 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
             rules
               .map((rule) => {
                 const rankLabel = `${rule.rank_from}-${rule.rank_to}`
-                const targetLabel = rule.target_stage === 'FINAL' ? rule.target_final_class : rule.target_stage
+                const targetLabel = rule.target_stage === 'FINAL' ? rule.target_final_class : formatStageLabel(rule.target_stage)
                 return rule.split_basis === 'CUSTOM_PER_BATCH'
-                  ? `Batch ${rule.batch_no ?? '?'} ${rankLabel} -> ${targetLabel}`
-                  : `${rankLabel} -> ${targetLabel}`
+                  ? `${formatStageLabel(rule.source_stage)} | Batch ${rule.batch_no ?? '?'} ${rankLabel} -> ${targetLabel}`
+                  : `${formatStageLabel(rule.source_stage)} | ${rankLabel} -> ${targetLabel}`
               })
               .join(' | ')
     }
@@ -182,7 +186,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
         const allocationMap = new Map<string, number>()
         for (const rule of rules) {
           const riderCount = Math.max(0, rule.rank_to - rule.rank_from + 1)
-          const targetLabel = rule.target_stage === 'FINAL' ? `Final ${rule.target_final_class}` : rule.target_stage.replace(/_/g, ' ')
+          const targetLabel = rule.target_stage === 'FINAL' ? `Final ${rule.target_final_class}` : formatStageLabel(rule.target_stage)
           allocationMap.set(targetLabel, (allocationMap.get(targetLabel) ?? 0) + riderCount)
         }
         const allocationParts = Array.from(allocationMap.entries()).map(([label, count]) => `${count} rider ${label}`)
@@ -209,14 +213,14 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
                 : `Final class default kategori ini: ${(category.final_classes ?? []).join(', ') || 'ELITE'}.`,
             ]
           : rules.map((rule) => {
-              const targetLabel = rule.target_stage === 'FINAL' ? `Final ${rule.target_final_class}` : rule.target_stage.replace(/_/g, ' ')
+              const targetLabel = rule.target_stage === 'FINAL' ? `Final ${rule.target_final_class}` : formatStageLabel(rule.target_stage)
               if (rule.split_basis === 'CUSTOM_PER_BATCH') {
-                return `Batch ${rule.batch_no ?? '?'} rank ${rule.rank_from}-${rule.rank_to} masuk ${targetLabel}.`
+                return `Dari ${formatStageLabel(rule.source_stage)}, Batch ${rule.batch_no ?? '?'} rank ${rule.rank_from}-${rule.rank_to} masuk ${targetLabel}.`
               }
               if (rule.split_basis === 'PER_BATCH') {
-                return `Setiap batch rank ${rule.rank_from}-${rule.rank_to} masuk ${targetLabel}.`
+                return `Dari ${formatStageLabel(rule.source_stage)}, setiap batch rank ${rule.rank_from}-${rule.rank_to} masuk ${targetLabel}.`
               }
-              return `Rank gabungan ${rule.rank_from}-${rule.rank_to} masuk ${targetLabel}.`
+              return `Dari ${formatStageLabel(rule.source_stage)}, rank gabungan ${rule.rank_from}-${rule.rank_to} masuk ${targetLabel}.`
             })
 
       const stageLine = stageFlags.enableQuarterFinal
@@ -637,6 +641,25 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
                       />
                     </label>
                   )}
+
+                  <label style={{ display: 'grid', gap: 6, fontWeight: 800 }}>
+                    <span>Source Stage</span>
+                    <select
+                      value={rule.source_stage}
+                      onChange={(e) =>
+                        updateRule(category.id, index, {
+                          source_stage: e.target.value as CustomSplitRule['source_stage'],
+                        })
+                      }
+                      style={{ padding: '10px 12px', borderRadius: 10, border: '2px solid #111', background: '#fff' }}
+                    >
+                      {SOURCE_STAGE_OPTIONS.map((option) => (
+                        <option key={option} value={option}>
+                          {option.replace(/_/g, ' ')}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
 
                   <label style={{ display: 'grid', gap: 6, fontWeight: 800 }}>
                     <span>{splitBasis === 'COMBINED' ? 'Rank From' : 'Rank From Per Batch'}</span>

@@ -5,6 +5,7 @@ import { resolveCategoryConfig } from './categoryResolver'
 import { assertMotoNotUnderProtest } from '../lib/motoLock'
 import {
   type CustomSplitRule,
+  type FinalClass,
   computeQualification,
   computeQualificationAdvancesFromRanks,
   computeQuarterFinal,
@@ -35,7 +36,7 @@ type MotoRiderRow = {
 
 type StageResultSeedRow = {
   rider_id: string
-  stage: 'QUALIFICATION' | 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL'
+  stage: 'QUALIFICATION' | 'QUARTER_FINAL' | 'REPECHAGE' | 'SEMI_FINAL' | 'FINAL'
   final_class: string | null
   batch_id: string | null
   position: number | null
@@ -44,10 +45,10 @@ type StageResultSeedRow = {
 
 type CustomSplitRuleRow = {
   category_id: string
-  source_stage: 'QUALIFICATION' | 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL'
+  source_stage: 'QUALIFICATION' | 'QUARTER_FINAL' | 'REPECHAGE' | 'SEMI_FINAL' | 'FINAL'
   rank_from: number
   rank_to: number
-  target_stage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL'
+  target_stage: 'QUARTER_FINAL' | 'REPECHAGE' | 'SEMI_FINAL' | 'FINAL'
   target_final_class: string | null
   sort_order: number
   split_basis?: 'COMBINED' | 'PER_BATCH' | 'CUSTOM_PER_BATCH' | null
@@ -72,12 +73,13 @@ const compareTieBreakers = (a: number[] = [], b: number[] = []) => {
   return 0
 }
 
-async function loadQualificationCustomSplitRules(categoryId: string): Promise<CustomSplitRule[]> {
+type StageName = 'QUALIFICATION' | 'QUARTER_FINAL' | 'REPECHAGE' | 'SEMI_FINAL' | 'FINAL'
+
+async function loadCustomSplitRules(categoryId: string, sourceStage?: StageName): Promise<CustomSplitRule[]> {
   const { data, error } = await adminClient
     .from('race_category_custom_split_rule')
     .select('category_id, source_stage, rank_from, rank_to, target_stage, target_final_class, sort_order, split_basis, batch_no')
     .eq('category_id', categoryId)
-    .eq('source_stage', 'QUALIFICATION')
     .order('sort_order', { ascending: true })
     .order('rank_from', { ascending: true })
 
@@ -86,7 +88,12 @@ async function loadQualificationCustomSplitRules(categoryId: string): Promise<Cu
     return []
   }
 
-  return ((data ?? []) as CustomSplitRuleRow[]).map((row) => ({
+  let rows = (data ?? []) as CustomSplitRuleRow[]
+  if (sourceStage) {
+    rows = rows.filter((row) => row.source_stage === sourceStage)
+  }
+
+  return rows.map((row) => ({
     rankFrom: Number(row.rank_from),
     rankTo: Number(row.rank_to),
     targetStage: row.target_stage,
@@ -609,7 +616,7 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
 
   if (batches.length === 0) return { ok: false, warning: 'No qualifying batches found.' }
 
-  const customQualificationRules = await loadQualificationCustomSplitRules(categoryId)
+  const customQualificationRules = await loadCustomSplitRules(categoryId, 'QUALIFICATION')
   const qualificationReady = batches.every(
     (batch) => batch.riders.length > 0 && batch.finishes.length >= batch.riders.length * requiredMotoCount
   )
@@ -796,11 +803,13 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
     categoryResultRows
   )
   const existingQuarterMotos = existingMotoRows.filter((moto) => /^Quarter Final/i.test(moto.moto_name))
+  const existingRepechageMotos = existingMotoRows.filter((moto) => /^Repechage/i.test(moto.moto_name))
   const existingSemiMotos = existingMotoRows.filter((moto) => /^Semi Final/i.test(moto.moto_name))
   const existingFinalMotos = existingMotoRows.filter((moto) => /^Final /i.test(moto.moto_name))
   const readiness = {
     qualificationReady: qualificationProgress.ready,
     quarterReady: areAllMotosComplete(existingQuarterMotos, categoryMotoRiderRows, categoryResultRows),
+    repechageReady: areAllMotosComplete(existingRepechageMotos, categoryMotoRiderRows, categoryResultRows),
     semiReady: areAllMotosComplete(existingSemiMotos, categoryMotoRiderRows, categoryResultRows),
   }
 
@@ -819,14 +828,21 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
   )
   const finalGateSeedRows = currentQualificationSeedRows.length > 0 ? currentQualificationSeedRows : qualificationRows
   const quarterResultRows = stageSeedRows.filter((row) => row.stage === 'QUARTER_FINAL' && row.position !== null)
+  const repechageResultRows = stageSeedRows.filter((row) => row.stage === 'REPECHAGE' && row.position !== null)
 
   const quarterRiders = orderRidersBySeedRows(
     stageSeedRows.filter((r) => r.stage === 'QUARTER_FINAL').map((r) => r.rider_id),
     qualificationRows
   )
+  const repechageRiders = orderRidersBySeedRows(
+    stageSeedRows.filter((r) => r.stage === 'REPECHAGE').map((r) => r.rider_id),
+    stageSeedRows.filter((row) =>
+      row.stage === 'QUALIFICATION' || row.stage === 'QUARTER_FINAL' || row.stage === 'SEMI_FINAL'
+    )
+  )
   const semiRiders = orderRidersBySeedRows(
     stageSeedRows.filter((r) => r.stage === 'SEMI_FINAL').map((r) => r.rider_id),
-    quarterResultRows
+    [...quarterResultRows, ...repechageResultRows, ...qualificationRows]
   )
   const finals = stageSeedRows
     .filter((r) => r.stage === 'FINAL' && r.final_class)
@@ -883,6 +899,44 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
         .insert(newMotos.slice(-groups.length))
         .select('id')
       if (motoError || !motoRows) return { ok: false, warning: motoError?.message || 'Failed to create QF motos.' }
+      motoRows.forEach((m, i) => {
+        groups[i].forEach((riderId) => newMotoRiders.push({ moto_id: m.id, rider_id: riderId }))
+        newGatePositions.push(...buildGateRows(m.id, groups[i]))
+      })
+    }
+  }
+
+  if (repechageRiders.length > 0) {
+    const existingRepechageMotos = await loadStageMotos(eventId, categoryId, 'Repechage')
+    const existingRepechageIds = existingRepechageMotos.map((m) => m.id)
+    const assignedRepechage = new Set<string>()
+    if (existingRepechageIds.length > 0) {
+      const { data: assignedRows } = await adminClient
+        .from('moto_riders')
+        .select('moto_id, rider_id')
+        .in('moto_id', existingRepechageIds)
+      for (const row of assignedRows ?? []) {
+        assignedRepechage.add(row.rider_id)
+      }
+    }
+
+    const pendingRepechage = repechageRiders.filter((id) => !assignedRepechage.has(id))
+    if (pendingRepechage.length > 0) {
+      const groups = distributeSeededHeats(pendingRepechage, maxRiders)
+      const startIndex = existingRepechageMotos.length
+      const { data: motoRows, error: motoError } = await adminClient
+        .from('motos')
+        .insert(
+          groups.map((_, idx) => ({
+            event_id: eventId,
+            category_id: categoryId,
+            moto_name: `Repechage - Heat ${startIndex + idx + 1}`,
+            moto_order: nextOrder++,
+            status: 'UPCOMING',
+          }))
+        )
+        .select('id')
+      if (motoError || !motoRows) return { ok: false, warning: motoError?.message || 'Failed to create Repechage motos.' }
       motoRows.forEach((m, i) => {
         groups[i].forEach((riderId) => newMotoRiders.push({ moto_id: m.id, rider_id: riderId }))
         newGatePositions.push(...buildGateRows(m.id, groups[i]))
@@ -1063,10 +1117,11 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
   }
 
   const quarterMotos = await loadStageMotos(eventId, categoryId, 'Quarter Final')
+  const repechageMotos = await loadStageMotos(eventId, categoryId, 'Repechage')
   const semiMotos = await loadStageMotos(eventId, categoryId, 'Semi Final')
   const finalMotos = await loadStageMotos(eventId, categoryId, 'Final ')
 
-  const allMotos = [...quarterMotos, ...semiMotos, ...finalMotos]
+  const allMotos = [...quarterMotos, ...repechageMotos, ...semiMotos, ...finalMotos]
   if (allMotos.length === 0) return { ok: false, warning: 'No stage motos found.' }
 
   const motoIds = allMotos.map((m) => m.id)
@@ -1095,7 +1150,7 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
     .from('race_stage_result')
     .delete()
     .eq('category_id', categoryId)
-    .in('stage', ['QUARTER_FINAL', 'SEMI_FINAL', 'FINAL'])
+    .in('stage', ['QUARTER_FINAL', 'REPECHAGE', 'SEMI_FINAL', 'FINAL'])
 
   const quarterRows: Array<{
     rider_id: string
@@ -1106,6 +1161,7 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
     points: number | null
     final_class?: string | null
   }> = []
+  const repechageRows: typeof quarterRows = []
   const semiRows: typeof quarterRows = []
   const finalRows: typeof quarterRows = []
 
@@ -1141,9 +1197,10 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
     }, {})
 
   const pendingQuarterRiders = new Set<string>()
+  const pendingRepechageRiders = new Set<string>()
   const pendingSemiRiders = new Set<string>()
   const pendingFinalAssignments = new Map<string, string>()
-  const customQualificationRules = await loadQualificationCustomSplitRules(categoryId)
+  const customQualificationRules = await loadCustomSplitRules(categoryId, 'QUALIFICATION')
   const qualificationBatchCount = Object.keys(qualificationRanksByBatch).length
   const customSplitBasis = customQualificationRules[0]?.splitBasis ?? 'COMBINED'
   const useCombinedCustomSplit =
@@ -1210,12 +1267,18 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
       pendingSemiRiders.add(advance.riderId)
       return
     }
+    if (advance.toStage === 'REPECHAGE') {
+      pendingRepechageRiders.add(advance.riderId)
+      return
+    }
     addFinalAssignment(pendingFinalAssignments, advance.riderId, advance.finalClass)
   })
 
   const completedQuarterRiders = new Set<string>()
   const quarterDerivedSemiRiders = new Set<string>()
+  const quarterDerivedRepechageRiders = new Set<string>()
   const quarterDerivedFinalAssignments = new Map<string, string>()
+  const quarterCustomRules = await loadCustomSplitRules(categoryId, 'QUARTER_FINAL')
 
   for (const moto of quarterMotos) {
     if (!isMotoComplete(moto.id, motoRiderRows, resultRows)) continue
@@ -1228,7 +1291,10 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
       scores[id] = pointForRaceResult(row, riderCount) ?? 9999
     })
     const ranked = rankByPoints(scores)
-    const advances = computeQuarterFinal(ranked, resolveQuarterFinalPrimaryAdvance(resolved.stages))
+    const advances =
+      quarterCustomRules.length > 0
+        ? computeCustomStageAdvances(ranked, quarterCustomRules, resolveQuarterFinalPrimaryAdvance(resolved.stages))
+        : computeQuarterFinal(ranked, resolveQuarterFinalPrimaryAdvance(resolved.stages))
 
     ranked.forEach((r) => {
       quarterRows.push({
@@ -1245,6 +1311,10 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
       completedQuarterRiders.add(r.riderId)
       if (r.toStage === 'SEMI_FINAL') {
         quarterDerivedSemiRiders.add(r.riderId)
+      } else if (r.toStage === 'QUARTER_FINAL') {
+        pendingQuarterRiders.add(r.riderId)
+      } else if (r.toStage === 'REPECHAGE') {
+        quarterDerivedRepechageRiders.add(r.riderId)
       } else {
         addFinalAssignment(quarterDerivedFinalAssignments, r.riderId, r.finalClass)
       }
@@ -1263,8 +1333,65 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
       })
     })
 
+  Array.from(quarterDerivedRepechageRiders).forEach((riderId) => pendingRepechageRiders.add(riderId))
+
   const completedSemiRiders = new Set<string>()
   const semiDerivedFinalAssignments = new Map<string, string>()
+  const semiDerivedRepechageRiders = new Set<string>()
+  const semiCustomRules = await loadCustomSplitRules(categoryId, 'SEMI_FINAL')
+  const repechageDerivedSemiRiders = new Set<string>()
+  const repechageDerivedFinalAssignments = new Map<string, string>()
+
+  const repechageCustomRules = await loadCustomSplitRules(categoryId, 'REPECHAGE')
+
+  for (const moto of repechageMotos) {
+    if (!isMotoComplete(moto.id, motoRiderRows, resultRows)) continue
+
+    const riders = motoRiderRows.filter((r) => r.moto_id === moto.id).map((r) => r.rider_id)
+    const scores: Record<string, number> = {}
+    const riderCount = riders.length
+    riders.forEach((id) => {
+      const row = resultRows.find((r) => r.moto_id === moto.id && r.rider_id === id)
+      scores[id] = pointForRaceResult(row, riderCount) ?? 9999
+    })
+    const ranked = rankByPoints(scores)
+    const advances = computeCustomStageAdvances(ranked, repechageCustomRules, { toStage: 'SEMI_FINAL' })
+
+    ranked.forEach((r) => {
+      repechageRows.push({
+        rider_id: r.riderId,
+        category_id: categoryId,
+        stage: 'REPECHAGE',
+        batch_id: moto.id,
+        position: r.rank,
+        points: r.points,
+      })
+    })
+
+    advances.forEach((r) => {
+      if (r.toStage === 'SEMI_FINAL') {
+        repechageDerivedSemiRiders.add(r.riderId)
+      } else if (r.toStage === 'QUARTER_FINAL') {
+        pendingQuarterRiders.add(r.riderId)
+      } else if (r.toStage === 'REPECHAGE') {
+        pendingRepechageRiders.add(r.riderId)
+      } else {
+        addFinalAssignment(repechageDerivedFinalAssignments, r.riderId, r.finalClass)
+      }
+    })
+  }
+
+  Array.from(pendingRepechageRiders)
+    .filter((riderId) => !repechageRows.some((row) => row.rider_id === riderId))
+    .forEach((riderId) => {
+      repechageRows.push({
+        rider_id: riderId,
+        category_id: categoryId,
+        stage: 'REPECHAGE',
+        position: null,
+        points: null,
+      })
+    })
 
   for (const moto of semiMotos) {
     if (!isMotoComplete(moto.id, motoRiderRows, resultRows)) continue
@@ -1277,7 +1404,10 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
       scores[id] = pointForRaceResult(row, riderCount) ?? 9999
     })
     const ranked = rankByPoints(scores)
-    const advances = computeSemiFinal(ranked)
+    const advances =
+      semiCustomRules.length > 0
+        ? computeCustomStageAdvances(ranked, semiCustomRules, { toStage: 'FINAL', finalClass: 'ELITE' })
+        : computeSemiFinal(ranked)
     ranked.forEach((r) => {
       completedSemiRiders.add(r.riderId)
       semiRows.push({
@@ -1290,12 +1420,26 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
       })
       const nextRows = advances.filter((row) => row.riderId === r.riderId)
       nextRows.forEach((next) => {
+        if (next.toStage === 'REPECHAGE') {
+          semiDerivedRepechageRiders.add(r.riderId)
+          return
+        }
+        if (next.toStage === 'QUARTER_FINAL') {
+          pendingQuarterRiders.add(r.riderId)
+          return
+        }
+        if (next.toStage === 'SEMI_FINAL') {
+          pendingSemiRiders.add(r.riderId)
+          return
+        }
         addFinalAssignment(semiDerivedFinalAssignments, r.riderId, next.finalClass)
       })
     })
   }
 
-  Array.from(new Set([...pendingSemiRiders, ...quarterDerivedSemiRiders]))
+  Array.from(semiDerivedRepechageRiders).forEach((riderId) => pendingRepechageRiders.add(riderId))
+
+  Array.from(new Set([...pendingSemiRiders, ...quarterDerivedSemiRiders, ...repechageDerivedSemiRiders]))
     .filter((riderId) => !completedSemiRiders.has(riderId))
     .forEach((riderId) => {
       semiRows.push({
@@ -1332,6 +1476,7 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
   const finalAssignments = new Map<string, string>()
   pendingFinalAssignments.forEach((finalClass, riderId) => addFinalAssignment(finalAssignments, riderId, finalClass))
   quarterDerivedFinalAssignments.forEach((finalClass, riderId) => addFinalAssignment(finalAssignments, riderId, finalClass))
+  repechageDerivedFinalAssignments.forEach((finalClass, riderId) => addFinalAssignment(finalAssignments, riderId, finalClass))
   semiDerivedFinalAssignments.forEach((finalClass, riderId) => addFinalAssignment(finalAssignments, riderId, finalClass))
 
   finalAssignments.forEach((finalClass, riderId) => {
@@ -1346,13 +1491,30 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
     })
   })
 
-  const payload = [...quarterRows, ...semiRows, ...finalRows]
+  const payload = [...quarterRows, ...repechageRows, ...semiRows, ...finalRows]
   if (payload.length > 0) {
     const { error: insertError } = await adminClient.from('race_stage_result').insert(payload)
     if (insertError) return { ok: false, warning: insertError.message }
   }
 
   return { ok: true }
+}
+
+const computeCustomStageAdvances = (
+  ranked: RankedRow[],
+  customRules: CustomSplitRule[],
+  primaryAdvance: { toStage: 'QUARTER_FINAL' | 'REPECHAGE' | 'SEMI_FINAL' | 'FINAL'; finalClass?: FinalClass }
+) => {
+  if (ranked.length === 0) return [] as Array<{ riderId: string; toStage: 'QUARTER_FINAL' | 'REPECHAGE' | 'SEMI_FINAL' | 'FINAL'; finalClass?: FinalClass }>
+  return computeQualificationAdvancesFromRanks(
+    ranked,
+    primaryAdvance,
+    customRules,
+    {
+      quarterEnabledFinalClasses: FINAL_CLASS_ORDER,
+      semiEnabledFinalClasses: FINAL_CLASS_ORDER,
+    }
+  )
 }
 
 export async function syncAdvancedRaceProgress(eventId: string, categoryId: string) {

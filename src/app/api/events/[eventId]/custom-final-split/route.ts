@@ -8,10 +8,10 @@ import { resolveCategoryConfig } from '../../../../../services/categoryResolver'
 
 type CustomRuleInput = {
   id?: string
-  source_stage: 'QUALIFICATION'
+  source_stage: 'QUALIFICATION' | 'QUARTER_FINAL' | 'SEMI_FINAL' | 'REPECHAGE'
   rank_from: number
   rank_to: number
-  target_stage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL'
+  target_stage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'REPECHAGE' | 'FINAL'
   target_final_class?: string | null
   sort_order: number
   split_basis?: 'COMBINED' | 'PER_BATCH' | 'CUSTOM_PER_BATCH'
@@ -20,10 +20,10 @@ type CustomRuleInput = {
 
 type NormalizedRule = {
   category_id: string
-  source_stage: 'QUALIFICATION'
+  source_stage: 'QUALIFICATION' | 'QUARTER_FINAL' | 'SEMI_FINAL' | 'REPECHAGE'
   rank_from: number
   rank_to: number
-  target_stage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL'
+  target_stage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'REPECHAGE' | 'FINAL'
   target_final_class: string | null
   sort_order: number
   split_basis: 'COMBINED' | 'PER_BATCH' | 'CUSTOM_PER_BATCH'
@@ -42,12 +42,13 @@ type EventSettingsRow = {
 }
 
 const targetKeyForRule = (rule: {
-  target_stage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL'
+  source_stage?: 'QUALIFICATION' | 'QUARTER_FINAL' | 'SEMI_FINAL' | 'REPECHAGE'
+  target_stage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'REPECHAGE' | 'FINAL'
   target_final_class?: string | null
   batch_no?: number | null
   split_basis?: 'COMBINED' | 'PER_BATCH' | 'CUSTOM_PER_BATCH'
 }) =>
-  `${rule.split_basis === 'CUSTOM_PER_BATCH' ? `BATCH:${rule.batch_no ?? 'NULL'}:` : ''}${rule.target_stage}:${
+  `${rule.source_stage ?? 'QUALIFICATION'}:${rule.split_basis === 'CUSTOM_PER_BATCH' ? `BATCH:${rule.batch_no ?? 'NULL'}:` : ''}${rule.target_stage}:${
     rule.target_stage === 'FINAL' ? rule.target_final_class ?? 'NULL' : '-'
   }`
 
@@ -175,7 +176,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   const normalizedRules: NormalizedRule[] = rules
     .map((rule, index): NormalizedRule => ({
       category_id: categoryId,
-      source_stage: 'QUALIFICATION' as const,
+      source_stage: rule.source_stage ?? 'QUALIFICATION',
       rank_from: Math.max(1, Number(rule.rank_from) || 1),
       rank_to: Math.max(1, Number(rule.rank_to) || 1),
       target_stage: rule.target_stage,

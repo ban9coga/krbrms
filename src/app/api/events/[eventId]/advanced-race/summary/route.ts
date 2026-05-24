@@ -4,7 +4,7 @@ import { resolveCategoryConfig } from '../../../../../../services/categoryResolv
 
 type StageRow = {
   category_id: string
-  stage: 'QUALIFICATION' | 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL'
+  stage: 'QUALIFICATION' | 'QUARTER_FINAL' | 'REPECHAGE' | 'SEMI_FINAL' | 'FINAL'
 }
 
 type MotoRow = {
@@ -95,7 +95,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     string,
     {
       stageCounts: Record<string, number>
-      motoCounts: { quarter: number; semi: number; final: number }
+      motoCounts: { quarter: number; repechage: number; semi: number; final: number }
       readiness: {
         totalRiders: number
         requiresQualification: boolean
@@ -104,6 +104,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         qualificationReady: boolean
         qualificationRun: boolean
         quarterReady: boolean
+        repechageReady: boolean
         semiReady: boolean
         canRunQualification: boolean
         canComputeAdvances: boolean
@@ -115,22 +116,23 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
 
   for (const id of categoryIds) {
     summary[id] = {
-      stageCounts: { QUALIFICATION: 0, QUARTER_FINAL: 0, SEMI_FINAL: 0, FINAL: 0 },
-      motoCounts: { quarter: 0, semi: 0, final: 0 },
+      stageCounts: { QUALIFICATION: 0, QUARTER_FINAL: 0, REPECHAGE: 0, SEMI_FINAL: 0, FINAL: 0 },
+      motoCounts: { quarter: 0, repechage: 0, semi: 0, final: 0 },
         readiness: {
           totalRiders: 0,
           requiresQualification: false,
           qualificationTotalBatches: 0,
           qualificationCompleteBatches: 0,
           qualificationReady: false,
-        qualificationRun: false,
-        quarterReady: false,
-        semiReady: false,
-        canRunQualification: false,
-        canComputeAdvances: false,
-        allQualificationLocked: false,
-        allCategoryMotosLocked: false,
-      },
+          qualificationRun: false,
+          quarterReady: false,
+          repechageReady: false,
+          semiReady: false,
+          canRunQualification: false,
+          canComputeAdvances: false,
+          allQualificationLocked: false,
+          allCategoryMotosLocked: false,
+        },
     }
   }
 
@@ -146,7 +148,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     const name = row.moto_name.toLowerCase()
     if (!summary[row.category_id]) continue
     if (name.startsWith('quarter final')) summary[row.category_id].motoCounts.quarter += 1
-    else if (name.startsWith('semi final')) summary[row.category_id].motoCounts.semi += 1
+      else if (name.startsWith('repechage')) summary[row.category_id].motoCounts.repechage += 1
+      else if (name.startsWith('semi final')) summary[row.category_id].motoCounts.semi += 1
     else if (name.startsWith('final ')) summary[row.category_id].motoCounts.final += 1
   }
 
@@ -174,6 +177,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     const qualificationMotos = categoryMotos.filter((row) => parseBatchKey(row.moto_name))
     const quarterMotos = categoryMotos.filter((row) => /^Quarter Final/i.test(row.moto_name))
     const semiMotos = categoryMotos.filter((row) => /^Semi Final/i.test(row.moto_name))
+    const repechageMotos = categoryMotos.filter((row) => /^Repechage/i.test(row.moto_name))
     const qualificationProgress = buildQualificationProgress(qualificationMotos, typedAssignedRows, typedResultRows)
     const qualificationRun = (summary[id]?.stageCounts?.QUALIFICATION ?? 0) > 0
     const allQualificationLocked =
@@ -185,14 +189,18 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     const requiresQualification = Boolean(resolved?.stages.enableQualification)
 
     const quarterExists = (summary[id]?.motoCounts?.quarter ?? 0) > 0
+    const repechageExists = (summary[id]?.motoCounts?.repechage ?? 0) > 0
     const semiExists = (summary[id]?.motoCounts?.semi ?? 0) > 0
     const quarterReady = areAllMotosComplete(quarterMotos, typedAssignedRows, typedResultRows)
+    const repechageReady = areAllMotosComplete(repechageMotos, typedAssignedRows, typedResultRows)
     const semiReady = areAllMotosComplete(semiMotos, typedAssignedRows, typedResultRows)
     const canComputeAdvances =
       requiresQualification &&
       qualificationRun &&
       (
-        quarterExists
+        repechageExists
+          ? repechageReady
+          : quarterExists
           ? quarterReady
           : semiExists
           ? semiReady
@@ -207,6 +215,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       qualificationReady: qualificationProgress.ready,
       qualificationRun,
       quarterReady,
+      repechageReady,
       semiReady,
       canRunQualification: requiresQualification && qualificationProgress.ready,
       canComputeAdvances,

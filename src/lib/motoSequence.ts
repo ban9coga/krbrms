@@ -10,7 +10,7 @@ type ParsedMoto = {
 }
 
 type ParsedAdvancedMoto = {
-  stage: 'QUALIFICATION' | 'QUARTER_FINAL' | 'SEMI_FINAL' | 'FINAL'
+  stage: 'QUALIFICATION' | 'QUARTER_FINAL' | 'REPECHAGE' | 'SEMI_FINAL' | 'FINAL'
   motoIndex?: number
   batchIndex?: number
   heatIndex?: number
@@ -70,6 +70,15 @@ const parseAdvancedMoto = (name?: string | null): ParsedAdvancedMoto | null => {
     }
   }
 
+  // Format: "Repechage - Heat X"
+  const repMatch = name.match(/repechage\s*-\s*heat\s*(\d+)/i)
+  if (repMatch) {
+    return {
+      stage: 'REPECHAGE',
+      heatIndex: Number(repMatch[1]),
+    }
+  }
+
   // Format: "Final CLASS_NAME" (e.g., "Final BEGINNER", "Final ELITE")
   const finalMatch = name.match(/^final\s+(\w+)$/i)
   if (finalMatch) {
@@ -87,8 +96,9 @@ const getAdvancedStageOrder = (stage: string): number => {
   const stageOrder: Record<string, number> = {
     QUALIFICATION: 1,
     QUARTER_FINAL: 2,
-    SEMI_FINAL: 3,
-    FINAL: 4,
+    REPECHAGE: 3,
+    SEMI_FINAL: 4,
+    FINAL: 5,
   }
   return stageOrder[stage] ?? 99
 }
@@ -130,6 +140,10 @@ export const compareMotoSequence = (a: MotoLike, b: MotoLike) => {
     }
 
     if (advancedA.stage === 'QUARTER_FINAL' && advancedB.stage === 'QUARTER_FINAL') {
+      return (advancedA.heatIndex ?? 0) - (advancedB.heatIndex ?? 0)
+    }
+
+    if (advancedA.stage === 'REPECHAGE' && advancedB.stage === 'REPECHAGE') {
       return (advancedA.heatIndex ?? 0) - (advancedB.heatIndex ?? 0)
     }
 
