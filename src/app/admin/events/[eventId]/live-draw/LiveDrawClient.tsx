@@ -517,6 +517,18 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     () => externalPerBatchValidation.orderedMoto2Batches.reduce((total, batch) => total + batch.length, 0),
     [externalPerBatchValidation.orderedMoto2Batches]
   )
+  const activeTargetBatchRiders = useMemo(() => {
+    if (externalTargetField.moto === 1) {
+      return externalPerBatchValidation.orderedBatches[externalTargetField.batchIndex]?.length ?? 0
+    }
+    return externalPerBatchValidation.orderedMoto2Batches[externalTargetField.batchIndex]?.length ?? 0
+  }, [
+    externalPerBatchValidation.orderedBatches,
+    externalPerBatchValidation.orderedMoto2Batches,
+    externalTargetField.batchIndex,
+    externalTargetField.moto,
+  ])
+  const isActiveTargetBatchFull = activeTargetBatchRiders >= maxBatchRiders
   const isExternalPerBatchMode = drawMode === 'external_draw' && externalBatchInputMode === 'PER_BATCH'
   const displayedBatchCount = isExternalPerBatchMode ? externalPerBatchValidation.batchCount : batches.length
   const applyButtonEnabled =
@@ -846,8 +858,18 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     const assignedInMoto2 = externalPerBatchValidation.orderedMoto2Batches.some((batch) =>
       batch.some((item) => item.id === rider.id)
     )
+    const targetBatchCount =
+      externalTargetField.moto === 1
+        ? externalPerBatchValidation.orderedBatches[externalTargetField.batchIndex]?.length ?? 0
+        : externalPerBatchValidation.orderedMoto2Batches[externalTargetField.batchIndex]?.length ?? 0
     if (externalTargetField.moto === 1 && assignedInMoto1) return
     if (externalTargetField.moto === 2 && (!assignedInMoto1 || assignedInMoto2)) return
+    if (targetBatchCount >= maxBatchRiders) {
+      alert(
+        `Batch ${externalTargetField.batchIndex + 1} - Moto ${externalTargetField.moto} sudah penuh. Maksimal ${maxBatchRiders} rider per batch.`
+      )
+      return
+    }
 
     const setter = externalTargetField.moto === 1 ? setExternalBatchTexts : setExternalMoto2BatchTexts
     setter((prev) => {
@@ -1291,7 +1313,10 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                     fontWeight: 800,
                   }}
                 >
-                  Klik rider untuk masuk ke target aktif: <strong>Batch {externalTargetField.batchIndex + 1} - Moto {externalTargetField.moto}</strong>
+                  Klik rider untuk masuk ke target aktif:{' '}
+                  <strong>Batch {externalTargetField.batchIndex + 1} - Moto {externalTargetField.moto}</strong>{' '}
+                  ({activeTargetBatchRiders}/{maxBatchRiders} rider)
+                  {isActiveTargetBatchFull ? ' - PENUH' : ''}
                 </div>
                 <input
                   type="text"
@@ -1330,11 +1355,18 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                     batch.some((item) => item.id === rider.id)
                   )
                   const interactive = drawMode === 'external_draw' && externalBatchInputMode === 'PER_BATCH'
-                  const disabledForTarget =
+                  const disabledForAssignment =
                     externalTargetField.moto === 1
                       ? assignedInMoto1
                       : !assignedInMoto1 || assignedInMoto2
-                  const statusLabel = assignedInMoto2 ? 'Sudah di Moto 2' : assignedInMoto1 ? 'Sudah di Moto 1' : 'Siap dipilih'
+                  const disabledForTarget = disabledForAssignment || (interactive && isActiveTargetBatchFull)
+                  const statusLabel = isActiveTargetBatchFull
+                    ? `Batch target penuh (${activeTargetBatchRiders}/${maxBatchRiders})`
+                    : assignedInMoto2
+                      ? 'Sudah di Moto 2'
+                      : assignedInMoto1
+                        ? 'Sudah di Moto 1'
+                        : 'Siap dipilih'
                   return (
                   <button
                     type="button"
@@ -1362,9 +1394,11 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                       <span>{rider.name}</span>
                       <span style={{ color: '#64748b', fontSize: 12 }}>
                         {interactive
-                          ? externalTargetField.moto === 1
-                            ? 'Belum masuk Moto 1'
-                            : 'Siap dipilih untuk Moto 2'
+                          ? isActiveTargetBatchFull
+                            ? `Batch target penuh (${activeTargetBatchRiders}/${maxBatchRiders})`
+                            : externalTargetField.moto === 1
+                              ? 'Belum masuk Moto 1'
+                              : 'Siap dipilih untuk Moto 2'
                           : statusLabel}
                       </span>
                     </span>
@@ -1374,11 +1408,11 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                         <span
                           style={{
                             fontSize: 12,
-                            color: '#1d4ed8',
+                            color: isActiveTargetBatchFull ? '#b45309' : '#1d4ed8',
                             fontWeight: 900,
                           }}
                         >
-                          Klik untuk masuk
+                          {isActiveTargetBatchFull ? 'Batch penuh' : 'Klik untuk masuk'}
                         </span>
                       )}
                     </span>
@@ -1664,9 +1698,9 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                       Batch {externalTargetField.batchIndex + 1} - Moto {externalTargetField.moto}
                     </div>
                   </div>
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    {externalPerBatchValidation.orderedBatches.map((batch, index) => (
-                      <div
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      {externalPerBatchValidation.orderedBatches.map((batch, index) => (
+                        <div
                         key={`batch-status-${index}`}
                         style={{
                           padding: '8px 10px',
@@ -1687,8 +1721,8 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                           fontWeight: 900,
                           fontSize: 12,
                         }}
-                      >
-                        Batch {index + 1}: {batch.length} rider
+                        >
+                        Batch {index + 1}: {batch.length}/{maxBatchRiders} rider
                       </div>
                     ))}
                   </div>
