@@ -222,12 +222,17 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
   const [deleteGuard, setDeleteGuard] = useState<LiveDrawGuard>({ canDelete: true, reason: null })
   const spinTimeoutRef = useRef<number | null>(null)
   const rollingIntervalRef = useRef<number | null>(null)
+  const maxBatchRiders = useMemo(() => Math.max(4, Math.min(8, gatePositions || 8)), [gatePositions])
+  const minimumManualBatchCount = useMemo(
+    () => Math.max(1, Math.ceil(Math.max(0, riders.length) / maxBatchRiders)),
+    [maxBatchRiders, riders.length]
+  )
 
   const effectiveBatchCount = useMemo(() => {
     if (batchMode !== 'MANUAL_BATCH_COUNT') return null
     const maxCount = Math.max(1, riders.length)
-    return Math.max(1, Math.min(maxCount, manualBatchCount))
-  }, [batchMode, manualBatchCount, riders.length])
+    return Math.max(minimumManualBatchCount, Math.min(maxCount, manualBatchCount))
+  }, [batchMode, manualBatchCount, minimumManualBatchCount, riders.length])
 
   const batches = useMemo(() => {
     if (batchMode === 'MANUAL_BATCH_COUNT' && effectiveBatchCount) {
@@ -389,7 +394,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
   }, [externalMoto2OrderText, riders, drawnOrder, externalValidation.orderedRiders, batchSize])
 
   const externalPerBatchValidation = useMemo(() => {
-    const count = effectiveBatchCount ?? Math.max(1, Math.ceil(riders.length / Math.max(4, batchSize)))
+    const count = effectiveBatchCount ?? Math.max(1, Math.ceil(riders.length / maxBatchRiders))
 
     const seenRiderIds = new Set<string>()
     const duplicateTokens: string[] = []
@@ -431,9 +436,13 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
 
     const missingRiders = riders.filter((rider) => !seenRiderIds.has(rider.id))
     const allFilled = orderedBatches.every((batch) => batch.length > 0)
+    const overCapacityBatches = orderedBatches
+      .map((batch, index) => (batch.length > maxBatchRiders ? index + 1 : null))
+      .filter((value): value is number => value !== null)
     const isValid =
       riders.length > 0 &&
       allFilled &&
+      overCapacityBatches.length === 0 &&
       missingRiders.length === 0 &&
       unknownTokens.length === 0 &&
       duplicateTokens.length === 0 &&
@@ -482,6 +491,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       duplicateRiders,
       missingRiders,
       emptyBatches,
+      overCapacityBatches,
       isValid,
       moto2Provided,
       moto2UnknownTokens,
@@ -489,7 +499,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       moto2BatchMismatch,
       isValidMoto2,
     }
-  }, [effectiveBatchCount, riders, batchSize, externalBatchTexts, externalMoto2BatchTexts])
+  }, [effectiveBatchCount, riders, externalBatchTexts, externalMoto2BatchTexts, maxBatchRiders])
 
   const externalBatchLayouts = useMemo(() => {
     let cursor = 0
@@ -609,20 +619,22 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       setManualBatchCount(1)
       return
     }
-    const autoCount = Math.max(1, Math.ceil(riders.length / Math.max(4, batchSize)))
-    setManualBatchCount((prev) => Math.max(1, Math.min(Math.max(1, riders.length), prev || autoCount)))
-  }, [riders.length, batchSize])
+    const autoCount = Math.max(1, Math.ceil(riders.length / maxBatchRiders))
+    setManualBatchCount((prev) =>
+      Math.max(autoCount, Math.min(Math.max(1, riders.length), prev || autoCount))
+    )
+  }, [riders.length, maxBatchRiders])
 
   useEffect(() => {
     if (externalBatchInputMode !== 'PER_BATCH') return
-    const count = effectiveBatchCount ?? Math.max(1, Math.ceil(riders.length / Math.max(4, batchSize)))
+    const count = effectiveBatchCount ?? Math.max(1, Math.ceil(riders.length / maxBatchRiders))
     setExternalBatchTexts((prev) => Array.from({ length: count }, (_, index) => prev[index] ?? ''))
     setExternalMoto2BatchTexts((prev) => Array.from({ length: count }, (_, index) => prev[index] ?? ''))
     setExternalTargetField((prev) => ({
       batchIndex: Math.max(0, Math.min(count - 1, prev.batchIndex)),
       moto: prev.moto,
     }))
-  }, [externalBatchInputMode, effectiveBatchCount, riders.length, batchSize])
+  }, [externalBatchInputMode, effectiveBatchCount, riders.length, maxBatchRiders])
 
   const apiFetch = async (url: string, options: RequestInit = {}) => {
     const { data } = await supabase.auth.getSession()
@@ -1211,17 +1223,19 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
               </div>
               <input
                 type="number"
-                min={1}
+                min={minimumManualBatchCount}
                 max={Math.max(1, riders.length)}
                 value={effectiveBatchCount ?? manualBatchCount}
                 onChange={(e) => {
                   const next = Number(e.target.value)
-                  setManualBatchCount(Math.max(1, Math.min(Math.max(1, riders.length), next)))
+                  setManualBatchCount(
+                    Math.max(minimumManualBatchCount, Math.min(Math.max(1, riders.length), next))
+                  )
                 }}
                 style={{ padding: 12, borderRadius: 12, border: '2px solid #111', maxWidth: 160 }}
               />
               <div style={{ color: '#475569', fontWeight: 800 }}>
-                Sistem akan membagi rider seimbang per batch. Contoh 40 rider / 6 batch menjadi 7,7,7,7,6,6.
+                Sistem akan membagi rider seimbang per batch. Maksimal {maxBatchRiders} rider per batch, jadi minimal perlu {minimumManualBatchCount} batch untuk {riders.length} rider.
               </div>
             </>
           )}
@@ -1697,6 +1711,11 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                     </div>
                     {externalPerBatchValidation.emptyBatches.length > 0 && (
                       <div>Batch kosong: {externalPerBatchValidation.emptyBatches.join(', ')}</div>
+                    )}
+                    {externalPerBatchValidation.overCapacityBatches.length > 0 && (
+                      <div>
+                        Batch melebihi kapasitas {maxBatchRiders} rider: {externalPerBatchValidation.overCapacityBatches.join(', ')}
+                      </div>
                     )}
                     {externalPerBatchValidation.missingRiders.length > 0 && (
                       <div>
@@ -2638,4 +2657,3 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     </div>
   )
 }
-

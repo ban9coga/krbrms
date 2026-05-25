@@ -305,6 +305,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   const baseOrder = lastOrderRow?.moto_order ?? 0
   const batches = hasManualBatches ? effectiveBatches : chunk(riderIds, batchSize)
   const moto2Batches = hasManualMoto2Batches ? riderBatchesMoto2.filter((batch) => Array.isArray(batch) && batch.length > 0) : hasCustomMoto2 ? chunk(riderIdsMoto2, batchSize) : []
+  const overCapacityBatches = batches
+    .map((batch, index) => (batch.length > batchSize ? index + 1 : null))
+    .filter((value): value is number => value !== null)
+  if (overCapacityBatches.length > 0) {
+    return NextResponse.json(
+      { error: `Batch ${overCapacityBatches.join(', ')} melebihi kapasitas maksimal ${batchSize} rider` },
+      { status: 400 }
+    )
+  }
   if (hasCustomMoto2 && moto2Batches.length !== batches.length) {
     return NextResponse.json({ error: 'rider_ids_moto2 batch shape invalid' }, { status: 400 })
   }
@@ -312,6 +321,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     for (let i = 0; i < batches.length; i += 1) {
       const moto1Batch = batches[i]
       const moto2Batch = moto2Batches[i] ?? []
+      if (moto2Batch.length > batchSize) {
+        return NextResponse.json(
+          { error: `rider_ids_moto2 batch ${i + 1} melebihi kapasitas maksimal ${batchSize} rider` },
+          { status: 400 }
+        )
+      }
       if (!sameSet(moto1Batch, moto2Batch)) {
         return NextResponse.json(
           { error: `rider_ids_moto2 batch ${i + 1} must contain same riders as moto1 batch ${i + 1}` },
