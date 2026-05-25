@@ -364,18 +364,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     const moto1 = motoRows[base]
     const moto2 = motoRows[base + 1]
     const moto2Order = hasCustomMoto2 ? (moto2Batches[batchIndex] ?? []) : [...batch].reverse()
+
     batch.forEach((riderId, idx) => {
       motoRiders.push({ moto_id: moto1.id, rider_id: riderId })
-      motoRiders.push({ moto_id: moto2.id, rider_id: riderId })
       if (hasGateTable) {
         gatePositions.push({ moto_id: moto1.id, rider_id: riderId, gate_position: idx + 1 })
       }
     })
-    if (hasGateTable) {
-      moto2Order.forEach((riderId, idx) => {
+
+    moto2Order.forEach((riderId, idx) => {
+      motoRiders.push({ moto_id: moto2.id, rider_id: riderId })
+      if (hasGateTable) {
         gatePositions.push({ moto_id: moto2.id, rider_id: riderId, gate_position: idx + 1 })
-      })
-    }
+      }
+    })
   })
 
   const { error: riderError } = await adminClient.from('moto_riders').insert(motoRiders)
