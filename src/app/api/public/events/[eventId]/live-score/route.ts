@@ -57,22 +57,6 @@ type QualificationRowStatus = 'FINISHED' | 'DNF' | 'DNS' | 'PENDING' | 'DQ'
 
 type QualificationMotoStatus = 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'PENDING'
 
-const shuffle = <T,>(items: T[]) => {
-  const out = [...items]
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[out[i], out[j]] = [out[j], out[i]]
-  }
-  return out
-}
-
-const rotateLeft = <T,>(items: T[], step = 1) => {
-  if (items.length <= 1) return [...items]
-  const shift = ((step % items.length) + items.length) % items.length
-  if (shift === 0) return [...items]
-  return [...items.slice(shift), ...items.slice(0, shift)]
-}
-
 const parseBatchKey = (name: string) => {
   const match = name.match(/moto\s*(\d+)\s*(?:-\s*)?batch\s*(\d+)/i)
   if (!match) return null
@@ -193,8 +177,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   if (missingGateMotoIds.length > 0) {
     const { data: motoRiders, error: mrError } = await adminClient
       .from('moto_riders')
-      .select('moto_id, rider_id')
+      .select('moto_id, rider_id, created_at')
       .in('moto_id', missingGateMotoIds)
+      .order('created_at', { ascending: true })
     if (mrError) return NextResponse.json({ error: mrError.message }, { status: 400 })
 
     const grouped = new Map<string, string[]>()
@@ -210,13 +195,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       if (moto?.moto_name && !parseBatchKey(moto.moto_name)) {
         continue
       }
-      const baseOrder = [...riders].sort()
-      let ordered = baseOrder
-      if (moto?.moto_name && /moto\s*2\s*-/i.test(moto.moto_name)) {
-        ordered = [...baseOrder].reverse()
-      } else if (moto?.moto_name && /moto\s*3\s*-/i.test(moto.moto_name)) {
-        ordered = baseOrder.length > 2 ? rotateLeft(baseOrder, 1) : shuffle(baseOrder)
-      }
+      const ordered = [...riders]
       ordered.forEach((riderId, idx) => {
         insertRows.push({ moto_id: motoId, rider_id: riderId, gate_position: idx + 1 })
       })
