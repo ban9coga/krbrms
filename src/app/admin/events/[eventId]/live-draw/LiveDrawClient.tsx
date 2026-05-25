@@ -260,6 +260,30 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     () => categories.find((category) => category.id === selectedCategory)?.label ?? 'Kategori',
     [categories, selectedCategory]
   )
+  const savedMotoBatches = useMemo(() => {
+    const grouped = new Map<number, GateMoto[]>()
+    for (const moto of lockedMotos) {
+      const parsed = parseMotoBatch(moto.moto_name)
+      const batchNo = parsed.batchNo > 0 ? parsed.batchNo : 1
+      const list = grouped.get(batchNo) ?? []
+      list.push({
+        ...moto,
+        gates: [...moto.gates].sort((a, b) => a.gate_position - b.gate_position),
+      })
+      grouped.set(batchNo, list)
+    }
+    return Array.from(grouped.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([batchNo, motos]) => ({
+        batchNo,
+        motos: motos.sort((a, b) => {
+          const pa = parseMotoBatch(a.moto_name)
+          const pb = parseMotoBatch(b.moto_name)
+          if (pa.motoNo !== pb.motoNo) return pa.motoNo - pb.motoNo
+          return a.moto_order - b.moto_order
+        }),
+      }))
+  }, [lockedMotos])
 
   const externalValidation = useMemo(() => {
     const tokens = parseExternalTokens(externalOrderText)
@@ -2183,56 +2207,71 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
         {categoryLocked && lockedMotos.length > 0 && (
           <div style={{ marginTop: 14, display: 'grid', gap: 12 }}>
             <div style={{ fontWeight: 900 }}>Gate Order (Saved Moto)</div>
-            {lockedMotos.map((moto) => (
+            {savedMotoBatches.map((batch) => (
               <div
-                key={moto.id}
+                key={`saved-batch-${batch.batchNo}`}
                 style={{
                   border: '2px solid #111',
                   borderRadius: 16,
                   padding: 12,
                   background: '#fff',
+                  display: 'grid',
+                  gap: 10,
                 }}
               >
-                <button
-                  type="button"
-                  onClick={() => setOpenMotoId((prev) => (prev === moto.id ? null : moto.id))}
-                  style={{
-                    width: '100%',
-                    textAlign: 'left',
-                    padding: '10px 12px',
-                    borderRadius: 12,
-                    border: '2px solid #111',
-                    background: '#eaf7ee',
-                    fontWeight: 900,
-                    cursor: 'pointer',
-                  }}
-                >
-                  {moto.moto_order}. {moto.moto_name} {openMotoId === moto.id ? '[Hide]' : '[Show]'}
-                </button>
-                {openMotoId === moto.id && (
-                  <div style={{ marginTop: 8, display: 'grid', gap: 6 }}>
-                    {moto.gates.map((g) => (
-                      <div
-                        key={`${moto.id}-${g.rider_id}`}
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          gap: 10,
-                          padding: '8px 10px',
-                          borderRadius: 10,
-                          border: '1px solid #ddd',
-                          background: '#fff',
-                          fontWeight: 800,
-                        }}
-                      >
-                        <span>
-                          Gate {g.gate_position} - {g.name}
-                        </span>
-                        <span>{g.no_plate_display}</span>
+                <div style={{ fontWeight: 950, fontSize: 18 }}>Batch {batch.batchNo}</div>
+                {batch.motos.map((moto) => (
+                  <div
+                    key={moto.id}
+                    style={{
+                      border: '1px solid #cbd5e1',
+                      borderRadius: 14,
+                      padding: 10,
+                      background: '#f8fafc',
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setOpenMotoId((prev) => (prev === moto.id ? null : moto.id))}
+                      style={{
+                        width: '100%',
+                        textAlign: 'left',
+                        padding: '10px 12px',
+                        borderRadius: 12,
+                        border: '2px solid #111',
+                        background: '#eaf7ee',
+                        fontWeight: 900,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {moto.moto_order}. {moto.moto_name} {openMotoId === moto.id ? '[Hide]' : '[Show]'}
+                    </button>
+                    {openMotoId === moto.id && (
+                      <div style={{ marginTop: 8, display: 'grid', gap: 6 }}>
+                        {moto.gates.map((g) => (
+                          <div
+                            key={`${moto.id}-${g.rider_id}`}
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              gap: 10,
+                              padding: '8px 10px',
+                              borderRadius: 10,
+                              border: '1px solid #ddd',
+                              background: '#fff',
+                              fontWeight: 800,
+                            }}
+                          >
+                            <span>
+                              Gate {g.gate_position} - {g.name}
+                            </span>
+                            <span>{g.no_plate_display}</span>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
                   </div>
-                )}
+                ))}
               </div>
             ))}
           </div>
@@ -2597,69 +2636,84 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
 
               {resultModal === 'saved' && (
                 <div style={{ display: 'grid', gap: 12 }}>
-                  {lockedMotos.map((moto) => (
+                  {savedMotoBatches.map((batch) => (
                     <div
-                      key={moto.id}
+                      key={`saved-modal-batch-${batch.batchNo}`}
                       style={{
                         border: '1px solid #cbd5e1',
                         borderRadius: 20,
                         padding: 14,
                         background: '#fff',
+                        display: 'grid',
+                        gap: 10,
                       }}
                     >
-                      <button
-                        type="button"
-                        onClick={() => setOpenMotoId((prev) => (prev === moto.id ? null : moto.id))}
-                        style={{
-                          width: '100%',
-                          textAlign: 'left',
-                          padding: '12px 14px',
-                          borderRadius: 14,
-                          border: '1px solid #bfdbfe',
-                          background: openMotoId === moto.id ? '#dbeafe' : '#f8fafc',
-                          fontWeight: 900,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {moto.moto_order}. {moto.moto_name} {openMotoId === moto.id ? '[Hide]' : '[Show]'}
-                      </button>
-                      {openMotoId === moto.id && (
-                        <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
-                          {moto.gates.map((g) => (
-                            <div
-                              key={`${moto.id}-${g.rider_id}`}
-                              style={{
-                                display: 'grid',
-                                gridTemplateColumns: 'auto minmax(0, 1fr) auto',
-                                gap: 12,
-                                alignItems: 'center',
-                                padding: '10px 12px',
-                                borderRadius: 14,
-                                border: '1px solid #e2e8f0',
-                                background: '#fff',
-                                fontWeight: 800,
-                              }}
-                            >
-                              <span
-                                style={{
-                                  minWidth: 66,
-                                  textAlign: 'center',
-                                  padding: '6px 8px',
-                                  borderRadius: 999,
-                                  background: '#0f172a',
-                                  color: '#fff',
-                                  fontSize: 12,
-                                  fontWeight: 900,
-                                }}
-                              >
-                                Gate {g.gate_position}
-                              </span>
-                              <span>{g.name}</span>
-                              <span style={{ color: '#475569' }}>{g.no_plate_display}</span>
+                      <div style={{ fontWeight: 950, fontSize: 18, color: '#0f172a' }}>Batch {batch.batchNo}</div>
+                      {batch.motos.map((moto) => (
+                        <div
+                          key={moto.id}
+                          style={{
+                            border: '1px solid #e2e8f0',
+                            borderRadius: 16,
+                            padding: 12,
+                            background: '#f8fafc',
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setOpenMotoId((prev) => (prev === moto.id ? null : moto.id))}
+                            style={{
+                              width: '100%',
+                              textAlign: 'left',
+                              padding: '12px 14px',
+                              borderRadius: 14,
+                              border: '1px solid #bfdbfe',
+                              background: openMotoId === moto.id ? '#dbeafe' : '#f8fafc',
+                              fontWeight: 900,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {moto.moto_order}. {moto.moto_name} {openMotoId === moto.id ? '[Hide]' : '[Show]'}
+                          </button>
+                          {openMotoId === moto.id && (
+                            <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
+                              {moto.gates.map((g) => (
+                                <div
+                                  key={`${moto.id}-${g.rider_id}`}
+                                  style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: 'auto minmax(0, 1fr) auto',
+                                    gap: 12,
+                                    alignItems: 'center',
+                                    padding: '10px 12px',
+                                    borderRadius: 14,
+                                    border: '1px solid #e2e8f0',
+                                    background: '#fff',
+                                    fontWeight: 800,
+                                  }}
+                                >
+                                  <span
+                                    style={{
+                                      minWidth: 66,
+                                      textAlign: 'center',
+                                      padding: '6px 8px',
+                                      borderRadius: 999,
+                                      background: '#0f172a',
+                                      color: '#fff',
+                                      fontSize: 12,
+                                      fontWeight: 900,
+                                    }}
+                                  >
+                                    Gate {g.gate_position}
+                                  </span>
+                                  <span>{g.name}</span>
+                                  <span style={{ color: '#475569' }}>{g.no_plate_display}</span>
+                                </div>
+                              ))}
                             </div>
-                          ))}
+                          )}
                         </div>
-                      )}
+                      ))}
                     </div>
                   ))}
                 </div>

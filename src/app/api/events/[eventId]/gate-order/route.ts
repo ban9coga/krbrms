@@ -23,6 +23,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     .from('moto_gate_positions')
     .select('moto_id, rider_id, gate_position')
     .in('moto_id', motoIds)
+    .order('moto_id', { ascending: true })
     .order('gate_position', { ascending: true })
 
   if (gateError) return NextResponse.json({ error: gateError.message }, { status: 400 })
@@ -67,6 +68,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       club: rider.club ?? null,
     })
     gateByMoto.set(gate.moto_id, list)
+  }
+
+  for (const [motoId, list] of gateByMoto.entries()) {
+    gateByMoto.set(
+      motoId,
+      [...list].sort((a, b) => {
+        if (a.gate_position !== b.gate_position) return a.gate_position - b.gate_position
+        return a.no_plate_display.localeCompare(b.no_plate_display, undefined, { numeric: true })
+      })
+    )
   }
 
   const temp = new Map<string, Array<{ rider_id: string; name: string; no_plate_display: string; club: string | null }>>()
