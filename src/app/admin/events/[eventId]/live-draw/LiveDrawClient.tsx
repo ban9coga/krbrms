@@ -158,6 +158,12 @@ type LiveDrawGuard = {
   reason: string | null
 }
 
+type ExternalBatchUndoState = {
+  moto1Texts: string[]
+  moto2Texts: string[]
+  targetField: ExternalTargetField
+}
+
 const formatMoto3Hint = (totalBatches: number) =>
   totalBatches === 1
     ? 'Moto 3 tidak dibuat saat draw. Moto 3 akan dibuat otomatis setelah hasil Moto 2 lengkap.'
@@ -219,6 +225,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
   const [externalDraggingRider, setExternalDraggingRider] = useState<RiderBatchLocation | null>(null)
   const [externalDropTarget, setExternalDropTarget] = useState<RiderBatchLocation | null>(null)
   const [externalSelectedRider, setExternalSelectedRider] = useState<RiderBatchLocation | null>(null)
+  const [externalUndoStack, setExternalUndoStack] = useState<ExternalBatchUndoState[]>([])
   const [deleteGuard, setDeleteGuard] = useState<LiveDrawGuard>({ canDelete: true, reason: null })
   const spinTimeoutRef = useRef<number | null>(null)
   const rollingIntervalRef = useRef<number | null>(null)
@@ -718,6 +725,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       setExternalMoto2OrderText('')
       setExternalBatchTexts([])
       setExternalMoto2BatchTexts([])
+      setExternalUndoStack([])
       setWheelRiders([])
       setWheelRotation(0)
       setResultModal(null)
@@ -851,6 +859,48 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     setExternalSelectedRider(null)
   }
 
+  const pushExternalUndoState = () => {
+    setExternalUndoStack((prev) => [
+      ...prev.slice(-29),
+      {
+        moto1Texts: [...externalBatchTexts],
+        moto2Texts: [...externalMoto2BatchTexts],
+        targetField: { ...externalTargetField },
+      },
+    ])
+  }
+
+  const findNextAvailableBatchIndex = (
+    moto: 1 | 2,
+    startIndex: number,
+    nextMoto1Texts?: string[],
+    nextMoto2Texts?: string[]
+  ) => {
+    const sourceTexts = moto === 1 ? nextMoto1Texts ?? externalBatchTexts : nextMoto2Texts ?? externalMoto2BatchTexts
+    const counts = sourceTexts.map((text) => parseExternalTokens(text).length)
+    if (counts.length === 0) return startIndex
+    for (let offset = 1; offset <= counts.length; offset += 1) {
+      const candidate = (startIndex + offset) % counts.length
+      if ((counts[candidate] ?? 0) < maxBatchRiders) return candidate
+    }
+    return startIndex
+  }
+
+  const undoExternalBatchEdit = () => {
+    setExternalUndoStack((prev) => {
+      const last = prev[prev.length - 1]
+      if (!last) return prev
+      setExternalBatchTexts(last.moto1Texts)
+      setExternalMoto2BatchTexts(last.moto2Texts)
+      setExternalTargetField(last.targetField)
+      setDrawnOrder([])
+      setHasDrawn(false)
+      setSaveState('idle')
+      clearExternalReorderState()
+      return prev.slice(0, -1)
+    })
+  }
+
   const assignPreviewRiderToExternalTarget = (rider: RiderItem) => {
     const assignedInMoto1 = externalPerBatchValidation.orderedBatches.some((batch) =>
       batch.some((item) => item.id === rider.id)
@@ -871,12 +921,25 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       return
     }
 
+    pushExternalUndoState()
+
     const setter = externalTargetField.moto === 1 ? setExternalBatchTexts : setExternalMoto2BatchTexts
     setter((prev) => {
       const next = [...prev]
       const current = parseExternalTokens(next[externalTargetField.batchIndex] ?? '')
       current.push(rider.no_plate_display)
       next[externalTargetField.batchIndex] = current.join('\n')
+      if (current.length >= maxBatchRiders) {
+        const nextTargetBatchIndex = findNextAvailableBatchIndex(
+          externalTargetField.moto,
+          externalTargetField.batchIndex,
+          externalTargetField.moto === 1 ? next : undefined,
+          externalTargetField.moto === 2 ? next : undefined
+        )
+        if (nextTargetBatchIndex !== externalTargetField.batchIndex) {
+          setExternalTargetField((prevTarget) => ({ ...prevTarget, batchIndex: nextTargetBatchIndex }))
+        }
+      }
       return next
     })
     setSaveState('idle')
@@ -888,6 +951,8 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     if (!sourceBatch || !targetBatch) return
     const movingRider = sourceBatch[from.riderIndex]
     if (!movingRider) return
+
+    pushExternalUndoState()
 
     const nextMoto1 = externalPerBatchValidation.orderedBatches.map((batch) => [...batch])
     nextMoto1[from.batchIndex].splice(from.riderIndex, 1)
@@ -916,6 +981,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     setExternalMoto2OrderText('')
     setExternalBatchTexts([])
     setExternalMoto2BatchTexts([])
+    setExternalUndoStack([])
     setResultModal(null)
   }
 
@@ -946,6 +1012,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       setExternalMoto2OrderText('')
       setExternalBatchTexts([])
       setExternalMoto2BatchTexts([])
+      setExternalUndoStack([])
       setResultModal(null)
       setDeleteGuard({ canDelete: true, reason: null })
       await loadRiders(selectedCategory)
@@ -1697,6 +1764,22 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                     <div style={{ fontWeight: 800, color: '#334155' }}>
                       Batch {externalTargetField.batchIndex + 1} - Moto {externalTargetField.moto}
                     </div>
+                    <button
+                      type="button"
+                      onClick={undoExternalBatchEdit}
+                      disabled={externalUndoStack.length === 0}
+                      style={{
+                        padding: '8px 10px',
+                        borderRadius: 10,
+                        border: '1px solid #94a3b8',
+                        background: externalUndoStack.length === 0 ? '#e5e7eb' : '#fff',
+                        color: '#0f172a',
+                        fontWeight: 900,
+                        cursor: externalUndoStack.length === 0 ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      Undo
+                    </button>
                   </div>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                       {externalPerBatchValidation.orderedBatches.map((batch, index) => (
