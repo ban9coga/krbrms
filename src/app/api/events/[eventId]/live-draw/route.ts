@@ -351,6 +351,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     return NextResponse.json({ error: motoError?.message || 'Failed to create motos' }, { status: 400 })
   }
 
+  const motoRowByName = new Map(
+    motoRows.map((row) => [String(row.moto_name ?? '').toLowerCase(), row])
+  )
   const motoRiders: Array<{ moto_id: string; rider_id: string }> = []
   const gatePositions: Array<{ moto_id: string; rider_id: string; gate_position: number }> = []
 
@@ -360,9 +363,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   }
 
   batches.forEach((batch, batchIndex) => {
-    const base = batchIndex * motoCount
-    const moto1 = motoRows[base]
-    const moto2 = motoRows[base + 1]
+    const moto1 = motoRowByName.get(`moto 1 - batch ${batchIndex + 1}`.toLowerCase())
+    const moto2 = motoRowByName.get(`moto 2 - batch ${batchIndex + 1}`.toLowerCase())
+    if (!moto1 || !moto2) {
+      return
+    }
     const moto2Order = hasCustomMoto2 ? (moto2Batches[batchIndex] ?? []) : [...batch].reverse()
 
     batch.forEach((riderId, idx) => {
@@ -379,6 +384,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       }
     })
   })
+
+  const expectedMotoCount = batches.length * motoCount
+  if (motoRiders.length !== effectiveRiderIds.length * motoCount || motoRows.length !== expectedMotoCount) {
+    return NextResponse.json({ error: 'Moto batch mapping failed while saving draw order' }, { status: 500 })
+  }
 
   const { error: riderError } = await adminClient.from('moto_riders').insert(motoRiders)
   if (riderError) {
