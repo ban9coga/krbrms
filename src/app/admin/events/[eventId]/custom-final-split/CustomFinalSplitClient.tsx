@@ -266,6 +266,36 @@ const estimateRaceCounts = (category: CategoryRow, rules: CustomSplitRule[]): Ra
   }
 }
 
+const buildCustomStageGuideLines = (rules: CustomSplitRule[]) => {
+  const targetStageOrder: Array<CustomSplitRule['target_stage']> = ['QUARTER_FINAL', 'REPECHAGE', 'SEMI_FINAL', 'FINAL']
+  return SOURCE_STAGE_OPTIONS
+    .filter((stage) => rules.some((rule) => rule.source_stage === stage))
+    .map((sourceStage) => {
+      const stageRules = rules.filter((rule) => rule.source_stage === sourceStage)
+      const labels = targetStageOrder.flatMap((targetStage) => {
+        const targetRules = stageRules.filter((rule) => rule.target_stage === targetStage)
+        if (targetRules.length === 0) return []
+        if (targetStage === 'FINAL') {
+          return Array.from(new Set(targetRules.map((rule) => rule.target_final_class).filter(Boolean))).map(
+            (finalClass) => `Final ${finalClass}`
+          )
+        }
+        return [formatStageLabel(targetStage)]
+      })
+
+      if (labels.length === 0) return null
+      const flowText =
+        labels.length === 1
+          ? labels[0]
+          : labels.length === 2
+            ? `${labels[0]} dan ${labels[1]}`
+            : `${labels.slice(0, -1).join(', ')}, dan ${labels[labels.length - 1]}`
+
+      return `Dari ${formatStageLabel(sourceStage)}, rider diarahkan ke ${flowText}.`
+    })
+    .filter(Boolean) as string[]
+}
+
 export default function CustomFinalSplitClient({ eventId }: { eventId: string }) {
   const [loading, setLoading] = useState(false)
   const [savingCategoryId, setSavingCategoryId] = useState<string | null>(null)
@@ -427,15 +457,19 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
               return `Dari ${formatStageLabel(rule.source_stage)}, rank gabungan ${rule.rank_from}-${rule.rank_to} masuk ${targetLabel}.`
             })
 
-      const stageLine = stageFlags.enableQuarterFinal
-        ? 'Rider yang lolos dari qualification akan lanjut ke Quarter Final, Semi Final, lalu Final.'
-        : stageFlags.enableSemiFinal
-          ? 'Rider yang lolos dari qualification akan lanjut ke Semi Final, lalu Final.'
-          : stageFlags.enableQualification
-            ? 'Setelah qualification selesai, rider dibagi ke final class sesuai aturan kategori ini.'
-            : usesSingleBatchFinal
-              ? 'Setelah Moto 3 selesai dan dikunci, total point akan menjadi hasil akhir kategori.'
-              : 'Kategori ini langsung memakai hasil final tanpa stage lanjutan.'
+      const customStageLines = rules.length > 0 ? buildCustomStageGuideLines(rules) : []
+      const stageLine =
+        customStageLines.length > 0
+          ? customStageLines.join(' ')
+          : stageFlags.enableQuarterFinal
+            ? 'Rider yang lolos dari qualification akan lanjut ke Quarter Final, Semi Final, lalu Final.'
+            : stageFlags.enableSemiFinal
+              ? 'Rider yang lolos dari qualification akan lanjut ke Semi Final, lalu Final.'
+              : stageFlags.enableQualification
+                ? 'Setelah qualification selesai, rider dibagi ke final class sesuai aturan kategori ini.'
+                : usesSingleBatchFinal
+                  ? 'Setelah Moto 3 selesai dan dikunci, total point akan menjadi hasil akhir kategori.'
+                  : 'Kategori ini langsung memakai hasil final tanpa stage lanjutan.'
 
       return {
         category,
