@@ -571,41 +571,13 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
                       background: '#fff',
                       fontWeight: 900,
                     }}
-                  >
-                    {SPLIT_BASIS_OPTIONS.map((option) => (
+                    >
+                      {SPLIT_BASIS_OPTIONS.map((option) => (
                       <option key={option} value={option}>
                         {splitBasisLabel(option)}
                       </option>
                     ))}
                   </select>
-                  <button
-                    type="button"
-                    onClick={() => addRule(category.id)}
-                    style={{
-                      padding: '8px 12px',
-                      borderRadius: 10,
-                      border: '2px solid #111',
-                      background: '#fff1b8',
-                      fontWeight: 900,
-                    }}
-                  >
-                    Add Rule
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => saveRules(category.id)}
-                    disabled={savingCategoryId === category.id}
-                    style={{
-                      padding: '8px 12px',
-                      borderRadius: 10,
-                      border: '2px solid #111',
-                      background: '#bfead2',
-                      fontWeight: 900,
-                      opacity: savingCategoryId === category.id ? 0.7 : 1,
-                    }}
-                  >
-                    {savingCategoryId === category.id ? 'Saving...' : 'Save Rules'}
-                  </button>
                 </div>
               </div>
 
@@ -739,6 +711,45 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
                   </button>
                 </div>
               ))}
+
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  gap: 8,
+                  flexWrap: 'wrap',
+                  paddingTop: 4,
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => addRule(category.id)}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: 10,
+                    border: '2px solid #111',
+                    background: '#fff1b8',
+                    fontWeight: 900,
+                  }}
+                >
+                  Add Rule
+                </button>
+                <button
+                  type="button"
+                  onClick={() => saveRules(category.id)}
+                  disabled={savingCategoryId === category.id}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: 10,
+                    border: '2px solid #111',
+                    background: '#bfead2',
+                    fontWeight: 900,
+                    opacity: savingCategoryId === category.id ? 0.7 : 1,
+                  }}
+                >
+                  {savingCategoryId === category.id ? 'Saving...' : 'Save Rules'}
+                </button>
+              </div>
             </section>
           )
         })}
