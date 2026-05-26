@@ -71,6 +71,201 @@ const createEmptyRule = (
   batch_no: splitBasis === 'CUSTOM_PER_BATCH' ? 1 : null,
 })
 
+type RaceEstimate = {
+  qualificationRaceCount: number
+  quarterRaceCount: number
+  repechageRaceCount: number
+  semiRaceCount: number
+  finalRaceCount: number
+  totalRaceCount: number
+  notes: string[]
+}
+
+const distributeBucketSizes = (total: number, bucketCount: number) => {
+  if (total <= 0 || bucketCount <= 0) return [] as number[]
+  const base = Math.floor(total / bucketCount)
+  const remainder = total % bucketCount
+  return Array.from({ length: bucketCount }, (_, index) => base + (index < remainder ? 1 : 0)).filter((size) => size > 0)
+}
+
+const countCoveredRanks = (size: number, rankFrom: number, rankTo: number) => {
+  if (size < rankFrom) return 0
+  return Math.max(0, Math.min(size, rankTo) - rankFrom + 1)
+}
+
+const getStageSplitBasis = (
+  rules: CustomSplitRule[],
+  sourceStage: CustomSplitRule['source_stage']
+): CustomSplitRule['split_basis'] => {
+  return rules.find((rule) => rule.source_stage === sourceStage)?.split_basis ?? 'COMBINED'
+}
+
+const buildStageBucketSizes = (
+  rules: CustomSplitRule[],
+  sourceStage: CustomSplitRule['source_stage'],
+  totalRiders: number,
+  fallbackBucketCount: number,
+  maxRidersPerRace: number
+) => {
+  const stageRules = rules.filter((rule) => rule.source_stage === sourceStage)
+  if (stageRules.length === 0 || totalRiders <= 0) return [] as number[]
+  const stageBasis = getStageSplitBasis(rules, sourceStage)
+  if (stageBasis === 'CUSTOM_PER_BATCH') {
+    const sizeByBatch = new Map<number, number>()
+    stageRules.forEach((rule) => {
+      const batchNo = Math.max(1, Number(rule.batch_no ?? 1))
+      sizeByBatch.set(batchNo, Math.max(sizeByBatch.get(batchNo) ?? 0, Number(rule.rank_to) || 0))
+    })
+    const customSizes = Array.from(sizeByBatch.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([, size]) => size)
+      .filter((size) => size > 0)
+    if (customSizes.length > 0) return customSizes
+  }
+  const bucketCount = Math.max(1, fallbackBucketCount || Math.ceil(totalRiders / Math.max(1, maxRidersPerRace)))
+  return distributeBucketSizes(totalRiders, bucketCount)
+}
+
+const applyRulesToBuckets = (rules: CustomSplitRule[], sourceStage: CustomSplitRule['source_stage'], bucketSizes: number[]) => {
+  const stageRules = rules.filter((rule) => rule.source_stage === sourceStage)
+  const stageBasis = getStageSplitBasis(rules, sourceStage)
+  const stageCounts = {
+    QUARTER_FINAL: 0,
+    REPECHAGE: 0,
+    SEMI_FINAL: 0,
+  }
+  const finalCounts = new Map<string, number>()
+
+  if (stageRules.length === 0) {
+    return { stageCounts, finalCounts }
+  }
+
+  if (stageBasis === 'COMBINED') {
+    const total = bucketSizes.reduce((sum, size) => sum + size, 0)
+    stageRules.forEach((rule) => {
+      const count = countCoveredRanks(total, rule.rank_from, rule.rank_to)
+      if (rule.target_stage === 'FINAL') {
+        finalCounts.set(rule.target_final_class ?? 'ELITE', (finalCounts.get(rule.target_final_class ?? 'ELITE') ?? 0) + count)
+      } else {
+        stageCounts[rule.target_stage] += count
+      }
+    })
+    return { stageCounts, finalCounts }
+  }
+
+  if (stageBasis === 'PER_BATCH') {
+    bucketSizes.forEach((bucketSize) => {
+      stageRules.forEach((rule) => {
+        const count = countCoveredRanks(bucketSize, rule.rank_from, rule.rank_to)
+        if (rule.target_stage === 'FINAL') {
+          finalCounts.set(rule.target_final_class ?? 'ELITE', (finalCounts.get(rule.target_final_class ?? 'ELITE') ?? 0) + count)
+        } else {
+          stageCounts[rule.target_stage] += count
+        }
+      })
+    })
+    return { stageCounts, finalCounts }
+  }
+
+  bucketSizes.forEach((bucketSize, index) => {
+    const batchNo = index + 1
+    stageRules
+      .filter((rule) => (rule.batch_no ?? 1) === batchNo)
+      .forEach((rule) => {
+        const count = countCoveredRanks(bucketSize, rule.rank_from, rule.rank_to)
+        if (rule.target_stage === 'FINAL') {
+          finalCounts.set(rule.target_final_class ?? 'ELITE', (finalCounts.get(rule.target_final_class ?? 'ELITE') ?? 0) + count)
+        } else {
+          stageCounts[rule.target_stage] += count
+        }
+      })
+  })
+
+  return { stageCounts, finalCounts }
+}
+
+const estimateRaceCounts = (category: CategoryRow, rules: CustomSplitRule[]): RaceEstimate => {
+  const totalRiders = Math.max(0, Number(category.total_riders ?? 0))
+  const maxRidersPerRace = Math.max(1, Number(category.max_riders_per_race ?? 8))
+  const qualificationRules = rules.filter((rule) => rule.source_stage === 'QUALIFICATION')
+  const qualificationBucketSizes =
+    qualificationRules.length > 0 && getStageSplitBasis(rules, 'QUALIFICATION') === 'CUSTOM_PER_BATCH'
+      ? buildStageBucketSizes(rules, 'QUALIFICATION', totalRiders, 0, maxRidersPerRace)
+      : distributeBucketSizes(
+          totalRiders,
+          totalRiders <= maxRidersPerRace ? 1 : Math.max(1, Math.ceil(totalRiders / maxRidersPerRace))
+        )
+
+  const qualificationBatchCount = qualificationBucketSizes.length
+  const qualificationRaceCount =
+    qualificationBatchCount === 0 ? 0 : qualificationBatchCount === 1 ? 3 : qualificationBatchCount * 2
+
+  const qualificationOutputs = applyRulesToBuckets(rules, 'QUALIFICATION', qualificationBucketSizes)
+
+  const repechageBucketSizes = buildStageBucketSizes(
+    rules,
+    'REPECHAGE',
+    qualificationOutputs.stageCounts.REPECHAGE,
+    Math.ceil(Math.max(qualificationOutputs.stageCounts.REPECHAGE, 0) / maxRidersPerRace),
+    maxRidersPerRace
+  )
+  const repechageRaceCount = repechageBucketSizes.length
+  const repechageOutputs = applyRulesToBuckets(rules, 'REPECHAGE', repechageBucketSizes)
+
+  const quarterIncoming = qualificationOutputs.stageCounts.QUARTER_FINAL + repechageOutputs.stageCounts.QUARTER_FINAL
+  const quarterBucketSizes = buildStageBucketSizes(
+    rules,
+    'QUARTER_FINAL',
+    quarterIncoming,
+    Math.ceil(Math.max(quarterIncoming, 0) / maxRidersPerRace),
+    maxRidersPerRace
+  )
+  const quarterRaceCount = quarterBucketSizes.length
+  const quarterOutputs = applyRulesToBuckets(rules, 'QUARTER_FINAL', quarterBucketSizes)
+
+  const semiIncoming =
+    qualificationOutputs.stageCounts.SEMI_FINAL + repechageOutputs.stageCounts.SEMI_FINAL + quarterOutputs.stageCounts.SEMI_FINAL
+  const semiBucketSizes = buildStageBucketSizes(
+    rules,
+    'SEMI_FINAL',
+    semiIncoming,
+    Math.ceil(Math.max(semiIncoming, 0) / maxRidersPerRace),
+    maxRidersPerRace
+  )
+  const semiRaceCount = semiBucketSizes.length
+  const semiOutputs = applyRulesToBuckets(rules, 'SEMI_FINAL', semiBucketSizes)
+
+  const finalCounts = new Map<string, number>()
+  ;[qualificationOutputs.finalCounts, repechageOutputs.finalCounts, quarterOutputs.finalCounts, semiOutputs.finalCounts].forEach((map) => {
+    map.forEach((count, key) => {
+      finalCounts.set(key, (finalCounts.get(key) ?? 0) + count)
+    })
+  })
+  const finalRaceCount = Array.from(finalCounts.values()).filter((count) => count > 0).length
+
+  const notes: string[] = []
+  if (qualificationBatchCount === 1 && qualificationRaceCount === 3) {
+    notes.push('1 batch memakai 3 moto qualification.')
+    notes.push('Urutan gate Moto 3 mengikuti total point terkecil dari Moto 1 dan Moto 2.')
+  } else if (qualificationBatchCount > 1) {
+    notes.push(`Qualification dihitung ${qualificationRaceCount} race dari ${qualificationBatchCount} batch x 2 moto.`)
+  }
+  if (repechageRaceCount > 0) notes.push(`Repechage: ${repechageRaceCount} moto/race.`)
+  if (quarterRaceCount > 0) notes.push(`Quarter Final: ${quarterRaceCount} moto/race.`)
+  if (semiRaceCount > 0) notes.push(`Semi Final: ${semiRaceCount} moto/race.`)
+  if (finalRaceCount > 0) notes.push(`Final class: ${finalRaceCount} moto/race.`)
+
+  return {
+    qualificationRaceCount,
+    quarterRaceCount,
+    repechageRaceCount,
+    semiRaceCount,
+    finalRaceCount,
+    totalRaceCount: qualificationRaceCount + quarterRaceCount + repechageRaceCount + semiRaceCount + finalRaceCount,
+    notes,
+  }
+}
+
 export default function CustomFinalSplitClient({ eventId }: { eventId: string }) {
   const [loading, setLoading] = useState(false)
   const [savingCategoryId, setSavingCategoryId] = useState<string | null>(null)
@@ -134,17 +329,11 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
 
-  const getStageSplitBasis = (
-    rules: CustomSplitRule[],
-    sourceStage: CustomSplitRule['source_stage']
-  ): CustomSplitRule['split_basis'] => {
-    return rules.find((rule) => rule.source_stage === sourceStage)?.split_basis ?? 'COMBINED'
-  }
-
   const categorySummary = useMemo(() => {
     const summary: Record<string, string> = {}
     for (const category of categories) {
       const rules = rulesByCategory[category.id] ?? []
+      const estimate = estimateRaceCounts(category, rules)
       const stageBasisSummary = SOURCE_STAGE_OPTIONS
         .filter((stage) => rules.some((rule) => rule.source_stage === stage))
         .map((stage) => `${formatStageLabel(stage)}: ${splitBasisLabel(getStageSplitBasis(rules, stage))}`)
@@ -152,7 +341,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
       summary[category.id] =
         rules.length === 0
           ? 'Belum ada custom split.'
-          : `${stageBasisSummary} | ` +
+          : `Estimasi race ${estimate.totalRaceCount} | ${stageBasisSummary} | ` +
             rules
               .map((rule) => {
                 const rankLabel = `${rule.rank_from}-${rule.rank_to}`
@@ -169,6 +358,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
   const guideEntries = useMemo(() => {
     return categories.map((category) => {
       const rules = rulesByCategory[category.id] ?? []
+      const estimate = estimateRaceCounts(category, rules)
       const totalRiders = Math.max(0, Number(category.total_riders ?? 0))
       const maxRidersPerRace = Math.max(1, Number(category.max_riders_per_race ?? 8))
       const batchCount = totalRiders > 0 ? Math.max(1, Math.ceil(totalRiders / maxRidersPerRace)) : 0
@@ -253,6 +443,11 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
         intro: `${introParts.join(', ')}.`,
         systemText,
         allocationText,
+        estimateText:
+          estimate.totalRaceCount > 0
+            ? `Estimasi total race kategori ini: ${estimate.totalRaceCount} (Qualification ${estimate.qualificationRaceCount}, QF ${estimate.quarterRaceCount}, Repechage ${estimate.repechageRaceCount}, Semi ${estimate.semiRaceCount}, Final ${estimate.finalRaceCount}).`
+            : 'Estimasi total race akan muncul setelah rule mulai dibentuk.',
+        estimateNotes: estimate.notes,
         ruleLines,
         stageLine,
       }
@@ -263,7 +458,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
     () =>
       guideEntries
         .map((entry) =>
-          [entry.title, entry.intro, entry.systemText, entry.allocationText, entry.stageLine, ...entry.ruleLines]
+          [entry.title, entry.intro, entry.systemText, entry.allocationText, entry.estimateText, ...entry.estimateNotes, entry.stageLine, ...entry.ruleLines]
             .filter(Boolean)
             .join('\n')
         )
@@ -302,6 +497,8 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
             <p>${entry.intro}</p>
             <p>${entry.systemText}</p>
             ${entry.allocationText ? `<p>${entry.allocationText}</p>` : ''}
+            <p>${entry.estimateText}</p>
+            ${entry.estimateNotes.map((line) => `<p>${line}</p>`).join('')}
             <p>${entry.stageLine}</p>
             <ul>${entry.ruleLines.map((line) => `<li>${line}</li>`).join('')}</ul>
           </section>
@@ -560,6 +757,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
       {!loading &&
         categories.map((category) => {
           const rules = rulesByCategory[category.id] ?? []
+          const estimate = estimateRaceCounts(category, rules)
           return (
             <section
               key={category.id}
@@ -577,6 +775,9 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
                   <div style={{ fontSize: 24, fontWeight: 950 }}>{category.label}</div>
                   <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>
                     Total Rider: {category.total_riders ?? 0}
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>
+                    Estimasi Race: {estimate.totalRaceCount} (Q {estimate.qualificationRaceCount} | QF {estimate.quarterRaceCount} | REP {estimate.repechageRaceCount} | SF {estimate.semiRaceCount} | F {estimate.finalRaceCount})
                   </div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#475569' }}>{categorySummary[category.id]}</div>
                 </div>
