@@ -217,6 +217,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
   const [wheelRotation, setWheelRotation] = useState(0)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const printFrameRef = useRef<HTMLIFrameElement | null>(null)
+  const externalBatchSearchInputRef = useRef<HTMLInputElement | null>(null)
   const [hasDrawn, setHasDrawn] = useState(false)
   const [categoryLocked, setCategoryLocked] = useState(false)
   const [lockedMotos, setLockedMotos] = useState<GateMoto[]>([])
@@ -983,6 +984,9 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       return next
     })
     setExternalBatchSearch('')
+    window.requestAnimationFrame(() => {
+      externalBatchSearchInputRef.current?.focus()
+    })
     setSaveState('idle')
   }
 
@@ -1433,6 +1437,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                   )}
                 </div>
                 <input
+                  ref={externalBatchSearchInputRef}
                   type="text"
                   value={externalBatchSearch}
                   onChange={(e) => setExternalBatchSearch(e.target.value)}
