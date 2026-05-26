@@ -700,7 +700,7 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
       .delete()
       .eq('category_id', categoryId)
       .in('rider_id', completedRiderList)
-      .in('stage', ['QUARTER_FINAL', 'SEMI_FINAL', 'FINAL'])
+      .in('stage', ['QUARTER_FINAL', 'REPECHAGE', 'SEMI_FINAL', 'FINAL'])
   }
 
   const advanceRows = filteredAdvances
@@ -849,6 +849,19 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
   const repechageFeedsQuarterFinal = repechageCustomRules.some((rule) => rule.targetStage === 'QUARTER_FINAL')
   const shouldDeferQuarterUntilRepechage =
     repechageFeedsQuarterFinal && repechageRiders.length > 0 && !readiness.repechageReady
+
+  if (shouldDeferQuarterUntilRepechage && existingQuarterMotos.length > 0) {
+    const staleQuarterMotoIds = existingQuarterMotos
+      .filter((moto) => !hasMotoResults(moto.id, categoryResultRows))
+      .map((moto) => moto.id)
+
+    if (staleQuarterMotoIds.length > 0) {
+      await adminClient.from('moto_gate_positions').delete().in('moto_id', staleQuarterMotoIds)
+      await adminClient.from('moto_riders').delete().in('moto_id', staleQuarterMotoIds)
+      await adminClient.from('results').delete().in('moto_id', staleQuarterMotoIds)
+      await adminClient.from('motos').delete().in('id', staleQuarterMotoIds)
+    }
+  }
 
   if (readiness.qualificationReady && quarterRiders.length > 0 && !shouldDeferQuarterUntilRepechage) {
     const existingQuarterMotos = await loadStageMotos(eventId, categoryId, 'Quarter Final')
