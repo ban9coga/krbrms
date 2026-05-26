@@ -1403,16 +1403,24 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                   style={{
                     padding: '10px 12px',
                     borderRadius: 12,
-                    border: '1px solid #bfdbfe',
-                    background: '#eff6ff',
-                    color: '#1d4ed8',
+                    border: categoryLocked ? '1px solid #cbd5e1' : '1px solid #bfdbfe',
+                    background: categoryLocked ? '#f8fafc' : '#eff6ff',
+                    color: categoryLocked ? '#475569' : '#1d4ed8',
                     fontWeight: 800,
                   }}
                 >
-                  Klik rider untuk masuk ke target aktif:{' '}
-                  <strong>Batch {externalTargetField.batchIndex + 1} - Moto {externalTargetField.moto}</strong>{' '}
-                  ({activeTargetBatchRiders}/{maxBatchRiders} rider)
-                  {isActiveTargetBatchFull ? ' - PENUH' : ''}
+                  {categoryLocked ? (
+                    <>
+                      Preview Rider nonaktif karena kategori ini sudah didraw dan terkunci.
+                    </>
+                  ) : (
+                    <>
+                      Klik rider untuk masuk ke target aktif:{' '}
+                      <strong>Batch {externalTargetField.batchIndex + 1} - Moto {externalTargetField.moto}</strong>{' '}
+                      ({activeTargetBatchRiders}/{maxBatchRiders} rider)
+                      {isActiveTargetBatchFull ? ' - PENUH' : ''}
+                    </>
+                  )}
                 </div>
                 <input
                   type="text"
@@ -1420,13 +1428,16 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                   onChange={(e) => setExternalBatchSearch(e.target.value)}
                   aria-label="Cari rider manual batch"
                   placeholder="Cari rider manual batch atau no plate"
+                  disabled={categoryLocked}
                   style={{
                     width: '100%',
                     padding: '10px 12px',
                     borderRadius: 12,
                     border: '2px solid #111',
-                    background: '#fff',
+                    background: categoryLocked ? '#f1f5f9' : '#fff',
+                    color: categoryLocked ? '#94a3b8' : '#0f172a',
                     fontWeight: 700,
+                    cursor: categoryLocked ? 'not-allowed' : 'text',
                   }}
                 />
               </div>
@@ -1450,7 +1461,8 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                   const assignedInMoto2 = externalPerBatchValidation.orderedMoto2Batches.some((batch) =>
                     batch.some((item) => item.id === rider.id)
                   )
-                  const interactive = drawMode === 'external_draw' && externalBatchInputMode === 'PER_BATCH'
+                  const interactive =
+                    drawMode === 'external_draw' && externalBatchInputMode === 'PER_BATCH' && !categoryLocked
                   const disabledForAssignment =
                     externalTargetField.moto === 1
                       ? assignedInMoto1
@@ -1479,17 +1491,19 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                       padding: '6px 8px',
                       borderRadius: 8,
                       border: '1px solid #ddd',
-                      background: '#fff',
+                      background: categoryLocked ? '#f8fafc' : '#fff',
                       fontWeight: 800,
-                      cursor: interactive ? (disabledForTarget ? 'default' : 'pointer') : 'default',
+                      cursor: categoryLocked ? 'not-allowed' : interactive ? (disabledForTarget ? 'default' : 'pointer') : 'default',
                       textAlign: 'left',
-                      opacity: 1,
+                      opacity: categoryLocked ? 0.72 : 1,
                     }}
                   >
                     <span style={{ display: 'grid', gap: 2 }}>
                       <span>{rider.name}</span>
                       <span style={{ color: '#64748b', fontSize: 12 }}>
-                        {interactive
+                        {categoryLocked
+                          ? 'Read only - kategori sudah didraw'
+                          : interactive
                           ? isActiveTargetBatchFull
                             ? `Batch target penuh (${activeTargetBatchRiders}/${maxBatchRiders})`
                             : externalTargetField.moto === 1
@@ -1500,7 +1514,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                     </span>
                     <span style={{ display: 'grid', gap: 2, justifyItems: 'end' }}>
                       <span>{rider.no_plate_display}</span>
-                      {interactive && (
+                      {!categoryLocked && interactive && (
                         <span
                           style={{
                             fontSize: 12,
