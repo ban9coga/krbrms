@@ -1652,375 +1652,383 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
             </div>
           ) : (
             <div style={{ display: 'grid', gap: 12 }}>
-                  <div style={{ color: '#334155', fontWeight: 700 }}>
-                    Isi rider langsung ke editor batch. Klik rider di preview untuk kirim ke target aktif, lalu rapikan urutan dari editor.
-                  </div>
+              <div style={{ color: '#334155', fontWeight: 700 }}>
+                Isi rider langsung ke editor batch. Klik rider di preview untuk kirim ke target aktif, lalu rapikan urutan dari editor.
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 10,
+                  flexWrap: 'wrap',
+                  alignItems: 'center',
+                  padding: '12px 14px',
+                  borderRadius: 14,
+                  border: '1px solid #bfdbfe',
+                  background: '#eff6ff',
+                }}
+              >
+                <div style={{ fontWeight: 900, color: '#1d4ed8' }}>Target aktif</div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {Array.from({ length: externalPerBatchValidation.batchCount }, (_, index) => (
+                    <button
+                      key={`target-batch-${index}`}
+                      type="button"
+                      onClick={() => setExternalTargetField((prev) => ({ ...prev, batchIndex: index }))}
+                      style={{
+                        padding: '8px 10px',
+                        borderRadius: 999,
+                        border: '1px solid #93c5fd',
+                        background: externalTargetField.batchIndex === index ? '#dbeafe' : '#fff',
+                        color: externalTargetField.batchIndex === index ? '#1d4ed8' : '#334155',
+                        fontWeight: 900,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Batch {index + 1}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {[1, 2].map((moto) => (
+                    <button
+                      key={`target-moto-${moto}`}
+                      type="button"
+                      onClick={() => setExternalTargetField((prev) => ({ ...prev, moto: moto as 1 | 2 }))}
+                      style={{
+                        padding: '8px 10px',
+                        borderRadius: 999,
+                        border: '1px solid #93c5fd',
+                        background: externalTargetField.moto === moto ? '#dbeafe' : '#fff',
+                        color: externalTargetField.moto === moto ? '#1d4ed8' : '#334155',
+                        fontWeight: 900,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Moto {moto}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ fontWeight: 800, color: '#334155' }}>
+                  Batch {externalTargetField.batchIndex + 1} - Moto {externalTargetField.moto}
+                </div>
+                <button
+                  type="button"
+                  onClick={undoExternalBatchEdit}
+                  disabled={externalUndoStack.length === 0}
+                  style={{
+                    padding: '8px 10px',
+                    borderRadius: 10,
+                    border: '1px solid #94a3b8',
+                    background: externalUndoStack.length === 0 ? '#e5e7eb' : '#fff',
+                    color: '#0f172a',
+                    fontWeight: 900,
+                    cursor: externalUndoStack.length === 0 ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  Undo
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {externalPerBatchValidation.orderedBatches.map((batch, index) => (
                   <div
+                    key={`batch-status-${index}`}
                     style={{
-                      display: 'flex',
-                      gap: 10,
-                      flexWrap: 'wrap',
-                      alignItems: 'center',
-                      padding: '12px 14px',
-                      borderRadius: 14,
-                      border: '1px solid #bfdbfe',
-                      background: '#eff6ff',
+                      padding: '8px 10px',
+                      borderRadius: 999,
+                      border: '1px solid #cbd5e1',
+                      background:
+                        batch.length > 0
+                          ? externalTargetField.batchIndex === index
+                            ? '#dbeafe'
+                            : '#f8fafc'
+                          : '#fff7ed',
+                      color:
+                        batch.length > 0
+                          ? externalTargetField.batchIndex === index
+                            ? '#1d4ed8'
+                            : '#334155'
+                          : '#b45309',
+                      fontWeight: 900,
+                      fontSize: 12,
                     }}
                   >
-                    <div style={{ fontWeight: 900, color: '#1d4ed8' }}>Target aktif</div>
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      {Array.from({ length: externalPerBatchValidation.batchCount }, (_, index) => (
-                        <button
-                          key={`target-batch-${index}`}
-                          type="button"
-                          onClick={() => setExternalTargetField((prev) => ({ ...prev, batchIndex: index }))}
-                          style={{
-                            padding: '8px 10px',
-                            borderRadius: 999,
-                            border: '1px solid #93c5fd',
-                            background: externalTargetField.batchIndex === index ? '#dbeafe' : '#fff',
-                            color: externalTargetField.batchIndex === index ? '#1d4ed8' : '#334155',
-                            fontWeight: 900,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          Batch {index + 1}
-                        </button>
-                      ))}
-                    </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      {[1, 2].map((moto) => (
-                        <button
-                          key={`target-moto-${moto}`}
-                          type="button"
-                          onClick={() => setExternalTargetField((prev) => ({ ...prev, moto: moto as 1 | 2 }))}
-                          style={{
-                            padding: '8px 10px',
-                            borderRadius: 999,
-                            border: '1px solid #93c5fd',
-                            background: externalTargetField.moto === moto ? '#dbeafe' : '#fff',
-                            color: externalTargetField.moto === moto ? '#1d4ed8' : '#334155',
-                            fontWeight: 900,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          Moto {moto}
-                        </button>
-                      ))}
-                    </div>
-                    <div style={{ fontWeight: 800, color: '#334155' }}>
-                      Batch {externalTargetField.batchIndex + 1} - Moto {externalTargetField.moto}
-                    </div>
+                    Batch {index + 1}: {batch.length}/{maxBatchRiders} rider
+                  </div>
+                ))}
+              </div>
+
+              <div
+                style={{
+                  display: 'grid',
+                  gap: 4,
+                  padding: '12px 14px',
+                  borderRadius: 14,
+                  border: `1px solid ${externalPerBatchValidation.isValid ? '#86efac' : '#fecaca'}`,
+                  background: externalPerBatchValidation.isValid ? '#f0fdf4' : '#fef2f2',
+                  color: externalPerBatchValidation.isValid ? '#166534' : '#b91c1c',
+                  fontWeight: 800,
+                }}
+              >
+                <div>
+                  {externalPerBatchValidation.isValid
+                    ? `Moto 1 siap diproses - ${externalMoto1AssignedCount}/${riders.length} rider sudah ditempatkan`
+                    : `Moto 1 belum lengkap - ${externalMoto1AssignedCount}/${riders.length} rider sudah ditempatkan`}
+                </div>
+                {externalPerBatchValidation.emptyBatches.length > 0 && (
+                  <div>Batch kosong: {externalPerBatchValidation.emptyBatches.join(', ')}</div>
+                )}
+                {externalPerBatchValidation.overCapacityBatches.length > 0 && (
+                  <div>
+                    Batch melebihi kapasitas {maxBatchRiders} rider: {externalPerBatchValidation.overCapacityBatches.join(', ')}
+                  </div>
+                )}
+                {externalPerBatchValidation.missingRiders.length > 0 && (
+                  <div>
+                    Belum terisi: {externalPerBatchValidation.missingRiders.slice(0, 8).map((rider) => rider.no_plate_display).join(', ')}
+                  </div>
+                )}
+                <div style={{ color: externalPerBatchValidation.isValidMoto2 ? '#166534' : '#92400e' }}>
+                  Moto 2:{' '}
+                  {externalPerBatchValidation.moto2Provided
+                    ? externalPerBatchValidation.isValidMoto2
+                      ? `manual siap - ${externalMoto2AssignedCount}/${externalMoto1AssignedCount} rider`
+                      : `manual belum sinkron${externalPerBatchValidation.moto2BatchMismatch.length > 0 ? ` (batch mismatch ${externalPerBatchValidation.moto2BatchMismatch.join(', ')})` : ''}`
+                    : 'otomatis reverse saat generate moto'}
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gap: 12, marginTop: 8 }}>
+                <div
+                  style={{
+                    padding: '14px 16px',
+                    borderRadius: 16,
+                    border: '1px solid #bfdbfe',
+                    background: '#f8fbff',
+                    color: '#1d4ed8',
+                    fontWeight: 800,
+                  }}
+                >
+                  {externalTargetField.moto === 1
+                    ? 'Editor Batch Moto 1: drag handle :: ke row tujuan, atau klik Pilih lalu tap rider tujuan.'
+                    : 'Target Moto 2 aktif: klik rider di Preview Rider untuk menyusun urutan manual Moto 2. Editor batch di bawah tetap menunjukkan struktur Batch Moto 1.'}
+                </div>
+
+                {externalSelectedRider && externalBatchLayouts[externalSelectedRider.batchIndex]?.riders[externalSelectedRider.riderIndex] && (
+                  <div
+                    style={{
+                      padding: '14px 16px',
+                      borderRadius: 16,
+                      border: '1px solid #facc15',
+                      background: '#fffbeb',
+                      color: '#92400e',
+                      fontWeight: 800,
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      gap: 12,
+                      alignItems: 'center',
+                    }}
+                  >
+                    <span>
+                      Mode pindah aktif:{' '}
+                      <strong>
+                        {externalBatchLayouts[externalSelectedRider.batchIndex]?.riders[externalSelectedRider.riderIndex]?.no_plate_display}
+                      </strong>
+                      . Tap row tujuan untuk memindahkan rider ini.
+                    </span>
                     <button
                       type="button"
-                      onClick={undoExternalBatchEdit}
-                      disabled={externalUndoStack.length === 0}
+                      onClick={() => setExternalSelectedRider(null)}
                       style={{
                         padding: '8px 10px',
                         borderRadius: 10,
-                        border: '1px solid #94a3b8',
-                        background: externalUndoStack.length === 0 ? '#e5e7eb' : '#fff',
-                        color: '#0f172a',
+                        border: '1px solid #d97706',
+                        background: '#fff',
+                        color: '#92400e',
                         fontWeight: 900,
-                        cursor: externalUndoStack.length === 0 ? 'not-allowed' : 'pointer',
+                        cursor: 'pointer',
                       }}
                     >
-                      Undo
+                      Batal
                     </button>
                   </div>
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      {externalPerBatchValidation.orderedBatches.map((batch, index) => (
-                        <div
-                        key={`batch-status-${index}`}
+                )}
+
+                {externalBatchLayouts.map((batch, batchIndex) => (
+                  <div
+                    key={`external-editor-${batch.index}`}
+                    style={{
+                      border: '1px solid #cbd5e1',
+                      borderRadius: 18,
+                      padding: 14,
+                      background: '#fff',
+                      display: 'grid',
+                      gap: 8,
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
+                      <div style={{ fontWeight: 950, fontSize: 18, color: '#0f172a' }}>Batch {batch.index}</div>
+                      <div
                         style={{
-                          padding: '8px 10px',
+                          padding: '6px 10px',
                           borderRadius: 999,
-                          border: '1px solid #cbd5e1',
-                          background:
-                            batch.length > 0
-                              ? externalTargetField.batchIndex === index
-                                ? '#dbeafe'
-                                : '#f8fafc'
-                              : '#fff7ed',
-                          color:
-                            batch.length > 0
-                              ? externalTargetField.batchIndex === index
-                                ? '#1d4ed8'
-                                : '#334155'
-                              : '#b45309',
+                          background: '#dbeafe',
+                          color: '#1d4ed8',
                           fontWeight: 900,
                           fontSize: 12,
                         }}
-                        >
-                        Batch {index + 1}: {batch.length}/{maxBatchRiders} rider
-                      </div>
-                    ))}
-                  </div>
-                  <div
-                    style={{
-                      display: 'grid',
-                      gap: 4,
-                      padding: '12px 14px',
-                      borderRadius: 14,
-                      border: `1px solid ${externalPerBatchValidation.isValid ? '#86efac' : '#fecaca'}`,
-                      background: externalPerBatchValidation.isValid ? '#f0fdf4' : '#fef2f2',
-                      color: externalPerBatchValidation.isValid ? '#166534' : '#b91c1c',
-                      fontWeight: 800,
-                    }}
-                  >
-                    <div>
-                      {externalPerBatchValidation.isValid
-                        ? `Moto 1 siap diproses - ${externalMoto1AssignedCount}/${riders.length} rider sudah ditempatkan`
-                        : `Moto 1 belum lengkap - ${externalMoto1AssignedCount}/${riders.length} rider sudah ditempatkan`}
-                    </div>
-                    {externalPerBatchValidation.emptyBatches.length > 0 && (
-                      <div>Batch kosong: {externalPerBatchValidation.emptyBatches.join(', ')}</div>
-                    )}
-                    {externalPerBatchValidation.overCapacityBatches.length > 0 && (
-                      <div>
-                        Batch melebihi kapasitas {maxBatchRiders} rider: {externalPerBatchValidation.overCapacityBatches.join(', ')}
-                      </div>
-                    )}
-                    {externalPerBatchValidation.missingRiders.length > 0 && (
-                      <div>
-                        Belum terisi: {externalPerBatchValidation.missingRiders.slice(0, 8).map((rider) => rider.no_plate_display).join(', ')}
-                      </div>
-                    )}
-                    <div style={{ color: externalPerBatchValidation.isValidMoto2 ? '#166534' : '#92400e' }}>
-                      Moto 2:{' '}
-                      {externalPerBatchValidation.moto2Provided
-                        ? externalPerBatchValidation.isValidMoto2
-                          ? `manual siap - ${externalMoto2AssignedCount}/${externalMoto1AssignedCount} rider`
-                          : `manual belum sinkron${externalPerBatchValidation.moto2BatchMismatch.length > 0 ? ` (batch mismatch ${externalPerBatchValidation.moto2BatchMismatch.join(', ')})` : ''}`
-                        : 'otomatis reverse saat generate moto'}
-                    </div>
-                  </div>
-                  <div style={{ display: 'grid', gap: 12, marginTop: 8 }}>
-                      <div
-                        style={{
-                          padding: '14px 16px',
-                          borderRadius: 16,
-                          border: '1px solid #bfdbfe',
-                          background: '#f8fbff',
-                          color: '#1d4ed8',
-                          fontWeight: 800,
-                        }}
                       >
-                        {externalTargetField.moto === 1
-                          ? 'Editor Batch Moto 1: drag handle :: ke row tujuan, atau klik Pilih lalu tap rider tujuan.'
-                          : 'Target Moto 2 aktif: klik rider di Preview Rider untuk menyusun urutan manual Moto 2. Editor batch di bawah tetap menunjukkan struktur Batch Moto 1.'}
+                        {batch.riders.length} rider
                       </div>
-                      {externalSelectedRider && externalBatchLayouts[externalSelectedRider.batchIndex]?.riders[externalSelectedRider.riderIndex] && (
+                    </div>
+
+                    {batch.riders.map((rider, riderIndex) => {
+                      const location = { batchIndex, riderIndex }
+                      const isDragging =
+                        externalDraggingRider?.batchIndex === batchIndex &&
+                        externalDraggingRider?.riderIndex === riderIndex
+                      const isDropTarget =
+                        externalDropTarget?.batchIndex === batchIndex &&
+                        externalDropTarget?.riderIndex === riderIndex &&
+                        !isDragging
+                      const isSelected =
+                        externalSelectedRider?.batchIndex === batchIndex &&
+                        externalSelectedRider?.riderIndex === riderIndex
+                      return (
                         <div
+                          key={`external-editor-rider-${rider.id}`}
+                          onClick={() => {
+                            if (
+                              externalSelectedRider &&
+                              (externalSelectedRider.batchIndex !== batchIndex ||
+                                externalSelectedRider.riderIndex !== riderIndex)
+                            ) {
+                              moveExternalBatchRider(externalSelectedRider, location)
+                            }
+                          }}
+                          onDragOver={(e) => {
+                            e.preventDefault()
+                            e.dataTransfer.dropEffect = 'move'
+                            setExternalDropTarget(location)
+                          }}
+                          onDrop={(e) => {
+                            e.preventDefault()
+                            const raw = e.dataTransfer.getData('text/plain')
+                            if (!raw) return
+                            const [fromBatchIndex, fromRiderIndex] = raw.split(':').map(Number)
+                            if (Number.isNaN(fromBatchIndex) || Number.isNaN(fromRiderIndex)) return
+                            moveExternalBatchRider(
+                              { batchIndex: fromBatchIndex, riderIndex: fromRiderIndex },
+                              location
+                            )
+                          }}
                           style={{
-                            padding: '14px 16px',
-                            borderRadius: 16,
-                            border: '1px solid #facc15',
-                            background: '#fffbeb',
-                            color: '#92400e',
-                            fontWeight: 800,
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            gap: 12,
+                            display: 'grid',
+                            gridTemplateColumns: 'auto auto minmax(0, 1fr) auto',
                             alignItems: 'center',
+                            gap: 12,
+                            padding: '10px 12px',
+                            borderRadius: 14,
+                            border: isDropTarget ? '2px dashed #2563eb' : isSelected ? '2px solid #f59e0b' : '1px solid #dbeafe',
+                            background: isDropTarget ? '#dbeafe' : isSelected ? '#fffbeb' : riderIndex % 2 === 0 ? '#eff6ff' : '#f8fafc',
+                            fontWeight: 800,
+                            opacity: isDragging ? 0.45 : 1,
+                            cursor:
+                              externalSelectedRider &&
+                              (externalSelectedRider.batchIndex !== batchIndex || externalSelectedRider.riderIndex !== riderIndex)
+                                ? 'copy'
+                                : 'default',
                           }}
                         >
-                          <span>
-                            Mode pindah aktif:{' '}
-                            <strong>
-                              {externalBatchLayouts[externalSelectedRider.batchIndex]?.riders[externalSelectedRider.riderIndex]?.no_plate_display}
-                            </strong>
-                            . Tap row tujuan untuk memindahkan rider ini.
+                          <span
+                            draggable
+                            onDragStart={(e) => {
+                              e.stopPropagation()
+                              e.dataTransfer.setData('text/plain', `${batchIndex}:${riderIndex}`)
+                              e.dataTransfer.effectAllowed = 'move'
+                              setExternalDraggingRider(location)
+                              setExternalDropTarget(location)
+                              setExternalSelectedRider(null)
+                            }}
+                            onDragEnd={() => clearExternalReorderState()}
+                            title="Drag rider"
+                            style={{
+                              width: 28,
+                              height: 28,
+                              display: 'grid',
+                              placeItems: 'center',
+                              borderRadius: 8,
+                              border: '1px solid #94a3b8',
+                              background: '#fff',
+                              color: '#0f172a',
+                              fontWeight: 900,
+                              cursor: 'grab',
+                              userSelect: 'none',
+                            }}
+                          >
+                            ::
+                          </span>
+                          <span
+                            style={{
+                              minWidth: 66,
+                              textAlign: 'center',
+                              padding: '6px 8px',
+                              borderRadius: 999,
+                              background: '#0f172a',
+                              color: '#fff',
+                              fontSize: 12,
+                              fontWeight: 900,
+                            }}
+                          >
+                            Gate {riderIndex + 1}
+                          </span>
+                          <span style={{ color: '#0f172a' }}>
+                            {rider.name} <span style={{ color: '#475569' }}>({rider.no_plate_display})</span>
                           </span>
                           <button
                             type="button"
-                            onClick={() => setExternalSelectedRider(null)}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setExternalSelectedRider((prev) =>
+                                prev?.batchIndex === batchIndex && prev?.riderIndex === riderIndex ? null : location
+                              )
+                            }}
                             style={{
-                              padding: '8px 10px',
+                              minWidth: 54,
+                              height: 34,
+                              padding: '0 10px',
                               borderRadius: 10,
-                              border: '1px solid #d97706',
-                              background: '#fff',
-                              color: '#92400e',
+                              border: '1px solid #94a3b8',
+                              background: isSelected ? '#fef3c7' : '#fff',
+                              color: '#0f172a',
                               fontWeight: 900,
                               cursor: 'pointer',
                             }}
                           >
-                            Batal
+                            {isSelected ? 'Batal' : 'Pilih'}
                           </button>
                         </div>
-                      )}
-                      {externalBatchLayouts.map((batch, batchIndex) => (
-                        <div
-                          key={`external-editor-${batch.index}`}
-                          style={{
-                            border: '1px solid #cbd5e1',
-                            borderRadius: 18,
-                            padding: 14,
-                            background: '#fff',
-                            display: 'grid',
-                            gap: 8,
-                          }}
-                        >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
-                            <div style={{ fontWeight: 950, fontSize: 18, color: '#0f172a' }}>Batch {batch.index}</div>
-                            <div
-                              style={{
-                                padding: '6px 10px',
-                                borderRadius: 999,
-                                background: '#dbeafe',
-                                color: '#1d4ed8',
-                                fontWeight: 900,
-                                fontSize: 12,
-                              }}
-                            >
-                              {batch.riders.length} rider
-                            </div>
-                          </div>
-                          {batch.riders.map((rider, riderIndex) => {
-                            const location = { batchIndex, riderIndex }
-                            const isDragging =
-                              externalDraggingRider?.batchIndex === batchIndex &&
-                              externalDraggingRider?.riderIndex === riderIndex
-                            const isDropTarget =
-                              externalDropTarget?.batchIndex === batchIndex &&
-                              externalDropTarget?.riderIndex === riderIndex &&
-                              !isDragging
-                            const isSelected =
-                              externalSelectedRider?.batchIndex === batchIndex &&
-                              externalSelectedRider?.riderIndex === riderIndex
-                            return (
-                              <div
-                                key={`external-editor-rider-${rider.id}`}
-                                onClick={() => {
-                                  if (
-                                    externalSelectedRider &&
-                                    (externalSelectedRider.batchIndex !== batchIndex ||
-                                      externalSelectedRider.riderIndex !== riderIndex)
-                                  ) {
-                                    moveExternalBatchRider(externalSelectedRider, location)
-                                  }
-                                }}
-                                onDragOver={(e) => {
-                                  e.preventDefault()
-                                  e.dataTransfer.dropEffect = 'move'
-                                  setExternalDropTarget(location)
-                                }}
-                                onDrop={(e) => {
-                                  e.preventDefault()
-                                  const raw = e.dataTransfer.getData('text/plain')
-                                  if (!raw) return
-                                  const [fromBatchIndex, fromRiderIndex] = raw.split(':').map(Number)
-                                  if (Number.isNaN(fromBatchIndex) || Number.isNaN(fromRiderIndex)) return
-                                  moveExternalBatchRider(
-                                    { batchIndex: fromBatchIndex, riderIndex: fromRiderIndex },
-                                    location
-                                  )
-                                }}
-                                style={{
-                                  display: 'grid',
-                                  gridTemplateColumns: 'auto auto minmax(0, 1fr) auto',
-                                  alignItems: 'center',
-                                  gap: 12,
-                                  padding: '10px 12px',
-                                  borderRadius: 14,
-                                  border: isDropTarget ? '2px dashed #2563eb' : isSelected ? '2px solid #f59e0b' : '1px solid #dbeafe',
-                                  background: isDropTarget ? '#dbeafe' : isSelected ? '#fffbeb' : riderIndex % 2 === 0 ? '#eff6ff' : '#f8fafc',
-                                  fontWeight: 800,
-                                  opacity: isDragging ? 0.45 : 1,
-                                  cursor:
-                                    externalSelectedRider &&
-                                    (externalSelectedRider.batchIndex !== batchIndex || externalSelectedRider.riderIndex !== riderIndex)
-                                      ? 'copy'
-                                      : 'default',
-                                }}
-                              >
-                                <span
-                                  draggable
-                                  onDragStart={(e) => {
-                                    e.stopPropagation()
-                                    e.dataTransfer.setData('text/plain', `${batchIndex}:${riderIndex}`)
-                                    e.dataTransfer.effectAllowed = 'move'
-                                    setExternalDraggingRider(location)
-                                    setExternalDropTarget(location)
-                                    setExternalSelectedRider(null)
-                                  }}
-                                  onDragEnd={() => clearExternalReorderState()}
-                                  title="Drag rider"
-                                  style={{
-                                    width: 28,
-                                    height: 28,
-                                    display: 'grid',
-                                    placeItems: 'center',
-                                    borderRadius: 8,
-                                    border: '1px solid #94a3b8',
-                                    background: '#fff',
-                                    color: '#0f172a',
-                                    fontWeight: 900,
-                                    cursor: 'grab',
-                                    userSelect: 'none',
-                                  }}
-                                >
-                                  ::
-                                </span>
-                                <span
-                                  style={{
-                                    minWidth: 66,
-                                    textAlign: 'center',
-                                    padding: '6px 8px',
-                                    borderRadius: 999,
-                                    background: '#0f172a',
-                                    color: '#fff',
-                                    fontSize: 12,
-                                    fontWeight: 900,
-                                  }}
-                                >
-                                  Gate {riderIndex + 1}
-                                </span>
-                                <span style={{ color: '#0f172a' }}>
-                                  {rider.name} <span style={{ color: '#475569' }}>({rider.no_plate_display})</span>
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setExternalSelectedRider((prev) =>
-                                      prev?.batchIndex === batchIndex && prev?.riderIndex === riderIndex ? null : location
-                                    )
-                                  }}
-                                  style={{
-                                    minWidth: 54,
-                                    height: 34,
-                                    padding: '0 10px',
-                                    borderRadius: 10,
-                                    border: '1px solid #94a3b8',
-                                    background: isSelected ? '#fef3c7' : '#fff',
-                                    color: '#0f172a',
-                                    fontWeight: 900,
-                                    cursor: 'pointer',
-                                  }}
-                                >
-                                  {isSelected ? 'Batal' : 'Pilih'}
-                                </button>
-                              </div>
-                            )
-                          })}
-                          {batch.riders.length === 0 && (
-                            <div
-                              style={{
-                                padding: '14px 16px',
-                                borderRadius: 14,
-                                border: '1px dashed #cbd5e1',
-                                background: '#f8fafc',
-                                color: '#64748b',
-                                fontWeight: 800,
-                              }}
-                            >
-                              Batch ini masih kosong. Klik rider dari Preview Rider untuk mengisi ke target aktif.
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
+                      )
+                    })}
+
+                    {batch.riders.length === 0 && (
+                      <div
+                        style={{
+                          padding: '14px 16px',
+                          borderRadius: 14,
+                          border: '1px dashed #cbd5e1',
+                          background: '#f8fafc',
+                          color: '#64748b',
+                          fontWeight: 800,
+                        }}
+                      >
+                        Batch ini masih kosong. Klik rider dari Preview Rider untuk mengisi ke target aktif.
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                 <button
                   type="button"
@@ -2097,7 +2105,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
         {!loading && drawnOrder.length === 0 && !categoryLocked && (
           <div style={{ color: '#555', fontWeight: 700 }}>
             {drawMode === 'external_draw'
-              ? 'Belum ada urutan external yang dipakai.'
+              ? 'Belum ada hasil editor batch yang dipakai.'
               : 'Belum ada hasil draw.'}
           </div>
         )}
