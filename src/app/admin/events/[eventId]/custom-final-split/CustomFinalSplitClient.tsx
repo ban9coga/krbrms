@@ -729,12 +729,13 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
     }))
     const category = categories.find((item) => item.id === categoryId)
     const totalRiders = Math.max(0, Number(category?.total_riders ?? 0))
-    const qualificationCombinedRules = payload.filter(
-      (rule) => rule.source_stage === 'QUALIFICATION' && rule.split_basis === 'COMBINED'
-    )
-    const highestCoveredRank = qualificationCombinedRules.reduce((max, rule) => Math.max(max, Number(rule.rank_to) || 0), 0)
+    const qualificationRules = payload.filter((rule) => rule.source_stage === 'QUALIFICATION')
+    const qualificationBasis = qualificationRules[0]?.split_basis ?? null
+    const allQualificationCombined =
+      qualificationRules.length > 0 && qualificationRules.every((rule) => rule.split_basis === 'COMBINED')
+    const highestCoveredRank = qualificationRules.reduce((max, rule) => Math.max(max, Number(rule.rank_to) || 0), 0)
 
-    if (qualificationCombinedRules.length > 0 && totalRiders > 0 && highestCoveredRank < totalRiders) {
+    if (qualificationBasis === 'COMBINED' && allQualificationCombined && totalRiders > 0 && highestCoveredRank < totalRiders) {
       alert(
         `Rule saat ini hanya mencakup rank 1-${highestCoveredRank}, sementara total rider kategori ini ${totalRiders}. Lengkapi rule sampai rank ${totalRiders} dulu.`
       )
