@@ -57,6 +57,12 @@ const normalizeDrawMode = (value: unknown): DrawMode =>
   value === 'external_draw' ? 'external_draw' : 'internal_live_draw'
 
 const normalizePlateToken = (value: string) => value.toUpperCase().replace(/[^0-9A-Z]/g, '')
+const isRiderIdToken = (value: string) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value.trim())
+const normalizeExternalToken = (value: string) => {
+  const trimmed = value.trim()
+  return isRiderIdToken(trimmed) ? trimmed.toLowerCase() : normalizePlateToken(trimmed)
+}
 const escapeHtml = (value: string) =>
   value
     .replace(/&/g, '&amp;')
@@ -73,8 +79,12 @@ const parseExternalTokens = (value: string) =>
 
 const resolveRiderForToken = (riders: RiderItem[], token: string) => {
   const trimmed = token.trim()
+  const lowerKey = trimmed.toLowerCase()
   const exactKey = trimmed.toUpperCase()
   const normalizedKey = normalizePlateToken(trimmed)
+
+  const idMatch = riders.find((rider) => rider.id.toLowerCase() === lowerKey)
+  if (idMatch) return idMatch
 
   const exactMatch = riders.find((rider) => rider.no_plate_display.toUpperCase() === exactKey)
   if (exactMatch) return exactMatch
@@ -186,7 +196,7 @@ const moveItem = <T,>(items: T[], fromIndex: number, toIndex: number) => {
 }
 
 const serializeBatchRiders = (batches: RiderItem[][]) =>
-  batches.map((batch) => batch.map((rider) => rider.no_plate_display).join('\n'))
+  batches.map((batch) => batch.map((rider) => rider.id).join('\n'))
 
 export default function LiveDrawClient({ eventId }: { eventId: string }) {
   const [categories, setCategories] = useState<CategoryItem[]>([])
@@ -296,7 +306,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     const orderedRiders: RiderItem[] = []
 
     for (const token of tokens) {
-      const normalizedToken = normalizePlateToken(token)
+      const normalizedToken = normalizeExternalToken(token)
       if (seenToken.has(normalizedToken)) {
         duplicateTokens.push(token)
         continue
@@ -361,7 +371,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     const orderedRiders: RiderItem[] = []
 
     for (const token of tokens) {
-      const normalizedToken = normalizePlateToken(token)
+      const normalizedToken = normalizeExternalToken(token)
       if (seenToken.has(normalizedToken)) {
         duplicateTokens.push(token)
         continue
@@ -444,7 +454,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       const batchSeen = new Set<string>()
       const ordered: RiderItem[] = []
       for (const token of tokens) {
-        const normalizedToken = normalizePlateToken(token)
+        const normalizedToken = normalizeExternalToken(token)
         if (batchSeen.has(normalizedToken)) {
           duplicateTokens.push(`B${batchIndex + 1}:${token}`)
           continue
@@ -492,7 +502,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
         const batchSeen = new Set<string>()
         const ordered: RiderItem[] = []
         for (const token of tokens) {
-          const normalizedToken = normalizePlateToken(token)
+          const normalizedToken = normalizeExternalToken(token)
           if (batchSeen.has(normalizedToken)) {
             moto2DuplicateTokens.push(`B${batchIndex + 1}:${token}`)
             continue
@@ -957,7 +967,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     setter((prev) => {
       const next = [...prev]
       const current = parseExternalTokens(next[externalTargetField.batchIndex] ?? '')
-      current.push(rider.no_plate_display)
+      current.push(rider.id)
       next[externalTargetField.batchIndex] = current.join('\n')
       if (current.length >= maxBatchRiders) {
         const nextTargetBatchIndex = findNextAvailableBatchIndex(
