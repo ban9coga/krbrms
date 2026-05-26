@@ -57,6 +57,19 @@ type QualificationRowStatus = 'FINISHED' | 'DNF' | 'DNS' | 'PENDING' | 'DQ'
 
 type QualificationMotoStatus = 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'PENDING'
 
+type StageAssignmentRow = {
+  rider_id: string
+  stage: 'QUARTER_FINAL' | 'REPECHAGE' | 'SEMI_FINAL' | 'FINAL'
+  final_class: string | null
+}
+
+const STAGE_ASSIGNMENT_PRIORITY: Record<StageAssignmentRow['stage'], number> = {
+  FINAL: 4,
+  SEMI_FINAL: 3,
+  QUARTER_FINAL: 2,
+  REPECHAGE: 1,
+}
+
 const parseBatchKey = (name: string) => {
   const match = name.match(/moto\s*(\d+)\s*(?:-\s*)?batch\s*(\d+)/i)
   if (!match) return null
@@ -311,6 +324,30 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     })
   }
 
+  const stageAssignmentMap = new Map<string, string>()
+  const { data: stageAssignments, error: stageAssignmentsError } = await adminClient
+    .from('race_stage_result')
+    .select('rider_id, stage, final_class')
+    .eq('category_id', categoryId)
+    .in('stage', ['QUARTER_FINAL', 'REPECHAGE', 'SEMI_FINAL', 'FINAL'])
+  if (stageAssignmentsError) return NextResponse.json({ error: stageAssignmentsError.message }, { status: 400 })
+  const preferredAssignments = new Map<string, StageAssignmentRow>()
+  for (const row of (stageAssignments ?? []) as StageAssignmentRow[]) {
+    const current = preferredAssignments.get(row.rider_id)
+    const currentPriority = current ? STAGE_ASSIGNMENT_PRIORITY[current.stage] : -1
+    const nextPriority = STAGE_ASSIGNMENT_PRIORITY[row.stage]
+    if (!current || nextPriority >= currentPriority) {
+      preferredAssignments.set(row.rider_id, row)
+    }
+  }
+  preferredAssignments.forEach((row, riderId) => {
+    const label =
+      row.stage === 'FINAL'
+        ? `FINAL ${row.final_class ?? 'ELITE'}`
+        : formatStageAdvanceLabel({ toStage: row.stage })
+    stageAssignmentMap.set(riderId, label)
+  })
+
   const batches = batchEntries
     .map(([batchIndex, entry]) => {
       const moto1 = entry.moto1 as MotoRow
@@ -424,7 +461,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
           return {
             ...r,
             rank_point: rank,
-            class_label: showAdvancedClasses ? classForRank(rank) : null,
+            class_label: showAdvancedClasses ? stageAssignmentMap.get(r.rider_id) ?? classForRank(rank) : null,
           }
         })
         .sort((a, b) => (a.gate_moto1 ?? 9999) - (b.gate_moto1 ?? 9999))
