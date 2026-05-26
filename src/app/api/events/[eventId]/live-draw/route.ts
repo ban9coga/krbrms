@@ -180,17 +180,6 @@ const loadRidersForCategory = async (eventId: string, category: CategoryRow) => 
   }
 }
 
-const tableExists = async (tableName: string) => {
-  const { data, error } = await adminClient
-    .from('information_schema.tables')
-    .select('table_name')
-    .eq('table_schema', 'public')
-    .eq('table_name', tableName)
-    .maybeSingle()
-  if (error) return false
-  return !!data?.table_name
-}
-
 export async function GET(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params
   const { searchParams } = new URL(req.url)
@@ -372,31 +361,26 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   const motoRiders: Array<{ moto_id: string; rider_id: string }> = []
   const gatePositions: Array<{ moto_id: string; rider_id: string; gate_position: number }> = []
 
-  const hasGateTable = await tableExists('moto_gate_positions')
-  if (hasCustomMoto2 && !hasGateTable) {
-    return NextResponse.json({ error: 'Custom Moto 2 order requires moto_gate_positions table' }, { status: 400 })
-  }
-
   batches.forEach((batch, batchIndex) => {
     const moto1 = motoRowByName.get(`moto 1 - batch ${batchIndex + 1}`.toLowerCase())
     const moto2 = motoRowByName.get(`moto 2 - batch ${batchIndex + 1}`.toLowerCase())
     if (!moto1 || !moto2) {
       return
     }
-    const moto2Order = hasCustomMoto2 ? (moto2Batches[batchIndex] ?? []) : [...batch].reverse()
+    const moto2Order = hasManualMoto2Batches
+      ? (moto2Batches[batchIndex] ?? [])
+      : hasCustomMoto2
+        ? (moto2Batches[batchIndex] ?? [])
+        : [...batch].reverse()
 
     batch.forEach((riderId, idx) => {
       motoRiders.push({ moto_id: moto1.id, rider_id: riderId })
-      if (hasGateTable) {
-        gatePositions.push({ moto_id: moto1.id, rider_id: riderId, gate_position: idx + 1 })
-      }
+      gatePositions.push({ moto_id: moto1.id, rider_id: riderId, gate_position: idx + 1 })
     })
 
     moto2Order.forEach((riderId, idx) => {
       motoRiders.push({ moto_id: moto2.id, rider_id: riderId })
-      if (hasGateTable) {
-        gatePositions.push({ moto_id: moto2.id, rider_id: riderId, gate_position: idx + 1 })
-      }
+      gatePositions.push({ moto_id: moto2.id, rider_id: riderId, gate_position: idx + 1 })
     })
   })
 
@@ -410,7 +394,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     return NextResponse.json({ error: riderError.message }, { status: 400 })
   }
 
-  if (hasGateTable && gatePositions.length > 0) {
+  if (gatePositions.length > 0) {
     const { error: gateError } = await adminClient.from('moto_gate_positions').insert(gatePositions)
     if (gateError) {
       return NextResponse.json({ error: gateError.message }, { status: 400 })
@@ -421,7 +405,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     data: {
       batch_count: batches.length,
       moto_count: motoRows.length,
-      gate_positions_saved: hasGateTable,
+      gate_positions_saved: gatePositions.length > 0,
     },
   })
 }
