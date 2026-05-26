@@ -213,7 +213,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
   const [openMotoId, setOpenMotoId] = useState<string | null>(null)
   const [externalOrderText, setExternalOrderText] = useState('')
   const [externalMoto2OrderText, setExternalMoto2OrderText] = useState('')
-  const [externalBatchInputMode, setExternalBatchInputMode] = useState<'GLOBAL' | 'PER_BATCH'>('GLOBAL')
+  const [externalBatchInputMode, setExternalBatchInputMode] = useState<'GLOBAL' | 'PER_BATCH'>('PER_BATCH')
   const [externalBatchTexts, setExternalBatchTexts] = useState<string[]>([])
   const [externalMoto2BatchTexts, setExternalMoto2BatchTexts] = useState<string[]>([])
   const [externalTargetField, setExternalTargetField] = useState<ExternalTargetField>({ batchIndex: 0, moto: 1 })
@@ -678,6 +678,12 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       moto: prev.moto,
     }))
   }, [externalBatchInputMode, effectiveBatchCount, riders.length, maxBatchRiders])
+
+  useEffect(() => {
+    if (drawMode === 'external_draw' && externalBatchInputMode !== 'PER_BATCH') {
+      setExternalBatchInputMode('PER_BATCH')
+    }
+  }, [drawMode, externalBatchInputMode])
 
   const apiFetch = async (url: string, options: RequestInit = {}) => {
     const { data } = await supabase.auth.getSession()
@@ -1234,9 +1240,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
           </h1>
           <div style={{ marginTop: 8, color: '#333', fontWeight: 700 }}>
             {drawMode === 'external_draw'
-              ? externalBatchInputMode === 'PER_BATCH'
-                ? 'Hasil draw dari luar sistem. Pilih target batch, klik rider dari preview, lalu generate moto.'
-                : 'Hasil draw dari luar sistem. Paste urutan plate Moto 1, opsional Moto 2 manual, lalu generate moto.'
+              ? 'Hasil draw dari luar sistem. Pilih target batch, klik rider dari preview, lalu generate moto.'
               : 'Draw manual dengan roulette, lalu simpan hasilnya sebagai Moto 1 & Moto 2 (gate Moto 2 otomatis dibalik).'}
           </div>
         </div>
@@ -1647,88 +1651,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
               </div>
             </div>
           ) : (
-            <div style={{ display: 'grid', gap: 10 }}>
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800 }}>
-                  <input
-                    type="radio"
-                    checked={externalBatchInputMode === 'GLOBAL'}
-                    onChange={() => setExternalBatchInputMode('GLOBAL')}
-                  />
-                  Input global
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800 }}>
-                  <input
-                    type="radio"
-                    checked={externalBatchInputMode === 'PER_BATCH'}
-                    onChange={() => setExternalBatchInputMode('PER_BATCH')}
-                  />
-                  Input per batch
-                </label>
-              </div>
-              {externalBatchInputMode === 'GLOBAL' ? (
-                <>
-                  <div style={{ fontWeight: 900 }}>Paste urutan no plate (Moto 1)</div>
-                  <div style={{ color: '#334155', fontWeight: 700 }}>
-                    Format: satu plate per baris, atau dipisah koma. Sistem akan membagi ke batch sesuai format batch di atas.
-                  </div>
-                  <textarea
-                    value={externalOrderText}
-                    onChange={(e) => setExternalOrderText(e.target.value)}
-                    rows={8}
-                    placeholder={'15B\n19\n777'}
-                    style={{
-                      width: '100%',
-                      borderRadius: 12,
-                      border: '2px solid #111',
-                      padding: 12,
-                      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-                      fontSize: 14,
-                    }}
-                  />
-                  <div style={{ display: 'grid', gap: 4, fontWeight: 800 }}>
-                    <div>Token terbaca: {externalValidation.tokens.length}</div>
-                    <div>Rider cocok: {externalValidation.orderedRiders.length}</div>
-                    <div style={{ color: externalValidation.isValid ? '#166534' : '#b91c1c' }}>
-                      {externalValidation.isValid ? 'VALID - siap jadi moto' : 'BELUM VALID'}
-                    </div>
-                  </div>
-                  <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
-                    <div style={{ fontWeight: 900 }}>Urutan no plate Moto 2 (opsional, manual)</div>
-                    <div style={{ color: '#334155', fontWeight: 700 }}>
-                      Kosongkan jika ingin otomatis dibalik. Jika diisi, wajib sama rider per batch dengan Moto 1.
-                    </div>
-                    <textarea
-                      value={externalMoto2OrderText}
-                      onChange={(e) => setExternalMoto2OrderText(e.target.value)}
-                      rows={8}
-                      placeholder={'19\n15B\n777'}
-                      style={{
-                        width: '100%',
-                        borderRadius: 12,
-                        border: '2px solid #111',
-                        padding: 12,
-                        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-                        fontSize: 14,
-                      }}
-                    />
-                    <div style={{ display: 'grid', gap: 4, fontWeight: 800 }}>
-                      <div>Token Moto 2: {externalMoto2Validation.tokens.length}</div>
-                      <div>
-                        Status Moto 2:{' '}
-                        <span style={{ color: externalMoto2Validation.isValidForMoto1 ? '#166534' : '#b91c1c' }}>
-                          {externalMoto2Validation.isProvided
-                            ? externalMoto2Validation.isValidForMoto1
-                              ? 'VALID MANUAL'
-                              : 'BELUM VALID'
-                            : 'AUTO REVERSE'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div style={{ display: 'grid', gap: 12 }}>
+            <div style={{ display: 'grid', gap: 12 }}>
                   <div style={{ color: '#334155', fontWeight: 700 }}>
                     Isi rider langsung ke editor batch. Klik rider di preview untuk kirim ke target aktif, lalu rapikan urutan dari editor.
                   </div>
@@ -2098,32 +2021,6 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                         </div>
                       ))}
                     </div>
-                </div>
-              )}
-              {externalBatchInputMode === 'GLOBAL' && externalValidation.orderedRiders.length > 0 && (
-                <div style={{ display: 'grid', gap: 6, maxHeight: 220, overflowY: 'auto' }}>
-                  {externalValidation.orderedRiders.map((rider, idx) => (
-                    <div
-                      key={`ext-${rider.id}`}
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        gap: 10,
-                        padding: '8px 10px',
-                        borderRadius: 10,
-                        border: '1px solid #ddd',
-                        background: '#fff',
-                        fontWeight: 800,
-                      }}
-                    >
-                      <span>
-                        Gate {idx + 1} - {rider.name}
-                      </span>
-                      <span>{rider.no_plate_display}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                 <button
                   type="button"
@@ -2138,7 +2035,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                     cursor: applyButtonEnabled ? 'pointer' : 'not-allowed',
                   }}
                 >
-                  {isExternalPerBatchMode ? 'Generate Moto dari Editor' : 'Gunakan Urutan External'}
+                  Gunakan Editor Batch
                 </button>
                 {drawnOrder.length > 0 && !categoryLocked && (
                   <button
@@ -2623,8 +2520,8 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                       </div>
                       <div style={{ marginTop: 12, display: 'grid', gap: 6, color: '#475569', fontWeight: 700 }}>
                         <div>
-                          {drawMode === 'external_draw' && externalMoto2Validation.isProvided
-                            ? 'Moto 2: urutan gate manual sesuai input external.'
+                          {drawMode === 'external_draw' && externalPerBatchValidation.moto2Provided
+                            ? 'Moto 2: urutan gate manual sesuai editor batch.'
                             : `Moto 2: urutan gate otomatis dibalik (Gate ${batch.riders.length} > 1).`}
                         </div>
                         <div>{formatMoto3Hint(batches.length)}</div>
