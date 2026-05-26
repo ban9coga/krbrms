@@ -207,9 +207,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     return NextResponse.json({ error: 'Final rules must have a final class.' }, { status: 400 })
   }
 
-  const splitBasisSet = new Set(normalizedRules.map((rule) => rule.split_basis))
-  if (splitBasisSet.size > 1) {
-    return NextResponse.json({ error: 'Semua rule dalam satu kategori harus memakai Rule Basis yang sama.' }, { status: 400 })
+  const splitBasisByStage = new Map<NormalizedRule['source_stage'], NormalizedRule['split_basis']>()
+  for (const rule of normalizedRules) {
+    const existing = splitBasisByStage.get(rule.source_stage)
+    if (existing && existing !== rule.split_basis) {
+      return NextResponse.json(
+        { error: `Semua rule untuk ${rule.source_stage.replace(/_/g, ' ')} harus memakai Rule Basis yang sama.` },
+        { status: 400 }
+      )
+    }
+    splitBasisByStage.set(rule.source_stage, rule.split_basis)
   }
 
   if (normalizedRules.some((rule) => rule.split_basis === 'CUSTOM_PER_BATCH' && !rule.batch_no)) {
@@ -217,7 +224,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   }
 
   const groupedRules = normalizedRules.reduce<Record<string, typeof normalizedRules>>((acc, rule) => {
-    const key = rule.split_basis === 'CUSTOM_PER_BATCH' ? String(rule.batch_no ?? 0) : 'ALL'
+    const key =
+      rule.split_basis === 'CUSTOM_PER_BATCH'
+        ? `${rule.source_stage}:BATCH:${rule.batch_no ?? 0}`
+        : `${rule.source_stage}:ALL`
     if (!acc[key]) acc[key] = []
     acc[key].push(rule)
     return acc
