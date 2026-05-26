@@ -640,6 +640,24 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
         <p style={{ marginTop: '8px', color: '#64748b', fontSize: '13px', fontWeight: 700 }}>
           Tip: drag baris moto untuk menyusun ulang antrian global dengan lebih cepat.
         </p>
+        <div
+          style={{
+            marginTop: '12px',
+            padding: '12px 14px',
+            borderRadius: '14px',
+            border: '1px solid #bfdbfe',
+            background: '#f8fbff',
+            color: '#1e3a8a',
+            fontSize: '13px',
+            fontWeight: 800,
+          }}
+        >
+          <div style={{ fontWeight: 900 }}>Panduan cepat</div>
+          <div style={{ marginTop: '4px' }}>
+            <strong>Global Moto Planner</strong> menentukan antrean race yang benar-benar berjalan.{' '}
+            <strong>Urutan Kategori</strong> di bawah hanya untuk membantu susunan kategori di tampilan admin.
+          </div>
+        </div>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '12px' }}>
           <div
             style={{
@@ -773,6 +791,17 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
           marginBottom: '24px',
         }}
       >
+        <div
+          style={{
+            gridColumn: '1 / -1',
+            padding: '10px 0 2px',
+            color: '#475569',
+            fontSize: '13px',
+            fontWeight: 800,
+          }}
+        >
+          Urutan Kategori ini tidak mengubah queue moto yang sedang LIVE. Fungsinya untuk susunan kategori di area admin.
+        </div>
         {categoriesSorted.map((category, index) => (
           <div
             key={category.id}
@@ -786,7 +815,7 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
             }}
           >
             <div style={{ fontSize: '11px', fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6b7280' }}>
-              Category Sequence #{index + 1}
+              Urutan Kategori #{index + 1}
             </div>
             <div style={{ fontSize: '15px', fontWeight: 900 }}>{category.label}</div>
             <div style={{ display: 'flex', gap: '8px' }}>
@@ -794,8 +823,8 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
                 type="button"
                 onClick={() => void moveCategory(category.id, -1)}
                 disabled={savingSequence || categoriesSorted[0]?.id === category.id}
-                title="Naikkan kategori"
-                aria-label="Naikkan kategori"
+                title="Naikkan urutan kategori"
+                aria-label="Naikkan urutan kategori"
                 style={{
                   width: '38px',
                   height: '38px',
@@ -816,8 +845,8 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
                 type="button"
                 onClick={() => void moveCategory(category.id, 1)}
                 disabled={savingSequence || categoriesSorted[categoriesSorted.length - 1]?.id === category.id}
-                title="Turunkan kategori"
-                aria-label="Turunkan kategori"
+                title="Turunkan urutan kategori"
+                aria-label="Turunkan urutan kategori"
                 style={{
                   width: '38px',
                   height: '38px',
