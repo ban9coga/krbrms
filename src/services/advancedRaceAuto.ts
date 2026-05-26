@@ -509,27 +509,6 @@ const computeHybridQualificationAdvances = (
 const areAllMotosComplete = (motos: MotoRow[], assignedRows: MotoRiderRow[], resultRows: ResultRow[]) =>
   motos.length > 0 && motos.every((moto) => isMotoComplete(moto.id, assignedRows, resultRows))
 
-const isFinalClassReady = (
-  finalClass: string,
-  stages: { enableQuarterFinal: boolean; enableSemiFinal: boolean },
-  readiness: { qualificationReady: boolean; quarterReady: boolean; semiReady: boolean }
-) => {
-  if (finalClass === 'ADVANCED' || finalClass === 'ACADEMY' || finalClass === 'AMATEUR' || finalClass === 'BEGINNER') {
-    return readiness.qualificationReady
-  }
-
-  if (finalClass === 'PRO' || finalClass === 'ROOKIE') {
-    return stages.enableQuarterFinal ? readiness.quarterReady : readiness.qualificationReady
-  }
-
-  if (finalClass === 'ELITE' || finalClass === 'NOVICE') {
-    if (stages.enableSemiFinal) return readiness.semiReady
-    return readiness.qualificationReady
-  }
-
-  return readiness.qualificationReady
-}
-
 export async function computeQualificationAndStore(eventId: string, categoryId: string) {
   const { data: config } = await adminClient
     .from('race_stage_config')
@@ -866,8 +845,12 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
   const newMotoRiders: Array<{ moto_id: string; rider_id: string }> = []
   const newGatePositions: Array<{ moto_id: string; rider_id: string; gate_position: number }> = []
   const gateTableReady = await tableExists('moto_gate_positions')
+  const repechageCustomRules = await loadCustomSplitRules(categoryId, 'REPECHAGE')
+  const repechageFeedsQuarterFinal = repechageCustomRules.some((rule) => rule.targetStage === 'QUARTER_FINAL')
+  const shouldDeferQuarterUntilRepechage =
+    repechageFeedsQuarterFinal && repechageRiders.length > 0 && !readiness.repechageReady
 
-  if (readiness.qualificationReady && quarterRiders.length > 0) {
+  if (readiness.qualificationReady && quarterRiders.length > 0 && !shouldDeferQuarterUntilRepechage) {
     const existingQuarterMotos = await loadStageMotos(eventId, categoryId, 'Quarter Final')
     const existingQuarterIds = existingQuarterMotos.map((m) => m.id)
     const assignedQuarter = new Set<string>()
@@ -988,7 +971,7 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
   for (const moto of existingFinalMotos) {
     const finalClass = moto.moto_name.replace(/^Final\s+/i, '').trim().toUpperCase()
     const desiredRiders = finals[finalClass] ?? []
-    const finalReady = isFinalClassReady(finalClass, resolved.stages, readiness)
+    const finalReady = desiredRiders.length > 0
     const motoHasResults = hasMotoResults(moto.id, categoryResultRows)
     const currentRiders = [...(existingFinalRiderMap.get(moto.id) ?? [])].sort((a, b) => a.localeCompare(b))
     const orderedDesiredRiders = orderFinalRidersBySeedRows(desiredRiders, finalGateSeedRows, seedBatchOrderById)
@@ -1025,7 +1008,7 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
   }
 
   const finalsToCreate = FINAL_CLASS_ORDER.filter(
-    (key) => (finals[key] ?? []).length > 0 && !existingFinalClasses.has(key) && isFinalClassReady(key, resolved.stages, readiness)
+    (key) => (finals[key] ?? []).length > 0 && !existingFinalClasses.has(key)
   )
   if (finalsToCreate.length > 0) {
     const { data: motoRows, error: motoError } = await adminClient

@@ -520,10 +520,10 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
             color: '#475569',
           }}
         >
-          Scope saat ini: custom split dipakai untuk hasil <b>Qualification</b>. Jadi rule di bawah akan override pembagian default batch qualification kategori itu.
+          Custom split sekarang bisa dipakai untuk hasil <b>Qualification</b>, <b>Quarter Final</b>, <b>Repechage</b>, dan <b>Semi Final</b>.
           <br />
           <b>Combined Rank</b> berarti rank gabungan seluruh batch. <b>Top N Per Batch</b> berarti range rank dibaca ulang di masing-masing batch.
-          <b>Custom Per Batch</b> berarti tiap batch boleh punya rule sendiri, misalnya Batch 1 ambil top 4 dan Batch 2 ambil top 3.
+          <b>Custom Per Batch</b> berarti tiap batch boleh punya rule sendiri, misalnya Batch 1 ambil top 5, rank 6 ke Repechage, lalu posisi terakhir ke Final Academy.
         </div>
       </div>
 
