@@ -4,7 +4,7 @@
 do $$
 begin
   if not exists (select 1 from pg_type where typname = 'penalty_stage') then
-    create type penalty_stage as enum ('MOTO','QUARTER','SEMI','FINAL','ALL');
+    create type penalty_stage as enum ('MOTO','QUARTER','REPECHAGE','SEMI','FINAL','ALL');
   end if;
   if not exists (select 1 from pg_type where typname = 'participation_status') then
     create type participation_status as enum ('ACTIVE','DNS','DNF','ABSENT');
