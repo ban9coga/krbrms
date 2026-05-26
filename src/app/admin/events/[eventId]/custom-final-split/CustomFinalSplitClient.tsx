@@ -78,6 +78,12 @@ type RaceEstimate = {
   semiRaceCount: number
   finalRaceCount: number
   totalRaceCount: number
+  stageAllocationCounts: {
+    QUARTER_FINAL: number
+    REPECHAGE: number
+    SEMI_FINAL: number
+  }
+  finalClassCounts: Map<string, number>
   notes: string[]
 }
 
@@ -241,6 +247,23 @@ const estimateRaceCounts = (category: CategoryRow, rules: CustomSplitRule[]): Ra
       finalCounts.set(key, (finalCounts.get(key) ?? 0) + count)
     })
   })
+  const stageAllocationCounts = {
+    QUARTER_FINAL:
+      qualificationOutputs.stageCounts.QUARTER_FINAL +
+      repechageOutputs.stageCounts.QUARTER_FINAL +
+      quarterOutputs.stageCounts.QUARTER_FINAL +
+      semiOutputs.stageCounts.QUARTER_FINAL,
+    REPECHAGE:
+      qualificationOutputs.stageCounts.REPECHAGE +
+      repechageOutputs.stageCounts.REPECHAGE +
+      quarterOutputs.stageCounts.REPECHAGE +
+      semiOutputs.stageCounts.REPECHAGE,
+    SEMI_FINAL:
+      qualificationOutputs.stageCounts.SEMI_FINAL +
+      repechageOutputs.stageCounts.SEMI_FINAL +
+      quarterOutputs.stageCounts.SEMI_FINAL +
+      semiOutputs.stageCounts.SEMI_FINAL,
+  }
   const finalRaceCount = Array.from(finalCounts.values()).filter((count) => count > 0).length
 
   const notes: string[] = []
@@ -262,6 +285,8 @@ const estimateRaceCounts = (category: CategoryRow, rules: CustomSplitRule[]): Ra
     semiRaceCount,
     finalRaceCount,
     totalRaceCount: qualificationRaceCount + quarterRaceCount + repechageRaceCount + semiRaceCount + finalRaceCount,
+    stageAllocationCounts,
+    finalClassCounts: new Map(finalCounts),
     notes,
   }
 }
@@ -294,6 +319,28 @@ const buildCustomStageGuideLines = (rules: CustomSplitRule[]) => {
       return `Dari ${formatStageLabel(sourceStage)}, rider diarahkan ke ${flowText}.`
     })
     .filter(Boolean) as string[]
+}
+
+const buildAllocationEntries = (rules: CustomSplitRule[], estimate: RaceEstimate) => {
+  const seen = new Set<string>()
+  const entries: Array<{ label: string; count: number }> = []
+
+  rules.forEach((rule) => {
+    const label = rule.target_stage === 'FINAL' ? `Final ${rule.target_final_class ?? 'ELITE'}` : formatStageLabel(rule.target_stage)
+    if (seen.has(label)) return
+    seen.add(label)
+
+    const count =
+      rule.target_stage === 'FINAL'
+        ? estimate.finalClassCounts.get(rule.target_final_class ?? 'ELITE') ?? 0
+        : estimate.stageAllocationCounts[rule.target_stage]
+
+    if (count > 0) {
+      entries.push({ label, count })
+    }
+  })
+
+  return entries
 }
 
 export default function CustomFinalSplitClient({ eventId }: { eventId: string }) {
@@ -417,13 +464,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
           .map((stage) => `${formatStageLabel(stage)} memakai ${splitBasisLabel(getStageSplitBasis(rules, stage))}`)
           .join(', ')
         systemText = `Pembagian final memakai custom split per stage. ${basisSummary}.`
-        const allocationMap = new Map<string, number>()
-        for (const rule of rules) {
-          const riderCount = Math.max(0, rule.rank_to - rule.rank_from + 1)
-          const targetLabel = rule.target_stage === 'FINAL' ? `Final ${rule.target_final_class}` : formatStageLabel(rule.target_stage)
-          allocationMap.set(targetLabel, (allocationMap.get(targetLabel) ?? 0) + riderCount)
-        }
-        const allocationParts = Array.from(allocationMap.entries()).map(([label, count]) => `${count} rider ${label}`)
+        const allocationParts = buildAllocationEntries(rules, estimate).map(({ label, count }) => `${count} rider ${label}`)
         if (allocationParts.length > 0) {
           allocationText = `Total hasil pembagian: ${allocationParts.join(' dan ')}.`
         }
