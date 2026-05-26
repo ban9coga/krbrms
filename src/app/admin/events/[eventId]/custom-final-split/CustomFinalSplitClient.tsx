@@ -296,6 +296,41 @@ const buildCustomStageGuideLines = (rules: CustomSplitRule[]) => {
     .filter(Boolean) as string[]
 }
 
+const buildCustomAutomationNotes = (rules: CustomSplitRule[]) => {
+  const notes: string[] = []
+  const sourceStages = new Set(rules.map((rule) => rule.source_stage))
+  const targetStages = new Set(rules.map((rule) => rule.target_stage))
+  const hasRepechageToQuarter = rules.some(
+    (rule) => rule.source_stage === 'REPECHAGE' && rule.target_stage === 'QUARTER_FINAL'
+  )
+
+  if (targetStages.has('REPECHAGE')) {
+    notes.push('Setelah hasil stage sumber lengkap dan compute dijalankan, moto Repechage akan dibuat otomatis.')
+  }
+
+  if (targetStages.has('QUARTER_FINAL')) {
+    if (hasRepechageToQuarter) {
+      notes.push('Quarter Final akan menunggu Repechage selesai lebih dulu bila winner Repechage ikut mengisi slot Quarter Final.')
+    } else {
+      notes.push('Setelah hasil stage sumber lengkap dan compute dijalankan, moto Quarter Final akan dibuat otomatis.')
+    }
+  }
+
+  if (targetStages.has('SEMI_FINAL')) {
+    notes.push('Setelah hasil stage sumber lengkap dan compute dijalankan, moto Semi Final akan dibuat otomatis.')
+  }
+
+  if (targetStages.has('FINAL')) {
+    if (sourceStages.has('QUARTER_FINAL') || sourceStages.has('SEMI_FINAL') || sourceStages.has('REPECHAGE')) {
+      notes.push('Final class yang terisi akan otomatis dibuat menjadi moto final setelah stage sumbernya selesai dan di-compute.')
+    } else {
+      notes.push('Final class yang terisi akan otomatis dibuat menjadi moto final setelah qualification selesai dan di-compute.')
+    }
+  }
+
+  return notes
+}
+
 export default function CustomFinalSplitClient({ eventId }: { eventId: string }) {
   const [loading, setLoading] = useState(false)
   const [savingCategoryId, setSavingCategoryId] = useState<string | null>(null)
@@ -417,16 +452,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
           .map((stage) => `${formatStageLabel(stage)} memakai ${splitBasisLabel(getStageSplitBasis(rules, stage))}`)
           .join(', ')
         systemText = `Pembagian final memakai custom split per stage. ${basisSummary}.`
-        const allocationMap = new Map<string, number>()
-        for (const rule of rules) {
-          const riderCount = Math.max(0, rule.rank_to - rule.rank_from + 1)
-          const targetLabel = rule.target_stage === 'FINAL' ? `Final ${rule.target_final_class}` : formatStageLabel(rule.target_stage)
-          allocationMap.set(targetLabel, (allocationMap.get(targetLabel) ?? 0) + riderCount)
-        }
-        const allocationParts = Array.from(allocationMap.entries()).map(([label, count]) => `${count} rider ${label}`)
-        if (allocationParts.length > 0) {
-          allocationText = `Total hasil pembagian: ${allocationParts.join(' dan ')}.`
-        }
+        allocationText = buildCustomAutomationNotes(rules).join(' ')
       } else if (stageFlags.enableQuarterFinal) {
         systemText = 'Kategori ini memakai alur AMS standar: qualification, quarter final, semi final, lalu final class.'
       } else if (stageFlags.enableSemiFinal) {
