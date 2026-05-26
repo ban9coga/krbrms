@@ -972,6 +972,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       }
       return next
     })
+    setExternalBatchSearch('')
     setSaveState('idle')
   }
 
