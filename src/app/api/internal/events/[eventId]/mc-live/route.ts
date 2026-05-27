@@ -184,6 +184,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     }
   }
 
+  const { data: pointOverrideConfig } = await adminClient
+    .from('race_stage_config')
+    .select('dnf_point_override, dns_point_override')
+    .eq('event_id', eventId)
+    .eq('category_id', currentMoto.category_id)
+    .maybeSingle()
+
   const ranking: McRankingRow[] = riderIds.map((riderId) => {
     const row = resultMap.get(riderId)
     const rider = riderMap.get(riderId)
@@ -192,11 +199,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       status === 'DQ'
         ? null
         : status === 'DNS'
-        ? ((lastPosition ?? 0) > 0 ? (lastPosition as number) + 2 : null)
+          ? ((lastPosition ?? 0) > 0 ? Number(pointOverrideConfig?.dns_point_override ?? (lastPosition as number) + 2) : null)
         : status === 'DNF'
-        ? lastPosition
+          ? ((lastPosition ?? 0) > 0 ? Number(pointOverrideConfig?.dnf_point_override ?? lastPosition) : null)
         : status === 'FINISH'
-        ? row?.finish_order ?? null
+          ? row?.finish_order ?? null
         : null
     const penalty = penaltyMap.get(riderId) ?? 0
     const total = basePoint !== null ? basePoint + penalty : null

@@ -12,7 +12,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ eventId: s
 
   const { data: configs, error: cfgError } = await adminClient
     .from('race_stage_config')
-    .select('id, event_id, category_id, enabled, max_riders_per_race, qualification_moto_count, repechage_max_riders_per_race, quarter_final_max_riders_per_race, semi_final_max_riders_per_race')
+    .select('id, event_id, category_id, enabled, max_riders_per_race, qualification_moto_count, repechage_max_riders_per_race, quarter_final_max_riders_per_race, semi_final_max_riders_per_race, dnf_point_override, dns_point_override')
     .eq('event_id', eventId)
   if (cfgError) return NextResponse.json({ error: cfgError.message }, { status: 400 })
 
@@ -55,6 +55,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     body?.semi_final_max_riders_per_race === '' || body?.semi_final_max_riders_per_race == null
       ? null
       : Number(body?.semi_final_max_riders_per_race)
+  const dnf_point_override =
+    body?.dnf_point_override === '' || body?.dnf_point_override == null
+      ? null
+      : Number(body?.dnf_point_override)
+  const dns_point_override =
+    body?.dns_point_override === '' || body?.dns_point_override == null
+      ? null
+      : Number(body?.dns_point_override)
 
   if (!category_id) {
     return NextResponse.json({ error: 'category_id required' }, { status: 400 })
@@ -73,11 +81,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
           repechage_max_riders_per_race,
           quarter_final_max_riders_per_race,
           semi_final_max_riders_per_race,
+          dnf_point_override,
+          dns_point_override,
         },
       ],
       { onConflict: 'event_id,category_id' }
     )
-    .select('id, event_id, category_id, enabled, max_riders_per_race, qualification_moto_count, repechage_max_riders_per_race, quarter_final_max_riders_per_race, semi_final_max_riders_per_race')
+    .select('id, event_id, category_id, enabled, max_riders_per_race, qualification_moto_count, repechage_max_riders_per_race, quarter_final_max_riders_per_race, semi_final_max_riders_per_race, dnf_point_override, dns_point_override')
     .maybeSingle()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })

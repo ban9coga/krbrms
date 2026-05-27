@@ -86,6 +86,11 @@ type StageSeedRow = {
   points: number | null
 }
 
+type PointOverrideConfig = {
+  dnf_point_override?: number | null
+  dns_point_override?: number | null
+}
+
 const parseBatchKey = (name: string) => {
   const match = name.match(/moto\s*(\d+)\s*(?:-\s*)?batch\s*(\d+)/i)
   if (!match) return null
@@ -187,16 +192,16 @@ const buildQualificationProgress = (motoRows: MotoRow[], gateRows: GateRow[], re
   }
 }
 
-const dnsPointForMoto = (riderCount: number | null) => {
+const dnsPointForMoto = (riderCount: number | null, config?: PointOverrideConfig) => {
   if (!riderCount || riderCount <= 0) return null
-  return riderCount + 2
+  return Number(config?.dns_point_override ?? riderCount + 2)
 }
 
-const pointForMotoResult = (res: ResultRow | null, riderCount: number | null) => {
+const pointForMotoResult = (res: ResultRow | null, riderCount: number | null, config?: PointOverrideConfig) => {
   const status = res?.result_status ?? null
   if (status === 'DQ') return null
-  if (status === 'DNS') return dnsPointForMoto(riderCount)
-  if (status === 'DNF') return riderCount
+  if (status === 'DNS') return dnsPointForMoto(riderCount, config)
+  if (status === 'DNF') return riderCount ? Number(config?.dnf_point_override ?? riderCount) : null
   return res?.finish_order ?? null
 }
 
@@ -252,6 +257,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     return NextResponse.json({ error: 'Category not found in event' }, { status: 404 })
   }
   const resolvedCategory = await resolveCategoryConfig(categoryId)
+  const { data: pointOverrideConfig } = await adminClient
+    .from('race_stage_config')
+    .select('dnf_point_override, dns_point_override')
+    .eq('event_id', eventId)
+    .eq('category_id', categoryId)
+    .maybeSingle()
 
   const { data: motos, error: motoError } = await adminClient
     .from('motos')
@@ -498,9 +509,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         const riderCount2 = gate2Map.size || null
         const riderCount3 = gate3Map.size || null
         const riderStatus = statusMap.get(`${moto1.id}:${riderId}`) ?? 'ACTIVE'
-        const point1 = pointForMotoResult(moto1Result ?? null, riderCount1)
-        const point2 = pointForMotoResult(moto2Result ?? null, riderCount2)
-        const point3 = pointForMotoResult(moto3Result ?? null, riderCount3)
+        const point1 = pointForMotoResult(moto1Result ?? null, riderCount1, pointOverrideConfig ?? undefined)
+        const point2 = pointForMotoResult(moto2Result ?? null, riderCount2, pointOverrideConfig ?? undefined)
+        const point3 = pointForMotoResult(moto3Result ?? null, riderCount3, pointOverrideConfig ?? undefined)
         const hasRecordedResult = Boolean(moto1Result || moto2Result || moto3Result)
         const basePoint = [point1, point2, point3].filter((v) => v !== null).length
           ? [point1, point2, point3].reduce<number>((acc, v) => acc + (v ?? 0), 0)
@@ -689,7 +700,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         no_plate: rider?.no_plate_display ?? '-',
         club: rider?.club ?? '-',
         photo_thumbnail_url: rider?.photo_thumbnail_url ?? null,
-        point: pointForMotoResult(res, riderCount),
+        point: pointForMotoResult(res, riderCount, pointOverrideConfig ?? undefined),
         penalty_total: penaltyTotal || null,
         rank: null,
         status,

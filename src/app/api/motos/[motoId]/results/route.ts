@@ -8,7 +8,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ motoId: st
   const { motoId } = await params
   const { data: moto, error: motoError } = await adminClient
     .from('motos')
-    .select('id, event_id')
+    .select('id, event_id, category_id')
     .eq('id', motoId)
     .maybeSingle()
   if (motoError) return NextResponse.json({ error: motoError.message }, { status: 400 })
@@ -54,6 +54,16 @@ export async function GET(_: Request, { params }: { params: Promise<{ motoId: st
     }
   }
 
+  const { data: pointOverrideConfig } =
+    moto?.event_id && moto?.category_id
+      ? await adminClient
+          .from('race_stage_config')
+          .select('dnf_point_override, dns_point_override')
+          .eq('event_id', moto.event_id)
+          .eq('category_id', moto.category_id)
+          .maybeSingle()
+      : { data: null }
+
   const enriched = (data ?? []).map((row) => {
     const rider =
       Array.isArray(row.riders) ? row.riders[0] : row.riders
@@ -64,9 +74,9 @@ export async function GET(_: Request, { params }: { params: Promise<{ motoId: st
       status === 'DQ'
         ? null
         : status === 'DNS'
-        ? ((lastPosition ?? 0) > 0 ? (lastPosition as number) + 2 : null)
+        ? ((lastPosition ?? 0) > 0 ? Number(pointOverrideConfig?.dns_point_override ?? (lastPosition as number) + 2) : null)
         : status === 'DNF'
-        ? lastPosition
+        ? ((lastPosition ?? 0) > 0 ? Number(pointOverrideConfig?.dnf_point_override ?? lastPosition) : null)
         : row.finish_order ?? null
     const total_point = basePoint !== null ? basePoint + penalty_total : null
     return {

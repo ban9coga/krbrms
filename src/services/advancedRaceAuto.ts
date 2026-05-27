@@ -63,6 +63,11 @@ type QualificationRankRow = {
   tieBreakers?: number[]
 }
 
+type PointOverrideConfig = {
+  dnf_point_override?: number | null
+  dns_point_override?: number | null
+}
+
 const compareTieBreakers = (a: number[] = [], b: number[] = []) => {
   const length = Math.max(a.length, b.length)
   for (let index = 0; index < length; index += 1) {
@@ -131,14 +136,15 @@ const parseBatchKey = (name: string) => {
   return { motoIndex: Number(match[1]), batchIndex: Number(match[2]) }
 }
 
-const dnsPointForMoto = (riderCount: number) => riderCount + 2
+const dnsPointForMoto = (riderCount: number, config?: PointOverrideConfig) =>
+  Number(config?.dns_point_override ?? riderCount + 2)
 
-const pointForRaceResult = (row: ResultRow | null | undefined, riderCount: number) => {
+const pointForRaceResult = (row: ResultRow | null | undefined, riderCount: number, config?: PointOverrideConfig) => {
   if (!row) return null
   const status = row.result_status ?? 'FINISH'
   if (status === 'DQ') return null
-  if (status === 'DNS') return dnsPointForMoto(riderCount)
-  if (status === 'DNF') return riderCount
+  if (status === 'DNS') return dnsPointForMoto(riderCount, config)
+  if (status === 'DNF') return Number(config?.dnf_point_override ?? riderCount)
   return row.finish_order ?? null
 }
 
@@ -232,7 +238,8 @@ const orderRidersByCarryOverSeedRows = (
 const buildQualificationSeedRowsFromCurrentResults = (
   motoRows: MotoRow[],
   motoRiderRows: MotoRiderRow[],
-  resultRows: ResultRow[]
+  resultRows: ResultRow[],
+  config?: PointOverrideConfig
 ): StageResultSeedRow[] => {
   const batchMap = new Map<number, { moto1?: MotoRow; moto2?: MotoRow; moto3?: MotoRow }>()
   for (const moto of motoRows) {
@@ -259,7 +266,7 @@ const buildQualificationSeedRowsFromCurrentResults = (
         .map((row) => ({
           riderId: row.rider_id,
           motoIndex: row.moto_id === moto1.id ? 1 : row.moto_id === moto2.id ? 2 : 3,
-          finishOrder: pointForRaceResult(row, riderCount),
+          finishOrder: pointForRaceResult(row, riderCount, config),
         }))
       return { batchId: moto1.id, riders, finishes }
     })
@@ -544,7 +551,7 @@ const areAllMotosComplete = (motos: MotoRow[], assignedRows: MotoRiderRow[], res
 export async function computeQualificationAndStore(eventId: string, categoryId: string) {
   const { data: config } = await adminClient
     .from('race_stage_config')
-    .select('enabled, qualification_moto_count')
+    .select('enabled, qualification_moto_count, dnf_point_override, dns_point_override')
     .eq('event_id', eventId)
     .eq('category_id', categoryId)
     .maybeSingle()
@@ -620,7 +627,7 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
         .map((row) => ({
           riderId: row.rider_id,
           motoIndex: row.moto_id === moto1.id ? 1 : row.moto_id === moto2.id ? 2 : 3,
-          finishOrder: pointForRaceResult(row, riderCount),
+          finishOrder: pointForRaceResult(row, riderCount, config ?? undefined),
         }))
       return { batchId: moto1.id, batchIndex, riders, finishes }
     })
@@ -757,7 +764,7 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
 export async function generateStageMotos(eventId: string, categoryId: string) {
   const { data: config } = await adminClient
     .from('race_stage_config')
-    .select('enabled, max_riders_per_race, qualification_moto_count, repechage_max_riders_per_race, quarter_final_max_riders_per_race, semi_final_max_riders_per_race')
+    .select('enabled, max_riders_per_race, qualification_moto_count, repechage_max_riders_per_race, quarter_final_max_riders_per_race, semi_final_max_riders_per_race, dnf_point_override, dns_point_override')
     .eq('event_id', eventId)
     .eq('category_id', categoryId)
     .maybeSingle()
@@ -837,7 +844,8 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
   const currentQualificationSeedRows = buildQualificationSeedRowsFromCurrentResults(
     existingMotoRows,
     categoryMotoRiderRows,
-    categoryResultRows
+    categoryResultRows,
+    config ?? undefined
   )
   const finalGateSeedRows = currentQualificationSeedRows.length > 0 ? currentQualificationSeedRows : qualificationRows
   const quarterResultRows = stageSeedRows.filter((row) => row.stage === 'QUARTER_FINAL' && row.position !== null)
@@ -1203,7 +1211,7 @@ const loadStageMotos = async (eventId: string, categoryId: string, prefix: strin
 export async function computeStageAdvances(eventId: string, categoryId: string) {
   const { data: config } = await adminClient
     .from('race_stage_config')
-    .select('enabled, max_riders_per_race')
+    .select('enabled, max_riders_per_race, dnf_point_override, dns_point_override')
     .eq('event_id', eventId)
     .eq('category_id', categoryId)
     .maybeSingle()
@@ -1397,7 +1405,7 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
     const riderCount = riders.length
     riders.forEach((id) => {
       const row = resultRows.find((r) => r.moto_id === moto.id && r.rider_id === id)
-      scores[id] = pointForRaceResult(row, riderCount) ?? 9999
+      scores[id] = pointForRaceResult(row, riderCount, config ?? undefined) ?? 9999
     })
     const ranked = rankByPoints(scores)
     const advances =
@@ -1449,7 +1457,7 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
     const riderCount = riders.length
     riders.forEach((id) => {
       const row = resultRows.find((r) => r.moto_id === moto.id && r.rider_id === id)
-      scores[id] = pointForRaceResult(row, riderCount) ?? 9999
+      scores[id] = pointForRaceResult(row, riderCount, config ?? undefined) ?? 9999
     })
     const ranked = rankByPoints(scores)
     const advances = computeCustomStageAdvances(ranked, repechageCustomRules, { toStage: 'SEMI_FINAL' })
@@ -1498,7 +1506,7 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
     const riderCount = riders.length
     riders.forEach((id) => {
       const row = resultRows.find((r) => r.moto_id === moto.id && r.rider_id === id)
-      scores[id] = pointForRaceResult(row, riderCount) ?? 9999
+      scores[id] = pointForRaceResult(row, riderCount, config ?? undefined) ?? 9999
     })
     const ranked = rankByPoints(scores)
     const advances =
@@ -1570,7 +1578,7 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
     riders.forEach((id) => {
       completedFinalRiders.add(id)
       const row = resultRows.find((r) => r.moto_id === moto.id && r.rider_id === id)
-      const point = pointForRaceResult(row, riderCount)
+      const point = pointForRaceResult(row, riderCount, config ?? undefined)
       finalRows.push({
         rider_id: id,
         category_id: categoryId,

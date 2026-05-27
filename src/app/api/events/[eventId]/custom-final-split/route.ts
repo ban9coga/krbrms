@@ -36,6 +36,8 @@ type StageConfigRow = {
   repechage_max_riders_per_race: number | null
   quarter_final_max_riders_per_race: number | null
   semi_final_max_riders_per_race: number | null
+  dnf_point_override: number | null
+  dns_point_override: number | null
 }
 
 type EventSettingsRow = {
@@ -90,7 +92,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ eventId: s
   const { data: stageConfigs, error: stageConfigError } = categoryIds.length
     ? await adminClient
         .from('race_stage_config')
-        .select('category_id, max_riders_per_race, qualification_moto_count, repechage_max_riders_per_race, quarter_final_max_riders_per_race, semi_final_max_riders_per_race')
+        .select('category_id, max_riders_per_race, qualification_moto_count, repechage_max_riders_per_race, quarter_final_max_riders_per_race, semi_final_max_riders_per_race, dnf_point_override, dns_point_override')
         .eq('event_id', eventId)
         .in('category_id', categoryIds)
     : { data: [], error: null }
@@ -139,6 +141,8 @@ export async function GET(_: Request, { params }: { params: Promise<{ eventId: s
     repechage_max_riders_per_race: stageConfigByCategory.get(category.id as string)?.repechage_max_riders_per_race ?? null,
     quarter_final_max_riders_per_race: stageConfigByCategory.get(category.id as string)?.quarter_final_max_riders_per_race ?? null,
     semi_final_max_riders_per_race: stageConfigByCategory.get(category.id as string)?.semi_final_max_riders_per_race ?? null,
+    dnf_point_override: stageConfigByCategory.get(category.id as string)?.dnf_point_override ?? null,
+    dns_point_override: stageConfigByCategory.get(category.id as string)?.dns_point_override ?? null,
   }))
 
   return NextResponse.json({

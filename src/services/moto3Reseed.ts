@@ -21,20 +21,26 @@ type MotoResultRow = {
   result_status?: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | null
 }
 
+type PointOverrideConfig = {
+  dnf_point_override?: number | null
+  dns_point_override?: number | null
+}
+
 export const parseMotoBatchKey = (name: string) => {
   const match = name.match(/moto\s*(\d+)\s*-\s*batch\s*(\d+)/i)
   if (!match) return null
   return { motoIndex: Number(match[1]), batchIndex: Number(match[2]) }
 }
 
-const dnsPointForMoto = (riderCount: number) => riderCount + 2
+const dnsPointForMoto = (riderCount: number, config?: PointOverrideConfig) =>
+  Number(config?.dns_point_override ?? riderCount + 2)
 
-const pointForRaceResult = (row: MotoResultRow | null | undefined, riderCount: number) => {
+const pointForRaceResult = (row: MotoResultRow | null | undefined, riderCount: number, config?: PointOverrideConfig) => {
   if (!row) return null
   const status = row.result_status ?? 'FINISH'
   if (status === 'DQ') return null
-  if (status === 'DNS') return dnsPointForMoto(riderCount)
-  if (status === 'DNF') return riderCount
+  if (status === 'DNS') return dnsPointForMoto(riderCount, config)
+  if (status === 'DNF') return Number(config?.dnf_point_override ?? riderCount)
   return row.finish_order ?? null
 }
 
@@ -48,6 +54,13 @@ export async function reseedSingleBatchMoto3FromMoto(motoId: string) {
   if (currentMotoError || !currentMoto?.event_id || !currentMoto?.category_id || !currentMoto?.moto_name) {
     return { ok: false as const, warning: currentMotoError?.message ?? 'Moto not found for Moto 3 reseed.' }
   }
+
+  const { data: stageConfig } = await adminClient
+    .from('race_stage_config')
+    .select('dnf_point_override, dns_point_override')
+    .eq('event_id', currentMoto.event_id)
+    .eq('category_id', currentMoto.category_id)
+    .maybeSingle()
 
   const { data: categoryMotos, error: categoryMotoError } = await adminClient
     .from('motos')
@@ -135,8 +148,8 @@ export async function reseedSingleBatchMoto3FromMoto(motoId: string) {
     .map((riderId) => {
       const moto1Result = resultsByKey.get(`${moto1.id}:${riderId}`)
       const moto2Result = resultsByKey.get(`${moto2.id}:${riderId}`)
-      const moto1Points = pointForRaceResult(moto1Result, riderCount) ?? 9999
-      const moto2Points = pointForRaceResult(moto2Result, riderCount) ?? 9999
+      const moto1Points = pointForRaceResult(moto1Result, riderCount, stageConfig ?? undefined) ?? 9999
+      const moto2Points = pointForRaceResult(moto2Result, riderCount, stageConfig ?? undefined) ?? 9999
       return {
         riderId,
         totalPoints: moto1Points + moto2Points,

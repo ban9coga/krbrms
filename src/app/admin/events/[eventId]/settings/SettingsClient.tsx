@@ -55,6 +55,8 @@ type AdvancedConfig = {
   repechage_max_riders_per_race: number | null
   quarter_final_max_riders_per_race: number | null
   semi_final_max_riders_per_race: number | null
+  dnf_point_override: number | null
+  dns_point_override: number | null
 }
 
 type CategoryRule = {
@@ -769,6 +771,8 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                       repechage_max_riders_per_race: null,
                       quarter_final_max_riders_per_race: null,
                       semi_final_max_riders_per_race: null,
+                      dnf_point_override: null,
+                      dns_point_override: null,
                     },
               }
             : item
@@ -785,6 +789,8 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
           repechage_max_riders_per_race: currentConfig?.repechage_max_riders_per_race ?? null,
           quarter_final_max_riders_per_race: currentConfig?.quarter_final_max_riders_per_race ?? null,
           semi_final_max_riders_per_race: currentConfig?.semi_final_max_riders_per_race ?? null,
+          dnf_point_override: currentConfig?.dnf_point_override ?? null,
+          dns_point_override: currentConfig?.dns_point_override ?? null,
         }),
       })
       await loadAdvancedSummary()
@@ -810,6 +816,8 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
           repechage_max_riders_per_race: null,
           quarter_final_max_riders_per_race: null,
           semi_final_max_riders_per_race: null,
+          dnf_point_override: null,
+          dns_point_override: null,
         }
         return {
           ...item,
@@ -838,6 +846,8 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
           repechage_max_riders_per_race: currentConfig.repechage_max_riders_per_race,
           quarter_final_max_riders_per_race: currentConfig.quarter_final_max_riders_per_race,
           semi_final_max_riders_per_race: currentConfig.semi_final_max_riders_per_race,
+          dnf_point_override: currentConfig.dnf_point_override,
+          dns_point_override: currentConfig.dns_point_override,
         }),
       })
       await loadAdvanced()
@@ -2536,6 +2546,30 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                           onChange={(e) =>
                             updateAdvancedConfigDraft(item.category.id, {
                               semi_final_max_riders_per_race: parseStageCapacityValue(e.target.value),
+                            })
+                          }
+                          style={{ padding: 10, borderRadius: 10, border: '2px solid #111', fontWeight: 800 }}
+                        />
+                        <input
+                          type="number"
+                          min={1}
+                          placeholder="DNF point override"
+                          value={item.config?.dnf_point_override ?? ''}
+                          onChange={(e) =>
+                            updateAdvancedConfigDraft(item.category.id, {
+                              dnf_point_override: parseStageCapacityValue(e.target.value),
+                            })
+                          }
+                          style={{ padding: 10, borderRadius: 10, border: '2px solid #111', fontWeight: 800 }}
+                        />
+                        <input
+                          type="number"
+                          min={1}
+                          placeholder="DNS point override"
+                          value={item.config?.dns_point_override ?? ''}
+                          onChange={(e) =>
+                            updateAdvancedConfigDraft(item.category.id, {
+                              dns_point_override: parseStageCapacityValue(e.target.value),
                             })
                           }
                           style={{ padding: 10, borderRadius: 10, border: '2px solid #111', fontWeight: 800 }}
