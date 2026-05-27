@@ -97,6 +97,35 @@ const parseMotoBatch = (motoName: string) => {
   }
 }
 
+const FINAL_MOTO_DISPLAY_ORDER: Record<string, number> = {
+  ACADEMY: 0,
+  ROOKIE: 1,
+  PRO: 2,
+  NOVICE: 3,
+  ELITE: 4,
+  ADVANCED: 5,
+  AMATEUR: 6,
+  BEGINNER: 7,
+}
+
+const parseFinalMotoClass = (motoName: string) => {
+  const match = motoName.match(/^final\s+(.+)$/i)
+  if (!match) return null
+  return match[1]?.trim().toUpperCase() ?? null
+}
+
+const compareMotoDisplayOrder = (a: MotoItem | GateMotoItem, b: MotoItem | GateMotoItem) => {
+  const finalClassA = parseFinalMotoClass(a.moto_name)
+  const finalClassB = parseFinalMotoClass(b.moto_name)
+  if (finalClassA && finalClassB) {
+    const orderDiff =
+      (FINAL_MOTO_DISPLAY_ORDER[finalClassA] ?? Number.MAX_SAFE_INTEGER) -
+      (FINAL_MOTO_DISPLAY_ORDER[finalClassB] ?? Number.MAX_SAFE_INTEGER)
+    if (orderDiff !== 0) return orderDiff
+  }
+  return compareMotoSequence(a, b)
+}
+
 export default function MotosClient({ eventId }: { eventId: string }) {
   const [categories, setCategories] = useState<CategoryItem[]>([])
   const [motos, setMotos] = useState<MotoItem[]>([])
@@ -140,7 +169,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     )
     const map: Record<string, GateMotoItem[]> = {}
     for (const [categoryId, rows] of entries) {
-      map[categoryId] = [...rows].sort(compareMotoSequence)
+      map[categoryId] = [...rows].sort(compareMotoDisplayOrder)
     }
     setGateOrdersByCategory(map)
   }
@@ -230,7 +259,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       grouped.set(moto.category_id, list)
     }
     for (const list of grouped.values()) {
-      list.sort(compareMotoSequence)
+      list.sort(compareMotoDisplayOrder)
     }
     return grouped
   }, [motos])
@@ -258,7 +287,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
               const pa = parseMotoBatch(a.moto_name)
               const pb = parseMotoBatch(b.moto_name)
               if (pa.motoNo !== pb.motoNo) return pa.motoNo - pb.motoNo
-              return compareMotoSequence(a, b)
+              return compareMotoDisplayOrder(a, b)
             }),
           }))
           .map((batch) => {
