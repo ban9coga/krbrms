@@ -78,6 +78,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     return NextResponse.json({ error: 'Category not found in event' }, { status: 404 })
   }
 
+  const { data: customSplitRows, error: customSplitError } = await adminClient
+    .from('race_category_custom_split_rule')
+    .select('id')
+    .eq('category_id', categoryId)
+    .limit(1)
+  if (customSplitError) return NextResponse.json({ error: customSplitError.message }, { status: 400 })
+  const hasCustomFinalClassRules = (customSplitRows ?? []).length > 0
+
   const resolved = await resolveCategoryConfig(categoryId)
   if (!resolved.stages.enableQualification) {
     return NextResponse.json(
@@ -142,6 +150,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       total_riders: resolved.totalRiders,
       source: resolved.source,
     },
-    warning: resolved.warning,
+    warning: hasCustomFinalClassRules
+      ? 'Qualification telah dijalankan dengan aturan Final Class Rules.'
+      : resolved.warning,
   })
 }

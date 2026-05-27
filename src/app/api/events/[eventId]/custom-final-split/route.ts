@@ -283,6 +283,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   }
 
   let savedRules: unknown[] = []
+  const hasCustomFinalClassRules = normalizedRules.length > 0
   if (normalizedRules.length > 0) {
     const { data, error } = await adminClient
       .from('race_category_custom_split_rule')
@@ -307,6 +308,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
 
   return NextResponse.json({
     data: savedRules,
-    warning,
+    warning:
+      !warning && hasCustomFinalClassRules
+        ? 'Qualification telah dijalankan dengan aturan Final Class Rules.'
+        : warning,
   })
 }
