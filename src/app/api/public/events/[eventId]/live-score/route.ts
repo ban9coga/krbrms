@@ -103,14 +103,14 @@ const parseStageBatchIndex = (name: string) => {
 }
 
 const compareStageSeedRows = (a: StageSeedRow, b: StageSeedRow, batchOrderById: Map<string, number>) => {
-  const pointsDiff = (a.points ?? Number.MAX_SAFE_INTEGER) - (b.points ?? Number.MAX_SAFE_INTEGER)
-  if (pointsDiff !== 0) return pointsDiff
+  const positionDiff = (a.position ?? Number.MAX_SAFE_INTEGER) - (b.position ?? Number.MAX_SAFE_INTEGER)
+  if (positionDiff !== 0) return positionDiff
   const batchDiff =
     (a.batch_id ? batchOrderById.get(a.batch_id) ?? Number.MAX_SAFE_INTEGER : Number.MAX_SAFE_INTEGER) -
     (b.batch_id ? batchOrderById.get(b.batch_id) ?? Number.MAX_SAFE_INTEGER : Number.MAX_SAFE_INTEGER)
   if (batchDiff !== 0) return batchDiff
-  const positionDiff = (a.position ?? Number.MAX_SAFE_INTEGER) - (b.position ?? Number.MAX_SAFE_INTEGER)
-  if (positionDiff !== 0) return positionDiff
+  const pointsDiff = (a.points ?? Number.MAX_SAFE_INTEGER) - (b.points ?? Number.MAX_SAFE_INTEGER)
+  if (pointsDiff !== 0) return pointsDiff
   return a.rider_id.localeCompare(b.rider_id)
 }
 

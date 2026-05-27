@@ -173,14 +173,14 @@ const tableExists = async (tableName: string) => {
 
 const sortSeedRows = (rows: StageResultSeedRow[], batchOrderById: Record<string, number> = {}) =>
   [...rows].sort((a, b) => {
-    const pointsDiff = (a.points ?? 9999) - (b.points ?? 9999)
-    if (pointsDiff !== 0) return pointsDiff
+    const positionDiff = (a.position ?? 9999) - (b.position ?? 9999)
+    if (positionDiff !== 0) return positionDiff
     const batchDiff =
       (a.batch_id ? batchOrderById[a.batch_id] ?? 9999 : 9999) -
       (b.batch_id ? batchOrderById[b.batch_id] ?? 9999 : 9999)
     if (batchDiff !== 0) return batchDiff
-    const positionDiff = (a.position ?? 9999) - (b.position ?? 9999)
-    if (positionDiff !== 0) return positionDiff
+    const pointsDiff = (a.points ?? 9999) - (b.points ?? 9999)
+    if (pointsDiff !== 0) return pointsDiff
     return a.rider_id.localeCompare(b.rider_id)
   })
 
