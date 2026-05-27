@@ -7,13 +7,13 @@ type MotoLike = {
 }
 
 const FINAL_MOTO_DISPLAY_ORDER: Record<string, number> = {
-  ACADEMY: 0,
-  ROOKIE: 1,
-  PRO: 2,
-  NOVICE: 3,
-  ELITE: 4,
-  ADVANCED: 5,
-  AMATEUR: 6,
+  AMATEUR: 0,
+  ACADEMY: 1,
+  ROOKIE: 2,
+  PRO: 3,
+  NOVICE: 4,
+  ELITE: 5,
+  ADVANCED: 6,
   BEGINNER: 7,
 }
 
