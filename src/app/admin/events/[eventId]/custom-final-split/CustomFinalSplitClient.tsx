@@ -18,6 +18,9 @@ type CategoryRow = {
   final_classes?: string[] | null
   max_riders_per_race?: number | null
   qualification_moto_count?: number | null
+  repechage_max_riders_per_race?: number | null
+  quarter_final_max_riders_per_race?: number | null
+  semi_final_max_riders_per_race?: number | null
 }
 
 type EventGuideMeta = {
@@ -187,6 +190,9 @@ const applyRulesToBuckets = (rules: CustomSplitRule[], sourceStage: CustomSplitR
 const estimateRaceCounts = (category: CategoryRow, rules: CustomSplitRule[]): RaceEstimate => {
   const totalRiders = Math.max(0, Number(category.total_riders ?? 0))
   const maxRidersPerRace = Math.max(1, Number(category.max_riders_per_race ?? 8))
+  const repechageMaxRidersPerRace = Math.max(1, Number(category.repechage_max_riders_per_race ?? category.max_riders_per_race ?? 8))
+  const quarterMaxRidersPerRace = Math.max(1, Number(category.quarter_final_max_riders_per_race ?? category.max_riders_per_race ?? 8))
+  const semiMaxRidersPerRace = Math.max(1, Number(category.semi_final_max_riders_per_race ?? category.max_riders_per_race ?? 8))
   const qualificationRules = rules.filter((rule) => rule.source_stage === 'QUALIFICATION')
   const qualificationBucketSizes =
     qualificationRules.length > 0 && getStageSplitBasis(rules, 'QUALIFICATION') === 'CUSTOM_PER_BATCH'
@@ -206,8 +212,8 @@ const estimateRaceCounts = (category: CategoryRow, rules: CustomSplitRule[]): Ra
     rules,
     'REPECHAGE',
     qualificationOutputs.stageCounts.REPECHAGE,
-    Math.ceil(Math.max(qualificationOutputs.stageCounts.REPECHAGE, 0) / maxRidersPerRace),
-    maxRidersPerRace
+    Math.ceil(Math.max(qualificationOutputs.stageCounts.REPECHAGE, 0) / repechageMaxRidersPerRace),
+    repechageMaxRidersPerRace
   )
   const repechageRaceCount = repechageBucketSizes.length
   const repechageOutputs = applyRulesToBuckets(rules, 'REPECHAGE', repechageBucketSizes)
@@ -217,8 +223,8 @@ const estimateRaceCounts = (category: CategoryRow, rules: CustomSplitRule[]): Ra
     rules,
     'QUARTER_FINAL',
     quarterIncoming,
-    Math.ceil(Math.max(quarterIncoming, 0) / maxRidersPerRace),
-    maxRidersPerRace
+    Math.ceil(Math.max(quarterIncoming, 0) / quarterMaxRidersPerRace),
+    quarterMaxRidersPerRace
   )
   const quarterRaceCount = quarterBucketSizes.length
   const quarterOutputs = applyRulesToBuckets(rules, 'QUARTER_FINAL', quarterBucketSizes)
@@ -229,8 +235,8 @@ const estimateRaceCounts = (category: CategoryRow, rules: CustomSplitRule[]): Ra
     rules,
     'SEMI_FINAL',
     semiIncoming,
-    Math.ceil(Math.max(semiIncoming, 0) / maxRidersPerRace),
-    maxRidersPerRace
+    Math.ceil(Math.max(semiIncoming, 0) / semiMaxRidersPerRace),
+    semiMaxRidersPerRace
   )
   const semiRaceCount = semiBucketSizes.length
   const semiOutputs = applyRulesToBuckets(rules, 'SEMI_FINAL', semiBucketSizes)

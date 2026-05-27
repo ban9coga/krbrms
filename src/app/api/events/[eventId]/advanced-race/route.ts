@@ -12,7 +12,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ eventId: s
 
   const { data: configs, error: cfgError } = await adminClient
     .from('race_stage_config')
-    .select('id, event_id, category_id, enabled, max_riders_per_race, qualification_moto_count')
+    .select('id, event_id, category_id, enabled, max_riders_per_race, qualification_moto_count, repechage_max_riders_per_race, quarter_final_max_riders_per_race, semi_final_max_riders_per_race')
     .eq('event_id', eventId)
   if (cfgError) return NextResponse.json({ error: cfgError.message }, { status: 400 })
 
@@ -43,6 +43,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   const enabled = Boolean(body?.enabled ?? false)
   const max_riders_per_race = Number(body?.max_riders_per_race ?? 8)
   const qualification_moto_count = Number(body?.qualification_moto_count ?? 2)
+  const repechage_max_riders_per_race =
+    body?.repechage_max_riders_per_race === '' || body?.repechage_max_riders_per_race == null
+      ? null
+      : Number(body?.repechage_max_riders_per_race)
+  const quarter_final_max_riders_per_race =
+    body?.quarter_final_max_riders_per_race === '' || body?.quarter_final_max_riders_per_race == null
+      ? null
+      : Number(body?.quarter_final_max_riders_per_race)
+  const semi_final_max_riders_per_race =
+    body?.semi_final_max_riders_per_race === '' || body?.semi_final_max_riders_per_race == null
+      ? null
+      : Number(body?.semi_final_max_riders_per_race)
 
   if (!category_id) {
     return NextResponse.json({ error: 'category_id required' }, { status: 400 })
@@ -58,11 +70,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
           enabled,
           max_riders_per_race,
           qualification_moto_count,
+          repechage_max_riders_per_race,
+          quarter_final_max_riders_per_race,
+          semi_final_max_riders_per_race,
         },
       ],
       { onConflict: 'event_id,category_id' }
     )
-    .select('id, event_id, category_id, enabled, max_riders_per_race, qualification_moto_count')
+    .select('id, event_id, category_id, enabled, max_riders_per_race, qualification_moto_count, repechage_max_riders_per_race, quarter_final_max_riders_per_race, semi_final_max_riders_per_race')
     .maybeSingle()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })

@@ -247,7 +247,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
 
     await copySimpleEventTable(
       'race_stage_config',
-      'id, category_id, enabled, max_riders_per_race, qualification_moto_count',
+      'id, category_id, enabled, max_riders_per_race, qualification_moto_count, repechage_max_riders_per_race, quarter_final_max_riders_per_race, semi_final_max_riders_per_race',
       (row) => {
         const mappedCategoryId = categoryIdMap.get(String(row.category_id ?? ''))
         if (!mappedCategoryId) return null
@@ -258,6 +258,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
           enabled: row.enabled,
           max_riders_per_race: row.max_riders_per_race,
           qualification_moto_count: row.qualification_moto_count,
+          repechage_max_riders_per_race: row.repechage_max_riders_per_race,
+          quarter_final_max_riders_per_race: row.quarter_final_max_riders_per_race,
+          semi_final_max_riders_per_race: row.semi_final_max_riders_per_race,
         }
       }
     )

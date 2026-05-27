@@ -52,6 +52,9 @@ type AdvancedConfig = {
   enabled: boolean
   max_riders_per_race: number
   qualification_moto_count: number
+  repechage_max_riders_per_race: number | null
+  quarter_final_max_riders_per_race: number | null
+  semi_final_max_riders_per_race: number | null
 }
 
 type CategoryRule = {
@@ -92,6 +95,13 @@ type SponsorDraft = {
 const sponsorTierOptions: EventSponsorTier[] = ['TITLE', 'MAIN', 'SUPPORT', 'MEDIA', 'COMMUNITY', 'PARTNER']
 const advancedFinalClassOrder = ['BEGINNER', 'AMATEUR', 'ACADEMY', 'ADVANCED', 'ROOKIE', 'PRO', 'NOVICE', 'ELITE'] as const
 const legacyAdvancedFinalClasses: string[] = []
+
+const parseStageCapacityValue = (value: string) => {
+  if (!value.trim()) return null
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return null
+  return Math.max(1, parsed)
+}
 
 const buildStandardBatchRules = (gateSize: number): CategoryRule[] => {
   const safeGateSize = Math.max(1, gateSize || 8)
@@ -739,6 +749,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
 
   const saveAdvanced = async (categoryId: string, enabled: boolean) => {
     if (!eventId) return
+    const currentConfig = advancedItems.find((item) => item.category.id === categoryId)?.config ?? null
     setAdvancedSaving(true)
     try {
       setAdvancedItems((prev) =>
@@ -755,6 +766,9 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                       enabled,
                       max_riders_per_race: Math.max(1, Number(form.race_gate_positions) || 8),
                       qualification_moto_count: 2,
+                      repechage_max_riders_per_race: null,
+                      quarter_final_max_riders_per_race: null,
+                      semi_final_max_riders_per_race: null,
                     },
               }
             : item
@@ -765,11 +779,70 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
         body: JSON.stringify({
           category_id: categoryId,
           enabled,
+          max_riders_per_race:
+            currentConfig?.max_riders_per_race ?? Math.max(1, Number(form.race_gate_positions) || 8),
+          qualification_moto_count: currentConfig?.qualification_moto_count ?? 2,
+          repechage_max_riders_per_race: currentConfig?.repechage_max_riders_per_race ?? null,
+          quarter_final_max_riders_per_race: currentConfig?.quarter_final_max_riders_per_race ?? null,
+          semi_final_max_riders_per_race: currentConfig?.semi_final_max_riders_per_race ?? null,
         }),
       })
       await loadAdvancedSummary()
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Gagal menyimpan advanced config.')
+      await loadAdvanced()
+    } finally {
+      setAdvancedSaving(false)
+    }
+  }
+
+  const updateAdvancedConfigDraft = (categoryId: string, patch: Partial<AdvancedConfig>) => {
+    setAdvancedItems((prev) =>
+      prev.map((item) => {
+        if (item.category.id !== categoryId) return item
+        const currentConfig = item.config ?? {
+          id: '',
+          event_id: eventId,
+          category_id: categoryId,
+          enabled: false,
+          max_riders_per_race: Math.max(1, Number(form.race_gate_positions) || 8),
+          qualification_moto_count: 2,
+          repechage_max_riders_per_race: null,
+          quarter_final_max_riders_per_race: null,
+          semi_final_max_riders_per_race: null,
+        }
+        return {
+          ...item,
+          config: {
+            ...currentConfig,
+            ...patch,
+          },
+        }
+      })
+    )
+  }
+
+  const saveAdvancedStageSizes = async (categoryId: string) => {
+    if (!eventId) return
+    const currentConfig = advancedItems.find((item) => item.category.id === categoryId)?.config
+    if (!currentConfig) return
+    setAdvancedSaving(true)
+    try {
+      await apiFetch(`/api/events/${eventId}/advanced-race`, {
+        method: 'POST',
+        body: JSON.stringify({
+          category_id: categoryId,
+          enabled: currentConfig.enabled,
+          max_riders_per_race: currentConfig.max_riders_per_race,
+          qualification_moto_count: currentConfig.qualification_moto_count,
+          repechage_max_riders_per_race: currentConfig.repechage_max_riders_per_race,
+          quarter_final_max_riders_per_race: currentConfig.quarter_final_max_riders_per_race,
+          semi_final_max_riders_per_race: currentConfig.semi_final_max_riders_per_race,
+        }),
+      })
+      await loadAdvanced()
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Gagal menyimpan ukuran stage.')
       await loadAdvanced()
     } finally {
       setAdvancedSaving(false)
@@ -2415,6 +2488,77 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
 
                 {isOpen && (
                   <>
+                    <div
+                      style={{
+                        marginTop: 8,
+                        padding: 12,
+                        borderRadius: 12,
+                        border: '2px solid #111',
+                        background: '#fff',
+                        display: 'grid',
+                        gap: 10,
+                      }}
+                    >
+                      <div style={{ fontWeight: 900 }}>Ukuran Stage per Race</div>
+                      <div style={{ color: '#475569', fontWeight: 700, fontSize: 13 }}>
+                        Kosongkan override untuk mengikuti gate size default event ({item.config?.max_riders_per_race ?? Math.max(1, Number(form.race_gate_positions) || 8)} rider).
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
+                        <input
+                          type="number"
+                          min={4}
+                          placeholder="Repechage size"
+                          value={item.config?.repechage_max_riders_per_race ?? ''}
+                          onChange={(e) =>
+                            updateAdvancedConfigDraft(item.category.id, {
+                              repechage_max_riders_per_race: parseStageCapacityValue(e.target.value),
+                            })
+                          }
+                          style={{ padding: 10, borderRadius: 10, border: '2px solid #111', fontWeight: 800 }}
+                        />
+                        <input
+                          type="number"
+                          min={4}
+                          placeholder="Quarter Final size"
+                          value={item.config?.quarter_final_max_riders_per_race ?? ''}
+                          onChange={(e) =>
+                            updateAdvancedConfigDraft(item.category.id, {
+                              quarter_final_max_riders_per_race: parseStageCapacityValue(e.target.value),
+                            })
+                          }
+                          style={{ padding: 10, borderRadius: 10, border: '2px solid #111', fontWeight: 800 }}
+                        />
+                        <input
+                          type="number"
+                          min={4}
+                          placeholder="Semi Final size"
+                          value={item.config?.semi_final_max_riders_per_race ?? ''}
+                          onChange={(e) =>
+                            updateAdvancedConfigDraft(item.category.id, {
+                              semi_final_max_riders_per_race: parseStageCapacityValue(e.target.value),
+                            })
+                          }
+                          style={{ padding: 10, borderRadius: 10, border: '2px solid #111', fontWeight: 800 }}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          onClick={() => saveAdvancedStageSizes(item.category.id)}
+                          disabled={advancedSaving}
+                          style={{
+                            padding: '8px 12px',
+                            borderRadius: 10,
+                            border: '2px solid #111',
+                            background: '#dbeafe',
+                            fontWeight: 900,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Save Stage Sizes
+                        </button>
+                      </div>
+                    </div>
                     <div style={{ marginTop: 8, fontWeight: 900 }}>Rules</div>
                     <div
                       style={{

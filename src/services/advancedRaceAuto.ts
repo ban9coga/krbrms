@@ -694,13 +694,15 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
 export async function generateStageMotos(eventId: string, categoryId: string) {
   const { data: config } = await adminClient
     .from('race_stage_config')
-    .select('enabled, max_riders_per_race, qualification_moto_count')
+    .select('enabled, max_riders_per_race, qualification_moto_count, repechage_max_riders_per_race, quarter_final_max_riders_per_race, semi_final_max_riders_per_race')
     .eq('event_id', eventId)
     .eq('category_id', categoryId)
     .maybeSingle()
   if (!config?.enabled) return { ok: false, warning: 'Advanced race disabled.' }
 
-  const maxRiders = Math.max(4, Number(config.max_riders_per_race ?? 8))
+  const repechageMaxRiders = Math.max(4, Number(config.repechage_max_riders_per_race ?? config.max_riders_per_race ?? 8))
+  const quarterMaxRiders = Math.max(4, Number(config.quarter_final_max_riders_per_race ?? config.max_riders_per_race ?? 8))
+  const semiMaxRiders = Math.max(4, Number(config.semi_final_max_riders_per_race ?? config.max_riders_per_race ?? 8))
   const resolved = await resolveCategoryConfig(categoryId)
 
   const { data: existingMotos, error: motoError } = await adminClient
@@ -880,7 +882,7 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
       ? quarterRiders
       : quarterRiders.filter((id) => !assignedQuarter.has(id))
     if (pendingQuarter.length > 0) {
-      const groups = distributeSeededHeats(pendingQuarter, maxRiders)
+      const groups = distributeSeededHeats(pendingQuarter, quarterMaxRiders)
       const startIndex = existingQuarterMotos.length
       groups.forEach((_, idx) => {
         newMotos.push({
@@ -919,7 +921,7 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
 
     const pendingRepechage = repechageRiders.filter((id) => !assignedRepechage.has(id))
     if (pendingRepechage.length > 0) {
-      const groups = distributeSeededHeats(pendingRepechage, maxRiders)
+      const groups = distributeSeededHeats(pendingRepechage, repechageMaxRiders)
       const startIndex = existingRepechageMotos.length
       const { data: motoRows, error: motoError } = await adminClient
         .from('motos')
@@ -944,7 +946,7 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
   const semiSourceReady = resolved.stages.enableQuarterFinal ? readiness.quarterReady : readiness.qualificationReady
   const semiExists = await safeMotoNameExists(eventId, categoryId, 'Semi Final')
   if (semiSourceReady && !semiExists && semiRiders.length > 0) {
-    const groups = distributeSeededHeats(semiRiders, maxRiders)
+    const groups = distributeSeededHeats(semiRiders, semiMaxRiders)
     const { data: motoRows, error: motoError } = await adminClient
       .from('motos')
       .insert(
