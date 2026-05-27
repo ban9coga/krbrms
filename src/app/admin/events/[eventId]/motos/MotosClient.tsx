@@ -39,6 +39,11 @@ type AdvancedSummaryItem = {
   }
 }
 
+type StatusChip = {
+  label: string
+  tone: 'green' | 'blue' | 'amber' | 'slate'
+}
+
 type MotoItem = {
   id: string
   category_id: string
@@ -572,6 +577,67 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     }
   }
 
+  const getCategoryStatusChips = (categoryId: string) => {
+    const summary = advancedSummaryByCategory[categoryId]
+    const readiness = summary?.readiness
+    const advancedEnabled = advancedEnabledByCategory[categoryId] ?? false
+    const chips: StatusChip[] = []
+
+    if (!advancedEnabled) {
+      chips.push({ label: 'Advanced OFF', tone: 'slate' })
+      return chips
+    }
+
+    if (!readiness) {
+      chips.push({ label: 'Loading Stage Status', tone: 'slate' })
+      return chips
+    }
+
+    if (!readiness.requiresQualification) {
+      chips.push({ label: '1 Batch', tone: 'blue' })
+      return chips
+    }
+
+    if (!readiness.qualificationRun) {
+      chips.push({
+        label: readiness.qualificationReady
+          ? 'Qualification Ready'
+          : `Qualification ${readiness.qualificationCompleteBatches}/${readiness.qualificationTotalBatches}`,
+        tone: readiness.qualificationReady ? 'green' : 'amber',
+      })
+      return chips
+    }
+
+    chips.push({ label: 'Qualification Done', tone: 'green' })
+
+    if ((summary?.motoCounts?.repechage ?? 0) > 0) {
+      chips.push({
+        label: readiness.repechageReady ? 'Repechage Done' : 'Repechage Pending',
+        tone: readiness.repechageReady ? 'green' : 'amber',
+      })
+    }
+
+    if ((summary?.motoCounts?.quarter ?? 0) > 0) {
+      chips.push({
+        label: readiness.quarterReady ? 'Quarter Final Done' : 'Quarter Final Pending',
+        tone: readiness.quarterReady ? 'green' : 'blue',
+      })
+    }
+
+    if ((summary?.motoCounts?.semi ?? 0) > 0) {
+      chips.push({
+        label: readiness.semiReady ? 'Semi Final Done' : 'Semi Final Pending',
+        tone: readiness.semiReady ? 'green' : 'blue',
+      })
+    }
+
+    if ((summary?.motoCounts?.final ?? 0) > 0) {
+      chips.push({ label: `Final ${summary.motoCounts.final}`, tone: 'slate' })
+    }
+
+    return chips
+  }
+
   const handlePrintMotoRiders = () => {
     if (printGroups.length === 0) {
       alert('Belum ada data rider per moto yang bisa dicetak.')
@@ -793,6 +859,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
           const isHidden = hiddenCategoryIds.includes(cat.id)
           const computeAction = getComputeAction(cat.id)
           const summary = advancedSummaryByCategory[cat.id]
+          const statusChips = getCategoryStatusChips(cat.id)
           return (
           <div
             key={cat.id}
@@ -866,6 +933,37 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                   <div style={{ display: 'grid', gap: 4 }}>
                     <div style={{ fontWeight: 900, fontSize: 13 }}>Aksi Stage Kategori</div>
                     <div style={{ fontSize: 12, color: '#334155', fontWeight: 700 }}>{computeAction.description}</div>
+                    {statusChips.length > 0 && (
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        {statusChips.map((chip) => {
+                          const toneStyles =
+                            chip.tone === 'green'
+                              ? { border: '#86efac', background: '#f0fdf4', color: '#166534' }
+                              : chip.tone === 'blue'
+                                ? { border: '#93c5fd', background: '#eff6ff', color: '#1d4ed8' }
+                                : chip.tone === 'amber'
+                                  ? { border: '#fcd34d', background: '#fffbeb', color: '#b45309' }
+                                  : { border: '#cbd5e1', background: '#f8fafc', color: '#475569' }
+                          return (
+                            <span
+                              key={`${cat.id}-${chip.label}`}
+                              style={{
+                                padding: '4px 10px',
+                                borderRadius: 999,
+                                border: `1px solid ${toneStyles.border}`,
+                                background: toneStyles.background,
+                                color: toneStyles.color,
+                                fontSize: 11,
+                                fontWeight: 900,
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {chip.label}
+                            </span>
+                          )
+                        })}
+                      </div>
+                    )}
                     {summary && (
                       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 11, fontWeight: 800, color: '#475569' }}>
                         <span>Q: {summary.stageCounts?.QUALIFICATION ?? 0}</span>
