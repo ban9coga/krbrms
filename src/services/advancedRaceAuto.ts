@@ -821,7 +821,9 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
   const repechageFeedsQuarterFinal = repechageCustomRules.some((rule) => rule.targetStage === 'QUARTER_FINAL')
   const shouldDeferQuarterUntilRepechage =
     repechageFeedsQuarterFinal && repechageRiders.length > 0 && !readiness.repechageReady
-  const shouldDeferFinalsUntilRepechage = repechageRiders.length > 0 && !readiness.repechageReady
+  const shouldDeferFinalsUntilStageReady =
+    (quarterRiders.length > 0 && !readiness.quarterReady) ||
+    (repechageRiders.length > 0 && !readiness.repechageReady)
 
   if (shouldDeferQuarterUntilRepechage && existingQuarterMotos.length > 0) {
     const staleQuarterMotoIds = existingQuarterMotos
@@ -836,7 +838,7 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
     }
   }
 
-  if (shouldDeferFinalsUntilRepechage && existingFinalMotos.length > 0) {
+  if (shouldDeferFinalsUntilStageReady && existingFinalMotos.length > 0) {
     const staleFinalMotoIds = existingFinalMotos
       .filter((moto) => !hasMotoResults(moto.id, categoryResultRows))
       .map((moto) => moto.id)
@@ -1005,7 +1007,7 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
     ]
   }
 
-  if (!shouldDeferFinalsUntilRepechage) {
+  if (!shouldDeferFinalsUntilStageReady) {
     for (const moto of existingFinalMotos) {
       const finalClass = moto.moto_name.replace(/^Final\s+/i, '').trim().toUpperCase()
       const desiredRiders = finals[finalClass] ?? []
@@ -1046,7 +1048,7 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
     }
   }
 
-  const finalsToCreate = shouldDeferFinalsUntilRepechage
+  const finalsToCreate = shouldDeferFinalsUntilStageReady
     ? []
     : FINAL_CLASS_ORDER.filter((key) => (finals[key] ?? []).length > 0 && !existingFinalClasses.has(key))
   if (finalsToCreate.length > 0) {
