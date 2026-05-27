@@ -65,12 +65,6 @@ type QualificationRowStatus = 'FINISHED' | 'DNF' | 'DNS' | 'PENDING' | 'DQ'
 
 type QualificationMotoStatus = 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'PENDING'
 
-type StageAssignmentRow = {
-  rider_id: string
-  stage: 'QUARTER_FINAL' | 'REPECHAGE' | 'SEMI_FINAL' | 'FINAL'
-  final_class: string | null
-}
-
 type QualificationCustomRuleRow = {
   source_stage: 'QUALIFICATION' | 'QUARTER_FINAL' | 'REPECHAGE' | 'SEMI_FINAL'
   rank_from: number
@@ -82,13 +76,6 @@ type QualificationCustomRuleRow = {
 }
 
 type StageCustomRuleRow = QualificationCustomRuleRow
-
-const STAGE_ASSIGNMENT_PRIORITY: Record<StageAssignmentRow['stage'], number> = {
-  FINAL: 4,
-  SEMI_FINAL: 3,
-  QUARTER_FINAL: 2,
-  REPECHAGE: 1,
-}
 
 const parseBatchKey = (name: string) => {
   const match = name.match(/moto\s*(\d+)\s*(?:-\s*)?batch\s*(\d+)/i)
@@ -356,30 +343,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     })
   }
 
-  const stageAssignmentMap = new Map<string, string>()
-  const { data: stageAssignments, error: stageAssignmentsError } = await adminClient
-    .from('race_stage_result')
-    .select('rider_id, stage, final_class')
-    .eq('category_id', categoryId)
-    .in('stage', ['QUARTER_FINAL', 'REPECHAGE', 'SEMI_FINAL', 'FINAL'])
-  if (stageAssignmentsError) return NextResponse.json({ error: stageAssignmentsError.message }, { status: 400 })
-  const preferredAssignments = new Map<string, StageAssignmentRow>()
-  for (const row of (stageAssignments ?? []) as StageAssignmentRow[]) {
-    const current = preferredAssignments.get(row.rider_id)
-    const currentPriority = current ? STAGE_ASSIGNMENT_PRIORITY[current.stage] : -1
-    const nextPriority = STAGE_ASSIGNMENT_PRIORITY[row.stage]
-    if (!current || nextPriority >= currentPriority) {
-      preferredAssignments.set(row.rider_id, row)
-    }
-  }
-  preferredAssignments.forEach((row, riderId) => {
-    const label =
-      row.stage === 'FINAL'
-        ? `FINAL ${row.final_class ?? 'ELITE'}`
-        : formatStageAdvanceLabel({ toStage: row.stage })
-    stageAssignmentMap.set(riderId, label)
-  })
-
   const { data: qualificationCustomRules, error: qualificationCustomRulesError } = await adminClient
     .from('race_category_custom_split_rule')
     .select('source_stage, rank_from, rank_to, target_stage, target_final_class, split_basis, batch_no')
@@ -538,7 +501,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
             ...r,
             rank_point: rank,
             class_label: showAdvancedClasses
-              ? stageAssignmentMap.get(r.rider_id) ?? classFromQualificationRules(rank) ?? classForRank(rank)
+              ? classFromQualificationRules(rank) ?? classForRank(rank)
               : null,
           }
         })
