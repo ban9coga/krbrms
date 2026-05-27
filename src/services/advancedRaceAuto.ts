@@ -291,43 +291,6 @@ const distributeSeededHeats = (orderedRiders: string[], maxRiders: number) => {
   return groups
 }
 
-const buildCenterOutGateOrder = (count: number) => {
-  if (count <= 0) return [] as number[]
-
-  if (count % 2 === 0) {
-    const gateOrder: number[] = []
-    let left = count / 2
-    let right = left + 1
-    while (gateOrder.length < count) {
-      if (left >= 1) gateOrder.push(left)
-      if (right <= count) gateOrder.push(right)
-      left -= 1
-      right += 1
-    }
-    return gateOrder
-  }
-
-  const gateOrder = [Math.ceil(count / 2)]
-  let offset = 1
-  while (gateOrder.length < count) {
-    const left = gateOrder[0] - offset
-    const right = gateOrder[0] + offset
-    if (left >= 1) gateOrder.push(left)
-    if (right <= count) gateOrder.push(right)
-    offset += 1
-  }
-  return gateOrder
-}
-
-const buildGateRows = (motoId: string, riderIds: string[]) => {
-  const gateOrder = buildCenterOutGateOrder(riderIds.length)
-  return riderIds.map((riderId, index) => ({
-    moto_id: motoId,
-    rider_id: riderId,
-    gate_position: gateOrder[index] ?? index + 1,
-  }))
-}
-
 const buildSequentialGateRows = (motoId: string, riderIds: string[]) =>
   riderIds.map((riderId, index) => ({
     moto_id: motoId,
@@ -920,7 +883,7 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
       if (motoError || !motoRows) return { ok: false, warning: motoError?.message || 'Failed to create QF motos.' }
       motoRows.forEach((m, i) => {
         groups[i].forEach((riderId) => newMotoRiders.push({ moto_id: m.id, rider_id: riderId }))
-        newGatePositions.push(...buildGateRows(m.id, groups[i]))
+        newGatePositions.push(...buildSequentialGateRows(m.id, groups[i]))
       })
     }
   }
@@ -958,7 +921,7 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
       if (motoError || !motoRows) return { ok: false, warning: motoError?.message || 'Failed to create Repechage motos.' }
       motoRows.forEach((m, i) => {
         groups[i].forEach((riderId) => newMotoRiders.push({ moto_id: m.id, rider_id: riderId }))
-        newGatePositions.push(...buildGateRows(m.id, groups[i]))
+        newGatePositions.push(...buildSequentialGateRows(m.id, groups[i]))
       })
     }
   }
@@ -982,7 +945,7 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
     if (motoError || !motoRows) return { ok: false, warning: motoError?.message || 'Failed to create SF motos.' }
     motoRows.forEach((m, i) => {
       groups[i].forEach((riderId) => newMotoRiders.push({ moto_id: m.id, rider_id: riderId }))
-      newGatePositions.push(...buildGateRows(m.id, groups[i]))
+      newGatePositions.push(...buildSequentialGateRows(m.id, groups[i]))
     })
   }
 

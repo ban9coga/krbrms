@@ -92,35 +92,6 @@ const parseBatchKey = (name: string) => {
   return { motoIndex: Number(match[1]), batchIndex: Number(match[2]) }
 }
 
-const buildCenterOutGateOrder = (count: number) => {
-  if (count <= 0) return [] as number[]
-
-  if (count % 2 === 0) {
-    const gateOrder: number[] = []
-    let left = count / 2
-    let right = left + 1
-    while (gateOrder.length < count) {
-      if (left >= 1) gateOrder.push(left)
-      if (right <= count) gateOrder.push(right)
-      left -= 1
-      right += 1
-    }
-    return gateOrder
-  }
-
-  const center = Math.ceil(count / 2)
-  const gateOrder = [center]
-  let offset = 1
-  while (gateOrder.length < count) {
-    const left = center - offset
-    const right = center + offset
-    if (left >= 1) gateOrder.push(left)
-    if (right <= count) gateOrder.push(right)
-    offset += 1
-  }
-  return gateOrder
-}
-
 const isMotoComplete = (motoId: string, gateRows: GateRow[], resultRows: ResultRow[]) => {
   const assignedRiders = gateRows.filter((row) => row.moto_id === motoId).map((row) => row.rider_id)
   if (assignedRiders.length === 0) return false
@@ -581,8 +552,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       ordered.forEach((riderId, index) => gateMap.set(riderId, index + 1))
     } else if (gateMap.size === 0 && riderIdsInMoto.length > 0) {
       const ordered = assignedRiderIds.length > 0 ? [...assignedRiderIds] : [...riderIdsInMoto].sort((a, b) => a.localeCompare(b))
-      const gateOrder = buildCenterOutGateOrder(ordered.length)
-      ordered.forEach((riderId, index) => gateMap.set(riderId, gateOrder[index] ?? index + 1))
+      ordered.forEach((riderId, index) => gateMap.set(riderId, index + 1))
     }
     const riderCount = riderIdsInMoto.length || null
 
