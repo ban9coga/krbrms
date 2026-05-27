@@ -84,6 +84,8 @@ const getStageGroupSortKey = (title: string) => {
   return { stageOrder: 9, finalOrder: 999, heatOrder: normalized }
 }
 
+const isFinalStageTitle = (title: string) => title.trim().toUpperCase().startsWith('FINAL ')
+
 const statusBadgeClass = (status: string) => {
   switch (status) {
     case 'DNF':
@@ -261,6 +263,7 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
     [batches, sortMode]
   )
   const showMoto3 = batches.length <= 1
+  const showQualificationNextColumn = batches.length > 1
   const sortedStages = useMemo(
     () =>
       [...stages]
@@ -413,7 +416,7 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                           'Penalty',
                           'Total',
                           'Rank',
-                          'Next',
+                          ...(showQualificationNextColumn ? ['Next'] : []),
                         ].map((h) => (
                         <th key={h} className="whitespace-nowrap">
                           {h}
@@ -448,7 +451,7 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                             )}
                           </div>
                         </td>
-                        <td className="whitespace-nowrap">{row.class_label || '-'}</td>
+                        {showQualificationNextColumn && <td className="whitespace-nowrap">{row.class_label || '-'}</td>}
                       </tr>
                     ))}
                   </tbody>
@@ -462,6 +465,10 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
           <section className="grid gap-4">
             {sortedStages.map((stage) => (
               <article key={stage.moto_id} className="public-panel-dark">
+                {(() => {
+                  const showStageNextColumn = !isFinalStageTitle(stage.title)
+                  return (
+                    <>
                 <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-lg font-black uppercase tracking-[0.08em] text-white">{stage.title}</h2>
@@ -476,7 +483,7 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                   <table className="public-table min-w-[680px] text-[11px] sm:text-xs md:text-sm">
                     <thead>
                       <tr>
-                        {['Gate', 'Foto', 'Nama Peserta', 'No Plat', 'Komunitas', 'Point', 'Penalty', 'Rank', 'Next'].map((h) => (
+                        {['Gate', 'Foto', 'Nama Peserta', 'No Plat', 'Komunitas', 'Point', 'Penalty', 'Rank', ...(showStageNextColumn ? ['Next'] : [])].map((h) => (
                           <th key={h} className="whitespace-nowrap">
                             {h}
                           </th>
@@ -505,12 +512,15 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                               )}
                             </div>
                           </td>
-                          <td className="whitespace-nowrap">{row.next_class_label || '-'}</td>
+                          {showStageNextColumn && <td className="whitespace-nowrap">{row.next_class_label || '-'}</td>}
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
+                    </>
+                  )
+                })()}
               </article>
             ))}
           </section>
