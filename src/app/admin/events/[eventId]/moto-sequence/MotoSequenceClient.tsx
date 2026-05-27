@@ -222,6 +222,52 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
   const globalMotoSequence = useMemo(() => [...motos].sort(compareLockedLast), [motos])
   const activeMotoSequence = useMemo(() => globalMotoSequence.filter((moto) => moto.status !== 'LOCKED'), [globalMotoSequence])
   const lockedMotoSequence = useMemo(() => globalMotoSequence.filter((moto) => moto.status === 'LOCKED'), [globalMotoSequence])
+  const activeMotoGroups = useMemo(() => {
+    const groups = new Map<
+      string,
+      {
+        categoryId: string
+        motos: MotoItem[]
+        startIndex: number
+      }
+    >()
+    activeMotoSequence.forEach((moto, index) => {
+      const existing = groups.get(moto.category_id)
+      if (existing) {
+        existing.motos.push(moto)
+        return
+      }
+      groups.set(moto.category_id, {
+        categoryId: moto.category_id,
+        motos: [moto],
+        startIndex: index,
+      })
+    })
+    return Array.from(groups.values()).sort((a, b) => a.startIndex - b.startIndex)
+  }, [activeMotoSequence])
+  const lockedMotoGroups = useMemo(() => {
+    const groups = new Map<
+      string,
+      {
+        categoryId: string
+        motos: MotoItem[]
+        startIndex: number
+      }
+    >()
+    lockedMotoSequence.forEach((moto, index) => {
+      const existing = groups.get(moto.category_id)
+      if (existing) {
+        existing.motos.push(moto)
+        return
+      }
+      groups.set(moto.category_id, {
+        categoryId: moto.category_id,
+        motos: [moto],
+        startIndex: index,
+      })
+    })
+    return Array.from(groups.values()).sort((a, b) => a.startIndex - b.startIndex)
+  }, [lockedMotoSequence])
 
   const gateMap = useMemo(() => {
     return new Map(
@@ -870,11 +916,70 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
         ))}
       </div>
 
-      <div style={{ display: 'grid', gap: '10px' }}>
-        {activeMotoSequence.map((moto, index) => renderMotoRow(moto, index, activeMotoSequence.length))}
+      <div style={{ display: 'grid', gap: '16px' }}>
+        {activeMotoGroups.map((group) => (
+          <section
+            key={`active-group-${group.categoryId}`}
+            style={{
+              display: 'grid',
+              gap: '10px',
+              padding: '14px',
+              borderRadius: '18px',
+              border: '1px solid #dbeafe',
+              background: '#f8fbff',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '10px',
+                paddingBottom: '4px',
+                borderBottom: '1px solid #dbeafe',
+              }}
+            >
+              <div style={{ display: 'grid', gap: '4px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#2563eb' }}>
+                  Category Group
+                </div>
+                <div style={{ fontSize: '20px', fontWeight: 900, color: '#0f172a' }}>
+                  {categoryLabel.get(group.categoryId) || group.categoryId}
+                </div>
+              </div>
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '8px 12px',
+                  borderRadius: '999px',
+                  background: '#dbeafe',
+                  color: '#1d4ed8',
+                  fontSize: '12px',
+                  fontWeight: 900,
+                  letterSpacing: '0.06em',
+                  textTransform: 'uppercase',
+                }}
+              >
+                <span>{group.motos.length} motos</span>
+                <span>
+                  Global #{group.startIndex + 1}
+                  {group.motos.length > 1 ? `-${group.startIndex + group.motos.length}` : ''}
+                </span>
+              </div>
+            </div>
+            <div style={{ display: 'grid', gap: '10px' }}>
+              {group.motos.map((moto, index) =>
+                renderMotoRow(moto, group.startIndex + index, activeMotoSequence.length)
+              )}
+            </div>
+          </section>
+        ))}
       </div>
 
-      {lockedMotoSequence.length > 0 && (
+      {lockedMotoGroups.length > 0 && (
         <div style={{ marginTop: '28px', display: 'grid', gap: '12px' }}>
           <div
             style={{
@@ -891,8 +996,70 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
               Moto yang sudah selesai dan terkunci dipindahkan ke bawah supaya antrian aktif tetap bersih.
             </div>
           </div>
-          <div style={{ display: 'grid', gap: '10px' }}>
-            {lockedMotoSequence.map((moto, index) => renderMotoRow(moto, index, lockedMotoSequence.length, { lockedSection: true, labelPrefix: 'Locked' }))}
+          <div style={{ display: 'grid', gap: '16px' }}>
+            {lockedMotoGroups.map((group) => (
+              <section
+                key={`locked-group-${group.categoryId}`}
+                style={{
+                  display: 'grid',
+                  gap: '10px',
+                  padding: '14px',
+                  borderRadius: '18px',
+                  border: '1px solid #cbd5e1',
+                  background: '#f8fafc',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '10px',
+                    paddingBottom: '4px',
+                    borderBottom: '1px solid #e2e8f0',
+                  }}
+                >
+                  <div style={{ display: 'grid', gap: '4px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#64748b' }}>
+                      Locked Category Group
+                    </div>
+                    <div style={{ fontSize: '20px', fontWeight: 900, color: '#0f172a' }}>
+                      {categoryLabel.get(group.categoryId) || group.categoryId}
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '8px 12px',
+                      borderRadius: '999px',
+                      background: '#e2e8f0',
+                      color: '#475569',
+                      fontSize: '12px',
+                      fontWeight: 900,
+                      letterSpacing: '0.06em',
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    <span>{group.motos.length} motos</span>
+                    <span>
+                      Locked #{group.startIndex + 1}
+                      {group.motos.length > 1 ? `-${group.startIndex + group.motos.length}` : ''}
+                    </span>
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gap: '10px' }}>
+                  {group.motos.map((moto, index) =>
+                    renderMotoRow(moto, group.startIndex + index, lockedMotoSequence.length, {
+                      lockedSection: true,
+                      labelPrefix: 'Locked',
+                    })
+                  )}
+                </div>
+              </section>
+            ))}
           </div>
         </div>
       )}
