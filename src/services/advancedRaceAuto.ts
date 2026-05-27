@@ -1343,18 +1343,6 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
     })
   }
 
-  Array.from(pendingQuarterRiders)
-    .filter((riderId) => !completedQuarterRiders.has(riderId))
-    .forEach((riderId) => {
-      quarterRows.push({
-        rider_id: riderId,
-        category_id: categoryId,
-        stage: 'QUARTER_FINAL',
-        position: null,
-        points: null,
-      })
-    })
-
   Array.from(quarterDerivedRepechageRiders).forEach((riderId) => pendingRepechageRiders.add(riderId))
 
   const completedSemiRiders = new Set<string>()
@@ -1460,6 +1448,18 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
   }
 
   Array.from(semiDerivedRepechageRiders).forEach((riderId) => pendingRepechageRiders.add(riderId))
+
+  Array.from(pendingQuarterRiders)
+    .filter((riderId) => !completedQuarterRiders.has(riderId) && !quarterRows.some((row) => row.rider_id === riderId))
+    .forEach((riderId) => {
+      quarterRows.push({
+        rider_id: riderId,
+        category_id: categoryId,
+        stage: 'QUARTER_FINAL',
+        position: null,
+        points: null,
+      })
+    })
 
   Array.from(new Set([...pendingSemiRiders, ...quarterDerivedSemiRiders, ...repechageDerivedSemiRiders]))
     .filter((riderId) => !completedSemiRiders.has(riderId))
