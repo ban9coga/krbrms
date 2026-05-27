@@ -48,6 +48,7 @@ type StageRow = {
   penalty_total: number | null
   rank: number | null
   status: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'PENDING'
+  next_class_label?: string | null
 }
 
 type StageGroup = {
@@ -440,7 +441,7 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                   <table className="public-table min-w-[680px] text-[11px] sm:text-xs md:text-sm">
                     <thead>
                       <tr>
-                        {['Gate', 'Foto', 'Nama Peserta', 'No Plat', 'Komunitas', 'Point', 'Penalty', 'Rank'].map((h) => (
+                        {['Gate', 'Foto', 'Nama Peserta', 'No Plat', 'Komunitas', 'Point', 'Penalty', 'Rank', 'Class'].map((h) => (
                           <th key={h} className="whitespace-nowrap">
                             {h}
                           </th>
@@ -469,6 +470,7 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                               )}
                             </div>
                           </td>
+                          <td className="whitespace-nowrap">{row.next_class_label || '-'}</td>
                         </tr>
                       ))}
                     </tbody>

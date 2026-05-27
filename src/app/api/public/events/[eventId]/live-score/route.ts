@@ -51,6 +51,7 @@ type StageRow = {
   penalty_total: number | null
   rank: number | null
   status: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'PENDING'
+  next_class_label?: string | null
 }
 
 type StageGroup = {
@@ -78,6 +79,8 @@ type QualificationCustomRuleRow = {
   split_basis: 'COMBINED' | 'PER_BATCH' | 'CUSTOM_PER_BATCH' | null
   batch_no: number | null
 }
+
+type StageCustomRuleRow = QualificationCustomRuleRow
 
 const STAGE_ASSIGNMENT_PRIORITY: Record<StageAssignmentRow['stage'], number> = {
   FINAL: 4,
@@ -157,6 +160,12 @@ const formatQualificationTargetLabel = (
   targetStage: QualificationCustomRuleRow['target_stage'],
   targetFinalClass: string | null
 ) => (targetStage === 'FINAL' ? `FINAL ${targetFinalClass ?? 'ELITE'}` : formatStageAdvanceLabel({ toStage: targetStage }))
+
+const parseStageHeatIndex = (name: string) => {
+  const match = name.match(/heat\s*(\d+)/i)
+  if (!match) return null
+  return Number(match[1])
+}
 
 export async function GET(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params
@@ -383,6 +392,24 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const qualificationRules = (qualificationCustomRules ?? []) as QualificationCustomRuleRow[]
   const qualificationSplitBasis = qualificationRules[0]?.split_basis ?? null
 
+  const { data: stageCustomRules, error: stageCustomRulesError } = await adminClient
+    .from('race_category_custom_split_rule')
+    .select('source_stage, rank_from, rank_to, target_stage, target_final_class, split_basis, batch_no')
+    .eq('category_id', categoryId)
+    .in('source_stage', ['QUARTER_FINAL', 'REPECHAGE', 'SEMI_FINAL'])
+    .order('sort_order', { ascending: true })
+    .order('rank_from', { ascending: true })
+  if (stageCustomRulesError) {
+    return NextResponse.json({ error: stageCustomRulesError.message }, { status: 400 })
+  }
+  const stageRulesBySource = new Map<string, StageCustomRuleRow[]>()
+  for (const rule of (stageCustomRules ?? []) as StageCustomRuleRow[]) {
+    const key = rule.source_stage
+    const list = stageRulesBySource.get(key) ?? []
+    list.push(rule)
+    stageRulesBySource.set(key, list)
+  }
+
   const batches = batchEntries
     .map(([batchIndex, entry]) => {
       const moto1 = entry.moto1 as MotoRow
@@ -595,6 +622,33 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
 
     rows.forEach((row) => {
       row.rank = rankMap.get(row.rider_id) ?? null
+    })
+
+    const stageSource =
+      /^quarter final/i.test(moto.moto_name)
+        ? 'QUARTER_FINAL'
+        : /^repechage/i.test(moto.moto_name)
+          ? 'REPECHAGE'
+          : /^semi final/i.test(moto.moto_name)
+            ? 'SEMI_FINAL'
+            : null
+    const stageHeatIndex = parseStageHeatIndex(moto.moto_name)
+    const stageRules = stageSource ? stageRulesBySource.get(stageSource) ?? [] : []
+    const stageSplitBasis = stageRules[0]?.split_basis ?? null
+
+    const nextLabelForRank = (rank: number | null) => {
+      if (!rank || !stageSource || stageRules.length === 0) return null
+      const matchingRules =
+        stageSplitBasis === 'CUSTOM_PER_BATCH'
+          ? stageRules.filter((rule) => (rule.batch_no ?? 1) === stageHeatIndex)
+          : stageRules
+      const matchedRule = matchingRules.find((rule) => rank >= rule.rank_from && rank <= rule.rank_to)
+      if (!matchedRule) return null
+      return formatQualificationTargetLabel(matchedRule.target_stage, matchedRule.target_final_class)
+    }
+
+    rows.forEach((row) => {
+      row.next_class_label = nextLabelForRank(row.rank)
     })
 
     return {
