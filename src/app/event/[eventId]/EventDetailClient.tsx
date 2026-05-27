@@ -7,7 +7,7 @@ import LoadingState from '../../../components/LoadingState'
 import EmptyState from '../../../components/EmptyState'
 import PublicTopbar from '../../../components/PublicTopbar'
 import SponsorMarquee from '../../../components/SponsorMarquee'
-import { compareMotoDisplayOrder } from '../../../lib/motoDisplayOrder'
+import { compareMotoDisplayOrder, formatMotoDisplayName } from '../../../lib/motoDisplayOrder'
 import {
   getEventById,
   getEventCategories,
@@ -431,7 +431,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                                   {categoryLabel.get(m.category_id) ?? 'Unknown Category'}
                                 </p>
                                 <p className="text-base font-black text-white">
-                                  {m.moto_order}. {m.moto_name}
+                                  {m.moto_order}. {formatMotoDisplayName(m.moto_name)}
                                 </p>
                               </div>
                               <span className="text-xs font-extrabold uppercase tracking-wide text-amber-300">

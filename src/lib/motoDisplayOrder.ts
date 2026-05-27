@@ -39,6 +39,9 @@ export const parseFinalMotoClass = (motoName: string) => {
   return match[1]?.trim().toUpperCase() ?? null
 }
 
+export const formatMotoDisplayName = (motoName: string) =>
+  motoName.replace(/quarter\s*final\s*-\s*heat\s*(\d+)/i, 'Quarter Final - Batch $1')
+
 const parseDisplayMoto = (motoName: string): ParsedDisplayMoto | null => {
   const qualificationMatch = motoName.match(/moto\s*(\d+)\s*-\s*batch\s*(\d+)/i)
   if (qualificationMatch) {
@@ -57,7 +60,7 @@ const parseDisplayMoto = (motoName: string): ParsedDisplayMoto | null => {
     }
   }
 
-  const quarterMatch = motoName.match(/quarter\s*final\s*-\s*heat\s*(\d+)/i)
+  const quarterMatch = motoName.match(/quarter\s*final\s*-\s*(?:heat|batch)\s*(\d+)/i)
   if (quarterMatch) {
     return {
       stage: 'QUARTER_FINAL',

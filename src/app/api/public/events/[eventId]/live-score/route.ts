@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../../lib/auth'
+import { formatMotoDisplayName } from '../../../../../../lib/motoDisplayOrder'
 import { isMotoPublicVisible, isMotoUpcoming } from '../../../../../../lib/motoStatus'
 import { resolveCategoryConfig } from '../../../../../../services/categoryResolver'
 import { formatStageAdvanceLabel, resolveQualificationPrimaryAdvance } from '../../../../../../services/raceStageEngine'
@@ -162,7 +163,7 @@ const formatQualificationTargetLabel = (
 ) => (targetStage === 'FINAL' ? `FINAL ${targetFinalClass ?? 'ELITE'}` : formatStageAdvanceLabel({ toStage: targetStage }))
 
 const parseStageHeatIndex = (name: string) => {
-  const match = name.match(/heat\s*(\d+)/i)
+  const match = name.match(/(?:heat|batch)\s*(\d+)/i)
   if (!match) return null
   return Number(match[1])
 }
@@ -652,7 +653,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     })
 
     return {
-      title: moto.moto_name,
+      title: formatMotoDisplayName(moto.moto_name),
       moto_id: moto.id,
       rows: rows.sort((a, b) => {
         const aRank = a.rank ?? Number.MAX_SAFE_INTEGER

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import EmptyState from '../../../../components/EmptyState'
 import LoadingState from '../../../../components/LoadingState'
 import { getEventById, getEventCategories, type EventItem, type RiderCategory } from '../../../../lib/eventService'
+import { formatMotoDisplayName } from '../../../../lib/motoDisplayOrder'
 import { compareMotoSequence } from '../../../../lib/motoSequence'
 import { isMotoLive } from '../../../../lib/motoStatus'
 
@@ -616,7 +617,7 @@ export default function LiveDisplayClient({
               <div className="grid gap-3 xl:min-w-[340px]">
                 <div className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/10 px-4 py-3 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
                   <span className="text-sm font-bold uppercase tracking-[0.14em] text-slate-300">Current Feed</span>
-                  <span className="text-base font-black text-white sm:text-lg">{displayMoto?.moto_name ?? '-'}</span>
+                  <span className="text-base font-black text-white sm:text-lg">{displayMoto ? formatMotoDisplayName(displayMoto.moto_name) : '-'}</span>
                 </div>
                 <div className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/10 px-4 py-3 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
                   <span className="text-sm font-bold uppercase tracking-[0.14em] text-slate-300">Status</span>
@@ -664,7 +665,7 @@ export default function LiveDisplayClient({
                         : activeStageView
                           ? activeStageView.title
                         : liveBatchView
-                          ? `${displayMoto?.moto_name ?? `Batch ${liveBatchView.batch_index}`} - Live Results`
+                          ? `${displayMoto ? formatMotoDisplayName(displayMoto.moto_name) : `Batch ${liveBatchView.batch_index}`} - Live Results`
                           : 'Live Results'}
                     </h2>
                     <p className="text-sm font-semibold text-slate-500">
@@ -979,7 +980,7 @@ export default function LiveDisplayClient({
                 {prepareQueue.length === 0 ? (
                   <div className="p-6 text-lg font-semibold text-slate-400">
                     {queueMoto
-                      ? `Moto berikutnya ${queueMoto.moto_name} belum punya gate yang siap ditampilkan.`
+                      ? `Moto berikutnya ${formatMotoDisplayName(queueMoto.moto_name)} belum punya gate yang siap ditampilkan.`
                       : 'Belum ada moto berikutnya untuk ditampilkan.'}
                   </div>
                 ) : (
@@ -1065,7 +1066,7 @@ export default function LiveDisplayClient({
               <span className={`text-base font-black uppercase tracking-[0.14em] sm:text-lg sm:tracking-[0.16em] ${trackState.textClass}`}>{trackState.label}</span>
             </div>
             <div className="grid gap-1 sm:text-right">
-              <div className="text-sm font-bold text-slate-200 sm:text-lg">Moto: {displayMoto?.moto_name ?? '-'}</div>
+              <div className="text-sm font-bold text-slate-200 sm:text-lg">Moto: {displayMoto ? formatMotoDisplayName(displayMoto.moto_name) : '-'}</div>
               <div className="text-sm font-bold text-slate-200 sm:text-lg">Kategori: {categoryLabel || '-'}</div>
             </div>
           </div>

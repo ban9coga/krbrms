@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { compareMotoDisplayOrder } from '../../../../../lib/motoDisplayOrder'
+import { compareMotoDisplayOrder, formatMotoDisplayName } from '../../../../../lib/motoDisplayOrder'
 import { buildBrandedPrintHtml } from '../../../../../lib/printTheme'
 import { supabase } from '../../../../../lib/supabaseClient'
 
@@ -382,7 +382,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     const moto = motos.find((m) => m.id === motoId)
     if (!moto) return
 
-    const ok = confirm(`Unlock moto: ${moto.moto_name}? Moto akan kembali ke status PROVISIONAL.`)
+    const ok = confirm(`Unlock moto: ${formatMotoDisplayName(moto.moto_name)}? Moto akan kembali ke status PROVISIONAL.`)
     if (!ok) return
 
     try {
@@ -410,7 +410,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       return
     }
 
-    const ok = confirm(`Reset results untuk moto: ${moto.moto_name}?`)
+    const ok = confirm(`Reset results untuk moto: ${formatMotoDisplayName(moto.moto_name)}?`)
     if (!ok) return
 
     const reason = window.prompt('Alasan reset results moto ini', 'Perbaikan hasil input')
@@ -652,7 +652,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
               .map((col) => `<th>Gate ${col.label}</th>`)
               .join('')
             const motoMeta = batch.motoColumns
-              .map((col) => `${col.label}: ${col.moto_name} (${col.status})`)
+              .map((col) => `${col.label}: ${formatMotoDisplayName(col.moto_name)} (${col.status})`)
               .join(' | ')
             const rows = batch.riderRows.length
               ? batch.riderRows
@@ -1011,7 +1011,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                   >
                     <div style={{ display: 'grid', gap: 6 }}>
                       <div style={{ fontWeight: 900 }}>
-                        {m.moto_order}. {m.moto_name}
+                        {m.moto_order}. {formatMotoDisplayName(m.moto_name)}
                       </div>
                       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontWeight: 800, fontSize: 12 }}>
                         <span>Status: {m.status}</span>
@@ -1205,7 +1205,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                 <div style={{ fontWeight: 900 }}>Batch {batch.batchNo}</div>
                 <div style={{ fontSize: 12, fontWeight: 700, color: '#334155' }}>
                   {batch.motoColumns
-                    .map((col) => `${col.label}: ${col.moto_name} (${col.status})`)
+                    .map((col) => `${col.label}: ${formatMotoDisplayName(col.moto_name)} (${col.status})`)
                     .join(' | ')}
                 </div>
                 <div style={{ overflowX: 'auto' }}>

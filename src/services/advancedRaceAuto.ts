@@ -886,7 +886,7 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
         newMotos.push({
           event_id: eventId,
           category_id: categoryId,
-          moto_name: `Quarter Final - Heat ${startIndex + idx + 1}`,
+          moto_name: `Quarter Final - Batch ${startIndex + idx + 1}`,
           moto_order: nextOrder++,
           status: 'UPCOMING',
         })

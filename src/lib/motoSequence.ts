@@ -52,8 +52,8 @@ const parseAdvancedMoto = (name?: string | null): ParsedAdvancedMoto | null => {
     }
   }
 
-  // Format: "Quarter Final - Heat X"
-  const qfMatch = name.match(/quarter\s*final\s*-\s*heat\s*(\d+)/i)
+  // Format: "Quarter Final - Batch X" or legacy "Quarter Final - Heat X"
+  const qfMatch = name.match(/quarter\s*final\s*-\s*(?:heat|batch)\s*(\d+)/i)
   if (qfMatch) {
     return {
       stage: 'QUARTER_FINAL',

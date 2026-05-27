@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { compareMotoDisplayOrder } from '../../../../../lib/motoDisplayOrder'
+import { compareMotoDisplayOrder, formatMotoDisplayName } from '../../../../../lib/motoDisplayOrder'
 import { supabase } from '../../../../../lib/supabaseClient'
 
 type CategoryItem = {
@@ -555,7 +555,7 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
               Category
             </div>
             <div style={{ fontSize: '16px', fontWeight: 900 }}>{categoryLabel.get(moto.category_id) || moto.category_id}</div>
-            <div style={{ fontSize: '15px', fontWeight: 800 }}>{moto.moto_name}</div>
+            <div style={{ fontSize: '15px', fontWeight: 800 }}>{formatMotoDisplayName(moto.moto_name)}</div>
           </div>
 
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignContent: 'flex-start' }}>
@@ -773,7 +773,7 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
           {currentMoto ? (
             <div style={{ marginTop: '8px', display: 'grid', gap: '4px' }}>
               <div style={{ fontSize: '18px', fontWeight: 900 }}>{categoryLabel.get(currentMoto.category_id) || currentMoto.category_id}</div>
-              <div style={{ fontSize: '15px', fontWeight: 800 }}>{currentMoto.moto_name}</div>
+              <div style={{ fontSize: '15px', fontWeight: 800 }}>{formatMotoDisplayName(currentMoto.moto_name)}</div>
               <div style={{ fontSize: '12px', fontWeight: 800, color: '#7c2d12' }}>
                 Status: {STATUS_LABELS[currentMoto.status] || currentMoto.status}
               </div>
@@ -797,7 +797,7 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
           {nextMoto ? (
             <div style={{ marginTop: '8px', display: 'grid', gap: '4px' }}>
               <div style={{ fontSize: '18px', fontWeight: 900 }}>{categoryLabel.get(nextMoto.category_id) || nextMoto.category_id}</div>
-              <div style={{ fontSize: '15px', fontWeight: 800 }}>{nextMoto.moto_name}</div>
+              <div style={{ fontSize: '15px', fontWeight: 800 }}>{formatMotoDisplayName(nextMoto.moto_name)}</div>
               <div style={{ fontSize: '12px', fontWeight: 800, color: '#3f6212' }}>
                 Menunggu menjadi LIVE setelah moto aktif selesai.
               </div>
