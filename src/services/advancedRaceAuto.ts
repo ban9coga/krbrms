@@ -927,7 +927,7 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
           groups.map((_, idx) => ({
             event_id: eventId,
             category_id: categoryId,
-            moto_name: `Repechage - Heat ${startIndex + idx + 1}`,
+            moto_name: `Repechage - Batch ${startIndex + idx + 1}`,
             moto_order: nextOrder++,
             status: 'UPCOMING',
           }))
@@ -951,7 +951,7 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
         groups.map((_, idx) => ({
           event_id: eventId,
           category_id: categoryId,
-          moto_name: `Semi Final - Heat ${idx + 1}`,
+          moto_name: `Semi Final - Batch ${idx + 1}`,
           moto_order: nextOrder++,
           status: 'UPCOMING',
         }))

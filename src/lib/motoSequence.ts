@@ -61,8 +61,8 @@ const parseAdvancedMoto = (name?: string | null): ParsedAdvancedMoto | null => {
     }
   }
 
-  // Format: "Semi Final - Heat X"
-  const sfMatch = name.match(/semi\s*final\s*-\s*heat\s*(\d+)/i)
+  // Format: "Semi Final - Batch X" or legacy "Semi Final - Heat X"
+  const sfMatch = name.match(/semi\s*final\s*-\s*(?:heat|batch)\s*(\d+)/i)
   if (sfMatch) {
     return {
       stage: 'SEMI_FINAL',
@@ -70,8 +70,8 @@ const parseAdvancedMoto = (name?: string | null): ParsedAdvancedMoto | null => {
     }
   }
 
-  // Format: "Repechage - Heat X"
-  const repMatch = name.match(/repechage\s*-\s*heat\s*(\d+)/i)
+  // Format: "Repechage - Batch X" or legacy "Repechage - Heat X"
+  const repMatch = name.match(/repechage\s*-\s*(?:heat|batch)\s*(\d+)/i)
   if (repMatch) {
     return {
       stage: 'REPECHAGE',

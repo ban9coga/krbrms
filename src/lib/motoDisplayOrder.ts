@@ -40,7 +40,10 @@ export const parseFinalMotoClass = (motoName: string) => {
 }
 
 export const formatMotoDisplayName = (motoName: string) =>
-  motoName.replace(/quarter\s*final\s*-\s*heat\s*(\d+)/i, 'Quarter Final - Batch $1')
+  motoName
+    .replace(/quarter\s*final\s*-\s*heat\s*(\d+)/i, 'Quarter Final - Batch $1')
+    .replace(/repechage\s*-\s*heat\s*(\d+)/i, 'Repechage - Batch $1')
+    .replace(/semi\s*final\s*-\s*heat\s*(\d+)/i, 'Semi Final - Batch $1')
 
 const parseDisplayMoto = (motoName: string): ParsedDisplayMoto | null => {
   const qualificationMatch = motoName.match(/moto\s*(\d+)\s*-\s*batch\s*(\d+)/i)
@@ -52,7 +55,7 @@ const parseDisplayMoto = (motoName: string): ParsedDisplayMoto | null => {
     }
   }
 
-  const repechageMatch = motoName.match(/repechage\s*-\s*heat\s*(\d+)/i)
+  const repechageMatch = motoName.match(/repechage\s*-\s*(?:heat|batch)\s*(\d+)/i)
   if (repechageMatch) {
     return {
       stage: 'REPECHAGE',
@@ -68,7 +71,7 @@ const parseDisplayMoto = (motoName: string): ParsedDisplayMoto | null => {
     }
   }
 
-  const semiMatch = motoName.match(/semi\s*final\s*-\s*heat\s*(\d+)/i)
+  const semiMatch = motoName.match(/semi\s*final\s*-\s*(?:heat|batch)\s*(\d+)/i)
   if (semiMatch) {
     return {
       stage: 'SEMI_FINAL',
