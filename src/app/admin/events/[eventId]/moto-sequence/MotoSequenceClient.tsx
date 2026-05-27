@@ -895,19 +895,9 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
         ))}
       </div>
 
-      <div style={{ display: 'grid', gap: '16px' }}>
+      <div style={{ display: 'grid', gap: '10px' }}>
         {activeMotoGroups.map((group) => (
-          <section
-            key={`active-group-${group.categoryId}`}
-            style={{
-              display: 'grid',
-              gap: '10px',
-              padding: '14px',
-              borderRadius: '18px',
-              border: '1px solid #dbeafe',
-              background: '#f8fbff',
-            }}
-          >
+          <div key={`active-group-${group.categoryId}-${group.startIndex}`} style={{ display: 'grid', gap: '10px' }}>
             <div
               style={{
                 display: 'flex',
@@ -915,8 +905,10 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 gap: '10px',
-                paddingBottom: '4px',
-                borderBottom: '1px solid #dbeafe',
+                padding: '10px 12px',
+                borderRadius: '14px',
+                border: '1px solid #dbeafe',
+                background: '#f8fbff',
               }}
             >
               <div style={{ display: 'grid', gap: '4px' }}>
@@ -954,7 +946,7 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
                 renderMotoRow(moto, group.startIndex + index, activeMotoSequence.length)
               )}
             </div>
-          </section>
+          </div>
         ))}
       </div>
 
@@ -975,19 +967,9 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
               Moto yang sudah selesai dan terkunci dipindahkan ke bawah supaya antrian aktif tetap bersih.
             </div>
           </div>
-          <div style={{ display: 'grid', gap: '16px' }}>
+          <div style={{ display: 'grid', gap: '10px' }}>
             {lockedMotoGroups.map((group) => (
-              <section
-                key={`locked-group-${group.categoryId}`}
-                style={{
-                  display: 'grid',
-                  gap: '10px',
-                  padding: '14px',
-                  borderRadius: '18px',
-                  border: '1px solid #cbd5e1',
-                  background: '#f8fafc',
-                }}
-              >
+              <div key={`locked-group-${group.categoryId}-${group.startIndex}`} style={{ display: 'grid', gap: '10px' }}>
                 <div
                   style={{
                     display: 'flex',
@@ -995,8 +977,10 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     gap: '10px',
-                    paddingBottom: '4px',
-                    borderBottom: '1px solid #e2e8f0',
+                    padding: '10px 12px',
+                    borderRadius: '14px',
+                    border: '1px solid #cbd5e1',
+                    background: '#f8fafc',
                   }}
                 >
                   <div style={{ display: 'grid', gap: '4px' }}>
@@ -1037,7 +1021,7 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
                     })
                   )}
                 </div>
-              </section>
+              </div>
             ))}
           </div>
         </div>
