@@ -7,7 +7,7 @@ import LoadingState from '../../../components/LoadingState'
 import EmptyState from '../../../components/EmptyState'
 import PublicTopbar from '../../../components/PublicTopbar'
 import SponsorMarquee from '../../../components/SponsorMarquee'
-import { compareMotoSequence } from '../../../lib/motoSequence'
+import { compareMotoDisplayOrder } from '../../../lib/motoDisplayOrder'
 import {
   getEventById,
   getEventCategories,
@@ -150,7 +150,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
       const ag = genderOrder[genderMap.get(a.category_id) ?? 'MIX'] ?? 9
       const bg = genderOrder[genderMap.get(b.category_id) ?? 'MIX'] ?? 9
       if (ag !== bg) return ag - bg
-      return compareMotoSequence(a, b)
+      return compareMotoDisplayOrder(a, b)
     })
   }, [liveMotos, categories])
 

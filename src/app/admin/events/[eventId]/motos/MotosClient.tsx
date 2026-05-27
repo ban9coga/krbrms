@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { compareMotoSequence } from '../../../../../lib/motoSequence'
+import { compareMotoDisplayOrder } from '../../../../../lib/motoDisplayOrder'
 import { buildBrandedPrintHtml } from '../../../../../lib/printTheme'
 import { supabase } from '../../../../../lib/supabaseClient'
 
@@ -95,35 +95,6 @@ const parseMotoBatch = (motoName: string) => {
     motoNo: Number(match[1] ?? 0),
     batchNo: Number(match[2] ?? 0),
   }
-}
-
-const FINAL_MOTO_DISPLAY_ORDER: Record<string, number> = {
-  ACADEMY: 0,
-  ROOKIE: 1,
-  PRO: 2,
-  NOVICE: 3,
-  ELITE: 4,
-  ADVANCED: 5,
-  AMATEUR: 6,
-  BEGINNER: 7,
-}
-
-const parseFinalMotoClass = (motoName: string) => {
-  const match = motoName.match(/^final\s+(.+)$/i)
-  if (!match) return null
-  return match[1]?.trim().toUpperCase() ?? null
-}
-
-const compareMotoDisplayOrder = (a: MotoItem | GateMotoItem, b: MotoItem | GateMotoItem) => {
-  const finalClassA = parseFinalMotoClass(a.moto_name)
-  const finalClassB = parseFinalMotoClass(b.moto_name)
-  if (finalClassA && finalClassB) {
-    const orderDiff =
-      (FINAL_MOTO_DISPLAY_ORDER[finalClassA] ?? Number.MAX_SAFE_INTEGER) -
-      (FINAL_MOTO_DISPLAY_ORDER[finalClassB] ?? Number.MAX_SAFE_INTEGER)
-    if (orderDiff !== 0) return orderDiff
-  }
-  return compareMotoSequence(a, b)
 }
 
 export default function MotosClient({ eventId }: { eventId: string }) {
