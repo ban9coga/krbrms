@@ -178,17 +178,6 @@ const sortSeedRows = (rows: StageResultSeedRow[], batchOrderById: Record<string,
     return a.rider_id.localeCompare(b.rider_id)
   })
 
-const sortFinalGateSeedRows = (rows: StageResultSeedRow[], batchOrderById: Record<string, number>) =>
-  [...rows].sort((a, b) => {
-    const pointsDiff = (a.points ?? 9999) - (b.points ?? 9999)
-    if (pointsDiff !== 0) return pointsDiff
-    const batchDiff = (a.batch_id ? batchOrderById[a.batch_id] ?? 9999 : 9999) - (b.batch_id ? batchOrderById[b.batch_id] ?? 9999 : 9999)
-    if (batchDiff !== 0) return batchDiff
-    const positionDiff = (a.position ?? 9999) - (b.position ?? 9999)
-    if (positionDiff !== 0) return positionDiff
-    return a.rider_id.localeCompare(b.rider_id)
-  })
-
 const orderRidersBySeedRows = (
   riderIds: string[],
   seedRows: StageResultSeedRow[],
@@ -204,15 +193,36 @@ const orderRidersBySeedRows = (
   return [...ordered, ...leftovers]
 }
 
-const orderFinalRidersBySeedRows = (
+const orderRidersByCarryOverSeedRows = (
   riderIds: string[],
   seedRows: StageResultSeedRow[],
-  batchOrderById: Record<string, number>
+  batchOrderById: Record<string, number> = {}
 ) => {
   const wanted = new Set(riderIds)
-  const ordered = sortFinalGateSeedRows(seedRows, batchOrderById)
-    .filter((row) => row.points !== null && wanted.has(row.rider_id))
-    .map((row) => row.rider_id)
+  const groupedRows = sortSeedRows(seedRows, batchOrderById)
+    .filter((row) => row.position !== null && wanted.has(row.rider_id))
+    .reduce<Record<string, StageResultSeedRow[]>>((acc, row) => {
+      const batchId = row.batch_id ?? '__NO_BATCH__'
+      if (!acc[batchId]) acc[batchId] = []
+      acc[batchId].push(row)
+      return acc
+    }, {})
+
+  const orderedBatchIds = Object.keys(groupedRows).sort((a, b) => {
+    const aOrder = a === '__NO_BATCH__' ? Number.MAX_SAFE_INTEGER : batchOrderById[a] ?? Number.MAX_SAFE_INTEGER
+    const bOrder = b === '__NO_BATCH__' ? Number.MAX_SAFE_INTEGER : batchOrderById[b] ?? Number.MAX_SAFE_INTEGER
+    if (aOrder !== bOrder) return aOrder - bOrder
+    return a.localeCompare(b)
+  })
+
+  const ordered: string[] = []
+  const maxRows = orderedBatchIds.reduce((max, batchId) => Math.max(max, groupedRows[batchId]?.length ?? 0), 0)
+  for (let rowIndex = 0; rowIndex < maxRows; rowIndex += 1) {
+    for (const batchId of orderedBatchIds) {
+      const row = groupedRows[batchId]?.[rowIndex]
+      if (row) ordered.push(row.rider_id)
+    }
+  }
 
   const seen = new Set(ordered)
   const leftovers = riderIds.filter((id) => !seen.has(id)).sort((a, b) => a.localeCompare(b))
@@ -288,6 +298,59 @@ const distributeSeededHeats = (orderedRiders: string[], maxRiders: number) => {
     groups[groupIndex].push(riderId)
   })
 
+  return groups
+}
+
+const distributeCarryOverHeats = (
+  riderIds: string[],
+  seedRows: StageResultSeedRow[],
+  batchOrderById: Record<string, number>,
+  maxRiders: number
+) => {
+  if (riderIds.length === 0 || maxRiders <= 0) return null
+  const wanted = new Set(riderIds)
+  const groupedRows = sortSeedRows(seedRows, batchOrderById)
+    .filter((row) => row.position !== null && wanted.has(row.rider_id) && row.batch_id)
+    .reduce<Record<string, StageResultSeedRow[]>>((acc, row) => {
+      const batchId = row.batch_id as string
+      if (!acc[batchId]) acc[batchId] = []
+      acc[batchId].push(row)
+      return acc
+    }, {})
+
+  const orderedBatchIds = Object.keys(groupedRows).sort((a, b) => {
+    const aOrder = batchOrderById[a] ?? Number.MAX_SAFE_INTEGER
+    const bOrder = batchOrderById[b] ?? Number.MAX_SAFE_INTEGER
+    if (aOrder !== bOrder) return aOrder - bOrder
+    return a.localeCompare(b)
+  })
+  if (orderedBatchIds.length === 0) return null
+
+  const batchSizes = orderedBatchIds.map((batchId) => groupedRows[batchId].length)
+  const firstBatchSize = batchSizes[0]
+  const hasUniformBatchSizes = batchSizes.every((size) => size === firstBatchSize)
+  if (!hasUniformBatchSizes || firstBatchSize <= 0) return null
+  if (maxRiders % firstBatchSize !== 0) return null
+
+  const sourceBatchesPerHeat = maxRiders / firstBatchSize
+  if (sourceBatchesPerHeat <= 0 || orderedBatchIds.length % sourceBatchesPerHeat !== 0) return null
+
+  const groups: string[][] = []
+  for (let index = 0; index < orderedBatchIds.length; index += sourceBatchesPerHeat) {
+    const chunkBatchIds = orderedBatchIds.slice(index, index + sourceBatchesPerHeat)
+    const chunk: string[] = []
+    for (let rowIndex = 0; rowIndex < firstBatchSize; rowIndex += 1) {
+      for (const batchId of chunkBatchIds) {
+        const row = groupedRows[batchId]?.[rowIndex]
+        if (row) chunk.push(row.rider_id)
+      }
+    }
+    groups.push(chunk)
+  }
+
+  const assigned = new Set(groups.flat())
+  const leftovers = riderIds.filter((riderId) => !assigned.has(riderId)).sort((a, b) => a.localeCompare(b))
+  if (leftovers.length > 0) return null
   return groups
 }
 
@@ -882,7 +945,9 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
       ? quarterRiders
       : quarterRiders.filter((id) => !assignedQuarter.has(id))
     if (pendingQuarter.length > 0) {
-      const groups = distributeSeededHeats(pendingQuarter, quarterMaxRiders)
+      const groups =
+        distributeCarryOverHeats(pendingQuarter, qualificationRows, seedBatchOrderById, quarterMaxRiders) ??
+        distributeSeededHeats(pendingQuarter, quarterMaxRiders)
       const startIndex = existingQuarterMotos.length
       groups.forEach((_, idx) => {
         newMotos.push({
@@ -921,7 +986,15 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
 
     const pendingRepechage = repechageRiders.filter((id) => !assignedRepechage.has(id))
     if (pendingRepechage.length > 0) {
-      const groups = distributeSeededHeats(pendingRepechage, repechageMaxRiders)
+      const groups =
+        distributeCarryOverHeats(
+          pendingRepechage,
+          stageSeedRows.filter((row) =>
+            row.stage === 'QUALIFICATION' || row.stage === 'QUARTER_FINAL' || row.stage === 'SEMI_FINAL'
+          ),
+          seedBatchOrderById,
+          repechageMaxRiders
+        ) ?? distributeSeededHeats(pendingRepechage, repechageMaxRiders)
       const startIndex = existingRepechageMotos.length
       const { data: motoRows, error: motoError } = await adminClient
         .from('motos')
@@ -946,7 +1019,13 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
   const semiSourceReady = resolved.stages.enableQuarterFinal ? readiness.quarterReady : readiness.qualificationReady
   const semiExists = await safeMotoNameExists(eventId, categoryId, 'Semi Final')
   if (semiSourceReady && !semiExists && semiRiders.length > 0) {
-    const groups = distributeSeededHeats(semiRiders, semiMaxRiders)
+    const groups =
+      distributeCarryOverHeats(
+        semiRiders,
+        [...quarterResultRows, ...repechageResultRows, ...qualificationRows],
+        seedBatchOrderById,
+        semiMaxRiders
+      ) ?? distributeSeededHeats(semiRiders, semiMaxRiders)
     const { data: motoRows, error: motoError } = await adminClient
       .from('motos')
       .insert(
@@ -1002,10 +1081,14 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
     const semiDerived = riderIds.filter((riderId) => wanted.has(riderId) && semiStageRiderIds.has(riderId))
 
     return [
-      ...orderFinalRidersBySeedRows(qualificationDirect, finalGateSeedRows, seedBatchOrderById),
-      ...orderRidersBySeedRows(repechageDerived, repechageResultRows, seedBatchOrderById),
-      ...orderRidersBySeedRows(quarterDerived, quarterResultRows, seedBatchOrderById),
-      ...orderRidersBySeedRows(semiDerived, stageSeedRows.filter((row) => row.stage === 'SEMI_FINAL' && row.position !== null), seedBatchOrderById),
+      ...orderRidersByCarryOverSeedRows(qualificationDirect, finalGateSeedRows, seedBatchOrderById),
+      ...orderRidersByCarryOverSeedRows(repechageDerived, repechageResultRows, seedBatchOrderById),
+      ...orderRidersByCarryOverSeedRows(quarterDerived, quarterResultRows, seedBatchOrderById),
+      ...orderRidersByCarryOverSeedRows(
+        semiDerived,
+        stageSeedRows.filter((row) => row.stage === 'SEMI_FINAL' && row.position !== null),
+        seedBatchOrderById
+      ),
     ]
   }
 

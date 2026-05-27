@@ -115,10 +115,32 @@ const orderRidersByStageSeeds = (
   batchOrderById: Map<string, number>
 ) => {
   const wanted = new Set(riderIds)
-  const ordered = [...seedRows]
+  const groupedRows = [...seedRows]
     .sort((a, b) => compareStageSeedRows(a, b, batchOrderById))
     .filter((row) => row.position !== null && wanted.has(row.rider_id))
-    .map((row) => row.rider_id)
+    .reduce<Map<string, StageSeedRow[]>>((acc, row) => {
+      const batchId = row.batch_id ?? '__NO_BATCH__'
+      const list = acc.get(batchId) ?? []
+      list.push(row)
+      acc.set(batchId, list)
+      return acc
+    }, new Map<string, StageSeedRow[]>())
+
+  const orderedBatchIds = Array.from(groupedRows.keys()).sort((a, b) => {
+    const aOrder = a === '__NO_BATCH__' ? Number.MAX_SAFE_INTEGER : batchOrderById.get(a) ?? Number.MAX_SAFE_INTEGER
+    const bOrder = b === '__NO_BATCH__' ? Number.MAX_SAFE_INTEGER : batchOrderById.get(b) ?? Number.MAX_SAFE_INTEGER
+    if (aOrder !== bOrder) return aOrder - bOrder
+    return a.localeCompare(b)
+  })
+
+  const ordered: string[] = []
+  const maxRows = orderedBatchIds.reduce((max, batchId) => Math.max(max, groupedRows.get(batchId)?.length ?? 0), 0)
+  for (let rowIndex = 0; rowIndex < maxRows; rowIndex += 1) {
+    for (const batchId of orderedBatchIds) {
+      const row = groupedRows.get(batchId)?.[rowIndex]
+      if (row) ordered.push(row.rider_id)
+    }
+  }
 
   const seen = new Set(ordered)
   const leftovers = riderIds.filter((riderId) => !seen.has(riderId)).sort((a, b) => a.localeCompare(b))
