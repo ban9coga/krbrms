@@ -711,12 +711,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       [...rows]
         .filter((row) => row.point !== null)
         .sort((a, b) => {
-          const aPoint = (a.point ?? Number.MAX_SAFE_INTEGER) + (a.penalty_total ?? 0)
-          const bPoint = (b.point ?? Number.MAX_SAFE_INTEGER) + (b.penalty_total ?? 0)
-          if (aPoint !== bPoint) return aPoint - bPoint
           const aStatusOrder = getStageStatusSortOrder(a.status)
           const bStatusOrder = getStageStatusSortOrder(b.status)
           if (aStatusOrder !== bStatusOrder) return aStatusOrder - bStatusOrder
+          const aPoint = (a.point ?? Number.MAX_SAFE_INTEGER) + (a.penalty_total ?? 0)
+          const bPoint = (b.point ?? Number.MAX_SAFE_INTEGER) + (b.penalty_total ?? 0)
+          if (aPoint !== bPoint) return aPoint - bPoint
           const aGate = a.gate ?? Number.MAX_SAFE_INTEGER
           const bGate = b.gate ?? Number.MAX_SAFE_INTEGER
           if (aGate !== bGate) return aGate - bGate
