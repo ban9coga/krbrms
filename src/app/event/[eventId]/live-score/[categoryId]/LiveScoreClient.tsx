@@ -263,7 +263,9 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
     [batches, sortMode]
   )
   const showMoto3 = batches.length <= 1
-  const showQualificationNextColumn = batches.length > 1
+  const showQualificationNextColumn = tableRowsByBatch.some((batch) =>
+    batch.rows.some((row) => Boolean(row.class_label?.trim()))
+  )
   const sortedStages = useMemo(
     () =>
       [...stages]
