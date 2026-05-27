@@ -79,6 +79,29 @@ const compareLockedLast = (a: MotoItem, b: MotoItem) => {
   return compareMotoDisplayOrder(a, b)
 }
 
+const buildContiguousMotoGroups = (sequence: MotoItem[]) => {
+  const groups: Array<{
+    categoryId: string
+    motos: MotoItem[]
+    startIndex: number
+  }> = []
+
+  sequence.forEach((moto, index) => {
+    const lastGroup = groups[groups.length - 1]
+    if (lastGroup && lastGroup.categoryId === moto.category_id) {
+      lastGroup.motos.push(moto)
+      return
+    }
+    groups.push({
+      categoryId: moto.category_id,
+      motos: [moto],
+      startIndex: index,
+    })
+  })
+
+  return groups
+}
+
 function DirectionIcon({ direction }: { direction: 'up' | 'down' }) {
   const rotation = direction === 'up' ? 'rotate(0deg)' : 'rotate(180deg)'
   return (
@@ -222,52 +245,8 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
   const globalMotoSequence = useMemo(() => [...motos].sort(compareLockedLast), [motos])
   const activeMotoSequence = useMemo(() => globalMotoSequence.filter((moto) => moto.status !== 'LOCKED'), [globalMotoSequence])
   const lockedMotoSequence = useMemo(() => globalMotoSequence.filter((moto) => moto.status === 'LOCKED'), [globalMotoSequence])
-  const activeMotoGroups = useMemo(() => {
-    const groups = new Map<
-      string,
-      {
-        categoryId: string
-        motos: MotoItem[]
-        startIndex: number
-      }
-    >()
-    activeMotoSequence.forEach((moto, index) => {
-      const existing = groups.get(moto.category_id)
-      if (existing) {
-        existing.motos.push(moto)
-        return
-      }
-      groups.set(moto.category_id, {
-        categoryId: moto.category_id,
-        motos: [moto],
-        startIndex: index,
-      })
-    })
-    return Array.from(groups.values()).sort((a, b) => a.startIndex - b.startIndex)
-  }, [activeMotoSequence])
-  const lockedMotoGroups = useMemo(() => {
-    const groups = new Map<
-      string,
-      {
-        categoryId: string
-        motos: MotoItem[]
-        startIndex: number
-      }
-    >()
-    lockedMotoSequence.forEach((moto, index) => {
-      const existing = groups.get(moto.category_id)
-      if (existing) {
-        existing.motos.push(moto)
-        return
-      }
-      groups.set(moto.category_id, {
-        categoryId: moto.category_id,
-        motos: [moto],
-        startIndex: index,
-      })
-    })
-    return Array.from(groups.values()).sort((a, b) => a.startIndex - b.startIndex)
-  }, [lockedMotoSequence])
+  const activeMotoGroups = useMemo(() => buildContiguousMotoGroups(activeMotoSequence), [activeMotoSequence])
+  const lockedMotoGroups = useMemo(() => buildContiguousMotoGroups(lockedMotoSequence), [lockedMotoSequence])
 
   const gateMap = useMemo(() => {
     return new Map(
@@ -942,7 +921,7 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
             >
               <div style={{ display: 'grid', gap: '4px' }}>
                 <div style={{ fontSize: '11px', fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#2563eb' }}>
-                  Category Group
+                  Sequence Block
                 </div>
                 <div style={{ fontSize: '20px', fontWeight: 900, color: '#0f172a' }}>
                   {categoryLabel.get(group.categoryId) || group.categoryId}
@@ -1022,7 +1001,7 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
                 >
                   <div style={{ display: 'grid', gap: '4px' }}>
                     <div style={{ fontSize: '11px', fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#64748b' }}>
-                      Locked Category Group
+                      Locked Sequence Block
                     </div>
                     <div style={{ fontSize: '20px', fontWeight: 900, color: '#0f172a' }}>
                       {categoryLabel.get(group.categoryId) || group.categoryId}
