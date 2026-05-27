@@ -165,14 +165,16 @@ const tableExists = async (tableName: string) => {
   return !!data?.table_name
 }
 
-const sortSeedRows = (rows: StageResultSeedRow[]) =>
+const sortSeedRows = (rows: StageResultSeedRow[], batchOrderById: Record<string, number> = {}) =>
   [...rows].sort((a, b) => {
-    const positionDiff = (a.position ?? 9999) - (b.position ?? 9999)
-    if (positionDiff !== 0) return positionDiff
     const pointsDiff = (a.points ?? 9999) - (b.points ?? 9999)
     if (pointsDiff !== 0) return pointsDiff
-    const batchDiff = (a.batch_id ?? '').localeCompare(b.batch_id ?? '')
+    const batchDiff =
+      (a.batch_id ? batchOrderById[a.batch_id] ?? 9999 : 9999) -
+      (b.batch_id ? batchOrderById[b.batch_id] ?? 9999 : 9999)
     if (batchDiff !== 0) return batchDiff
+    const positionDiff = (a.position ?? 9999) - (b.position ?? 9999)
+    if (positionDiff !== 0) return positionDiff
     return a.rider_id.localeCompare(b.rider_id)
   })
 
@@ -187,9 +189,13 @@ const sortFinalGateSeedRows = (rows: StageResultSeedRow[], batchOrderById: Recor
     return a.rider_id.localeCompare(b.rider_id)
   })
 
-const orderRidersBySeedRows = (riderIds: string[], seedRows: StageResultSeedRow[]) => {
+const orderRidersBySeedRows = (
+  riderIds: string[],
+  seedRows: StageResultSeedRow[],
+  batchOrderById: Record<string, number> = {}
+) => {
   const wanted = new Set(riderIds)
-  const ordered = sortSeedRows(seedRows)
+  const ordered = sortSeedRows(seedRows, batchOrderById)
     .filter((row) => row.position !== null && wanted.has(row.rider_id))
     .map((row) => row.rider_id)
 
@@ -811,17 +817,20 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
 
   const quarterRiders = orderRidersBySeedRows(
     stageSeedRows.filter((r) => r.stage === 'QUARTER_FINAL').map((r) => r.rider_id),
-    qualificationRows
+    qualificationRows,
+    seedBatchOrderById
   )
   const repechageRiders = orderRidersBySeedRows(
     stageSeedRows.filter((r) => r.stage === 'REPECHAGE').map((r) => r.rider_id),
     stageSeedRows.filter((row) =>
       row.stage === 'QUALIFICATION' || row.stage === 'QUARTER_FINAL' || row.stage === 'SEMI_FINAL'
-    )
+    ),
+    seedBatchOrderById
   )
   const semiRiders = orderRidersBySeedRows(
     stageSeedRows.filter((r) => r.stage === 'SEMI_FINAL').map((r) => r.rider_id),
-    [...quarterResultRows, ...repechageResultRows, ...qualificationRows]
+    [...quarterResultRows, ...repechageResultRows, ...qualificationRows],
+    seedBatchOrderById
   )
   const finals = stageSeedRows
     .filter((r) => r.stage === 'FINAL' && r.final_class)
@@ -849,6 +858,7 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
   const repechageFeedsQuarterFinal = repechageCustomRules.some((rule) => rule.targetStage === 'QUARTER_FINAL')
   const shouldDeferQuarterUntilRepechage =
     repechageFeedsQuarterFinal && repechageRiders.length > 0 && !readiness.repechageReady
+  const shouldDeferFinalsUntilRepechage = repechageRiders.length > 0 && !readiness.repechageReady
 
   if (shouldDeferQuarterUntilRepechage && existingQuarterMotos.length > 0) {
     const staleQuarterMotoIds = existingQuarterMotos
@@ -860,6 +870,19 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
       await adminClient.from('moto_riders').delete().in('moto_id', staleQuarterMotoIds)
       await adminClient.from('results').delete().in('moto_id', staleQuarterMotoIds)
       await adminClient.from('motos').delete().in('id', staleQuarterMotoIds)
+    }
+  }
+
+  if (shouldDeferFinalsUntilRepechage && existingFinalMotos.length > 0) {
+    const staleFinalMotoIds = existingFinalMotos
+      .filter((moto) => !hasMotoResults(moto.id, categoryResultRows))
+      .map((moto) => moto.id)
+
+    if (staleFinalMotoIds.length > 0) {
+      await adminClient.from('moto_gate_positions').delete().in('moto_id', staleFinalMotoIds)
+      await adminClient.from('moto_riders').delete().in('moto_id', staleFinalMotoIds)
+      await adminClient.from('results').delete().in('moto_id', staleFinalMotoIds)
+      await adminClient.from('motos').delete().in('id', staleFinalMotoIds)
     }
   }
 
@@ -981,48 +1004,75 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
     existingFinalRiderMap.set(row.moto_id, list)
   }
 
-  for (const moto of existingFinalMotos) {
-    const finalClass = moto.moto_name.replace(/^Final\s+/i, '').trim().toUpperCase()
-    const desiredRiders = finals[finalClass] ?? []
-    const finalReady = desiredRiders.length > 0
-    const motoHasResults = hasMotoResults(moto.id, categoryResultRows)
-    const currentRiders = [...(existingFinalRiderMap.get(moto.id) ?? [])].sort((a, b) => a.localeCompare(b))
-    const orderedDesiredRiders = orderFinalRidersBySeedRows(desiredRiders, finalGateSeedRows, seedBatchOrderById)
-    const desiredSorted = [...orderedDesiredRiders].sort((a, b) => a.localeCompare(b))
+  const quarterStageRiderIds = new Set(stageSeedRows.filter((row) => row.stage === 'QUARTER_FINAL').map((row) => row.rider_id))
+  const repechageStageRiderIds = new Set(stageSeedRows.filter((row) => row.stage === 'REPECHAGE').map((row) => row.rider_id))
+  const semiStageRiderIds = new Set(stageSeedRows.filter((row) => row.stage === 'SEMI_FINAL').map((row) => row.rider_id))
 
-    if ((!finalReady || desiredRiders.length === 0) && !motoHasResults) {
-      await adminClient.from('motos').delete().eq('id', moto.id)
-      existingFinalClasses.delete(finalClass)
-      continue
-    }
+  const orderFinalRidersBySource = (riderIds: string[]) => {
+    const wanted = new Set(riderIds)
+    const qualificationDirect = riderIds.filter(
+      (riderId) => wanted.has(riderId) && !repechageStageRiderIds.has(riderId) && !quarterStageRiderIds.has(riderId) && !semiStageRiderIds.has(riderId)
+    )
+    const repechageDerived = riderIds.filter(
+      (riderId) => wanted.has(riderId) && repechageStageRiderIds.has(riderId) && !quarterStageRiderIds.has(riderId) && !semiStageRiderIds.has(riderId)
+    )
+    const quarterDerived = riderIds.filter(
+      (riderId) => wanted.has(riderId) && quarterStageRiderIds.has(riderId) && !semiStageRiderIds.has(riderId)
+    )
+    const semiDerived = riderIds.filter((riderId) => wanted.has(riderId) && semiStageRiderIds.has(riderId))
 
-    if (!motoHasResults) {
-      const sameAssignments =
-        currentRiders.length === desiredSorted.length &&
-        currentRiders.every((riderId, index) => riderId === desiredSorted[index])
+    return [
+      ...orderFinalRidersBySeedRows(qualificationDirect, finalGateSeedRows, seedBatchOrderById),
+      ...orderRidersBySeedRows(repechageDerived, repechageResultRows, seedBatchOrderById),
+      ...orderRidersBySeedRows(quarterDerived, quarterResultRows, seedBatchOrderById),
+      ...orderRidersBySeedRows(semiDerived, stageSeedRows.filter((row) => row.stage === 'SEMI_FINAL' && row.position !== null), seedBatchOrderById),
+    ]
+  }
 
-      if (!sameAssignments) {
-        await adminClient.from('moto_riders').delete().eq('moto_id', moto.id)
-        if (orderedDesiredRiders.length > 0) {
-          await adminClient
-            .from('moto_riders')
-            .insert(orderedDesiredRiders.map((riderId) => ({ moto_id: moto.id, rider_id: riderId })))
-        }
+  if (!shouldDeferFinalsUntilRepechage) {
+    for (const moto of existingFinalMotos) {
+      const finalClass = moto.moto_name.replace(/^Final\s+/i, '').trim().toUpperCase()
+      const desiredRiders = finals[finalClass] ?? []
+      const finalReady = desiredRiders.length > 0
+      const motoHasResults = hasMotoResults(moto.id, categoryResultRows)
+      const currentRiders = [...(existingFinalRiderMap.get(moto.id) ?? [])].sort((a, b) => a.localeCompare(b))
+      const orderedDesiredRiders = orderFinalRidersBySource(desiredRiders)
+      const desiredSorted = [...orderedDesiredRiders].sort((a, b) => a.localeCompare(b))
+
+      if ((!finalReady || desiredRiders.length === 0) && !motoHasResults) {
+        await adminClient.from('motos').delete().eq('id', moto.id)
+        existingFinalClasses.delete(finalClass)
+        continue
       }
 
-      if (gateTableReady && orderedDesiredRiders.length > 0) {
-        await adminClient.from('moto_gate_positions').delete().eq('moto_id', moto.id)
-        const { error: gateRefreshError } = await adminClient
-          .from('moto_gate_positions')
-          .insert(buildSequentialGateRows(moto.id, orderedDesiredRiders))
-        if (gateRefreshError) return { ok: false, warning: gateRefreshError.message }
+      if (!motoHasResults) {
+        const sameAssignments =
+          currentRiders.length === desiredSorted.length &&
+          currentRiders.every((riderId, index) => riderId === desiredSorted[index])
+
+        if (!sameAssignments) {
+          await adminClient.from('moto_riders').delete().eq('moto_id', moto.id)
+          if (orderedDesiredRiders.length > 0) {
+            await adminClient
+              .from('moto_riders')
+              .insert(orderedDesiredRiders.map((riderId) => ({ moto_id: moto.id, rider_id: riderId })))
+          }
+        }
+
+        if (gateTableReady && orderedDesiredRiders.length > 0) {
+          await adminClient.from('moto_gate_positions').delete().eq('moto_id', moto.id)
+          const { error: gateRefreshError } = await adminClient
+            .from('moto_gate_positions')
+            .insert(buildSequentialGateRows(moto.id, orderedDesiredRiders))
+          if (gateRefreshError) return { ok: false, warning: gateRefreshError.message }
+        }
       }
     }
   }
 
-  const finalsToCreate = FINAL_CLASS_ORDER.filter(
-    (key) => (finals[key] ?? []).length > 0 && !existingFinalClasses.has(key)
-  )
+  const finalsToCreate = shouldDeferFinalsUntilRepechage
+    ? []
+    : FINAL_CLASS_ORDER.filter((key) => (finals[key] ?? []).length > 0 && !existingFinalClasses.has(key))
   if (finalsToCreate.length > 0) {
     const { data: motoRows, error: motoError } = await adminClient
       .from('motos')
@@ -1039,7 +1089,7 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
     if (motoError || !motoRows) return { ok: false, warning: motoError?.message || 'Failed to create Final motos.' }
     motoRows.forEach((m) => {
       const key = m.moto_name.replace('Final ', '')
-      const riders = orderFinalRidersBySeedRows(finals[key] ?? [], finalGateSeedRows, seedBatchOrderById)
+      const riders = orderFinalRidersBySource(finals[key] ?? [])
       riders.forEach((riderId) => newMotoRiders.push({ moto_id: m.id, rider_id: riderId }))
       newGatePositions.push(...buildSequentialGateRows(m.id, riders))
     })
