@@ -143,6 +143,11 @@ const latestCompletedByRecency = (motos: MotoItem[]) =>
       return compareMotoSequence(b, a)
     })[0] ?? null
 
+const latestMotoBySequence = (motos: MotoItem[], predicate: (moto: MotoItem) => boolean) =>
+  motos
+    .filter(predicate)
+    .sort((a, b) => compareMotoSequence(b, a))[0] ?? null
+
 const gateByMoto = (row: Row, motoIndex: number) => {
   if (motoIndex === 1) return row.gate_moto1
   if (motoIndex === 2) return row.gate_moto2
@@ -211,8 +216,8 @@ export default function LiveDisplayClient({
     const res = await fetch(`/api/motos?event_id=${eventId}`)
     const json = await res.json()
     const data = ((json?.data ?? []) as MotoItem[]).sort(compareMotoSequence)
-    const liveMoto = data.find((m) => isMotoLive(m.status)) ?? null
-    const provisionalMoto = data.find((m) => (m.status ?? '').toUpperCase() === 'PROVISIONAL') ?? null
+    const liveMoto = latestMotoBySequence(data, (m) => isMotoLive(m.status))
+    const provisionalMoto = latestMotoBySequence(data, (m) => (m.status ?? '').toUpperCase() === 'PROVISIONAL')
     const latestCompletedMoto = latestCompletedByRecency(data)
     const anchorMoto = provisionalMoto ?? liveMoto ?? latestCompletedMoto
     const anchorIndex = anchorMoto ? data.findIndex((m) => m.id === anchorMoto.id) : -1
@@ -283,9 +288,9 @@ export default function LiveDisplayClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId, scoreCategoryIds.join(',')])
 
-  const activeMoto = useMemo(() => eventMotos.find((m) => isMotoLive(m.status)) ?? null, [eventMotos])
+  const activeMoto = useMemo(() => latestMotoBySequence(eventMotos, (m) => isMotoLive(m.status)), [eventMotos])
   const provisionalMoto = useMemo(
-    () => eventMotos.find((m) => (m.status ?? '').toUpperCase() === 'PROVISIONAL') ?? null,
+    () => latestMotoBySequence(eventMotos, (m) => (m.status ?? '').toUpperCase() === 'PROVISIONAL'),
     [eventMotos]
   )
   const latestCompletedMoto = useMemo(() => latestCompletedByRecency(eventMotos), [eventMotos])
@@ -497,6 +502,10 @@ export default function LiveDisplayClient({
       logo,
     }))
   }, [business?.sponsors, event?.sponsor_logo_urls])
+  const sponsorMarqueeDuration = useMemo(
+    () => Math.max(42, displaySponsors.length * 4.75),
+    [displaySponsors.length]
+  )
   const trackState = useMemo(() => {
     if (!displayMoto) {
       return {
@@ -620,7 +629,10 @@ export default function LiveDisplayClient({
 
         {displaySponsors.length > 0 && (
           <section className="live-display-sponsors overflow-hidden rounded-[22px] border border-amber-300/20 bg-slate-900/90 shadow-xl">
-            <div className="live-display-marquee flex min-w-max items-center gap-10 px-6 py-4">
+            <div
+              className="live-display-marquee flex min-w-max items-center gap-10 px-6 py-4"
+              style={{ ['--live-display-marquee-duration' as string]: `${sponsorMarqueeDuration}s` }}
+            >
               {[...displaySponsors, ...displaySponsors].map((sponsor, index) => (
                 <div key={`${sponsor.name || 'sponsor'}-${index}`} className="flex items-center gap-4 whitespace-nowrap">
                   {sponsor.logo ? (
@@ -1070,7 +1082,7 @@ export default function LiveDisplayClient({
         }
 
         .live-display-marquee {
-          animation: live-display-marquee 26s linear infinite;
+          animation: live-display-marquee var(--live-display-marquee-duration, 42s) linear infinite;
           will-change: transform;
         }
 
