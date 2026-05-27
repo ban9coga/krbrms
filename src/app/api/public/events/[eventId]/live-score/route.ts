@@ -18,6 +18,12 @@ type GateRow = {
   gate_position: number
 }
 
+type MotoRiderRow = {
+  moto_id: string
+  rider_id: string
+  created_at?: string | null
+}
+
 type ResultRow = {
   moto_id: string
   rider_id: string
@@ -84,6 +90,35 @@ const parseBatchKey = (name: string) => {
   const match = name.match(/moto\s*(\d+)\s*(?:-\s*)?batch\s*(\d+)/i)
   if (!match) return null
   return { motoIndex: Number(match[1]), batchIndex: Number(match[2]) }
+}
+
+const buildCenterOutGateOrder = (count: number) => {
+  if (count <= 0) return [] as number[]
+
+  if (count % 2 === 0) {
+    const gateOrder: number[] = []
+    let left = count / 2
+    let right = left + 1
+    while (gateOrder.length < count) {
+      if (left >= 1) gateOrder.push(left)
+      if (right <= count) gateOrder.push(right)
+      left -= 1
+      right += 1
+    }
+    return gateOrder
+  }
+
+  const center = Math.ceil(count / 2)
+  const gateOrder = [center]
+  let offset = 1
+  while (gateOrder.length < count) {
+    const left = center - offset
+    const right = center + offset
+    if (left >= 1) gateOrder.push(left)
+    if (right <= count) gateOrder.push(right)
+    offset += 1
+  }
+  return gateOrder
 }
 
 const isMotoComplete = (motoId: string, gateRows: GateRow[], resultRows: ResultRow[]) => {
@@ -245,10 +280,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
 
   const { data: assignedMotoRiders, error: assignedMotoRiderError } = await adminClient
     .from('moto_riders')
-    .select('moto_id, rider_id')
+    .select('moto_id, rider_id, created_at')
     .in('moto_id', motoIds)
+    .order('created_at', { ascending: true })
   if (assignedMotoRiderError) return NextResponse.json({ error: assignedMotoRiderError.message }, { status: 400 })
-  const motoRiderRows = (assignedMotoRiders ?? []) as Array<{ moto_id: string; rider_id: string }>
+  const motoRiderRows = (assignedMotoRiders ?? []) as MotoRiderRow[]
 
   const riderIds = Array.from(new Set([
     ...gateRows.map((g) => g.rider_id),
@@ -543,6 +579,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         return a.localeCompare(b)
       })
       ordered.forEach((riderId, index) => gateMap.set(riderId, index + 1))
+    } else if (gateMap.size === 0 && riderIdsInMoto.length > 0) {
+      const ordered = assignedRiderIds.length > 0 ? [...assignedRiderIds] : [...riderIdsInMoto].sort((a, b) => a.localeCompare(b))
+      const gateOrder = buildCenterOutGateOrder(ordered.length)
+      ordered.forEach((riderId, index) => gateMap.set(riderId, gateOrder[index] ?? index + 1))
     }
     const riderCount = riderIdsInMoto.length || null
 
