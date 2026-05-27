@@ -136,6 +136,21 @@ const pointForMotoResult = (res: ResultRow | null, riderCount: number | null) =>
   return res?.finish_order ?? null
 }
 
+const getStageStatusSortOrder = (status: StageRow['status']) => {
+  switch (status) {
+    case 'FINISH':
+      return 0
+    case 'DNF':
+      return 1
+    case 'DNS':
+      return 2
+    case 'DQ':
+      return 3
+    default:
+      return 4
+  }
+}
+
 const resolvePenaltyStagesForMoto = (name: string): Array<'QUARTER' | 'REPECHAGE' | 'SEMI' | 'FINAL' | 'ALL'> => {
   if (/^quarter final/i.test(name)) return ['QUARTER', 'ALL']
   if (/^repechage/i.test(name)) return ['REPECHAGE', 'ALL']
@@ -576,6 +591,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
           const aPoint = (a.point ?? Number.MAX_SAFE_INTEGER) + (a.penalty_total ?? 0)
           const bPoint = (b.point ?? Number.MAX_SAFE_INTEGER) + (b.penalty_total ?? 0)
           if (aPoint !== bPoint) return aPoint - bPoint
+          const aStatusOrder = getStageStatusSortOrder(a.status)
+          const bStatusOrder = getStageStatusSortOrder(b.status)
+          if (aStatusOrder !== bStatusOrder) return aStatusOrder - bStatusOrder
           const aGate = a.gate ?? Number.MAX_SAFE_INTEGER
           const bGate = b.gate ?? Number.MAX_SAFE_INTEGER
           if (aGate !== bGate) return aGate - bGate
