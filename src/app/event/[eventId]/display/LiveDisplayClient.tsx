@@ -128,6 +128,28 @@ const renderMotoResultCell = (
   return point ?? '-'
 }
 
+const renderStagePointCell = (
+  point: number | null,
+  status?: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'PENDING' | 'FINISHED' | null
+) => {
+  const normalized = (status ?? 'PENDING').toUpperCase()
+  if (normalized === 'DNF' || normalized === 'DNS' || normalized === 'DQ') {
+    return (
+      <div className="flex flex-col items-start gap-1">
+        <span className="text-xl font-black text-slate-900">{point ?? '-'}</span>
+        <span
+          className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] ${statusBadgeClass(
+            normalized
+          )}`}
+        >
+          {statusBadgeLabel(normalized)}
+        </span>
+      </div>
+    )
+  }
+  return point ?? '-'
+}
+
 const completedMotoTimestamp = (moto: MotoItem) => {
   const candidate = moto.locked_at ?? moto.provisional_at ?? null
   if (!candidate) return Number.NEGATIVE_INFINITY
@@ -571,13 +593,10 @@ export default function LiveDisplayClient({
     </span>
   )
 
-  const renderRankCell = (rank?: number | null, status?: string | null) => {
-    const normalized = (status ?? '').toUpperCase()
-    const showStatusOnRank = normalized === 'DNS' || normalized === 'DNF' || normalized === 'DQ'
+  const renderRankCell = (rank?: number | null) => {
     return (
       <div className="flex flex-col items-start gap-1">
         <span className="text-2xl font-black text-emerald-700">{rank ?? '-'}</span>
-        {showStatusOnRank ? renderStatusBadge(status) : null}
       </div>
     )
   }
@@ -736,9 +755,9 @@ export default function LiveDisplayClient({
                                 </div>
                               </td>
                               <td className="px-3 py-3 text-sm font-bold text-slate-600">{row.club || '-'}</td>
-                              <td className="px-2 py-3 text-xl font-black text-slate-900">{row.point ?? '-'}</td>
+                              <td className="px-2 py-3 text-xl font-black text-slate-900">{renderStagePointCell(row.point, row.status)}</td>
                               <td className="px-2 py-3 text-sm font-extrabold text-amber-600">{row.penalty_total ?? '-'}</td>
-                              <td className="px-3 py-3">{renderRankCell(row.rank, row.status)}</td>
+                              <td className="px-3 py-3">{renderRankCell(row.rank)}</td>
                               <td className="px-3 py-3">
                                 {renderFinalStatusCell(row.status)}
                               </td>
@@ -760,7 +779,7 @@ export default function LiveDisplayClient({
                                   <div className="text-sm font-bold text-slate-600">{row.no_plate}</div>
                                 </div>
                               </div>
-                              {renderRankCell(row.rank, row.status)}
+                              {renderRankCell(row.rank)}
                             </div>
                             <div className="mt-3 grid grid-cols-2 gap-2">
                               {mobileInfoPill('Komunitas', row.club || '-')}
@@ -821,9 +840,9 @@ export default function LiveDisplayClient({
                               </div>
                             </td>
                             <td className="px-3 py-3 text-sm font-bold text-slate-600">{row.club || '-'}</td>
-                            <td className="px-2 py-3 text-xl font-black text-slate-900">{row.point ?? '-'}</td>
+                            <td className="px-2 py-3 text-xl font-black text-slate-900">{renderStagePointCell(row.point, row.status)}</td>
                             <td className="px-2 py-3 text-sm font-extrabold text-amber-600">{row.penalty_total ?? '-'}</td>
-                            <td className="px-3 py-3">{renderRankCell(row.rank, row.status)}</td>
+                            <td className="px-3 py-3">{renderRankCell(row.rank)}</td>
                             <td className="px-3 py-3">
                               {renderFinalStatusCell(row.status)}
                             </td>
@@ -845,7 +864,7 @@ export default function LiveDisplayClient({
                                 <div className="text-sm font-bold text-slate-600">{row.no_plate}</div>
                               </div>
                             </div>
-                            {renderRankCell(row.rank, row.status)}
+                            {renderRankCell(row.rank)}
                           </div>
                           <div className="mt-3 grid grid-cols-2 gap-2">
                             {mobileInfoPill('Gate', row.gate)}

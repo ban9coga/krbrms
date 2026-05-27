@@ -123,6 +123,26 @@ const renderMotoResultCell = (
   return point ?? '-'
 }
 
+const renderStagePointCell = (
+  point: number | null,
+  status?: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'PENDING' | null
+) => {
+  const normalized = status ?? 'PENDING'
+  if (normalized === 'DNF' || normalized === 'DNS' || normalized === 'DQ') {
+    return (
+      <div className="flex flex-col gap-1">
+        <span>{point ?? '-'}</span>
+        <span
+          className={`inline-flex w-fit rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] ${statusBadgeClass(normalized)}`}
+        >
+          {normalized}
+        </span>
+      </div>
+    )
+  }
+  return point ?? '-'
+}
+
 const renderSortButtons = (
   sortMode: 'GATE' | 'RANK',
   setSortMode: (mode: 'GATE' | 'RANK') => void
@@ -500,19 +520,10 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                           <td className="whitespace-nowrap font-extrabold text-slate-900">{row.name}</td>
                           <td>{row.no_plate}</td>
                           <td className="whitespace-nowrap">{row.club || '-'}</td>
-                          <td className="font-extrabold text-sky-700">{row.point ?? '-'}</td>
+                          <td className="font-extrabold text-sky-700">{renderStagePointCell(row.point, row.status)}</td>
                           <td className="font-extrabold text-amber-600">{row.penalty_total ?? '-'}</td>
                           <td className="whitespace-nowrap font-extrabold text-emerald-700">
-                            <div className="flex flex-col gap-1">
-                              <span>{row.rank ?? '-'}</span>
-                              {row.status !== 'FINISH' && (
-                                <span
-                                  className={`inline-flex w-fit rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] ${statusBadgeClass(row.status)}`}
-                                >
-                                  {row.status}
-                                </span>
-                              )}
-                            </div>
+                            <span>{row.rank ?? '-'}</span>
                           </td>
                           {showStageNextColumn && <td className="whitespace-nowrap">{row.next_class_label || '-'}</td>}
                         </tr>
