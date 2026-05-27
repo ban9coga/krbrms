@@ -399,22 +399,22 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                 <table className="public-table min-w-[940px] text-[11px] sm:text-xs md:text-sm">
                   <thead>
                     <tr>
-                      {[
-                        'Gate M1',
-                        'Gate M2',
-                        ...(showMoto3 ? ['Gate M3'] : []),
-                        'Foto',
-                        'Nama Peserta',
-                        'No Plat',
-                        'Komunitas',
-                        'Point M1',
-                        'Point M2',
-                        ...(showMoto3 ? ['Point M3'] : []),
-                        'Penalty',
-                        'Total',
-                        'Rank',
-                        'Class',
-                      ].map((h) => (
+                        {[
+                          'Gate M1',
+                          'Gate M2',
+                          ...(showMoto3 ? ['Gate M3'] : []),
+                          'Foto',
+                          'Nama Peserta',
+                          'No Plat',
+                          'Komunitas',
+                          'Point M1',
+                          'Point M2',
+                          ...(showMoto3 ? ['Point M3'] : []),
+                          'Penalty',
+                          'Total',
+                          'Rank',
+                          'Next',
+                        ].map((h) => (
                         <th key={h} className="whitespace-nowrap">
                           {h}
                         </th>
@@ -476,7 +476,7 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                   <table className="public-table min-w-[680px] text-[11px] sm:text-xs md:text-sm">
                     <thead>
                       <tr>
-                        {['Gate', 'Foto', 'Nama Peserta', 'No Plat', 'Komunitas', 'Point', 'Penalty', 'Rank', 'Class'].map((h) => (
+                        {['Gate', 'Foto', 'Nama Peserta', 'No Plat', 'Komunitas', 'Point', 'Penalty', 'Rank', 'Next'].map((h) => (
                           <th key={h} className="whitespace-nowrap">
                             {h}
                           </th>
