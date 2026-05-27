@@ -57,6 +57,33 @@ type StageGroup = {
   rows: StageRow[]
 }
 
+const finalStageDisplayOrder: Record<string, number> = {
+  ACADEMY: 0,
+  ROOKIE: 1,
+  PRO: 2,
+  NOVICE: 3,
+  ELITE: 4,
+  ADVANCED: 5,
+  AMATEUR: 6,
+  BEGINNER: 7,
+}
+
+const getStageGroupSortKey = (title: string) => {
+  const normalized = title.trim().toUpperCase()
+  if (normalized.startsWith('REPECHAGE')) return { stageOrder: 0, finalOrder: 0, heatOrder: normalized }
+  if (normalized.startsWith('QUARTER FINAL')) return { stageOrder: 1, finalOrder: 0, heatOrder: normalized }
+  if (normalized.startsWith('SEMI FINAL')) return { stageOrder: 2, finalOrder: 0, heatOrder: normalized }
+  if (normalized.startsWith('FINAL ')) {
+    const finalClass = normalized.replace(/^FINAL\s+/, '').trim()
+    return {
+      stageOrder: 3,
+      finalOrder: finalStageDisplayOrder[finalClass] ?? 999,
+      heatOrder: finalClass,
+    }
+  }
+  return { stageOrder: 9, finalOrder: 999, heatOrder: normalized }
+}
+
 const statusBadgeClass = (status: string) => {
   switch (status) {
     case 'DNF':
@@ -236,28 +263,36 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
   const showMoto3 = batches.length <= 1
   const sortedStages = useMemo(
     () =>
-      stages.map((stage) => ({
-        ...stage,
-        rows: [...stage.rows].sort((a, b) => {
-          if (sortMode === 'GATE') {
-            const aGate = a.gate ?? Number.MAX_SAFE_INTEGER
-            const bGate = b.gate ?? Number.MAX_SAFE_INTEGER
-            if (aGate !== bGate) return aGate - bGate
+      [...stages]
+        .map((stage) => ({
+          ...stage,
+          rows: [...stage.rows].sort((a, b) => {
+            if (sortMode === 'GATE') {
+              const aGate = a.gate ?? Number.MAX_SAFE_INTEGER
+              const bGate = b.gate ?? Number.MAX_SAFE_INTEGER
+              if (aGate !== bGate) return aGate - bGate
+              const aRank = a.rank ?? Number.MAX_SAFE_INTEGER
+              const bRank = b.rank ?? Number.MAX_SAFE_INTEGER
+              if (aRank !== bRank) return aRank - bRank
+              return a.name.localeCompare(b.name)
+            }
+
             const aRank = a.rank ?? Number.MAX_SAFE_INTEGER
             const bRank = b.rank ?? Number.MAX_SAFE_INTEGER
             if (aRank !== bRank) return aRank - bRank
+            const aGate = a.gate ?? Number.MAX_SAFE_INTEGER
+            const bGate = b.gate ?? Number.MAX_SAFE_INTEGER
+            if (aGate !== bGate) return aGate - bGate
             return a.name.localeCompare(b.name)
-          }
-
-          const aRank = a.rank ?? Number.MAX_SAFE_INTEGER
-          const bRank = b.rank ?? Number.MAX_SAFE_INTEGER
-          if (aRank !== bRank) return aRank - bRank
-          const aGate = a.gate ?? Number.MAX_SAFE_INTEGER
-          const bGate = b.gate ?? Number.MAX_SAFE_INTEGER
-          if (aGate !== bGate) return aGate - bGate
-          return a.name.localeCompare(b.name)
+          }),
+        }))
+        .sort((a, b) => {
+          const keyA = getStageGroupSortKey(a.title)
+          const keyB = getStageGroupSortKey(b.title)
+          if (keyA.stageOrder !== keyB.stageOrder) return keyA.stageOrder - keyB.stageOrder
+          if (keyA.finalOrder !== keyB.finalOrder) return keyA.finalOrder - keyB.finalOrder
+          return keyA.heatOrder.localeCompare(keyB.heatOrder, undefined, { numeric: true })
         }),
-      })),
     [sortMode, stages]
   )
 
