@@ -2,8 +2,7 @@ import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../../lib/auth'
 import { resolveCategoryConfig } from '../../../../../../services/categoryResolver'
 import {
-  computeQualificationAndStore,
-  generateStageMotos,
+  syncAdvancedRaceProgress,
 } from '../../../../../../services/advancedRaceAuto'
 
 type MotoRow = {
@@ -127,18 +126,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     )
   }
 
-  const qualificationResult = await computeQualificationAndStore(eventId, categoryId)
-  if (!qualificationResult.ok) {
+  const syncResult = await syncAdvancedRaceProgress(eventId, categoryId)
+  if (!syncResult.ok) {
     return NextResponse.json(
-      { warning: qualificationResult.warning ?? 'Qualification skipped.' },
-      { status: 200 }
-    )
-  }
-
-  const stageMotoResult = await generateStageMotos(eventId, categoryId)
-  if (!stageMotoResult.ok) {
-    return NextResponse.json(
-      { warning: stageMotoResult.warning ?? 'Gagal membentuk moto advanced stage.' },
+      { warning: syncResult.warning ?? 'Qualification skipped.' },
       { status: 200 }
     )
   }

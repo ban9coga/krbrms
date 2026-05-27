@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../lib/auth'
 import {
-  computeQualificationAndStore,
-  generateStageMotos,
+  syncAdvancedRaceProgress,
 } from '../../../../../services/advancedRaceAuto'
 import { resolveCategoryConfig } from '../../../../../services/categoryResolver'
 
@@ -296,15 +295,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     savedRules = data ?? []
   }
 
-  const qualificationResult = await computeQualificationAndStore(eventId, categoryId)
-  let warning = qualificationResult.ok ? null : qualificationResult.warning ?? null
-
-  if (qualificationResult.ok && qualificationResult.warning !== 'Qualification not required for single batch.') {
-    const stageMotoResult = await generateStageMotos(eventId, categoryId)
-    if (!stageMotoResult.ok) {
-      warning = stageMotoResult.warning ?? warning
-    }
-  }
+  const syncResult = await syncAdvancedRaceProgress(eventId, categoryId)
+  const warning = syncResult.ok ? null : syncResult.warning ?? null
 
   return NextResponse.json({
     data: savedRules,
