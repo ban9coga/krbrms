@@ -776,48 +776,6 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     }
   }
 
-  const runQualification = async (categoryId: string) => {
-    if (!eventId) return
-    setAdvancedSaving(true)
-    try {
-      const res = await apiFetch(`/api/events/${eventId}/advanced-race/compute`, {
-        method: 'POST',
-        body: JSON.stringify({ category_id: categoryId }),
-      })
-      if (res?.warning) {
-        alert(res.warning)
-      } else {
-        alert('Qualification berhasil dihitung.')
-      }
-      await loadStagePreview(categoryId)
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Gagal menghitung qualification.')
-    } finally {
-      setAdvancedSaving(false)
-    }
-  }
-
-  const runAdvances = async (categoryId: string) => {
-    if (!eventId) return
-    setAdvancedSaving(true)
-    try {
-      const res = await apiFetch(`/api/events/${eventId}/advanced-race/advance`, {
-        method: 'POST',
-        body: JSON.stringify({ category_id: categoryId }),
-      })
-      if (res?.warning) {
-        alert(res.warning)
-      } else {
-        alert('Advance stages berhasil dihitung.')
-      }
-      await loadStagePreview(categoryId)
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Gagal menghitung advance stages.')
-    } finally {
-      setAdvancedSaving(false)
-    }
-  }
-
   const loadStagePreview = async (categoryId: string) => {
     if (!eventId) return
     setPreviewLoading((prev) => ({ ...prev, [categoryId]: true }))
@@ -2339,7 +2297,6 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
               const requiresQualification = readiness?.requiresQualification ?? false
               const qualificationReady = readiness?.qualificationReady ?? false
               const qualificationRun = readiness?.qualificationRun ?? false
-              const canRunQualification = advancedEnabled && (readiness?.canRunQualification ?? false)
               const canComputeAdvances = advancedEnabled && (readiness?.canComputeAdvances ?? false)
               const qualificationNotice = !advancedEnabled
                 ? 'Aktifkan Advanced Stage dulu.'
@@ -2403,38 +2360,6 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                   </label>
                   <button
                     type="button"
-                    onClick={() => runQualification(item.category.id)}
-                    disabled={advancedSaving || !canRunQualification}
-                    title={qualificationNotice}
-                    style={{
-                      padding: '8px 12px',
-                      borderRadius: 10,
-                      border: '2px solid #111',
-                      background: canRunQualification ? '#bfead2' : '#eee',
-                      fontWeight: 900,
-                      cursor: canRunQualification ? 'pointer' : 'not-allowed',
-                    }}
-                  >
-                    Run Qualification
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => runAdvances(item.category.id)}
-                    disabled={advancedSaving || !canComputeAdvances}
-                    title={computeNotice}
-                    style={{
-                      padding: '8px 12px',
-                      borderRadius: 10,
-                      border: '2px solid #111',
-                      background: canComputeAdvances ? '#d7ecff' : '#eee',
-                      fontWeight: 900,
-                      cursor: canComputeAdvances ? 'pointer' : 'not-allowed',
-                    }}
-                  >
-                    Compute QF/SF/Final
-                  </button>
-                  <button
-                    type="button"
                     onClick={() => togglePreview(item.category.id)}
                     disabled={advancedSaving}
                     style={{
@@ -2450,6 +2375,18 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                   </button>
                 </div>
                 <div style={{ display: 'grid', gap: 6 }}>
+                  <div
+                    style={{
+                      padding: '10px 12px',
+                      borderRadius: 12,
+                      border: '1px solid #cbd5e1',
+                      background: '#eef6ff',
+                      fontWeight: 800,
+                      color: '#1d4ed8',
+                    }}
+                  >
+                    Aksi compute kategori sekarang dipindah ke halaman Motos agar operator bisa lanjut langsung dari hasil moto ke stage berikutnya.
+                  </div>
                   <div
                     style={{
                       padding: '10px 12px',

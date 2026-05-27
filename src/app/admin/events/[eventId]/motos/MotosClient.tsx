@@ -14,6 +14,31 @@ type CategoryItem = {
   enabled: boolean
 }
 
+type AdvancedConfigItem = {
+  category_id: string
+  enabled: boolean
+}
+
+type AdvancedSummaryItem = {
+  stageCounts: Record<string, number>
+  motoCounts: { quarter: number; repechage: number; semi: number; final: number }
+  readiness: {
+    totalRiders: number
+    requiresQualification: boolean
+    qualificationTotalBatches: number
+    qualificationCompleteBatches: number
+    qualificationReady: boolean
+    qualificationRun: boolean
+    quarterReady: boolean
+    repechageReady: boolean
+    semiReady: boolean
+    canRunQualification: boolean
+    canComputeAdvances: boolean
+    allQualificationLocked: boolean
+    allCategoryMotosLocked: boolean
+  }
+}
+
 type MotoItem = {
   id: string
   category_id: string
@@ -78,6 +103,9 @@ export default function MotosClient({ eventId }: { eventId: string }) {
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
   const [eventStatus, setEventStatus] = useState<'UPCOMING' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED' | null>(null)
   const [eventName, setEventName] = useState('Event')
+  const [advancedEnabledByCategory, setAdvancedEnabledByCategory] = useState<Record<string, boolean>>({})
+  const [advancedSummaryByCategory, setAdvancedSummaryByCategory] = useState<Record<string, AdvancedSummaryItem>>({})
+  const [computingCategoryId, setComputingCategoryId] = useState<string | null>(null)
 
   const getErrorMessage = (err: unknown) => (err instanceof Error ? err.message : 'Request failed')
 
@@ -126,6 +154,17 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       const eventJson = await apiFetch(`/api/events/${eventId}`)
       setEventStatus(eventJson?.data?.status ?? null)
       setEventName(eventJson?.data?.name ?? 'Event')
+
+      const [advancedJson, advancedSummaryJson] = await Promise.all([
+        apiFetch(`/api/events/${eventId}/advanced-race`),
+        apiFetch(`/api/events/${eventId}/advanced-race/summary`),
+      ])
+      const enabledMap: Record<string, boolean> = {}
+      for (const row of (advancedJson?.data?.configs ?? []) as AdvancedConfigItem[]) {
+        enabledMap[row.category_id] = Boolean(row.enabled)
+      }
+      setAdvancedEnabledByCategory(enabledMap)
+      setAdvancedSummaryByCategory((advancedSummaryJson?.data ?? {}) as Record<string, AdvancedSummaryItem>)
 
       const motoRes = await fetch(`/api/motos?event_id=${eventId}&_=${nonce}`, { cache: 'no-store' })
       const motoJson = await motoRes.json()
@@ -390,6 +429,149 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     )
   }
 
+  const getComputeAction = (categoryId: string) => {
+    const summary = advancedSummaryByCategory[categoryId]
+    const readiness = summary?.readiness
+    const advancedEnabled = advancedEnabledByCategory[categoryId] ?? false
+
+    if (!advancedEnabled) {
+      return {
+        visible: false,
+        label: '',
+        description: 'Advanced Stage belum aktif untuk kategori ini.',
+        endpoint: null as null | 'compute' | 'advance',
+        disabled: true,
+      }
+    }
+
+    if (!readiness) {
+      return {
+        visible: true,
+        label: 'Memuat Status Compute...',
+        description: 'Mengambil readiness kategori ini.',
+        endpoint: null as null | 'compute' | 'advance',
+        disabled: true,
+      }
+    }
+
+    if (!readiness.requiresQualification) {
+      return {
+        visible: true,
+        label: '1 Batch - Tanpa Compute',
+        description: `Kategori ini ${readiness.totalRiders} rider / 1 batch, jadi stage compute tidak diperlukan.`,
+        endpoint: null as null | 'compute' | 'advance',
+        disabled: true,
+      }
+    }
+
+    if (!readiness.qualificationRun) {
+      return {
+        visible: true,
+        label: 'Run Qualification',
+        description: readiness.qualificationReady
+          ? 'Hitung hasil qualification dan bentuk stage awal kategori ini.'
+          : `Lengkapi Moto 1 dan Moto 2 semua batch dulu (${readiness.qualificationCompleteBatches}/${readiness.qualificationTotalBatches} batch complete).`,
+        endpoint: 'compute' as const,
+        disabled: !readiness.canRunQualification,
+      }
+    }
+
+    if (summary?.motoCounts?.repechage > 0 && !readiness.repechageReady) {
+      return {
+        visible: true,
+        label: 'Tunggu Repechage Selesai',
+        description: 'Selesaikan semua heat repechage dulu, lalu compute lagi untuk lanjut ke stage berikutnya.',
+        endpoint: null as null | 'compute' | 'advance',
+        disabled: true,
+      }
+    }
+
+    if (summary?.motoCounts?.quarter > 0 && !readiness.quarterReady) {
+      return {
+        visible: true,
+        label: 'Tunggu Quarter Final Selesai',
+        description: 'Semua heat Quarter Final harus selesai dulu sebelum final bisa dibentuk.',
+        endpoint: null as null | 'compute' | 'advance',
+        disabled: true,
+      }
+    }
+
+    if (summary?.motoCounts?.semi > 0 && !readiness.semiReady) {
+      return {
+        visible: true,
+        label: 'Tunggu Semi Final Selesai',
+        description: 'Selesaikan Semi Final dulu sebelum compute final.',
+        endpoint: null as null | 'compute' | 'advance',
+        disabled: true,
+      }
+    }
+
+    if (readiness.canComputeAdvances) {
+      if ((summary?.motoCounts?.repechage ?? 0) > 0 && readiness.repechageReady && !readiness.quarterReady) {
+        return {
+          visible: true,
+          label: 'Compute Repechage -> Quarter Final',
+          description: 'Masukkan winner repechage ke Quarter Final dan sinkronkan stage berikutnya.',
+          endpoint: 'advance' as const,
+          disabled: false,
+        }
+      }
+      if ((summary?.motoCounts?.quarter ?? 0) > 0 && readiness.quarterReady) {
+        return {
+          visible: true,
+          label: 'Compute Quarter Final -> Final',
+          description: 'Bentuk final classes dari hasil Quarter Final kategori ini.',
+          endpoint: 'advance' as const,
+          disabled: false,
+        }
+      }
+      if ((summary?.motoCounts?.semi ?? 0) > 0 && readiness.semiReady) {
+        return {
+          visible: true,
+          label: 'Compute Semi Final -> Final',
+          description: 'Bentuk final dari hasil Semi Final kategori ini.',
+          endpoint: 'advance' as const,
+          disabled: false,
+        }
+      }
+      return {
+        visible: true,
+        label: 'Compute Stage Berikutnya',
+        description: 'Sinkronkan progression stage kategori ini berdasarkan hasil terbaru.',
+        endpoint: 'advance' as const,
+        disabled: false,
+      }
+    }
+
+    return {
+      visible: true,
+      label: 'Belum Siap Compute',
+      description: 'Belum ada source stage yang lengkap untuk dihitung lanjut.',
+      endpoint: null as null | 'compute' | 'advance',
+      disabled: true,
+    }
+  }
+
+  const handleComputeCategory = async (categoryId: string, endpoint: 'compute' | 'advance') => {
+    try {
+      setComputingCategoryId(categoryId)
+      const res = await apiFetch(`/api/events/${eventId}/advanced-race/${endpoint}`, {
+        method: 'POST',
+        body: JSON.stringify({ category_id: categoryId }),
+      })
+      if (res?.warning) {
+        alert(res.warning)
+      } else {
+        alert(endpoint === 'compute' ? 'Qualification berhasil dihitung.' : 'Stage berikutnya berhasil dihitung.')
+      }
+      await load('refresh')
+    } catch (err: unknown) {
+      alert(getErrorMessage(err))
+    } finally {
+      setComputingCategoryId(null)
+    }
+  }
+
   const handlePrintMotoRiders = () => {
     if (printGroups.length === 0) {
       alert('Belum ada data rider per moto yang bisa dicetak.')
@@ -609,6 +791,8 @@ export default function MotosClient({ eventId }: { eventId: string }) {
           const list = motosByCategory.get(cat.id) ?? []
           if (list.length === 0) return null
           const isHidden = hiddenCategoryIds.includes(cat.id)
+          const computeAction = getComputeAction(cat.id)
+          const summary = advancedSummaryByCategory[cat.id]
           return (
           <div
             key={cat.id}
@@ -666,6 +850,51 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                 </button>
               </div>
             </div>
+            {computeAction.visible && (
+              <div
+                className="no-print"
+                style={{
+                  padding: 12,
+                  borderRadius: 14,
+                  border: '2px solid #111',
+                  background: '#f8fafc',
+                  display: 'grid',
+                  gap: 10,
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'grid', gap: 4 }}>
+                    <div style={{ fontWeight: 900, fontSize: 13 }}>Aksi Stage Kategori</div>
+                    <div style={{ fontSize: 12, color: '#334155', fontWeight: 700 }}>{computeAction.description}</div>
+                    {summary && (
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 11, fontWeight: 800, color: '#475569' }}>
+                        <span>Q: {summary.stageCounts?.QUALIFICATION ?? 0}</span>
+                        <span>QF: {summary.stageCounts?.QUARTER_FINAL ?? 0}</span>
+                        <span>REP: {summary.stageCounts?.REPECHAGE ?? 0}</span>
+                        <span>SF: {summary.stageCounts?.SEMI_FINAL ?? 0}</span>
+                        <span>F: {summary.stageCounts?.FINAL ?? 0}</span>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => computeAction.endpoint && handleComputeCategory(cat.id, computeAction.endpoint)}
+                    disabled={computeAction.disabled || computingCategoryId === cat.id}
+                    style={{
+                      padding: '10px 14px',
+                      borderRadius: 12,
+                      border: '2px solid #111',
+                      background: computeAction.disabled ? '#e5e7eb' : '#dbeafe',
+                      fontWeight: 900,
+                      cursor: computeAction.disabled || computingCategoryId === cat.id ? 'not-allowed' : 'pointer',
+                      minWidth: 220,
+                    }}
+                  >
+                    {computingCategoryId === cat.id ? 'Memproses...' : computeAction.label}
+                  </button>
+                </div>
+              </div>
+            )}
             {isHidden ? null : (
               <div style={{ display: 'grid', gap: 8 }}>
                 {list.map((m) => (
