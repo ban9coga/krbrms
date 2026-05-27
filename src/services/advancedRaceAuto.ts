@@ -850,8 +850,19 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
   }
 
   if (readiness.qualificationReady && quarterRiders.length > 0 && !shouldDeferQuarterUntilRepechage) {
-    const existingQuarterMotos = await loadStageMotos(eventId, categoryId, 'Quarter Final')
-    const existingQuarterIds = existingQuarterMotos.map((m) => m.id)
+    let existingQuarterMotos = await loadStageMotos(eventId, categoryId, 'Quarter Final')
+    let existingQuarterIds = existingQuarterMotos.map((m) => m.id)
+    const quarterHasResults = existingQuarterMotos.some((moto) => hasMotoResults(moto.id, categoryResultRows))
+
+    if (existingQuarterIds.length > 0 && !quarterHasResults) {
+      await adminClient.from('moto_gate_positions').delete().in('moto_id', existingQuarterIds)
+      await adminClient.from('moto_riders').delete().in('moto_id', existingQuarterIds)
+      await adminClient.from('results').delete().in('moto_id', existingQuarterIds)
+      await adminClient.from('motos').delete().in('id', existingQuarterIds)
+      existingQuarterMotos = []
+      existingQuarterIds = []
+    }
+
     const assignedQuarter = new Set<string>()
     if (existingQuarterIds.length > 0) {
       const { data: assignedRows } = await adminClient
@@ -863,7 +874,9 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
       }
     }
 
-    const pendingQuarter = quarterRiders.filter((id) => !assignedQuarter.has(id))
+    const pendingQuarter = existingQuarterIds.length === 0
+      ? quarterRiders
+      : quarterRiders.filter((id) => !assignedQuarter.has(id))
     if (pendingQuarter.length > 0) {
       const groups = distributeSeededHeats(pendingQuarter, maxRiders)
       const startIndex = existingQuarterMotos.length
