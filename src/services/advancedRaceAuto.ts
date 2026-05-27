@@ -741,9 +741,9 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
       acc[moto.id] = batchKey.batchIndex
       return acc
     }
-    const heatMatch = moto.moto_name.match(/heat\s*(\d+)/i)
-    if (heatMatch) {
-      acc[moto.id] = Number(heatMatch[1])
+    const stageBatchMatch = moto.moto_name.match(/(?:heat|batch)\s*(\d+)/i)
+    if (stageBatchMatch) {
+      acc[moto.id] = Number(stageBatchMatch[1])
     }
     return acc
   }, {})
