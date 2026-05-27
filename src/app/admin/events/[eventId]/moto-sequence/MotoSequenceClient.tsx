@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { compareMotoSequence } from '../../../../../lib/motoSequence'
+import { compareMotoDisplayOrder } from '../../../../../lib/motoDisplayOrder'
 import { supabase } from '../../../../../lib/supabaseClient'
 
 type CategoryItem = {
@@ -76,7 +76,7 @@ const compareLockedLast = (a: MotoItem, b: MotoItem) => {
   const aLocked = a.status === 'LOCKED'
   const bLocked = b.status === 'LOCKED'
   if (aLocked !== bLocked) return aLocked ? 1 : -1
-  return compareMotoSequence(a, b)
+  return compareMotoDisplayOrder(a, b)
 }
 
 function DirectionIcon({ direction }: { direction: 'up' | 'down' }) {
@@ -137,7 +137,7 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
 
       const nextMap: Record<string, GateMotoItem[]> = {}
       for (const [categoryId, rows] of entries) {
-        nextMap[categoryId] = [...rows].sort(compareMotoSequence)
+        nextMap[categoryId] = [...rows].sort(compareMotoDisplayOrder)
       }
       setGateOrdersByCategory(nextMap)
     },
