@@ -35,6 +35,7 @@ type NextMotoRiderRow = {
   plate: string
   club?: string | null
   gate_position?: number | null
+  status: 'READY' | 'ABSENT' | 'DNS' | 'PENDING'
 }
 
 type NextMotoInfo = {
@@ -79,6 +80,13 @@ const resultStatusBadge = (status: RankingRow['status']) => {
   return 'border-emerald-300 bg-emerald-50 text-emerald-700'
 }
 
+const nextMotoStatusBadge = (status: NextMotoRiderRow['status']) => {
+  if (status === 'READY') return 'border-emerald-300 bg-emerald-50 text-emerald-700'
+  if (status === 'ABSENT') return 'border-rose-300 bg-rose-50 text-rose-700'
+  if (status === 'DNS') return 'border-amber-300 bg-amber-50 text-amber-700'
+  return 'border-slate-300 bg-slate-100 text-slate-700'
+}
+
 const riderDisplayName = (row: RankingRow) => row.rider_nickname?.trim() || row.rider_name
 const nextMotoRiderDisplayName = (row: NextMotoRiderRow) => row.rider_nickname?.trim() || row.rider_name
 const isResultReady = (motoStatus?: MotoInfo['status']) => motoStatus === 'PROVISIONAL' || motoStatus === 'LOCKED' || motoStatus === 'FINISHED'
@@ -91,6 +99,8 @@ const mcStatusLabel = (status: RankingRow['status']) =>
       : status === 'FINISH'
         ? 'Finish'
         : status
+const nextMotoStatusLabel = (status: NextMotoRiderRow['status']) =>
+  status === 'PENDING' ? 'Belum Dicek' : status === 'READY' ? 'Ready' : status === 'ABSENT' ? 'Absent' : status
 const mcCueText = (moto?: MotoInfo | null, nextMoto?: NextMotoInfo | null) => {
   if (!moto) return 'Menunggu data moto dari sistem.'
   if (moto.status === 'LIVE') return 'Pandu suasana dan siapkan rider berikutnya ke area tunggu.'
@@ -409,6 +419,22 @@ export default function McLivePage() {
               Rider Prep
             </div>
           </div>
+          {nextMotoRiders.length > 0 && (
+            <div className="mb-3 flex flex-wrap gap-2">
+              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-extrabold uppercase tracking-[0.12em] text-slate-700">
+                Total {nextMotoRiders.length}
+              </span>
+              <span className="rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-extrabold uppercase tracking-[0.12em] text-emerald-700">
+                Ready {nextMotoRiders.filter((row) => row.status === 'READY').length}
+              </span>
+              <span className="rounded-full border border-slate-300 bg-slate-100 px-3 py-1 text-xs font-extrabold uppercase tracking-[0.12em] text-slate-700">
+                Belum Dicek {nextMotoRiders.filter((row) => row.status === 'PENDING').length}
+              </span>
+              <span className="rounded-full border border-rose-300 bg-rose-50 px-3 py-1 text-xs font-extrabold uppercase tracking-[0.12em] text-rose-700">
+                Absent {nextMotoRiders.filter((row) => row.status === 'ABSENT').length}
+              </span>
+            </div>
+          )}
           <div className="grid gap-2">
             {nextMotoRiders.length === 0 && (
               <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm font-semibold text-slate-600">
@@ -425,8 +451,12 @@ export default function McLivePage() {
                     <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Call To Gate</div>
                     <div className="mt-1 text-xl font-black text-slate-900">Gate {row.gate_position ?? '-'} | {row.plate}</div>
                   </div>
-                  <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.12em] text-slate-700">
-                    Call Rider
+                  <span
+                    className={`inline-flex rounded-full border px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.12em] ${nextMotoStatusBadge(
+                      row.status
+                    )}`}
+                  >
+                    {nextMotoStatusLabel(row.status)}
                   </span>
                 </div>
                 <div className="mt-3">

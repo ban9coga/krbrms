@@ -871,11 +871,11 @@ export default function JCPage() {
           style={{
             display: 'grid',
             gap: 12,
-            padding: 16,
-            borderRadius: 18,
-            border: '2px solid #7f1d1d',
-            background: '#fff1f2',
-            boxShadow: '0 6px 0 #7f1d1d',
+            padding: 18,
+            borderRadius: 20,
+            border: '3px solid #7f1d1d',
+            background: 'linear-gradient(180deg, #fff1f2 0%, #ffe4e6 100%)',
+            boxShadow: '0 10px 0 #7f1d1d',
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -890,12 +890,12 @@ export default function JCPage() {
                 padding: '6px 12px',
                 borderRadius: 999,
                 border: '2px solid #7f1d1d',
-                background: incidentMoto ? '#fecdd3' : '#ffe4e6',
-                color: '#881337',
+                background: incidentMoto ? '#be123c' : '#ffe4e6',
+                color: incidentMoto ? '#fff' : '#881337',
                 fontWeight: 900,
               }}
             >
-              {incidentMoto ? 'DNS / UNDO DNS' : 'WAITING LIVE'}
+              {incidentMoto ? 'URGENT LIVE' : 'WAITING LIVE'}
             </div>
           </div>
           <div style={{ fontSize: 12, color: '#881337', fontWeight: 700 }}>
@@ -1035,6 +1035,17 @@ export default function JCPage() {
           )}
         </div>
 
+        <div
+          style={{
+            display: 'grid',
+            gap: 12,
+            padding: 16,
+            borderRadius: 18,
+            border: '2px solid #166534',
+            background: 'linear-gradient(180deg, #f0fdf4 0%, #ffffff 100%)',
+            boxShadow: '0 5px 0 #166534',
+          }}
+        >
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           <div
             style={{
@@ -1402,6 +1413,7 @@ export default function JCPage() {
               </div>
             )
           })}
+        </div>
         </div>
       </div>
       <style jsx>{`

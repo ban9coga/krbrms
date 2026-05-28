@@ -41,6 +41,7 @@ type NextMotoRiderRow = {
   plate: string
   club?: string | null
   gate_position?: number | null
+  status: 'READY' | 'ABSENT' | 'DNS' | 'PENDING'
 }
 
 type StageSeedRow = {
@@ -426,9 +427,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
 
   let nextMotoRiders: NextMotoRiderRow[] = []
   if (nextMoto) {
-    const [{ data: nextMotoAssignments }, { data: nextMotoGates }] = await Promise.all([
+    const [{ data: nextMotoAssignments }, { data: nextMotoGates }, { data: nextMotoParticipationRows }] = await Promise.all([
       adminClient.from('moto_riders').select('rider_id').eq('moto_id', nextMoto.id),
       adminClient.from('moto_gate_positions').select('rider_id, gate_position').eq('moto_id', nextMoto.id),
+      adminClient
+        .from('rider_participation_status')
+        .select('rider_id, participation_status')
+        .eq('event_id', eventId)
+        .eq('moto_id', nextMoto.id),
     ])
     const nextRiderIds = Array.from(new Set((nextMotoAssignments ?? []).map((row) => row.rider_id)))
     if (nextRiderIds.length > 0) {
@@ -442,9 +448,21 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         .select('id, name, rider_nickname, no_plate_display, club')
         .in('id', nextRiderIds)
       const nextRiderMap = new Map((nextRiders ?? []).map((row: RiderRow) => [row.id, row]))
+      const nextParticipationMap = new Map(
+        (nextMotoParticipationRows ?? []).map((row) => [row.rider_id, row.participation_status as string | null])
+      )
       nextMotoRiders = nextRiderIds
         .map((riderId) => {
           const rider = nextRiderMap.get(riderId)
+          const participationStatus = nextParticipationMap.get(riderId)
+          const status =
+            participationStatus === 'ACTIVE'
+              ? 'READY'
+              : participationStatus === 'ABSENT'
+                ? 'ABSENT'
+                : participationStatus === 'DNS'
+                  ? 'DNS'
+                  : 'PENDING'
           return {
             rider_id: riderId,
             rider_name: rider?.name ?? '-',
@@ -452,6 +470,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
             plate: rider?.no_plate_display ?? '-',
             club: rider?.club ?? null,
             gate_position: nextGateMap.get(riderId) ?? null,
+            status: status as NextMotoRiderRow['status'],
           }
         })
         .sort((a, b) => {
