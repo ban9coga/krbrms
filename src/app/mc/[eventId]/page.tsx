@@ -275,7 +275,7 @@ export default function McLivePage() {
                   <table className="public-table" style={{ minWidth: highVisibility ? 1100 : 900 }}>
                     <thead>
                       <tr>
-                        {['Rank', 'Gate', 'Plate', 'Rider', 'Komunitas', 'Point', 'Penalty', 'Total', 'Status'].map((label) => (
+                        {['Gate', 'Plate', 'Rider', 'Komunitas', 'Point', 'Penalty', 'Total', 'Rank', 'Status'].map((label) => (
                           <th key={label}>{label}</th>
                         ))}
                       </tr>
@@ -283,7 +283,6 @@ export default function McLivePage() {
                     <tbody>
                       {ranking.map((row, idx) => (
                         <tr key={row.rider_id}>
-                          <td className={`${highVisibility ? 'text-2xl md:text-3xl' : 'text-lg md:text-2xl'} font-black text-slate-900`}>{idx + 1}</td>
                           <td className={`${highVisibility ? 'text-lg md:text-2xl' : 'text-base md:text-xl'} font-extrabold text-slate-700`}>
                             {row.gate_position ?? '-'}
                           </td>
@@ -300,6 +299,7 @@ export default function McLivePage() {
                           <td className={`${highVisibility ? 'text-2xl md:text-4xl' : 'text-xl md:text-3xl'} font-black text-sky-700`}>{row.base_point ?? '-'}</td>
                           <td className={`${highVisibility ? 'text-2xl md:text-4xl' : 'text-xl md:text-3xl'} font-black text-amber-600`}>{row.penalty_total ?? '-'}</td>
                           <td className={`${highVisibility ? 'text-2xl md:text-4xl' : 'text-xl md:text-3xl'} font-black text-sky-700`}>{row.total_point ?? '-'}</td>
+                          <td className={`${highVisibility ? 'text-2xl md:text-3xl' : 'text-lg md:text-2xl'} font-black text-slate-900`}>{idx + 1}</td>
                           <td>
                             {row.status !== 'FINISH' ? (
                               <span
