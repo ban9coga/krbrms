@@ -81,6 +81,7 @@ const resultStatusBadge = (status: RankingRow['status']) => {
 const riderDisplayName = (row: RankingRow) => row.rider_nickname?.trim() || row.rider_name
 const nextMotoRiderDisplayName = (row: NextMotoRiderRow) => row.rider_nickname?.trim() || row.rider_name
 const isResultReady = (motoStatus?: MotoInfo['status']) => motoStatus === 'PROVISIONAL' || motoStatus === 'LOCKED' || motoStatus === 'FINISHED'
+const mcStatusLabel = (status: RankingRow['status']) => (status === 'PENDING' ? 'Starter' : status === 'FINISH' ? 'Finish' : status)
 const mcCueText = (moto?: MotoInfo | null, nextMoto?: NextMotoInfo | null) => {
   if (!moto) return 'Menunggu data moto dari sistem.'
   if (moto.status === 'LIVE') return 'Pandu suasana dan siapkan rider berikutnya ke area tunggu.'
@@ -227,8 +228,8 @@ export default function McLivePage() {
           {!loading && ranking.length > 0 && (
             <div className="grid gap-4">
               <div className="grid gap-2">
-                <div className="table-mobile-hint">Geser kiri/kanan untuk lihat semua kolom.</div>
-                <div className="public-table-wrap">
+                <div className="table-mobile-hint hidden md:block">Geser kiri/kanan untuk lihat semua kolom.</div>
+                <div className="public-table-wrap hidden md:block">
                   <table className="public-table" style={{ minWidth: highVisibility ? 1100 : 900 }}>
                     <thead>
                       <tr>
@@ -276,6 +277,57 @@ export default function McLivePage() {
                       ))}
                     </tbody>
                   </table>
+                </div>
+                <div className="grid gap-3 md:hidden">
+                  {ranking.map((row, idx) => (
+                    <article
+                      key={`mc-current-mobile-${row.rider_id}`}
+                      className={`rounded-[22px] border px-4 py-4 shadow-sm ${
+                        row.status === 'FINISH'
+                          ? 'border-emerald-200 bg-white'
+                          : row.status === 'PENDING'
+                            ? 'border-slate-200 bg-white'
+                            : 'border-amber-200 bg-amber-50/60'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Rank {idx + 1}</div>
+                          <div className="mt-1 text-xl font-black text-slate-900">
+                            Gate {row.gate_position ?? '-'} | {row.plate}
+                          </div>
+                        </div>
+                        <span
+                          className={`inline-flex rounded-full border px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.12em] ${resultStatusBadge(
+                            row.status
+                          )}`}
+                        >
+                          {mcStatusLabel(row.status)}
+                        </span>
+                      </div>
+                      <div className="mt-3">
+                        <div className="text-2xl font-black leading-tight text-slate-900">{riderDisplayName(row)}</div>
+                        {row.rider_nickname?.trim() ? (
+                          <div className="mt-1 text-xs font-black uppercase tracking-[0.12em] text-slate-500">{row.rider_name}</div>
+                        ) : null}
+                        <div className="mt-1 text-sm font-bold text-slate-600">{row.club || '-'}</div>
+                      </div>
+                      <div className="mt-4 grid grid-cols-3 gap-2">
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                          <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Point</div>
+                          <div className="mt-1 text-lg font-black text-sky-700">{row.base_point ?? '-'}</div>
+                        </div>
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                          <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Penalty</div>
+                          <div className="mt-1 text-lg font-black text-amber-600">{row.penalty_total ?? '-'}</div>
+                        </div>
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                          <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Total</div>
+                          <div className="mt-1 text-lg font-black text-slate-900">{row.total_point ?? '-'}</div>
+                        </div>
+                      </div>
+                    </article>
+                  ))}
                 </div>
               </div>
             </div>
@@ -346,25 +398,35 @@ export default function McLivePage() {
                 </div>
               )}
               {nextMotoRiders.map((row) => (
-                  <div
-                      key={`next-${row.rider_id}`}
-                      className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3"
-                    >
-                      <div className="min-w-0">
-                        <div className="text-sm font-extrabold uppercase tracking-[0.12em] text-slate-500">Gate {row.gate_position ?? '-'}</div>
-                        <div className={`truncate ${highVisibility ? 'text-lg md:text-2xl' : 'text-base md:text-xl'} font-black text-slate-900`}>
-                          {row.plate} - {nextMotoRiderDisplayName(row)}
-                        </div>
-                        {row.rider_nickname?.trim() ? (
-                          <div
-                            className={`truncate ${highVisibility ? 'text-sm md:text-lg' : 'text-xs md:text-sm'} font-extrabold uppercase tracking-[0.08em] text-slate-700`}
-                          >
-                            {row.rider_name}
-                          </div>
-                        ) : null}
-                        <div className={`truncate ${highVisibility ? 'text-base md:text-lg' : 'text-sm md:text-base'} font-bold text-slate-500`}>{row.club || '-'}</div>
-                      </div>
+                <div
+                  key={`next-${row.rider_id}`}
+                  className="rounded-[22px] border border-slate-200 bg-white px-4 py-4 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Call To Gate</div>
+                      <div className="mt-1 text-xl font-black text-slate-900">Gate {row.gate_position ?? '-'} | {row.plate}</div>
                     </div>
+                    <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.12em] text-slate-700">
+                      Starter
+                    </span>
+                  </div>
+                  <div className="mt-3">
+                    <div className={`truncate ${highVisibility ? 'text-lg md:text-2xl' : 'text-lg'} font-black leading-tight text-slate-900`}>
+                      {nextMotoRiderDisplayName(row)}
+                    </div>
+                    {row.rider_nickname?.trim() ? (
+                      <div
+                        className={`truncate ${highVisibility ? 'text-sm md:text-lg' : 'text-xs md:text-sm'} mt-1 font-extrabold uppercase tracking-[0.08em] text-slate-700`}
+                      >
+                        {row.rider_name}
+                      </div>
+                    ) : null}
+                    <div className={`truncate ${highVisibility ? 'text-base md:text-lg' : 'text-sm md:text-base'} mt-1 font-bold text-slate-500`}>
+                      {row.club || '-'}
+                    </div>
+                  </div>
+                </div>
               ))}
             </div>
           </article>
