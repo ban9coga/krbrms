@@ -181,7 +181,7 @@ export default function McLivePage() {
           </div>
         </section>
 
-        <section className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+        <section className="grid gap-4">
           <article className="public-panel-light">
             <div className="mb-4 flex items-start justify-between gap-3">
               <div className="grid gap-1">
