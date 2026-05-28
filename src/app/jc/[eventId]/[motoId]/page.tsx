@@ -62,6 +62,21 @@ const pickPrepMotoId = (list: MotoItem[], currentId: string, liveMotoId?: string
   return selectableUpcoming[0]?.id ?? ''
 }
 
+const pickFollowingPrepMotoId = (list: MotoItem[], currentId: string) => {
+  const selectableUpcoming = list.filter((m) => !isLockedStatus(m.status) && isMotoUpcoming(m.status))
+  if (!currentId) return selectableUpcoming[0]?.id ?? ''
+
+  const currentIndex = list.findIndex((m) => m.id === currentId)
+  if (currentIndex >= 0) {
+    const nextAfterCurrent = list
+      .slice(currentIndex + 1)
+      .find((m) => !isLockedStatus(m.status) && isMotoUpcoming(m.status))
+    if (nextAfterCurrent) return nextAfterCurrent.id
+  }
+
+  return selectableUpcoming.find((m) => m.id !== currentId)?.id ?? ''
+}
+
 type SafetyRequirement = {
   id: string
   label: string
@@ -419,6 +434,8 @@ export default function JCPage() {
   const selectedMotoUpcoming = isMotoUpcoming(selectedMoto?.status)
   const selectedMotoPinnedLive = !!selectedMoto && isMotoLive(selectedMoto.status)
   const selectedMotoPreppable = !!selectedMoto && !isLockedStatus(selectedMoto.status) && (selectedMotoUpcoming || selectedMotoPinnedLive)
+  const nextPrepMotoId = useMemo(() => pickFollowingPrepMotoId(motos, selectedMotoId), [motos, selectedMotoId])
+  const nextPrepMoto = useMemo(() => motos.find((m) => m.id === nextPrepMotoId) ?? null, [motos, nextPrepMotoId])
   const incidentCategoryLabel = incidentMoto
     ? categoryLabel.get(incidentMoto.category_id ?? '') ?? 'Unknown Category'
     : 'Kategori'
@@ -675,12 +692,26 @@ export default function JCPage() {
     alert(`Riders Ready dikonfirmasi untuk ${selectedCategoryLabel} | ${selectedMoto?.moto_name ?? 'Moto'}`)
   }
 
+  const handleAdvancePrepMoto = () => {
+    setErrorMessage(null)
+    if (!nextPrepMotoId) {
+      setWarningMessage('Belum ada moto berikutnya untuk dipersiapkan. Panel prep tetap stay di moto ini.')
+      return
+    }
+    setWarningMessage(`Prep dipindah ke ${categoryLabel.get(nextPrepMoto?.category_id ?? '') ?? 'Kategori'} | ${nextPrepMoto?.moto_name ?? 'Moto berikutnya'}.`)
+    setAllReadyDone(false)
+    setQuery('')
+    setSelectedMotoId(nextPrepMotoId)
+    router.replace(`/jc/${eventId}/${nextPrepMotoId}`)
+  }
+
   const bannerDisabled = !selectedMotoPreppable
   const interactionDisabled = saving || bannerDisabled || locked
   const safetyInteractionDisabled = interactionDisabled || allReadyDone
   const readyDisabled = interactionDisabled
   const absentDisabled = interactionDisabled || allReadyDone || !flags.absent_enabled
   const canGateReady = riderList.length > 0 && allPrepReviewed
+  const canAdvancePrepMoto = allReadyDone && !!nextPrepMotoId
   const incidentInteractionDisabled = saving || incidentLocked || !incidentMotoId
   const incidentDnsDisabled = incidentInteractionDisabled || !flags.dns_enabled
 
@@ -1096,6 +1127,25 @@ export default function JCPage() {
               <div style={{ padding: '12px 14px', borderRadius: 12, background: '#dcfce7', fontWeight: 900, textAlign: 'center' }}>
                 Status READY dan ABSENT saat ini dikunci sampai di-reset. Riders Ready tidak mengubah rider Belum Dicek menjadi READY otomatis.
               </div>
+              <button
+                className="jc-action-btn"
+                type="button"
+                onClick={handleAdvancePrepMoto}
+                disabled={saving}
+                style={{
+                  padding: '12px 14px',
+                  borderRadius: 999,
+                  border: '2px solid #1d4ed8',
+                  background: canAdvancePrepMoto ? '#dbeafe' : '#eff6ff',
+                  color: '#1e3a8a',
+                  fontWeight: 900,
+                  opacity: saving ? 0.6 : 1,
+                }}
+              >
+                {nextPrepMoto
+                  ? `Lanjut ke Moto Berikutnya: ${nextPrepMoto.moto_name}`
+                  : 'Belum Ada Moto Berikutnya'}
+              </button>
               <button
                 className="jc-action-btn"
                 type="button"
