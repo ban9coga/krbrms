@@ -25,7 +25,7 @@ type RankingRow = {
   plate: string
   club?: string | null
   gate_position?: number | null
-  status: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'READY' | 'PENDING'
+  status: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'READY' | 'PENDING' | 'ABSENT'
 }
 
 type NextMotoRiderRow = {
@@ -73,6 +73,7 @@ const statusBadge = (moto?: MotoInfo | null) => {
 
 const resultStatusBadge = (status: RankingRow['status']) => {
   if (status === 'READY') return 'border-sky-300 bg-sky-50 text-sky-700'
+  if (status === 'ABSENT') return 'border-rose-300 bg-rose-50 text-rose-700'
   if (status === 'DQ') return 'border-red-400 bg-red-100 text-red-800'
   if (status === 'DNF') return 'border-amber-300 bg-amber-50 text-amber-700'
   if (status === 'DNS') return 'border-rose-300 bg-rose-50 text-rose-700'
@@ -96,6 +97,8 @@ const mcStatusLabel = (status: RankingRow['status']) =>
     ? 'Belum Dicek'
     : status === 'READY'
       ? 'Ready'
+      : status === 'ABSENT'
+        ? 'Absent'
       : status === 'FINISH'
         ? 'Finish'
         : status

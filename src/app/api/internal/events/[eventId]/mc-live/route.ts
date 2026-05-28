@@ -31,7 +31,7 @@ type McRankingRow = {
   plate: string
   club?: string | null
   gate_position?: number | null
-  status: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'READY' | 'PENDING'
+  status: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'READY' | 'PENDING' | 'ABSENT'
 }
 
 type NextMotoRiderRow = {
@@ -382,13 +382,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     const rider = riderMap.get(riderId)
     const participationStatus = participationMap.get(riderId)
     const status = (
-      row?.result_status ??
-      (participationStatus === 'ACTIVE' ? 'READY' : 'PENDING')
-    ) as 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'READY' | 'PENDING'
+      participationStatus === 'ABSENT'
+        ? 'ABSENT'
+        : row?.result_status ??
+          (participationStatus === 'ACTIVE' ? 'READY' : 'PENDING')
+    ) as 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'READY' | 'PENDING' | 'ABSENT'
     const basePoint =
       status === 'DQ'
         ? null
-        : status === 'DNS'
+        : status === 'DNS' || status === 'ABSENT'
           ? ((lastPosition ?? 0) > 0 ? Number(pointOverrideConfig?.dns_point_override ?? (lastPosition as number) + 2) : null)
         : status === 'DNF'
           ? ((lastPosition ?? 0) > 0 ? Number(pointOverrideConfig?.dnf_point_override ?? lastPosition) : null)
@@ -413,8 +415,34 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   })
 
   ranking.sort((a, b) => {
-    const aStatusWeight = a.status === 'FINISH' ? 0 : a.status === 'DNF' ? 1 : a.status === 'DNS' ? 2 : a.status === 'DQ' ? 3 : a.status === 'READY' ? 4 : 4
-    const bStatusWeight = b.status === 'FINISH' ? 0 : b.status === 'DNF' ? 1 : b.status === 'DNS' ? 2 : b.status === 'DQ' ? 3 : b.status === 'READY' ? 4 : 4
+    const aStatusWeight =
+      a.status === 'FINISH'
+        ? 0
+        : a.status === 'DNF'
+          ? 1
+          : a.status === 'READY'
+            ? 2
+            : a.status === 'PENDING'
+              ? 3
+              : a.status === 'ABSENT'
+                ? 4
+                : a.status === 'DNS'
+                  ? 5
+                  : 6
+    const bStatusWeight =
+      b.status === 'FINISH'
+        ? 0
+        : b.status === 'DNF'
+          ? 1
+          : b.status === 'READY'
+            ? 2
+            : b.status === 'PENDING'
+              ? 3
+              : b.status === 'ABSENT'
+                ? 4
+                : b.status === 'DNS'
+                  ? 5
+                  : 6
     if (aStatusWeight !== bStatusWeight) return aStatusWeight - bStatusWeight
     const at = a.total_point ?? 9999
     const bt = b.total_point ?? 9999
