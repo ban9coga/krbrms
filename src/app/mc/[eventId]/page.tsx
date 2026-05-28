@@ -82,6 +82,7 @@ const resultStatusBadge = (status: RankingRow['status']) => {
 const riderDisplayName = (row: RankingRow) => row.rider_nickname?.trim() || row.rider_name
 const nextMotoRiderDisplayName = (row: NextMotoRiderRow) => row.rider_nickname?.trim() || row.rider_name
 const isResultReady = (motoStatus?: MotoInfo['status']) => motoStatus === 'PROVISIONAL' || motoStatus === 'LOCKED' || motoStatus === 'FINISHED'
+const mcRankLabel = (readyToAnnounce: boolean, index: number) => (readyToAnnounce ? String(index + 1) : '-')
 const mcStatusLabel = (status: RankingRow['status']) =>
   status === 'PENDING' ? 'Starter' : status === 'FINISH' ? 'Finish' : status
 const mcCueText = (moto?: MotoInfo | null, nextMoto?: NextMotoInfo | null) => {
@@ -299,7 +300,9 @@ export default function McLivePage() {
                           <td className={`${highVisibility ? 'text-2xl md:text-4xl' : 'text-xl md:text-3xl'} font-black text-sky-700`}>{row.base_point ?? '-'}</td>
                           <td className={`${highVisibility ? 'text-2xl md:text-4xl' : 'text-xl md:text-3xl'} font-black text-amber-600`}>{row.penalty_total ?? '-'}</td>
                           <td className={`${highVisibility ? 'text-2xl md:text-4xl' : 'text-xl md:text-3xl'} font-black text-sky-700`}>{row.total_point ?? '-'}</td>
-                          <td className={`${highVisibility ? 'text-2xl md:text-3xl' : 'text-lg md:text-2xl'} font-black text-slate-900`}>{idx + 1}</td>
+                          <td className={`${highVisibility ? 'text-2xl md:text-3xl' : 'text-lg md:text-2xl'} font-black text-slate-900`}>
+                            {mcRankLabel(readyToAnnounce, idx)}
+                          </td>
                           <td>
                             {row.status !== 'FINISH' ? (
                               <span
@@ -336,7 +339,7 @@ export default function McLivePage() {
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Rank {idx + 1}</div>
+                          <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Current Rider</div>
                           <div className="mt-1 text-xl font-black text-slate-900">
                             Gate {row.gate_position ?? '-'} | {row.plate}
                           </div>
@@ -356,7 +359,7 @@ export default function McLivePage() {
                         ) : null}
                         <div className="mt-1 text-sm font-bold text-slate-600">{row.club || '-'}</div>
                       </div>
-                      <div className="mt-4 grid grid-cols-3 gap-2">
+                      <div className="mt-4 grid grid-cols-4 gap-2">
                         <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
                           <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Point</div>
                           <div className="mt-1 text-lg font-black text-sky-700">{row.base_point ?? '-'}</div>
@@ -368,6 +371,10 @@ export default function McLivePage() {
                         <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
                           <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Total</div>
                           <div className="mt-1 text-lg font-black text-slate-900">{row.total_point ?? '-'}</div>
+                        </div>
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                          <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Rank</div>
+                          <div className="mt-1 text-lg font-black text-slate-900">{mcRankLabel(readyToAnnounce, idx)}</div>
                         </div>
                       </div>
                     </article>
