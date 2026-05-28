@@ -466,12 +466,12 @@ export default function JCPage() {
   }, [incidentRiderList, incidentStatuses])
 
   const summary = useMemo(() => {
-    const s = { total: riderList.length, active: 0, dns: 0, absent: 0 }
+    const s = { total: riderList.length, active: 0, absent: 0, unchecked: 0 }
     for (const r of riderList) {
       const status = statuses[r.id]?.participation_status
-      if (status === 'DNS') s.dns += 1
-      else if (status === 'ABSENT') s.absent += 1
+      if (status === 'ABSENT') s.absent += 1
       else if (status === 'ACTIVE') s.active += 1
+      else s.unchecked += 1
     }
     return s
   }, [riderList, statuses])
@@ -492,15 +492,14 @@ export default function JCPage() {
   const warningCount = useMemo(() => {
     return riderList.filter((r) => statuses[r.id]?.participation_status === 'ACTIVE' && !isSafetyOk(r.id)).length
   }, [riderList, statuses, isSafetyOk])
-
-  useEffect(() => {
-    const isEveryRiderChecked =
+  const allPrepReviewed = useMemo(() => {
+    return (
       riders.length > 0 &&
       riders.every((r) => {
         const status = statuses[r.id]?.participation_status
-        return status === 'ACTIVE' || status === 'DNS' || status === 'ABSENT'
+        return status === 'ACTIVE' || status === 'ABSENT'
       })
-    setAllReadyDone(isEveryRiderChecked)
+    )
   }, [riders, statuses])
 
   const handleSaveStatus = async (riderId: string, status: StatusRow['participation_status'], order: number) => {
@@ -652,58 +651,16 @@ export default function JCPage() {
   const handleAllReady = async () => {
     if (!selectedMotoId) return
     if (!selectedMotoUpcoming || locked) return
-    setSaving(true)
     setWarningMessage(null)
     setErrorMessage(null)
-    const previousStatuses = statuses
-    const ridersToActivate = riderList.filter((r) => {
-      const current = statuses[r.id]?.participation_status
-      return current !== 'ABSENT' && current !== 'DNS'
-    })
-    setStatuses((prev) => {
-      const next = { ...prev }
-      for (const r of ridersToActivate) {
-        next[r.id] = {
-          rider_id: r.id,
-          participation_status: 'ACTIVE',
-          registration_order: r.registration_order,
-        }
-      }
-      return next
-    })
-    setAllReadyDone(true)
-    try {
-      const statusResults = await Promise.allSettled(
-        ridersToActivate.map((r) =>
-          apiFetch(`/api/jury/events/${eventId}/rider-status`, {
-            method: 'POST',
-            body: JSON.stringify({
-              rider_id: r.id,
-              participation_status: 'ACTIVE',
-              registration_order: r.registration_order,
-              moto_id: selectedMotoId,
-            }),
-          })
-        )
-      )
-      const rejectedStatus = statusResults.find((result) => result.status === 'rejected')
-      if (rejectedStatus?.status === 'rejected') {
-        throw rejectedStatus.reason
-      }
-      setWarningMessage('Moto prep masih UPCOMING. READY/ABSENT sudah tersimpan, penalty tetap menunggu moto LIVE.')
-      setLastUpdated(new Date().toLocaleTimeString())
-      alert(`Riders Ready tersimpan untuk ${selectedCategoryLabel} | ${selectedMoto?.moto_name ?? 'Moto'}`)
-      setTimeout(() => {
-        void loadMoto(true, true)
-      }, 350)
-    } catch (err: unknown) {
-      setStatuses(previousStatuses)
-      setAllReadyDone(false)
-      setErrorMessage(err instanceof Error ? err.message : 'Gagal menjalankan Riders Ready.')
-      await loadMoto(true)
-    } finally {
-      setSaving(false)
+    if (!allPrepReviewed) {
+      setErrorMessage('Semua rider next moto harus dicek dulu. Tandai READY atau ABSENT sebelum tekan Riders Ready.')
+      return
     }
+    setAllReadyDone(true)
+    setWarningMessage('Status prep rider saat ini dikunci. MC akan baca READY atau ABSENT sesuai hasil pengecekan checker.')
+    setLastUpdated(new Date().toLocaleTimeString())
+    alert(`Riders Ready dikonfirmasi untuk ${selectedCategoryLabel} | ${selectedMoto?.moto_name ?? 'Moto'}`)
   }
 
   const bannerDisabled = !selectedMotoUpcoming
@@ -711,7 +668,7 @@ export default function JCPage() {
   const safetyInteractionDisabled = interactionDisabled || allReadyDone
   const readyDisabled = interactionDisabled
   const absentDisabled = interactionDisabled || allReadyDone || !flags.absent_enabled
-  const canGateReady = riderList.length > 0
+  const canGateReady = riderList.length > 0 && allPrepReviewed
   const incidentInteractionDisabled = saving || incidentLocked || !incidentMotoId
   const incidentDnsDisabled = incidentInteractionDisabled || !flags.dns_enabled
 
@@ -723,8 +680,8 @@ export default function JCPage() {
           <div className="jc-header-row" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <div style={{ fontSize: highVisibility ? 34 : 28, fontWeight: 900 }}>Checker Gate Start</div>
             <div className="jc-summary-text" style={{ marginLeft: 'auto', fontWeight: 700 }}>
-              Prep: {selectedCategoryLabel} - {selectedMoto?.moto_name ?? 'Belum ada moto prep'} | Ready: {activeCount}/{summary.total}
-              {warningCount > 0 ? ` | Warn: ${warningCount}` : ''}
+              Prep: {selectedCategoryLabel} - {selectedMoto?.moto_name ?? 'Belum ada moto prep'} | Ready: {activeCount}/{summary.total} | Belum Dicek: {summary.unchecked}
+              {warningCount > 0 ? ` | Warning: ${warningCount}` : ''}
             </div>
             <select
               value={selectedMotoId}
@@ -1094,10 +1051,24 @@ export default function JCPage() {
           >
             Riders Ready
           </button>
+          {!allPrepReviewed && (
+            <div
+              style={{
+                padding: '10px 14px',
+                borderRadius: 12,
+                border: '2px solid #f59e0b',
+                background: '#fff7ed',
+                color: '#9a3412',
+                fontWeight: 800,
+              }}
+            >
+              Masih ada {summary.unchecked} rider berstatus <strong>Belum Dicek</strong>. Tandai READY atau ABSENT satu-satu dulu sebelum konfirmasi Riders Ready.
+            </div>
+          )}
           {allReadyDone && (
             <div style={{ display: 'grid', gap: 8 }}>
               <div style={{ padding: '12px 14px', borderRadius: 12, background: '#dcfce7', fontWeight: 900, textAlign: 'center' }}>
-                Prep rider tersimpan. READY dan ABSENT dikunci sampai di-reset, DNS dikerjakan dari panel incident moto LIVE.
+                Status READY dan ABSENT saat ini dikunci sampai di-reset. Riders Ready tidak mengubah rider Belum Dicek menjadi READY otomatis.
               </div>
               <button
                 className="jc-action-btn"
@@ -1192,18 +1163,18 @@ export default function JCPage() {
                 fontWeight: 900,
               }}
             >
-              ACTIVE: {summary.active}
+              READY: {summary.active}
             </span>
             <span
               style={{
                 padding: '6px 12px',
                 borderRadius: 999,
                 border: '2px solid #111',
-                background: '#ffe9a8',
+                background: '#e5e7eb',
                 fontWeight: 900,
               }}
             >
-              DNS: {summary.dns}
+              BELUM DICEK: {summary.unchecked}
             </span>
             <span
               style={{
