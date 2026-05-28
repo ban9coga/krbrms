@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../../lib/auth'
 import { assertMotoEditable, assertMotoNotUnderProtest } from '../../../../../../lib/motoLock'
-import { isMotoLive } from '../../../../../../lib/motoStatus'
+import { isMotoLive, isMotoUpcoming } from '../../../../../../lib/motoStatus'
 import { requireJury } from '../../../../../../services/juryAuth'
 import { upsertRiderParticipationStatuses } from '../../../../../../services/riderParticipationStatus'
 
@@ -23,6 +23,21 @@ const isLockedMoto = async (motoId?: string | null) => {
     .eq('is_locked', true)
     .maybeSingle()
   return !!data
+}
+
+const canCheckerSetStatus = (motoStatus?: string | null, participationStatus?: string | null) => {
+  if (!participationStatus) return false
+  if (isMotoLive(motoStatus)) {
+    return ['ACTIVE', 'DNS', 'ABSENT'].includes(participationStatus)
+  }
+  if (isMotoUpcoming(motoStatus)) {
+    return ['ACTIVE', 'ABSENT'].includes(participationStatus)
+  }
+  return false
+}
+
+const canCheckerUndoStatus = (motoStatus?: string | null) => {
+  return isMotoLive(motoStatus) || isMotoUpcoming(motoStatus)
 }
 
 export async function GET(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
@@ -139,8 +154,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   } catch (err: unknown) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Moto under protest review.' }, { status: 409 })
   }
-  if (!isMotoLive(moto.status)) {
-    return NextResponse.json({ error: 'Checker hanya bisa update status saat moto masih LIVE.' }, { status: 409 })
+  if (!canCheckerSetStatus(moto.status, participation_status)) {
+    if (isMotoUpcoming(moto.status) && participation_status === 'DNS') {
+      return NextResponse.json({ error: 'DNS baru bisa dipakai saat moto sudah LIVE.' }, { status: 409 })
+    }
+    return NextResponse.json(
+      { error: 'Checker hanya bisa set READY/ABSENT saat UPCOMING, dan READY/ABSENT/DNS saat LIVE.' },
+      { status: 409 }
+    )
   }
 
   const approvalMode = await getApprovalMode(eventId)
@@ -273,8 +294,8 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ event
   } catch (err: unknown) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Moto under protest review.' }, { status: 409 })
   }
-  if (!isMotoLive(moto.status)) {
-    return NextResponse.json({ error: 'Checker hanya bisa undo status saat moto masih LIVE.' }, { status: 409 })
+  if (!canCheckerUndoStatus(moto.status)) {
+    return NextResponse.json({ error: 'Checker hanya bisa undo status saat moto masih UPCOMING atau LIVE.' }, { status: 409 })
   }
 
   const { error: updateDeleteError } = await adminClient
@@ -312,7 +333,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ event
       rider_id: riderId,
       moto_id: motoId,
       event_id: eventId,
-      reason: 'Undo ACTIVE status',
+      reason: 'Undo checker status',
     },
   ])
 

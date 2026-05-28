@@ -6,7 +6,7 @@ import CheckerTopbar from '../../../../components/CheckerTopbar'
 import { useHighVisibility } from '../../../../hooks/useHighVisibility'
 import { compareMotoSequence } from '../../../../lib/motoSequence'
 import { supabase } from '../../../../lib/supabaseClient'
-import { isMotoLive } from '../../../../lib/motoStatus'
+import { isMotoLive, isMotoUpcoming } from '../../../../lib/motoStatus'
 
 type CategoryItem = {
   id: string
@@ -349,6 +349,8 @@ export default function JCPage() {
   )
   const selectedMoto = useMemo(() => motos.find((m) => m.id === selectedMotoId) ?? null, [motos, selectedMotoId])
   const selectedMotoLive = isMotoLive(selectedMoto?.status)
+  const selectedMotoUpcoming = isMotoUpcoming(selectedMoto?.status)
+  const selectedMotoPrep = selectedMotoLive || selectedMotoUpcoming
   const selectedCategoryLabel = selectedMoto
     ? categoryLabel.get(selectedMoto.category_id ?? '') ?? 'Unknown Category'
     : 'Kategori'
@@ -460,7 +462,13 @@ export default function JCPage() {
 
   const handleSaveStatus = async (riderId: string, status: StatusRow['participation_status'], order: number) => {
     if (!selectedMotoId) return
-    if (!selectedMotoLive || locked) return
+    if (!selectedMotoPrep || locked) return
+    if (status === 'ABSENT' && !flags.absent_enabled) return
+    if (status === 'DNS' && !flags.dns_enabled) return
+    if (status === 'DNS' && !selectedMotoLive) {
+      setErrorMessage('DNS baru bisa dipakai saat moto sudah LIVE.')
+      return
+    }
     const previousStatus = statuses[riderId]
     setSaving(true)
     setWarningMessage(null)
@@ -470,7 +478,7 @@ export default function JCPage() {
         ...prev,
         [riderId]: { rider_id: riderId, participation_status: status, registration_order: order },
       }))
-      if (status === 'ACTIVE') {
+      if (status === 'ACTIVE' && selectedMotoLive) {
         const missingPenaltyReasons = new Set<string>()
         for (const req of requiredSafety) {
           if (!safetyChecks[riderId]?.[req.id]) {
@@ -486,8 +494,6 @@ export default function JCPage() {
           )
         }
       }
-      if (status === 'ABSENT' && !flags.absent_enabled) return
-      if (status === 'DNS' && !flags.dns_enabled) return
       await apiFetch(`/api/jury/events/${eventId}/rider-status`, {
         method: 'POST',
         body: JSON.stringify({
@@ -517,7 +523,7 @@ export default function JCPage() {
 
   const handleUndoReady = async (riderId: string) => {
     if (!selectedMotoId) return
-    if (!selectedMotoLive || locked) return
+    if (!selectedMotoPrep || locked) return
     const previousStatus = statuses[riderId]
     if (!previousStatus || previousStatus.participation_status !== 'ACTIVE') return
     setSaving(true)
@@ -551,7 +557,7 @@ export default function JCPage() {
 
   const handleAllReady = async () => {
     if (!selectedMotoId) return
-    if (!selectedMotoLive || locked) return
+    if (!selectedMotoPrep || locked) return
     setSaving(true)
     setWarningMessage(null)
     setErrorMessage(null)
@@ -574,19 +580,21 @@ export default function JCPage() {
     setAllReadyDone(true)
     try {
       const missingPenaltyReasons = new Set<string>()
-      const penaltyTasks = ridersToActivate.flatMap((r) =>
-        requiredSafety
-          .filter((req) => !safetyChecks[r.id]?.[req.id])
-          .map((req) => applySafetyPenalty(r.id, req))
-      )
-      const penaltyResults = await Promise.allSettled(penaltyTasks)
-      for (const result of penaltyResults) {
-        if (result.status === 'fulfilled') {
-          if (!result.value.applied && result.value.reason) {
-            missingPenaltyReasons.add(result.value.reason)
+      if (selectedMotoLive) {
+        const penaltyTasks = ridersToActivate.flatMap((r) =>
+          requiredSafety
+            .filter((req) => !safetyChecks[r.id]?.[req.id])
+            .map((req) => applySafetyPenalty(r.id, req))
+        )
+        const penaltyResults = await Promise.allSettled(penaltyTasks)
+        for (const result of penaltyResults) {
+          if (result.status === 'fulfilled') {
+            if (!result.value.applied && result.value.reason) {
+              missingPenaltyReasons.add(result.value.reason)
+            }
+          } else {
+            missingPenaltyReasons.add(result.reason instanceof Error ? result.reason.message : 'auto-penalty gagal')
           }
-        } else {
-          missingPenaltyReasons.add(result.reason instanceof Error ? result.reason.message : 'auto-penalty gagal')
         }
       }
 
@@ -611,6 +619,8 @@ export default function JCPage() {
         setWarningMessage(
           `Sebagian rider lanjut dengan WARNING. Auto-penalty dilewati: ${Array.from(missingPenaltyReasons).join(', ')}.`
         )
+      } else if (selectedMotoUpcoming) {
+        setWarningMessage('Moto masih UPCOMING. READY/ABSENT sudah tersimpan, penalty tetap menunggu moto LIVE.')
       }
       setLastUpdated(new Date().toLocaleTimeString())
       alert(`All Ready tersimpan untuk ${selectedCategoryLabel} | ${selectedMoto?.moto_name ?? 'Moto'}`)
@@ -627,11 +637,11 @@ export default function JCPage() {
     }
   }
 
-  const bannerDisabled = !selectedMotoLive
+  const bannerDisabled = !selectedMotoPrep
   const interactionDisabled = saving || bannerDisabled || locked
   const safetyInteractionDisabled = interactionDisabled || allReadyDone
   const readyDisabled = interactionDisabled
-  const dnsDisabled = interactionDisabled || !allReadyDone || !flags.dns_enabled
+  const dnsDisabled = saving || locked || !selectedMotoLive || !allReadyDone || !flags.dns_enabled
   const absentDisabled = interactionDisabled || allReadyDone || !flags.absent_enabled
   const canGateReady = riderList.length > 0
 
@@ -726,6 +736,20 @@ export default function JCPage() {
           )}
         </div>
 
+        {selectedMotoUpcoming && (
+          <div
+            style={{
+              padding: '10px 14px',
+              borderRadius: 12,
+              border: '2px solid #1d4ed8',
+              background: '#dbeafe',
+              color: '#1e3a8a',
+              fontWeight: 800,
+            }}
+          >
+            Moto masih UPCOMING. Checker bisa prep READY, ABSENT, dan safety. DNS serta penalty baru aktif saat moto LIVE.
+          </div>
+        )}
         {bannerDisabled && (
           <div
             style={{
@@ -737,7 +761,7 @@ export default function JCPage() {
               fontWeight: 800,
             }}
           >
-            Moto masih {selectedMoto?.status ?? 'UPCOMING'}. Input hanya bisa saat LIVE.
+            Moto status {selectedMoto?.status ?? 'UPCOMING'}. Checker hanya aktif saat moto UPCOMING atau LIVE.
           </div>
         )}
         {errorMessage && (
@@ -808,7 +832,9 @@ export default function JCPage() {
           {allReadyDone && (
             <div style={{ display: 'grid', gap: 8 }}>
               <div style={{ padding: '12px 14px', borderRadius: 12, background: '#dcfce7', fontWeight: 900, textAlign: 'center' }}>
-                DNS siap dipakai. READY dan ABSENT dikunci setelah All Ready.
+                {selectedMotoLive
+                  ? 'DNS siap dipakai. READY dan ABSENT dikunci setelah All Ready.'
+                  : 'Prep rider tersimpan. READY dan ABSENT dikunci sampai di-reset, DNS baru aktif saat moto LIVE.'}
               </div>
               <button
                 className="jc-action-btn"

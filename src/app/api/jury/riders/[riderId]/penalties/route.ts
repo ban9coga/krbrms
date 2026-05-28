@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../../lib/auth'
 import { assertMotoEditable, assertMotoNotUnderProtest } from '../../../../../../lib/motoLock'
+import { isMotoLive } from '../../../../../../lib/motoStatus'
 import { requireJury } from '../../../../../../services/juryAuth'
 
 const isLockedMoto = async (motoId?: string | null) => {
@@ -46,6 +47,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ riderId
       assertMotoNotUnderProtest((moto as { status?: string | null })?.status ?? null)
     } catch (err: unknown) {
       return NextResponse.json({ error: err instanceof Error ? err.message : 'Moto under protest review.' }, { status: 409 })
+    }
+    if (!isMotoLive((moto as { status?: string | null })?.status ?? null)) {
+      return NextResponse.json({ error: 'Penalty checker hanya bisa diberikan saat moto masih LIVE.' }, { status: 409 })
     }
   }
 
