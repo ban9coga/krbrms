@@ -181,6 +181,98 @@ export default function McLivePage() {
           </div>
         </section>
 
+        <section className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+          <article className="public-panel-light">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div className="grid gap-1">
+                <div className="text-xs font-extrabold uppercase tracking-[0.18em] text-slate-500">Now Racing</div>
+                <h2 className={`${highVisibility ? 'text-2xl md:text-3xl' : 'text-xl'} font-black tracking-tight text-slate-900`}>
+                  {data?.moto?.moto_name ?? 'Belum ada moto'}
+                </h2>
+                <div className={`${highVisibility ? 'text-base md:text-lg' : 'text-sm'} font-bold text-slate-600`}>
+                  {data?.category ?? '-'} | {data?.batch ?? '-'}
+                </div>
+              </div>
+              <div className="grid gap-2 text-right">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Cue</div>
+                  <div className={`${highVisibility ? 'text-base md:text-lg' : 'text-sm'} mt-1 font-extrabold text-slate-900`}>
+                    {readyToAnnounce ? 'Baca hasil' : 'Panggil starter'}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Kategori</div>
+                <div className={`${highVisibility ? 'text-lg md:text-2xl' : 'text-base md:text-xl'} mt-1 font-black text-slate-900`}>{data?.category ?? '-'}</div>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Batch</div>
+                <div className={`${highVisibility ? 'text-lg md:text-2xl' : 'text-base md:text-xl'} mt-1 font-black text-slate-900`}>{data?.batch ?? '-'}</div>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Moto Berikutnya</div>
+                <div className={`${highVisibility ? 'text-lg md:text-2xl' : 'text-base md:text-xl'} mt-1 font-black text-slate-900`}>
+                  {data?.next_moto?.moto_label ?? '-'}
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article className="rounded-[24px] border border-slate-200 bg-slate-50 p-4 shadow-sm">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div>
+                <div className="text-xs font-extrabold uppercase tracking-[0.18em] text-slate-500">Call To Gate</div>
+                <div className={`${highVisibility ? 'text-2xl md:text-3xl' : 'text-xl'} font-black tracking-tight text-slate-900`}>
+                  {data?.next_moto ? `${data.next_moto.batch ?? '-'} | ${data.next_moto.moto_label}` : 'Belum ada next moto'}
+                </div>
+              </div>
+              <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-extrabold uppercase tracking-[0.12em] text-slate-700">
+                Starter
+              </div>
+            </div>
+            <div className="grid gap-2">
+              {nextMotoRiders.length === 0 && (
+                <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm font-semibold text-slate-600">
+                  Belum ada rider next moto.
+                </div>
+              )}
+              {nextMotoRiders.map((row) => (
+                <div
+                  key={`next-${row.rider_id}`}
+                  className="rounded-[22px] border border-slate-200 bg-white px-4 py-4 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Call To Gate</div>
+                      <div className="mt-1 text-xl font-black text-slate-900">Gate {row.gate_position ?? '-'} | {row.plate}</div>
+                    </div>
+                    <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.12em] text-slate-700">
+                      Starter
+                    </span>
+                  </div>
+                  <div className="mt-3">
+                    <div className={`truncate ${highVisibility ? 'text-lg md:text-2xl' : 'text-lg'} font-black leading-tight text-slate-900`}>
+                      {nextMotoRiderDisplayName(row)}
+                    </div>
+                    {row.rider_nickname?.trim() ? (
+                      <div
+                        className={`truncate ${highVisibility ? 'text-sm md:text-lg' : 'text-xs md:text-sm'} mt-1 font-extrabold uppercase tracking-[0.08em] text-slate-700`}
+                      >
+                        {row.rider_name}
+                      </div>
+                    ) : null}
+                    <div className={`truncate ${highVisibility ? 'text-base md:text-lg' : 'text-sm md:text-base'} mt-1 font-bold text-slate-500`}>
+                      {row.club || '-'}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </article>
+        </section>
+
         <section className="public-panel-light">
           <div className="mb-3 flex items-center justify-between gap-2">
             <div className="grid gap-1">
@@ -338,98 +430,6 @@ export default function McLivePage() {
           <div className="mt-3 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
             Last updated: {lastUpdated ?? '-'}
           </div>
-        </section>
-
-        <section className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-          <article className="public-panel-light">
-            <div className="mb-4 flex items-start justify-between gap-3">
-              <div className="grid gap-1">
-                <div className="text-xs font-extrabold uppercase tracking-[0.18em] text-slate-500">Now Racing</div>
-                <h2 className={`${highVisibility ? 'text-2xl md:text-3xl' : 'text-xl'} font-black tracking-tight text-slate-900`}>
-                  {data?.moto?.moto_name ?? 'Belum ada moto'}
-                </h2>
-                <div className={`${highVisibility ? 'text-base md:text-lg' : 'text-sm'} font-bold text-slate-600`}>
-                  {data?.category ?? '-'} | {data?.batch ?? '-'}
-                </div>
-              </div>
-              <div className="grid gap-2 text-right">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Cue</div>
-                  <div className={`${highVisibility ? 'text-base md:text-lg' : 'text-sm'} mt-1 font-extrabold text-slate-900`}>
-                    {readyToAnnounce ? 'Baca hasil' : 'Panggil starter'}
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Kategori</div>
-                <div className={`${highVisibility ? 'text-lg md:text-2xl' : 'text-base md:text-xl'} mt-1 font-black text-slate-900`}>{data?.category ?? '-'}</div>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Batch</div>
-                <div className={`${highVisibility ? 'text-lg md:text-2xl' : 'text-base md:text-xl'} mt-1 font-black text-slate-900`}>{data?.batch ?? '-'}</div>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Moto Berikutnya</div>
-                <div className={`${highVisibility ? 'text-lg md:text-2xl' : 'text-base md:text-xl'} mt-1 font-black text-slate-900`}>
-                  {data?.next_moto?.moto_label ?? '-'}
-                </div>
-              </div>
-            </div>
-          </article>
-
-          <article className="rounded-[24px] border border-slate-200 bg-slate-50 p-4 shadow-sm">
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <div>
-                <div className="text-xs font-extrabold uppercase tracking-[0.18em] text-slate-500">Call To Gate</div>
-                <div className={`${highVisibility ? 'text-2xl md:text-3xl' : 'text-xl'} font-black tracking-tight text-slate-900`}>
-                  {data?.next_moto ? `${data.next_moto.batch ?? '-'} | ${data.next_moto.moto_label}` : 'Belum ada next moto'}
-                </div>
-              </div>
-              <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-extrabold uppercase tracking-[0.12em] text-slate-700">
-                Starter
-              </div>
-            </div>
-            <div className="grid gap-2">
-              {nextMotoRiders.length === 0 && (
-                <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm font-semibold text-slate-600">
-                  Belum ada rider next moto.
-                </div>
-              )}
-              {nextMotoRiders.map((row) => (
-                <div
-                  key={`next-${row.rider_id}`}
-                  className="rounded-[22px] border border-slate-200 bg-white px-4 py-4 shadow-sm"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Call To Gate</div>
-                      <div className="mt-1 text-xl font-black text-slate-900">Gate {row.gate_position ?? '-'} | {row.plate}</div>
-                    </div>
-                    <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.12em] text-slate-700">
-                      Starter
-                    </span>
-                  </div>
-                  <div className="mt-3">
-                    <div className={`truncate ${highVisibility ? 'text-lg md:text-2xl' : 'text-lg'} font-black leading-tight text-slate-900`}>
-                      {nextMotoRiderDisplayName(row)}
-                    </div>
-                    {row.rider_nickname?.trim() ? (
-                      <div
-                        className={`truncate ${highVisibility ? 'text-sm md:text-lg' : 'text-xs md:text-sm'} mt-1 font-extrabold uppercase tracking-[0.08em] text-slate-700`}
-                      >
-                        {row.rider_name}
-                      </div>
-                    ) : null}
-                    <div className={`truncate ${highVisibility ? 'text-base md:text-lg' : 'text-sm md:text-base'} mt-1 font-bold text-slate-500`}>
-                      {row.club || '-'}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </article>
         </section>
       </main>
     </div>
