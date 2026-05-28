@@ -450,6 +450,21 @@ export default function JCPage() {
     }))
   }, [incidentRiders, incidentStatuses])
 
+  const incidentSummary = useMemo(() => {
+    const total = incidentRiderList.length
+    const dns = incidentRiderList.filter((r) => incidentStatuses[r.id]?.participation_status === 'DNS').length
+    const ready = incidentRiderList.filter((r) => {
+      const status = incidentStatuses[r.id]?.participation_status
+      return !status || status === 'ACTIVE'
+    }).length
+    return {
+      total,
+      dns,
+      ready,
+      remaining: Math.max(total - dns, 0),
+    }
+  }, [incidentRiderList, incidentStatuses])
+
   const summary = useMemo(() => {
     const s = { total: riderList.length, active: 0, dns: 0, absent: 0 }
     for (const r of riderList) {
@@ -677,14 +692,14 @@ export default function JCPage() {
       }
       setWarningMessage('Moto prep masih UPCOMING. READY/ABSENT sudah tersimpan, penalty tetap menunggu moto LIVE.')
       setLastUpdated(new Date().toLocaleTimeString())
-      alert(`All Ready tersimpan untuk ${selectedCategoryLabel} | ${selectedMoto?.moto_name ?? 'Moto'}`)
+      alert(`Riders Ready tersimpan untuk ${selectedCategoryLabel} | ${selectedMoto?.moto_name ?? 'Moto'}`)
       setTimeout(() => {
         void loadMoto(true, true)
       }, 350)
     } catch (err: unknown) {
       setStatuses(previousStatuses)
       setAllReadyDone(false)
-      setErrorMessage(err instanceof Error ? err.message : 'Gagal menjalankan All Ready.')
+      setErrorMessage(err instanceof Error ? err.message : 'Gagal menjalankan Riders Ready.')
       await loadMoto(true)
     } finally {
       setSaving(false)
@@ -887,6 +902,58 @@ export default function JCPage() {
             Last updated LIVE: {incidentLastUpdated ?? '-'}
           </div>
           {incidentMoto ? (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              <span
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 999,
+                  border: '2px solid #7f1d1d',
+                  background: '#fff',
+                  color: '#881337',
+                  fontWeight: 900,
+                }}
+              >
+                Total: {incidentSummary.total}
+              </span>
+              <span
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 999,
+                  border: '2px solid #7f1d1d',
+                  background: '#ffe4e6',
+                  color: '#881337',
+                  fontWeight: 900,
+                }}
+              >
+                Ready: {incidentSummary.ready}
+              </span>
+              <span
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 999,
+                  border: '2px solid #c2410c',
+                  background: '#ffedd5',
+                  color: '#9a3412',
+                  fontWeight: 900,
+                }}
+              >
+                DNS: {incidentSummary.dns}
+              </span>
+              <span
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 999,
+                  border: '2px solid #1d4ed8',
+                  background: '#dbeafe',
+                  color: '#1e3a8a',
+                  fontWeight: 900,
+                }}
+              >
+                Remaining: {incidentSummary.remaining}
+              </span>
+            </div>
+          ) : null}
+          {incidentMoto ? (
             <div style={{ display: 'grid', gap: 10 }}>
               {incidentRiderList.map((r) => {
                 const rawStatus = incidentStatuses[r.id]?.participation_status
@@ -946,7 +1013,7 @@ export default function JCPage() {
                         whiteSpace: 'nowrap',
                       }}
                     >
-                      {isDns ? 'UNDO DNS' : 'MARK DNS'}
+                      {isDns ? 'UNDO DNS' : 'SET DNS'}
                     </button>
                   </div>
                 )
@@ -1014,7 +1081,7 @@ export default function JCPage() {
               fontSize: highVisibility ? 24 : 20,
             }}
           >
-            All Ready
+            Riders Ready
           </button>
           {allReadyDone && (
             <div style={{ display: 'grid', gap: 8 }}>

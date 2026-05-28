@@ -84,7 +84,13 @@ const nextMotoRiderDisplayName = (row: NextMotoRiderRow) => row.rider_nickname?.
 const isResultReady = (motoStatus?: MotoInfo['status']) => motoStatus === 'PROVISIONAL' || motoStatus === 'LOCKED' || motoStatus === 'FINISHED'
 const mcRankLabel = (readyToAnnounce: boolean, index: number) => (readyToAnnounce ? String(index + 1) : '-')
 const mcStatusLabel = (status: RankingRow['status']) =>
-  status === 'PENDING' ? 'Starter' : status === 'FINISH' ? 'Finish' : status
+  status === 'PENDING'
+    ? 'Belum Dicek'
+    : status === 'READY'
+      ? 'Ready'
+      : status === 'FINISH'
+        ? 'Finish'
+        : status
 const mcCueText = (moto?: MotoInfo | null, nextMoto?: NextMotoInfo | null) => {
   if (!moto) return 'Menunggu data moto dari sistem.'
   if (moto.status === 'LIVE') return 'Pandu suasana dan siapkan rider berikutnya ke area tunggu.'
@@ -200,7 +206,7 @@ export default function McLivePage() {
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                   <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Cue</div>
                   <div className={`${highVisibility ? 'text-base md:text-lg' : 'text-sm'} mt-1 font-extrabold text-slate-900`}>
-                    {readyToAnnounce ? 'Baca hasil' : 'Panggil starter'}
+                    {readyToAnnounce ? 'Baca hasil' : 'Panggil rider'}
                   </div>
                 </div>
               </div>
@@ -228,7 +234,7 @@ export default function McLivePage() {
           <div className="mb-3 flex items-center justify-between gap-2">
             <div className="grid gap-1">
               <h2 className={`${highVisibility ? 'text-2xl md:text-3xl' : 'text-xl'} font-black tracking-tight text-slate-900`}>
-                {readyToAnnounce ? 'Result To Announce' : 'Starter / Hasil Sementara'}
+                {readyToAnnounce ? 'Result To Announce' : 'Status Rider / Hasil Sementara'}
               </h2>
               <div className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">
                 Auto refresh aktif tiap 5 detik
@@ -310,7 +316,7 @@ export default function McLivePage() {
                                   row.status
                                 )}`}
                               >
-                                {row.status === 'PENDING' ? 'Starter' : row.status}
+                                {mcStatusLabel(row.status)}
                               </span>
                             ) : (
                               <span className="inline-flex rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-extrabold uppercase tracking-[0.12em] text-emerald-700">
@@ -400,7 +406,7 @@ export default function McLivePage() {
               </div>
             </div>
             <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-extrabold uppercase tracking-[0.12em] text-slate-700">
-              Starter
+              Rider Prep
             </div>
           </div>
           <div className="grid gap-2">
@@ -420,7 +426,7 @@ export default function McLivePage() {
                     <div className="mt-1 text-xl font-black text-slate-900">Gate {row.gate_position ?? '-'} | {row.plate}</div>
                   </div>
                   <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.12em] text-slate-700">
-                    Starter
+                    Call Rider
                   </span>
                 </div>
                 <div className="mt-3">
