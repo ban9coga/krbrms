@@ -238,18 +238,25 @@ export default function McLivePage() {
                 </div>
               )}
               {nextMotoRiders.map((row) => (
-                <div
-                  key={`next-${row.rider_id}`}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3"
-                >
-                  <div className="min-w-0">
-                    <div className="text-sm font-extrabold uppercase tracking-[0.12em] text-slate-500">Gate {row.gate_position ?? '-'}</div>
-                    <div className={`truncate ${highVisibility ? 'text-lg md:text-2xl' : 'text-base md:text-xl'} font-black text-slate-900`}>
-                      {row.plate} - {nextMotoRiderDisplayName(row)}
+                  <div
+                      key={`next-${row.rider_id}`}
+                      className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3"
+                    >
+                      <div className="min-w-0">
+                        <div className="text-sm font-extrabold uppercase tracking-[0.12em] text-slate-500">Gate {row.gate_position ?? '-'}</div>
+                        <div className={`truncate ${highVisibility ? 'text-lg md:text-2xl' : 'text-base md:text-xl'} font-black text-slate-900`}>
+                          {row.plate} - {nextMotoRiderDisplayName(row)}
+                        </div>
+                        {row.rider_nickname?.trim() ? (
+                          <div
+                            className={`truncate ${highVisibility ? 'text-sm md:text-lg' : 'text-xs md:text-sm'} font-extrabold uppercase tracking-[0.08em] text-slate-700`}
+                          >
+                            {row.rider_name}
+                          </div>
+                        ) : null}
+                        <div className={`truncate ${highVisibility ? 'text-base md:text-lg' : 'text-sm md:text-base'} font-bold text-slate-500`}>{row.club || '-'}</div>
+                      </div>
                     </div>
-                    <div className={`truncate ${highVisibility ? 'text-base md:text-lg' : 'text-sm md:text-base'} font-bold text-slate-500`}>{row.club || '-'}</div>
-                  </div>
-                </div>
               ))}
             </div>
           </article>
