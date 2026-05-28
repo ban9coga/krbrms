@@ -25,7 +25,7 @@ type RankingRow = {
   plate: string
   club?: string | null
   gate_position?: number | null
-  status: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'PENDING'
+  status: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'READY' | 'PENDING'
 }
 
 type NextMotoRiderRow = {
@@ -71,6 +71,7 @@ const statusBadge = (moto?: MotoInfo | null) => {
 }
 
 const resultStatusBadge = (status: RankingRow['status']) => {
+  if (status === 'READY') return 'border-sky-300 bg-sky-50 text-sky-700'
   if (status === 'DQ') return 'border-red-400 bg-red-100 text-red-800'
   if (status === 'DNF') return 'border-amber-300 bg-amber-50 text-amber-700'
   if (status === 'DNS') return 'border-rose-300 bg-rose-50 text-rose-700'
@@ -81,7 +82,8 @@ const resultStatusBadge = (status: RankingRow['status']) => {
 const riderDisplayName = (row: RankingRow) => row.rider_nickname?.trim() || row.rider_name
 const nextMotoRiderDisplayName = (row: NextMotoRiderRow) => row.rider_nickname?.trim() || row.rider_name
 const isResultReady = (motoStatus?: MotoInfo['status']) => motoStatus === 'PROVISIONAL' || motoStatus === 'LOCKED' || motoStatus === 'FINISHED'
-const mcStatusLabel = (status: RankingRow['status']) => (status === 'PENDING' ? 'Starter' : status === 'FINISH' ? 'Finish' : status)
+const mcStatusLabel = (status: RankingRow['status']) =>
+  status === 'PENDING' ? 'Starter' : status === 'FINISH' ? 'Finish' : status
 const mcCueText = (moto?: MotoInfo | null, nextMoto?: NextMotoInfo | null) => {
   if (!moto) return 'Menunggu data moto dari sistem.'
   if (moto.status === 'LIVE') return 'Pandu suasana dan siapkan rider berikutnya ke area tunggu.'
@@ -325,6 +327,8 @@ export default function McLivePage() {
                       className={`rounded-[22px] border px-4 py-4 shadow-sm ${
                         row.status === 'FINISH'
                           ? 'border-emerald-200 bg-white'
+                          : row.status === 'READY'
+                            ? 'border-sky-200 bg-sky-50/60'
                           : row.status === 'PENDING'
                             ? 'border-slate-200 bg-white'
                             : 'border-amber-200 bg-amber-50/60'

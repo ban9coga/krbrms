@@ -31,7 +31,7 @@ type McRankingRow = {
   plate: string
   club?: string | null
   gate_position?: number | null
-  status: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'PENDING'
+  status: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'READY' | 'PENDING'
 }
 
 type NextMotoRiderRow = {
@@ -344,6 +344,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     .in('id', riderIds)
   const riderMap = new Map((riders ?? []).map((r: RiderRow) => [r.id, r]))
   const resultMap = new Map((results ?? []).map((row) => [row.rider_id, row]))
+  const { data: participationRows } = await adminClient
+    .from('rider_participation_status')
+    .select('rider_id, participation_status')
+    .eq('event_id', eventId)
+    .eq('moto_id', currentMoto.id)
+    .in('rider_id', riderIds)
+  const participationMap = new Map((participationRows ?? []).map((row) => [row.rider_id, row.participation_status as string | null]))
 
   const penaltyMap = new Map<string, number>()
   if (riderIds.length > 0) {
@@ -372,7 +379,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const ranking: McRankingRow[] = riderIds.map((riderId) => {
     const row = resultMap.get(riderId)
     const rider = riderMap.get(riderId)
-    const status = ((row?.result_status ?? 'PENDING') as 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'PENDING')
+    const participationStatus = participationMap.get(riderId)
+    const status = (
+      row?.result_status ??
+      (participationStatus === 'ACTIVE' ? 'READY' : 'PENDING')
+    ) as 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'READY' | 'PENDING'
     const basePoint =
       status === 'DQ'
         ? null
@@ -401,8 +412,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   })
 
   ranking.sort((a, b) => {
-    const aStatusWeight = a.status === 'FINISH' ? 0 : a.status === 'DNF' ? 1 : a.status === 'DNS' ? 2 : a.status === 'DQ' ? 3 : 4
-    const bStatusWeight = b.status === 'FINISH' ? 0 : b.status === 'DNF' ? 1 : b.status === 'DNS' ? 2 : b.status === 'DQ' ? 3 : 4
+    const aStatusWeight = a.status === 'FINISH' ? 0 : a.status === 'DNF' ? 1 : a.status === 'DNS' ? 2 : a.status === 'DQ' ? 3 : a.status === 'READY' ? 4 : 4
+    const bStatusWeight = b.status === 'FINISH' ? 0 : b.status === 'DNF' ? 1 : b.status === 'DNS' ? 2 : b.status === 'DQ' ? 3 : b.status === 'READY' ? 4 : 4
     if (aStatusWeight !== bStatusWeight) return aStatusWeight - bStatusWeight
     const at = a.total_point ?? 9999
     const bt = b.total_point ?? 9999
