@@ -17,6 +17,8 @@ type MotoInfo = {
 type RankingRow = {
   rider_id: string
   finish_order: number | null
+  base_point: number | null
+  penalty_total: number | null
   total_point: number | null
   rider_name: string
   rider_nickname?: string | null
@@ -78,6 +80,15 @@ const resultStatusBadge = (status: RankingRow['status']) => {
 
 const riderDisplayName = (row: RankingRow) => row.rider_nickname?.trim() || row.rider_name
 const nextMotoRiderDisplayName = (row: NextMotoRiderRow) => row.rider_nickname?.trim() || row.rider_name
+const isResultReady = (motoStatus?: MotoInfo['status']) => motoStatus === 'PROVISIONAL' || motoStatus === 'LOCKED' || motoStatus === 'FINISHED'
+const mcCueText = (moto?: MotoInfo | null, nextMoto?: NextMotoInfo | null) => {
+  if (!moto) return 'Menunggu data moto dari sistem.'
+  if (moto.status === 'LIVE') return 'Pandu suasana dan siapkan rider berikutnya ke area tunggu.'
+  if (moto.status === 'UPCOMING') return 'Panggil rider ke gate sesuai urutan start.'
+  if (moto.status === 'PROVISIONAL') return nextMoto ? 'Bacakan hasil sementara, lalu lanjut panggil starter moto berikutnya.' : 'Bacakan hasil sementara kepada penonton.'
+  if (moto.status === 'LOCKED' || moto.status === 'FINISHED') return nextMoto ? 'Hasil sudah siap dibacakan. Lanjutkan calling rider untuk moto berikutnya.' : 'Hasil sudah final dan siap dibacakan.'
+  return 'Pantau update dari juri dan race control.'
+}
 
 export default function McLivePage() {
   const params = useParams()
@@ -123,6 +134,7 @@ export default function McLivePage() {
 
   const ranking = useMemo(() => (data?.ranking ?? []).slice(0, 8), [data])
   const nextMotoRiders = useMemo(() => (data?.next_moto_riders ?? []).slice(0, 8), [data])
+  const readyToAnnounce = isResultReady(data?.moto?.status)
 
   if (data?.under_review) {
     return (
@@ -158,6 +170,9 @@ export default function McLivePage() {
                   ? `Next: ${data.next_moto.category ?? '-'} | ${data.next_moto.batch ?? '-'} | ${data.next_moto.moto_label}`
                   : 'Belum ada moto berikutnya'}
               </p>
+              <p className={`${highVisibility ? 'text-base md:text-lg' : 'text-sm'} max-w-3xl font-semibold text-slate-200`}>
+                {mcCueText(data?.moto ?? null, data?.next_moto ?? null)}
+              </p>
             </div>
             <div className={`rounded-full border px-4 py-2 text-sm font-extrabold uppercase tracking-[0.12em] ${badge.className}`}>
               {badge.label}
@@ -165,11 +180,90 @@ export default function McLivePage() {
           </div>
         </section>
 
+        <section className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+          <article className="public-panel-light">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div className="grid gap-1">
+                <div className="text-xs font-extrabold uppercase tracking-[0.18em] text-slate-500">Now Racing</div>
+                <h2 className={`${highVisibility ? 'text-2xl md:text-3xl' : 'text-xl'} font-black tracking-tight text-slate-900`}>
+                  {data?.moto?.moto_name ?? 'Belum ada moto'}
+                </h2>
+                <div className={`${highVisibility ? 'text-base md:text-lg' : 'text-sm'} font-bold text-slate-600`}>
+                  {data?.category ?? '-'} | {data?.batch ?? '-'}
+                </div>
+              </div>
+              <div className="grid gap-2 text-right">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Cue</div>
+                  <div className={`${highVisibility ? 'text-base md:text-lg' : 'text-sm'} mt-1 font-extrabold text-slate-900`}>
+                    {readyToAnnounce ? 'Baca hasil' : 'Panggil starter'}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Kategori</div>
+                <div className={`${highVisibility ? 'text-lg md:text-2xl' : 'text-base md:text-xl'} mt-1 font-black text-slate-900`}>{data?.category ?? '-'}</div>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Batch</div>
+                <div className={`${highVisibility ? 'text-lg md:text-2xl' : 'text-base md:text-xl'} mt-1 font-black text-slate-900`}>{data?.batch ?? '-'}</div>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Moto Berikutnya</div>
+                <div className={`${highVisibility ? 'text-lg md:text-2xl' : 'text-base md:text-xl'} mt-1 font-black text-slate-900`}>
+                  {data?.next_moto?.moto_label ?? '-'}
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article className="rounded-[24px] border border-slate-200 bg-slate-50 p-4 shadow-sm">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div>
+                <div className="text-xs font-extrabold uppercase tracking-[0.18em] text-slate-500">Call To Gate</div>
+                <div className={`${highVisibility ? 'text-2xl md:text-3xl' : 'text-xl'} font-black tracking-tight text-slate-900`}>
+                  {data?.next_moto ? `${data.next_moto.batch ?? '-'} | ${data.next_moto.moto_label}` : 'Belum ada next moto'}
+                </div>
+              </div>
+              <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-extrabold uppercase tracking-[0.12em] text-slate-700">
+                Starter
+              </div>
+            </div>
+            <div className="grid gap-2">
+              {nextMotoRiders.length === 0 && (
+                <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm font-semibold text-slate-600">
+                  Belum ada rider next moto.
+                </div>
+              )}
+              {nextMotoRiders.map((row) => (
+                <div
+                  key={`next-${row.rider_id}`}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3"
+                >
+                  <div className="min-w-0">
+                    <div className="text-sm font-extrabold uppercase tracking-[0.12em] text-slate-500">Gate {row.gate_position ?? '-'}</div>
+                    <div className={`truncate ${highVisibility ? 'text-lg md:text-2xl' : 'text-base md:text-xl'} font-black text-slate-900`}>
+                      {row.plate} - {nextMotoRiderDisplayName(row)}
+                    </div>
+                    <div className={`truncate ${highVisibility ? 'text-base md:text-lg' : 'text-sm md:text-base'} font-bold text-slate-500`}>{row.club || '-'}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </article>
+        </section>
+
         <section className="public-panel-light">
           <div className="mb-3 flex items-center justify-between gap-2">
             <div className="grid gap-1">
-              <h2 className={`${highVisibility ? 'text-2xl md:text-3xl' : 'text-xl'} font-black tracking-tight text-slate-900`}>Ranking (Top 8)</h2>
-              <div className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">Auto refresh aktif tiap 5 detik</div>
+              <h2 className={`${highVisibility ? 'text-2xl md:text-3xl' : 'text-xl'} font-black tracking-tight text-slate-900`}>
+                {readyToAnnounce ? 'Result To Announce' : 'Starter / Hasil Sementara'}
+              </h2>
+              <div className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">
+                Auto refresh aktif tiap 5 detik
+              </div>
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
               <button
@@ -206,14 +300,14 @@ export default function McLivePage() {
           )}
 
           {!loading && ranking.length > 0 && (
-            <div className="grid gap-4 xl:grid-cols-[1.3fr_1fr]">
+            <div className="grid gap-4">
               <div className="grid gap-2">
                 <div className="table-mobile-hint">Geser kiri/kanan untuk lihat semua kolom.</div>
                 <div className="public-table-wrap">
-                  <table className="public-table" style={{ minWidth: highVisibility ? 900 : 760 }}>
+                  <table className="public-table" style={{ minWidth: highVisibility ? 1100 : 900 }}>
                     <thead>
                       <tr>
-                        {['Rank', 'Plate', 'Rider', 'Komunitas', 'Total Point', 'Status'].map((label) => (
+                        {['Rank', 'Gate', 'Plate', 'Rider', 'Komunitas', 'Point', 'Penalty', 'Total', 'Status'].map((label) => (
                           <th key={label}>{label}</th>
                         ))}
                       </tr>
@@ -222,6 +316,9 @@ export default function McLivePage() {
                       {ranking.map((row, idx) => (
                         <tr key={row.rider_id}>
                           <td className={`${highVisibility ? 'text-2xl md:text-3xl' : 'text-lg md:text-2xl'} font-black text-slate-900`}>{idx + 1}</td>
+                          <td className={`${highVisibility ? 'text-lg md:text-2xl' : 'text-base md:text-xl'} font-extrabold text-slate-700`}>
+                            {row.gate_position ?? '-'}
+                          </td>
                           <td className={`${highVisibility ? 'text-lg md:text-2xl' : 'text-base md:text-xl'} font-extrabold`}>{row.plate}</td>
                           <td>
                             <div className={`${highVisibility ? 'text-2xl md:text-3xl' : 'text-lg md:text-2xl'} font-black text-slate-900`}>{riderDisplayName(row)}</div>
@@ -232,6 +329,8 @@ export default function McLivePage() {
                             )}
                           </td>
                           <td className={`${highVisibility ? 'text-base md:text-xl' : 'text-sm md:text-lg'} font-extrabold text-slate-700`}>{row.club || '-'}</td>
+                          <td className={`${highVisibility ? 'text-2xl md:text-4xl' : 'text-xl md:text-3xl'} font-black text-sky-700`}>{row.base_point ?? '-'}</td>
+                          <td className={`${highVisibility ? 'text-2xl md:text-4xl' : 'text-xl md:text-3xl'} font-black text-amber-600`}>{row.penalty_total ?? '-'}</td>
                           <td className={`${highVisibility ? 'text-2xl md:text-4xl' : 'text-xl md:text-3xl'} font-black text-sky-700`}>{row.total_point ?? '-'}</td>
                           <td>
                             {row.status !== 'FINISH' ? (
@@ -252,43 +351,6 @@ export default function McLivePage() {
                       ))}
                     </tbody>
                   </table>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <div className={`${highVisibility ? 'text-2xl md:text-3xl' : 'text-lg md:text-2xl'} mb-1 font-black tracking-tight text-slate-900`}>Data Rider Next Moto</div>
-                <div className="mb-3 text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">
-                  {data?.next_moto
-                    ? `${data.next_moto.category ?? '-'} | ${data.next_moto.batch ?? '-'} | ${data.next_moto.moto_label}`
-                    : 'Belum ada moto berikutnya'}
-                </div>
-                <div className="grid gap-2">
-                  {nextMotoRiders.length === 0 && (
-                    <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm font-semibold text-slate-600">
-                      Belum ada rider next moto.
-                    </div>
-                  )}
-                  {nextMotoRiders.map((row) => (
-                    <div
-                      key={`next-${row.rider_id}`}
-                      className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3"
-                    >
-                      <div className="min-w-0">
-                        <div className="text-sm font-extrabold uppercase tracking-[0.12em] text-slate-500">
-                          Gate {row.gate_position ?? '-'}
-                        </div>
-                        <div className={`truncate ${highVisibility ? 'text-lg md:text-2xl' : 'text-base md:text-xl'} font-black text-slate-900`}>
-                          {row.plate} - {nextMotoRiderDisplayName(row)}
-                        </div>
-                        <div className={`truncate ${highVisibility ? 'text-base md:text-lg' : 'text-sm md:text-base'} font-bold text-slate-500`}>{row.club || '-'}</div>
-                      </div>
-                      <div className="flex items-center gap-2 text-right">
-                        <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-extrabold uppercase tracking-[0.12em] text-slate-700">
-                          Starter
-                        </div>
-                      </div>
-                    </div>
-                  ))}
                 </div>
               </div>
             </div>

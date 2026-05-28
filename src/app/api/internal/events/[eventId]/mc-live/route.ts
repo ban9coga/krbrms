@@ -23,6 +23,8 @@ type RiderRow = {
 type McRankingRow = {
   rider_id: string
   finish_order: number | null
+  base_point: number | null
+  penalty_total: number | null
   total_point: number | null
   rider_name: string
   rider_nickname?: string | null
@@ -61,6 +63,14 @@ const parseBatch = (name: string) => {
 const parseMotoLabel = (name: string) => {
   const match = name.match(/moto\s*(\d+)/i)
   return match ? `Moto ${match[1]}` : name
+}
+
+const resolvePenaltyStage = (motoName: string): 'MOTO' | 'QUARTER' | 'REPECHAGE' | 'SEMI' | 'FINAL' => {
+  if (/quarter\s*final/i.test(motoName)) return 'QUARTER'
+  if (/repechage/i.test(motoName)) return 'REPECHAGE'
+  if (/semi\s*final/i.test(motoName)) return 'SEMI'
+  if (/final/i.test(motoName)) return 'FINAL'
+  return 'MOTO'
 }
 
 export async function GET(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
@@ -159,6 +169,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     .eq('moto_id', currentMoto.id)
 
   const gateMap = new Map((gatePositions ?? []).map((row) => [row.rider_id, Number(row.gate_position ?? 0) || null]))
+  const penaltyStage = resolvePenaltyStage(currentMoto.moto_name)
 
   const riderIds = Array.from(new Set([...(results ?? []).map((r) => r.rider_id), ...((motoRiders ?? []).map((r) => r.rider_id))]))
   const { data: riders } = await adminClient
@@ -172,13 +183,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   if (riderIds.length > 0) {
     const { data: penalties, error: penaltyError } = await adminClient
       .from('rider_penalties')
-      .select('rider_id, penalty_point, rider_penalty_approvals!inner(approval_status)')
+      .select('rider_id, penalty_point, stage, rider_penalty_approvals!inner(approval_status)')
       .eq('event_id', eventId)
-      .eq('stage', 'MOTO')
       .eq('rider_penalty_approvals.approval_status', 'APPROVED')
       .in('rider_id', riderIds)
     if (penaltyError) return NextResponse.json({ error: penaltyError.message }, { status: 400 })
     for (const row of penalties ?? []) {
+      const appliesToCurrentMoto = row.stage === 'ALL' || row.stage === penaltyStage
+      if (!appliesToCurrentMoto) continue
       const current = penaltyMap.get(row.rider_id) ?? 0
       penaltyMap.set(row.rider_id, current + Number(row.penalty_point ?? 0))
     }
@@ -210,6 +222,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     return {
       rider_id: riderId,
       finish_order: row?.finish_order ?? null,
+      base_point: basePoint,
+      penalty_total: penalty,
       total_point: total,
       rider_name: rider?.name ?? '-',
       rider_nickname: rider?.rider_nickname ?? null,
