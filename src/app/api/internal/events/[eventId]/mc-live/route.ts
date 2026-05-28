@@ -43,6 +43,14 @@ type NextMotoRiderRow = {
   gate_position?: number | null
 }
 
+type StageSeedRow = {
+  rider_id: string
+  stage: 'QUALIFICATION' | 'QUARTER_FINAL' | 'REPECHAGE' | 'SEMI_FINAL' | 'FINAL'
+  batch_id: string | null
+  position: number | null
+  points: number | null
+}
+
 const pickCurrentMoto = (motos: MotoRow[]) => {
   const live = motos.filter((m) => m.status === 'LIVE')
   if (live.length > 0) return live[0]
@@ -65,12 +73,73 @@ const parseMotoLabel = (name: string) => {
   return match ? `Moto ${match[1]}` : name
 }
 
+const parseQualificationBatchIndex = (name: string) => {
+  const match = name.match(/moto\s*(\d+)\s*(?:-\s*)?batch\s*(\d+)/i)
+  if (!match) return null
+  return Number(match[2])
+}
+
+const parseStageBatchIndex = (name: string) => {
+  const match = name.match(/(?:heat|batch)\s*(\d+)/i)
+  return match ? Number(match[1]) : null
+}
+
 const resolvePenaltyStage = (motoName: string): 'MOTO' | 'QUARTER' | 'REPECHAGE' | 'SEMI' | 'FINAL' => {
   if (/quarter\s*final/i.test(motoName)) return 'QUARTER'
   if (/repechage/i.test(motoName)) return 'REPECHAGE'
   if (/semi\s*final/i.test(motoName)) return 'SEMI'
   if (/final/i.test(motoName)) return 'FINAL'
   return 'MOTO'
+}
+
+const compareStageSeedRows = (a: StageSeedRow, b: StageSeedRow, batchOrderById: Map<string, number>) => {
+  const positionDiff = (a.position ?? Number.MAX_SAFE_INTEGER) - (b.position ?? Number.MAX_SAFE_INTEGER)
+  if (positionDiff !== 0) return positionDiff
+  const batchDiff =
+    (a.batch_id ? batchOrderById.get(a.batch_id) ?? Number.MAX_SAFE_INTEGER : Number.MAX_SAFE_INTEGER) -
+    (b.batch_id ? batchOrderById.get(b.batch_id) ?? Number.MAX_SAFE_INTEGER : Number.MAX_SAFE_INTEGER)
+  if (batchDiff !== 0) return batchDiff
+  const pointsDiff = (a.points ?? Number.MAX_SAFE_INTEGER) - (b.points ?? Number.MAX_SAFE_INTEGER)
+  if (pointsDiff !== 0) return pointsDiff
+  return a.rider_id.localeCompare(b.rider_id)
+}
+
+const orderRidersByStageSeeds = (
+  riderIds: string[],
+  seedRows: StageSeedRow[],
+  batchOrderById: Map<string, number>
+) => {
+  const wanted = new Set(riderIds)
+  const groupedRows = [...seedRows]
+    .sort((a, b) => compareStageSeedRows(a, b, batchOrderById))
+    .filter((row) => row.position !== null && wanted.has(row.rider_id))
+    .reduce<Map<string, StageSeedRow[]>>((acc, row) => {
+      const batchId = row.batch_id ?? '__NO_BATCH__'
+      const list = acc.get(batchId) ?? []
+      list.push(row)
+      acc.set(batchId, list)
+      return acc
+    }, new Map<string, StageSeedRow[]>())
+
+  const orderedBatchIds = Array.from(groupedRows.keys()).sort((a, b) => {
+    const aOrder = a === '__NO_BATCH__' ? Number.MAX_SAFE_INTEGER : batchOrderById.get(a) ?? Number.MAX_SAFE_INTEGER
+    const bOrder = b === '__NO_BATCH__' ? Number.MAX_SAFE_INTEGER : batchOrderById.get(b) ?? Number.MAX_SAFE_INTEGER
+    if (aOrder !== bOrder) return aOrder - bOrder
+    return a.localeCompare(b)
+  })
+
+  const ordered: string[] = []
+  const maxRows = orderedBatchIds.reduce((max, batchId) => Math.max(max, groupedRows.get(batchId)?.length ?? 0), 0)
+  for (let rowIndex = 0; rowIndex < maxRows; rowIndex += 1) {
+    for (const batchId of orderedBatchIds) {
+      const row = groupedRows.get(batchId)?.[rowIndex]
+      if (row) ordered.push(row.rider_id)
+    }
+  }
+
+  const seen = new Set(ordered)
+  const leftovers = riderIds.filter((id) => !seen.has(id)).sort((a, b) => a.localeCompare(b))
+  return [...ordered, ...leftovers]
 }
 
 export async function GET(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
@@ -151,6 +220,104 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         null
       : listForNext.find((row) => ['UPCOMING', 'LIVE', 'PROVISIONAL'].includes((row.status ?? '').toUpperCase())) ?? null
 
+  const buildDerivedGateMap = async (
+    targetMoto: MotoRow,
+    assignedRiderIds: string[],
+    existingGateRows: Array<{ rider_id: string; gate_position: number | null }>
+  ) => {
+    const gateMap = new Map(existingGateRows.map((row) => [row.rider_id, Number(row.gate_position ?? 0) || null]))
+    if (gateMap.size > 0 || assignedRiderIds.length === 0) return gateMap
+
+    if (
+      !/^final /i.test(targetMoto.moto_name) &&
+      !/^quarter final/i.test(targetMoto.moto_name) &&
+      !/^repechage/i.test(targetMoto.moto_name) &&
+      !/^semi final/i.test(targetMoto.moto_name)
+    ) {
+      assignedRiderIds.forEach((riderId, index) => gateMap.set(riderId, index + 1))
+      return gateMap
+    }
+
+    const [{ data: categoryMotos }, { data: stageSeedRows }] = await Promise.all([
+      adminClient
+        .from('motos')
+        .select('id, moto_name, moto_order')
+        .eq('event_id', eventId)
+        .eq('category_id', targetMoto.category_id)
+        .order('moto_order', { ascending: true }),
+      adminClient
+        .from('race_stage_result')
+        .select('rider_id, stage, batch_id, position, points')
+        .eq('category_id', targetMoto.category_id),
+    ])
+
+    const batchOrderById = new Map<string, number>()
+    for (const moto of categoryMotos ?? []) {
+      const qualificationBatchIndex = parseQualificationBatchIndex(moto.moto_name)
+      if (qualificationBatchIndex !== null) {
+        batchOrderById.set(moto.id, qualificationBatchIndex)
+        continue
+      }
+      const stageBatchIndex = parseStageBatchIndex(moto.moto_name)
+      if (stageBatchIndex !== null) {
+        batchOrderById.set(moto.id, stageBatchIndex)
+      }
+    }
+
+    const seedRows = (stageSeedRows ?? []) as StageSeedRow[]
+    const qualificationStageSeedRows = seedRows.filter((row) => row.stage === 'QUALIFICATION')
+    const quarterStageResultRows = seedRows.filter((row) => row.stage === 'QUARTER_FINAL' && row.position !== null)
+    const repechageStageResultRows = seedRows.filter((row) => row.stage === 'REPECHAGE' && row.position !== null)
+    const semiStageResultRows = seedRows.filter((row) => row.stage === 'SEMI_FINAL' && row.position !== null)
+    const repechageStageRiderIds = new Set(repechageStageResultRows.map((row) => row.rider_id))
+    const quarterStageRiderIds = new Set(quarterStageResultRows.map((row) => row.rider_id))
+    const semiStageRiderIds = new Set(semiStageResultRows.map((row) => row.rider_id))
+
+    if (/^final /i.test(targetMoto.moto_name)) {
+      const qualificationDirect = assignedRiderIds.filter(
+        (riderId) =>
+          !repechageStageRiderIds.has(riderId) &&
+          !quarterStageRiderIds.has(riderId) &&
+          !semiStageRiderIds.has(riderId)
+      )
+      const repechageDerived = assignedRiderIds.filter(
+        (riderId) =>
+          repechageStageRiderIds.has(riderId) &&
+          !quarterStageRiderIds.has(riderId) &&
+          !semiStageRiderIds.has(riderId)
+      )
+      const quarterDerived = assignedRiderIds.filter((riderId) => quarterStageRiderIds.has(riderId) && !semiStageRiderIds.has(riderId))
+      const semiDerived = assignedRiderIds.filter((riderId) => semiStageRiderIds.has(riderId))
+
+      const ordered = [
+        ...orderRidersByStageSeeds(qualificationDirect, qualificationStageSeedRows, batchOrderById),
+        ...orderRidersByStageSeeds(repechageDerived, repechageStageResultRows, batchOrderById),
+        ...orderRidersByStageSeeds(quarterDerived, quarterStageResultRows, batchOrderById),
+        ...orderRidersByStageSeeds(semiDerived, semiStageResultRows, batchOrderById),
+      ]
+      ordered.forEach((riderId, index) => gateMap.set(riderId, index + 1))
+      return gateMap
+    }
+
+    const stageSource =
+      /^quarter final/i.test(targetMoto.moto_name)
+        ? 'QUARTER_FINAL'
+        : /^repechage/i.test(targetMoto.moto_name)
+          ? 'REPECHAGE'
+          : /^semi final/i.test(targetMoto.moto_name)
+            ? 'SEMI_FINAL'
+            : null
+    const sourceRows =
+      stageSource === 'QUARTER_FINAL'
+        ? qualificationStageSeedRows
+        : stageSource === 'REPECHAGE'
+          ? [...qualificationStageSeedRows, ...quarterStageResultRows, ...semiStageResultRows]
+          : [...quarterStageResultRows, ...repechageStageResultRows, ...qualificationStageSeedRows]
+    const ordered = orderRidersByStageSeeds(assignedRiderIds, sourceRows, batchOrderById)
+    ordered.forEach((riderId, index) => gateMap.set(riderId, index + 1))
+    return gateMap
+  }
+
   const { data: results, error: resultError } = await adminClient
     .from('results')
     .select('rider_id, finish_order, result_status')
@@ -168,10 +335,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     .select('rider_id, gate_position')
     .eq('moto_id', currentMoto.id)
 
-  const gateMap = new Map((gatePositions ?? []).map((row) => [row.rider_id, Number(row.gate_position ?? 0) || null]))
-  const penaltyStage = resolvePenaltyStage(currentMoto.moto_name)
-
   const riderIds = Array.from(new Set([...(results ?? []).map((r) => r.rider_id), ...((motoRiders ?? []).map((r) => r.rider_id))]))
+  const gateMap = await buildDerivedGateMap(currentMoto, riderIds, (gatePositions ?? []) as Array<{ rider_id: string; gate_position: number | null }>)
+  const penaltyStage = resolvePenaltyStage(currentMoto.moto_name)
   const { data: riders } = await adminClient
     .from('riders')
     .select('id, name, rider_nickname, no_plate_display, club')
@@ -253,9 +419,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       adminClient.from('moto_riders').select('rider_id').eq('moto_id', nextMoto.id),
       adminClient.from('moto_gate_positions').select('rider_id, gate_position').eq('moto_id', nextMoto.id),
     ])
-    const nextGateMap = new Map((nextMotoGates ?? []).map((row) => [row.rider_id, Number(row.gate_position ?? 0) || null]))
     const nextRiderIds = Array.from(new Set((nextMotoAssignments ?? []).map((row) => row.rider_id)))
     if (nextRiderIds.length > 0) {
+      const nextGateMap = await buildDerivedGateMap(
+        nextMoto,
+        nextRiderIds,
+        (nextMotoGates ?? []) as Array<{ rider_id: string; gate_position: number | null }>
+      )
       const { data: nextRiders } = await adminClient
         .from('riders')
         .select('id, name, rider_nickname, no_plate_display, club')
