@@ -44,17 +44,17 @@ type EventFlags = {
 }
 
 const isLockedStatus = (status?: string | null) => String(status ?? '').toUpperCase() === 'LOCKED'
-const pickNextCheckerMotoId = (list: MotoItem[], currentId: string, preferLive = false) => {
-  const selectable = list.filter((m) => !isLockedStatus(m.status))
-  if (preferLive) {
-    const liveMoto = selectable.find((m) => isMotoLive(m.status))
-    if (liveMoto) return liveMoto.id
+const pickPrepMotoId = (list: MotoItem[], currentId: string, liveMotoId?: string | null) => {
+  const selectableUpcoming = list.filter((m) => !isLockedStatus(m.status) && isMotoUpcoming(m.status))
+  if (currentId && selectableUpcoming.some((m) => m.id === currentId)) return currentId
+  if (liveMotoId) {
+    const liveIndex = list.findIndex((m) => m.id === liveMotoId)
+    if (liveIndex >= 0) {
+      const nextAfterLive = list.slice(liveIndex + 1).find((m) => !isLockedStatus(m.status) && isMotoUpcoming(m.status))
+      if (nextAfterLive) return nextAfterLive.id
+    }
   }
-  if (currentId && selectable.some((m) => m.id === currentId && isMotoLive(m.status))) return currentId
-  const liveMoto = selectable.find((m) => isMotoLive(m.status))
-  if (liveMoto) return liveMoto.id
-  if (currentId && selectable.some((m) => m.id === currentId)) return currentId
-  return selectable[0]?.id ?? ''
+  return selectableUpcoming[0]?.id ?? ''
 }
 
 type SafetyRequirement = {
@@ -64,13 +64,6 @@ type SafetyRequirement = {
   sort_order?: number | null
   penalty_code?: string | null
   icon_key?: string | null
-}
-
-type PenaltyRule = {
-  code: string
-  description: string | null
-  penalty_point: number
-  applies_to_stage: string
 }
 
 const SAFETY_ICON_OPTIONS = [
@@ -116,6 +109,25 @@ function getSafetyVisual(label: string, iconKey?: string | null) {
   return { icon: '✓', shortLabel: label }
 }
 
+const buildStatusMap = (
+  statusList: Array<{
+    rider_id: string
+    proposed_status?: string | null
+  }>
+) => {
+  const nextStatuses: Record<string, StatusRow> = {}
+  for (const row of statusList) {
+    if (row.proposed_status) {
+      nextStatuses[row.rider_id] = {
+        rider_id: row.rider_id,
+        participation_status: row.proposed_status as StatusRow['participation_status'],
+        registration_order: 0,
+      }
+    }
+  }
+  return nextStatuses
+}
+
 export default function JCPage() {
   const router = useRouter()
   const params = useParams()
@@ -127,6 +139,8 @@ export default function JCPage() {
   const [selectedMotoId, setSelectedMotoId] = useState(initialMotoId)
   const [riders, setRiders] = useState<RiderItem[]>([])
   const [statuses, setStatuses] = useState<Record<string, StatusRow>>({})
+  const [incidentRiders, setIncidentRiders] = useState<RiderItem[]>([])
+  const [incidentStatuses, setIncidentStatuses] = useState<Record<string, StatusRow>>({})
   const [flags, setFlags] = useState<EventFlags>({
     penalty_enabled: true,
     absent_enabled: true,
@@ -136,12 +150,12 @@ export default function JCPage() {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [locked, setLocked] = useState(false)
+  const [incidentLocked, setIncidentLocked] = useState(false)
   const [query, setQuery] = useState('')
   const [lastUpdated, setLastUpdated] = useState<string | null>(null)
+  const [incidentLastUpdated, setIncidentLastUpdated] = useState<string | null>(null)
   const [safetyRequirements, setSafetyRequirements] = useState<SafetyRequirement[]>([])
   const [safetyChecks, setSafetyChecks] = useState<Record<string, Record<string, boolean>>>({})
-  const [penaltiesByRider, setPenaltiesByRider] = useState<Record<string, Set<string>>>({})
-  const [penaltyRules, setPenaltyRules] = useState<PenaltyRule[]>([])
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [warningMessage, setWarningMessage] = useState<string | null>(null)
   const [allReadyDone, setAllReadyDone] = useState(false)
@@ -175,17 +189,19 @@ export default function JCPage() {
     return json
   }, [getToken])
 
-  const loadMotos = useCallback(async (silent = false, navigateToNext = false, preferLive = false) => {
+  const incidentMoto = useMemo(() => motos.find((m) => isMotoLive(m.status)) ?? null, [motos])
+  const incidentMotoId = incidentMoto?.id ?? ''
+
+  const loadMotos = useCallback(async (silent = false, navigateToNext = false) => {
     if (!eventId) return
     if (!silent) setLoading(true)
     if (!silent) setErrorMessage(null)
     try {
-      const [motoRes, catRes, flagRes, safetyRes, ruleRes] = await Promise.all([
+      const [motoRes, catRes, flagRes, safetyRes] = await Promise.all([
         fetch(`/api/motos?event_id=${eventId}`),
         fetch(`/api/events/${eventId}/categories`),
         apiFetch(`/api/jury/events/${eventId}/modules`),
         apiFetch(`/api/jury/events/${eventId}/safety-requirements`),
-        apiFetch(`/api/jury/events/${eventId}/penalties`),
       ])
       const motoJson = await motoRes.json()
       const catJson = await catRes.json()
@@ -201,7 +217,6 @@ export default function JCPage() {
         }
       )
       const rawSafety = (safetyRes.data ?? []) as SafetyRequirement[]
-      setPenaltyRules((ruleRes.data ?? []) as PenaltyRule[])
       const uniqueSafety = new Map<string, SafetyRequirement>()
       for (const item of rawSafety) {
         const key = item.label.trim().toLowerCase()
@@ -211,13 +226,20 @@ export default function JCPage() {
 
       const sortedMotos = [...(motoJson.data ?? [])].sort(compareMotoSequence)
       setMotos(sortedMotos)
-      const nextMotoId = pickNextCheckerMotoId(sortedMotos, selectedMotoId, preferLive)
-      if (nextMotoId !== selectedMotoId) {
+      const liveMoto = sortedMotos.find((m) => isMotoLive(m.status))
+      const nextMotoId = pickPrepMotoId(sortedMotos, selectedMotoId, liveMoto?.id ?? null)
+      if (nextMotoId && nextMotoId !== selectedMotoId) {
         setSelectedMotoId(nextMotoId)
         setAllReadyDone(false)
-        if (navigateToNext && nextMotoId) {
+        if (navigateToNext) {
           router.replace(`/jc/${eventId}/${nextMotoId}`)
         }
+      }
+      if (!nextMotoId && selectedMotoId) {
+        setSelectedMotoId('')
+        setRiders([])
+        setStatuses({})
+        setAllReadyDone(false)
       }
       return sortedMotos
     } catch (err: unknown) {
@@ -230,25 +252,34 @@ export default function JCPage() {
 
   useEffect(() => {
     void loadMotos(false, true)
+    const interval = setInterval(() => {
+      void loadMotos(true, true)
+    }, 5000)
+    return () => clearInterval(interval)
   }, [loadMotos])
 
   const loadMoto = async (silent = false, preserveAllReadyDone = silent) => {
-    if (!selectedMotoId || !eventId) return
+    if (!selectedMotoId || !eventId) {
+      setLocked(false)
+      setRiders([])
+      setStatuses({})
+      setLastUpdated(null)
+      return
+    }
     if (!preserveAllReadyDone) setAllReadyDone(false)
     if (!silent) setLoading(true)
     if (!silent) setErrorMessage(null)
     try {
-      const [lockRes, riderRes, statusRes, safetyRes, penaltiesRes] = await Promise.all([
+      const [lockRes, riderRes, statusRes, safetyRes] = await Promise.all([
         apiFetch(`/api/jury/motos/${selectedMotoId}/lock-status`),
         apiFetch(`/api/jury/motos/${selectedMotoId}/riders`),
         apiFetch(`/api/jury/events/${eventId}/rider-status?moto_id=${selectedMotoId}`),
         apiFetch(`/api/jury/motos/${selectedMotoId}/safety-checks`),
-        apiFetch(`/api/jury/events/${eventId}/rider-penalties?moto_id=${selectedMotoId}`),
       ])
 
       setLocked(!!lockRes.data)
       if (lockRes.data) {
-        await loadMotos(true, true, true)
+        await loadMotos(true, true)
         return
       }
       setRiders((riderRes.data ?? []).slice(0, 8))
@@ -257,17 +288,7 @@ export default function JCPage() {
         rider_id: string
         proposed_status?: string | null
       }>
-      const nextStatuses: Record<string, StatusRow> = {}
-      for (const row of statusList) {
-        if (row.proposed_status) {
-          nextStatuses[row.rider_id] = {
-            rider_id: row.rider_id,
-            participation_status: row.proposed_status as StatusRow['participation_status'],
-            registration_order: 0,
-          }
-        }
-      }
-      setStatuses(nextStatuses)
+      setStatuses(buildStatusMap(statusList))
 
       const rawRequirements = (safetyRes.data?.requirements ?? []) as SafetyRequirement[]
       const uniqueSafety = new Map<string, SafetyRequirement>()
@@ -298,13 +319,6 @@ export default function JCPage() {
         }
         return next
       })
-      const penaltyMap: Record<string, Set<string>> = {}
-      for (const row of penaltiesRes.data ?? []) {
-        const set = penaltyMap[row.rider_id] ?? new Set<string>()
-        set.add(String(row.rule_code))
-        penaltyMap[row.rider_id] = set
-      }
-      setPenaltiesByRider(penaltyMap)
       setLastUpdated(new Date().toLocaleTimeString())
     } catch (err: unknown) {
       if (!silent) {
@@ -321,6 +335,50 @@ export default function JCPage() {
     return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMotoId, eventId])
+
+  const loadIncidentMoto = useCallback(async (silent = false) => {
+    if (!incidentMotoId || !eventId) {
+      setIncidentLocked(false)
+      setIncidentRiders([])
+      setIncidentStatuses({})
+      setIncidentLastUpdated(null)
+      return
+    }
+    if (!silent) setErrorMessage(null)
+    try {
+      const [lockRes, riderRes, statusRes] = await Promise.all([
+        apiFetch(`/api/jury/motos/${incidentMotoId}/lock-status`),
+        apiFetch(`/api/jury/motos/${incidentMotoId}/riders`),
+        apiFetch(`/api/jury/events/${eventId}/rider-status?moto_id=${incidentMotoId}`),
+      ])
+
+      setIncidentLocked(!!lockRes.data)
+      if (lockRes.data) {
+        await loadMotos(true, true)
+        return
+      }
+      setIncidentRiders((riderRes.data ?? []).slice(0, 8))
+
+      const statusList = (statusRes.data ?? []) as Array<{
+        rider_id: string
+        proposed_status?: string | null
+      }>
+      setIncidentStatuses(buildStatusMap(statusList))
+      setIncidentLastUpdated(new Date().toLocaleTimeString())
+    } catch (err: unknown) {
+      if (!silent) {
+        setErrorMessage(err instanceof Error ? err.message : 'Gagal memuat incident moto LIVE.')
+      }
+    }
+  }, [apiFetch, eventId, incidentMotoId, loadMotos])
+
+  useEffect(() => {
+    void loadIncidentMoto()
+    const interval = setInterval(() => {
+      void loadIncidentMoto(true)
+    }, 5000)
+    return () => clearInterval(interval)
+  }, [loadIncidentMoto])
 
   useEffect(() => {
     setSafetyChecks((prev) => {
@@ -344,13 +402,14 @@ export default function JCPage() {
   }, [categories])
 
   const selectableMotos = useMemo(
-    () => motos.filter((m) => !isLockedStatus(m.status)),
+    () => motos.filter((m) => !isLockedStatus(m.status) && isMotoUpcoming(m.status)),
     [motos]
   )
   const selectedMoto = useMemo(() => motos.find((m) => m.id === selectedMotoId) ?? null, [motos, selectedMotoId])
-  const selectedMotoLive = isMotoLive(selectedMoto?.status)
   const selectedMotoUpcoming = isMotoUpcoming(selectedMoto?.status)
-  const selectedMotoPrep = selectedMotoLive || selectedMotoUpcoming
+  const incidentCategoryLabel = incidentMoto
+    ? categoryLabel.get(incidentMoto.category_id ?? '') ?? 'Unknown Category'
+    : 'Kategori'
   const selectedCategoryLabel = selectedMoto
     ? categoryLabel.get(selectedMoto.category_id ?? '') ?? 'Unknown Category'
     : 'Kategori'
@@ -378,13 +437,26 @@ export default function JCPage() {
     })
   }, [riderList, query])
 
+  const incidentRiderList = useMemo(() => {
+    const sorted = [...incidentRiders].sort((a, b) => {
+      const ga = a.gate_position ?? 9999
+      const gb = b.gate_position ?? 9999
+      return ga - gb
+    })
+    return sorted.map((r, idx) => ({
+      ...r,
+      status: incidentStatuses[r.id]?.participation_status ?? 'ACTIVE',
+      registration_order: incidentStatuses[r.id]?.registration_order ?? r.gate_position ?? idx + 1,
+    }))
+  }, [incidentRiders, incidentStatuses])
+
   const summary = useMemo(() => {
     const s = { total: riderList.length, active: 0, dns: 0, absent: 0 }
     for (const r of riderList) {
-      const status = statuses[r.id]?.participation_status ?? r.status ?? 'ACTIVE'
+      const status = statuses[r.id]?.participation_status
       if (status === 'DNS') s.dns += 1
       else if (status === 'ABSENT') s.absent += 1
-      else s.active += 1
+      else if (status === 'ACTIVE') s.active += 1
     }
     return s
   }, [riderList, statuses])
@@ -394,54 +466,10 @@ export default function JCPage() {
     [safetyRequirements]
   )
 
-  const penaltyRuleCodeMap = useMemo(() => {
-    const map = new Map<string, string>()
-    for (const rule of penaltyRules) {
-      const code = rule.code?.trim()
-      if (!code) continue
-      map.set(code.toUpperCase(), code)
-    }
-    return map
-  }, [penaltyRules])
-
   const isSafetyOk = useCallback(
     (riderId: string) => requiredSafety.every((item) => safetyChecks[riderId]?.[item.id] === true),
     [requiredSafety, safetyChecks]
   )
-
-  const applySafetyPenalty = async (riderId: string, requirement: SafetyRequirement) => {
-    const rawRuleCode = requirement.penalty_code?.trim()
-    if (!rawRuleCode) {
-      return { applied: false as const, reason: `mapping penalty ${requirement.label} belum diset` }
-    }
-    const normalizedRuleCode = rawRuleCode.toUpperCase()
-    const resolvedRuleCode = penaltyRuleCodeMap.get(normalizedRuleCode)
-    if (!resolvedRuleCode) {
-      return { applied: false as const, reason: `penalty code ${rawRuleCode} belum ada` }
-    }
-    const existing = penaltiesByRider[riderId]
-    if (existing && Array.from(existing).some((code) => code.toUpperCase() === normalizedRuleCode)) {
-      return { applied: true as const, reason: null }
-    }
-    await apiFetch(`/api/jury/riders/${riderId}/penalties`, {
-      method: 'POST',
-      body: JSON.stringify({
-        event_id: eventId,
-        stage: 'MOTO',
-        rule_code: resolvedRuleCode,
-        note: `Missing ${requirement.label}`,
-        moto_id: selectedMotoId,
-      }),
-    })
-    setPenaltiesByRider((prev) => {
-      const next = { ...prev }
-      const set = new Set(next[riderId] ?? [])
-      set.add(resolvedRuleCode)
-      next[riderId] = set
-      return next
-    })
-    return { applied: true as const, reason: null }
-  }
 
   const activeCount = useMemo(() => {
     return riderList.filter((r) => statuses[r.id]?.participation_status === 'ACTIVE').length
@@ -462,13 +490,8 @@ export default function JCPage() {
 
   const handleSaveStatus = async (riderId: string, status: StatusRow['participation_status'], order: number) => {
     if (!selectedMotoId) return
-    if (!selectedMotoPrep || locked) return
+    if (!selectedMotoUpcoming || locked) return
     if (status === 'ABSENT' && !flags.absent_enabled) return
-    if (status === 'DNS' && !flags.dns_enabled) return
-    if (status === 'DNS' && !selectedMotoLive) {
-      setErrorMessage('DNS baru bisa dipakai saat moto sudah LIVE.')
-      return
-    }
     const previousStatus = statuses[riderId]
     setSaving(true)
     setWarningMessage(null)
@@ -478,22 +501,6 @@ export default function JCPage() {
         ...prev,
         [riderId]: { rider_id: riderId, participation_status: status, registration_order: order },
       }))
-      if (status === 'ACTIVE' && selectedMotoLive) {
-        const missingPenaltyReasons = new Set<string>()
-        for (const req of requiredSafety) {
-          if (!safetyChecks[riderId]?.[req.id]) {
-            const res = await applySafetyPenalty(riderId, req)
-            if (!res.applied && res.reason) {
-              missingPenaltyReasons.add(res.reason)
-            }
-          }
-        }
-        if (missingPenaltyReasons.size > 0) {
-          setWarningMessage(
-            `Rider tetap lanjut dengan WARNING. Auto-penalty dilewati: ${Array.from(missingPenaltyReasons).join(', ')}.`
-          )
-        }
-      }
       await apiFetch(`/api/jury/events/${eventId}/rider-status`, {
         method: 'POST',
         body: JSON.stringify({
@@ -523,7 +530,7 @@ export default function JCPage() {
 
   const handleUndoReady = async (riderId: string) => {
     if (!selectedMotoId) return
-    if (!selectedMotoPrep || locked) return
+    if (!selectedMotoUpcoming || locked) return
     const previousStatus = statuses[riderId]
     if (!previousStatus || previousStatus.participation_status !== 'ACTIVE') return
     setSaving(true)
@@ -555,9 +562,81 @@ export default function JCPage() {
     }
   }
 
+  const handleIncidentDns = async (riderId: string, order: number) => {
+    if (!incidentMotoId || incidentLocked) return
+    if (!flags.dns_enabled) return
+    const previousStatus = incidentStatuses[riderId]
+    setSaving(true)
+    setWarningMessage(null)
+    setErrorMessage(null)
+    try {
+      setIncidentStatuses((prev) => ({
+        ...prev,
+        [riderId]: { rider_id: riderId, participation_status: 'DNS', registration_order: order },
+      }))
+      await apiFetch(`/api/jury/events/${eventId}/rider-status`, {
+        method: 'POST',
+        body: JSON.stringify({
+          rider_id: riderId,
+          participation_status: 'DNS',
+          registration_order: order,
+          moto_id: incidentMotoId,
+        }),
+      })
+      setIncidentLastUpdated(new Date().toLocaleTimeString())
+      setTimeout(() => {
+        void loadIncidentMoto(true)
+      }, 350)
+    } catch (err: unknown) {
+      setIncidentStatuses((prev) => {
+        const next = { ...prev }
+        if (previousStatus) next[riderId] = previousStatus
+        else delete next[riderId]
+        return next
+      })
+      setErrorMessage(err instanceof Error ? err.message : 'Gagal set DNS rider LIVE.')
+      await loadIncidentMoto(true)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleUndoIncidentDns = async (riderId: string) => {
+    if (!incidentMotoId || incidentLocked) return
+    const previousStatus = incidentStatuses[riderId]
+    if (!previousStatus || previousStatus.participation_status !== 'DNS') return
+    setSaving(true)
+    setWarningMessage(null)
+    setErrorMessage(null)
+    try {
+      setIncidentStatuses((prev) => {
+        const next = { ...prev }
+        delete next[riderId]
+        return next
+      })
+      await apiFetch(
+        `/api/jury/events/${eventId}/rider-status?rider_id=${encodeURIComponent(riderId)}&moto_id=${encodeURIComponent(incidentMotoId)}`,
+        { method: 'DELETE' }
+      )
+      setIncidentLastUpdated(new Date().toLocaleTimeString())
+      setTimeout(() => {
+        void loadIncidentMoto(true)
+      }, 350)
+    } catch (err: unknown) {
+      setIncidentStatuses((prev) => ({
+        ...prev,
+        [riderId]: previousStatus,
+      }))
+      setErrorMessage(err instanceof Error ? err.message : 'Gagal undo DNS rider LIVE.')
+      await loadIncidentMoto(true)
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const handleAllReady = async () => {
     if (!selectedMotoId) return
-    if (!selectedMotoPrep || locked) return
+    if (!selectedMotoUpcoming || locked) return
     setSaving(true)
     setWarningMessage(null)
     setErrorMessage(null)
@@ -579,25 +658,6 @@ export default function JCPage() {
     })
     setAllReadyDone(true)
     try {
-      const missingPenaltyReasons = new Set<string>()
-      if (selectedMotoLive) {
-        const penaltyTasks = ridersToActivate.flatMap((r) =>
-          requiredSafety
-            .filter((req) => !safetyChecks[r.id]?.[req.id])
-            .map((req) => applySafetyPenalty(r.id, req))
-        )
-        const penaltyResults = await Promise.allSettled(penaltyTasks)
-        for (const result of penaltyResults) {
-          if (result.status === 'fulfilled') {
-            if (!result.value.applied && result.value.reason) {
-              missingPenaltyReasons.add(result.value.reason)
-            }
-          } else {
-            missingPenaltyReasons.add(result.reason instanceof Error ? result.reason.message : 'auto-penalty gagal')
-          }
-        }
-      }
-
       const statusResults = await Promise.allSettled(
         ridersToActivate.map((r) =>
           apiFetch(`/api/jury/events/${eventId}/rider-status`, {
@@ -615,13 +675,7 @@ export default function JCPage() {
       if (rejectedStatus?.status === 'rejected') {
         throw rejectedStatus.reason
       }
-      if (missingPenaltyReasons.size > 0) {
-        setWarningMessage(
-          `Sebagian rider lanjut dengan WARNING. Auto-penalty dilewati: ${Array.from(missingPenaltyReasons).join(', ')}.`
-        )
-      } else if (selectedMotoUpcoming) {
-        setWarningMessage('Moto masih UPCOMING. READY/ABSENT sudah tersimpan, penalty tetap menunggu moto LIVE.')
-      }
+      setWarningMessage('Moto prep masih UPCOMING. READY/ABSENT sudah tersimpan, penalty tetap menunggu moto LIVE.')
       setLastUpdated(new Date().toLocaleTimeString())
       alert(`All Ready tersimpan untuk ${selectedCategoryLabel} | ${selectedMoto?.moto_name ?? 'Moto'}`)
       setTimeout(() => {
@@ -637,13 +691,14 @@ export default function JCPage() {
     }
   }
 
-  const bannerDisabled = !selectedMotoPrep
+  const bannerDisabled = !selectedMotoUpcoming
   const interactionDisabled = saving || bannerDisabled || locked
   const safetyInteractionDisabled = interactionDisabled || allReadyDone
   const readyDisabled = interactionDisabled
-  const dnsDisabled = saving || locked || !selectedMotoLive || !allReadyDone || !flags.dns_enabled
   const absentDisabled = interactionDisabled || allReadyDone || !flags.absent_enabled
   const canGateReady = riderList.length > 0
+  const incidentInteractionDisabled = saving || incidentLocked || !incidentMotoId
+  const incidentDnsDisabled = incidentInteractionDisabled || !flags.dns_enabled
 
   return (
     <div className="jc-page" style={{ minHeight: '100vh', background: '#fff6da', color: '#111' }}>
@@ -651,9 +706,9 @@ export default function JCPage() {
       <div className="jc-container" style={{ maxWidth: 980, margin: '0 auto', padding: 20, display: 'grid', gap: 16 }}>
         <div style={{ display: 'grid', gap: 8 }}>
           <div className="jc-header-row" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ fontSize: highVisibility ? 34 : 28, fontWeight: 900 }}>Jury Start</div>
+            <div style={{ fontSize: highVisibility ? 34 : 28, fontWeight: 900 }}>Checker Gate Start</div>
             <div className="jc-summary-text" style={{ marginLeft: 'auto', fontWeight: 700 }}>
-              {selectedCategoryLabel} - {selectedMoto?.moto_name ?? '-'} | Ready: {activeCount}/{summary.total}
+              Prep: {selectedCategoryLabel} - {selectedMoto?.moto_name ?? 'Belum ada moto prep'} | Ready: {activeCount}/{summary.total}
               {warningCount > 0 ? ` | Warn: ${warningCount}` : ''}
             </div>
             <select
@@ -672,20 +727,24 @@ export default function JCPage() {
                 background: '#fff',
                 fontWeight: 900,
               }}
+              disabled={selectableMotos.length === 0}
             >
+              {selectableMotos.length === 0 && <option value="">Belum ada moto prep UPCOMING</option>}
               {selectableMotos.map((m) => (
                 <option key={m.id} value={m.id}>
-                  {m.moto_order}. {m.moto_name} - {categoryLabel.get(m.category_id ?? '') ?? 'Category'} - {m.status}
+                  {m.moto_order}. {m.moto_name} - {categoryLabel.get(m.category_id ?? '') ?? 'Category'}
                 </option>
                 ))}
             </select>
-              <button
+            <button
               type="button"
               onClick={async () => {
-                const refreshedMotos = (await loadMotos(false, true, true)) ?? []
-                const nextMotoId = pickNextCheckerMotoId(refreshedMotos, selectedMotoId, true)
+                const refreshedMotos = (await loadMotos(false, true)) ?? []
+                const liveMoto = refreshedMotos.find((m) => isMotoLive(m.status))
+                const nextMotoId = pickPrepMotoId(refreshedMotos, selectedMotoId, liveMoto?.id ?? null)
                 if (nextMotoId && nextMotoId !== selectedMotoId) return
                 await loadMoto(false, true)
+                await loadIncidentMoto(true)
               }}
               disabled={loading || saving}
               style={{
@@ -699,7 +758,7 @@ export default function JCPage() {
                 whiteSpace: 'nowrap',
               }}
             >
-              Refresh Moto
+              Refresh Checker
             </button>
             <button
               type="button"
@@ -747,7 +806,7 @@ export default function JCPage() {
               fontWeight: 800,
             }}
           >
-            Moto masih UPCOMING. Checker bisa prep READY, ABSENT, dan safety. DNS serta penalty baru aktif saat moto LIVE.
+            Panel utama sekarang fokus ke moto prep UPCOMING. READY, ABSENT, dan safety dikerjakan di sini; DNS pindah ke panel incident moto LIVE.
           </div>
         )}
         {bannerDisabled && (
@@ -761,7 +820,7 @@ export default function JCPage() {
               fontWeight: 800,
             }}
           >
-            Moto status {selectedMoto?.status ?? 'UPCOMING'}. Checker hanya aktif saat moto UPCOMING atau LIVE.
+            Belum ada moto UPCOMING untuk dipersiapkan. Checker tetap bisa pakai panel incident moto LIVE kalau ada.
           </div>
         )}
         {errorMessage && (
@@ -793,9 +852,137 @@ export default function JCPage() {
           </div>
         )}
 
+        <div
+          style={{
+            display: 'grid',
+            gap: 12,
+            padding: 16,
+            borderRadius: 18,
+            border: '2px solid #7f1d1d',
+            background: '#fff1f2',
+            boxShadow: '0 6px 0 #7f1d1d',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', color: '#9f1239' }}>CURRENT MOTO INCIDENT</div>
+              <div style={{ fontSize: highVisibility ? 24 : 20, fontWeight: 900 }}>
+                {incidentMoto ? `${incidentCategoryLabel} - ${incidentMoto.moto_name}` : 'Belum ada moto LIVE'}
+              </div>
+            </div>
+            <div
+              style={{
+                padding: '6px 12px',
+                borderRadius: 999,
+                border: '2px solid #7f1d1d',
+                background: incidentMoto ? '#fecdd3' : '#ffe4e6',
+                color: '#881337',
+                fontWeight: 900,
+              }}
+            >
+              {incidentMoto ? 'DNS / UNDO DNS' : 'WAITING LIVE'}
+            </div>
+          </div>
+          <div style={{ fontSize: 12, color: '#881337', fontWeight: 700 }}>
+            Last updated LIVE: {incidentLastUpdated ?? '-'}
+          </div>
+          {incidentMoto ? (
+            <div style={{ display: 'grid', gap: 10 }}>
+              {incidentRiderList.map((r) => {
+                const rawStatus = incidentStatuses[r.id]?.participation_status
+                const statusLabel = !rawStatus ? 'READY/UNKNOWN' : rawStatus === 'ACTIVE' ? 'READY' : rawStatus
+                const isDns = rawStatus === 'DNS'
+                return (
+                  <div
+                    key={`incident-${r.id}`}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr auto',
+                      gap: 12,
+                      alignItems: 'center',
+                      padding: '12px 14px',
+                      borderRadius: 14,
+                      border: '2px solid #7f1d1d',
+                      background: '#fff',
+                    }}
+                  >
+                    <div style={{ display: 'grid', gap: 4 }}>
+                      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: highVisibility ? 28 : 24, fontWeight: 950 }}>{r.no_plate_display}</span>
+                        <span style={{ fontWeight: 900 }}>{r.name}</span>
+                        <span style={{ fontSize: 12, fontWeight: 800, color: '#7f1d1d' }}>Gate #{r.gate_position ?? '-'}</span>
+                      </div>
+                      <div
+                        style={{
+                          width: 'fit-content',
+                          padding: '4px 10px',
+                          borderRadius: 999,
+                          border: '2px solid #111',
+                          background: isDns ? '#fee2e2' : '#ffe4e6',
+                          fontWeight: 900,
+                          fontSize: 12,
+                        }}
+                      >
+                        {statusLabel}
+                      </div>
+                    </div>
+                    <button
+                      className="jc-action-btn"
+                      type="button"
+                      onClick={() =>
+                        isDns
+                          ? handleUndoIncidentDns(r.id)
+                          : handleIncidentDns(r.id, r.gate_position ?? r.registration_order ?? 0)
+                      }
+                      disabled={incidentDnsDisabled}
+                      style={{
+                        padding: highVisibility ? '14px 16px' : '12px 14px',
+                        borderRadius: 999,
+                        border: `2px solid ${isDns ? '#1d4ed8' : '#c2410c'}`,
+                        background: isDns ? '#dbeafe' : '#ffedd5',
+                        color: isDns ? '#1e3a8a' : '#9a3412',
+                        fontWeight: 900,
+                        fontSize: highVisibility ? 16 : undefined,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {isDns ? 'UNDO DNS' : 'MARK DNS'}
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <div
+              style={{
+                padding: '12px 14px',
+                borderRadius: 12,
+                border: '2px dashed #be123c',
+                color: '#881337',
+                fontWeight: 800,
+                background: '#fff',
+              }}
+            >
+              Belum ada moto LIVE yang perlu incident handling.
+            </div>
+          )}
+        </div>
+
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <div
+            style={{
+              padding: '6px 12px',
+              borderRadius: 999,
+              border: '2px solid #166534',
+              background: '#dcfce7',
+              color: '#166534',
+              fontWeight: 900,
+            }}
+          >
+            NEXT MOTO PREP
+          </div>
           <div style={{ fontSize: 12, color: '#333', fontWeight: 700 }}>
-            Last updated: {lastUpdated ?? '-'}
+            Last updated PREP: {lastUpdated ?? '-'}
           </div>
         </div>
 
@@ -832,9 +1019,7 @@ export default function JCPage() {
           {allReadyDone && (
             <div style={{ display: 'grid', gap: 8 }}>
               <div style={{ padding: '12px 14px', borderRadius: 12, background: '#dcfce7', fontWeight: 900, textAlign: 'center' }}>
-                {selectedMotoLive
-                  ? 'DNS siap dipakai. READY dan ABSENT dikunci setelah All Ready.'
-                  : 'Prep rider tersimpan. READY dan ABSENT dikunci sampai di-reset, DNS baru aktif saat moto LIVE.'}
+                Prep rider tersimpan. READY dan ABSENT dikunci sampai di-reset, DNS dikerjakan dari panel incident moto LIVE.
               </div>
               <button
                 className="jc-action-btn"
@@ -1107,7 +1292,7 @@ export default function JCPage() {
                   })}
                 </div>
 
-                <div className="jc-status-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                <div className="jc-status-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
                   <button
                     className="jc-action-btn jc-primary"
                     type="button"
@@ -1128,23 +1313,6 @@ export default function JCPage() {
                     }}
                   >
                     {statuses[r.id]?.participation_status === 'ACTIVE' ? 'UNDO READY' : 'READY'}
-                  </button>
-                  <button
-                    className="jc-action-btn"
-                    type="button"
-                    onClick={() => handleSaveStatus(r.id, 'DNS', r.gate_position ?? 0)}
-                    disabled={dnsDisabled}
-                    style={{
-                      padding: highVisibility ? '14px 16px' : '12px 14px',
-                      borderRadius: 999,
-                      border: '2px solid #c2410c',
-                      background: '#ffedd5',
-                      color: '#9a3412',
-                      fontWeight: 900,
-                      fontSize: highVisibility ? 16 : undefined,
-                    }}
-                  >
-                    DNS
                   </button>
                   <button
                     className="jc-action-btn"
