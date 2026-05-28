@@ -233,3 +233,88 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
 
   return NextResponse.json({ data })
 }
+
+export async function DELETE(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  const { eventId } = await params
+  const auth = await requireJury(req, ['CHECKER', 'RACE_DIRECTOR', 'ADMIN', 'super_admin'], eventId)
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+  if (auth.role === 'RACE_DIRECTOR') {
+    return NextResponse.json({ error: 'Read-only for RACE_DIRECTOR' }, { status: 403 })
+  }
+
+  const { searchParams } = new URL(req.url)
+  const riderId = searchParams.get('rider_id')
+  const motoId = searchParams.get('moto_id')
+
+  if (!riderId || !motoId) {
+    return NextResponse.json({ error: 'rider_id and moto_id required' }, { status: 400 })
+  }
+
+  if (await isLockedMoto(motoId)) {
+    try {
+      assertMotoEditable('locked')
+    } catch (err: unknown) {
+      return NextResponse.json({ error: err instanceof Error ? err.message : 'Moto locked.' }, { status: 409 })
+    }
+  }
+
+  const { data: moto, error: motoError } = await adminClient
+    .from('motos')
+    .select('id, event_id, status')
+    .eq('id', motoId)
+    .maybeSingle()
+  if (motoError) return NextResponse.json({ error: motoError.message }, { status: 400 })
+  if (!moto || moto.event_id !== eventId) {
+    return NextResponse.json({ error: 'Moto not found in event.' }, { status: 404 })
+  }
+  try {
+    assertMotoNotUnderProtest((moto as { status?: string | null })?.status ?? null)
+  } catch (err: unknown) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Moto under protest review.' }, { status: 409 })
+  }
+  if (!isMotoLive(moto.status)) {
+    return NextResponse.json({ error: 'Checker hanya bisa undo status saat moto masih LIVE.' }, { status: 409 })
+  }
+
+  const { error: updateDeleteError } = await adminClient
+    .from('rider_status_updates')
+    .delete()
+    .eq('event_id', eventId)
+    .eq('moto_id', motoId)
+    .eq('rider_id', riderId)
+
+  if (updateDeleteError) return NextResponse.json({ error: updateDeleteError.message }, { status: 400 })
+
+  const { error: participationDeleteError } = await adminClient
+    .from('rider_participation_status')
+    .delete()
+    .eq('event_id', eventId)
+    .eq('moto_id', motoId)
+    .eq('rider_id', riderId)
+
+  if (participationDeleteError) return NextResponse.json({ error: participationDeleteError.message }, { status: 400 })
+
+  const { error: resultDeleteError } = await adminClient
+    .from('results')
+    .delete()
+    .eq('event_id', eventId)
+    .eq('moto_id', motoId)
+    .eq('rider_id', riderId)
+    .eq('result_status', 'DNS')
+
+  if (resultDeleteError) return NextResponse.json({ error: resultDeleteError.message }, { status: 400 })
+
+  await adminClient.from('audit_log').insert([
+    {
+      action_type: 'STATUS_APPROVAL',
+      performed_by: auth.user.id,
+      rider_id: riderId,
+      moto_id: motoId,
+      event_id: eventId,
+      reason: 'Undo ACTIVE status',
+    },
+  ])
+
+  return NextResponse.json({ ok: true })
+}

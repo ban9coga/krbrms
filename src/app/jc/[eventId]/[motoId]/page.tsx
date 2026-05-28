@@ -267,7 +267,7 @@ export default function JCPage() {
           }
         }
       }
-      setStatuses((prev) => ({ ...prev, ...nextStatuses }))
+      setStatuses(nextStatuses)
 
       const rawRequirements = (safetyRes.data?.requirements ?? []) as SafetyRequirement[]
       const uniqueSafety = new Map<string, SafetyRequirement>()
@@ -448,6 +448,16 @@ export default function JCPage() {
     return riderList.filter((r) => statuses[r.id]?.participation_status === 'ACTIVE' && !isSafetyOk(r.id)).length
   }, [riderList, statuses, isSafetyOk])
 
+  useEffect(() => {
+    const isEveryRiderChecked =
+      riders.length > 0 &&
+      riders.every((r) => {
+        const status = statuses[r.id]?.participation_status
+        return status === 'ACTIVE' || status === 'DNS' || status === 'ABSENT'
+      })
+    setAllReadyDone(isEveryRiderChecked)
+  }, [riders, statuses])
+
   const handleSaveStatus = async (riderId: string, status: StatusRow['participation_status'], order: number) => {
     if (!selectedMotoId) return
     if (!selectedMotoLive || locked) return
@@ -499,6 +509,40 @@ export default function JCPage() {
         return next
       })
       setErrorMessage(err instanceof Error ? err.message : 'Gagal menyimpan status rider.')
+      await loadMoto(true)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleUndoReady = async (riderId: string) => {
+    if (!selectedMotoId) return
+    if (!selectedMotoLive || locked) return
+    const previousStatus = statuses[riderId]
+    if (!previousStatus || previousStatus.participation_status !== 'ACTIVE') return
+    setSaving(true)
+    setWarningMessage(null)
+    setErrorMessage(null)
+    try {
+      setStatuses((prev) => {
+        const next = { ...prev }
+        delete next[riderId]
+        return next
+      })
+      setAllReadyDone(false)
+      await apiFetch(`/api/jury/events/${eventId}/rider-status?rider_id=${encodeURIComponent(riderId)}&moto_id=${encodeURIComponent(selectedMotoId)}`, {
+        method: 'DELETE',
+      })
+      setLastUpdated(new Date().toLocaleTimeString())
+      setTimeout(() => {
+        void loadMoto(true)
+      }, 350)
+    } catch (err: unknown) {
+      setStatuses((prev) => ({
+        ...prev,
+        [riderId]: previousStatus,
+      }))
+      setErrorMessage(err instanceof Error ? err.message : 'Gagal undo READY rider.')
       await loadMoto(true)
     } finally {
       setSaving(false)
@@ -586,7 +630,7 @@ export default function JCPage() {
   const bannerDisabled = !selectedMotoLive
   const interactionDisabled = saving || bannerDisabled || locked
   const safetyInteractionDisabled = interactionDisabled || allReadyDone
-  const readyDisabled = interactionDisabled || allReadyDone
+  const readyDisabled = interactionDisabled
   const dnsDisabled = interactionDisabled || !allReadyDone || !flags.dns_enabled
   const absentDisabled = interactionDisabled || allReadyDone || !flags.absent_enabled
   const canGateReady = riderList.length > 0
@@ -1041,19 +1085,23 @@ export default function JCPage() {
                   <button
                     className="jc-action-btn jc-primary"
                     type="button"
-                    onClick={() => handleSaveStatus(r.id, 'ACTIVE', r.gate_position ?? 0)}
+                    onClick={() =>
+                      statuses[r.id]?.participation_status === 'ACTIVE'
+                        ? handleUndoReady(r.id)
+                        : handleSaveStatus(r.id, 'ACTIVE', r.gate_position ?? 0)
+                    }
                     disabled={readyDisabled}
                     style={{
                       padding: highVisibility ? '14px 16px' : '12px 14px',
                       borderRadius: 999,
                       border: '2px solid #1b5e20',
-                      background: safetyOk ? '#2ecc71' : '#ffe9a8',
+                      background: statuses[r.id]?.participation_status === 'ACTIVE' ? '#dcfce7' : safetyOk ? '#2ecc71' : '#ffe9a8',
                       color: '#111',
                       fontWeight: 900,
                       fontSize: highVisibility ? 16 : undefined,
                     }}
                   >
-                    READY
+                    {statuses[r.id]?.participation_status === 'ACTIVE' ? 'UNDO READY' : 'READY'}
                   </button>
                   <button
                     className="jc-action-btn"
