@@ -2550,30 +2550,18 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                           }
                           style={{ padding: 10, borderRadius: 10, border: '2px solid #111', fontWeight: 800 }}
                         />
-                        <input
-                          type="number"
-                          min={1}
-                          placeholder="DNF point override"
-                          value={item.config?.dnf_point_override ?? ''}
-                          onChange={(e) =>
-                            updateAdvancedConfigDraft(item.category.id, {
-                              dnf_point_override: parseStageCapacityValue(e.target.value),
-                            })
-                          }
-                          style={{ padding: 10, borderRadius: 10, border: '2px solid #111', fontWeight: 800 }}
-                        />
-                        <input
-                          type="number"
-                          min={1}
-                          placeholder="DNS point override"
-                          value={item.config?.dns_point_override ?? ''}
-                          onChange={(e) =>
-                            updateAdvancedConfigDraft(item.category.id, {
-                              dns_point_override: parseStageCapacityValue(e.target.value),
-                            })
-                          }
-                          style={{ padding: 10, borderRadius: 10, border: '2px solid #111', fontWeight: 800 }}
-                        />
+                      </div>
+                      <div
+                        style={{
+                          padding: '10px 12px',
+                          borderRadius: 12,
+                          border: '1px solid #cbd5e1',
+                          background: '#f8fafc',
+                          fontWeight: 800,
+                          color: '#334155',
+                        }}
+                      >
+                        DNF / DNS point override sekarang dipindah ke halaman Penalties agar aturan point non-finish tersimpan di satu tempat.
                       </div>
                       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                         <button

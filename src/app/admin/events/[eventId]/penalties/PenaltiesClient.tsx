@@ -51,6 +51,25 @@ type CategoryItem = {
   gender?: string | null
 }
 
+type AdvancedConfig = {
+  id: string
+  event_id: string
+  category_id: string
+  enabled: boolean
+  max_riders_per_race: number
+  qualification_moto_count: number
+  repechage_max_riders_per_race: number | null
+  quarter_final_max_riders_per_race: number | null
+  semi_final_max_riders_per_race: number | null
+  dnf_point_override: number | null
+  dns_point_override: number | null
+}
+
+type AdvancedCategoryItem = {
+  category: CategoryItem
+  config: AdvancedConfig | null
+}
+
 type RiderGroup = {
   id: string
   label: string
@@ -101,12 +120,34 @@ function getSafetyVisual(label: string, iconKey?: string | null) {
   return { icon: '✓', shortLabel: label }
 }
 
+const sortCategories = (a: CategoryItem, b: CategoryItem) => {
+  const ay = a.year ?? -1
+  const by = b.year ?? -1
+  if (ay === by) return a.label.localeCompare(b.label)
+  return by - ay
+}
+
+const createDefaultAdvancedConfig = (eventId: string, categoryId: string): AdvancedConfig => ({
+  id: '',
+  event_id: eventId,
+  category_id: categoryId,
+  enabled: false,
+  max_riders_per_race: 8,
+  qualification_moto_count: 2,
+  repechage_max_riders_per_race: null,
+  quarter_final_max_riders_per_race: null,
+  semi_final_max_riders_per_race: null,
+  dnf_point_override: null,
+  dns_point_override: null,
+})
+
 export default function PenaltiesClient({ eventId }: { eventId: string }) {
   const [flags, setFlags] = useState<FeatureFlags | null>(null)
   const [rules, setRules] = useState<PenaltyRule[]>([])
   const [requirements, setRequirements] = useState<SafetyRequirement[]>([])
   const [statuses, setStatuses] = useState<Record<string, RiderStatus>>({})
   const [groups, setGroups] = useState<RiderGroup[]>([])
+  const [advancedItems, setAdvancedItems] = useState<AdvancedCategoryItem[]>([])
   const [expandedCategoryId, setExpandedCategoryId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -158,20 +199,33 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
     setLoading(true)
     setErrorMessage(null)
     try {
-      const [flagRes, ruleRes, statusRes, reqRes] = await Promise.all([
+      const [flagRes, ruleRes, statusRes, reqRes, advancedRes] = await Promise.all([
         apiFetch(`/api/events/${eventId}/modules`),
         apiFetch(`/api/events/${eventId}/penalties`),
         apiFetch(`/api/events/${eventId}/rider-status`),
         apiFetch(`/api/events/${eventId}/safety-requirements`),
+        apiFetch(`/api/events/${eventId}/advanced-race`),
       ])
       const flagJson = flagRes
       const ruleJson = ruleRes
       const statusJson = statusRes
       const reqJson = reqRes
+      const advancedJson = advancedRes
 
       setFlags(flagJson.data ?? { penalty_enabled: false, absent_enabled: false, dns_enabled: false, dnf_enabled: false })
       setRules(ruleJson.data ?? [])
       setRequirements(reqJson.data ?? [])
+      const advancedCategories = (advancedJson.data?.categories ?? []) as CategoryItem[]
+      const advancedConfigs = (advancedJson.data?.configs ?? []) as AdvancedConfig[]
+      const advancedConfigMap = new Map(advancedConfigs.map((config) => [config.category_id, config]))
+      setAdvancedItems(
+        [...advancedCategories]
+          .sort(sortCategories)
+          .map((category) => ({
+            category,
+            config: advancedConfigMap.get(category.id) ?? null,
+          }))
+      )
 
       const map: Record<string, RiderStatus> = {}
       for (const row of statusJson.data ?? []) {
@@ -206,7 +260,7 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
         fetch(`/api/events/${eventId}/categories`),
       ])
       const categoryJson = await categoryRes.json()
-      const categories = (categoryJson.data ?? []) as CategoryItem[]
+      const categories = ((categoryJson.data ?? []) as CategoryItem[]).sort(sortCategories)
 
       const groupedRaw = await Promise.all(
         categories.map(async (category) => {
@@ -223,12 +277,7 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
 
       const grouped = groupedRaw
         .filter((group) => group.riders.length > 0)
-        .sort((a, b) => {
-          const ay = a.year ?? -1
-          const by = b.year ?? -1
-          if (ay === by) return a.label.localeCompare(b.label)
-          return by - ay
-        })
+        .sort((a, b) => sortCategories(a, b))
 
       if (uncategorized.length > 0) {
         grouped.push({ id: 'uncategorized', label: 'Uncategorized', year: null, riders: uncategorized })
@@ -356,6 +405,53 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
       setErrorMessage(null)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Gagal menyimpan safety mapping.'
+      setErrorMessage(message)
+      alert(message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const updatePointOverrideDraft = (categoryId: string, patch: Partial<AdvancedConfig>) => {
+    setAdvancedItems((prev) =>
+      prev.map((item) => {
+        if (item.category.id !== categoryId) return item
+        return {
+          ...item,
+          config: {
+            ...(item.config ?? createDefaultAdvancedConfig(eventId, categoryId)),
+            ...patch,
+          },
+        }
+      })
+    )
+  }
+
+  const handleSavePointOverrides = async (categoryId: string) => {
+    const currentItem = advancedItems.find((item) => item.category.id === categoryId)
+    if (!currentItem) return
+    const currentConfig = currentItem.config ?? createDefaultAdvancedConfig(eventId, categoryId)
+
+    setSaving(true)
+    try {
+      await apiFetch(`/api/events/${eventId}/advanced-race`, {
+        method: 'POST',
+        body: JSON.stringify({
+          category_id: categoryId,
+          enabled: currentConfig.enabled,
+          max_riders_per_race: currentConfig.max_riders_per_race,
+          qualification_moto_count: currentConfig.qualification_moto_count,
+          repechage_max_riders_per_race: currentConfig.repechage_max_riders_per_race,
+          quarter_final_max_riders_per_race: currentConfig.quarter_final_max_riders_per_race,
+          semi_final_max_riders_per_race: currentConfig.semi_final_max_riders_per_race,
+          dnf_point_override: currentConfig.dnf_point_override,
+          dns_point_override: currentConfig.dns_point_override,
+        }),
+      })
+      await loadAll()
+      setErrorMessage(null)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Gagal menyimpan DNF/DNS point override.'
       setErrorMessage(message)
       alert(message)
     } finally {
@@ -857,6 +953,99 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
             </div>
           )})}
         </div>
+      </div>
+
+      <div
+        style={{
+          marginTop: 16,
+          background: '#fff',
+          border: '2px solid #111',
+          borderRadius: 16,
+          padding: 16,
+          display: 'grid',
+          gap: 10,
+        }}
+      >
+        <div style={{ fontWeight: 950, fontSize: 18 }}>DNF / DNS Point Override</div>
+        <div style={{ fontSize: 12, color: '#444', fontWeight: 700 }}>
+          Override point DNF dan DNS dipindah ke halaman Penalties supaya satu napas dengan aturan scoring event. Data tetap disimpan per kategori.
+        </div>
+        {advancedItems.length === 0 ? (
+          <div style={{ padding: 12, borderRadius: 12, border: '2px dashed #111', fontWeight: 800 }}>
+            Belum ada kategori.
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gap: 10 }}>
+            {advancedItems.map((item) => {
+              const config = item.config ?? createDefaultAdvancedConfig(eventId, item.category.id)
+              return (
+                <div
+                  key={item.category.id}
+                  style={{
+                    padding: 12,
+                    borderRadius: 12,
+                    border: '2px solid #111',
+                    background: '#f8fafc',
+                    display: 'grid',
+                    gap: 10,
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <div style={{ fontWeight: 900 }}>{item.category.label}</div>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: '#475569' }}>
+                      AMS {config.enabled ? 'ON' : 'OFF'}
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
+                    <input
+                      type="number"
+                      min={1}
+                      placeholder="DNF point override"
+                      value={config.dnf_point_override ?? ''}
+                      onChange={(e) =>
+                        updatePointOverrideDraft(item.category.id, {
+                          dnf_point_override: e.target.value.trim() ? Math.max(1, Number(e.target.value)) : null,
+                        })
+                      }
+                      style={{ padding: 10, borderRadius: 10, border: '2px solid #111', fontWeight: 800 }}
+                    />
+                    <input
+                      type="number"
+                      min={1}
+                      placeholder="DNS point override"
+                      value={config.dns_point_override ?? ''}
+                      onChange={(e) =>
+                        updatePointOverrideDraft(item.category.id, {
+                          dns_point_override: e.target.value.trim() ? Math.max(1, Number(e.target.value)) : null,
+                        })
+                      }
+                      style={{ padding: 10, borderRadius: 10, border: '2px solid #111', fontWeight: 800 }}
+                    />
+                  </div>
+                  <div style={{ fontSize: 11, color: '#475569', fontWeight: 700 }}>
+                    Kosongkan field kalau mau pakai aturan default sistem.
+                  </div>
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={() => handleSavePointOverrides(item.category.id)}
+                      disabled={saving}
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: 10,
+                        border: '2px solid #111',
+                        background: '#dbeafe',
+                        fontWeight: 900,
+                      }}
+                    >
+                      Save Point Override
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       <div
