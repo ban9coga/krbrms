@@ -165,7 +165,7 @@ export default function JCPage() {
   const [allReadyDone, setAllReadyDone] = useState(false)
   const [bulkReadyState, setBulkReadyState] = useState<{
     motoId: string
-    previousStatuses: Record<string, StatusRow | null>
+    changedStatuses: Record<string, StatusRow | null>
   } | null>(null)
   const [viewportWidth, setViewportWidth] = useState(1280)
   const { highVisibility, toggleHighVisibility } = useHighVisibility('jury-checker-high-visibility')
@@ -688,7 +688,18 @@ export default function JCPage() {
     if (!selectedMotoPreppable || locked) return
     if (riderList.length === 0) return
 
-    const previousStatuses = riderList.reduce<Record<string, StatusRow | null>>((acc, rider) => {
+    const targetRiders = riderList.filter((rider) => {
+      const status = statuses[rider.id]?.participation_status
+      return status !== 'ACTIVE' && status !== 'ABSENT'
+    })
+
+    if (targetRiders.length === 0) {
+      setWarningMessage('Semua rider di moto ini sudah READY atau ABSENT. Tidak ada rider baru yang perlu di-ready-kan massal.')
+      setErrorMessage(null)
+      return
+    }
+
+    const changedStatuses = targetRiders.reduce<Record<string, StatusRow | null>>((acc, rider) => {
       acc[rider.id] = statuses[rider.id] ?? null
       return acc
     }, {})
@@ -697,7 +708,7 @@ export default function JCPage() {
     setWarningMessage(null)
     setErrorMessage(null)
     try {
-      const nextStatuses = riderList.reduce<Record<string, StatusRow>>((acc, rider, index) => {
+      const nextStatuses = targetRiders.reduce<Record<string, StatusRow>>((acc, rider, index) => {
         acc[rider.id] = {
           rider_id: rider.id,
           participation_status: 'ACTIVE',
@@ -706,11 +717,14 @@ export default function JCPage() {
         return acc
       }, {})
 
-      setStatuses(nextStatuses)
+      setStatuses((prev) => ({
+        ...prev,
+        ...nextStatuses,
+      }))
       setAllReadyDone(false)
 
       await Promise.all(
-        riderList.map((rider, index) =>
+        targetRiders.map((rider, index) =>
           apiFetch(`/api/jury/events/${eventId}/rider-status`, {
             method: 'POST',
             body: JSON.stringify({
@@ -723,18 +737,24 @@ export default function JCPage() {
         )
       )
 
-      setBulkReadyState({ motoId: selectedMotoId, previousStatuses })
-      setWarningMessage(`Semua rider di ${selectedMoto?.moto_name ?? 'moto ini'} ditandai READY. Kalau ada yang keliru, tekan Undo All Riders Ready.`)
+      setBulkReadyState({ motoId: selectedMotoId, changedStatuses })
+      setWarningMessage(`${targetRiders.length} rider di ${selectedMoto?.moto_name ?? 'moto ini'} ditandai READY. Kalau ada yang keliru, tekan Undo All Riders Ready.`)
       setLastUpdated(new Date().toLocaleTimeString())
       setTimeout(() => {
         void loadMoto(true, true)
       }, 350)
     } catch (err: unknown) {
-      const restoredStatuses = Object.entries(previousStatuses).reduce<Record<string, StatusRow>>((acc, [riderId, row]) => {
+      const restoredStatuses = Object.entries(changedStatuses).reduce<Record<string, StatusRow>>((acc, [riderId, row]) => {
         if (row) acc[riderId] = row
         return acc
       }, {})
-      setStatuses(restoredStatuses)
+      setStatuses((prev) => {
+        const next = { ...prev }
+        for (const riderId of targetRiders.map((rider) => rider.id)) {
+          delete next[riderId]
+        }
+        return { ...next, ...restoredStatuses }
+      })
       setErrorMessage(err instanceof Error ? err.message : 'Gagal set semua rider READY.')
       await loadMoto(true)
     } finally {
@@ -746,32 +766,43 @@ export default function JCPage() {
     if (!selectedMotoId || !bulkReadyApplied || !bulkReadyState) return
     if (!selectedMotoPreppable || locked) return
 
-    const previousStatuses = bulkReadyState.previousStatuses
+    const changedStatuses = bulkReadyState.changedStatuses
+    const changedRiderIds = Object.keys(changedStatuses)
+    if (changedRiderIds.length === 0) {
+      setBulkReadyState(null)
+      return
+    }
 
     setSaving(true)
     setWarningMessage(null)
     setErrorMessage(null)
     try {
-      const restoredStatuses = Object.entries(previousStatuses).reduce<Record<string, StatusRow>>((acc, [riderId, row]) => {
+      const restoredStatuses = Object.entries(changedStatuses).reduce<Record<string, StatusRow>>((acc, [riderId, row]) => {
         if (row) acc[riderId] = row
         return acc
       }, {})
-      setStatuses(restoredStatuses)
+      setStatuses((prev) => {
+        const next = { ...prev }
+        for (const riderId of changedRiderIds) {
+          delete next[riderId]
+        }
+        return { ...next, ...restoredStatuses }
+      })
       setAllReadyDone(false)
 
       await Promise.all(
-        riderList.map((rider) => {
-          const previous = previousStatuses[rider.id] ?? null
+        changedRiderIds.map((riderId) => {
+          const previous = changedStatuses[riderId] ?? null
           if (!previous) {
             return apiFetch(
-              `/api/jury/events/${eventId}/rider-status?rider_id=${encodeURIComponent(rider.id)}&moto_id=${encodeURIComponent(selectedMotoId)}`,
+              `/api/jury/events/${eventId}/rider-status?rider_id=${encodeURIComponent(riderId)}&moto_id=${encodeURIComponent(selectedMotoId)}`,
               { method: 'DELETE' }
             )
           }
           return apiFetch(`/api/jury/events/${eventId}/rider-status`, {
             method: 'POST',
             body: JSON.stringify({
-              rider_id: rider.id,
+              rider_id: riderId,
               participation_status: previous.participation_status,
               registration_order: previous.registration_order,
               moto_id: selectedMotoId,
