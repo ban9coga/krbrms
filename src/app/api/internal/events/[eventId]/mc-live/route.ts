@@ -52,13 +52,25 @@ type StageSeedRow = {
   points: number | null
 }
 
-const pickCurrentMoto = (motos: MotoRow[]) => {
+const pickNowRacingMoto = (motos: MotoRow[]) => {
   const live = motos.filter((m) => m.status === 'LIVE')
   if (live.length > 0) return live[0]
+  const upcoming = motos.filter((m) => m.status === 'UPCOMING')
+  if (upcoming.length > 0) return upcoming[0]
   const provisional = motos.filter((m) => m.status === 'PROVISIONAL')
   if (provisional.length > 0) return provisional[provisional.length - 1]
-  const locked = motos.filter((m) => m.status === 'LOCKED')
+  const locked = motos.filter((m) => m.status === 'LOCKED' || m.status === 'FINISHED')
   if (locked.length > 0) return locked[locked.length - 1]
+  return motos[0] ?? null
+}
+
+const pickResultMoto = (motos: MotoRow[]) => {
+  const provisional = motos.filter((m) => m.status === 'PROVISIONAL')
+  if (provisional.length > 0) return provisional[provisional.length - 1]
+  const locked = motos.filter((m) => m.status === 'LOCKED' || m.status === 'FINISHED')
+  if (locked.length > 0) return locked[locked.length - 1]
+  const live = motos.filter((m) => m.status === 'LIVE')
+  if (live.length > 0) return live[0]
   const upcoming = motos.filter((m) => m.status === 'UPCOMING')
   if (upcoming.length > 0) return upcoming[0]
   return motos[0] ?? null
@@ -192,15 +204,19 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   }
 
   const list = [...((motos ?? []) as MotoRow[])].sort(compareMotoSequence)
-  const currentMoto = pickCurrentMoto(list)
-  if (!currentMoto) {
+  const nowRacingMoto = pickNowRacingMoto(list)
+  const resultMoto = pickResultMoto(list)
+  if (!nowRacingMoto && !resultMoto) {
     return NextResponse.json({
       data: {
         under_review: false,
         event_name: eventRow?.name ?? 'Event',
         moto: null,
+        now_moto: null,
         category: null,
+        now_category: null,
         batch: null,
+        now_batch: null,
         ranking: [],
         next_moto_riders: [],
         next_moto: null,
@@ -208,9 +224,30 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     })
   }
 
-  const currentCategoryLabel = categoryMap.get(currentMoto.category_id) ?? null
+  const rankingMoto = resultMoto ?? nowRacingMoto
+  const activeMoto = nowRacingMoto ?? resultMoto
+  if (!rankingMoto || !activeMoto) {
+    return NextResponse.json({
+      data: {
+        under_review: false,
+        event_name: eventRow?.name ?? 'Event',
+        moto: null,
+        now_moto: null,
+        category: null,
+        now_category: null,
+        batch: null,
+        now_batch: null,
+        ranking: [],
+        next_moto_riders: [],
+        next_moto: null,
+      },
+    })
+  }
+
+  const currentCategoryLabel = categoryMap.get(rankingMoto.category_id) ?? null
+  const nowCategoryLabel = categoryMap.get(activeMoto.category_id) ?? null
   const listForNext = [...((motos ?? []) as MotoRow[])].sort(compareMotoSequence)
-  const currentIndex = listForNext.findIndex((row) => row.id === currentMoto.id)
+  const currentIndex = listForNext.findIndex((row) => row.id === activeMoto.id)
   const nextMoto =
     currentIndex >= 0
       ? listForNext
@@ -322,23 +359,23 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const { data: results, error: resultError } = await adminClient
     .from('results')
     .select('rider_id, finish_order, result_status')
-    .eq('moto_id', currentMoto.id)
+    .eq('moto_id', rankingMoto.id)
     .order('finish_order', { ascending: true, nullsFirst: false })
   if (resultError) return NextResponse.json({ error: resultError.message }, { status: 400 })
 
   const { data: motoRiders } = await adminClient
     .from('moto_riders')
     .select('rider_id')
-    .eq('moto_id', currentMoto.id)
+    .eq('moto_id', rankingMoto.id)
   const lastPosition = (motoRiders ?? []).length || null
   const { data: gatePositions } = await adminClient
     .from('moto_gate_positions')
     .select('rider_id, gate_position')
-    .eq('moto_id', currentMoto.id)
+    .eq('moto_id', rankingMoto.id)
 
   const riderIds = Array.from(new Set([...(results ?? []).map((r) => r.rider_id), ...((motoRiders ?? []).map((r) => r.rider_id))]))
-  const gateMap = await buildDerivedGateMap(currentMoto, riderIds, (gatePositions ?? []) as Array<{ rider_id: string; gate_position: number | null }>)
-  const penaltyStage = resolvePenaltyStage(currentMoto.moto_name)
+  const gateMap = await buildDerivedGateMap(rankingMoto, riderIds, (gatePositions ?? []) as Array<{ rider_id: string; gate_position: number | null }>)
+  const penaltyStage = resolvePenaltyStage(rankingMoto.moto_name)
   const { data: riders } = await adminClient
     .from('riders')
     .select('id, name, rider_nickname, no_plate_display, club')
@@ -349,7 +386,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     .from('rider_participation_status')
     .select('rider_id, participation_status')
     .eq('event_id', eventId)
-    .eq('moto_id', currentMoto.id)
+    .eq('moto_id', rankingMoto.id)
     .in('rider_id', riderIds)
   const participationMap = new Map((participationRows ?? []).map((row) => [row.rider_id, row.participation_status as string | null]))
 
@@ -374,7 +411,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     .from('race_stage_config')
     .select('dnf_point_override, dns_point_override')
     .eq('event_id', eventId)
-    .eq('category_id', currentMoto.category_id)
+    .eq('category_id', rankingMoto.category_id)
     .maybeSingle()
 
   const ranking: McRankingRow[] = riderIds.map((riderId) => {
@@ -514,9 +551,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     data: {
       under_review: false,
       event_name: eventRow?.name ?? 'Event',
-      moto: currentMoto,
+      moto: rankingMoto,
+      now_moto: activeMoto,
       category: currentCategoryLabel,
-      batch: parseBatch(currentMoto.moto_name),
+      now_category: nowCategoryLabel,
+      batch: parseBatch(rankingMoto.moto_name),
+      now_batch: parseBatch(activeMoto.moto_name),
       ranking,
       next_moto_riders: nextMotoRiders,
       next_moto: nextMoto

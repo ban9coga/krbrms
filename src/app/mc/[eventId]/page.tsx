@@ -54,8 +54,11 @@ type McResponse = {
     event_name?: string | null
     review_moto?: MotoInfo | null
     moto?: MotoInfo | null
+    now_moto?: MotoInfo | null
     category?: string | null
+    now_category?: string | null
     batch?: string | null
+    now_batch?: string | null
     ranking?: RankingRow[]
     next_moto_riders?: NextMotoRiderRow[]
     next_moto?: NextMotoInfo | null
@@ -104,7 +107,14 @@ const mcStatusLabel = (status: RankingRow['status']) =>
         : status
 const nextMotoStatusLabel = (status: NextMotoRiderRow['status']) =>
   status === 'PENDING' ? 'Belum Dicek' : status === 'READY' ? 'Ready' : status === 'ABSENT' ? 'Absent' : status
-const mcCueText = (moto?: MotoInfo | null, nextMoto?: NextMotoInfo | null) => {
+const mcCueText = (nowMoto?: MotoInfo | null, resultMoto?: MotoInfo | null, nextMoto?: NextMotoInfo | null) => {
+  if (!nowMoto && !resultMoto) return 'Menunggu data moto dari sistem.'
+  if (resultMoto && isResultReady(resultMoto.status) && nowMoto && resultMoto.id !== nowMoto.id) {
+    return nextMoto
+      ? 'Bacakan hasil moto yang baru finish, sambil siapkan rider moto yang sedang live dan moto berikutnya.'
+      : 'Bacakan hasil moto yang baru finish, lalu lanjutkan panduan start untuk race berikutnya.'
+  }
+  const moto = nowMoto ?? resultMoto
   if (!moto) return 'Menunggu data moto dari sistem.'
   if (moto.status === 'LIVE') return 'Pandu suasana dan siapkan rider berikutnya ke area tunggu.'
   if (moto.status === 'UPCOMING') return 'Panggil rider ke gate sesuai urutan start.'
@@ -158,6 +168,10 @@ export default function McLivePage() {
   const ranking = useMemo(() => (data?.ranking ?? []).slice(0, 8), [data])
   const nextMotoRiders = useMemo(() => (data?.next_moto_riders ?? []).slice(0, 8), [data])
   const readyToAnnounce = isResultReady(data?.moto?.status)
+  const nowMoto = data?.now_moto ?? data?.moto ?? null
+  const nowCategory = data?.now_category ?? data?.category ?? null
+  const nowBatch = data?.now_batch ?? data?.batch ?? null
+  const announcingDifferentMoto = !!(readyToAnnounce && data?.moto && nowMoto && data.moto.id !== nowMoto.id)
 
   if (data?.under_review) {
     return (
@@ -173,7 +187,7 @@ export default function McLivePage() {
     )
   }
 
-  const badge = statusBadge(data?.moto ?? null)
+  const badge = statusBadge(nowMoto)
   return (
     <div className="public-page">
       <PublicTopbar />
@@ -185,7 +199,7 @@ export default function McLivePage() {
             <div className="grid gap-1">
               <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-amber-300">MC Live Board</p>
               <h1 className={`${highVisibility ? 'text-3xl md:text-5xl' : 'text-2xl md:text-4xl'} font-black tracking-tight text-white`}>
-                {data?.category ?? 'Kategori'} | {data?.batch ?? '-'} | {data?.moto?.moto_name ?? 'Moto'}
+                {nowCategory ?? 'Kategori'} | {nowBatch ?? '-'} | {nowMoto?.moto_name ?? 'Moto'}
               </h1>
               <p className={`${highVisibility ? 'text-xl md:text-2xl' : 'text-lg'} font-extrabold text-slate-200`}>{data?.event_name ?? 'Event'}</p>
               <p className={`${highVisibility ? 'text-base md:text-lg' : 'text-sm'} font-semibold text-slate-300`}>
@@ -193,8 +207,13 @@ export default function McLivePage() {
                   ? `Next: ${data.next_moto.category ?? '-'} | ${data.next_moto.batch ?? '-'} | ${data.next_moto.moto_label}`
                   : 'Belum ada moto berikutnya'}
               </p>
+              {announcingDifferentMoto && data?.moto ? (
+                <p className={`${highVisibility ? 'text-base md:text-lg' : 'text-sm'} font-bold text-amber-200`}>
+                  Result To Announce: {data.category ?? '-'} | {data.batch ?? '-'} | {data.moto.moto_name}
+                </p>
+              ) : null}
               <p className={`${highVisibility ? 'text-base md:text-lg' : 'text-sm'} max-w-3xl font-semibold text-slate-200`}>
-                {mcCueText(data?.moto ?? null, data?.next_moto ?? null)}
+                {mcCueText(nowMoto, data?.moto ?? null, data?.next_moto ?? null)}
               </p>
             </div>
             <div className={`rounded-full border px-4 py-2 text-sm font-extrabold uppercase tracking-[0.12em] ${badge.className}`}>
@@ -209,17 +228,17 @@ export default function McLivePage() {
               <div className="grid gap-1">
                 <div className="text-xs font-extrabold uppercase tracking-[0.18em] text-slate-500">Now Racing</div>
                 <h2 className={`${highVisibility ? 'text-2xl md:text-3xl' : 'text-xl'} font-black tracking-tight text-slate-900`}>
-                  {data?.moto?.moto_name ?? 'Belum ada moto'}
+                  {nowMoto?.moto_name ?? 'Belum ada moto'}
                 </h2>
                 <div className={`${highVisibility ? 'text-base md:text-lg' : 'text-sm'} font-bold text-slate-600`}>
-                  {data?.category ?? '-'} | {data?.batch ?? '-'}
+                  {nowCategory ?? '-'} | {nowBatch ?? '-'}
                 </div>
               </div>
               <div className="grid gap-2 text-right">
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                   <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Cue</div>
                   <div className={`${highVisibility ? 'text-base md:text-lg' : 'text-sm'} mt-1 font-extrabold text-slate-900`}>
-                    {readyToAnnounce ? 'Baca hasil' : 'Panggil rider'}
+                    {readyToAnnounce ? 'Baca hasil' : nowMoto?.status === 'LIVE' ? 'Pandu race' : 'Panggil rider'}
                   </div>
                 </div>
               </div>
@@ -227,11 +246,11 @@ export default function McLivePage() {
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                 <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Kategori</div>
-                <div className={`${highVisibility ? 'text-lg md:text-2xl' : 'text-base md:text-xl'} mt-1 font-black text-slate-900`}>{data?.category ?? '-'}</div>
+                <div className={`${highVisibility ? 'text-lg md:text-2xl' : 'text-base md:text-xl'} mt-1 font-black text-slate-900`}>{nowCategory ?? '-'}</div>
               </div>
               <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                 <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Batch</div>
-                <div className={`${highVisibility ? 'text-lg md:text-2xl' : 'text-base md:text-xl'} mt-1 font-black text-slate-900`}>{data?.batch ?? '-'}</div>
+                <div className={`${highVisibility ? 'text-lg md:text-2xl' : 'text-base md:text-xl'} mt-1 font-black text-slate-900`}>{nowBatch ?? '-'}</div>
               </div>
               <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                 <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Moto Berikutnya</div>
@@ -249,6 +268,11 @@ export default function McLivePage() {
               <h2 className={`${highVisibility ? 'text-2xl md:text-3xl' : 'text-xl'} font-black tracking-tight text-slate-900`}>
                 {readyToAnnounce ? 'Result To Announce' : 'Status Rider / Hasil Sementara'}
               </h2>
+              {announcingDifferentMoto && data?.moto ? (
+                <div className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">
+                  Moto hasil: {data.category ?? '-'} | {data.batch ?? '-'} | {data.moto.moto_name}
+                </div>
+              ) : null}
               <div className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">
                 Auto refresh aktif tiap 5 detik
               </div>

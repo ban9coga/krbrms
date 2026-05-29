@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import CheckerTopbar from '../../../../components/CheckerTopbar'
 import { useHighVisibility } from '../../../../hooks/useHighVisibility'
 import { compareMotoSequence } from '../../../../lib/motoSequence'
@@ -149,7 +149,6 @@ const buildStatusMap = (
 }
 
 export default function JCPage() {
-  const router = useRouter()
   const params = useParams()
   const eventId = String(params?.eventId ?? '')
   const initialMotoId = String(params?.motoId ?? '')
@@ -188,6 +187,16 @@ export default function JCPage() {
     return refreshed.data.session?.access_token ?? null
   }, [])
 
+  const syncPrepMotoUrl = useCallback(
+    (motoId: string) => {
+      if (!motoId || typeof window === 'undefined') return
+      const nextPath = `/jc/${eventId}/${motoId}`
+      if (window.location.pathname === nextPath) return
+      window.history.replaceState(window.history.state, '', nextPath)
+    },
+    [eventId]
+  )
+
   const apiFetch = useCallback(async (url: string, options: RequestInit = {}, retryUnauthorized = true) => {
     const token = await getToken()
     const headers: Record<string, string> = {
@@ -212,7 +221,7 @@ export default function JCPage() {
   const incidentMoto = useMemo(() => motos.find((m) => isMotoLive(m.status)) ?? null, [motos])
   const incidentMotoId = incidentMoto?.id ?? ''
 
-  const loadMotos = useCallback(async (silent = false, navigateToNext = false) => {
+  const loadMotos = useCallback(async (silent = false) => {
     if (!eventId) return
     if (!silent) setLoading(true)
     if (!silent) setErrorMessage(null)
@@ -251,9 +260,7 @@ export default function JCPage() {
       if (nextMotoId && nextMotoId !== selectedMotoId) {
         setSelectedMotoId(nextMotoId)
         setAllReadyDone(false)
-        if (navigateToNext) {
-          router.replace(`/jc/${eventId}/${nextMotoId}`)
-        }
+        syncPrepMotoUrl(nextMotoId)
       }
       if (!nextMotoId && selectedMotoId) {
         setSelectedMotoId('')
@@ -268,12 +275,12 @@ export default function JCPage() {
       if (!silent) setLoading(false)
     }
     return []
-  }, [apiFetch, eventId, router, selectedMotoId])
+  }, [apiFetch, eventId, selectedMotoId, syncPrepMotoUrl])
 
   useEffect(() => {
-    void loadMotos(false, true)
+    void loadMotos(false)
     const interval = setInterval(() => {
-      void loadMotos(true, true)
+      void loadMotos(true)
     }, 5000)
     return () => clearInterval(interval)
   }, [loadMotos])
@@ -299,7 +306,7 @@ export default function JCPage() {
 
       setLocked(!!lockRes.data)
       if (lockRes.data) {
-        await loadMotos(true, true)
+        await loadMotos(true)
         return
       }
       setRiders((riderRes.data ?? []).slice(0, 8))
@@ -374,7 +381,7 @@ export default function JCPage() {
 
       setIncidentLocked(!!lockRes.data)
       if (lockRes.data) {
-        await loadMotos(true, true)
+        await loadMotos(true)
         return
       }
       setIncidentRiders((riderRes.data ?? []).slice(0, 8))
@@ -702,7 +709,7 @@ export default function JCPage() {
     setAllReadyDone(false)
     setQuery('')
     setSelectedMotoId(nextPrepMotoId)
-    router.replace(`/jc/${eventId}/${nextPrepMotoId}`)
+    syncPrepMotoUrl(nextPrepMotoId)
   }
 
   const bannerDisabled = !selectedMotoPreppable
@@ -732,7 +739,7 @@ export default function JCPage() {
                 const next = e.target.value
                 setSelectedMotoId(next)
                 setAllReadyDone(false)
-                router.replace(`/jc/${eventId}/${next}`)
+                syncPrepMotoUrl(next)
               }}
               className="jc-moto-select"
               style={{
@@ -754,7 +761,7 @@ export default function JCPage() {
             <button
               type="button"
               onClick={async () => {
-                const refreshedMotos = (await loadMotos(false, true)) ?? []
+                const refreshedMotos = (await loadMotos(false)) ?? []
                 const liveMoto = refreshedMotos.find((m) => isMotoLive(m.status))
                 const nextMotoId = pickPrepMotoId(refreshedMotos, selectedMotoId, liveMoto?.id ?? null)
                 if (nextMotoId && nextMotoId !== selectedMotoId) return
