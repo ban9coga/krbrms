@@ -3,6 +3,7 @@
 import { adminClient } from '../lib/auth'
 import { resolveCategoryConfig } from './categoryResolver'
 import { assertMotoNotUnderProtest } from '../lib/motoLock'
+import { resolveTotalPointForRaceResult, type NonFinishPenaltyConfig } from '../lib/nonFinishScoring'
 import {
   type CustomSplitRule,
   type FinalClass,
@@ -61,11 +62,6 @@ type QualificationRankRow = {
   rank: number
   batchId: string | null
   tieBreakers?: number[]
-}
-
-type PointOverrideConfig = {
-  dnf_point_override?: number | null
-  dns_point_override?: number | null
 }
 
 const compareTieBreakers = (a: number[] = [], b: number[] = []) => {
@@ -136,16 +132,9 @@ const parseBatchKey = (name: string) => {
   return { motoIndex: Number(match[1]), batchIndex: Number(match[2]) }
 }
 
-const dnsPointForMoto = (riderCount: number, config?: PointOverrideConfig) =>
-  Number(config?.dns_point_override ?? riderCount + 2)
-
-const pointForRaceResult = (row: ResultRow | null | undefined, riderCount: number, config?: PointOverrideConfig) => {
+const pointForRaceResult = (row: ResultRow | null | undefined, riderCount: number, config?: NonFinishPenaltyConfig) => {
   if (!row) return null
-  const status = row.result_status ?? 'FINISH'
-  if (status === 'DQ') return null
-  if (status === 'DNS') return dnsPointForMoto(riderCount, config)
-  if (status === 'DNF') return Number(config?.dnf_point_override ?? riderCount)
-  return row.finish_order ?? null
+  return resolveTotalPointForRaceResult(row.result_status ?? 'FINISH', row.finish_order, riderCount, config)
 }
 
 const safeMotoNameExists = async (eventId: string, categoryId: string, prefix: string) => {
@@ -239,7 +228,7 @@ const buildQualificationSeedRowsFromCurrentResults = (
   motoRows: MotoRow[],
   motoRiderRows: MotoRiderRow[],
   resultRows: ResultRow[],
-  config?: PointOverrideConfig
+  config?: NonFinishPenaltyConfig
 ): StageResultSeedRow[] => {
   const batchMap = new Map<number, { moto1?: MotoRow; moto2?: MotoRow; moto3?: MotoRow }>()
   for (const moto of motoRows) {

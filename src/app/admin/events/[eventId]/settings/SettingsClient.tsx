@@ -2561,7 +2561,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                           color: '#334155',
                         }}
                       >
-                        DNF / DNS point override sekarang dipindah ke halaman Penalties agar aturan point non-finish tersimpan di satu tempat.
+                        DNF / DNS auto penalty sekarang dipindah ke halaman Penalties agar aturan non-finish tersimpan di satu tempat.
                       </div>
                       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                         <button

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../../lib/auth'
 import { compareMotoSequence } from '../../../../../../lib/motoSequence'
+import { resolveBasePointForRaceResult, resolveNonFinishAutoPenalty } from '../../../../../../lib/nonFinishScoring'
 import { requireJury } from '../../../../../../services/juryAuth'
 
 type MotoRow = {
@@ -424,17 +425,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         : row?.result_status ??
           (participationStatus === 'ACTIVE' ? 'READY' : 'PENDING')
     ) as 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'READY' | 'PENDING' | 'ABSENT'
-    const basePoint =
-      status === 'DQ'
-        ? null
-        : status === 'DNS' || status === 'ABSENT'
-          ? ((lastPosition ?? 0) > 0 ? Number(pointOverrideConfig?.dns_point_override ?? (lastPosition as number) + 2) : null)
-        : status === 'DNF'
-          ? ((lastPosition ?? 0) > 0 ? Number(pointOverrideConfig?.dnf_point_override ?? lastPosition) : null)
-        : status === 'FINISH'
-          ? row?.finish_order ?? null
-        : null
-    const penalty = penaltyMap.get(riderId) ?? 0
+    const basePoint = resolveBasePointForRaceResult(status, row?.finish_order ?? null, lastPosition)
+    const penalty = (penaltyMap.get(riderId) ?? 0) + resolveNonFinishAutoPenalty(status, pointOverrideConfig ?? undefined)
     const total = basePoint !== null ? basePoint + penalty : null
     return {
       rider_id: riderId,

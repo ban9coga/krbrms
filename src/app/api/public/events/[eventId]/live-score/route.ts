@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../../lib/auth'
 import { formatMotoDisplayName } from '../../../../../../lib/motoDisplayOrder'
+import { resolveBasePointForRaceResult, resolveNonFinishAutoPenalty } from '../../../../../../lib/nonFinishScoring'
 import { isMotoPublicVisible, isMotoUpcoming } from '../../../../../../lib/motoStatus'
 import { resolveCategoryConfig } from '../../../../../../services/categoryResolver'
 import { formatStageAdvanceLabel, resolveQualificationPrimaryAdvance } from '../../../../../../services/raceStageEngine'
@@ -84,11 +85,6 @@ type StageSeedRow = {
   batch_id: string | null
   position: number | null
   points: number | null
-}
-
-type PointOverrideConfig = {
-  dnf_point_override?: number | null
-  dns_point_override?: number | null
 }
 
 const parseBatchKey = (name: string) => {
@@ -192,17 +188,8 @@ const buildQualificationProgress = (motoRows: MotoRow[], gateRows: GateRow[], re
   }
 }
 
-const dnsPointForMoto = (riderCount: number | null, config?: PointOverrideConfig) => {
-  if (!riderCount || riderCount <= 0) return null
-  return Number(config?.dns_point_override ?? riderCount + 2)
-}
-
-const pointForMotoResult = (res: ResultRow | null, riderCount: number | null, config?: PointOverrideConfig) => {
-  const status = res?.result_status ?? null
-  if (status === 'DQ') return null
-  if (status === 'DNS') return dnsPointForMoto(riderCount, config)
-  if (status === 'DNF') return riderCount ? Number(config?.dnf_point_override ?? riderCount) : null
-  return res?.finish_order ?? null
+const pointForMotoResult = (res: ResultRow | null, riderCount: number | null) => {
+  return resolveBasePointForRaceResult(res?.result_status ?? null, res?.finish_order ?? null, riderCount)
 }
 
 const getStageStatusSortOrder = (status: StageRow['status']) => {
@@ -509,14 +496,18 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         const riderCount2 = gate2Map.size || null
         const riderCount3 = gate3Map.size || null
         const riderStatus = statusMap.get(`${moto1.id}:${riderId}`) ?? 'ACTIVE'
-        const point1 = pointForMotoResult(moto1Result ?? null, riderCount1, pointOverrideConfig ?? undefined)
-        const point2 = pointForMotoResult(moto2Result ?? null, riderCount2, pointOverrideConfig ?? undefined)
-        const point3 = pointForMotoResult(moto3Result ?? null, riderCount3, pointOverrideConfig ?? undefined)
+        const point1 = pointForMotoResult(moto1Result ?? null, riderCount1)
+        const point2 = pointForMotoResult(moto2Result ?? null, riderCount2)
+        const point3 = pointForMotoResult(moto3Result ?? null, riderCount3)
         const hasRecordedResult = Boolean(moto1Result || moto2Result || moto3Result)
         const basePoint = [point1, point2, point3].filter((v) => v !== null).length
           ? [point1, point2, point3].reduce<number>((acc, v) => acc + (v ?? 0), 0)
           : null
-        const penaltyTotal = qualificationPenaltyMap.get(riderId) ?? 0
+        const autoPenaltyTotal =
+          resolveNonFinishAutoPenalty(moto1Result?.result_status ?? null, pointOverrideConfig ?? undefined) +
+          resolveNonFinishAutoPenalty(moto2Result?.result_status ?? null, pointOverrideConfig ?? undefined) +
+          resolveNonFinishAutoPenalty(moto3Result?.result_status ?? null, pointOverrideConfig ?? undefined)
+        const penaltyTotal = (qualificationPenaltyMap.get(riderId) ?? 0) + autoPenaltyTotal
         const penaltyTotalDisplay = hasRecordedResult ? penaltyTotal : null
         const totalPoint = basePoint !== null ? basePoint + penaltyTotal : null
         const tiebreakers = [point3, point2, point1]
@@ -690,9 +681,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       const rider = riderMap.get(riderId)
       const res = resultRows.find((r) => r.moto_id === moto.id && r.rider_id === riderId) ?? null
       const status = (res?.result_status ?? 'PENDING') as StageRow['status']
-      const penaltyTotal = stagePenaltyStages.reduce((sum, stageKey) => {
+      const manualPenaltyTotal = stagePenaltyStages.reduce((sum, stageKey) => {
         return sum + (stagePenaltyMap.get(`${riderId}:${stageKey}`) ?? 0)
       }, 0)
+      const autoPenaltyTotal = resolveNonFinishAutoPenalty(status, pointOverrideConfig ?? undefined)
       return {
         rider_id: riderId,
         gate: gateMap.get(riderId) ?? null,
@@ -700,8 +692,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         no_plate: rider?.no_plate_display ?? '-',
         club: rider?.club ?? '-',
         photo_thumbnail_url: rider?.photo_thumbnail_url ?? null,
-        point: pointForMotoResult(res, riderCount, pointOverrideConfig ?? undefined),
-        penalty_total: penaltyTotal || null,
+        point: pointForMotoResult(res, riderCount),
+        penalty_total: manualPenaltyTotal + autoPenaltyTotal || null,
         rank: null,
         status,
       }

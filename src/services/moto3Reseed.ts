@@ -1,4 +1,5 @@
 import { adminClient } from '../lib/auth'
+import { resolveTotalPointForRaceResult, type NonFinishPenaltyConfig } from '../lib/nonFinishScoring'
 
 type MotoLookupRow = {
   id: string
@@ -21,27 +22,15 @@ type MotoResultRow = {
   result_status?: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | null
 }
 
-type PointOverrideConfig = {
-  dnf_point_override?: number | null
-  dns_point_override?: number | null
-}
-
 export const parseMotoBatchKey = (name: string) => {
   const match = name.match(/moto\s*(\d+)\s*-\s*batch\s*(\d+)/i)
   if (!match) return null
   return { motoIndex: Number(match[1]), batchIndex: Number(match[2]) }
 }
 
-const dnsPointForMoto = (riderCount: number, config?: PointOverrideConfig) =>
-  Number(config?.dns_point_override ?? riderCount + 2)
-
-const pointForRaceResult = (row: MotoResultRow | null | undefined, riderCount: number, config?: PointOverrideConfig) => {
+const pointForRaceResult = (row: MotoResultRow | null | undefined, riderCount: number, config?: NonFinishPenaltyConfig) => {
   if (!row) return null
-  const status = row.result_status ?? 'FINISH'
-  if (status === 'DQ') return null
-  if (status === 'DNS') return dnsPointForMoto(riderCount, config)
-  if (status === 'DNF') return Number(config?.dnf_point_override ?? riderCount)
-  return row.finish_order ?? null
+  return resolveTotalPointForRaceResult(row.result_status ?? 'FINISH', row.finish_order, riderCount, config)
 }
 
 export async function reseedSingleBatchMoto3FromMoto(motoId: string) {
