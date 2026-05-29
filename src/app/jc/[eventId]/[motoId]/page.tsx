@@ -167,7 +167,16 @@ export default function JCPage() {
     motoId: string
     previousStatuses: Record<string, StatusRow | null>
   } | null>(null)
+  const [viewportWidth, setViewportWidth] = useState(1280)
   const { highVisibility, toggleHighVisibility } = useHighVisibility('jury-checker-high-visibility')
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const updateViewportWidth = () => setViewportWidth(window.innerWidth)
+    updateViewportWidth()
+    window.addEventListener('resize', updateViewportWidth)
+    return () => window.removeEventListener('resize', updateViewportWidth)
+  }, [])
 
   const getToken = useCallback(async () => {
     const { data } = await supabase.auth.getSession()
@@ -434,6 +443,11 @@ export default function JCPage() {
     ? categoryLabel.get(selectedMoto.category_id ?? '') ?? 'Unknown Category'
     : 'Kategori'
   const hasSafetyRequirements = safetyRequirements.length > 0
+  const isCompactLayout = viewportWidth <= 960
+  const isMobileLayout = viewportWidth <= 640
+  const safetyGridColumns = isMobileLayout ? 'repeat(3, minmax(0, 1fr))' : 'repeat(4, minmax(0, 1fr))'
+  const prepActionColumns = isMobileLayout ? '1fr' : 'repeat(2, minmax(0, 1fr))'
+  const prepSummaryColumns = isMobileLayout ? 'repeat(2, minmax(0, 1fr))' : 'repeat(3, minmax(0, 1fr))'
 
   const riderList = useMemo(() => {
     const sorted = [...riders].sort((a, b) => {
@@ -808,11 +822,22 @@ export default function JCPage() {
   return (
     <div className="jc-page" style={{ minHeight: '100vh', background: '#fff6da', color: '#111' }}>
       <CheckerTopbar title="Checker Panel" />
-      <div className="jc-container" style={{ maxWidth: 980, margin: '0 auto', padding: 20, display: 'grid', gap: 16 }}>
+      <div
+        className="jc-container"
+        style={{
+          maxWidth: 980,
+          margin: '0 auto',
+          padding: isMobileLayout ? 12 : isCompactLayout ? 16 : 20,
+          display: 'grid',
+          gap: isMobileLayout ? 12 : 16,
+        }}
+      >
         <div style={{ display: 'grid', gap: 8 }}>
           <div className="jc-header-row" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ fontSize: highVisibility ? 34 : 28, fontWeight: 900 }}>Checker Gate Start</div>
-            <div className="jc-summary-text" style={{ marginLeft: 'auto', fontWeight: 700 }}>
+            <div style={{ fontSize: highVisibility ? (isCompactLayout ? 30 : 34) : isCompactLayout ? 24 : 28, fontWeight: 900 }}>
+              Checker Gate Start
+            </div>
+            <div className="jc-summary-text" style={{ marginLeft: 'auto', fontWeight: 700, fontSize: isCompactLayout ? 12 : 14 }}>
               Prep: {selectedCategoryLabel} - {selectedMoto?.moto_name ?? 'Belum ada moto prep'} | Ready: {activeCount}/{summary.total} | Belum Dicek: {summary.unchecked}
               {warningCount > 0 ? ` | Warning: ${warningCount}` : ''}
             </div>
@@ -832,6 +857,7 @@ export default function JCPage() {
                 border: '2px solid #111',
                 background: '#fff',
                 fontWeight: 900,
+                width: isCompactLayout ? '100%' : undefined,
               }}
               disabled={selectableMotos.length === 0}
             >
@@ -862,6 +888,7 @@ export default function JCPage() {
                 cursor: loading || saving ? 'not-allowed' : 'pointer',
                 opacity: loading || saving ? 0.6 : 1,
                 whiteSpace: 'nowrap',
+                width: isMobileLayout ? '100%' : undefined,
               }}
             >
               Refresh Checker
@@ -877,6 +904,7 @@ export default function JCPage() {
                 color: '#111',
                 fontWeight: 900,
                 whiteSpace: 'nowrap',
+                width: isMobileLayout ? '100%' : undefined,
               }}
             >
               {highVisibility ? 'Mode Besar Aktif' : 'Mode Besar'}
@@ -946,18 +974,18 @@ export default function JCPage() {
         <div
           style={{
             display: 'grid',
-            gap: 12,
-            padding: 18,
+            gap: incidentMoto ? (isCompactLayout ? 10 : 12) : 8,
+            padding: incidentMoto ? (isCompactLayout ? 14 : 18) : isCompactLayout ? 12 : 14,
             borderRadius: 20,
             border: '3px solid #7f1d1d',
             background: 'linear-gradient(180deg, #fff1f2 0%, #ffe4e6 100%)',
-            boxShadow: '0 10px 0 #7f1d1d',
+            boxShadow: isCompactLayout ? '0 6px 0 #7f1d1d' : '0 10px 0 #7f1d1d',
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
             <div>
               <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', color: '#9f1239' }}>CURRENT MOTO INCIDENT</div>
-              <div style={{ fontSize: highVisibility ? 24 : 20, fontWeight: 900 }}>
+              <div style={{ fontSize: highVisibility ? (isCompactLayout ? 22 : 24) : isCompactLayout ? 18 : 20, fontWeight: 900 }}>
                 {incidentMoto ? `${incidentCategoryLabel} - ${incidentMoto.moto_name}` : 'Belum ada moto LIVE'}
               </div>
             </div>
@@ -1040,10 +1068,10 @@ export default function JCPage() {
                     key={`incident-${r.id}`}
                     style={{
                       display: 'grid',
-                      gridTemplateColumns: '1fr auto',
+                      gridTemplateColumns: isMobileLayout ? '1fr' : '1fr auto',
                       gap: 12,
                       alignItems: 'center',
-                      padding: '12px 14px',
+                      padding: isCompactLayout ? '10px 12px' : '12px 14px',
                       borderRadius: 14,
                       border: '2px solid #7f1d1d',
                       background: '#fff',
@@ -1051,7 +1079,7 @@ export default function JCPage() {
                   >
                     <div style={{ display: 'grid', gap: 4 }}>
                       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: highVisibility ? 28 : 24, fontWeight: 950 }}>{r.no_plate_display}</span>
+                        <span style={{ fontSize: highVisibility ? (isCompactLayout ? 24 : 28) : isCompactLayout ? 20 : 24, fontWeight: 950 }}>{r.no_plate_display}</span>
                         <span style={{ fontWeight: 900 }}>{r.name}</span>
                         <span style={{ fontSize: 12, fontWeight: 800, color: '#7f1d1d' }}>Gate #{r.gate_position ?? '-'}</span>
                       </div>
@@ -1087,6 +1115,7 @@ export default function JCPage() {
                         fontWeight: 900,
                         fontSize: highVisibility ? 16 : undefined,
                         whiteSpace: 'nowrap',
+                        width: isMobileLayout ? '100%' : undefined,
                       }}
                     >
                       {isDns ? 'UNDO DNS' : 'SET DNS'}
@@ -1098,7 +1127,7 @@ export default function JCPage() {
           ) : (
             <div
               style={{
-                padding: '12px 14px',
+                padding: isCompactLayout ? '10px 12px' : '12px 14px',
                 borderRadius: 12,
                 border: '2px dashed #be123c',
                 color: '#881337',
@@ -1114,12 +1143,12 @@ export default function JCPage() {
         <div
           style={{
             display: 'grid',
-            gap: 12,
-            padding: 16,
+            gap: isCompactLayout ? 10 : 12,
+            padding: isCompactLayout ? 14 : 16,
             borderRadius: 18,
             border: '2px solid #166534',
             background: 'linear-gradient(180deg, #f0fdf4 0%, #ffffff 100%)',
-            boxShadow: '0 5px 0 #166534',
+            boxShadow: isCompactLayout ? '0 4px 0 #166534' : '0 5px 0 #166534',
           }}
         >
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -1144,7 +1173,7 @@ export default function JCPage() {
           style={{
             display: 'grid',
             gap: 6,
-            padding: '12px 14px',
+            padding: isCompactLayout ? '10px 12px' : '12px 14px',
             borderRadius: 14,
             border: '2px solid #bbf7d0',
             background: '#ffffff',
@@ -1153,7 +1182,7 @@ export default function JCPage() {
           <div style={{ fontSize: 11, color: '#166534', fontWeight: 900, letterSpacing: 1 }}>
             MOTO PREP SAAT INI
           </div>
-          <div style={{ fontSize: highVisibility ? 26 : 22, fontWeight: 950, color: '#111827' }}>
+          <div style={{ fontSize: highVisibility ? (isCompactLayout ? 22 : 26) : isCompactLayout ? 18 : 22, fontWeight: 950, color: '#111827' }}>
             {selectedMoto?.moto_name ?? 'Belum ada moto prep'}
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -1189,24 +1218,44 @@ export default function JCPage() {
               fontWeight: 800,
             }}
           />
-          <button
-            className="jc-action-btn jc-primary"
-            type="button"
-            onClick={handleAllReady}
-            disabled={interactionDisabled || !canGateReady}
-            style={{
-              padding: '14px 18px',
-              borderRadius: 999,
-              border: '2px solid #1d4ed8',
-              background: 'linear-gradient(180deg, #60a5fa 0%, #2563eb 100%)',
-              color: '#fff',
-              fontWeight: 900,
-              fontSize: highVisibility ? 24 : 20,
-              boxShadow: '0 5px 0 #1e40af',
-            }}
-          >
-            Moto Ready
-          </button>
+          <div style={{ display: 'grid', gridTemplateColumns: prepActionColumns, gap: 8 }}>
+            <button
+              className="jc-action-btn jc-primary"
+              type="button"
+              onClick={handleAllReady}
+              disabled={interactionDisabled || !canGateReady}
+              style={{
+                padding: isCompactLayout ? '12px 16px' : '14px 18px',
+                borderRadius: 999,
+                border: '2px solid #1d4ed8',
+                background: 'linear-gradient(180deg, #60a5fa 0%, #2563eb 100%)',
+                color: '#fff',
+                fontWeight: 900,
+                fontSize: highVisibility ? (isCompactLayout ? 20 : 24) : isCompactLayout ? 18 : 20,
+                boxShadow: '0 5px 0 #1e40af',
+              }}
+            >
+              Moto Ready
+            </button>
+            <button
+              className="jc-action-btn jc-primary"
+              type="button"
+              onClick={bulkReadyApplied ? handleUndoAllRidersReady : handleAllRidersReady}
+              disabled={bulkReadyDisabled}
+              style={{
+                padding: isCompactLayout ? '12px 16px' : '12px 18px',
+                borderRadius: 999,
+                border: bulkReadyApplied ? '2px solid #b91c1c' : '2px solid #365314',
+                background: bulkReadyApplied ? '#fee2e2' : 'linear-gradient(180deg, #bef264 0%, #84cc16 100%)',
+                color: bulkReadyApplied ? '#7f1d1d' : '#1a2e05',
+                fontWeight: 900,
+                fontSize: highVisibility ? (isCompactLayout ? 18 : 22) : isCompactLayout ? 16 : 18,
+                boxShadow: bulkReadyApplied ? '0 4px 0 #b91c1c' : '0 4px 0 #4d7c0f',
+              }}
+            >
+              {bulkReadyApplied ? 'Undo All Riders Ready' : 'All Riders Ready'}
+            </button>
+          </div>
           {!allPrepReviewed && (
             <div
               style={{
@@ -1245,24 +1294,6 @@ export default function JCPage() {
             </div>
           )}
           <button
-            className="jc-action-btn jc-primary"
-            type="button"
-            onClick={bulkReadyApplied ? handleUndoAllRidersReady : handleAllRidersReady}
-            disabled={bulkReadyDisabled}
-            style={{
-              padding: '12px 18px',
-              borderRadius: 999,
-              border: bulkReadyApplied ? '2px solid #b91c1c' : '2px solid #365314',
-              background: bulkReadyApplied ? '#fee2e2' : 'linear-gradient(180deg, #bef264 0%, #84cc16 100%)',
-              color: bulkReadyApplied ? '#7f1d1d' : '#1a2e05',
-              fontWeight: 900,
-              fontSize: highVisibility ? 22 : 18,
-              boxShadow: bulkReadyApplied ? '0 4px 0 #b91c1c' : '0 4px 0 #4d7c0f',
-            }}
-          >
-            {bulkReadyApplied ? 'Undo All Riders Ready' : 'All Riders Ready'}
-          </button>
-          <button
             className="jc-action-btn"
             type="button"
             onClick={async () => {
@@ -1300,7 +1331,7 @@ export default function JCPage() {
           >
             MARK ALL SAFETY OK
           </button>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: prepSummaryColumns, gap: 8 }}>
             <span
               style={{
                 padding: '6px 12px',
@@ -1370,9 +1401,9 @@ export default function JCPage() {
           style={{
             display: 'grid',
             gap: 12,
-            maxHeight: '70vh',
+            maxHeight: isCompactLayout ? '62vh' : '70vh',
             overflowY: 'auto',
-            paddingRight: 6,
+            paddingRight: isMobileLayout ? 0 : 6,
           }}
         >
           {filteredRiders.map((r) => {
@@ -1395,20 +1426,20 @@ export default function JCPage() {
               <div
                 key={r.id}
                 style={{
-                  padding: 14,
+                  padding: isCompactLayout ? 12 : 14,
                   borderRadius: 14,
                   border: '2px solid #111',
                   background: 'linear-gradient(180deg, #ffffff 0%, #f7f7f7 100%)',
                   display: 'grid',
-                  gap: 10,
-                  boxShadow: '0 6px 0 #111',
+                  gap: isCompactLayout ? 8 : 10,
+                  boxShadow: isCompactLayout ? '0 4px 0 #111' : '0 6px 0 #111',
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: isMobileLayout ? 'flex-start' : 'center', gap: 10, flexWrap: isMobileLayout ? 'wrap' : 'nowrap' }}>
                   <div>
                     <div
                       style={{
-                        fontSize: highVisibility ? 42 : 34,
+                        fontSize: highVisibility ? (isCompactLayout ? 34 : 42) : isCompactLayout ? 28 : 34,
                         lineHeight: 1,
                         fontWeight: 950,
                         letterSpacing: '0.04em',
@@ -1417,9 +1448,9 @@ export default function JCPage() {
                     >
                       {r.no_plate_display}
                     </div>
-                    <div style={{ fontSize: highVisibility ? 18 : 15, fontWeight: 800, marginTop: 6 }}>{r.name}</div>
+                    <div style={{ fontSize: highVisibility ? (isCompactLayout ? 16 : 18) : isCompactLayout ? 14 : 15, fontWeight: 800, marginTop: 4 }}>{r.name}</div>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
+                  <div style={{ textAlign: isMobileLayout ? 'left' : 'right' }}>
                     <div style={{ fontSize: highVisibility ? 14 : 12, fontWeight: 800 }}>Gate #{r.gate_position ?? '-'}</div>
                     <div
                       style={{
@@ -1443,7 +1474,7 @@ export default function JCPage() {
                   </div>
                 </div>
 
-                <div className="jc-safety-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+                <div className="jc-safety-grid" style={{ display: 'grid', gridTemplateColumns: safetyGridColumns, gap: 8 }}>
                   {safetyRequirements.map((item) => {
                     const checked = safetyChecks[r.id]?.[item.id] === true
                     const visual = getSafetyVisual(item.label, item.icon_key)
@@ -1487,14 +1518,14 @@ export default function JCPage() {
                           gap: 4,
                           justifyItems: 'center',
                           alignContent: 'center',
-                          minHeight: highVisibility ? 88 : 74,
+                          minHeight: highVisibility ? (isCompactLayout ? 72 : 88) : isCompactLayout ? 58 : 74,
                         }}
                         title={item.label}
                       >
                         <span
                           aria-hidden="true"
                           style={{
-                            fontSize: highVisibility ? 28 : 24,
+                            fontSize: highVisibility ? (isCompactLayout ? 24 : 28) : isCompactLayout ? 20 : 24,
                             lineHeight: 1,
                           }}
                         >
@@ -1502,7 +1533,7 @@ export default function JCPage() {
                         </span>
                         <span
                           style={{
-                            fontSize: highVisibility ? 13 : 12,
+                            fontSize: highVisibility ? (isCompactLayout ? 11 : 13) : isCompactLayout ? 10 : 12,
                             lineHeight: 1.1,
                             textAlign: 'center',
                             wordBreak: 'break-word',
@@ -1526,13 +1557,13 @@ export default function JCPage() {
                     }
                     disabled={readyDisabled}
                     style={{
-                      padding: highVisibility ? '14px 16px' : '12px 14px',
+                      padding: highVisibility ? (isCompactLayout ? '12px 14px' : '14px 16px') : isCompactLayout ? '10px 12px' : '12px 14px',
                       borderRadius: 999,
                       border: '2px solid #1b5e20',
                       background: statuses[r.id]?.participation_status === 'ACTIVE' ? '#dcfce7' : safetyOk ? '#2ecc71' : '#ffe9a8',
                       color: '#111',
                       fontWeight: 900,
-                      fontSize: highVisibility ? 16 : undefined,
+                      fontSize: highVisibility ? (isCompactLayout ? 14 : 16) : isCompactLayout ? 12 : undefined,
                     }}
                   >
                     {statuses[r.id]?.participation_status === 'ACTIVE' ? 'UNDO READY' : 'READY'}
@@ -1543,13 +1574,13 @@ export default function JCPage() {
                     onClick={() => handleSaveStatus(r.id, 'ABSENT', r.gate_position ?? 0)}
                     disabled={absentDisabled}
                     style={{
-                      padding: highVisibility ? '14px 16px' : '12px 14px',
+                      padding: highVisibility ? (isCompactLayout ? '12px 14px' : '14px 16px') : isCompactLayout ? '10px 12px' : '12px 14px',
                       borderRadius: 999,
                       border: '2px solid #b91c1c',
                       background: '#fee2e2',
                       color: '#7f1d1d',
                       fontWeight: 900,
-                      fontSize: highVisibility ? 16 : undefined,
+                      fontSize: highVisibility ? (isCompactLayout ? 14 : 16) : isCompactLayout ? 12 : undefined,
                     }}
                   >
                     ABSENT
