@@ -1049,9 +1049,14 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
                   Save {isEditing ? 'Requirement' : 'Mapping'}
                 </button>
               </div>
-              {req.is_required && (
+              {req.is_required && !req.penalty_code && (
                 <div style={{ fontSize: 11, fontWeight: 800, color: '#b45309' }}>
-                  Required: penalty_code wajib ada.
+                  Item wajib ini belum terhubung ke penalty rule.
+                </div>
+              )}
+              {req.is_required && req.penalty_code && (
+                <div style={{ fontSize: 11, fontWeight: 800, color: '#166534' }}>
+                  Linked ke penalty rule: {req.penalty_code}
                 </div>
               )}
             </div>
