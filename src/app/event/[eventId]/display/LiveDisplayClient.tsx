@@ -648,7 +648,7 @@ export default function LiveDisplayClient({
         </section>
 
         {displaySponsors.length > 0 && (
-          <section className="live-display-sponsors overflow-hidden rounded-[22px] border border-amber-200/70 bg-[linear-gradient(135deg,#fff7d6_0%,#fff1b8_45%,#ffe08a_100%)] shadow-xl">
+          <section className="live-display-sponsors overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-xl">
             <div
               className="live-display-marquee flex min-w-max items-center gap-10 px-6 py-4"
               style={{ ['--live-display-marquee-duration' as string]: `${sponsorMarqueeDuration}s` }}
