@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../../lib/auth'
 import { assertMotoEditable, assertMotoNotUnderProtest } from '../../../../../../lib/motoLock'
-import { isMotoLive } from '../../../../../../lib/motoStatus'
+import { isMotoLive, isMotoUpcoming } from '../../../../../../lib/motoStatus'
 import { requireJury } from '../../../../../../services/juryAuth'
 
 const getMotoEvent = async (motoId: string) => {
@@ -84,7 +84,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
   if (requirementError) return NextResponse.json({ error: requirementError.message }, { status: 400 })
 
   const noteTag = `AUTO_SAFETY_REQUIREMENT:${requirement_id}`
-  const shouldManagePenalty = isMotoLive(moto.status) && typeof requirement?.penalty_code === 'string' && requirement.penalty_code.trim().length > 0
+  const shouldManagePenalty =
+    (isMotoLive(moto.status) || isMotoUpcoming(moto.status)) &&
+    typeof requirement?.penalty_code === 'string' &&
+    requirement.penalty_code.trim().length > 0
 
   if (shouldManagePenalty) {
     const ruleCode = requirement.penalty_code!.trim()
