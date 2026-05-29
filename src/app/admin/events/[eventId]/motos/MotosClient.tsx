@@ -821,7 +821,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
             display: 'inline-block',
           }}
         />
-        Auto Live Next aktif: setelah submit hasil, moto berikutnya dalam kategori yang sama akan otomatis menjadi LIVE. Jika itu moto terakhir kategori, sistem berhenti dulu di PROVISIONAL supaya result board sempat tampil.
+        Auto Live Next aktif: submit hasil akan menghentikan moto di PROVISIONAL. Moto berikutnya baru otomatis menjadi LIVE setelah moto ini diubah ke LOCKED.
       </div>
       {eventStatus && eventStatus !== 'LIVE' && (
         <div

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../lib/auth'
 import { requireJury } from '../../../../../services/juryAuth'
+import { promoteNextMotoToLive } from '../../../../../services/motoProgression'
 
 const allowedTargets = ['LOCKED', 'PROVISIONAL'] as const
 type TargetStatus = (typeof allowedTargets)[number]
@@ -119,6 +120,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
         ],
         { onConflict: 'moto_id' }
       )
+
+    const promotionResult = await promoteNextMotoToLive(moto.event_id as string, motoId)
+    return NextResponse.json({ ok: true, next_moto: promotionResult })
   }
   if (status === 'PROVISIONAL') {
     await adminClient
