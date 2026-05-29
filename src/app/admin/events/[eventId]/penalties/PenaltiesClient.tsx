@@ -149,6 +149,7 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
   const [groups, setGroups] = useState<RiderGroup[]>([])
   const [advancedItems, setAdvancedItems] = useState<AdvancedCategoryItem[]>([])
   const [expandedCategoryId, setExpandedCategoryId] = useState<string | null>(null)
+  const [editingRequirementId, setEditingRequirementId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -399,12 +400,40 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
     try {
       await apiFetch(`/api/events/${eventId}/safety-requirements`, {
         method: 'PATCH',
-        body: JSON.stringify({ id: req.id, penalty_code: req.penalty_code ?? null, icon_key: req.icon_key ?? null }),
+        body: JSON.stringify({
+          id: req.id,
+          label: req.label,
+          is_required: req.is_required,
+          sort_order: req.sort_order ?? 0,
+          penalty_code: req.penalty_code ?? null,
+          icon_key: req.icon_key ?? null,
+        }),
       })
       await loadAll()
+      setEditingRequirementId(null)
       setErrorMessage(null)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Gagal menyimpan safety mapping.'
+      setErrorMessage(message)
+      alert(message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDeleteRequirement = async (requirementId: string) => {
+    if (!confirm('Hapus safety requirement ini?')) return
+    setSaving(true)
+    try {
+      await apiFetch(`/api/events/${eventId}/safety-requirements`, {
+        method: 'DELETE',
+        body: JSON.stringify({ id: requirementId }),
+      })
+      await loadAll()
+      if (editingRequirementId === requirementId) setEditingRequirementId(null)
+      setErrorMessage(null)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Gagal menghapus safety requirement.'
       setErrorMessage(message)
       alert(message)
     } finally {
@@ -860,6 +889,7 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
         <div style={{ display: 'grid', gap: 10 }}>
           {requirements.map((req) => {
             const visual = getSafetyVisual(req.label, req.icon_key)
+            const isEditing = editingRequirementId === req.id
             return (
             <div key={req.id} style={{ display: 'grid', gap: 8, padding: 12, borderRadius: 12, border: '2px solid #111' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -893,10 +923,84 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
                     Preview tombol checker
                   </div>
                 </div>
+                <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => setEditingRequirementId(isEditing ? null : req.id)}
+                    disabled={saving}
+                    style={{
+                      padding: '6px 10px',
+                      borderRadius: 10,
+                      border: '2px solid #111',
+                      background: isEditing ? '#e0f2fe' : '#fff',
+                      fontWeight: 900,
+                    }}
+                  >
+                    {isEditing ? 'Cancel Edit' : 'Edit'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteRequirement(req.id)}
+                    disabled={saving}
+                    style={{
+                      padding: '6px 10px',
+                      borderRadius: 10,
+                      border: '2px solid #b40000',
+                      background: '#ffd7d7',
+                      color: '#b40000',
+                      fontWeight: 900,
+                    }}
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
               <div style={{ fontSize: 11, color: '#333', fontWeight: 700 }}>
                 Sort: {req.sort_order ?? 0} | {req.is_required ? 'Required' : 'Optional'}
               </div>
+              {isEditing && (
+                <div style={{ display: 'grid', gap: 8, padding: 10, borderRadius: 12, border: '2px solid #cbd5e1', background: '#f8fafc' }}>
+                  <input
+                    placeholder="Label"
+                    value={req.label}
+                    onChange={(e) =>
+                      setRequirements((prev) =>
+                        prev.map((r) => (r.id === req.id ? { ...r, label: e.target.value } : r))
+                      )
+                    }
+                    style={{ padding: '8px 10px', borderRadius: 10, border: '2px solid #111', fontWeight: 800 }}
+                  />
+                  <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: 8, alignItems: 'center' }}>
+                    <input
+                      placeholder="Sort Order"
+                      inputMode="numeric"
+                      value={String(req.sort_order ?? 0)}
+                      onChange={(e) =>
+                        setRequirements((prev) =>
+                          prev.map((r) =>
+                            r.id === req.id
+                              ? { ...r, sort_order: e.target.value.trim() ? Number(e.target.value.replace(/[^\d-]/g, '')) : 0 }
+                              : r
+                          )
+                        )
+                      }
+                      style={{ padding: '8px 10px', borderRadius: 10, border: '2px solid #111', fontWeight: 800 }}
+                    />
+                    <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 900 }}>
+                      <input
+                        type="checkbox"
+                        checked={req.is_required}
+                        onChange={(e) =>
+                          setRequirements((prev) =>
+                            prev.map((r) => (r.id === req.id ? { ...r, is_required: e.target.checked } : r))
+                          )
+                        }
+                      />
+                      Required
+                    </label>
+                  </div>
+                </div>
+              )}
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                 <select
                   value={req.icon_key ?? ''}
@@ -942,7 +1046,7 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
                     fontWeight: 900,
                   }}
                 >
-                  Save Mapping
+                  Save {isEditing ? 'Requirement' : 'Mapping'}
                 </button>
               </div>
               {req.is_required && (
