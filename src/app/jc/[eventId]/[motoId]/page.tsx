@@ -1085,6 +1085,42 @@ export default function JCPage() {
           </div>
         </div>
 
+        <div
+          style={{
+            display: 'grid',
+            gap: 6,
+            padding: '12px 14px',
+            borderRadius: 14,
+            border: '2px solid #bbf7d0',
+            background: '#ffffff',
+          }}
+        >
+          <div style={{ fontSize: 11, color: '#166534', fontWeight: 900, letterSpacing: 1 }}>
+            MOTO PREP SAAT INI
+          </div>
+          <div style={{ fontSize: highVisibility ? 26 : 22, fontWeight: 950, color: '#111827' }}>
+            {selectedMoto?.moto_name ?? 'Belum ada moto prep'}
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <span
+              style={{
+                padding: '4px 10px',
+                borderRadius: 999,
+                border: '1.5px solid #166534',
+                background: '#f0fdf4',
+                color: '#166534',
+                fontSize: 12,
+                fontWeight: 900,
+              }}
+            >
+              {selectedCategoryLabel}
+            </span>
+            <span style={{ fontSize: 12, color: '#475569', fontWeight: 800 }}>
+              {selectedMotoPinnedLive ? 'Moto ini sudah LIVE tapi tetap dipin di panel prep checker.' : 'Moto ini masih fase prep sebelum start.'}
+            </span>
+          </div>
+        </div>
+
         <div style={{ display: 'grid', gap: 10 }}>
           <input
             value={query}
@@ -1115,6 +1151,21 @@ export default function JCPage() {
           >
             Riders Ready
           </button>
+          <div
+            style={{
+              padding: '10px 14px',
+              borderRadius: 12,
+              border: '2px dashed #86efac',
+              background: '#f0fdf4',
+              color: '#166534',
+              fontWeight: 800,
+              fontSize: 12,
+            }}
+          >
+            Tombol <strong>Riders Ready</strong> hanya mengonfirmasi bahwa status rider di moto ini sudah final untuk tahap prep.
+            Sistem akan mengunci status <strong>READY</strong> dan <strong>ABSENT</strong> saat ini, tanpa mengubah rider
+            <strong> Belum Dicek</strong> menjadi READY otomatis.
+          </div>
           {!allPrepReviewed && (
             <div
               style={{
