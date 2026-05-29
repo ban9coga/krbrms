@@ -1245,51 +1245,21 @@ export default function JCPage() {
           <button
             className="jc-action-btn jc-primary"
             type="button"
-            onClick={bulkReadyApplied ? handleUndoAllRidersReady : handleAllRidersReady}
-            disabled={bulkReadyDisabled}
-            style={{
-              padding: '12px 18px',
-              borderRadius: 999,
-              border: '2px solid #166534',
-              background: bulkReadyApplied ? '#dcfce7' : '#ecfccb',
-              color: '#14532d',
-              fontWeight: 900,
-              fontSize: highVisibility ? 22 : 18,
-            }}
-          >
-            {bulkReadyApplied ? 'Undo All Riders Ready' : 'All Riders Ready'}
-          </button>
-          <button
-            className="jc-action-btn jc-primary"
-            type="button"
             onClick={handleAllReady}
             disabled={interactionDisabled || !canGateReady}
             style={{
               padding: '14px 18px',
               borderRadius: 999,
-              border: '2px solid #1b5e20',
-              background: '#2ecc71',
+              border: '2px solid #1d4ed8',
+              background: 'linear-gradient(180deg, #60a5fa 0%, #2563eb 100%)',
               color: '#fff',
               fontWeight: 900,
               fontSize: highVisibility ? 24 : 20,
+              boxShadow: '0 5px 0 #1e40af',
             }}
           >
             Moto Ready
           </button>
-          <div
-            style={{
-              padding: '10px 14px',
-              borderRadius: 12,
-              border: '2px dashed #86efac',
-              background: '#f0fdf4',
-              color: '#166534',
-              fontWeight: 800,
-              fontSize: 12,
-            }}
-          >
-            Tombol <strong>All Riders Ready</strong> akan menandai semua rider di moto ini sebagai READY sekaligus dan bisa di-undo.
-            Tombol <strong>Moto Ready</strong> dipakai setelah status rider sudah final untuk mengunci hasil prep saat ini.
-          </div>
           {!allPrepReviewed && (
             <div
               style={{
@@ -1346,6 +1316,24 @@ export default function JCPage() {
               </button>
             </div>
           )}
+          <button
+            className="jc-action-btn jc-primary"
+            type="button"
+            onClick={bulkReadyApplied ? handleUndoAllRidersReady : handleAllRidersReady}
+            disabled={bulkReadyDisabled}
+            style={{
+              padding: '12px 18px',
+              borderRadius: 999,
+              border: bulkReadyApplied ? '2px solid #b91c1c' : '2px solid #365314',
+              background: bulkReadyApplied ? '#fee2e2' : 'linear-gradient(180deg, #bef264 0%, #84cc16 100%)',
+              color: bulkReadyApplied ? '#7f1d1d' : '#1a2e05',
+              fontWeight: 900,
+              fontSize: highVisibility ? 22 : 18,
+              boxShadow: bulkReadyApplied ? '0 4px 0 #b91c1c' : '0 4px 0 #4d7c0f',
+            }}
+          >
+            {bulkReadyApplied ? 'Undo All Riders Ready' : 'All Riders Ready'}
+          </button>
           <button
             className="jc-action-btn"
             type="button"
