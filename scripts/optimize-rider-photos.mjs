@@ -11,6 +11,7 @@ const DEFAULT_BUCKET = 'rider-photos'
 const DEFAULT_MAX_SIZE = 500
 const DEFAULT_QUALITY = 82
 const DEFAULT_MODE = 'replace'
+const DEFAULT_LOG_ROOT = 'backups'
 const SUPPORTED_IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.bmp', '.gif', '.tif', '.tiff', '.avif', '.heic', '.heif'])
 
 const printUsage = () => {
@@ -26,6 +27,9 @@ Options:
   --quality <0-100>       WebP quality. Default: ${DEFAULT_QUALITY}
   --mode <replace|prefix> Upload mode. Default: ${DEFAULT_MODE}
   --dest-prefix <path>    Required when mode=prefix. Example: optimized-500
+  --log-dir <path>        Custom folder for run logs. Default: auto-create under ${DEFAULT_LOG_ROOT}/
+  --retry-errors-from <file>
+                          Retry only files listed in a previous errors log (.json, .txt, or console log).
   --rewrite-db            Rewrite riders.photo_url / photo_thumbnail_url when path changes.
   --no-rewrite-db         Do not rewrite rider URLs in DB.
   --delete-original       Delete source file after successful upload.
@@ -37,6 +41,7 @@ Examples:
   node scripts/optimize-rider-photos.mjs --dry-run
   node scripts/optimize-rider-photos.mjs --mode replace --rewrite-db --delete-original
   node scripts/optimize-rider-photos.mjs --mode prefix --dest-prefix optimized-500 --rewrite-db
+  node scripts/optimize-rider-photos.mjs --retry-errors-from .\\backups\\photo-optimize-20260530-154200\\errors.json
 `)
 }
 
@@ -47,6 +52,8 @@ const parseArgs = (argv) => {
     quality: DEFAULT_QUALITY,
     mode: DEFAULT_MODE,
     destPrefix: '',
+    logDir: '',
+    retryErrorsFrom: '',
     rewriteDb: true,
     deleteOriginal: true,
     dryRun: false,
@@ -109,6 +116,16 @@ const parseArgs = (argv) => {
       index += 1
       continue
     }
+    if (arg === '--log-dir') {
+      options.logDir = nextValue
+      index += 1
+      continue
+    }
+    if (arg === '--retry-errors-from') {
+      options.retryErrorsFrom = nextValue
+      index += 1
+      continue
+    }
 
     throw new Error(`Unknown argument: ${arg}`)
   }
@@ -130,6 +147,11 @@ const parseArgs = (argv) => {
   }
 
   return options
+}
+
+const formatTimestamp = (date = new Date()) => {
+  const pad = (value) => String(value).padStart(2, '0')
+  return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}-${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`
 }
 
 const loadEnvFile = async (filePath) => {
@@ -158,6 +180,8 @@ const loadEnvFile = async (filePath) => {
 }
 
 const normalizeStoragePath = (value) => value.replace(/^\/+/, '').replace(/\\/g, '/')
+
+const unique = (items) => Array.from(new Set(items))
 
 const replaceExtensionWithWebp = (storagePath) => {
   const normalized = normalizeStoragePath(storagePath)
@@ -231,6 +255,59 @@ const buildTargetPath = (sourcePath, mode, destPrefix) => {
   if (mode === 'replace') return webpPath
   const cleanPrefix = normalizeStoragePath(destPrefix).replace(/\/+$/, '')
   return normalizeStoragePath(`${cleanPrefix}/${webpPath}`)
+}
+
+const resolveRunLogDir = async (customLogDir) => {
+  const outputDir = customLogDir
+    ? path.resolve(REPO_ROOT, customLogDir)
+    : path.join(REPO_ROOT, DEFAULT_LOG_ROOT, `photo-optimize-${formatTimestamp()}`)
+  await fs.mkdir(outputDir, { recursive: true })
+  return outputDir
+}
+
+const readRetryPathsFromLog = async (filePath) => {
+  const absolutePath = path.resolve(REPO_ROOT, filePath)
+  const content = await fs.readFile(absolutePath, 'utf8')
+  const extension = path.extname(absolutePath).toLowerCase()
+
+  if (extension === '.json') {
+    const parsed = JSON.parse(content)
+    if (Array.isArray(parsed)) {
+      return unique(
+        parsed
+          .map((entry) => {
+            if (typeof entry === 'string') return normalizeStoragePath(entry)
+            if (entry && typeof entry === 'object' && typeof entry.sourcePath === 'string') {
+              return normalizeStoragePath(entry.sourcePath)
+            }
+            return null
+          })
+          .filter(Boolean)
+      )
+    }
+  }
+
+  const paths = []
+  for (const rawLine of content.split(/\r?\n/)) {
+    const line = rawLine.trim()
+    if (!line) continue
+
+    const errorMatch = line.match(/ERROR\s+(.+?):\s+/)
+    if (errorMatch?.[1]) {
+      paths.push(normalizeStoragePath(errorMatch[1]))
+      continue
+    }
+
+    const tabParts = line.split('\t')
+    if (tabParts.length >= 1 && tabParts[0]) {
+      const firstValue = tabParts[0].trim()
+      if (firstValue && !firstValue.startsWith('{') && !firstValue.startsWith('[')) {
+        paths.push(normalizeStoragePath(firstValue))
+      }
+    }
+  }
+
+  return unique(paths)
 }
 
 const collectRiderPhotoRefs = async (adminClient, bucket) => {
@@ -314,6 +391,18 @@ const main = async () => {
     auth: { persistSession: false, autoRefreshToken: false },
   })
   const storage = adminClient.storage.from(options.bucket)
+  const logDir = await resolveRunLogDir(options.logDir)
+  const runMeta = {
+    bucket: options.bucket,
+    mode: options.mode,
+    maxSize: options.maxSize,
+    quality: options.quality,
+    rewriteDb: options.rewriteDb,
+    deleteOriginal: options.deleteOriginal,
+    dryRun: options.dryRun,
+    retryErrorsFrom: options.retryErrorsFrom || null,
+    startedAt: new Date().toISOString(),
+  }
 
   console.log(`Bucket           : ${options.bucket}`)
   console.log(`Mode             : ${options.mode}`)
@@ -325,22 +414,35 @@ const main = async () => {
   if (options.mode === 'prefix') {
     console.log(`Dest prefix      : ${options.destPrefix}`)
   }
+  if (options.retryErrorsFrom) {
+    console.log(`Retry source     : ${options.retryErrorsFrom}`)
+  }
+  console.log(`Log dir          : ${path.relative(REPO_ROOT, logDir) || logDir}`)
   console.log('')
 
   console.log('Scanning bucket recursively...')
   const allFiles = await listAllFilesRecursive(storage)
   const processableFiles = []
+  const skippedEntries = []
+  const successEntries = []
+  const errorEntries = []
+  const retrySourcePaths = options.retryErrorsFrom ? new Set(await readRetryPathsFromLog(options.retryErrorsFrom)) : null
 
   let skippedWebp = 0
   let skippedUnsupported = 0
   for (const filePath of allFiles) {
+    if (retrySourcePaths && !retrySourcePaths.has(normalizeStoragePath(filePath))) {
+      continue
+    }
     const ext = path.posix.extname(filePath).toLowerCase()
     if (ext === '.webp') {
       skippedWebp += 1
+      skippedEntries.push({ sourcePath: filePath, reason: 'already_webp' })
       continue
     }
     if (!SUPPORTED_IMAGE_EXTENSIONS.has(ext)) {
       skippedUnsupported += 1
+      skippedEntries.push({ sourcePath: filePath, reason: `unsupported_extension:${ext || 'none'}` })
       continue
     }
     processableFiles.push(filePath)
@@ -418,13 +520,41 @@ const main = async () => {
       }
 
       totals.processed += 1
+      successEntries.push({
+        sourcePath,
+        targetPath,
+        dbRewrite: options.rewriteDb,
+        dryRun: options.dryRun,
+      })
       console.log(`${itemLabel} OK ${sourcePath} -> ${targetPath}`)
     } catch (error) {
       totals.errors += 1
       const message = error instanceof Error ? error.message : String(error)
+      errorEntries.push({ sourcePath, targetPath, message })
       console.error(`${itemLabel} ERROR ${sourcePath}: ${message}`)
     }
   }
+
+  const finishedAt = new Date().toISOString()
+  await fs.writeFile(
+    path.join(logDir, 'run-meta.json'),
+    JSON.stringify(
+      {
+        ...runMeta,
+        finishedAt,
+        totals,
+      },
+      null,
+      2
+    )
+  )
+  await fs.writeFile(path.join(logDir, 'success.json'), JSON.stringify(successEntries, null, 2))
+  await fs.writeFile(path.join(logDir, 'skipped.json'), JSON.stringify(skippedEntries, null, 2))
+  await fs.writeFile(path.join(logDir, 'errors.json'), JSON.stringify(errorEntries, null, 2))
+  await fs.writeFile(
+    path.join(logDir, 'errors.txt'),
+    errorEntries.map((entry) => `${entry.sourcePath}\t${entry.message}`).join('\n')
+  )
 
   console.log('\nDone.')
   console.log(`Processed       : ${totals.processed}/${processableFiles.length}`)
@@ -433,6 +563,7 @@ const main = async () => {
   console.log(`DB updates      : ${totals.dbUpdated}`)
   console.log(`Skipped         : ${totals.skipped}`)
   console.log(`Errors          : ${totals.errors}`)
+  console.log(`Logs saved to   : ${path.relative(REPO_ROOT, logDir) || logDir}`)
 }
 
 main().catch((error) => {
