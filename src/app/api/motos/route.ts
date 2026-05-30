@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../lib/auth'
-import { compareMotoSequence } from '../../../lib/motoSequence'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,9 +32,8 @@ export async function GET(req: Request) {
     ...row,
     locked_at: lockMap.get(row.id) ?? null,
   }))
-  const sorted = [...enriched].sort(compareMotoSequence)
   return NextResponse.json(
-    { data: sorted },
+    { data: enriched },
     {
       headers: {
         'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
