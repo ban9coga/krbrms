@@ -84,6 +84,8 @@ const isBlockedQueueStatus = (status?: string | null) => {
   return normalized === 'LOCKED' || normalized === 'FINISHED' || normalized === 'PROTEST_REVIEW'
 }
 
+const PUBLIC_DISPLAY_REFRESH_INTERVAL_MS = 30000
+
 const statusBadgeClass = (status?: string | null) => {
   switch ((status ?? '').toUpperCase()) {
     case 'DNF':
@@ -306,7 +308,7 @@ export default function LiveDisplayClient({
   useEffect(() => {
     const interval = setInterval(() => {
       refresh()
-    }, 10000)
+    }, PUBLIC_DISPLAY_REFRESH_INTERVAL_MS)
     return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId, scoreCategoryIds.join(',')])

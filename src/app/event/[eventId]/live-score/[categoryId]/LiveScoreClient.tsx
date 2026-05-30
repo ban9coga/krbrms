@@ -85,6 +85,7 @@ const getStageGroupSortKey = (title: string) => {
 }
 
 const isFinalStageTitle = (title: string) => title.trim().toUpperCase().startsWith('FINAL ')
+const PUBLIC_LIVE_SCORE_REFRESH_INTERVAL_MS = 30000
 
 const statusBadgeClass = (status: string) => {
   switch (status) {
@@ -216,7 +217,7 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
   useEffect(() => {
     const interval = setInterval(() => {
       refresh()
-    }, 10000)
+    }, PUBLIC_LIVE_SCORE_REFRESH_INTERVAL_MS)
     return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId, categoryId])
