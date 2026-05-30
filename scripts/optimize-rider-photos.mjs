@@ -31,6 +31,8 @@ Options:
   --log-dir <path>        Custom folder for run logs. Default: auto-create under ${DEFAULT_LOG_ROOT}/
   --retry-errors-from <file>
                           Retry only files listed in a previous errors log (.json, .txt, or console log).
+  --sync-existing-webp-db
+                          Do not convert files. Update rider DB URLs to existing .webp objects when available.
   --rewrite-db            Rewrite riders.photo_url / photo_thumbnail_url when path changes.
   --no-rewrite-db         Do not rewrite rider URLs in DB.
   --delete-original       Delete source file after successful upload.
@@ -55,6 +57,7 @@ const parseArgs = (argv) => {
     destPrefix: '',
     logDir: '',
     retryErrorsFrom: '',
+    syncExistingWebpDb: false,
     rewriteDb: true,
     deleteOriginal: true,
     dryRun: false,
@@ -72,6 +75,12 @@ const parseArgs = (argv) => {
     }
     if (arg === '--rewrite-db') {
       options.rewriteDb = true
+      continue
+    }
+    if (arg === '--sync-existing-webp-db') {
+      options.syncExistingWebpDb = true
+      options.rewriteDb = true
+      options.deleteOriginal = false
       continue
     }
     if (arg === '--no-rewrite-db') {
@@ -375,6 +384,73 @@ const updateRiderUrlsForPath = async ({ adminClient, refsByPath, bucket, sourceP
   return updatesByRider.size
 }
 
+const storageObjectExists = async (storage, objectPath) => {
+  const normalized = normalizeStoragePath(objectPath)
+  const folder = path.posix.dirname(normalized)
+  const objectName = path.posix.basename(normalized)
+  const { data, error } = await storage.list(folder === '.' ? '' : folder, {
+    limit: 1000,
+    search: objectName,
+  })
+  if (error) {
+    throw new Error(`Failed checking ${normalized}: ${error.message}`)
+  }
+  return (data ?? []).some((item) => item.name === objectName)
+}
+
+const syncExistingWebpDbUrls = async ({ adminClient, storage, bucket, mode, destPrefix, dryRun }) => {
+  const refsByPath = await collectRiderPhotoRefs(adminClient, bucket)
+  const sourcePaths = [...refsByPath.keys()].filter((sourcePath) => {
+    const ext = path.posix.extname(sourcePath).toLowerCase()
+    return ext && ext !== '.webp'
+  })
+  const successEntries = []
+  const skippedEntries = []
+  const errorEntries = []
+  const totals = {
+    processed: 0,
+    uploaded: 0,
+    deleted: 0,
+    dbUpdated: 0,
+    skipped: 0,
+    errors: 0,
+  }
+
+  for (const [index, sourcePath] of sourcePaths.entries()) {
+    const itemLabel = `[${index + 1}/${sourcePaths.length}]`
+    const targetPath = buildTargetPath(sourcePath, mode, destPrefix)
+    try {
+      const exists = await storageObjectExists(storage, targetPath)
+      if (!exists) {
+        totals.skipped += 1
+        skippedEntries.push({ sourcePath, targetPath, reason: 'target_webp_missing' })
+        console.log(`${itemLabel} SKIP ${sourcePath} -> ${targetPath} (missing .webp)`)
+        continue
+      }
+
+      const updatedCount = await updateRiderUrlsForPath({
+        adminClient,
+        refsByPath,
+        bucket,
+        sourcePath,
+        targetPath,
+        dryRun,
+      })
+      totals.processed += 1
+      totals.dbUpdated += updatedCount
+      successEntries.push({ sourcePath, targetPath, dbUpdated: updatedCount, dryRun })
+      console.log(`${itemLabel} DB ${sourcePath} -> ${targetPath} (${updatedCount} rider update${updatedCount === 1 ? '' : 's'})`)
+    } catch (error) {
+      totals.errors += 1
+      const message = error instanceof Error ? error.message : String(error)
+      errorEntries.push({ sourcePath, targetPath, message })
+      console.error(`${itemLabel} ERROR ${sourcePath}: ${message}`)
+    }
+  }
+
+  return { totals, successEntries, skippedEntries, errorEntries }
+}
+
 const main = async () => {
   const options = parseArgs(process.argv.slice(2))
 
@@ -402,6 +478,7 @@ const main = async () => {
     deleteOriginal: options.deleteOriginal,
     dryRun: options.dryRun,
     retryErrorsFrom: options.retryErrorsFrom || null,
+    syncExistingWebpDb: options.syncExistingWebpDb,
     startedAt: new Date().toISOString(),
   }
 
@@ -418,8 +495,44 @@ const main = async () => {
   if (options.retryErrorsFrom) {
     console.log(`Retry source     : ${options.retryErrorsFrom}`)
   }
+  if (options.syncExistingWebpDb) {
+    console.log('Sync WebP DB     : yes')
+  }
   console.log(`Log dir          : ${path.relative(REPO_ROOT, logDir) || logDir}`)
   console.log('')
+
+  if (options.syncExistingWebpDb) {
+    console.log('Syncing DB URLs to existing WebP objects...')
+    const { totals, successEntries, skippedEntries, errorEntries } = await syncExistingWebpDbUrls({
+      adminClient,
+      storage,
+      bucket: options.bucket,
+      mode: options.mode,
+      destPrefix: options.destPrefix,
+      dryRun: options.dryRun,
+    })
+    const finishedAt = new Date().toISOString()
+    runMeta.finishedAt = finishedAt
+    runMeta.totals = totals
+
+    await fs.writeFile(path.join(logDir, 'run-meta.json'), JSON.stringify(runMeta, null, 2))
+    await fs.writeFile(path.join(logDir, 'success.json'), JSON.stringify(successEntries, null, 2))
+    await fs.writeFile(path.join(logDir, 'skipped.json'), JSON.stringify(skippedEntries, null, 2))
+    await fs.writeFile(path.join(logDir, 'errors.json'), JSON.stringify(errorEntries, null, 2))
+    await fs.writeFile(
+      path.join(logDir, 'errors.txt'),
+      errorEntries.map((entry) => `${entry.sourcePath}\t${entry.message}`).join('\n')
+    )
+
+    console.log('')
+    console.log('Done.')
+    console.log(`Processed       : ${totals.processed}`)
+    console.log(`DB updates      : ${totals.dbUpdated}`)
+    console.log(`Skipped         : ${totals.skipped}`)
+    console.log(`Errors          : ${totals.errors}`)
+    console.log(`Logs saved to   : ${path.relative(REPO_ROOT, logDir) || logDir}`)
+    return
+  }
 
   console.log('Scanning bucket recursively...')
   const allFiles = await listAllFilesRecursive(storage)
