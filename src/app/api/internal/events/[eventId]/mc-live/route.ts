@@ -56,10 +56,10 @@ type StageSeedRow = {
 const pickNowRacingMoto = (motos: MotoRow[]) => {
   const live = motos.filter((m) => m.status === 'LIVE')
   if (live.length > 0) return live[0]
-  const upcoming = motos.filter((m) => m.status === 'UPCOMING')
-  if (upcoming.length > 0) return upcoming[0]
   const provisional = motos.filter((m) => m.status === 'PROVISIONAL')
   if (provisional.length > 0) return provisional[provisional.length - 1]
+  const upcoming = motos.filter((m) => m.status === 'UPCOMING')
+  if (upcoming.length > 0) return upcoming[0]
   const locked = motos.filter((m) => m.status === 'LOCKED' || m.status === 'FINISHED')
   if (locked.length > 0) return locked[locked.length - 1]
   return motos[0] ?? null
@@ -253,11 +253,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     currentIndex >= 0
       ? listForNext
           .slice(currentIndex + 1)
-          .find((row) => ['UPCOMING', 'LIVE', 'PROVISIONAL'].includes((row.status ?? '').toUpperCase())) ??
-        listForNext.find((row) => ['UPCOMING', 'LIVE', 'PROVISIONAL'].includes((row.status ?? '').toUpperCase())) ??
-        listForNext.slice(currentIndex + 1)[0] ??
+          .find((row) => (row.status ?? '').toUpperCase() === 'UPCOMING') ??
+        listForNext.find((row) => (row.status ?? '').toUpperCase() === 'UPCOMING') ??
         null
-      : listForNext.find((row) => ['UPCOMING', 'LIVE', 'PROVISIONAL'].includes((row.status ?? '').toUpperCase())) ?? null
+      : listForNext.find((row) => (row.status ?? '').toUpperCase() === 'UPCOMING') ?? null
 
   const buildDerivedGateMap = async (
     targetMoto: MotoRow,
