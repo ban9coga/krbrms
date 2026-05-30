@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import EmptyState from '../../../../../components/EmptyState'
@@ -257,12 +258,9 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
   const riderPhotoCell = (name: string, noPlate: string, photoUrl?: string | null) => {
     if (photoUrl) {
       return (
-        <img
-          src={photoUrl}
-          alt={name}
-          className="h-9 w-9 rounded-full border border-slate-300 object-cover"
-          loading="lazy"
-        />
+        <span className="relative inline-flex h-9 w-9 overflow-hidden rounded-full border border-slate-300">
+          <Image src={photoUrl} alt={name} className="object-cover" fill sizes="36px" />
+        </span>
       )
     }
     return (

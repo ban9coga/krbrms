@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useEffect, useMemo, useState } from 'react'
 import EmptyState from '../../../../components/EmptyState'
 import LoadingState from '../../../../components/LoadingState'
@@ -556,8 +557,8 @@ export default function LiveDisplayClient({
   const riderPhotoCell = (name: string, noPlate: string, photoUrl?: string | null, size: 'default' | 'podium' = 'default') => {
     const frameClass =
       size === 'podium'
-        ? 'h-20 w-20 overflow-hidden rounded-full border-2 border-slate-300 shadow-md'
-        : 'h-14 w-14 overflow-hidden rounded-full border-2 border-slate-300 shadow-sm'
+        ? 'relative h-20 w-20 overflow-hidden rounded-full border-2 border-slate-300 shadow-md'
+        : 'relative h-14 w-14 overflow-hidden rounded-full border-2 border-slate-300 shadow-sm'
     const imageClass =
       size === 'podium'
         ? 'h-full w-full object-cover object-[center_24%] scale-[1.32]'
@@ -569,11 +570,12 @@ export default function LiveDisplayClient({
     if (photoUrl) {
       return (
         <div className={frameClass}>
-          <img
+          <Image
             src={photoUrl}
             alt={name}
             className={imageClass}
-            loading="lazy"
+            fill
+            sizes={size === 'podium' ? '80px' : '56px'}
           />
         </div>
       )
@@ -672,10 +674,13 @@ export default function LiveDisplayClient({
               {[...displaySponsors, ...displaySponsors].map((sponsor, index) => (
                 <div key={`${sponsor.name || 'sponsor'}-${index}`} className="flex items-center gap-4 whitespace-nowrap">
                   {sponsor.logo ? (
-                    <img
+                    <Image
                       src={sponsor.logo}
                       alt={sponsor.name || 'Sponsor'}
                       className="h-12 w-auto max-w-[140px] object-contain"
+                      width={140}
+                      height={48}
+                      sizes="140px"
                     />
                   ) : null}
                 </div>
