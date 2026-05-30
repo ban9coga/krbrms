@@ -583,6 +583,20 @@ export default function LiveDisplayClient({
     )
   }
 
+  const riderPlateBadge = (noPlate: string, tone: 'light' | 'dark' = 'light') => {
+    const toneClass =
+      tone === 'dark'
+        ? 'border-amber-300/40 bg-amber-300/10 text-amber-100'
+        : 'border-slate-300 bg-slate-100 text-slate-800'
+    return (
+      <div
+        className={`inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full border-2 text-sm font-black ${toneClass}`}
+      >
+        {noPlate || '-'}
+      </div>
+    )
+  }
+
   const renderStatusBadge = (status?: string | null) => (
     <span
       className={`inline-flex w-fit rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] ${statusBadgeClass(
@@ -1032,7 +1046,7 @@ export default function LiveDisplayClient({
                             <td className="px-3 py-3 text-sm font-black text-slate-200">{row.no_plate}</td>
                             <td className="px-3 py-3">
                               <div className="flex items-center gap-3">
-                                {riderPhotoCell(displayName(row), row.no_plate, row.photo_thumbnail_url)}
+                                {riderPlateBadge(row.no_plate, 'dark')}
                                 <div className="min-w-0 flex-1">
                                   <div className="truncate text-lg font-black italic tracking-wide text-white">{displayName(row)}</div>
                                 </div>
@@ -1053,7 +1067,7 @@ export default function LiveDisplayClient({
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex min-w-0 items-center gap-3">
-                              {riderPhotoCell(displayName(row), row.no_plate, row.photo_thumbnail_url)}
+                              {riderPlateBadge(row.no_plate, 'dark')}
                               <div className="min-w-0">
                                 <div className="truncate text-base font-black italic text-white">{displayName(row)}</div>
                                 <div className="text-sm font-bold text-slate-300">{row.no_plate}</div>
