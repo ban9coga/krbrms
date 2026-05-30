@@ -76,7 +76,7 @@ const compareLockedLast = (a: MotoItem, b: MotoItem) => {
   const aLocked = a.status === 'LOCKED'
   const bLocked = b.status === 'LOCKED'
   if (aLocked !== bLocked) return aLocked ? 1 : -1
-  return compareMotoDisplayOrder(a, b)
+  return a.moto_order - b.moto_order
 }
 
 const buildContiguousMotoGroups = (sequence: MotoItem[]) => {
