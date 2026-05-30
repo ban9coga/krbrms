@@ -8,6 +8,7 @@ import { buildCategoryOccupancyMap } from '../../../../../../../services/categor
 
 const REGISTRATION_BUCKET = process.env.NEXT_PUBLIC_REGISTRATION_BUCKET || 'registration-docs'
 const RIDER_PHOTO_BUCKET = 'rider-photos'
+const RIDER_PHOTO_CACHE_CONTROL_SECONDS = '31536000'
 
 const ensureRiderPhotoBucket = async () => {
   const { data, error } = await adminClient.storage.getBucket(RIDER_PHOTO_BUCKET)
@@ -94,6 +95,7 @@ const syncRegistrationPhotoToRider = async (
 
     const { error: fullError } = await riderStorage.upload(fullPath, payload, {
       contentType,
+      cacheControl: RIDER_PHOTO_CACHE_CONTROL_SECONDS,
       upsert: true,
     })
     if (fullError) {
@@ -103,6 +105,7 @@ const syncRegistrationPhotoToRider = async (
 
     const { error: thumbError } = await riderStorage.upload(thumbPath, payload, {
       contentType,
+      cacheControl: RIDER_PHOTO_CACHE_CONTROL_SECONDS,
       upsert: true,
     })
     if (thumbError) {

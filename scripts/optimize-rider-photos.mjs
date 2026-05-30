@@ -12,6 +12,7 @@ const DEFAULT_MAX_SIZE = 500
 const DEFAULT_QUALITY = 82
 const DEFAULT_MODE = 'replace'
 const DEFAULT_LOG_ROOT = 'backups'
+const DEFAULT_CACHE_CONTROL_SECONDS = '31536000'
 const SUPPORTED_IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.bmp', '.gif', '.tif', '.tiff', '.avif', '.heic', '.heif'])
 
 const printUsage = () => {
@@ -489,6 +490,7 @@ const main = async () => {
       if (!options.dryRun) {
         const { error: uploadError } = await storage.upload(targetPath, outputBuffer, {
           contentType: 'image/webp',
+          cacheControl: DEFAULT_CACHE_CONTROL_SECONDS,
           upsert: true,
         })
         if (uploadError) {

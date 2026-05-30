@@ -4,6 +4,7 @@ import { adminClient, requireAdmin } from '../../../../../lib/auth'
 export const runtime = 'nodejs'
 
 const BUCKET = 'rider-photos'
+const RIDER_PHOTO_CACHE_CONTROL_SECONDS = '31536000'
 
 const ensureBucket = async () => {
   const { data, error } = await adminClient.storage.getBucket(BUCKET)
@@ -52,12 +53,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ riderId
 
   const { error: fullError } = await storage.upload(fullPath, fullBuf, {
     contentType: full.type || 'image/jpeg',
+    cacheControl: RIDER_PHOTO_CACHE_CONTROL_SECONDS,
     upsert: true,
   })
   if (fullError) return NextResponse.json({ error: fullError.message }, { status: 400 })
 
   const { error: thumbError } = await storage.upload(thumbPath, thumbBuf, {
     contentType: thumb.type || 'image/jpeg',
+    cacheControl: RIDER_PHOTO_CACHE_CONTROL_SECONDS,
     upsert: true,
   })
   if (thumbError) return NextResponse.json({ error: thumbError.message }, { status: 400 })
