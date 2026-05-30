@@ -249,14 +249,20 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const nowCategoryLabel = categoryMap.get(activeMoto.category_id) ?? null
   const listForNext = [...((motos ?? []) as MotoRow[])].sort(compareMotoSequence)
   const currentIndex = listForNext.findIndex((row) => row.id === activeMoto.id)
+  const shouldCallActiveLiveMoto =
+    activeMoto.id !== rankingMoto.id &&
+    (activeMoto.status ?? '').toUpperCase() === 'LIVE' &&
+    ['LOCKED', 'FINISHED'].includes((rankingMoto.status ?? '').toUpperCase())
   const nextMoto =
-    currentIndex >= 0
-      ? listForNext
-          .slice(currentIndex + 1)
-          .find((row) => (row.status ?? '').toUpperCase() === 'UPCOMING') ??
-        listForNext.find((row) => (row.status ?? '').toUpperCase() === 'UPCOMING') ??
-        null
-      : listForNext.find((row) => (row.status ?? '').toUpperCase() === 'UPCOMING') ?? null
+    shouldCallActiveLiveMoto
+      ? activeMoto
+      : currentIndex >= 0
+        ? listForNext
+            .slice(currentIndex + 1)
+            .find((row) => (row.status ?? '').toUpperCase() === 'UPCOMING') ??
+          listForNext.find((row) => (row.status ?? '').toUpperCase() === 'UPCOMING') ??
+          null
+        : listForNext.find((row) => (row.status ?? '').toUpperCase() === 'UPCOMING') ?? null
 
   const buildDerivedGateMap = async (
     targetMoto: MotoRow,
