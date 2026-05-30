@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { PwaRegister } from '../components/PwaRegister'
 import { ThemeProvider } from '../components/ThemeProvider'
 import './globals.css'
 
@@ -7,6 +8,7 @@ export const metadata: Metadata = {
     default: 'Pushbike Race Management Platform',
     template: '%s | Pushbike Race Management Platform',
   },
+  manifest: '/manifest.webmanifest',
   description:
     'Sistem manajemen event pushbike real-time: live scoring, hasil race, dan dashboard admin untuk organizer di Indonesia.',
   keywords: ['pushbike', 'runbike', 'race management', 'live results', 'scoring', 'Padang', 'Indonesia'],
@@ -33,12 +35,18 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
   },
+  appleWebApp: {
+    capable: true,
+    title: 'RacePushbike',
+    statusBarStyle: 'default',
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="id">
       <body style={{ margin: 0, fontFamily: 'sans-serif' }}>
+        <PwaRegister />
         <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>
