@@ -44,11 +44,19 @@ type EventFlags = {
 }
 
 const isLockedStatus = (status?: string | null) => String(status ?? '').toUpperCase() === 'LOCKED'
-const pickPrepMotoId = (list: MotoItem[], currentId: string, liveMotoId?: string | null) => {
+const pickPrepMotoId = (
+  list: MotoItem[],
+  currentId: string,
+  liveMotoId?: string | null,
+  currentPrepFinalized = false
+) => {
   const selectableUpcoming = list.filter((m) => !isLockedStatus(m.status) && isMotoUpcoming(m.status))
   if (currentId) {
     const currentMoto = list.find((m) => m.id === currentId)
     if (currentMoto && !isLockedStatus(currentMoto.status) && isMotoUpcoming(currentMoto.status)) {
+      return currentId
+    }
+    if (currentMoto && !isLockedStatus(currentMoto.status) && isMotoLive(currentMoto.status) && !currentPrepFinalized) {
       return currentId
     }
   }
@@ -254,7 +262,7 @@ export default function JCPage() {
       const sortedMotos = [...(motoJson.data ?? [])].sort(compareMotoSequence)
       setMotos(sortedMotos)
       const liveMoto = sortedMotos.find((m) => isMotoLive(m.status))
-      const nextMotoId = pickPrepMotoId(sortedMotos, selectedMotoId, liveMoto?.id ?? null)
+      const nextMotoId = pickPrepMotoId(sortedMotos, selectedMotoId, liveMoto?.id ?? null, allReadyDone)
       if (nextMotoId && nextMotoId !== selectedMotoId) {
         setSelectedMotoId(nextMotoId)
         setAllReadyDone(false)
@@ -275,7 +283,7 @@ export default function JCPage() {
       if (!silent) setLoading(false)
     }
     return []
-  }, [apiFetch, eventId, selectedMotoId, syncPrepMotoUrl])
+  }, [allReadyDone, apiFetch, eventId, selectedMotoId, syncPrepMotoUrl])
 
   useEffect(() => {
     void loadMotos(false)
@@ -434,7 +442,14 @@ export default function JCPage() {
   )
   const selectedMoto = useMemo(() => motos.find((m) => m.id === selectedMotoId) ?? null, [motos, selectedMotoId])
   const selectedMotoUpcoming = isMotoUpcoming(selectedMoto?.status)
-  const selectedMotoPreppable = !!selectedMoto && !isLockedStatus(selectedMoto.status) && selectedMotoUpcoming
+  const selectedMotoLive = isMotoLive(selectedMoto?.status)
+  const selectedMotoPreppable = !!selectedMoto && !isLockedStatus(selectedMoto.status) && (selectedMotoUpcoming || selectedMotoLive)
+  const prepSelectOptions = useMemo(() => {
+    if (!selectedMoto || !selectedMotoLive || selectableMotos.some((m) => m.id === selectedMoto.id)) {
+      return selectableMotos
+    }
+    return [selectedMoto, ...selectableMotos]
+  }, [selectableMotos, selectedMoto, selectedMotoLive])
   const bulkReadyApplied = bulkReadyState?.motoId === selectedMotoId
   const incidentCategoryLabel = incidentMoto
     ? categoryLabel.get(incidentMoto.category_id ?? '') ?? 'Unknown Category'
@@ -890,12 +905,13 @@ export default function JCPage() {
                 fontWeight: 900,
                 width: isCompactLayout ? '100%' : undefined,
               }}
-              disabled={selectableMotos.length === 0}
+              disabled={prepSelectOptions.length === 0}
             >
-              {selectableMotos.length === 0 && <option value="">Belum ada moto prep aktif</option>}
-              {selectableMotos.map((m) => (
+              {prepSelectOptions.length === 0 && <option value="">Belum ada moto prep aktif</option>}
+              {prepSelectOptions.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.moto_order}. {m.moto_name} - {categoryLabel.get(m.category_id ?? '') ?? 'Category'}
+                  {isMotoLive(m.status) ? ' (LIVE safety prep)' : ''}
                 </option>
                 ))}
             </select>
@@ -904,7 +920,7 @@ export default function JCPage() {
               onClick={async () => {
                 const refreshedMotos = (await loadMotos(false)) ?? []
                 const liveMoto = refreshedMotos.find((m) => isMotoLive(m.status))
-                const nextMotoId = pickPrepMotoId(refreshedMotos, selectedMotoId, liveMoto?.id ?? null)
+                const nextMotoId = pickPrepMotoId(refreshedMotos, selectedMotoId, liveMoto?.id ?? null, allReadyDone)
                 if (nextMotoId && nextMotoId !== selectedMotoId) return
                 await loadMoto(false, true)
                 await loadIncidentMoto(true)
@@ -1231,7 +1247,11 @@ export default function JCPage() {
               {selectedCategoryLabel}
             </span>
             <span style={{ fontSize: 12, color: '#475569', fontWeight: 800 }}>
-              Moto ini masih fase prep sebelum start.
+              {selectedMotoLive
+                ? allReadyDone
+                  ? 'Moto sudah LIVE dan prep sudah dikonfirmasi.'
+                  : 'Moto sudah LIVE; checker tetap bisa selesaikan safety prep di sini.'
+                : 'Moto ini masih fase prep sebelum start.'}
             </span>
           </div>
         </div>
