@@ -77,8 +77,8 @@ export const FINAL_CLASS_ORDER: FinalClass[] = [
   'AMATEUR',
   'ACADEMY',
   'ADVANCED',
-  'PRO',
   'ROOKIE',
+  'PRO',
   'NOVICE',
   'ELITE',
 ]

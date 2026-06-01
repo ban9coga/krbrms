@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../lib/auth'
+import { normalizeEventMotoSequence } from '../../../services/motoSequenceNormalizer'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,6 +10,9 @@ export async function GET(req: Request) {
   const categoryId = searchParams.get('category_id')
   if (!eventId && !categoryId) {
     return NextResponse.json({ error: 'event_id or category_id required' }, { status: 400 })
+  }
+  if (eventId) {
+    await normalizeEventMotoSequence(eventId)
   }
   let query = adminClient
     .from('motos')

@@ -23,8 +23,8 @@ const FINAL_CLASS_ORDER_MAP: Record<string, number> = {
   AMATEUR: 2,
   ACADEMY: 3,
   ADVANCED: 4,
-  PRO: 5,
-  ROOKIE: 6,
+  ROOKIE: 5,
+  PRO: 6,
   NOVICE: 7,
   ELITE: 8,
 }
@@ -112,13 +112,6 @@ export const compareMotoSequence = (a: MotoLike, b: MotoLike) => {
     return ao - bo
   }
 
-  const ao = typeof a.moto_order === 'number' ? a.moto_order : null
-  const bo = typeof b.moto_order === 'number' ? b.moto_order : null
-  if (ao !== null || bo !== null) {
-    const diff = (ao ?? Number.MAX_SAFE_INTEGER) - (bo ?? Number.MAX_SAFE_INTEGER)
-    if (diff !== 0) return diff
-  }
-
   // Try to parse as advanced moto (qualification, QF, SF, Final)
   const advancedA = parseAdvancedMoto(a.moto_name)
   const advancedB = parseAdvancedMoto(b.moto_name)
@@ -156,6 +149,13 @@ export const compareMotoSequence = (a: MotoLike, b: MotoLike) => {
       const classOrderB = FINAL_CLASS_ORDER_MAP[advancedB.finalClass ?? ''] ?? 99
       return classOrderA - classOrderB
     }
+  }
+
+  const ao = typeof a.moto_order === 'number' ? a.moto_order : null
+  const bo = typeof b.moto_order === 'number' ? b.moto_order : null
+  if (ao !== null || bo !== null) {
+    const diff = (ao ?? Number.MAX_SAFE_INTEGER) - (bo ?? Number.MAX_SAFE_INTEGER)
+    if (diff !== 0) return diff
   }
 
   // Fallback: compare by moto_order
