@@ -360,10 +360,18 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
       }
     >
   >({})
-  const [sections, setSections] = useState<{ basic: boolean; business: boolean; appearance: boolean }>({
-    basic: true,
-    business: false,
+  const [sections, setSections] = useState<{
+    sponsors: boolean
+    appearance: boolean
+    publicInfo: boolean
+    paymentRegistration: boolean
+    eventStaff: boolean
+  }>({
+    sponsors: true,
     appearance: false,
+    publicInfo: false,
+    paymentRegistration: false,
+    eventStaff: false,
   })
   const [advancedOpen, setAdvancedOpen] = useState<Record<string, boolean>>({})
   const [manualRuleOpen, setManualRuleOpen] = useState<Record<string, boolean>>({})
@@ -1223,12 +1231,18 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
       sponsorSectionSubtitle,
       sponsorItems,
     })
-  const basicSummary = `Base ${Number(form.base_price || 0).toLocaleString()} | Extra ${Number(
+  const sponsorSummary = `Sponsor ${previewSponsors.length} | ${
+    sponsorSectionEnabled ? 'Tampil di publik' : 'Disembunyikan'
+  }`
+  const publicInfoSummary = `Brand ${form.business_public_brand_name || 'Belum diisi'} | Scoring Support ${
+    form.business_scoring_support_name || 'Belum diisi'
+  }`
+  const paymentRegistrationSummary = `Base ${Number(form.base_price || 0).toLocaleString()} | Extra ${Number(
     form.extra_price || 0
-  ).toLocaleString()} | Sponsor ${previewSponsors.length} | Jersey ${form.require_jersey_size ? 'Wajib' : 'Opsional'}`
-  const businessSummary = `Brand ${form.business_public_brand_name || 'Belum diisi'} | Rekening ${
-    form.business_payment_account_number || 'Belum diisi'
-  } | Scoring Support ${form.business_scoring_support_name || 'Belum diisi'}`
+  ).toLocaleString()} | Jersey ${form.require_jersey_size ? 'Wajib' : 'Opsional'}`
+  const eventStaffSummary = `${staffAssignments.length} assignment | Central ${
+    form.business_central_control_enabled ? 'aktif' : 'off'
+  }`
   const appearanceSummary = 'Logo event + race format'
   const filteredAvailableUsers = useMemo(() => {
     const keyword = staffSearch.trim().toLowerCase()
@@ -1256,17 +1270,23 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
           }}
         >
           {[
-            { key: 'basic', label: 'Basic' },
-            { key: 'business', label: 'Business & Roles' },
+            { key: 'sponsors', label: 'Sponsors' },
             { key: 'appearance', label: 'Display / Branding & Race Format' },
+            { key: 'publicInfo', label: 'Public Info' },
+            { key: 'paymentRegistration', label: 'Payment & Registration' },
+            { key: 'eventStaff', label: 'Event Staff' },
           ].map((section) => {
             const isOpen = sections[section.key as keyof typeof sections]
             const summary =
-              section.key === 'basic'
-                ? basicSummary
-                : section.key === 'business'
-                ? businessSummary
-                : appearanceSummary
+              section.key === 'sponsors'
+                ? sponsorSummary
+                : section.key === 'appearance'
+                ? appearanceSummary
+                : section.key === 'publicInfo'
+                ? publicInfoSummary
+                : section.key === 'paymentRegistration'
+                ? paymentRegistrationSummary
+                : eventStaffSummary
             return (
               <button
                 key={section.key}
@@ -1337,9 +1357,9 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
 
         {!loading && (
           <>
-            {!advancedOnly && sections.basic && (
+            {!advancedOnly && sections.sponsors && (
               <>
-                <div style={{ fontWeight: 950, fontSize: 18 }}>Basic</div>
+                <div style={{ fontWeight: 950, fontSize: 18 }}>Sponsors</div>
                 <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
                   Sponsor Manager
                 </div>
@@ -1653,7 +1673,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                     />
                   </div>
                 </div>
-                <div style={{ display: 'grid', gap: 8 }}>
+                <div style={{ display: 'none', gap: 8 }}>
                   <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
                     Biaya Pendaftaran
                   </div>
@@ -1679,7 +1699,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                     Base = biaya per rider. Extra = biaya tambahan kategori ekstra.
                   </div>
                 </div>
-                <div style={{ display: 'grid', gap: 8, marginTop: 6 }}>
+                <div style={{ display: 'none', gap: 8, marginTop: 6 }}>
                   <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
                     Jersey
                   </div>
@@ -1787,21 +1807,31 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
               </>
             )}
 
-            {!advancedOnly && sections.business && (
+            {!advancedOnly && (sections.publicInfo || sections.paymentRegistration || sections.eventStaff) && (
               <>
-                <div style={{ marginTop: 6, fontWeight: 950, fontSize: 18 }}>Business & Roles</div>
+                <div style={{ marginTop: 6, fontWeight: 950, fontSize: 18 }}>
+                  {sections.publicInfo
+                    ? 'Public Info'
+                    : sections.paymentRegistration
+                    ? 'Payment & Registration'
+                    : 'Event Staff'}
+                </div>
                 <div style={{ fontSize: 12, color: '#333', fontWeight: 700 }}>
-                  Atur brand publik event, Event Owner, Operating Committee, dan Scoring Support.
+                  {sections.publicInfo
+                    ? 'Atur informasi yang tampil di halaman publik.'
+                    : sections.paymentRegistration
+                    ? 'Atur biaya, rekening, QRIS, WhatsApp, dan kebutuhan pendaftaran.'
+                    : 'Atur control internal dan assignment staff event.'}
                 </div>
                 <div
                   style={{
+                    display: sections.publicInfo ? 'grid' : 'none',
                     marginTop: 8,
                     border: '2px solid #111',
                     borderRadius: 18,
                     padding: 16,
                     background: 'linear-gradient(135deg,#0f172a 0%,#1e293b 48%,#78350f 100%)',
                     color: '#fff',
-                    display: 'grid',
                     gap: 10,
                     boxShadow: '0 18px 40px rgba(15,23,42,0.22)',
                   }}
@@ -1870,6 +1900,32 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                     onChange={(e) => setForm({ ...form, business_public_tagline: e.target.value })}
                     style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
                   />
+                </div>
+                <div style={{ display: sections.paymentRegistration ? 'grid' : 'none', gap: 8, marginTop: 6 }}>
+                  <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                    Payment Transfer
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <input
+                      type="number"
+                      min={0}
+                      placeholder="Base Price"
+                      value={form.base_price}
+                      onChange={(e) => setForm({ ...form, base_price: e.target.value })}
+                      style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                    />
+                    <input
+                      type="number"
+                      min={0}
+                      placeholder="Extra Price"
+                      value={form.extra_price}
+                      onChange={(e) => setForm({ ...form, extra_price: e.target.value })}
+                      style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                    />
+                  </div>
+                  <div style={{ fontSize: 12, color: '#333', fontWeight: 700 }}>
+                    Base = biaya per rider. Extra = biaya tambahan kategori ekstra.
+                  </div>
                   <input
                     placeholder="Link Grup WhatsApp (contoh: https://chat.whatsapp.com/...)"
                     value={form.business_whatsapp_group_invite_url}
@@ -1878,11 +1934,6 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                   />
                   <div style={{ fontSize: 12, color: '#333', fontWeight: 700 }}>
                     Jika diisi, tombol masuk grup WhatsApp akan muncul setelah pendaftaran berhasil dikirim.
-                  </div>
-                </div>
-                <div style={{ display: 'grid', gap: 8, marginTop: 6 }}>
-                  <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                    Payment Transfer
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
                     <input
@@ -1967,11 +2018,56 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                       />
                     </div>
                   )}
+                  <div style={{ display: 'grid', gap: 8, marginTop: 6 }}>
+                    <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                      Jersey
+                    </div>
+                    <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 800 }}>
+                      <input
+                        type="checkbox"
+                        checked={form.require_jersey_size}
+                        onChange={(e) => setForm({ ...form, require_jersey_size: e.target.checked })}
+                      />
+                      Wajib isi ukuran jersey per rider
+                    </label>
+                    <input
+                      placeholder="URL gambar size chart jersey"
+                      value={form.business_registration_jersey_size_chart_url}
+                      onChange={(e) => setForm({ ...form, business_registration_jersey_size_chart_url: e.target.value })}
+                      style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                    />
+                    <label
+                      style={{
+                        display: 'inline-flex',
+                        width: 'fit-content',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '10px 14px',
+                        borderRadius: 12,
+                        border: '2px solid #111',
+                        background: '#fff',
+                        fontWeight: 900,
+                        cursor: registrationMediaUploading ? 'wait' : 'pointer',
+                      }}
+                    >
+                      {registrationMediaUploading === 'jersey-chart' ? 'Uploading...' : 'Upload Size Chart'}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] ?? null
+                          void handleRegistrationMediaUpload(file, 'jersey-chart')
+                          e.currentTarget.value = ''
+                        }}
+                        style={{ display: 'none' }}
+                      />
+                    </label>
+                  </div>
                   {registrationMediaError && (
                     <div style={{ fontSize: 12, color: '#b91c1c', fontWeight: 800 }}>{registrationMediaError}</div>
                   )}
                 </div>
-                <div style={{ display: 'grid', gap: 8, marginTop: 6 }}>
+                <div style={{ display: sections.publicInfo ? 'grid' : 'none', gap: 8, marginTop: 6 }}>
                   <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
                     Event Owner
                   </div>
@@ -2003,7 +2099,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                     Tampilkan event owner di halaman publik
                   </label>
                 </div>
-                <div style={{ display: 'grid', gap: 8, marginTop: 6 }}>
+                <div style={{ display: sections.publicInfo ? 'grid' : 'none', gap: 8, marginTop: 6 }}>
                   <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
                     Operating Committee
                   </div>
@@ -2030,7 +2126,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                     Tampilkan operating committee di halaman publik
                   </label>
                 </div>
-                <div style={{ display: 'grid', gap: 8, marginTop: 6 }}>
+                <div style={{ display: sections.publicInfo ? 'grid' : 'none', gap: 8, marginTop: 6 }}>
                   <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
                     Scoring Support
                   </div>
@@ -2055,7 +2151,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                     Tampilkan scoring support di halaman publik
                   </label>
                 </div>
-                <div style={{ display: 'grid', gap: 8, marginTop: 6 }}>
+                <div style={{ display: sections.publicInfo ? 'grid' : 'none', gap: 8, marginTop: 6 }}>
                   <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
                     MC / Announcer
                   </div>
@@ -2074,7 +2170,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                     Tampilkan MC di halaman publik
                   </label>
                 </div>
-                <div style={{ display: 'grid', gap: 8, marginTop: 6 }}>
+                <div style={{ display: sections.eventStaff ? 'grid' : 'none', gap: 8, marginTop: 6 }}>
                   <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
                     Central Control
                   </div>
@@ -2095,7 +2191,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                     Perlu approval platform untuk keputusan tertentu
                   </label>
                 </div>
-                <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
+                <div style={{ display: sections.eventStaff ? 'grid' : 'none', gap: 10, marginTop: 12 }}>
                   <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
                     Event Staff Assignments
                   </div>
