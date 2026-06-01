@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto'
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../lib/auth'
+import { normalizeEventMotoSequence } from '../../../../../services/motoSequenceNormalizer'
 
 const buildInsertRows = <T,>(
   rows: T[] | null | undefined,
@@ -71,8 +72,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
 
     const { data: categoryRows, error: categoryError } = await adminClient
       .from('categories')
-      .select('id, year, year_min, year_max, capacity, gender, label, enabled')
+      .select('id, year, year_min, year_max, capacity, gender, label, enabled, sequence_order')
       .eq('event_id', eventId)
+      .order('sequence_order', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: true })
     if (categoryError) throw new Error(categoryError.message)
 
@@ -90,6 +92,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
         gender: row.gender,
         label: row.label,
         enabled: row.enabled,
+        sequence_order: row.sequence_order,
       }
     })
     if (categoryInserts.length > 0) {
@@ -575,6 +578,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       const { error } = await adminClient.from('moto_gate_positions').insert(gateInserts)
       if (error) throw new Error(error.message)
     }
+
+    await normalizeEventMotoSequence(newEventId)
 
     await copySimpleEventTable(
       'rider_participation_status',
