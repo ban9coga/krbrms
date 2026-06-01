@@ -1,6 +1,6 @@
 'use client'
 
-import { useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import { useEffect, useMemo, useState, type DragEvent } from 'react'
 import SponsorMarquee from '../../../../../components/SponsorMarquee'
 import { formatAppRoleLabel } from '../../../../../lib/roles'
@@ -322,7 +322,6 @@ const sanitizeSponsorDrafts = (items: SponsorDraft[]): EventSponsor[] =>
     .filter(Boolean) as EventSponsor[]
 
 export default function SettingsClient({ eventId, mode = 'full' }: { eventId: string; mode?: 'full' | 'advanced' }) {
-  const searchParams = useSearchParams()
   const advancedOnly = mode === 'advanced'
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -361,11 +360,10 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
       }
     >
   >({})
-  const [sections, setSections] = useState<{ basic: boolean; business: boolean; appearance: boolean; advanced: boolean }>({
+  const [sections, setSections] = useState<{ basic: boolean; business: boolean; appearance: boolean }>({
     basic: true,
     business: false,
     appearance: false,
-    advanced: false,
   })
   const [advancedOpen, setAdvancedOpen] = useState<Record<string, boolean>>({})
   const [manualRuleOpen, setManualRuleOpen] = useState<Record<string, boolean>>({})
@@ -554,7 +552,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
           display_card_bg:
             typeof theme.card_bg === 'string' ? theme.card_bg : '#ffffff',
           display_logo_url:
-            typeof theme.logo_url === 'string' ? theme.logo_url : '',
+            typeof theme.logo_url === 'string' ? theme.logo_url : data.event_logo_url ?? '',
           display_slogan:
             typeof theme.slogan === 'string' ? theme.slogan : '',
           business_public_brand_name:
@@ -658,16 +656,6 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     loadStaffAssignments()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
-
-  useEffect(() => {
-    if (!advancedOnly && searchParams.get('section') !== 'advanced') return
-    setSections({
-      basic: false,
-      business: false,
-      appearance: false,
-      advanced: true,
-    })
-  }, [advancedOnly, searchParams])
 
   const loadAdvancedSummary = async () => {
     if (!eventId) return
@@ -1097,6 +1085,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
   }
 
   const handleSave = async () => {
+    const logoUrl = form.display_logo_url.trim() || form.event_logo_url.trim()
     const scoring = {
       base_points_mode: form.scoring_base_mode,
       tie_breaker: form.scoring_tie_breaker,
@@ -1106,7 +1095,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
       secondary_color: form.display_secondary_color.trim() || '#111111',
       header_bg: form.display_header_bg.trim() || '#eaf7ee',
       card_bg: form.display_card_bg.trim() || '#ffffff',
-      logo_url: form.display_logo_url.trim() || null,
+      logo_url: logoUrl || null,
       slogan: form.display_slogan.trim() || null,
     }
     const ownerType: NonNullable<BusinessSettings['event_owner_type']> =
@@ -1186,7 +1175,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
       await apiFetch(`/api/events/${eventId}/settings`, {
         method: 'PATCH',
         body: JSON.stringify({
-          event_logo_url: form.event_logo_url.trim() || null,
+          event_logo_url: logoUrl || null,
           sponsor_logo_urls: normalizedSponsors
             .map((item) => item.logo_url?.trim())
             .filter((item): item is string => Boolean(item)),
@@ -1269,7 +1258,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
           {[
             { key: 'basic', label: 'Basic' },
             { key: 'business', label: 'Business & Roles' },
-            { key: 'appearance', label: 'Display & Race Format' },
+            { key: 'appearance', label: 'Display / Branding & Race Format' },
           ].map((section) => {
             const isOpen = sections[section.key as keyof typeof sections]
             const summary =
@@ -1303,6 +1292,29 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
               </button>
             )
           })}
+          <Link
+            href={`/admin/events/${eventId}/advanced-race`}
+            style={{
+              padding: '12px 14px',
+              borderRadius: 12,
+              border: '2px solid #111',
+              background: '#eef6ff',
+              color: '#0f172a',
+              fontWeight: 900,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              textDecoration: 'none',
+            }}
+          >
+            <span style={{ display: 'grid', gap: 2 }}>
+              <span>Advanced Multi-Stage</span>
+              <span style={{ fontSize: 11, fontWeight: 800, color: '#1d4ed8' }}>
+                Stage, qualification, QF/SF/Final rules sekarang dikelola di menu khusus.
+              </span>
+            </span>
+            <span style={{ fontSize: 12 }}>Open</span>
+          </Link>
         </div>
       )}
 
@@ -1328,12 +1340,6 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
             {!advancedOnly && sections.basic && (
               <>
                 <div style={{ fontWeight: 950, fontSize: 18 }}>Basic</div>
-                <input
-                  placeholder="Event Logo URL (optional)"
-                  value={form.event_logo_url}
-                  onChange={(e) => setForm({ ...form, event_logo_url: e.target.value })}
-                  style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
-                />
                 <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
                   Sponsor Manager
                 </div>
@@ -2232,7 +2238,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
 
             {!advancedOnly && sections.appearance && (
               <>
-                <div style={{ marginTop: 6, fontWeight: 950, fontSize: 18 }}>Display & Race Format</div>
+                <div style={{ marginTop: 6, fontWeight: 950, fontSize: 18 }}>Display / Branding & Race Format</div>
                 <div style={{ marginTop: 10, fontWeight: 900 }}>Event Logo</div>
                 <div style={{ color: '#475569', fontWeight: 700, fontSize: 13 }}>
                   Pakai logo event untuk branding halaman publik, display, dan hasil.
@@ -2240,8 +2246,8 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                 <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
                   <input
                     value={form.display_logo_url}
-                    onChange={(e) => setForm({ ...form, display_logo_url: e.target.value })}
-                    placeholder="Logo URL (opsional, akan terisi otomatis jika upload logo)"
+                    onChange={(e) => setForm({ ...form, display_logo_url: e.target.value, event_logo_url: e.target.value })}
+                    placeholder="Logo URL event"
                     style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
                   />
                 </div>
@@ -2273,9 +2279,9 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                   />
                   {logoUploading && <div style={{ fontWeight: 800 }}>Uploading...</div>}
                   {logoError && <div style={{ fontWeight: 800, color: '#b91c1c' }}>{logoError}</div>}
-                  {form.event_logo_url && (
+                  {(form.display_logo_url || form.event_logo_url) && (
                     <img
-                      src={form.event_logo_url}
+                      src={form.display_logo_url || form.event_logo_url}
                       alt="Event logo preview"
                       style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 12, border: '2px solid #111' }}
                     />
@@ -2341,7 +2347,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
         )}
       </div>
 
-      {(advancedOnly || sections.advanced) && (
+      {advancedOnly && (
         <div
           style={{
             marginTop: 24,
