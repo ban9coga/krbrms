@@ -341,10 +341,8 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       if (!moto || moto.status === status) return
 
       if (status === 'LOCKED') {
-        await apiFetch(`/api/motos/${motoId}/status`, {
-          method: 'POST',
-          body: JSON.stringify({ status }),
-        })
+        await handleLockMoto(motoId)
+        return
       } else {
         await apiFetch(`/api/motos/${motoId}`, {
           method: 'PATCH',
@@ -367,6 +365,14 @@ export default function MotosClient({ eventId }: { eventId: string }) {
   }
 
   const handleLockMoto = async (motoId: string) => {
+    const moto = motos.find((m) => m.id === motoId)
+    if (!moto) return
+
+    const ok = confirm(
+      `Lock moto: ${formatMotoDisplayName(moto.moto_name)}?\n\nSetelah LOCKED, hasil dianggap final dan moto berikutnya bisa otomatis menjadi LIVE.`
+    )
+    if (!ok) return
+
     try {
       await apiFetch(`/api/motos/${motoId}/status`, {
         method: 'POST',
@@ -761,8 +767,8 @@ export default function MotosClient({ eventId }: { eventId: string }) {
   }
 
   return (
-    <div style={{ maxWidth: 980 }} className="motos-print-root">
-      <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
+    <div style={{ maxWidth: 980, width: '100%' }} className="motos-print-root">
+      <div className="no-print motos-topbar" style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
         <button
           type="button"
           onClick={() => load('refresh')}
@@ -873,11 +879,11 @@ export default function MotosClient({ eventId }: { eventId: string }) {
               gap: 10,
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
+            <div className="motos-category-header" style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
               <div style={{ fontWeight: 950, fontSize: 18 }}>
                 {categoryLabel.get(cat.id) ?? `Category ${cat.id}`}
               </div>
-              <div className="no-print" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <div className="no-print motos-category-actions" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <button
                   type="button"
                   onClick={() =>
@@ -978,6 +984,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                     type="button"
                     onClick={() => computeAction.endpoint && handleComputeCategory(cat.id, computeAction.endpoint)}
                     disabled={computeAction.disabled || computingCategoryId === cat.id}
+                    className="motos-compute-button"
                     style={{
                       padding: '10px 14px',
                       borderRadius: 12,
@@ -1035,11 +1042,12 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                         )}
                       </div>
                     </div>
-                    <div className="no-print" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <div className="no-print motos-row-actions" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                       <select
                         value={m.status}
                         onChange={(e) => handleUpdateMotoStatus(m.id, e.target.value as MotoItem['status'])}
                         disabled={eventStatus !== 'LIVE' || getAllowedMotoStatuses(m.status).length <= 1}
+                        className="motos-status-select"
                         style={{ padding: '8px 10px', borderRadius: 12, border: '2px solid #111', fontWeight: 900 }}
                       >
                         {getAllowedMotoStatuses(m.status).map((statusOption) => (
@@ -1053,6 +1061,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                           type="button"
                           onClick={() => handleOpenReview(m.id)}
                           disabled={eventStatus !== 'LIVE'}
+                          className="motos-action-button"
                           style={{
                             padding: '8px 12px',
                             borderRadius: 999,
@@ -1070,6 +1079,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                           type="button"
                           onClick={() => handleLockMoto(m.id)}
                           disabled={eventStatus !== 'LIVE'}
+                          className="motos-action-button"
                           style={{
                             padding: '8px 12px',
                             borderRadius: 999,
@@ -1087,6 +1097,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                           type="button"
                           onClick={() => handleUnlockMoto(m.id)}
                           disabled={eventStatus !== 'LIVE'}
+                          className="motos-action-button"
                           style={{
                             padding: '8px 12px',
                             borderRadius: 999,
@@ -1103,6 +1114,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                         <button
                           type="button"
                           onClick={() => handleResetResults(m.id)}
+                          className="motos-action-button"
                           style={{
                             padding: '8px 12px',
                             borderRadius: 999,
@@ -1118,6 +1130,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                       <button
                         type="button"
                         onClick={() => window.open(`/event/${eventId}/live-score/${encodeURIComponent(m.category_id)}`, '_blank', 'noopener,noreferrer')}
+                        className="motos-action-button"
                         style={{
                           padding: '8px 12px',
                           borderRadius: 999,
@@ -1141,7 +1154,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
 
       <div style={{ marginTop: 18, display: 'grid', gap: 12 }}>
         <div
-          className="no-print"
+          className="no-print motos-rider-toggle"
           style={{
             padding: 12,
             borderRadius: 14,
@@ -1272,6 +1285,60 @@ export default function MotosClient({ eventId }: { eventId: string }) {
           ))}
       </div>
       <style>{`
+        @media (max-width: 860px) {
+          .motos-print-root {
+            max-width: none !important;
+          }
+          .motos-topbar,
+          .motos-category-header,
+          .motos-rider-toggle {
+            align-items: stretch !important;
+            flex-direction: column !important;
+          }
+          .motos-category-actions,
+          .motos-row-actions {
+            align-items: stretch !important;
+            display: grid !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            width: 100% !important;
+          }
+          .moto-row-card {
+            grid-template-columns: 1fr !important;
+          }
+          .motos-action-button,
+          .motos-status-select,
+          .motos-compute-button {
+            min-width: 0 !important;
+            width: 100% !important;
+          }
+          .motos-status-select {
+            min-height: 42px !important;
+          }
+        }
+        @media (max-width: 520px) {
+          .motos-print-root {
+            font-size: 14px;
+          }
+          .motos-category-card,
+          .moto-print-section {
+            padding: 10px !important;
+            border-radius: 12px !important;
+          }
+          .moto-row-card {
+            padding: 10px !important;
+            border-radius: 12px !important;
+          }
+          .motos-category-actions,
+          .motos-row-actions {
+            grid-template-columns: 1fr !important;
+          }
+          .motos-topbar button,
+          .motos-action-button,
+          .motos-status-select,
+          .motos-compute-button {
+            min-height: 44px !important;
+          }
+        }
         @media print {
           .no-print {
             display: none !important;
