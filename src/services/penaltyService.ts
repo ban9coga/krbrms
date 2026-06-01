@@ -72,10 +72,11 @@ export async function sumPenaltyPoints(params: {
 }) {
   const { data, error } = await adminClient
     .from('rider_penalties')
-    .select('penalty_point')
+    .select('penalty_point, rider_penalty_approvals!inner(approval_status)')
     .eq('event_id', params.event_id)
     .eq('rider_id', params.rider_id)
     .in('stage', [params.stage, 'ALL'])
+    .eq('rider_penalty_approvals.approval_status', 'APPROVED')
   if (error) throw new Error(error.message)
   const total = (data ?? []).reduce((acc, row) => acc + (row.penalty_point ?? 0), 0)
   return { total }
