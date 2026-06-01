@@ -298,7 +298,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
 
     await copyCategoryTable(
       'race_category_custom_split_rule',
-      'id, category_id, source_stage, rank_from, rank_to, target_stage, target_final_class, sort_order',
+      'id, category_id, source_stage, rank_from, rank_to, target_stage, target_final_class, sort_order, split_basis, batch_no',
       (row, newId, mappedCategoryId) => ({
         id: newId,
         category_id: mappedCategoryId,
@@ -308,6 +308,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
         target_stage: row.target_stage,
         target_final_class: row.target_final_class,
         sort_order: row.sort_order,
+        split_basis: row.split_basis,
+        batch_no: row.batch_no,
       })
     )
 
