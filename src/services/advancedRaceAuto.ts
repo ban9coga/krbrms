@@ -3,6 +3,7 @@
 import { adminClient } from '../lib/auth'
 import { resolveCategoryConfig } from './categoryResolver'
 import { assertMotoNotUnderProtest } from '../lib/motoLock'
+import { compareMotoSequence } from '../lib/motoSequence'
 import { resolveTotalPointForRaceResult, type NonFinishPenaltyConfig } from '../lib/nonFinishScoring'
 import {
   type CustomSplitRule,
@@ -356,6 +357,35 @@ const buildSequentialGateRows = (motoId: string, riderIds: string[]) =>
     rider_id: riderId,
     gate_position: index + 1,
   }))
+
+const keepCategoryMotosTogetherInEventSequence = async (eventId: string, categoryId: string) => {
+  const { data, error } = await adminClient
+    .from('motos')
+    .select('id, category_id, moto_name, moto_order')
+    .eq('event_id', eventId)
+    .order('moto_order', { ascending: true })
+
+  if (error || !data || data.length === 0) return
+
+  const rows = data as Array<{ id: string; category_id: string; moto_name: string | null; moto_order: number | null }>
+  const firstCategoryIndex = rows.findIndex((row) => row.category_id === categoryId)
+  if (firstCategoryIndex < 0) return
+
+  const before = rows.slice(0, firstCategoryIndex).filter((row) => row.category_id !== categoryId)
+  const categoryRows = rows
+    .filter((row) => row.category_id === categoryId)
+    .sort(compareMotoSequence)
+  const after = rows.slice(firstCategoryIndex).filter((row) => row.category_id !== categoryId)
+  const reordered = [...before, ...categoryRows, ...after]
+
+  await Promise.all(
+    reordered.map((row, index) => {
+      const nextOrder = index + 1
+      if (row.moto_order === nextOrder) return Promise.resolve()
+      return adminClient.from('motos').update({ moto_order: nextOrder }).eq('id', row.id)
+    })
+  )
+}
 
 const hasMotoResults = (motoId: string, resultRows: ResultRow[]) =>
   resultRows.some((row) => row.moto_id === motoId && row.finish_order !== null)
@@ -1164,6 +1194,8 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
     const { error: gateError } = await adminClient.from('moto_gate_positions').insert(newGatePositions)
     if (gateError) return { ok: false, warning: gateError.message }
   }
+
+  await keepCategoryMotosTogetherInEventSequence(eventId, categoryId)
 
   return { ok: true }
 }
