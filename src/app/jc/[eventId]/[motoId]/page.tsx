@@ -1461,15 +1461,17 @@ export default function JCPage() {
             const rawStatus = statuses[r.id]?.participation_status
             const currentStatus = rawStatus ?? 'UNSET'
             const hasStatus = typeof rawStatus === 'string'
+            const isRiderReady = currentStatus === 'ACTIVE'
+            const isRiderAbsent = currentStatus === 'ABSENT'
             const safetyOk = isSafetyOk(r.id)
             const statusBadge =
               !hasStatus
                 ? '#e5e7eb'
-                : currentStatus === 'ABSENT'
+                : isRiderAbsent
                 ? '#fee2e2'
-                : currentStatus === 'ACTIVE' && safetyOk
+                : isRiderReady && safetyOk
                 ? '#dcfce7'
-                : currentStatus === 'ACTIVE'
+                : isRiderReady
                 ? '#ffe9a8'
                 : '#e5e7eb'
 
@@ -1516,9 +1518,9 @@ export default function JCPage() {
                     >
                       {!hasStatus
                         ? 'UNCHECKED'
-                        : currentStatus === 'ACTIVE' && safetyOk
+                        : isRiderReady && safetyOk
                         ? 'READY'
-                        : currentStatus === 'ACTIVE'
+                        : isRiderReady
                         ? 'WARNING'
                         : currentStatus}
                     </div>
@@ -1606,29 +1608,29 @@ export default function JCPage() {
                         ? handleUndoReady(r.id)
                         : handleSaveStatus(r.id, 'ACTIVE', r.gate_position ?? 0)
                     }
-                    disabled={readyDisabled}
+                    disabled={readyDisabled || isRiderAbsent}
                     style={{
                       padding: highVisibility ? (isCompactLayout ? '12px 14px' : '14px 16px') : isCompactLayout ? '10px 12px' : '12px 14px',
                       borderRadius: 999,
                       border: '2px solid #1b5e20',
-                      background: statuses[r.id]?.participation_status === 'ACTIVE' ? '#dcfce7' : safetyOk ? '#2ecc71' : '#ffe9a8',
+                      background: isRiderReady ? '#dcfce7' : isRiderAbsent ? '#e5e7eb' : safetyOk ? '#2ecc71' : '#ffe9a8',
                       color: '#111',
                       fontWeight: 900,
                       fontSize: highVisibility ? (isCompactLayout ? 14 : 16) : isCompactLayout ? 12 : undefined,
                     }}
                   >
-                    {statuses[r.id]?.participation_status === 'ACTIVE' ? 'UNDO READY' : 'READY'}
+                    {isRiderReady ? 'UNDO READY' : 'READY'}
                   </button>
                   <button
                     className="jc-action-btn"
                     type="button"
                     onClick={() => handleSaveStatus(r.id, 'ABSENT', r.gate_position ?? 0)}
-                    disabled={absentDisabled}
+                    disabled={absentDisabled || isRiderReady || isRiderAbsent}
                     style={{
                       padding: highVisibility ? (isCompactLayout ? '12px 14px' : '14px 16px') : isCompactLayout ? '10px 12px' : '12px 14px',
                       borderRadius: 999,
                       border: '2px solid #b91c1c',
-                      background: '#fee2e2',
+                      background: isRiderAbsent ? '#fecaca' : isRiderReady ? '#e5e7eb' : '#fee2e2',
                       color: '#7f1d1d',
                       fontWeight: 900,
                       fontSize: highVisibility ? (isCompactLayout ? 14 : 16) : isCompactLayout ? 12 : undefined,
