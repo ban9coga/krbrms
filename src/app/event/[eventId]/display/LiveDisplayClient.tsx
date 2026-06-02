@@ -85,7 +85,7 @@ const isBlockedQueueStatus = (status?: string | null) => {
   return normalized === 'LOCKED' || normalized === 'FINISHED' || normalized === 'PROTEST_REVIEW'
 }
 
-const PUBLIC_DISPLAY_REFRESH_INTERVAL_MS = 30000
+const PUBLIC_DISPLAY_REFRESH_INTERVAL_MS = 15000
 
 const statusBadgeClass = (status?: string | null) => {
   switch ((status ?? '').toUpperCase()) {
