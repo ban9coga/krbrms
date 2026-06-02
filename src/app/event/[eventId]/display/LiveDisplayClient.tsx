@@ -26,6 +26,7 @@ type Row = {
   moto2_status?: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'PENDING' | null
   moto3_status?: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'PENDING' | null
   penalty_total: number | null
+  penalty_codes?: string[]
   total_point: number | null
   rank_point: number | null
   status: 'FINISHED' | 'DNF' | 'DNS' | 'PENDING' | 'DQ'
@@ -55,6 +56,7 @@ type StageRow = {
   photo_thumbnail_url?: string | null
   point: number | null
   penalty_total: number | null
+  penalty_codes?: string[]
   rank: number | null
   status: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'PENDING'
 }
@@ -192,21 +194,41 @@ const mobileInfoPill = (label: string, value: string | number | null | undefined
   </div>
 )
 
-const penaltyBadge = (value: number | null | undefined) => {
-  if (!value) return null
+const penaltyVisual = (code: string) => {
+  const normalized = code.trim().toUpperCase()
+  if (/SHOE|SEPATU/.test(normalized)) return { icon: '👟', label: 'Sepatu' }
+  if (/GLOVE|SARUNG/.test(normalized)) return { icon: '🧤', label: 'Gloves' }
+  if (/HELM|HELMET/.test(normalized)) return { icon: '⛑', label: 'Helm' }
+  if (/ACC|ACE/.test(normalized)) return { icon: '', label: 'ACC' }
+  return { icon: '', label: normalized || 'PEN' }
+}
+
+const PenaltyBadges = ({ codes }: { codes?: string[] }) => {
+  if (!codes?.length) return null
   return (
-    <span className="inline-flex rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] text-amber-700">
-      PEN +{value}
-    </span>
+    <div className="flex flex-wrap gap-1">
+      {codes.slice(0, 3).map((code, index) => {
+        const visual = penaltyVisual(code)
+        return (
+          <span
+            key={`${code}-${index}`}
+            className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] text-amber-700"
+          >
+            {visual.icon ? <span aria-hidden="true">{visual.icon}</span> : null}
+            {visual.label}
+          </span>
+        )
+      })}
+    </div>
   )
 }
 
-const penaltyCell = (value: number | null | undefined) => {
-  if (!value) return '-'
+const penaltyCell = (value: number | null | undefined, codes?: string[]) => {
+  if (!value && !codes?.length) return '-'
   return (
     <div className="flex flex-col items-start gap-1">
-      <span>{value}</span>
-      {penaltyBadge(value)}
+      <span>{value ?? '-'}</span>
+      <PenaltyBadges codes={codes?.length ? codes : ['PEN']} />
     </div>
   )
 }
@@ -462,6 +484,7 @@ export default function LiveDisplayClient({
           photo_thumbnail_url: row.photo_thumbnail_url ?? null,
           point: row.point,
           penalty_total: row.penalty_total,
+          penalty_codes: row.penalty_codes ?? [],
           rank: row.rank,
           status: row.status,
         })),
@@ -480,6 +503,7 @@ export default function LiveDisplayClient({
           photo_thumbnail_url: row.photo_thumbnail_url ?? null,
           point: row.total_point,
           penalty_total: row.penalty_total,
+          penalty_codes: row.penalty_codes ?? [],
           rank: row.rank_point,
           status: row.status,
         })),
@@ -769,7 +793,11 @@ export default function LiveDisplayClient({
                             </div>
                             <div className="mt-3 text-sm font-extrabold text-slate-700">
                               {resultBoardPointLabel} {row.point ?? '-'}
-                              {row.penalty_total ? <span className="ml-2">{penaltyBadge(row.penalty_total)}</span> : null}
+                              {row.penalty_total ? (
+                                <span className="ml-2 inline-flex">
+                                  <PenaltyBadges codes={row.penalty_codes?.length ? row.penalty_codes : ['PEN']} />
+                                </span>
+                              ) : null}
                             </div>
                           </div>
                         ))}
@@ -805,7 +833,7 @@ export default function LiveDisplayClient({
                               </td>
                               <td className="px-3 py-3 text-sm font-bold text-slate-600">{row.club || '-'}</td>
                               <td className="px-2 py-3 text-xl font-black text-slate-900">{renderStagePointCell(row.point, row.status)}</td>
-                              <td className="px-2 py-3 text-sm font-extrabold text-amber-600">{penaltyCell(row.penalty_total)}</td>
+                              <td className="px-2 py-3 text-sm font-extrabold text-amber-600">{penaltyCell(row.penalty_total, row.penalty_codes)}</td>
                               <td className="px-3 py-3">{renderRankCell(row.rank)}</td>
                               <td className="px-3 py-3">
                                 {renderFinalStatusCell(row.status)}
@@ -836,7 +864,9 @@ export default function LiveDisplayClient({
                               <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
                                 <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Penalty</div>
                                 <div className="mt-1 text-sm font-black text-amber-600">{row.penalty_total ?? '-'}</div>
-                                <div className="mt-1">{penaltyBadge(row.penalty_total)}</div>
+                                <div className="mt-1">
+                                  <PenaltyBadges codes={row.penalty_codes?.length ? row.penalty_codes : row.penalty_total ? ['PEN'] : []} />
+                                </div>
                               </div>
                               <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
                                 <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Status</div>
@@ -894,7 +924,7 @@ export default function LiveDisplayClient({
                             </td>
                             <td className="px-3 py-3 text-sm font-bold text-slate-600">{row.club || '-'}</td>
                             <td className="px-2 py-3 text-xl font-black text-slate-900">{renderStagePointCell(row.point, row.status)}</td>
-                            <td className="px-2 py-3 text-sm font-extrabold text-amber-600">{penaltyCell(row.penalty_total)}</td>
+                            <td className="px-2 py-3 text-sm font-extrabold text-amber-600">{penaltyCell(row.penalty_total, row.penalty_codes)}</td>
                             <td className="px-3 py-3">{renderRankCell(row.rank)}</td>
                             <td className="px-3 py-3">
                               {renderFinalStatusCell(row.status)}
@@ -925,7 +955,9 @@ export default function LiveDisplayClient({
                             <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
                               <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Penalty</div>
                               <div className="mt-1 text-sm font-black text-amber-600">{row.penalty_total ?? '-'}</div>
-                              <div className="mt-1">{penaltyBadge(row.penalty_total)}</div>
+                              <div className="mt-1">
+                                <PenaltyBadges codes={row.penalty_codes?.length ? row.penalty_codes : row.penalty_total ? ['PEN'] : []} />
+                              </div>
                             </div>
                             {mobileInfoPill('Komunitas', row.club || '-')}
                           </div>
@@ -985,7 +1017,7 @@ export default function LiveDisplayClient({
                             <td className="px-2 py-3 text-sm font-extrabold text-slate-700">{renderMotoResultCell(row.point_moto1, row.moto1_status)}</td>
                             <td className="px-2 py-3 text-sm font-extrabold text-slate-700">{renderMotoResultCell(row.point_moto2, row.moto2_status)}</td>
                             {showLiveMoto3 && <td className="px-2 py-3 text-sm font-extrabold text-slate-700">{renderMotoResultCell(row.point_moto3, row.moto3_status)}</td>}
-                            <td className="px-2 py-3 text-sm font-extrabold text-amber-600">{penaltyCell(row.penalty_total)}</td>
+                            <td className="px-2 py-3 text-sm font-extrabold text-amber-600">{penaltyCell(row.penalty_total, row.penalty_codes)}</td>
                             <td className="px-2 py-3 text-xl font-black text-slate-900">{row.total_point ?? '-'}</td>
                             <td className="px-3 py-3">
                               <div className="flex flex-col items-start gap-1">
@@ -1025,7 +1057,9 @@ export default function LiveDisplayClient({
                             <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
                               <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Penalty</div>
                               <div className="mt-1 text-sm font-black text-amber-600">{row.penalty_total ?? '-'}</div>
-                              <div className="mt-1">{penaltyBadge(row.penalty_total)}</div>
+                              <div className="mt-1">
+                                <PenaltyBadges codes={row.penalty_codes?.length ? row.penalty_codes : row.penalty_total ? ['PEN'] : []} />
+                              </div>
                             </div>
                             {mobileInfoPill('Total', row.total_point, 'text-slate-900')}
                             <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
