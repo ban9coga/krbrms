@@ -21,6 +21,7 @@ type RankingRow = {
   finish_order: number | null
   base_point: number | null
   penalty_total: number | null
+  penalty_breakdown?: Array<{ code: string; points: number }>
   total_point: number | null
   rider_name: string
   rider_nickname?: string | null
@@ -123,6 +124,29 @@ const mcCueText = (nowMoto?: MotoInfo | null, resultMoto?: MotoInfo | null, next
   if (moto.status === 'PROVISIONAL') return nextMoto ? 'Bacakan hasil sementara, lalu lanjut panggil starter moto berikutnya.' : 'Bacakan hasil sementara kepada penonton.'
   if (moto.status === 'LOCKED' || moto.status === 'FINISHED') return nextMoto ? 'Hasil sudah siap dibacakan. Lanjutkan calling rider untuk moto berikutnya.' : 'Hasil sudah final dan siap dibacakan.'
   return 'Pantau update dari juri dan race control.'
+}
+
+const PenaltyBadges = ({ items, compact = false }: { items?: Array<{ code: string; points: number }>; compact?: boolean }) => {
+  if (!items?.length) return null
+  const visible = items.slice(0, compact ? 2 : 3)
+  const hiddenCount = items.length - visible.length
+  return (
+    <div className="mt-1 flex flex-wrap justify-center gap-1">
+      {visible.map((item, index) => (
+        <span
+          key={`${item.code}-${item.points}-${index}`}
+          className="inline-flex rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] text-amber-700"
+        >
+          {item.code} +{item.points}
+        </span>
+      ))}
+      {hiddenCount > 0 && (
+        <span className="inline-flex rounded-full border border-slate-300 bg-slate-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] text-slate-600">
+          +{hiddenCount}
+        </span>
+      )}
+    </div>
+  )
 }
 
 export default function McLivePage() {
@@ -348,7 +372,10 @@ export default function McLivePage() {
                           </td>
                           <td className={`${highVisibility ? 'text-base md:text-xl' : 'text-sm md:text-lg'} font-extrabold text-slate-700`}>{row.club || '-'}</td>
                           <td className={`${highVisibility ? 'text-2xl md:text-4xl' : 'text-xl md:text-3xl'} font-black text-sky-700`}>{row.base_point ?? '-'}</td>
-                          <td className={`${highVisibility ? 'text-2xl md:text-4xl' : 'text-xl md:text-3xl'} font-black text-amber-600`}>{row.penalty_total ?? '-'}</td>
+                          <td className={`${highVisibility ? 'text-2xl md:text-4xl' : 'text-xl md:text-3xl'} font-black text-amber-600`}>
+                            <div>{row.penalty_total ?? '-'}</div>
+                            <PenaltyBadges items={row.penalty_breakdown} compact />
+                          </td>
                           <td className={`${highVisibility ? 'text-2xl md:text-4xl' : 'text-xl md:text-3xl'} font-black text-sky-700`}>{row.total_point ?? '-'}</td>
                           <td className={`${highVisibility ? 'text-2xl md:text-3xl' : 'text-lg md:text-2xl'} font-black text-slate-900`}>
                             {mcRankLabel(readyToAnnounce, idx)}
@@ -417,6 +444,7 @@ export default function McLivePage() {
                         <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
                           <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Penalty</div>
                           <div className="mt-1 text-lg font-black text-amber-600">{row.penalty_total ?? '-'}</div>
+                          <PenaltyBadges items={row.penalty_breakdown} compact />
                         </div>
                         <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
                           <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Total</div>

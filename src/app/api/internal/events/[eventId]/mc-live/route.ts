@@ -26,6 +26,7 @@ type McRankingRow = {
   finish_order: number | null
   base_point: number | null
   penalty_total: number | null
+  penalty_breakdown?: Array<{ code: string; points: number }>
   total_point: number | null
   rider_name: string
   rider_nickname?: string | null
@@ -397,10 +398,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const participationMap = new Map((participationRows ?? []).map((row) => [row.rider_id, row.participation_status as string | null]))
 
   const penaltyMap = new Map<string, number>()
+  const penaltyBreakdownMap = new Map<string, Array<{ code: string; points: number }>>()
   if (riderIds.length > 0) {
     const { data: penalties, error: penaltyError } = await adminClient
       .from('rider_penalties')
-      .select('rider_id, penalty_point, stage, rider_penalty_approvals!inner(approval_status)')
+      .select('rider_id, rule_code, penalty_point, stage, rider_penalty_approvals!inner(approval_status)')
       .eq('event_id', eventId)
       .eq('rider_penalty_approvals.approval_status', 'APPROVED')
       .in('rider_id', riderIds)
@@ -408,8 +410,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     for (const row of penalties ?? []) {
       const appliesToCurrentMoto = row.stage === 'ALL' || row.stage === penaltyStage
       if (!appliesToCurrentMoto) continue
+      const points = Number(row.penalty_point ?? 0)
       const current = penaltyMap.get(row.rider_id) ?? 0
-      penaltyMap.set(row.rider_id, current + Number(row.penalty_point ?? 0))
+      penaltyMap.set(row.rider_id, current + points)
+      const items = penaltyBreakdownMap.get(row.rider_id) ?? []
+      items.push({ code: String(row.rule_code ?? 'PEN').toUpperCase(), points })
+      penaltyBreakdownMap.set(row.rider_id, items)
     }
   }
 
@@ -438,6 +444,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       finish_order: row?.finish_order ?? null,
       base_point: basePoint,
       penalty_total: penalty,
+      penalty_breakdown: penaltyBreakdownMap.get(riderId) ?? [],
       total_point: total,
       rider_name: rider?.name ?? '-',
       rider_nickname: rider?.rider_nickname ?? null,

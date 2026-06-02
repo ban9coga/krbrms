@@ -47,8 +47,34 @@ type EventFlags = {
   dnf_enabled: boolean
 }
 
+type PenaltyBadgeItem = {
+  code: string
+  points: number
+}
+
 const VIBRATE_MS = 30
 const LONG_PRESS_MS = 800
+
+const PenaltyBadges = ({ items }: { items?: PenaltyBadgeItem[] }) => {
+  if (!items?.length) return null
+  return (
+    <span className="ml-2 inline-flex flex-wrap gap-1 align-middle">
+      {items.slice(0, 3).map((item, index) => (
+        <span
+          key={`${item.code}-${item.points}-${index}`}
+          className="inline-flex rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] text-amber-700"
+        >
+          {item.code} +{item.points}
+        </span>
+      ))}
+      {items.length > 3 && (
+        <span className="inline-flex rounded-full border border-slate-300 bg-slate-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] text-slate-600">
+          +{items.length - 3}
+        </span>
+      )}
+    </span>
+  )
+}
 
 export default function JuryFinishPage() {
   const [events, setEvents] = useState<EventItem[]>([])
@@ -63,6 +89,7 @@ export default function JuryFinishPage() {
   const [hasSubmitted, setHasSubmitted] = useState(false)
   const [pressedId, setPressedId] = useState<string | null>(null)
   const [penaltiesByRider, setPenaltiesByRider] = useState<Record<string, number>>({})
+  const [penaltyBadgesByRider, setPenaltyBadgesByRider] = useState<Record<string, PenaltyBadgeItem[]>>({})
   const [participationByRider, setParticipationByRider] = useState<Record<string, string>>({})
   const [flags, setFlags] = useState<EventFlags>({
     penalty_enabled: true,
@@ -221,6 +248,7 @@ export default function JuryFinishPage() {
       setDnfRiders([])
       setActions([])
       setPenaltiesByRider({})
+      setPenaltyBadgesByRider({})
       setParticipationByRider({})
       return
     }
@@ -265,14 +293,20 @@ export default function JuryFinishPage() {
       const penaltiesRes = await apiFetch(`/api/jury/events/${eventId}/rider-penalties?moto_id=${targetMotoId}`)
       if (!force && localEditingRef.current) return
       const map: Record<string, number> = {}
+      const badgeMap: Record<string, PenaltyBadgeItem[]> = {}
       for (const row of penaltiesRes.data ?? []) {
         const approval = Array.isArray(row.rider_penalty_approvals)
           ? row.rider_penalty_approvals[0]?.approval_status
           : row.rider_penalty_approvals?.approval_status
         if (approval !== 'APPROVED') continue
-        map[row.rider_id] = (map[row.rider_id] ?? 0) + Number(row.penalty_point ?? 0)
+        const points = Number(row.penalty_point ?? 0)
+        map[row.rider_id] = (map[row.rider_id] ?? 0) + points
+        const items = badgeMap[row.rider_id] ?? []
+        items.push({ code: String(row.rule_code ?? 'PEN').toUpperCase(), points })
+        badgeMap[row.rider_id] = items
       }
       setPenaltiesByRider(map)
+      setPenaltyBadgesByRider(badgeMap)
     }
   }, [apiFetch, eventId, motos, selectedMoto, selectedMotoId])
 
@@ -732,10 +766,12 @@ export default function JuryFinishPage() {
                   {finishSequence.map((f) => {
                     const rider = riders.find((r) => r.id === f.id)
                     const penalty = penaltiesByRider[f.id] ?? 0
+                    const penaltyBadges = penaltyBadgesByRider[f.id] ?? []
                     return (
                       <div key={f.id} className={`${highVisibility ? 'text-base' : 'text-sm'} font-semibold text-slate-700`}>
                         {f.position}. {rider?.no_plate_display} - {rider?.name}
                         {penalty ? ` (+${penalty})` : ''}
+                        <PenaltyBadges items={penaltyBadges} />
                       </div>
                     )
                   })}
@@ -749,10 +785,12 @@ export default function JuryFinishPage() {
                   {dnfRiders.map((id) => {
                     const rider = riders.find((r) => r.id === id)
                     const penalty = penaltiesByRider[id] ?? 0
+                    const penaltyBadges = penaltyBadgesByRider[id] ?? []
                     return (
                       <div key={id} className={`${highVisibility ? 'text-base' : 'text-sm'} font-semibold text-amber-700`}>
                         {rider?.no_plate_display} - {rider?.name}
                         {penalty ? ` (+${penalty})` : ''}
+                        <PenaltyBadges items={penaltyBadges} />
                       </div>
                     )
                   })}
@@ -766,10 +804,12 @@ export default function JuryFinishPage() {
                   {dnsRiders.map((id) => {
                     const rider = riders.find((r) => r.id === id)
                     const penalty = penaltiesByRider[id] ?? 0
+                    const penaltyBadges = penaltyBadgesByRider[id] ?? []
                     return (
                       <div key={id} className={`${highVisibility ? 'text-base' : 'text-sm'} font-semibold text-rose-700`}>
                         {rider?.no_plate_display} - {rider?.name}
                         {penalty ? ` (+${penalty})` : ''}
+                        <PenaltyBadges items={penaltyBadges} />
                       </div>
                     )
                   })}
