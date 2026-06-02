@@ -1,10 +1,12 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import PublicTopbar from '../../../components/PublicTopbar'
 import { useHighVisibility } from '../../../hooks/useHighVisibility'
 import { supabase } from '../../../lib/supabaseClient'
+
+const MC_REFRESH_INTERVAL_MS = 10000
 
 type MotoInfo = {
   id: string
@@ -130,6 +132,7 @@ export default function McLivePage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<string | null>(null)
+  const refreshInFlightRef = useRef(false)
   const { highVisibility, toggleHighVisibility } = useHighVisibility('mc-high-visibility')
 
   const apiFetch = async (url: string, options: RequestInit = {}) => {
@@ -145,6 +148,8 @@ export default function McLivePage() {
 
   const load = async (silent = false) => {
     if (!eventId) return
+    if (refreshInFlightRef.current) return
+    refreshInFlightRef.current = true
     if (!silent) setLoading(true)
     setError(null)
     try {
@@ -154,13 +159,14 @@ export default function McLivePage() {
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Gagal memuat data')
     } finally {
+      refreshInFlightRef.current = false
       if (!silent) setLoading(false)
     }
   }
 
   useEffect(() => {
     load()
-    const interval = setInterval(() => load(true), 5000)
+    const interval = setInterval(() => load(true), MC_REFRESH_INTERVAL_MS)
     return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
@@ -263,7 +269,7 @@ export default function McLivePage() {
         </section>
 
         <section className="public-panel-light">
-          <div className="mb-3 flex items-center justify-between gap-2">
+          <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="grid gap-1">
               <h2 className={`${highVisibility ? 'text-2xl md:text-3xl' : 'text-xl'} font-black tracking-tight text-slate-900`}>
                 {readyToAnnounce ? 'Result To Announce' : 'Status Rider / Hasil Sementara'}
@@ -274,10 +280,18 @@ export default function McLivePage() {
                 </div>
               ) : null}
               <div className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">
-                Auto refresh aktif tiap 5 detik
+                Auto refresh aktif tiap {MC_REFRESH_INTERVAL_MS / 1000} detik
               </div>
             </div>
-            <div className="flex flex-wrap items-center justify-end gap-2">
+            <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+              <button
+                type="button"
+                onClick={() => load()}
+                disabled={loading}
+                className="rounded-full border border-emerald-300 bg-emerald-50 px-4 py-2 text-xs font-extrabold uppercase tracking-[0.12em] text-emerald-700 shadow-sm transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {loading ? 'Memuat...' : 'Refresh Sekarang'}
+              </button>
               <button
                 type="button"
                 onClick={toggleHighVisibility}
@@ -288,13 +302,6 @@ export default function McLivePage() {
                 }`}
               >
                 {highVisibility ? 'Mode Besar Aktif' : 'Mode Besar'}
-              </button>
-              <button
-                type="button"
-                onClick={() => load()}
-                className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1.5 text-xs font-extrabold uppercase tracking-[0.12em] text-slate-700 transition-colors hover:bg-slate-200"
-              >
-                Refresh
               </button>
             </div>
           </div>
