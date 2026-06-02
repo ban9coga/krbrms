@@ -51,7 +51,6 @@ type StageRow = {
   photo_thumbnail_url?: string | null
   point: number | null
   penalty_total: number | null
-  penalty_codes?: string[]
   rank: number | null
   status: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'PENDING'
   next_class_label?: string | null
@@ -367,20 +366,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const qualificationPenaltyMap = new Map<string, number>()
   const stagePenaltyMap = new Map<string, number>()
   const motoPenaltyMap = new Map<string, number>()
-  const qualificationPenaltyCodeMap = new Map<string, string[]>()
-  const stagePenaltyCodeMap = new Map<string, string[]>()
-  const motoPenaltyCodeMap = new Map<string, string[]>()
-  const addPenaltyCode = (map: Map<string, string[]>, key: string, code: unknown) => {
-    const normalized = String(code ?? 'PEN').trim().toUpperCase()
-    if (!normalized) return
-    const items = map.get(key) ?? []
-    if (!items.includes(normalized)) items.push(normalized)
-    map.set(key, items)
-  }
   if (riderIds.length > 0) {
     const { data: penalties, error: penaltyError } = await adminClient
       .from('rider_penalties')
-      .select('rider_id, moto_id, rule_code, penalty_point, stage, rider_penalty_approvals!inner(approval_status)')
+      .select('rider_id, moto_id, penalty_point, stage, rider_penalty_approvals!inner(approval_status)')
       .eq('event_id', eventId)
       .eq('rider_penalty_approvals.approval_status', 'APPROVED')
       .in('rider_id', riderIds)
@@ -391,24 +380,20 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         const key = `${row.moto_id}:${row.rider_id}`
         const current = motoPenaltyMap.get(key) ?? 0
         motoPenaltyMap.set(key, current + amount)
-        addPenaltyCode(motoPenaltyCodeMap, key, row.rule_code)
       }
       if (row.stage === 'MOTO') {
         const current = qualificationPenaltyMap.get(row.rider_id) ?? 0
         qualificationPenaltyMap.set(row.rider_id, current + amount)
-        addPenaltyCode(qualificationPenaltyCodeMap, row.rider_id, row.rule_code)
       }
       if (row.stage === 'ALL') {
         const key = `${row.rider_id}:ALL`
         const current = stagePenaltyMap.get(key) ?? 0
         stagePenaltyMap.set(key, current + amount)
-        addPenaltyCode(stagePenaltyCodeMap, key, row.rule_code)
       }
       if (row.stage === 'QUARTER' || row.stage === 'REPECHAGE' || row.stage === 'SEMI' || row.stage === 'FINAL') {
         const key = `${row.rider_id}:${row.stage}`
         const current = stagePenaltyMap.get(key) ?? 0
         stagePenaltyMap.set(key, current + amount)
-        addPenaltyCode(stagePenaltyCodeMap, key, row.rule_code)
       }
     }
   }
@@ -552,18 +537,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
           (moto1?.id ? motoPenaltyMap.get(`${moto1.id}:${riderId}`) ?? 0 : 0) +
           (moto2?.id ? motoPenaltyMap.get(`${moto2.id}:${riderId}`) ?? 0 : 0) +
           (moto3?.id ? motoPenaltyMap.get(`${moto3.id}:${riderId}`) ?? 0 : 0)
-        const motoSpecificPenaltyCodes = [
-          ...(moto1?.id ? motoPenaltyCodeMap.get(`${moto1.id}:${riderId}`) ?? [] : []),
-          ...(moto2?.id ? motoPenaltyCodeMap.get(`${moto2.id}:${riderId}`) ?? [] : []),
-          ...(moto3?.id ? motoPenaltyCodeMap.get(`${moto3.id}:${riderId}`) ?? [] : []),
-        ]
         const stageWideQualificationPenalty = qualificationPenaltyMap.get(riderId) ?? 0
-        const stageWideQualificationCodes = qualificationPenaltyCodeMap.get(riderId) ?? []
         const penaltyTotal =
           (motoSpecificPenaltyTotal > 0 ? motoSpecificPenaltyTotal : stageWideQualificationPenalty) + autoPenaltyTotal
-        const penaltyCodes = Array.from(
-          new Set(motoSpecificPenaltyTotal > 0 ? motoSpecificPenaltyCodes : stageWideQualificationCodes)
-        )
         const penaltyTotalDisplay = hasRecordedResult ? penaltyTotal : null
         const totalPoint = basePoint !== null ? basePoint + penaltyTotal : null
         const tiebreakers = [point3, point2, point1]
@@ -595,7 +571,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
           moto2_status: (moto2Result?.result_status ?? 'PENDING') as QualificationMotoStatus,
           moto3_status: (moto3Result?.result_status ?? 'PENDING') as QualificationMotoStatus,
           penalty_total: penaltyTotalDisplay,
-          penalty_codes: hasRecordedResult ? penaltyCodes : [],
           total_point: totalPoint,
           status,
           tiebreakers,
@@ -741,12 +716,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       const manualPenaltyTotal = stagePenaltyStages.reduce((sum, stageKey) => {
         return sum + (stagePenaltyMap.get(`${riderId}:${stageKey}`) ?? 0)
       }, 0) + (motoPenaltyMap.get(`${moto.id}:${riderId}`) ?? 0)
-      const manualPenaltyCodes = Array.from(
-        new Set([
-          ...stagePenaltyStages.flatMap((stageKey) => stagePenaltyCodeMap.get(`${riderId}:${stageKey}`) ?? []),
-          ...(motoPenaltyCodeMap.get(`${moto.id}:${riderId}`) ?? []),
-        ])
-      )
       const autoPenaltyTotal = resolveNonFinishAutoPenalty(status, pointOverrideConfig ?? undefined)
       return {
         rider_id: riderId,
@@ -757,7 +726,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         photo_thumbnail_url: rider?.photo_thumbnail_url ?? null,
         point: pointForMotoResult(res, riderCount),
         penalty_total: manualPenaltyTotal + autoPenaltyTotal || null,
-        penalty_codes: manualPenaltyCodes,
         rank: null,
         status,
       }
