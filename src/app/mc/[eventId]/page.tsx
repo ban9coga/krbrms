@@ -38,6 +38,8 @@ type NextMotoRiderRow = {
   plate: string
   club?: string | null
   gate_position?: number | null
+  penalty_total?: number | null
+  penalty_breakdown?: Array<{ code: string; points: number }>
   status: 'READY' | 'ABSENT' | 'DNS' | 'PENDING'
 }
 
@@ -521,6 +523,14 @@ export default function McLivePage() {
                     {nextMotoStatusLabel(row.status)}
                   </span>
                 </div>
+                {row.penalty_total ? (
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <span className="inline-flex rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.1em] text-amber-700">
+                      Penalty +{row.penalty_total}
+                    </span>
+                    <PenaltyBadges items={row.penalty_breakdown} />
+                  </div>
+                ) : null}
                 <div className="mt-3">
                   <div className={`truncate ${highVisibility ? 'text-lg md:text-2xl' : 'text-lg'} font-black leading-tight text-slate-900`}>
                     {nextMotoRiderDisplayName(row)}

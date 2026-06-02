@@ -43,6 +43,8 @@ type NextMotoRiderRow = {
   plate: string
   club?: string | null
   gate_position?: number | null
+  penalty_total?: number | null
+  penalty_breakdown?: Array<{ code: string; points: number }>
   status: 'READY' | 'ABSENT' | 'DNS' | 'PENDING'
 }
 
@@ -520,6 +522,24 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       const nextParticipationMap = new Map(
         (nextMotoParticipationRows ?? []).map((row) => [row.rider_id, row.participation_status as string | null])
       )
+      const nextPenaltyMap = new Map<string, number>()
+      const nextPenaltyBreakdownMap = new Map<string, Array<{ code: string; points: number }>>()
+      const { data: nextPenalties, error: nextPenaltyError } = await adminClient
+        .from('rider_penalties')
+        .select('rider_id, rule_code, penalty_point, rider_penalty_approvals!inner(approval_status)')
+        .eq('event_id', eventId)
+        .eq('moto_id', nextMoto.id)
+        .eq('stage', 'MOTO')
+        .eq('rider_penalty_approvals.approval_status', 'APPROVED')
+        .in('rider_id', nextRiderIds)
+      if (nextPenaltyError) return NextResponse.json({ error: nextPenaltyError.message }, { status: 400 })
+      for (const row of nextPenalties ?? []) {
+        const points = Number(row.penalty_point ?? 0)
+        nextPenaltyMap.set(row.rider_id, (nextPenaltyMap.get(row.rider_id) ?? 0) + points)
+        const items = nextPenaltyBreakdownMap.get(row.rider_id) ?? []
+        items.push({ code: String(row.rule_code ?? 'PEN').toUpperCase(), points })
+        nextPenaltyBreakdownMap.set(row.rider_id, items)
+      }
       nextMotoRiders = nextRiderIds
         .map((riderId) => {
           const rider = nextRiderMap.get(riderId)
@@ -539,6 +559,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
             plate: rider?.no_plate_display ?? '-',
             club: rider?.club ?? null,
             gate_position: nextGateMap.get(riderId) ?? null,
+            penalty_total: nextPenaltyMap.get(riderId) ?? null,
+            penalty_breakdown: nextPenaltyBreakdownMap.get(riderId) ?? [],
             status: status as NextMotoRiderRow['status'],
           }
         })
