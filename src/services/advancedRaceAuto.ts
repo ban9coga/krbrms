@@ -138,6 +138,73 @@ const pointForRaceResult = (row: ResultRow | null | undefined, riderCount: numbe
   return resolveTotalPointForRaceResult(row.result_status ?? 'FINISH', row.finish_order, riderCount, config)
 }
 
+type ApprovedPenaltyMaps = {
+  qualification: Map<string, number>
+  moto: Map<string, number>
+  stage: Map<string, number>
+}
+
+const addPenaltyAmount = (map: Map<string, number>, key: string, amount: number) => {
+  if (!Number.isFinite(amount) || amount <= 0) return
+  map.set(key, (map.get(key) ?? 0) + amount)
+}
+
+const loadApprovedPenaltyMaps = async (eventId: string, riderIds: string[]): Promise<ApprovedPenaltyMaps> => {
+  const maps: ApprovedPenaltyMaps = {
+    qualification: new Map(),
+    moto: new Map(),
+    stage: new Map(),
+  }
+  const uniqueRiderIds = Array.from(new Set(riderIds)).filter(Boolean)
+  if (uniqueRiderIds.length === 0) return maps
+
+  const { data, error } = await adminClient
+    .from('rider_penalties')
+    .select('rider_id, moto_id, penalty_point, stage, rider_penalty_approvals!inner(approval_status)')
+    .eq('event_id', eventId)
+    .eq('rider_penalty_approvals.approval_status', 'APPROVED')
+    .in('rider_id', uniqueRiderIds)
+
+  if (error) throw new Error(error.message)
+
+  for (const row of data ?? []) {
+    const amount = Number(row.penalty_point ?? 0)
+    if (row.moto_id) addPenaltyAmount(maps.moto, `${row.moto_id}:${row.rider_id}`, amount)
+    if (row.stage === 'MOTO') addPenaltyAmount(maps.qualification, row.rider_id, amount)
+    if (row.stage === 'ALL') addPenaltyAmount(maps.stage, `${row.rider_id}:ALL`, amount)
+    if (row.stage === 'QUARTER' || row.stage === 'REPECHAGE' || row.stage === 'SEMI' || row.stage === 'FINAL') {
+      addPenaltyAmount(maps.stage, `${row.rider_id}:${row.stage}`, amount)
+    }
+  }
+
+  return maps
+}
+
+const resolvePenaltyStagesForMoto = (name: string): Array<'QUARTER' | 'REPECHAGE' | 'SEMI' | 'FINAL' | 'ALL'> => {
+  if (/^quarter final/i.test(name)) return ['QUARTER', 'ALL']
+  if (/^repechage/i.test(name)) return ['REPECHAGE', 'ALL']
+  if (/^semi final/i.test(name)) return ['SEMI', 'ALL']
+  if (/^final /i.test(name)) return ['FINAL', 'ALL']
+  return ['ALL']
+}
+
+const manualQualificationPenaltyForRider = (
+  riderId: string,
+  motoIds: string[],
+  penaltyMaps: ApprovedPenaltyMaps
+) => {
+  const motoTotal = motoIds.reduce((sum, motoId) => sum + (penaltyMaps.moto.get(`${motoId}:${riderId}`) ?? 0), 0)
+  return motoTotal > 0 ? motoTotal : penaltyMaps.qualification.get(riderId) ?? 0
+}
+
+const manualStagePenaltyForRider = (riderId: string, moto: Pick<MotoRow, 'id' | 'moto_name'>, penaltyMaps: ApprovedPenaltyMaps) => {
+  const stageTotal = resolvePenaltyStagesForMoto(moto.moto_name).reduce(
+    (sum, stageKey) => sum + (penaltyMaps.stage.get(`${riderId}:${stageKey}`) ?? 0),
+    0
+  )
+  return stageTotal + (penaltyMaps.moto.get(`${moto.id}:${riderId}`) ?? 0)
+}
+
 const safeMotoNameExists = async (eventId: string, categoryId: string, prefix: string) => {
   const { data, error } = await adminClient
     .from('motos')
@@ -229,7 +296,8 @@ const buildQualificationSeedRowsFromCurrentResults = (
   motoRows: MotoRow[],
   motoRiderRows: MotoRiderRow[],
   resultRows: ResultRow[],
-  config?: NonFinishPenaltyConfig
+  config?: NonFinishPenaltyConfig,
+  penaltyMaps?: ApprovedPenaltyMaps
 ): StageResultSeedRow[] => {
   const batchMap = new Map<number, { moto1?: MotoRow; moto2?: MotoRow; moto3?: MotoRow }>()
   for (const moto of motoRows) {
@@ -251,12 +319,17 @@ const buildQualificationSeedRowsFromCurrentResults = (
       const moto3 = entry.moto3 ?? null
       const riders = motoRiderRows.filter((row) => row.moto_id === moto1.id).map((row) => row.rider_id)
       const riderCount = riders.length
+      const motoIds = [moto1.id, moto2.id, ...(moto3 ? [moto3.id] : [])]
       const finishes = resultRows
         .filter((row) => row.moto_id === moto1.id || row.moto_id === moto2.id || (moto3 ? row.moto_id === moto3.id : false))
         .map((row) => ({
           riderId: row.rider_id,
           motoIndex: row.moto_id === moto1.id ? 1 : row.moto_id === moto2.id ? 2 : 3,
-          finishOrder: pointForRaceResult(row, riderCount, config),
+          finishOrder:
+            (pointForRaceResult(row, riderCount, config) ?? 9999) +
+            (row.moto_id === moto1.id && penaltyMaps
+              ? manualQualificationPenaltyForRider(row.rider_id, motoIds, penaltyMaps)
+              : 0),
         }))
       return { batchId: moto1.id, riders, finishes }
     })
@@ -584,6 +657,12 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
     .in('moto_id', motoIds)
   if (riderError) return { ok: false, warning: riderError.message }
   const motoRiderRows = (motoRiders ?? []) as MotoRiderRow[]
+  let penaltyMaps: ApprovedPenaltyMaps
+  try {
+    penaltyMaps = await loadApprovedPenaltyMaps(eventId, motoRiderRows.map((row) => row.rider_id))
+  } catch (err) {
+    return { ok: false, warning: err instanceof Error ? err.message : 'Failed to load penalties.' }
+  }
 
   const batchMap = new Map<number, { moto1?: MotoRow; moto2?: MotoRow; moto3?: MotoRow }>()
   for (const moto of motoRows) {
@@ -612,12 +691,17 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
         .filter((row) => row.moto_id === moto1.id)
         .map((row) => row.rider_id)
       const riderCount = riders.length
+      const batchMotoIds = [moto1.id, moto2.id, ...(moto3 ? [moto3.id] : [])]
       const finishes = resultRows
         .filter((row) => row.moto_id === moto1.id || row.moto_id === moto2.id || (moto3 ? row.moto_id === moto3.id : false))
         .map((row) => ({
           riderId: row.rider_id,
           motoIndex: row.moto_id === moto1.id ? 1 : row.moto_id === moto2.id ? 2 : 3,
-          finishOrder: pointForRaceResult(row, riderCount, config ?? undefined),
+          finishOrder:
+            (pointForRaceResult(row, riderCount, config ?? undefined) ?? 9999) +
+            (row.moto_id === moto1.id
+              ? manualQualificationPenaltyForRider(row.rider_id, batchMotoIds, penaltyMaps)
+              : 0),
         }))
       return { batchId: moto1.id, batchIndex, riders, finishes }
     })
@@ -795,6 +879,12 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
 
   const categoryMotoRiderRows = (categoryMotoRiders ?? []) as MotoRiderRow[]
   const categoryResultRows = (categoryResults ?? []) as ResultRow[]
+  let categoryPenaltyMaps: ApprovedPenaltyMaps
+  try {
+    categoryPenaltyMaps = await loadApprovedPenaltyMaps(eventId, categoryMotoRiderRows.map((row) => row.rider_id))
+  } catch (err) {
+    return { ok: false, warning: err instanceof Error ? err.message : 'Failed to load penalties.' }
+  }
   const seedBatchOrderById = existingMotoRows.reduce<Record<string, number>>((acc, moto) => {
     const batchKey = parseBatchKey(moto.moto_name)
     if (batchKey && batchKey.motoIndex === 1) {
@@ -835,7 +925,8 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
     existingMotoRows,
     categoryMotoRiderRows,
     categoryResultRows,
-    config ?? undefined
+    config ?? undefined,
+    categoryPenaltyMaps
   )
   const finalGateSeedRows = currentQualificationSeedRows.length > 0 ? currentQualificationSeedRows : qualificationRows
   const quarterResultRows = stageSeedRows.filter((row) => row.stage === 'QUARTER_FINAL' && row.position !== null)
@@ -1247,6 +1338,12 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
     .in('moto_id', motoIds)
   if (riderError) return { ok: false, warning: riderError.message }
   const motoRiderRows = (motoRiders ?? []) as MotoRiderRow[]
+  let penaltyMaps: ApprovedPenaltyMaps
+  try {
+    penaltyMaps = await loadApprovedPenaltyMaps(eventId, motoRiderRows.map((row) => row.rider_id))
+  } catch (err) {
+    return { ok: false, warning: err instanceof Error ? err.message : 'Failed to load penalties.' }
+  }
 
   const { data: qualificationStageRows, error: qualificationStageError } = await adminClient
     .from('race_stage_result')
@@ -1397,7 +1494,9 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
     const riderCount = riders.length
     riders.forEach((id) => {
       const row = resultRows.find((r) => r.moto_id === moto.id && r.rider_id === id)
-      scores[id] = pointForRaceResult(row, riderCount, config ?? undefined) ?? 9999
+      scores[id] =
+        (pointForRaceResult(row, riderCount, config ?? undefined) ?? 9999) +
+        manualStagePenaltyForRider(id, moto as MotoRow, penaltyMaps)
     })
     const ranked = rankByPoints(scores)
     const advances =
@@ -1449,7 +1548,9 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
     const riderCount = riders.length
     riders.forEach((id) => {
       const row = resultRows.find((r) => r.moto_id === moto.id && r.rider_id === id)
-      scores[id] = pointForRaceResult(row, riderCount, config ?? undefined) ?? 9999
+      scores[id] =
+        (pointForRaceResult(row, riderCount, config ?? undefined) ?? 9999) +
+        manualStagePenaltyForRider(id, moto as MotoRow, penaltyMaps)
     })
     const ranked = rankByPoints(scores)
     const advances = computeCustomStageAdvances(ranked, repechageCustomRules, { toStage: 'SEMI_FINAL' })
@@ -1498,7 +1599,9 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
     const riderCount = riders.length
     riders.forEach((id) => {
       const row = resultRows.find((r) => r.moto_id === moto.id && r.rider_id === id)
-      scores[id] = pointForRaceResult(row, riderCount, config ?? undefined) ?? 9999
+      scores[id] =
+        (pointForRaceResult(row, riderCount, config ?? undefined) ?? 9999) +
+        manualStagePenaltyForRider(id, moto as MotoRow, penaltyMaps)
     })
     const ranked = rankByPoints(scores)
     const advances =
@@ -1570,7 +1673,9 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
     riders.forEach((id) => {
       completedFinalRiders.add(id)
       const row = resultRows.find((r) => r.moto_id === moto.id && r.rider_id === id)
-      const point = pointForRaceResult(row, riderCount, config ?? undefined)
+      const point =
+        (pointForRaceResult(row, riderCount, config ?? undefined) ?? 9999) +
+        manualStagePenaltyForRider(id, moto as MotoRow, penaltyMaps)
       finalRows.push({
         rider_id: id,
         category_id: categoryId,
