@@ -642,6 +642,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       const resolvedMotoStatus = (moto3?.status ?? moto2?.status ?? moto1.status ?? '').toUpperCase()
       return {
         batch_index: batchIndex,
+        sequence_order: Math.min(
+          moto1.moto_order,
+          moto2?.moto_order ?? Number.MAX_SAFE_INTEGER,
+          moto3?.moto_order ?? Number.MAX_SAFE_INTEGER
+        ),
         moto1_id: moto1.id,
         moto2_id: moto2?.id ?? null,
         moto3_id: moto3?.id ?? null,
@@ -652,7 +657,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         rows: ordered,
       }
     })
-    .sort((a, b) => a.batch_index - b.batch_index)
+    .sort((a, b) => {
+      if (a.sequence_order !== b.sequence_order) return a.sequence_order - b.sequence_order
+      return a.batch_index - b.batch_index
+    })
 
   const stageMotos = motoRows.filter((m) => !parseBatchKey(m.moto_name))
   const stageGroups: StageGroup[] = stageMotos.map((moto) => {

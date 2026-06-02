@@ -12,6 +12,7 @@ type CategoryItem = {
   gender: 'BOY' | 'GIRL' | 'MIX'
   label: string
   enabled: boolean
+  sequence_order?: number | null
 }
 
 type AdvancedConfigItem = {
@@ -209,6 +210,23 @@ export default function MotosClient({ eventId }: { eventId: string }) {
 
   const categoriesSorted = useMemo(() => {
     return [...categories].sort((a, b) => {
+      const firstMotoOrder = (categoryId: string) => {
+        const orders = motos
+          .filter((moto) => moto.category_id === categoryId)
+          .map((moto) => moto.moto_order)
+          .filter((order) => Number.isFinite(order))
+        return orders.length > 0 ? Math.min(...orders) : Number.MAX_SAFE_INTEGER
+      }
+      const aFirstMoto = firstMotoOrder(a.id)
+      const bFirstMoto = firstMotoOrder(b.id)
+      if (aFirstMoto !== bFirstMoto) return aFirstMoto - bFirstMoto
+
+      const aSequence = typeof a.sequence_order === 'number' ? a.sequence_order : null
+      const bSequence = typeof b.sequence_order === 'number' ? b.sequence_order : null
+      if (aSequence !== null || bSequence !== null) {
+        return (aSequence ?? Number.MAX_SAFE_INTEGER) - (bSequence ?? Number.MAX_SAFE_INTEGER)
+      }
+
       const ayMax = typeof a.year_max === 'number' ? a.year_max : typeof a.year_min === 'number' ? a.year_min : 0
       const byMax = typeof b.year_max === 'number' ? b.year_max : typeof b.year_min === 'number' ? b.year_min : 0
       if (byMax !== ayMax) return byMax - ayMax
@@ -220,7 +238,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       const bg = order[b.gender] ?? 9
       return ag - bg
     })
-  }, [categories])
+  }, [categories, motos])
 
   const motosByCategory = useMemo(() => {
     const grouped = new Map<string, MotoItem[]>()

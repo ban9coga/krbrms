@@ -215,7 +215,7 @@ export default function LiveDisplayClient({
     const load = async () => {
       setLoading(true)
       try {
-        const eventData = initialEvent ?? (await getEventById(eventId))
+        const eventData = (await getEventById(eventId)) ?? initialEvent
         const cats = (await getEventCategories(eventId)).filter((c) => c.enabled)
         setCategories(cats)
         setEvent(eventData ?? initialEvent ?? null)
@@ -265,6 +265,11 @@ export default function LiveDisplayClient({
     return categoryIds
   }
 
+  const fetchEventSettings = async () => {
+    const eventData = await getEventById(eventId)
+    if (eventData) setEvent(eventData)
+  }
+
   const fetchLiveScores = async (categoryIds: string[]) => {
     if (categoryIds.length === 0) {
       setLiveScoreByCategory({})
@@ -273,7 +278,8 @@ export default function LiveDisplayClient({
     const entries = await Promise.all(
       categoryIds.map(async (id) => {
         const res = await fetch(
-          `/api/public/events/${eventId}/live-score?category_id=${encodeURIComponent(id)}&include_upcoming=1`
+          `/api/public/events/${eventId}/live-score?category_id=${encodeURIComponent(id)}&include_upcoming=1`,
+          { cache: 'no-store' }
         )
         const json = await res.json()
         const data = (json?.data ?? {}) as LiveScorePayload
@@ -305,7 +311,7 @@ export default function LiveDisplayClient({
     refreshInFlightRef.current = true
     if (!background) setRefreshing(true)
     try {
-      const categoryIds = await fetchMotos()
+      const [categoryIds] = await Promise.all([fetchMotos(), fetchEventSettings()])
       await fetchLiveScores(categoryIds)
     } finally {
       refreshInFlightRef.current = false
@@ -516,6 +522,8 @@ export default function LiveDisplayClient({
   const showRiderPhotos =
     typeof business?.show_rider_photos_public === 'boolean' ? business.show_rider_photos_public : true
   const displaySponsors = useMemo(() => {
+    if (business?.sponsor_section_enabled === false) return []
+
     const structuredSponsors =
       business?.sponsors
         ?.filter((s) => s?.is_active !== false && s?.show_on_live_display !== false)
@@ -536,7 +544,7 @@ export default function LiveDisplayClient({
       name: `Sponsor ${index + 1}`,
       logo,
     }))
-  }, [business?.sponsors, event?.sponsor_logo_urls])
+  }, [business?.sponsor_section_enabled, business?.sponsors, event?.sponsor_logo_urls])
   const sponsorMarqueeDuration = useMemo(
     () => Math.max(42, displaySponsors.length * 4.75),
     [displaySponsors.length]

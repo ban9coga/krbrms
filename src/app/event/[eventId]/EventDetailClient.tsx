@@ -129,34 +129,17 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
   }, [categories])
 
   const liveMotosSorted = useMemo(() => {
-    const yearMinMap = new Map<string, number>()
-    const yearMaxMap = new Map<string, number>()
-    const genderMap = new Map<string, RiderCategory['gender']>()
-    for (const c of categories) {
-      const minYear = typeof c.year_min === 'number' ? c.year_min : c.year
-      const maxYear = typeof c.year_max === 'number' ? c.year_max : c.year
-      yearMinMap.set(c.id, minYear)
-      yearMaxMap.set(c.id, maxYear)
-      genderMap.set(c.id, c.gender)
-    }
-    const genderOrder = { BOY: 0, GIRL: 1, MIX: 2 } as const
-    return [...liveMotos].sort((a, b) => {
-      const ayMax = yearMaxMap.get(a.category_id) ?? 0
-      const byMax = yearMaxMap.get(b.category_id) ?? 0
-      if (byMax !== ayMax) return byMax - ayMax
-      const ayMin = yearMinMap.get(a.category_id) ?? ayMax
-      const byMin = yearMinMap.get(b.category_id) ?? byMax
-      if (byMin !== ayMin) return byMin - ayMin
-      const ag = genderOrder[genderMap.get(a.category_id) ?? 'MIX'] ?? 9
-      const bg = genderOrder[genderMap.get(b.category_id) ?? 'MIX'] ?? 9
-      if (ag !== bg) return ag - bg
-      return compareMotoDisplayOrder(a, b)
-    })
-  }, [liveMotos, categories])
+    return [...liveMotos].sort(compareMotoDisplayOrder)
+  }, [liveMotos])
 
   const categoryCards = useMemo(() => {
     const genderOrder = { BOY: 0, GIRL: 1, MIX: 2 } as const
     return [...categories].sort((a, b) => {
+      const aSequence = typeof a.sequence_order === 'number' ? a.sequence_order : null
+      const bSequence = typeof b.sequence_order === 'number' ? b.sequence_order : null
+      if (aSequence !== null || bSequence !== null) {
+        return (aSequence ?? Number.MAX_SAFE_INTEGER) - (bSequence ?? Number.MAX_SAFE_INTEGER)
+      }
       if (b.year !== a.year) return b.year - a.year
       return genderOrder[a.gender] - genderOrder[b.gender]
     })

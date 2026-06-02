@@ -104,6 +104,7 @@ export type RiderCategory = {
   gender: 'BOY' | 'GIRL' | 'MIX'
   label: string
   enabled: boolean
+  sequence_order?: number | null
 }
 
 export type MotoItem = {
@@ -151,7 +152,7 @@ export const getEvents = async (status?: EventStatus): Promise<EventItem[]> => {
 }
 
 export const getEventById = async (id: string): Promise<EventItem | null> => {
-  const res = await fetch(`/api/events/${id}`)
+  const res = await fetch(`/api/events/${id}`, { cache: 'no-store' })
   const json = await res.json()
   return json.data ?? null
 }

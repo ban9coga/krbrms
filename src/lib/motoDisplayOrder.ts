@@ -91,6 +91,9 @@ const parseDisplayMoto = (motoName: string): ParsedDisplayMoto | null => {
 }
 
 export const compareMotoDisplayOrder = <T extends MotoLike>(a: T, b: T) => {
+  const orderDiff = a.moto_order - b.moto_order
+  if (orderDiff !== 0) return orderDiff
+
   const aCategory = typeof a.category_id === 'string' ? a.category_id : null
   const bCategory = typeof b.category_id === 'string' ? b.category_id : null
   if (aCategory && bCategory && aCategory !== bCategory) {

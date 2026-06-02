@@ -191,7 +191,8 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
 
   const loadLiveScore = async () => {
     const res = await fetch(
-      `/api/public/events/${eventId}/live-score?category_id=${encodeURIComponent(categoryId)}&include_upcoming=1`
+      `/api/public/events/${eventId}/live-score?category_id=${encodeURIComponent(categoryId)}&include_upcoming=1`,
+      { cache: 'no-store' }
     )
     const json = await res.json()
     setCategoryLabel(json.data?.category ?? '')
@@ -257,6 +258,11 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
   const sortedCategories = useMemo(() => {
     const genderOrder = { BOY: 0, GIRL: 1, MIX: 2 } as const
     return [...categories].sort((a, b) => {
+      const aSequence = typeof a.sequence_order === 'number' ? a.sequence_order : null
+      const bSequence = typeof b.sequence_order === 'number' ? b.sequence_order : null
+      if (aSequence !== null || bSequence !== null) {
+        return (aSequence ?? Number.MAX_SAFE_INTEGER) - (bSequence ?? Number.MAX_SAFE_INTEGER)
+      }
       if (b.year !== a.year) return b.year - a.year
       return genderOrder[a.gender] - genderOrder[b.gender]
     })
