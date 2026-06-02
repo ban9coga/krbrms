@@ -167,6 +167,17 @@ const renderSortButtons = (
   </div>
 )
 
+const renderRefreshButton = (refresh: () => void, refreshing: boolean) => (
+  <button
+    type="button"
+    onClick={refresh}
+    disabled={refreshing}
+    className="rounded-full border border-emerald-300/70 bg-emerald-50 px-4 py-2 text-xs font-extrabold uppercase tracking-[0.12em] text-emerald-700 transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-70"
+  >
+    {refreshing ? 'Refreshing...' : 'Refresh'}
+  </button>
+)
+
 export default function LiveScoreClient({ eventId, categoryId }: { eventId: string; categoryId: string }) {
   const [loading, setLoading] = useState(false)
   const [event, setEvent] = useState<EventItem | null>(null)
@@ -381,16 +392,6 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                 </div>
               )}
             </div>
-            <div className="flex flex-wrap items-center gap-2 lg:max-w-[420px] lg:justify-end">
-              <button
-                type="button"
-                onClick={refresh}
-                disabled={refreshing}
-                className="rounded-full border border-emerald-300/70 bg-emerald-50 px-4 py-2 text-xs font-extrabold uppercase tracking-[0.12em] text-emerald-700 transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-70 sm:text-sm"
-              >
-                {refreshing ? 'Refreshing...' : 'Refresh'}
-              </button>
-            </div>
           </div>
         </section>
 
@@ -416,7 +417,10 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                     Kualifikasi Moto
                   </span>
                 </div>
-                {renderSortButtons(sortMode, setSortMode)}
+                <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                  {renderRefreshButton(refresh, refreshing)}
+                  {renderSortButtons(sortMode, setSortMode)}
+                </div>
               </div>
               <div className="table-mobile-hint">
                 Geser kiri/kanan untuk lihat semua kolom.
@@ -499,7 +503,10 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                       Advanced Stage
                     </span>
                   </div>
-                  {renderSortButtons(sortMode, setSortMode)}
+                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                    {renderRefreshButton(refresh, refreshing)}
+                    {renderSortButtons(sortMode, setSortMode)}
+                  </div>
                 </div>
                 <div className="table-mobile-hint">Geser kiri/kanan untuk lihat semua kolom.</div>
                 <div className="public-table-wrap">
