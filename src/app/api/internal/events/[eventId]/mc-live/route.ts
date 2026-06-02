@@ -404,13 +404,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   if (riderIds.length > 0) {
     const { data: penalties, error: penaltyError } = await adminClient
       .from('rider_penalties')
-      .select('rider_id, rule_code, penalty_point, stage, rider_penalty_approvals!inner(approval_status)')
+      .select('rider_id, moto_id, rule_code, penalty_point, stage, rider_penalty_approvals!inner(approval_status)')
       .eq('event_id', eventId)
       .eq('rider_penalty_approvals.approval_status', 'APPROVED')
       .in('rider_id', riderIds)
     if (penaltyError) return NextResponse.json({ error: penaltyError.message }, { status: 400 })
     for (const row of penalties ?? []) {
-      const appliesToCurrentMoto = row.stage === 'ALL' || row.stage === penaltyStage
+      const appliesToCurrentMoto = row.moto_id === rankingMoto.id || row.stage === 'ALL' || row.stage === penaltyStage
       if (!appliesToCurrentMoto) continue
       const points = Number(row.penalty_point ?? 0)
       const current = penaltyMap.get(row.rider_id) ?? 0

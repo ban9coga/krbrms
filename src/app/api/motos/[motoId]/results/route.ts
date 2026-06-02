@@ -45,6 +45,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ motoId: st
       .from('rider_penalties')
       .select('rider_id, penalty_point, rider_penalty_approvals!inner(approval_status)')
       .eq('event_id', moto.event_id)
+      .eq('moto_id', motoId)
       .eq('stage', 'MOTO')
       .eq('rider_penalty_approvals.approval_status', 'APPROVED')
 
