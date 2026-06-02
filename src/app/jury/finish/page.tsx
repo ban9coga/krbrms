@@ -127,6 +127,12 @@ export default function JuryFinishPage() {
     localEditingRef.current = Boolean(pressedId || saving || actions.length > 0)
   }, [actions.length, pressedId, saving])
 
+  useEffect(() => {
+    if (!submitNotice) return
+    const timer = window.setTimeout(() => setSubmitNotice(null), 5000)
+    return () => window.clearTimeout(timer)
+  }, [submitNotice])
+
   const pickNextSelectableMotoId = useCallback((list: MotoItem[], currentMotoId: string) => {
     const selectableRows = list.filter((m) => !['LOCKED', 'FINISHED'].includes((m.status ?? '').toUpperCase()))
     if (!selectableRows.length) return ''

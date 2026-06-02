@@ -178,6 +178,18 @@ const renderRefreshButton = (refresh: () => void, refreshing: boolean) => (
   </button>
 )
 
+const renderPenaltyCell = (value: number | null | undefined) => {
+  if (!value) return '-'
+  return (
+    <div className="flex flex-col items-start gap-1">
+      <span>{value}</span>
+      <span className="inline-flex rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] text-amber-700">
+        PEN +{value}
+      </span>
+    </div>
+  )
+}
+
 export default function LiveScoreClient({ eventId, categoryId }: { eventId: string; categoryId: string }) {
   const [loading, setLoading] = useState(false)
   const [event, setEvent] = useState<EventItem | null>(null)
@@ -464,7 +476,7 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                         <td>{renderMotoResultCell(row.point_moto1, row.moto1_status)}</td>
                         <td>{renderMotoResultCell(row.point_moto2, row.moto2_status)}</td>
                         {showMoto3 && <td>{renderMotoResultCell(row.point_moto3, row.moto3_status)}</td>}
-                        <td className="font-extrabold text-amber-600">{row.penalty_total ?? '-'}</td>
+                        <td className="font-extrabold text-amber-600">{renderPenaltyCell(row.penalty_total)}</td>
                         <td className="font-extrabold text-sky-700">{row.total_point ?? '-'}</td>
                         <td className="font-extrabold text-emerald-700">
                           <div className="flex flex-col gap-1">
@@ -529,7 +541,7 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                           <td>{row.no_plate}</td>
                           <td className="whitespace-nowrap">{row.club || '-'}</td>
                           <td className="font-extrabold text-sky-700">{renderStagePointCell(row.point, row.status)}</td>
-                          <td className="font-extrabold text-amber-600">{row.penalty_total ?? '-'}</td>
+                          <td className="font-extrabold text-amber-600">{renderPenaltyCell(row.penalty_total)}</td>
                           <td className="whitespace-nowrap font-extrabold text-emerald-700">
                             <span>{row.rank ?? '-'}</span>
                           </td>
