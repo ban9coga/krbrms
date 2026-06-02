@@ -278,7 +278,7 @@ export default function LiveDisplayClient({
     const entries = await Promise.all(
       categoryIds.map(async (id) => {
         const res = await fetch(
-          `/api/public/events/${eventId}/live-score?category_id=${encodeURIComponent(id)}&include_upcoming=1`,
+          `/api/public/events/${eventId}/live-score?category_id=${encodeURIComponent(id)}&include_upcoming=1&include_photos=0`,
           { cache: 'no-store' }
         )
         const json = await res.json()
@@ -519,8 +519,7 @@ export default function LiveDisplayClient({
   const publicEventTitle = business?.public_event_title?.trim() || event?.name || 'Live Display'
   const publicBrandName = business?.public_brand_name?.trim() || ''
   const publicTagline = business?.public_tagline?.trim() || ''
-  const showRiderPhotos =
-    typeof business?.show_rider_photos_public === 'boolean' ? business.show_rider_photos_public : true
+  const showRiderPhotos = false
   const displaySponsors = useMemo(() => {
     if (business?.sponsor_section_enabled === false) return []
 

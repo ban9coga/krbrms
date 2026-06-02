@@ -254,8 +254,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     settingsRow?.business_settings && typeof settingsRow.business_settings === 'object' && !Array.isArray(settingsRow.business_settings)
       ? (settingsRow.business_settings as Record<string, unknown>)
       : {}
+  const includePhotosParam = searchParams.get('include_photos')
   const includePhotos =
-    typeof businessSettings.show_rider_photos_public === 'boolean'
+    includePhotosParam === '0' || includePhotosParam === 'false'
+      ? false
+      : typeof businessSettings.show_rider_photos_public === 'boolean'
       ? businessSettings.show_rider_photos_public
       : true
   const resolvedCategory = await resolveCategoryConfig(categoryId)
