@@ -1,7 +1,7 @@
 'use client'
 
 import Image from 'next/image'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import EmptyState from '../../../../components/EmptyState'
 import LoadingState from '../../../../components/LoadingState'
 import { getEventById, getEventCategories, type EventItem, type RiderCategory } from '../../../../lib/eventService'
@@ -86,6 +86,8 @@ const isBlockedQueueStatus = (status?: string | null) => {
 }
 
 const PUBLIC_DISPLAY_REFRESH_INTERVAL_MS = 15000
+
+const isSameStringList = (a: string[], b: string[]) => a.length === b.length && a.every((item, index) => item === b[index])
 
 const statusBadgeClass = (status?: string | null) => {
   switch ((status ?? '').toUpperCase()) {
@@ -206,6 +208,7 @@ export default function LiveDisplayClient({
   const [eventMotos, setEventMotos] = useState<MotoItem[]>([])
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+  const refreshInFlightRef = useRef(false)
 
   useEffect(() => {
     const load = async () => {
@@ -257,7 +260,7 @@ export default function LiveDisplayClient({
       new Set([anchorMoto?.category_id, nextMoto?.category_id].filter((value): value is string => Boolean(value)))
     )
     setEventMotos(data)
-    setScoreCategoryIds(categoryIds)
+    setScoreCategoryIds((prev) => (isSameStringList(prev, categoryIds) ? prev : categoryIds))
     return categoryIds
   }
 
@@ -296,23 +299,26 @@ export default function LiveDisplayClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId, scoreCategoryIds.join(',')])
 
-  const refresh = async () => {
-    setRefreshing(true)
+  const refresh = async (background = false) => {
+    if (refreshInFlightRef.current) return
+    refreshInFlightRef.current = true
+    if (!background) setRefreshing(true)
     try {
       const categoryIds = await fetchMotos()
       await fetchLiveScores(categoryIds)
     } finally {
-      setRefreshing(false)
+      refreshInFlightRef.current = false
+      if (!background) setRefreshing(false)
     }
   }
 
   useEffect(() => {
     const interval = setInterval(() => {
-      refresh()
+      refresh(true)
     }, PUBLIC_DISPLAY_REFRESH_INTERVAL_MS)
     return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [eventId, scoreCategoryIds.join(',')])
+  }, [eventId])
 
   const activeMoto = useMemo(() => latestMotoBySequence(eventMotos, (m) => isMotoLive(m.status)), [eventMotos])
   const provisionalMoto = useMemo(
