@@ -506,6 +506,8 @@ export default function LiveDisplayClient({
   const publicEventTitle = business?.public_event_title?.trim() || event?.name || 'Live Display'
   const publicBrandName = business?.public_brand_name?.trim() || ''
   const publicTagline = business?.public_tagline?.trim() || ''
+  const showRiderPhotos =
+    typeof business?.show_rider_photos_public === 'boolean' ? business.show_rider_photos_public : true
   const displaySponsors = useMemo(() => {
     const structuredSponsors =
       business?.sponsors
@@ -567,7 +569,7 @@ export default function LiveDisplayClient({
       size === 'podium'
         ? 'inline-flex h-20 w-20 items-center justify-center rounded-full border-2 border-slate-300 bg-slate-100 text-base font-black text-slate-700'
         : 'inline-flex h-14 w-14 items-center justify-center rounded-full border-2 border-slate-300 bg-slate-100 text-xs font-black text-slate-700'
-    if (photoUrl) {
+    if (showRiderPhotos && photoUrl) {
       return (
         <div className={frameClass}>
           <Image

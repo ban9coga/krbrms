@@ -239,6 +239,8 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
     business?.show_scoring_support_publicly && scoringSupportLabel
   )
   const showMc = Boolean(business?.show_mc_publicly && mcName)
+  const showRiderPhotos =
+    typeof business?.show_rider_photos_public === 'boolean' ? business.show_rider_photos_public : true
 
   const sortedCategories = useMemo(() => {
     const genderOrder = { BOY: 0, GIRL: 1, MIX: 2 } as const
@@ -256,7 +258,7 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
   const nextCategory = currentCategoryIndex >= 0 ? sortedCategories[currentCategoryIndex + 1] ?? null : null
 
   const riderPhotoCell = (name: string, noPlate: string, photoUrl?: string | null) => {
-    if (photoUrl) {
+    if (showRiderPhotos && photoUrl) {
       return (
         <span className="relative inline-flex h-9 w-9 overflow-hidden rounded-full border border-slate-300">
           <Image src={photoUrl} alt={name} className="object-cover" fill sizes="36px" />
@@ -427,7 +429,7 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                           'Gate M1',
                           'Gate M2',
                           ...(showMoto3 ? ['Gate M3'] : []),
-                          'Foto',
+                          ...(showRiderPhotos ? ['Foto'] : []),
                           'Nama Peserta',
                           'No Plat',
                           'Komunitas',
@@ -451,7 +453,7 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                         <td>{row.gate_moto1 ?? '-'}</td>
                         <td>{row.gate_moto2 ?? '-'}</td>
                         {showMoto3 && <td>{row.gate_moto3 ?? '-'}</td>}
-                        <td>{riderPhotoCell(row.name, row.no_plate, row.photo_thumbnail_url)}</td>
+                        {showRiderPhotos && <td>{riderPhotoCell(row.name, row.no_plate, row.photo_thumbnail_url)}</td>}
                         <td className="whitespace-nowrap font-extrabold text-slate-900">{row.name}</td>
                         <td>{row.no_plate}</td>
                         <td className="whitespace-nowrap">{row.club || '-'}</td>
@@ -504,7 +506,7 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                   <table className="public-table min-w-[680px] text-[11px] sm:text-xs md:text-sm">
                     <thead>
                       <tr>
-                        {['Gate', 'Foto', 'Nama Peserta', 'No Plat', 'Komunitas', 'Point', 'Penalty', 'Rank', ...(showStageNextColumn ? ['Next'] : [])].map((h) => (
+                        {['Gate', ...(showRiderPhotos ? ['Foto'] : []), 'Nama Peserta', 'No Plat', 'Komunitas', 'Point', 'Penalty', 'Rank', ...(showStageNextColumn ? ['Next'] : [])].map((h) => (
                           <th key={h} className="whitespace-nowrap">
                             {h}
                           </th>
@@ -515,7 +517,7 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
                       {stage.rows.map((row) => (
                         <tr key={row.rider_id}>
                           <td>{row.gate ?? '-'}</td>
-                          <td>{riderPhotoCell(row.name, row.no_plate, row.photo_thumbnail_url)}</td>
+                          {showRiderPhotos && <td>{riderPhotoCell(row.name, row.no_plate, row.photo_thumbnail_url)}</td>}
                           <td className="whitespace-nowrap font-extrabold text-slate-900">{row.name}</td>
                           <td>{row.no_plate}</td>
                           <td className="whitespace-nowrap">{row.club || '-'}</td>

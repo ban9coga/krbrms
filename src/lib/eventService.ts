@@ -67,6 +67,7 @@ export type BusinessSettings = {
   sponsor_section_enabled?: boolean | null
   sponsor_section_title?: string | null
   sponsor_section_subtitle?: string | null
+  show_rider_photos_public?: boolean | null
   sponsors?: EventSponsor[] | null
 }
 

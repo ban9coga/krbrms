@@ -391,6 +391,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
   const [sponsorSectionSubtitle, setSponsorSectionSubtitle] = useState(
     'Partner dan sponsor yang ikut mendukung event ini.'
   )
+  const [showRiderPhotosPublic, setShowRiderPhotosPublic] = useState(true)
   const [sponsorUploadingIndex, setSponsorUploadingIndex] = useState<number | null>(null)
   const [sponsorUploadError, setSponsorUploadError] = useState<{ index: number | null; message: string }>({
     index: null,
@@ -640,6 +641,9 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
             ? business.sponsor_section_subtitle
             : 'Partner dan sponsor yang ikut mendukung event ini.'
         )
+        setShowRiderPhotosPublic(
+          typeof business.show_rider_photos_public === 'boolean' ? business.show_rider_photos_public : true
+        )
         setInitialForm(
           JSON.stringify({
             ...nextForm,
@@ -649,6 +653,8 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
               typeof business.sponsor_section_title === 'string' ? business.sponsor_section_title : '',
             sponsorSectionSubtitle:
               typeof business.sponsor_section_subtitle === 'string' ? business.sponsor_section_subtitle : '',
+            showRiderPhotosPublic:
+              typeof business.show_rider_photos_public === 'boolean' ? business.show_rider_photos_public : true,
             sponsorItems: loadedSponsors,
           })
         )
@@ -1140,6 +1146,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
       sponsor_section_enabled: Boolean(sponsorSectionEnabled),
       sponsor_section_title: sponsorSectionTitle.trim() || null,
       sponsor_section_subtitle: sponsorSectionSubtitle.trim() || null,
+      show_rider_photos_public: Boolean(showRiderPhotosPublic),
       sponsors: normalizedSponsors,
     }
     const motoPerBatch = Number(form.race_moto_per_batch)
@@ -1202,6 +1209,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
         sponsorSectionEnabled,
         sponsorSectionTitle,
         sponsorSectionSubtitle,
+        showRiderPhotosPublic,
         sponsorItems,
       }))
       alert('Settings dan staff assignments tersimpan.')
@@ -1218,9 +1226,10 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
       sponsor_section_enabled: sponsorSectionEnabled,
       sponsor_section_title: sponsorSectionTitle.trim() || null,
       sponsor_section_subtitle: sponsorSectionSubtitle.trim() || null,
+      show_rider_photos_public: showRiderPhotosPublic,
       sponsors: previewSponsors,
     }),
-    [previewSponsors, sponsorSectionEnabled, sponsorSectionTitle, sponsorSectionSubtitle]
+    [previewSponsors, showRiderPhotosPublic, sponsorSectionEnabled, sponsorSectionTitle, sponsorSectionSubtitle]
   )
   const isDirty =
     initialForm !==
@@ -1229,11 +1238,12 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
       sponsorSectionEnabled,
       sponsorSectionTitle,
       sponsorSectionSubtitle,
+      showRiderPhotosPublic,
       sponsorItems,
     })
   const sponsorSummary = `Sponsor ${previewSponsors.length} | ${
     sponsorSectionEnabled ? 'Tampil di publik' : 'Disembunyikan'
-  }`
+  } | Foto rider ${showRiderPhotosPublic ? 'ON' : 'OFF'}`
   const publicInfoSummary = `Brand ${form.business_public_brand_name || 'Belum diisi'} | Scoring Support ${
     form.business_scoring_support_name || 'Belum diisi'
   }`
@@ -1376,6 +1386,14 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                         onChange={(e) => setSponsorSectionEnabled(e.target.checked)}
                       />
                       Tampilkan sponsor section
+                    </label>
+                    <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 800 }}>
+                      <input
+                        type="checkbox"
+                        checked={showRiderPhotosPublic}
+                        onChange={(e) => setShowRiderPhotosPublic(e.target.checked)}
+                      />
+                      Tampilkan foto rider di public display
                     </label>
                     <button
                       type="button"

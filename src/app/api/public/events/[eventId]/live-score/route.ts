@@ -243,6 +243,21 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   if (catError || !category || category.event_id !== eventId) {
     return NextResponse.json({ error: 'Category not found in event' }, { status: 404 })
   }
+  const { data: settingsRow } = await adminClient
+    .from('event_settings')
+    .select('business_settings')
+    .eq('event_id', eventId)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  const businessSettings =
+    settingsRow?.business_settings && typeof settingsRow.business_settings === 'object' && !Array.isArray(settingsRow.business_settings)
+      ? (settingsRow.business_settings as Record<string, unknown>)
+      : {}
+  const includePhotos =
+    typeof businessSettings.show_rider_photos_public === 'boolean'
+      ? businessSettings.show_rider_photos_public
+      : true
   const resolvedCategory = await resolveCategoryConfig(categoryId)
   const { data: pointOverrideConfig } = await adminClient
     .from('race_stage_config')
@@ -375,12 +390,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     }
   }
 
+  const riderSelect = includePhotos
+    ? 'id, name, rider_nickname, no_plate_display, club, photo_thumbnail_url'
+    : 'id, name, rider_nickname, no_plate_display, club'
   const { data: riders, error: riderError } = await adminClient
     .from('riders')
-    .select('id, name, rider_nickname, no_plate_display, club, photo_thumbnail_url')
+    .select(riderSelect)
     .in('id', riderIds)
   if (riderError) return NextResponse.json({ error: riderError.message }, { status: 400 })
-  const riderRows = (riders ?? []) as RiderRow[]
+  const riderRows = (riders ?? []) as unknown as RiderRow[]
   const riderMap = new Map(riderRows.map((r) => [r.id, r]))
 
   const batchMap = new Map<number, { moto1?: MotoRow; moto2?: MotoRow; moto3?: MotoRow }>()
