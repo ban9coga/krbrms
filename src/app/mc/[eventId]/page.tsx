@@ -475,6 +475,11 @@ export default function McLivePage() {
           <div className="mb-3 flex items-center justify-between gap-2">
             <div>
               <div className="text-xs font-extrabold uppercase tracking-[0.18em] text-slate-500">Call To Gate</div>
+              {data?.next_moto ? (
+                <div className="mt-1 text-xs font-black uppercase tracking-[0.14em] text-emerald-700">
+                  {data.next_moto.category ?? 'Kategori -'}
+                </div>
+              ) : null}
               <div className={`${highVisibility ? 'text-2xl md:text-3xl' : 'text-xl'} font-black tracking-tight text-slate-900`}>
                 {data?.next_moto ? `${data.next_moto.batch ?? '-'} | ${data.next_moto.moto_label}` : 'Belum ada next moto'}
               </div>

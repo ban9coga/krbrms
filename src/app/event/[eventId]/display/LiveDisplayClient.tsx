@@ -519,7 +519,6 @@ export default function LiveDisplayClient({
   const publicEventTitle = business?.public_event_title?.trim() || event?.name || 'Live Display'
   const publicBrandName = business?.public_brand_name?.trim() || ''
   const publicTagline = business?.public_tagline?.trim() || ''
-  const showRiderPhotos = false
   const displaySponsors = useMemo(() => {
     if (business?.sponsor_section_enabled === false) return []
 
@@ -569,53 +568,6 @@ export default function LiveDisplayClient({
       textClass: 'text-slate-200',
     }
   }, [displayMoto])
-
-  const riderPhotoCell = (name: string, noPlate: string, photoUrl?: string | null, size: 'default' | 'podium' = 'default') => {
-    const frameClass =
-      size === 'podium'
-        ? 'relative h-20 w-20 overflow-hidden rounded-full border-2 border-slate-300 shadow-md'
-        : 'relative h-14 w-14 overflow-hidden rounded-full border-2 border-slate-300 shadow-sm'
-    const imageClass =
-      size === 'podium'
-        ? 'h-full w-full object-cover object-[center_24%] scale-[1.32]'
-        : 'h-full w-full object-cover object-[center_22%] scale-[1.22]'
-    const fallbackClass =
-      size === 'podium'
-        ? 'inline-flex h-20 w-20 items-center justify-center rounded-full border-2 border-slate-300 bg-slate-100 text-base font-black text-slate-700'
-        : 'inline-flex h-14 w-14 items-center justify-center rounded-full border-2 border-slate-300 bg-slate-100 text-xs font-black text-slate-700'
-    if (showRiderPhotos && photoUrl) {
-      return (
-        <div className={frameClass}>
-          <Image
-            src={photoUrl}
-            alt={name}
-            className={imageClass}
-            fill
-            sizes={size === 'podium' ? '80px' : '56px'}
-          />
-        </div>
-      )
-    }
-    return (
-      <div className={fallbackClass}>
-        {noPlate || '-'}
-      </div>
-    )
-  }
-
-  const riderPlateBadge = (noPlate: string, tone: 'light' | 'dark' = 'light') => {
-    const toneClass =
-      tone === 'dark'
-        ? 'border-amber-300/40 bg-amber-300/10 text-amber-100'
-        : 'border-slate-300 bg-slate-100 text-slate-800'
-    return (
-      <div
-        className={`inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full border-2 text-sm font-black ${toneClass}`}
-      >
-        {noPlate || '-'}
-      </div>
-    )
-  }
 
   const renderStatusBadge = (status?: string | null) => (
     <span
@@ -750,7 +702,6 @@ export default function LiveDisplayClient({
                           >
                             <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Rank {row.rank}</div>
                             <div className="mt-3 flex items-center gap-3">
-                              {riderPhotoCell(row.name, row.no_plate, row.photo_thumbnail_url, 'podium')}
                               <div className="min-w-0">
                                 <div className="truncate text-lg font-black italic text-slate-900">{row.name}</div>
                                 <div className="text-sm font-bold text-slate-600">{row.no_plate} • {row.club || '-'}</div>
@@ -786,7 +737,6 @@ export default function LiveDisplayClient({
                               <td className="px-3 py-3 text-sm font-black text-slate-700">{row.no_plate}</td>
                               <td className="px-3 py-3">
                                 <div className="flex items-center gap-3">
-                                  {riderPhotoCell(row.name, row.no_plate, row.photo_thumbnail_url)}
                                   <div className="min-w-0 flex-1">
                                     <div className="truncate text-lg font-black italic tracking-wide text-slate-900">{row.name}</div>
                                   </div>
@@ -811,7 +761,6 @@ export default function LiveDisplayClient({
                           >
                             <div className="flex items-start justify-between gap-3">
                               <div className="flex min-w-0 items-center gap-3">
-                                {riderPhotoCell(row.name, row.no_plate, row.photo_thumbnail_url)}
                                 <div className="min-w-0">
                                   <div className="truncate text-base font-black italic text-slate-900">{row.name}</div>
                                   <div className="text-sm font-bold text-slate-600">{row.no_plate}</div>
@@ -871,7 +820,6 @@ export default function LiveDisplayClient({
                             <td className="px-3 py-3 text-sm font-black text-slate-700">{row.no_plate}</td>
                             <td className="px-3 py-3">
                               <div className="flex items-center gap-3">
-                                {riderPhotoCell(row.name, row.no_plate, row.photo_thumbnail_url)}
                                 <div className="min-w-0 flex-1">
                                   <div className="truncate text-lg font-black italic tracking-wide text-slate-900">{row.name}</div>
                                 </div>
@@ -896,7 +844,6 @@ export default function LiveDisplayClient({
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex min-w-0 items-center gap-3">
-                              {riderPhotoCell(row.name, row.no_plate, row.photo_thumbnail_url)}
                               <div className="min-w-0">
                                 <div className="truncate text-base font-black italic text-slate-900">{row.name}</div>
                                 <div className="text-sm font-bold text-slate-600">{row.no_plate}</div>
@@ -956,7 +903,6 @@ export default function LiveDisplayClient({
                             <td className="px-3 py-3 text-sm font-black text-slate-700">{row.no_plate}</td>
                             <td className="px-3 py-3">
                               <div className="flex items-center gap-3">
-                                {riderPhotoCell(displayName(row), row.no_plate, row.photo_thumbnail_url)}
                                 <div className="min-w-0 flex-1">
                                   <div className="truncate text-lg font-black italic tracking-wide text-slate-900">{displayName(row)}</div>
                                 </div>
@@ -988,7 +934,6 @@ export default function LiveDisplayClient({
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex min-w-0 items-center gap-3">
-                              {riderPhotoCell(displayName(row), row.no_plate, row.photo_thumbnail_url)}
                               <div className="min-w-0">
                                 <div className="truncate text-base font-black italic text-slate-900">{displayName(row)}</div>
                                 <div className="text-sm font-bold text-slate-600">{row.no_plate}</div>
@@ -1070,7 +1015,6 @@ export default function LiveDisplayClient({
                             <td className="px-3 py-3 text-sm font-black text-slate-200">{row.no_plate}</td>
                             <td className="px-3 py-3">
                               <div className="flex items-center gap-3">
-                                {riderPlateBadge(row.no_plate, 'dark')}
                                 <div className="min-w-0 flex-1">
                                   <div className="truncate text-lg font-black italic tracking-wide text-white">{displayName(row)}</div>
                                 </div>
@@ -1091,7 +1035,6 @@ export default function LiveDisplayClient({
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex min-w-0 items-center gap-3">
-                              {riderPlateBadge(row.no_plate, 'dark')}
                               <div className="min-w-0">
                                 <div className="truncate text-base font-black italic text-white">{displayName(row)}</div>
                                 <div className="text-sm font-bold text-slate-300">{row.no_plate}</div>
