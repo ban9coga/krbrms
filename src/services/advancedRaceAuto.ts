@@ -292,6 +292,8 @@ const orderRidersByCarryOverSeedRows = (
   return [...ordered, ...leftovers]
 }
 
+const uniqueRiderList = (riderIds: string[]) => Array.from(new Set(riderIds))
+
 const buildQualificationSeedRowsFromCurrentResults = (
   motoRows: MotoRow[],
   motoRiderRows: MotoRiderRow[],
@@ -1197,7 +1199,7 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
       const finalReady = desiredRiders.length > 0
       const motoHasResults = hasMotoResults(moto.id, categoryResultRows)
       const currentRiders = [...(existingFinalRiderMap.get(moto.id) ?? [])].sort((a, b) => a.localeCompare(b))
-      const orderedDesiredRiders = orderFinalRidersBySource(desiredRiders)
+      const orderedDesiredRiders = uniqueRiderList(orderFinalRidersBySource(desiredRiders))
       const desiredSorted = [...orderedDesiredRiders].sort((a, b) => a.localeCompare(b))
 
       if ((!finalReady || desiredRiders.length === 0) && !motoHasResults) {
@@ -1250,19 +1252,26 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
     if (motoError || !motoRows) return { ok: false, warning: motoError?.message || 'Failed to create Final motos.' }
     motoRows.forEach((m) => {
       const key = m.moto_name.replace('Final ', '')
-      const riders = orderFinalRidersBySource(finals[key] ?? [])
+      const riders = uniqueRiderList(orderFinalRidersBySource(finals[key] ?? []))
       riders.forEach((riderId) => newMotoRiders.push({ moto_id: m.id, rider_id: riderId }))
       newGatePositions.push(...buildSequentialGateRows(m.id, riders))
     })
   }
 
-  if (newMotoRiders.length > 0) {
-    const { error: riderError } = await adminClient.from('moto_riders').insert(newMotoRiders)
+  const uniqueNewMotoRiders = Array.from(
+    new Map(newMotoRiders.map((row) => [`${row.moto_id}:${row.rider_id}`, row])).values()
+  )
+  const uniqueNewGatePositions = Array.from(
+    new Map(newGatePositions.map((row) => [`${row.moto_id}:${row.rider_id}`, row])).values()
+  )
+
+  if (uniqueNewMotoRiders.length > 0) {
+    const { error: riderError } = await adminClient.from('moto_riders').insert(uniqueNewMotoRiders)
     if (riderError) return { ok: false, warning: riderError.message }
   }
 
-  if (gateTableReady && newGatePositions.length > 0) {
-    const { error: gateError } = await adminClient.from('moto_gate_positions').insert(newGatePositions)
+  if (gateTableReady && uniqueNewGatePositions.length > 0) {
+    const { error: gateError } = await adminClient.from('moto_gate_positions').insert(uniqueNewGatePositions)
     if (gateError) return { ok: false, warning: gateError.message }
   }
 
@@ -1538,7 +1547,10 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
     })
   }
 
-  Array.from(quarterDerivedRepechageRiders).forEach((riderId) => pendingRepechageRiders.add(riderId))
+  const repechageAlreadyRun = repechageMotos.some((moto) => hasMotoResults(moto.id, resultRows))
+  if (!repechageAlreadyRun) {
+    Array.from(quarterDerivedRepechageRiders).forEach((riderId) => pendingRepechageRiders.add(riderId))
+  }
 
   const completedSemiRiders = new Set<string>()
   const semiDerivedFinalAssignments = new Map<string, string>()
@@ -1630,7 +1642,7 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
       const nextRows = advances.filter((row) => row.riderId === r.riderId)
       nextRows.forEach((next) => {
         if (next.toStage === 'REPECHAGE') {
-          semiDerivedRepechageRiders.add(r.riderId)
+          if (!repechageAlreadyRun) semiDerivedRepechageRiders.add(r.riderId)
           return
         }
         if (next.toStage === 'QUARTER_FINAL') {
@@ -1646,7 +1658,9 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
     })
   }
 
-  Array.from(semiDerivedRepechageRiders).forEach((riderId) => pendingRepechageRiders.add(riderId))
+  if (!repechageAlreadyRun) {
+    Array.from(semiDerivedRepechageRiders).forEach((riderId) => pendingRepechageRiders.add(riderId))
+  }
 
   Array.from(pendingQuarterRiders)
     .filter((riderId) => !completedQuarterRiders.has(riderId) && !quarterRows.some((row) => row.rider_id === riderId))

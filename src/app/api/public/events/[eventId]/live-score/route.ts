@@ -600,7 +600,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     })
 
   const stageMotos = motoRows.filter((m) => !parseBatchKey(m.moto_name))
-  const stageGroups: StageGroup[] = stageMotos.map((moto) => {
+  const stageGroups: StageGroup[] = stageMotos.flatMap((moto) => {
     const gates = gateRows.filter((g) => g.moto_id === moto.id)
     const gateMap = new Map(gates.map((g) => [g.rider_id, g.gate_position]))
     const assignedRiderIds = motoRiderRows.filter((row) => row.moto_id === moto.id).map((row) => row.rider_id)
@@ -717,7 +717,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       row.next_class_label = nextLabelForRank(row.rank)
     })
 
-    return {
+    if (rows.length === 0) return []
+
+    return [{
       title: formatMotoDisplayName(moto.moto_name),
       moto_id: moto.id,
       rows: rows.sort((a, b) => {
@@ -729,7 +731,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         if (aGate !== bGate) return aGate - bGate
         return a.name.localeCompare(b.name)
       }),
-    }
+    }]
   })
 
   return NextResponse.json({
