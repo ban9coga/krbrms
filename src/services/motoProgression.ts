@@ -12,6 +12,23 @@ type MotoQueueRow = {
 }
 
 const normalizeStatus = (status?: string | null) => (status ?? '').toUpperCase()
+const isUpcomingMoto = (row: MotoQueueRow) => normalizeStatus(row.status) === 'UPCOMING'
+
+const pickNextMotoToPromote = (rows: MotoQueueRow[], currentMoto: MotoQueueRow) => {
+  const currentIndex = rows.findIndex((row) => row.id === currentMoto.id)
+  if (currentIndex < 0) return { nextMoto: null, warning: 'Current moto not found in event sequence.' }
+
+  const afterCurrent = rows.slice(currentIndex + 1)
+  const sameCategory = (row: MotoQueueRow) => row.category_id === currentMoto.category_id
+  const nextMoto =
+    afterCurrent.find((row) => sameCategory(row) && isUpcomingMoto(row)) ??
+    afterCurrent.find(isUpcomingMoto) ??
+    rows.find((row) => sameCategory(row) && isUpcomingMoto(row)) ??
+    rows.find(isUpcomingMoto) ??
+    null
+
+  return { nextMoto, warning: null }
+}
 
 export async function promoteNextMotoToLive(eventId: string, currentMotoId: string) {
   const { data: currentMoto, error: currentError } = await adminClient
@@ -36,17 +53,11 @@ export async function promoteNextMotoToLive(eventId: string, currentMotoId: stri
 
   const rows = (eventMotos ?? []) as MotoQueueRow[]
   const sortedEventMotos = [...rows].sort(compareMotoSequence)
+  const { nextMoto, warning } = pickNextMotoToPromote(sortedEventMotos, currentMoto)
 
-  const currentIndex = sortedEventMotos.findIndex((row) => row.id === currentMoto.id)
-  if (currentIndex < 0) {
-    return { ok: false as const, warning: 'Current moto not found in event sequence.' }
+  if (warning) {
+    return { ok: false as const, warning }
   }
-
-  const nextMoto = sortedEventMotos
-    .slice(currentIndex + 1)
-    .find((row) => normalizeStatus(row.status) === 'UPCOMING')
-    ?? sortedEventMotos.find((row) => normalizeStatus(row.status) === 'UPCOMING')
-
   if (!nextMoto) {
     return { ok: true as const, skipped: true as const }
   }

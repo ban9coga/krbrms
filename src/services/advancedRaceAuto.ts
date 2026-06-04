@@ -932,11 +932,16 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
   const quarterResultRows = stageSeedRows.filter((row) => row.stage === 'QUARTER_FINAL' && row.position !== null)
   const repechageResultRows = stageSeedRows.filter((row) => row.stage === 'REPECHAGE' && row.position !== null)
 
-  const quarterRiders = orderRidersBySeedRows(
-    stageSeedRows.filter((r) => r.stage === 'QUARTER_FINAL').map((r) => r.rider_id),
-    qualificationRows,
-    seedBatchOrderById
-  )
+  const quarterStageRiderIds = new Set(stageSeedRows.filter((row) => row.stage === 'QUARTER_FINAL').map((row) => row.rider_id))
+  const repechageStageRiderIds = new Set(stageSeedRows.filter((row) => row.stage === 'REPECHAGE').map((row) => row.rider_id))
+  const semiStageRiderIds = new Set(stageSeedRows.filter((row) => row.stage === 'SEMI_FINAL').map((row) => row.rider_id))
+  const quarterEntrantIds = Array.from(quarterStageRiderIds)
+  const quarterDirectRiders = quarterEntrantIds.filter((riderId) => !repechageStageRiderIds.has(riderId))
+  const quarterRepechageRiders = quarterEntrantIds.filter((riderId) => repechageStageRiderIds.has(riderId))
+  const quarterRiders = [
+    ...orderRidersBySeedRows(quarterDirectRiders, qualificationRows, seedBatchOrderById),
+    ...orderRidersBySeedRows(quarterRepechageRiders, repechageResultRows, seedBatchOrderById),
+  ]
   const repechageRiders = orderRidersBySeedRows(
     stageSeedRows.filter((r) => r.stage === 'REPECHAGE').map((r) => r.rider_id),
     stageSeedRows.filter((row) =>
@@ -944,11 +949,19 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
     ),
     seedBatchOrderById
   )
-  const semiRiders = orderRidersBySeedRows(
-    stageSeedRows.filter((r) => r.stage === 'SEMI_FINAL').map((r) => r.rider_id),
-    [...quarterResultRows, ...repechageResultRows, ...qualificationRows],
-    seedBatchOrderById
+  const semiEntrantIds = Array.from(semiStageRiderIds)
+  const semiQualificationDirectRiders = semiEntrantIds.filter(
+    (riderId) => !quarterStageRiderIds.has(riderId) && !repechageStageRiderIds.has(riderId)
   )
+  const semiQuarterRiders = semiEntrantIds.filter((riderId) => quarterStageRiderIds.has(riderId))
+  const semiRepechageRiders = semiEntrantIds.filter(
+    (riderId) => repechageStageRiderIds.has(riderId) && !quarterStageRiderIds.has(riderId)
+  )
+  const semiRiders = [
+    ...orderRidersBySeedRows(semiQualificationDirectRiders, qualificationRows, seedBatchOrderById),
+    ...orderRidersBySeedRows(semiQuarterRiders, quarterResultRows, seedBatchOrderById),
+    ...orderRidersBySeedRows(semiRepechageRiders, repechageResultRows, seedBatchOrderById),
+  ]
   const finals = stageSeedRows
     .filter((r) => r.stage === 'FINAL' && r.final_class)
     .reduce<Record<string, string[]>>((acc, r) => {
@@ -1151,10 +1164,6 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
     list.push(row.rider_id)
     existingFinalRiderMap.set(row.moto_id, list)
   }
-
-  const quarterStageRiderIds = new Set(stageSeedRows.filter((row) => row.stage === 'QUARTER_FINAL').map((row) => row.rider_id))
-  const repechageStageRiderIds = new Set(stageSeedRows.filter((row) => row.stage === 'REPECHAGE').map((row) => row.rider_id))
-  const semiStageRiderIds = new Set(stageSeedRows.filter((row) => row.stage === 'SEMI_FINAL').map((row) => row.rider_id))
 
   const orderFinalRidersBySource = (riderIds: string[]) => {
     const wanted = new Set(riderIds)

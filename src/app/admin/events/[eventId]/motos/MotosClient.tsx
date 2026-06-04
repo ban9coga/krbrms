@@ -131,23 +131,22 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       setGateOrdersByCategory({})
       return
     }
-    const entries = await Promise.all(
-      categoryIds.map(async (categoryId) => {
-        const res = await fetch(`/api/events/${eventId}/gate-order?categoryId=${categoryId}`, { cache: 'no-store' })
-        const json = await res.json().catch(() => ({}))
-        if (!res.ok) return [categoryId, []] as const
-        return [categoryId, (json?.data ?? []) as GateMotoItem[]] as const
-      })
-    )
+    const res = await fetch(`/api/events/${eventId}/gate-order`, { cache: 'no-store' })
+    const json = await res.json().catch(() => ({}))
+    const rowsByCategory = (res.ok ? json?.data ?? {} : {}) as Record<string, GateMotoItem[]>
     const map: Record<string, GateMotoItem[]> = {}
-    for (const [categoryId, rows] of entries) {
-      map[categoryId] = [...rows].sort(compareMotoDisplayOrder)
+    for (const categoryId of categoryIds) {
+      map[categoryId] = [...(rowsByCategory[categoryId] ?? [])].sort(compareMotoDisplayOrder)
     }
     setGateOrdersByCategory(map)
   }
 
-  const load = async (mode: 'initial' | 'refresh' = 'initial') => {
+  const load = async (
+    mode: 'initial' | 'refresh' = 'initial',
+    options: { includeAdvancedSummary?: boolean } = {}
+  ) => {
     if (!eventId) return
+    const includeAdvancedSummary = options.includeAdvancedSummary ?? mode === 'initial'
     if (mode === 'initial' && !hasLoadedOnce) setLoading(true)
     else setRefreshing(true)
     try {
@@ -161,16 +160,16 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       setEventStatus(eventJson?.data?.status ?? null)
       setEventName(eventJson?.data?.name ?? 'Event')
 
-      const [advancedJson, advancedSummaryJson] = await Promise.all([
-        apiFetch(`/api/events/${eventId}/advanced-race`),
-        apiFetch(`/api/events/${eventId}/advanced-race/summary`),
-      ])
+      const advancedJson = await apiFetch(`/api/events/${eventId}/advanced-race`)
       const enabledMap: Record<string, boolean> = {}
       for (const row of (advancedJson?.data?.configs ?? []) as AdvancedConfigItem[]) {
         enabledMap[row.category_id] = Boolean(row.enabled)
       }
       setAdvancedEnabledByCategory(enabledMap)
-      setAdvancedSummaryByCategory((advancedSummaryJson?.data ?? {}) as Record<string, AdvancedSummaryItem>)
+      if (includeAdvancedSummary) {
+        const advancedSummaryJson = await apiFetch(`/api/events/${eventId}/advanced-race/summary`)
+        setAdvancedSummaryByCategory((advancedSummaryJson?.data ?? {}) as Record<string, AdvancedSummaryItem>)
+      }
 
       const motoRes = await fetch(`/api/motos?event_id=${eventId}&_=${nonce}`, { cache: 'no-store' })
       const motoJson = await motoRes.json()
@@ -194,7 +193,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
   useEffect(() => {
     if (!eventId) return
     const interval = window.setInterval(() => {
-      void load('refresh')
+      void load('refresh', { includeAdvancedSummary: false })
     }, 5000)
     return () => window.clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -593,7 +592,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       } else {
         alert(endpoint === 'compute' ? 'Qualification berhasil dihitung.' : 'Stage berikutnya berhasil dihitung.')
       }
-      await load('refresh')
+      await load('refresh', { includeAdvancedSummary: true })
     } catch (err: unknown) {
       alert(getErrorMessage(err))
     } finally {
@@ -786,41 +785,46 @@ export default function MotosClient({ eventId }: { eventId: string }) {
 
   return (
     <div style={{ maxWidth: 980, width: '100%' }} className="motos-print-root">
-      <div className="no-print motos-topbar" style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
-        <button
-          type="button"
-          onClick={() => load('refresh')}
-          disabled={loading || refreshing}
-          style={{
-            padding: '10px 12px',
-            borderRadius: 12,
-            border: '2px solid #111',
-            background: '#dcfce7',
-            fontWeight: 900,
-            cursor: loading || refreshing ? 'not-allowed' : 'pointer',
-            whiteSpace: 'nowrap',
-            opacity: loading || refreshing ? 0.6 : 1,
-          }}
-        >
-          {loading || refreshing ? 'Refreshing...' : 'Refresh'}
-        </button>
-        <button
-          type="button"
-          onClick={handlePrintMotoRiders}
-          style={{
-            padding: '10px 12px',
-            borderRadius: 12,
-            border: '2px solid #111',
-            background: '#fde68a',
-            fontWeight: 900,
-            cursor: 'pointer',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          Cetak Rider Per Moto
-        </button>
+      <div className="no-print motos-topbar" style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
+        <div style={{ display: 'grid', gap: 2, minWidth: 0 }}>
+          <h1 style={{ fontSize: 26, fontWeight: 950, margin: 0 }}>Motos</h1>
+          <div style={{ fontSize: 12, fontWeight: 800, color: '#475569' }}>{eventName}</div>
+        </div>
+        <div className="motos-global-actions" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button
+            type="button"
+            onClick={() => load('refresh', { includeAdvancedSummary: true })}
+            disabled={loading || refreshing}
+            style={{
+              padding: '10px 12px',
+              borderRadius: 12,
+              border: '2px solid #111',
+              background: '#dcfce7',
+              fontWeight: 900,
+              cursor: loading || refreshing ? 'not-allowed' : 'pointer',
+              whiteSpace: 'nowrap',
+              opacity: loading || refreshing ? 0.6 : 1,
+            }}
+          >
+            {loading || refreshing ? 'Refreshing...' : 'Refresh Data'}
+          </button>
+          <button
+            type="button"
+            onClick={handlePrintMotoRiders}
+            style={{
+              padding: '10px 12px',
+              borderRadius: 12,
+              border: '2px solid #111',
+              background: '#fde68a',
+              fontWeight: 900,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Cetak Rider Per Moto
+          </button>
+        </div>
       </div>
-      <h1 style={{ fontSize: 26, fontWeight: 950, margin: 0 }}>Motos</h1>
       <div
         className="no-print"
         style={{
@@ -897,9 +901,42 @@ export default function MotosClient({ eventId }: { eventId: string }) {
               gap: 10,
             }}
           >
-            <div className="motos-category-header" style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
-              <div style={{ fontWeight: 950, fontSize: 18 }}>
-                {categoryLabel.get(cat.id) ?? `Category ${cat.id}`}
+            <div className="motos-category-header" style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
+              <div style={{ display: 'grid', gap: 8, minWidth: 0 }}>
+                <div style={{ fontWeight: 950, fontSize: 18 }}>
+                  {categoryLabel.get(cat.id) ?? `Category ${cat.id}`}
+                </div>
+                {statusChips.length > 0 && (
+                  <div className="no-print" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {statusChips.map((chip) => {
+                      const toneStyles =
+                        chip.tone === 'green'
+                          ? { border: '#86efac', background: '#f0fdf4', color: '#166534' }
+                          : chip.tone === 'blue'
+                            ? { border: '#93c5fd', background: '#eff6ff', color: '#1d4ed8' }
+                            : chip.tone === 'amber'
+                              ? { border: '#fcd34d', background: '#fffbeb', color: '#b45309' }
+                              : { border: '#cbd5e1', background: '#f8fafc', color: '#475569' }
+                      return (
+                        <span
+                          key={`${cat.id}-header-${chip.label}`}
+                          style={{
+                            padding: '4px 10px',
+                            borderRadius: 999,
+                            border: `1px solid ${toneStyles.border}`,
+                            background: toneStyles.background,
+                            color: toneStyles.color,
+                            fontSize: 11,
+                            fontWeight: 900,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {chip.label}
+                        </span>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
               <div className="no-print motos-category-actions" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <button
@@ -957,37 +994,6 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                   <div style={{ display: 'grid', gap: 4 }}>
                     <div style={{ fontWeight: 900, fontSize: 13 }}>Aksi Stage Kategori</div>
                     <div style={{ fontSize: 12, color: '#334155', fontWeight: 700 }}>{computeAction.description}</div>
-                    {statusChips.length > 0 && (
-                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                        {statusChips.map((chip) => {
-                          const toneStyles =
-                            chip.tone === 'green'
-                              ? { border: '#86efac', background: '#f0fdf4', color: '#166534' }
-                              : chip.tone === 'blue'
-                                ? { border: '#93c5fd', background: '#eff6ff', color: '#1d4ed8' }
-                                : chip.tone === 'amber'
-                                  ? { border: '#fcd34d', background: '#fffbeb', color: '#b45309' }
-                                  : { border: '#cbd5e1', background: '#f8fafc', color: '#475569' }
-                          return (
-                            <span
-                              key={`${cat.id}-${chip.label}`}
-                              style={{
-                                padding: '4px 10px',
-                                borderRadius: 999,
-                                border: `1px solid ${toneStyles.border}`,
-                                background: toneStyles.background,
-                                color: toneStyles.color,
-                                fontSize: 11,
-                                fontWeight: 900,
-                                whiteSpace: 'nowrap',
-                              }}
-                            >
-                              {chip.label}
-                            </span>
-                          )
-                        })}
-                      </div>
-                    )}
                     {summary && (
                       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 11, fontWeight: 800, color: '#475569' }}>
                         <span>Q: {summary.stageCounts?.QUALIFICATION ?? 0}</span>
@@ -1314,7 +1320,8 @@ export default function MotosClient({ eventId }: { eventId: string }) {
             flex-direction: column !important;
           }
           .motos-category-actions,
-          .motos-row-actions {
+          .motos-row-actions,
+          .motos-global-actions {
             align-items: stretch !important;
             display: grid !important;
             grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
@@ -1347,7 +1354,8 @@ export default function MotosClient({ eventId }: { eventId: string }) {
             border-radius: 12px !important;
           }
           .motos-category-actions,
-          .motos-row-actions {
+          .motos-row-actions,
+          .motos-global-actions {
             grid-template-columns: 1fr !important;
           }
           .motos-topbar button,

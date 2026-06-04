@@ -56,6 +56,25 @@ type StageSeedRow = {
   points: number | null
 }
 
+const isUpcomingMoto = (moto: MotoRow) => (moto.status ?? '').toUpperCase() === 'UPCOMING'
+
+const pickNextMotoForCall = (list: MotoRow[], anchorMoto: MotoRow | null) => {
+  const sorted = [...list].sort(compareMotoSequence)
+  if (!anchorMoto) return sorted.find(isUpcomingMoto) ?? null
+
+  const anchorIndex = sorted.findIndex((row) => row.id === anchorMoto.id)
+  const afterAnchor = anchorIndex >= 0 ? sorted.slice(anchorIndex + 1) : sorted
+  const sameCategory = (row: MotoRow) => row.category_id === anchorMoto.category_id
+
+  return (
+    afterAnchor.find((row) => sameCategory(row) && isUpcomingMoto(row)) ??
+    afterAnchor.find(isUpcomingMoto) ??
+    sorted.find((row) => sameCategory(row) && isUpcomingMoto(row)) ??
+    sorted.find(isUpcomingMoto) ??
+    null
+  )
+}
+
 const pickNowRacingMoto = (motos: MotoRow[]) => {
   const live = motos.filter((m) => m.status === 'LIVE')
   if (live.length > 0) return live[0]
@@ -250,8 +269,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
 
   const currentCategoryLabel = categoryMap.get(rankingMoto.category_id) ?? null
   const nowCategoryLabel = categoryMap.get(activeMoto.category_id) ?? null
-  const listForNext = [...((motos ?? []) as MotoRow[])].sort(compareMotoSequence)
-  const currentIndex = listForNext.findIndex((row) => row.id === activeMoto.id)
   const shouldCallActiveLiveMoto =
     activeMoto.id !== rankingMoto.id &&
     (activeMoto.status ?? '').toUpperCase() === 'LIVE' &&
@@ -259,13 +276,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const nextMoto =
     shouldCallActiveLiveMoto
       ? activeMoto
-      : currentIndex >= 0
-        ? listForNext
-            .slice(currentIndex + 1)
-            .find((row) => (row.status ?? '').toUpperCase() === 'UPCOMING') ??
-          listForNext.find((row) => (row.status ?? '').toUpperCase() === 'UPCOMING') ??
-          null
-        : listForNext.find((row) => (row.status ?? '').toUpperCase() === 'UPCOMING') ?? null
+      : pickNextMotoForCall((motos ?? []) as MotoRow[], activeMoto)
 
   const buildDerivedGateMap = async (
     targetMoto: MotoRow,

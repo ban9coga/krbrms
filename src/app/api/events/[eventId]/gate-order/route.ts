@@ -6,17 +6,17 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const { eventId } = await params
   const { searchParams } = new URL(req.url)
   const categoryId = searchParams.get('categoryId')
-  if (!categoryId) return NextResponse.json({ error: 'categoryId required' }, { status: 400 })
 
-  const { data: motos, error: motoError } = await adminClient
+  let motoQuery = adminClient
     .from('motos')
-    .select('id, moto_name, moto_order, status')
+    .select('id, category_id, moto_name, moto_order, status')
     .eq('event_id', eventId)
-    .eq('category_id', categoryId)
     .order('moto_order', { ascending: true })
+  if (categoryId) motoQuery = motoQuery.eq('category_id', categoryId)
+  const { data: motos, error: motoError } = await motoQuery
 
   if (motoError) return NextResponse.json({ error: motoError.message }, { status: 400 })
-  if (!motos || motos.length === 0) return NextResponse.json({ data: [] })
+  if (!motos || motos.length === 0) return NextResponse.json({ data: categoryId ? [] : {} })
 
   const motoIds = motos.map((m) => m.id)
   const { data: gates, error: gateError } = await adminClient
@@ -46,10 +46,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const riderIds = Array.from(
     new Set([...(gates ?? []).map((gate) => gate.rider_id), ...(assignments ?? []).map((assignment) => assignment.rider_id)])
   )
-  const { data: riders, error: riderError } = await adminClient
-    .from('riders')
-    .select('id, name, no_plate_display, club')
-    .in('id', riderIds)
+  const { data: riders, error: riderError } = riderIds.length > 0
+    ? await adminClient.from('riders').select('id, name, no_plate_display, club').in('id', riderIds)
+    : { data: [], error: null }
 
   if (riderError) return NextResponse.json({ error: riderError.message }, { status: 400 })
 
@@ -114,6 +113,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     ...m,
     gates: gateByMoto.get(m.id) ?? [],
   }))
+
+  if (!categoryId) {
+    const byCategory = data.reduce<Record<string, typeof data>>((acc, moto) => {
+      const key = moto.category_id
+      if (!acc[key]) acc[key] = []
+      acc[key].push(moto)
+      return acc
+    }, {})
+    return NextResponse.json({ data: byCategory })
+  }
 
   return NextResponse.json({ data })
 }

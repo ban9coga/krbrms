@@ -149,18 +149,12 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
         return
       }
 
-      const entries = await Promise.all(
-        categoryIds.map(async (categoryId) => {
-          const res = await fetch(`/api/events/${eventId}/gate-order?categoryId=${categoryId}`, { cache: 'no-store' })
-          const json = await res.json().catch(() => ({}))
-          if (!res.ok) return [categoryId, []] as const
-          return [categoryId, (json?.data ?? []) as GateMotoItem[]] as const
-        })
-      )
-
+      const res = await fetch(`/api/events/${eventId}/gate-order`, { cache: 'no-store' })
+      const json = await res.json().catch(() => ({}))
+      const rowsByCategory = (res.ok ? json?.data ?? {} : {}) as Record<string, GateMotoItem[]>
       const nextMap: Record<string, GateMotoItem[]> = {}
-      for (const [categoryId, rows] of entries) {
-        nextMap[categoryId] = [...rows].sort(compareMotoDisplayOrder)
+      for (const categoryId of categoryIds) {
+        nextMap[categoryId] = [...(rowsByCategory[categoryId] ?? [])].sort(compareMotoDisplayOrder)
       }
       setGateOrdersByCategory(nextMap)
     },

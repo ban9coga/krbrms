@@ -44,13 +44,29 @@ type EventFlags = {
 }
 
 const isLockedStatus = (status?: string | null) => String(status ?? '').toUpperCase() === 'LOCKED'
+const pickUpcomingMoto = (list: MotoItem[], anchorMoto?: MotoItem | null) => {
+  const selectableUpcoming = list.filter((m) => !isLockedStatus(m.status) && isMotoUpcoming(m.status))
+  if (!anchorMoto) return selectableUpcoming[0] ?? null
+
+  const anchorIndex = list.findIndex((m) => m.id === anchorMoto.id)
+  const afterAnchor = anchorIndex >= 0 ? list.slice(anchorIndex + 1) : list
+  const sameCategory = (m: MotoItem) => Boolean(anchorMoto.category_id) && m.category_id === anchorMoto.category_id
+
+  return (
+    afterAnchor.find((m) => sameCategory(m) && !isLockedStatus(m.status) && isMotoUpcoming(m.status)) ??
+    afterAnchor.find((m) => !isLockedStatus(m.status) && isMotoUpcoming(m.status)) ??
+    selectableUpcoming.find(sameCategory) ??
+    selectableUpcoming[0] ??
+    null
+  )
+}
+
 const pickPrepMotoId = (
   list: MotoItem[],
   currentId: string,
   liveMotoId?: string | null,
   currentPrepFinalized = false
 ) => {
-  const selectableUpcoming = list.filter((m) => !isLockedStatus(m.status) && isMotoUpcoming(m.status))
   if (currentId) {
     const currentMoto = list.find((m) => m.id === currentId)
     if (currentMoto && !isLockedStatus(currentMoto.status) && isMotoUpcoming(currentMoto.status)) {
@@ -61,13 +77,11 @@ const pickPrepMotoId = (
     }
   }
   if (liveMotoId) {
-    const liveIndex = list.findIndex((m) => m.id === liveMotoId)
-    if (liveIndex >= 0) {
-      const nextAfterLive = list.slice(liveIndex + 1).find((m) => !isLockedStatus(m.status) && isMotoUpcoming(m.status))
-      if (nextAfterLive) return nextAfterLive.id
-    }
+    const liveMoto = list.find((m) => m.id === liveMotoId)
+    const nextAfterLive = pickUpcomingMoto(list, liveMoto)
+    if (nextAfterLive) return nextAfterLive.id
   }
-  return selectableUpcoming[0]?.id ?? ''
+  return pickUpcomingMoto(list)?.id ?? ''
 }
 
 type SafetyRequirement = {
