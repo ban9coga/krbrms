@@ -723,6 +723,23 @@ export default function JCPage() {
     setWarningMessage(null)
     setErrorMessage(null)
     try {
+      if (safetyRequirements.length > 0) {
+        await Promise.all(
+          targetRiders.flatMap((rider) =>
+            safetyRequirements.map((item) =>
+              apiFetch(`/api/jury/motos/${selectedMotoId}/safety-checks`, {
+                method: 'POST',
+                body: JSON.stringify({
+                  rider_id: rider.id,
+                  requirement_id: item.id,
+                  is_checked: safetyChecks[rider.id]?.[item.id] === true,
+                }),
+              })
+            )
+          )
+        )
+      }
+
       const nextStatuses = targetRiders.reduce<Record<string, StatusRow>>((acc, rider, index) => {
         acc[rider.id] = {
           rider_id: rider.id,

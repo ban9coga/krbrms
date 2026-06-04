@@ -3,8 +3,7 @@ import { adminClient } from '../../../../../../lib/auth'
 import { formatMotoDisplayName } from '../../../../../../lib/motoDisplayOrder'
 import { resolveBasePointForRaceResult, resolveNonFinishAutoPenalty } from '../../../../../../lib/nonFinishScoring'
 import { isMotoPublicVisible, isMotoUpcoming } from '../../../../../../lib/motoStatus'
-import { resolveCategoryConfig } from '../../../../../../services/categoryResolver'
-import { formatStageAdvanceLabel, resolveQualificationPrimaryAdvance } from '../../../../../../services/raceStageEngine'
+import { formatStageAdvanceLabel } from '../../../../../../services/raceStageEngine'
 
 type MotoRow = {
   id: string
@@ -148,46 +147,6 @@ const orderRidersByStageSeeds = (
   return [...ordered, ...leftovers]
 }
 
-const isMotoComplete = (motoId: string, gateRows: GateRow[], resultRows: ResultRow[]) => {
-  const assignedRiders = gateRows.filter((row) => row.moto_id === motoId).map((row) => row.rider_id)
-  if (assignedRiders.length === 0) return false
-  const completedRiders = new Set(resultRows.filter((row) => row.moto_id === motoId).map((row) => row.rider_id))
-  return assignedRiders.every((riderId) => completedRiders.has(riderId))
-}
-
-const buildQualificationProgress = (motoRows: MotoRow[], gateRows: GateRow[], resultRows: ResultRow[]) => {
-  const batchMap = new Map<number, { moto1?: string; moto2?: string; moto3?: string }>()
-
-  for (const moto of motoRows) {
-    const parsed = parseBatchKey(moto.moto_name)
-    if (!parsed) continue
-    const entry = batchMap.get(parsed.batchIndex) ?? {}
-    if (parsed.motoIndex === 1) entry.moto1 = moto.id
-    if (parsed.motoIndex === 2) entry.moto2 = moto.id
-    if (parsed.motoIndex === 3) entry.moto3 = moto.id
-    batchMap.set(parsed.batchIndex, entry)
-  }
-
-  const requiredMotoCount = batchMap.size === 1 && Array.from(batchMap.values()).some((entry) => entry.moto3) ? 3 : 2
-
-  const completeBatchIds = Array.from(batchMap.values()).filter((entry) => {
-    if (!entry.moto1 || !entry.moto2) return false
-    if (requiredMotoCount >= 3 && !entry.moto3) return false
-    return (
-      isMotoComplete(entry.moto1, gateRows, resultRows) &&
-      isMotoComplete(entry.moto2, gateRows, resultRows) &&
-      (requiredMotoCount < 3 || isMotoComplete(entry.moto3 as string, gateRows, resultRows))
-    )
-  })
-
-  return {
-    total: batchMap.size,
-    complete: completeBatchIds.length,
-    ready: batchMap.size > 0 && completeBatchIds.length === batchMap.size,
-    requiredMotoCount,
-  }
-}
-
 const pointForMotoResult = (res: ResultRow | null, riderCount: number | null) => {
   return resolveBasePointForRaceResult(res?.result_status ?? null, res?.finish_order ?? null, riderCount)
 }
@@ -261,7 +220,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       : typeof businessSettings.show_rider_photos_public === 'boolean'
       ? businessSettings.show_rider_photos_public
       : true
-  const resolvedCategory = await resolveCategoryConfig(categoryId)
   const { data: pointOverrideConfig } = await adminClient
     .from('race_stage_config')
     .select('dnf_point_override, dns_point_override')
@@ -424,9 +382,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   }
 
   const batchEntries = Array.from(batchMap.entries()).filter(([, entry]) => entry.moto1)
-  const qualificationProgress = buildQualificationProgress(motoRows, gateRows, resultRows)
-  const showAdvancedClasses = qualificationProgress.ready
-
   const qualificationSeedMap = new Map<string, { points: number; position: number; batchOrder: number }>()
   const stageBatchOrderById = new Map<string, number>()
   const { data: qualificationSeeds, error: qualificationSeedError } = await adminClient
@@ -599,31 +554,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
           .map((r) => [r.rider_id, r.rank])
       )
 
-      const classForRank = (rank: number | null | undefined) => {
-        if (!rank) return null
-        if (batchEntries.length === 1 && rank >= 1 && rank <= 8) return 'FINAL ELITE'
-        if (rank >= 1 && rank <= 4) return formatStageAdvanceLabel(resolveQualificationPrimaryAdvance(resolvedCategory.stages))
-        if (!resolvedCategory.stages.enableSemiFinal && !resolvedCategory.stages.enableQuarterFinal) return 'FINAL NOVICE'
-        if (resolvedCategory.stages.enableSemiFinal && !resolvedCategory.stages.enableQuarterFinal) {
-          if (rank === 5 || rank === 6) return 'FINAL PRO'
-          if (rank === 7 || rank === 8) return 'FINAL ROOKIE'
-          return null
-        }
-        if (rank === 5) return 'FINAL ADVANCED'
-        if (rank === 6) return 'FINAL ACADEMY'
-        if (rank === 7) return 'FINAL AMATEUR'
-        if (rank === 8) return 'FINAL BEGINNER'
-        return null
-      }
-
-      const classFromQualificationRules = (rank: number | null | undefined) => {
+      const nextQualificationLabelForRank = (rank: number | null | undefined) => {
         if (!rank || qualificationRules.length === 0) return null
-
         const matchingRules =
           qualificationSplitBasis === 'CUSTOM_PER_BATCH'
             ? qualificationRules.filter((rule) => (rule.batch_no ?? 1) === batchIndex)
             : qualificationRules
-
         const matchedRule = matchingRules.find((rule) => rank >= rule.rank_from && rank <= rule.rank_to)
         if (!matchedRule) return null
         return formatQualificationTargetLabel(matchedRule.target_stage, matchedRule.target_final_class)
@@ -635,9 +571,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
           return {
             ...r,
             rank_point: rank,
-            class_label: showAdvancedClasses
-              ? classFromQualificationRules(rank) ?? classForRank(rank)
-              : null,
+            class_label: nextQualificationLabelForRank(rank),
           }
         })
         .sort((a, b) => (a.gate_moto1 ?? 9999) - (b.gate_moto1 ?? 9999))
