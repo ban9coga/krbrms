@@ -385,8 +385,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
 
   const { data: motoRiders } = await adminClient
     .from('moto_riders')
-    .select('rider_id')
+    .select('rider_id, created_at')
     .eq('moto_id', rankingMoto.id)
+    .order('created_at', { ascending: true })
   const lastPosition = (motoRiders ?? []).length || null
   const { data: gatePositions } = await adminClient
     .from('moto_gate_positions')
@@ -510,7 +511,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   let nextMotoRiders: NextMotoRiderRow[] = []
   if (nextMoto) {
     const [{ data: nextMotoAssignments }, { data: nextMotoGates }, { data: nextMotoParticipationRows }] = await Promise.all([
-      adminClient.from('moto_riders').select('rider_id').eq('moto_id', nextMoto.id),
+      adminClient.from('moto_riders').select('rider_id, created_at').eq('moto_id', nextMoto.id).order('created_at', { ascending: true }),
       adminClient.from('moto_gate_positions').select('rider_id, gate_position').eq('moto_id', nextMoto.id),
       adminClient
         .from('rider_participation_status')
