@@ -92,6 +92,12 @@ type SafetyRequirement = {
   icon_key?: string | null
 }
 
+type SafetyCheckPayload = {
+  rider_id: string
+  requirement_id: string
+  is_checked: boolean
+}
+
 const SAFETY_ICON_OPTIONS = [
   { key: 'helmet', icon: '⛑', shortLabel: 'Helm' },
   { key: 'gloves', icon: '🧤', shortLabel: 'Gloves' },
@@ -737,20 +743,17 @@ export default function JCPage() {
     setErrorMessage(null)
     try {
       if (safetyRequirements.length > 0) {
-        await Promise.all(
-          targetRiders.flatMap((rider) =>
-            safetyRequirements.map((item) =>
-              apiFetch(`/api/jury/motos/${selectedMotoId}/safety-checks`, {
-                method: 'POST',
-                body: JSON.stringify({
-                  rider_id: rider.id,
-                  requirement_id: item.id,
-                  is_checked: safetyChecks[rider.id]?.[item.id] === true,
-                }),
-              })
-            )
-          )
+        const checks: SafetyCheckPayload[] = targetRiders.flatMap((rider) =>
+          safetyRequirements.map((item) => ({
+            rider_id: rider.id,
+            requirement_id: item.id,
+            is_checked: safetyChecks[rider.id]?.[item.id] === true,
+          }))
         )
+        await apiFetch(`/api/jury/motos/${selectedMotoId}/safety-checks`, {
+          method: 'POST',
+          body: JSON.stringify({ checks }),
+        })
       }
 
       const nextStatuses = targetRiders.reduce<Record<string, StatusRow>>((acc, rider, index) => {
@@ -1378,6 +1381,7 @@ export default function JCPage() {
             className="jc-action-btn"
             type="button"
             onClick={async () => {
+              if (!selectedMotoId) return
               setSafetyChecks((prev) => {
                 const next = { ...prev }
                 for (const rider of riderList) {
@@ -1388,17 +1392,18 @@ export default function JCPage() {
                 }
                 return next
               })
-              for (const rider of riderList) {
-                for (const item of safetyRequirements) {
-                  await apiFetch(`/api/jury/motos/${selectedMotoId}/safety-checks`, {
-                    method: 'POST',
-                    body: JSON.stringify({
-                      rider_id: rider.id,
-                      requirement_id: item.id,
-                      is_checked: true,
-                    }),
-                  })
-                }
+              const checks: SafetyCheckPayload[] = riderList.flatMap((rider) =>
+                safetyRequirements.map((item) => ({
+                  rider_id: rider.id,
+                  requirement_id: item.id,
+                  is_checked: true,
+                }))
+              )
+              if (checks.length > 0) {
+                await apiFetch(`/api/jury/motos/${selectedMotoId}/safety-checks`, {
+                  method: 'POST',
+                  body: JSON.stringify({ checks }),
+                })
               }
             }}
             disabled={safetyInteractionDisabled || !hasSafetyRequirements}
