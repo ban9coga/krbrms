@@ -245,6 +245,18 @@ export default function JuryFinishPage() {
     [motos]
   )
 
+  const applyBlockedParticipationStatuses = useCallback((statusMap: Record<string, string>) => {
+    const blockedRiderIds = new Set(
+      Object.entries(statusMap)
+        .filter(([, status]) => status === 'DNS' || status === 'ABSENT')
+        .map(([riderId]) => riderId)
+    )
+    if (blockedRiderIds.size === 0) return
+    setFinishOrder((prev) => prev.filter((riderId) => !blockedRiderIds.has(riderId)))
+    setDnfRiders((prev) => prev.filter((riderId) => !blockedRiderIds.has(riderId)))
+    setActions((prev) => prev.filter((action) => !blockedRiderIds.has(action.riderId)))
+  }, [])
+
   const loadRiders = useCallback(async (motoIdOverride?: string, force = false) => {
     if (!force && localEditingRef.current) return
     const targetMotoId = motoIdOverride ?? selectedMotoId
@@ -281,8 +293,6 @@ export default function JuryFinishPage() {
     const dnsFromServer = existingResults
       .filter((r) => r.result_status === 'DNS')
       .map((r) => r.rider_id)
-    setFinishOrder(finishFromServer)
-    setDnfRiders(dnfFromServer)
     setActions([])
     setHasSubmitted(!isMotoLive(targetMoto?.status) && existingResults.length > 0)
     const statusMap: Record<string, string> = {}
@@ -294,6 +304,14 @@ export default function JuryFinishPage() {
     for (const riderId of dnsFromServer) {
       statusMap[riderId] = 'DNS'
     }
+    const blockedRiderIds = new Set(
+      Object.entries(statusMap)
+        .filter(([, status]) => status === 'DNS' || status === 'ABSENT')
+        .map(([riderId]) => riderId)
+    )
+    setFinishOrder(finishFromServer.filter((riderId) => !blockedRiderIds.has(riderId)))
+    setDnfRiders(dnfFromServer.filter((riderId) => !blockedRiderIds.has(riderId)))
+    setActions((prev) => prev.filter((action) => !blockedRiderIds.has(action.riderId)))
     setParticipationByRider(statusMap)
     if (eventId) {
       const penaltiesRes = await apiFetch(`/api/jury/events/${eventId}/rider-penalties?moto_id=${targetMotoId}`)
@@ -328,6 +346,26 @@ export default function JuryFinishPage() {
     }, 2500)
     return () => window.clearInterval(interval)
   }, [actions.length, eventId, loadRiders, pressedId, saving, selectedMotoId])
+
+  useEffect(() => {
+    if (!eventId || !selectedMotoId) return
+    const interval = window.setInterval(async () => {
+      try {
+        const statusRes = await apiFetch(`/api/jury/events/${eventId}/rider-status?moto_id=${selectedMotoId}`)
+        const statusMap: Record<string, string> = {}
+        for (const row of statusRes.data ?? []) {
+          if (row?.rider_id && row?.participation_status) {
+            statusMap[row.rider_id] = row.participation_status
+          }
+        }
+        setParticipationByRider((prev) => ({ ...prev, ...statusMap }))
+        applyBlockedParticipationStatuses(statusMap)
+      } catch {
+        // Full refresh handles visible errors; this lightweight sync should stay quiet.
+      }
+    }, 2500)
+    return () => window.clearInterval(interval)
+  }, [apiFetch, applyBlockedParticipationStatuses, eventId, selectedMotoId])
 
   const availableRiders = useMemo(() => {
     const finished = new Set(finishOrder)
