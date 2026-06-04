@@ -22,9 +22,7 @@ const pickNextMotoToPromote = (rows: MotoQueueRow[], currentMoto: MotoQueueRow) 
   const sameCategory = (row: MotoQueueRow) => row.category_id === currentMoto.category_id
   const nextMoto =
     afterCurrent.find((row) => sameCategory(row) && isUpcomingMoto(row)) ??
-    afterCurrent.find(isUpcomingMoto) ??
     rows.find((row) => sameCategory(row) && isUpcomingMoto(row)) ??
-    rows.find(isUpcomingMoto) ??
     null
 
   return { nextMoto, warning: null }
