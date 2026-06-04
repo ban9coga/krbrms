@@ -141,9 +141,6 @@ export default function JuryFinishPage() {
     }
     const liveMoto = selectableRows.find((m) => isMotoLive(m.status))
     if (liveMoto) return liveMoto.id
-    if (currentMotoId && selectableRows.some((m) => m.id === currentMotoId)) {
-      return currentMotoId
-    }
     return selectableRows[0].id
   }, [])
 
@@ -384,9 +381,20 @@ export default function JuryFinishPage() {
 
   const dnsRiders = useMemo(() => {
     return riders
-      .filter((r) => participationByRider[r.id] === 'DNS')
+      .filter((r) => participationByRider[r.id] === 'DNS' || participationByRider[r.id] === 'ABSENT')
       .map((r) => r.id)
   }, [participationByRider, riders])
+
+  const completedRiderCount = useMemo(() => {
+    const completed = new Set<string>()
+    finishOrder.forEach((id) => completed.add(id))
+    dnfRiders.forEach((id) => completed.add(id))
+    dnsRiders.forEach((id) => completed.add(id))
+    return completed.size
+  }, [dnfRiders, dnsRiders, finishOrder])
+  const allRidersHaveResult = riders.length > 0 && completedRiderCount >= riders.length
+  const submitDisabled =
+    hasSubmitted || saving || role === 'RACE_DIRECTOR' || motoLocked || !selectedMotoLive || !allRidersHaveResult
 
   const vibrate = () => {
     if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
@@ -451,6 +459,13 @@ export default function JuryFinishPage() {
   const handleSubmitHeat = async () => {
     if (role === 'RACE_DIRECTOR' || motoLocked || !selectedMotoLive) return
     if (!selectedMoto) return
+    if (!allRidersHaveResult) {
+      setSubmitNotice({
+        type: 'error',
+        message: `Belum bisa submit. Baru ${completedRiderCount}/${riders.length} rider yang masuk hasil.`,
+      })
+      return
+    }
     localEditingRef.current = true
     setSaving(true)
     setSubmitNotice(null)
@@ -743,6 +758,11 @@ export default function JuryFinishPage() {
               {flags.dnf_enabled
                 ? 'Tap = Finish. Long press 800ms = DNF.'
                 : 'Tap = Finish. DNF dimatikan dari menu Penalties.'}
+              {selectedMotoLive && (
+                <span className="ml-2 font-extrabold text-slate-700">
+                  Result: {completedRiderCount}/{riders.length}
+                </span>
+              )}
             </div>
 
             <div className="jf-actions mt-4 flex items-center justify-between gap-3">
@@ -757,12 +777,17 @@ export default function JuryFinishPage() {
               <button
                 type="button"
                 onClick={handleSubmitHeat}
-                disabled={hasSubmitted || saving || role === 'RACE_DIRECTOR' || motoLocked || !selectedMotoLive}
+                disabled={submitDisabled}
                 className="w-full rounded-xl border border-emerald-300 bg-emerald-500 px-4 py-3 text-sm font-extrabold uppercase tracking-[0.1em] text-white transition-colors hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {saving ? 'Submitting...' : 'Submit Result'}
               </button>
             </div>
+            {selectedMotoLive && !allRidersHaveResult && (
+              <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-extrabold text-amber-700">
+                Submit aktif setelah semua rider masuk hasil: Finish, DNF, DNS, atau Absent. Saat ini {completedRiderCount}/{riders.length}.
+              </div>
+            )}
 
             <div className="mt-4 border-t border-dashed border-slate-300 pt-4">
               <div className="mb-3 text-xs font-extrabold uppercase tracking-[0.15em] text-slate-500">Starter List</div>
@@ -843,15 +868,16 @@ export default function JuryFinishPage() {
               </div>
 
               <div className="rounded-xl border border-slate-200 bg-white p-3">
-                <div className={`${highVisibility ? 'text-xs' : 'text-[10px]'} font-extrabold uppercase tracking-[0.12em] text-slate-500`}>DNS</div>
+                <div className={`${highVisibility ? 'text-xs' : 'text-[10px]'} font-extrabold uppercase tracking-[0.12em] text-slate-500`}>DNS / ABSENT</div>
                 <div className="mt-2 grid gap-1.5">
                   {dnsRiders.map((id) => {
                     const rider = riders.find((r) => r.id === id)
+                    const status = participationByRider[id] === 'ABSENT' ? 'ABSENT' : 'DNS'
                     const penalty = penaltiesByRider[id] ?? 0
                     const penaltyBadges = penaltyBadgesByRider[id] ?? []
                     return (
                       <div key={id} className={`${highVisibility ? 'text-base' : 'text-sm'} font-semibold text-rose-700`}>
-                        {rider?.no_plate_display} - {rider?.name}
+                        {rider?.no_plate_display} - {rider?.name} ({status})
                         {penalty ? ` (+${penalty})` : ''}
                         <PenaltyBadges items={penaltyBadges} />
                       </div>

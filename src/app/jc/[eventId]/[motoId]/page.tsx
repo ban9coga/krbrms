@@ -67,20 +67,19 @@ const pickPrepMotoId = (
   liveMotoId?: string | null,
   currentPrepFinalized = false
 ) => {
-  if (currentId) {
-    const currentMoto = list.find((m) => m.id === currentId)
-    if (currentMoto && !isLockedStatus(currentMoto.status) && isMotoUpcoming(currentMoto.status)) {
-      return currentId
-    }
-    if (currentMoto && !isLockedStatus(currentMoto.status) && isMotoLive(currentMoto.status) && !currentPrepFinalized) {
-      return currentId
-    }
-  }
   if (liveMotoId) {
     const liveMoto = list.find((m) => m.id === liveMotoId)
     const nextAfterLive = pickUpcomingMoto(list, liveMoto)
     if (nextAfterLive) return nextAfterLive.id
   }
+
+  if (currentId) {
+    const currentMoto = list.find((m) => m.id === currentId)
+    if (currentMoto && !isLockedStatus(currentMoto.status) && isMotoLive(currentMoto.status) && !currentPrepFinalized) {
+      return currentId
+    }
+  }
+
   return pickUpcomingMoto(list)?.id ?? ''
 }
 
