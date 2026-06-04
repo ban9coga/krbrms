@@ -247,37 +247,39 @@ export default function JCPage() {
   const incidentMoto = useMemo(() => motos.find((m) => isMotoLive(m.status)) ?? null, [motos])
   const incidentMotoId = incidentMoto?.id ?? ''
 
+  const loadStaticConfig = useCallback(async () => {
+    if (!eventId) return
+    const [catRes, flagRes, safetyRes] = await Promise.all([
+      fetch(`/api/events/${eventId}/categories`),
+      apiFetch(`/api/jury/events/${eventId}/modules`),
+      apiFetch(`/api/jury/events/${eventId}/safety-requirements`),
+    ])
+    const catJson = await catRes.json()
+    setCategories((catJson.data ?? []) as CategoryItem[])
+    setFlags(
+      flagRes.data ?? {
+        penalty_enabled: true,
+        absent_enabled: true,
+        dns_enabled: true,
+        dnf_enabled: true,
+      }
+    )
+    const rawSafety = (safetyRes.data ?? []) as SafetyRequirement[]
+    const uniqueSafety = new Map<string, SafetyRequirement>()
+    for (const item of rawSafety) {
+      const key = item.label.trim().toLowerCase()
+      if (!uniqueSafety.has(key)) uniqueSafety.set(key, item)
+    }
+    setSafetyRequirements(Array.from(uniqueSafety.values()))
+  }, [apiFetch, eventId])
+
   const loadMotos = useCallback(async (silent = false) => {
     if (!eventId) return
     if (!silent) setLoading(true)
     if (!silent) setErrorMessage(null)
     try {
-      const [motoRes, catRes, flagRes, safetyRes] = await Promise.all([
-        fetch(`/api/motos?event_id=${eventId}`),
-        fetch(`/api/events/${eventId}/categories`),
-        apiFetch(`/api/jury/events/${eventId}/modules`),
-        apiFetch(`/api/jury/events/${eventId}/safety-requirements`),
-      ])
+      const motoRes = await fetch(`/api/motos?event_id=${eventId}`)
       const motoJson = await motoRes.json()
-      const catJson = await catRes.json()
-      const flagJson = flagRes
-      const catRows = (catJson.data ?? []) as CategoryItem[]
-      setCategories(catRows)
-      setFlags(
-        flagJson.data ?? {
-          penalty_enabled: true,
-          absent_enabled: true,
-          dns_enabled: true,
-          dnf_enabled: true,
-        }
-      )
-      const rawSafety = (safetyRes.data ?? []) as SafetyRequirement[]
-      const uniqueSafety = new Map<string, SafetyRequirement>()
-      for (const item of rawSafety) {
-        const key = item.label.trim().toLowerCase()
-        if (!uniqueSafety.has(key)) uniqueSafety.set(key, item)
-      }
-      setSafetyRequirements(Array.from(uniqueSafety.values()))
 
       const sortedMotos = [...(motoJson.data ?? [])].sort(compareMotoSequence)
       setMotos(sortedMotos)
@@ -308,15 +310,18 @@ export default function JCPage() {
       if (!silent) setLoading(false)
     }
     return []
-  }, [allReadyDone, apiFetch, eventId, selectedMotoId, syncPrepMotoUrl])
+  }, [allReadyDone, eventId, selectedMotoId, syncPrepMotoUrl])
 
   useEffect(() => {
+    void loadStaticConfig().catch((err: unknown) => {
+      setErrorMessage(err instanceof Error ? err.message : 'Gagal memuat konfigurasi checker.')
+    })
     void loadMotos(false)
     const interval = setInterval(() => {
       void loadMotos(true)
     }, 5000)
     return () => clearInterval(interval)
-  }, [loadMotos])
+  }, [loadMotos, loadStaticConfig])
 
   const loadMoto = async (silent = false, preserveAllReadyDone = silent) => {
     if (!selectedMotoId || !eventId) {
