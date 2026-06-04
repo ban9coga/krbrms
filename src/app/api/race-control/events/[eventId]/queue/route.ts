@@ -79,6 +79,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     ridersByMoto.set(row.moto_id, list)
   }
 
+  for (const [motoId, riderIdsForMoto] of ridersByMoto.entries()) {
+    riderIdsForMoto.forEach((riderId, index) => {
+      const key = `${motoId}:${riderId}`
+      if (!gateMap.has(key)) gateMap.set(key, index + 1)
+    })
+  }
+
   const sortedMotos = [...motoRows].sort(compareMotoSequence)
 
   const data = sortedMotos.map((moto, index) => {
