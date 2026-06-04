@@ -1307,19 +1307,19 @@ export default function JCPage() {
               className="jc-action-btn jc-primary"
               type="button"
               onClick={handleAllReady}
-              disabled={interactionDisabled || !canGateReady}
+              disabled={interactionDisabled || !canGateReady || allReadyDone}
               style={{
                 padding: isCompactLayout ? '12px 16px' : '14px 18px',
                 borderRadius: 999,
-                border: '2px solid #1d4ed8',
-                background: 'linear-gradient(180deg, #60a5fa 0%, #2563eb 100%)',
-                color: '#fff',
+                border: allReadyDone ? '2px solid #15803d' : '2px solid #1d4ed8',
+                background: allReadyDone ? '#dcfce7' : 'linear-gradient(180deg, #60a5fa 0%, #2563eb 100%)',
+                color: allReadyDone ? '#14532d' : '#fff',
                 fontWeight: 900,
                 fontSize: highVisibility ? (isCompactLayout ? 20 : 24) : isCompactLayout ? 18 : 20,
-                boxShadow: '0 5px 0 #1e40af',
+                boxShadow: allReadyDone ? '0 4px 0 #15803d' : '0 5px 0 #1e40af',
               }}
             >
-              Moto Ready
+              {allReadyDone ? 'Prep Selesai' : 'Moto Ready'}
             </button>
             <button
               className="jc-action-btn jc-primary"
@@ -1357,7 +1357,7 @@ export default function JCPage() {
           {allReadyDone && (
             <div style={{ display: 'grid', gap: 8 }}>
               <div style={{ padding: '12px 14px', borderRadius: 12, background: '#dcfce7', fontWeight: 900, textAlign: 'center' }}>
-                Status READY dan ABSENT saat ini dikunci sampai di-reset. Gunakan reset kalau checker perlu buka lagi prep moto ini.
+                Prep moto ini sudah selesai. Gunakan Edit Prep kalau checker perlu koreksi sebelum race berjalan.
               </div>
               <button
                 className="jc-action-btn"
@@ -1373,7 +1373,7 @@ export default function JCPage() {
                   fontWeight: 900,
                 }}
               >
-                Reset Disabled
+                Edit Prep
               </button>
             </div>
           )}
