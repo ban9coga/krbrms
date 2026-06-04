@@ -504,7 +504,52 @@ export default function McLivePage() {
               </span>
             </div>
           )}
-          <div className="grid gap-2">
+          <div className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white md:block">
+            {nextMotoRiders.length === 0 ? (
+              <div className="p-3 text-sm font-semibold text-slate-600">
+                Belum ada rider next moto.
+              </div>
+            ) : (
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr className="bg-slate-100 text-left text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
+                    <th className="w-20 px-3 py-3">Gate</th>
+                    <th className="w-24 px-3 py-3">Plate</th>
+                    <th className="px-3 py-3">Rider</th>
+                    <th className="px-3 py-3">Komunitas</th>
+                    <th className="w-32 px-3 py-3 text-right">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {nextMotoRiders.map((row) => (
+                    <tr key={`next-table-${row.rider_id}`} className="border-t border-slate-100">
+                      <td className="px-3 py-3 text-2xl font-black text-slate-900">{row.gate_position ?? '-'}</td>
+                      <td className="px-3 py-3 text-lg font-black text-slate-800">{row.plate}</td>
+                      <td className="px-3 py-3">
+                        <div className="font-black text-slate-900">{nextMotoRiderDisplayName(row)}</div>
+                        {row.rider_nickname?.trim() ? (
+                          <div className="mt-0.5 text-[11px] font-extrabold uppercase tracking-[0.1em] text-slate-500">
+                            {row.rider_name}
+                          </div>
+                        ) : null}
+                      </td>
+                      <td className="px-3 py-3 font-bold text-slate-600">{row.club || '-'}</td>
+                      <td className="px-3 py-3 text-right">
+                        <span
+                          className={`inline-flex rounded-full border px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.12em] ${nextMotoStatusBadge(
+                            row.status
+                          )}`}
+                        >
+                          {nextMotoStatusLabel(row.status)}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+          <div className="grid gap-2 md:hidden">
             {nextMotoRiders.length === 0 && (
               <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm font-semibold text-slate-600">
                 Belum ada rider next moto.
