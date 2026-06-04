@@ -16,7 +16,7 @@ export async function GET(req: Request) {
   }
   let query = adminClient
     .from('motos')
-    .select('id, event_id, category_id, moto_name, moto_order, status, is_published, published_at, provisional_at')
+    .select('id, event_id, category_id, moto_name, moto_order, status, is_published, published_at, provisional_at, checker_prep_ready_at')
     .order('moto_order', { ascending: true })
   if (eventId) query = query.eq('event_id', eventId)
   if (categoryId) query = query.eq('category_id', categoryId)

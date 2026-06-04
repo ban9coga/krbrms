@@ -9,6 +9,7 @@ type MotoQueueRow = {
   moto_name?: string | null
   moto_order: number
   status: string | null
+  checker_prep_ready_at?: string | null
 }
 
 const normalizeStatus = (status?: string | null) => (status ?? '').toUpperCase()
@@ -41,7 +42,7 @@ export async function promoteNextMotoToLive(eventId: string, currentMotoId: stri
 
   const { data: eventMotos, error: eventError } = await adminClient
     .from('motos')
-    .select('id, category_id, moto_name, moto_order, status')
+    .select('id, category_id, moto_name, moto_order, status, checker_prep_ready_at')
     .eq('event_id', eventId)
     .order('moto_order', { ascending: true })
 
@@ -58,6 +59,14 @@ export async function promoteNextMotoToLive(eventId: string, currentMotoId: stri
   }
   if (!nextMoto) {
     return { ok: true as const, skipped: true as const }
+  }
+  if (!nextMoto.checker_prep_ready_at) {
+    return {
+      ok: true as const,
+      skipped: true as const,
+      nextMotoId: nextMoto.id,
+      warning: 'Next moto belum Prep Selesai dari checker.',
+    }
   }
 
   const { error: updateError } = await adminClient

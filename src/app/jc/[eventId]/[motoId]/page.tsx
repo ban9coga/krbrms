@@ -21,6 +21,7 @@ type MotoItem = {
   moto_order: number
   status: string
   category_id?: string
+  checker_prep_ready_at?: string | null
 }
 
 type RiderItem = {
@@ -283,10 +284,15 @@ export default function JCPage() {
       const liveMoto = sortedMotos.find((m) => isMotoLive(m.status))
       const nextMotoId = pickPrepMotoId(sortedMotos, selectedMotoId, liveMoto?.id ?? null, allReadyDone)
       if (nextMotoId && nextMotoId !== selectedMotoId) {
+        const nextMoto = sortedMotos.find((m) => m.id === nextMotoId)
         setSelectedMotoId(nextMotoId)
-        setAllReadyDone(false)
+        setAllReadyDone(Boolean(nextMoto?.checker_prep_ready_at))
         setBulkReadyState(null)
         syncPrepMotoUrl(nextMotoId)
+      }
+      if (nextMotoId && nextMotoId === selectedMotoId) {
+        const currentMoto = sortedMotos.find((m) => m.id === nextMotoId)
+        setAllReadyDone(Boolean(currentMoto?.checker_prep_ready_at))
       }
       if (!nextMotoId && selectedMotoId) {
         setSelectedMotoId('')
@@ -883,9 +889,36 @@ export default function JCPage() {
       return
     }
     setAllReadyDone(true)
-    setWarningMessage('Status prep rider saat ini dikunci. MC akan baca READY atau ABSENT sesuai hasil pengecekan checker.')
-    setLastUpdated(new Date().toLocaleTimeString())
-    alert(`Moto Ready dikonfirmasi untuk ${selectedCategoryLabel} | ${selectedMoto?.moto_name ?? 'Moto'}`)
+    try {
+      await apiFetch(`/api/jury/motos/${selectedMotoId}/prep-ready`, { method: 'POST' })
+      setMotos((prev) =>
+        prev.map((moto) =>
+          moto.id === selectedMotoId ? { ...moto, checker_prep_ready_at: new Date().toISOString() } : moto
+        )
+      )
+      setWarningMessage('Status prep rider saat ini dikunci. MC akan baca READY atau ABSENT sesuai hasil pengecekan checker.')
+      setLastUpdated(new Date().toLocaleTimeString())
+      alert(`Moto Ready dikonfirmasi untuk ${selectedCategoryLabel} | ${selectedMoto?.moto_name ?? 'Moto'}`)
+    } catch (err: unknown) {
+      setAllReadyDone(false)
+      setErrorMessage(err instanceof Error ? err.message : 'Gagal menyimpan Moto Ready.')
+    }
+  }
+
+  const handleEditPrep = async () => {
+    if (!selectedMotoId) return
+    setErrorMessage(null)
+    setWarningMessage(null)
+    try {
+      await apiFetch(`/api/jury/motos/${selectedMotoId}/prep-ready`, { method: 'DELETE' })
+      setAllReadyDone(false)
+      setMotos((prev) =>
+        prev.map((moto) => (moto.id === selectedMotoId ? { ...moto, checker_prep_ready_at: null } : moto))
+      )
+      setWarningMessage('Prep dibuka lagi. Setelah koreksi selesai, tekan Moto Ready lagi.')
+    } catch (err: unknown) {
+      setErrorMessage(err instanceof Error ? err.message : 'Gagal membuka Edit Prep.')
+    }
   }
 
   const bannerDisabled = !selectedMotoPreppable
@@ -1362,7 +1395,7 @@ export default function JCPage() {
               <button
                 className="jc-action-btn"
                 type="button"
-                onClick={() => setAllReadyDone(false)}
+                onClick={handleEditPrep}
                 disabled={saving || bannerDisabled || locked}
                 style={{
                   padding: '10px 14px',

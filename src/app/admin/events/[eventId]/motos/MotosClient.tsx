@@ -386,7 +386,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     if (!moto) return
 
     const ok = confirm(
-      `Lock moto: ${formatMotoDisplayName(moto.moto_name)}?\n\nSetelah LOCKED, hasil dianggap final dan moto berikutnya bisa otomatis menjadi LIVE.`
+      `Lock moto: ${formatMotoDisplayName(moto.moto_name)}?\n\nSetelah LOCKED, hasil dianggap final. Moto berikutnya otomatis menjadi LIVE hanya kalau checker sudah menekan Moto Ready.`
     )
     if (!ok) return
 
@@ -849,7 +849,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
             display: 'inline-block',
           }}
         />
-        Auto Live Next aktif: submit hasil akan menghentikan moto di PROVISIONAL. Moto berikutnya baru otomatis menjadi LIVE setelah moto ini diubah ke LOCKED.
+        Auto Live Next aktif: submit hasil akan menghentikan moto di PROVISIONAL. Moto berikutnya baru otomatis menjadi LIVE setelah moto ini LOCKED dan checker sudah menekan Moto Ready.
       </div>
       {eventStatus && eventStatus !== 'LIVE' && (
         <div

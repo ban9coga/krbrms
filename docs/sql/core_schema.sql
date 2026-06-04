@@ -182,11 +182,14 @@ create table if not exists motos (
   is_published boolean not null default false,
   published_at timestamptz,
   provisional_at timestamptz,
+  checker_prep_ready_at timestamptz,
+  checker_prep_ready_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now()
 );
 
 create index if not exists idx_motos_event on motos(event_id);
 create index if not exists idx_motos_category on motos(category_id);
+create index if not exists idx_motos_checker_prep_ready on motos(event_id, checker_prep_ready_at);
 
 -- MOTO RIDERS
 create table if not exists moto_riders (
