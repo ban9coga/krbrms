@@ -203,6 +203,8 @@ const gateByMoto = (row: Row, motoIndex: number) => {
 const displayName = (row: Pick<Row, 'rider_nickname' | 'name'> | { rider_nickname?: string | null; name: string }) =>
   row.rider_nickname?.trim() || row.name
 
+const fullRiderName = (row: { name: string }) => row.name
+
 const mobileInfoPill = (label: string, value: string | number | null | undefined, accent = 'text-slate-700') => (
   <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
     <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">{label}</div>
@@ -1018,7 +1020,7 @@ export default function LiveDisplayClient({
                             <td className="px-3 py-3">
                               <div className="flex items-center gap-3">
                                 <div className="min-w-0 flex-1">
-                                  <div className="truncate text-lg font-black italic tracking-wide text-white">{displayName(row)}</div>
+                                  <div className="truncate text-lg font-black italic tracking-wide text-white">{fullRiderName(row)}</div>
                                 </div>
                               </div>
                             </td>
@@ -1038,7 +1040,7 @@ export default function LiveDisplayClient({
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex min-w-0 items-center gap-3">
                               <div className="min-w-0">
-                                <div className="truncate text-base font-black italic text-white">{displayName(row)}</div>
+                                <div className="truncate text-base font-black italic text-white">{fullRiderName(row)}</div>
                                 <div className="text-sm font-bold text-slate-300">{row.no_plate}</div>
                               </div>
                             </div>
