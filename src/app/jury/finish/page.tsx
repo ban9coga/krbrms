@@ -715,6 +715,7 @@ export default function JuryFinishPage() {
                   <button
                     key={r.id}
                     type="button"
+                    onContextMenu={(event) => event.preventDefault()}
                     onPointerDown={(event) => onCardPointerDown(event, r.id)}
                     onPointerUp={(event) => onCardPointerUp(event, r.id)}
                     onPointerLeave={() => onCardPointerLeave(r.id)}
