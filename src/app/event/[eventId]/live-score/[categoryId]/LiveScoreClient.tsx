@@ -253,7 +253,7 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
   )
   const showMc = Boolean(business?.show_mc_publicly && mcName)
   const showRiderPhotos =
-    typeof business?.show_rider_photos_public === 'boolean' ? business.show_rider_photos_public : true
+    typeof business?.show_rider_photos_public === 'boolean' ? business.show_rider_photos_public : false
 
   const sortedCategories = useMemo(() => {
     const genderOrder = { BOY: 0, GIRL: 1, MIX: 2 } as const

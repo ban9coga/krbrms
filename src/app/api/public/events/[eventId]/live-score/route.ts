@@ -219,7 +219,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       ? false
       : typeof businessSettings.show_rider_photos_public === 'boolean'
       ? businessSettings.show_rider_photos_public
-      : true
+      : false
   const { data: pointOverrideConfig } = await adminClient
     .from('race_stage_config')
     .select('dnf_point_override, dns_point_override')
