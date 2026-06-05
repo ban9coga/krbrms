@@ -272,6 +272,31 @@ const estimateRaceCounts = (category: CategoryRow, rules: CustomSplitRule[]): Ra
   }
 }
 
+const buildRiderRaceEstimateText = (estimate: RaceEstimate) => {
+  const qualificationPerRider =
+    estimate.qualificationRaceCount <= 0
+      ? 0
+      : estimate.qualificationRaceCount === 3
+        ? 3
+        : 2
+  const extraStageCount =
+    (estimate.repechageRaceCount > 0 ? 1 : 0) +
+    (estimate.quarterRaceCount > 0 ? 1 : 0) +
+    (estimate.semiRaceCount > 0 ? 1 : 0) +
+    (estimate.finalRaceCount > 0 ? 1 : 0)
+  const maxRacePerRider = qualificationPerRider + extraStageCount
+
+  if (estimate.totalRaceCount <= 0) {
+    return 'Prediksi jumlah moto belum bisa dihitung karena data rider atau rules belum lengkap.'
+  }
+
+  if (qualificationPerRider <= 0) {
+    return `Kategori ini diprediksi punya ${estimate.totalRaceCount} moto/race. Rider yang lolos stage bisa race sampai sekitar ${maxRacePerRider} kali.`
+  }
+
+  return `Prediksi: kategori ini punya ${estimate.totalRaceCount} moto/race. Setiap rider minimal race ${qualificationPerRider} kali di qualification. Rider yang terus lolos bisa race sampai sekitar ${maxRacePerRider} kali.`
+}
+
 const buildCustomStageGuideLines = (rules: CustomSplitRule[]) => {
   const targetStageOrder: Array<CustomSplitRule['target_stage']> = ['QUARTER_FINAL', 'REPECHAGE', 'SEMI_FINAL', 'FINAL']
   return SOURCE_STAGE_OPTIONS
@@ -297,7 +322,7 @@ const buildCustomStageGuideLines = (rules: CustomSplitRule[]) => {
             ? `${labels[0]} dan ${labels[1]}`
             : `${labels.slice(0, -1).join(', ')}, dan ${labels[labels.length - 1]}`
 
-      return `Dari ${formatStageLabel(sourceStage)}, rider diarahkan ke ${flowText}.`
+      return `Setelah ${formatStageLabel(sourceStage)}, rider yang lolos akan lanjut ke ${flowText}.`
     })
     .filter(Boolean) as string[]
 }
@@ -311,26 +336,26 @@ const buildCustomAutomationNotes = (rules: CustomSplitRule[]) => {
   )
 
   if (targetStages.has('REPECHAGE')) {
-    notes.push('Setelah hasil stage sumber lengkap dan compute dijalankan, moto Repechage akan dibuat otomatis.')
+    notes.push('Jika ada rider yang masuk Repechage, sistem akan membuat moto Repechage setelah hasil sebelumnya dihitung.')
   }
 
   if (targetStages.has('QUARTER_FINAL')) {
     if (hasRepechageToQuarter) {
-      notes.push('Quarter Final akan menunggu Repechage selesai lebih dulu bila winner Repechage ikut mengisi slot Quarter Final.')
+      notes.push('Quarter Final akan menunggu Repechage selesai jika ada rider dari Repechage yang harus masuk Quarter Final.')
     } else {
-      notes.push('Setelah hasil stage sumber lengkap dan compute dijalankan, moto Quarter Final akan dibuat otomatis.')
+      notes.push('Sistem akan membuat Quarter Final setelah hasil sebelumnya dihitung.')
     }
   }
 
   if (targetStages.has('SEMI_FINAL')) {
-    notes.push('Setelah hasil stage sumber lengkap dan compute dijalankan, moto Semi Final akan dibuat otomatis.')
+    notes.push('Sistem akan membuat Semi Final setelah hasil sebelumnya dihitung.')
   }
 
   if (targetStages.has('FINAL')) {
     if (sourceStages.has('QUARTER_FINAL') || sourceStages.has('SEMI_FINAL') || sourceStages.has('REPECHAGE')) {
-      notes.push('Final class yang terisi akan otomatis dibuat menjadi moto final setelah stage sumbernya selesai dan di-compute.')
+      notes.push('Final akan dibuat setelah stage sebelumnya selesai dihitung.')
     } else {
-      notes.push('Final class yang terisi akan otomatis dibuat menjadi moto final setelah qualification selesai dan di-compute.')
+      notes.push('Final akan dibuat setelah qualification selesai dihitung.')
     }
   }
 
@@ -457,18 +482,18 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
           .filter((stage) => rules.some((rule) => rule.source_stage === stage))
           .map((stage) => `${formatStageLabel(stage)} memakai ${splitBasisLabel(getStageSplitBasis(rules, stage))}`)
           .join(', ')
-        systemText = `Pembagian final memakai custom split per stage. ${basisSummary}.`
+        systemText = `Pembagian rider memakai aturan khusus. ${basisSummary}.`
         allocationText = buildCustomAutomationNotes(rules).join(' ')
       } else if (stageFlags.enableQuarterFinal) {
-        systemText = 'Kategori ini memakai alur AMS standar: qualification, quarter final, semi final, lalu final class.'
+        systemText = 'Alurnya: qualification dulu, lalu rider terbaik lanjut ke Quarter Final, Semi Final, dan Final.'
       } else if (stageFlags.enableSemiFinal) {
-        systemText = 'Kategori ini memakai alur AMS standar: qualification, semi final, lalu final class.'
+        systemText = 'Alurnya: qualification dulu, lalu rider terbaik lanjut ke Semi Final dan Final.'
       } else if (stageFlags.enableQualification) {
-        systemText = 'Kategori ini memakai alur AMS standar: qualification lalu dibagi ke final class.'
+        systemText = 'Alurnya: qualification dulu, lalu rider dibagi ke kelas final sesuai hasil.'
       } else if (usesSingleBatchFinal) {
-        systemText = 'Kategori 1 batch ini memakai format 3 moto, dan total point dari semua moto menentukan hasil akhir.'
+        systemText = 'Karena hanya 1 batch, semua rider race 3 moto. Total point dari 3 moto menentukan hasil akhir.'
       } else {
-        systemText = 'Kategori ini memakai alur AMS standar tanpa custom split tambahan.'
+        systemText = 'Kategori ini langsung memakai hasil race tanpa pembagian stage tambahan.'
       }
 
       const ruleLines =
@@ -481,12 +506,12 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
           : rules.map((rule) => {
               const targetLabel = rule.target_stage === 'FINAL' ? `Final ${rule.target_final_class}` : formatStageLabel(rule.target_stage)
               if (rule.split_basis === 'CUSTOM_PER_BATCH') {
-                return `Dari ${formatStageLabel(rule.source_stage)}, Batch ${rule.batch_no ?? '?'} rank ${rule.rank_from}-${rule.rank_to} masuk ${targetLabel}.`
+                return `Di ${formatStageLabel(rule.source_stage)} Batch ${rule.batch_no ?? '?'}, posisi ${rule.rank_from}-${rule.rank_to} masuk ${targetLabel}.`
               }
               if (rule.split_basis === 'PER_BATCH') {
-                return `Dari ${formatStageLabel(rule.source_stage)}, setiap batch rank ${rule.rank_from}-${rule.rank_to} masuk ${targetLabel}.`
+                return `Di ${formatStageLabel(rule.source_stage)}, posisi ${rule.rank_from}-${rule.rank_to} dari setiap batch masuk ${targetLabel}.`
               }
-              return `Dari ${formatStageLabel(rule.source_stage)}, rank gabungan ${rule.rank_from}-${rule.rank_to} masuk ${targetLabel}.`
+              return `Di ${formatStageLabel(rule.source_stage)}, posisi gabungan ${rule.rank_from}-${rule.rank_to} masuk ${targetLabel}.`
             })
 
       const customStageLines = rules.length > 0 ? buildCustomStageGuideLines(rules) : []
@@ -511,8 +536,9 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
         allocationText,
         estimateText:
           estimate.totalRaceCount > 0
-            ? `Estimasi total race kategori ini: ${estimate.totalRaceCount} (Qualification ${estimate.qualificationRaceCount}, QF ${estimate.quarterRaceCount}, Repechage ${estimate.repechageRaceCount}, Semi ${estimate.semiRaceCount}, Final ${estimate.finalRaceCount}).`
-            : 'Estimasi total race akan muncul setelah rule mulai dibentuk.',
+            ? `Perkiraan jumlah moto kategori ini: ${estimate.totalRaceCount}. Rinciannya: Qualification ${estimate.qualificationRaceCount}, Quarter Final ${estimate.quarterRaceCount}, Repechage ${estimate.repechageRaceCount}, Semi Final ${estimate.semiRaceCount}, Final ${estimate.finalRaceCount}.`
+            : 'Perkiraan jumlah moto akan muncul setelah data rider dan rules lengkap.',
+        riderEstimateText: buildRiderRaceEstimateText(estimate),
         estimateNotes: estimate.notes,
         ruleLines,
         stageLine,
@@ -524,7 +550,17 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
     () =>
       guideEntries
         .map((entry) =>
-          [entry.title, entry.intro, entry.systemText, entry.allocationText, entry.estimateText, ...entry.estimateNotes, entry.stageLine, ...entry.ruleLines]
+          [
+            entry.title,
+            entry.intro,
+            entry.systemText,
+            entry.allocationText,
+            entry.estimateText,
+            entry.riderEstimateText,
+            ...entry.estimateNotes,
+            entry.stageLine,
+            ...entry.ruleLines,
+          ]
             .filter(Boolean)
             .join('\n')
         )
@@ -564,6 +600,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
             <p>${entry.systemText}</p>
             ${entry.allocationText ? `<p>${entry.allocationText}</p>` : ''}
             <p>${entry.estimateText}</p>
+            <p>${entry.riderEstimateText}</p>
             ${entry.estimateNotes.map((line) => `<p>${line}</p>`).join('')}
             <p>${entry.stageLine}</p>
             <ul>${entry.ruleLines.map((line) => `<li>${line}</li>`).join('')}</ul>
@@ -1198,6 +1235,17 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
                   <div style={{ color: '#334155', fontWeight: 700, lineHeight: 1.5 }}>{entry.systemText}</div>
                   {entry.allocationText && (
                     <div style={{ color: themePrimary, fontWeight: 900, lineHeight: 1.5 }}>{entry.allocationText}</div>
+                  )}
+                  <div style={{ color: '#0f172a', fontWeight: 900, lineHeight: 1.5 }}>{entry.estimateText}</div>
+                  <div style={{ color: themePrimary, fontWeight: 950, lineHeight: 1.5 }}>{entry.riderEstimateText}</div>
+                  {entry.estimateNotes.length > 0 && (
+                    <div style={{ display: 'grid', gap: 4 }}>
+                      {entry.estimateNotes.map((line, index) => (
+                        <div key={`${entry.category.id}-estimate-${index}`} style={{ color: '#475569', fontWeight: 800, lineHeight: 1.45 }}>
+                          {line}
+                        </div>
+                      ))}
+                    </div>
                   )}
                   <div style={{ color: '#334155', fontWeight: 700, lineHeight: 1.5 }}>{entry.stageLine}</div>
                   <ul style={{ margin: '4px 0 0 18px', padding: 0, display: 'grid', gap: 6 }}>
