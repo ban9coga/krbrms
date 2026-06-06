@@ -34,6 +34,7 @@ export const resolveBasePointForRaceResult = (
 ) => {
   const normalized = String(status ?? 'FINISH').toUpperCase()
   if (normalized === 'DQ') return null
+  if (normalized === 'DNF' && finishOrder != null) return finishOrder
   if (normalized === 'DNF' || normalized === 'DNS' || normalized === 'ABSENT') {
     return resolveLastPlaceBasePoint(riderCount)
   }
