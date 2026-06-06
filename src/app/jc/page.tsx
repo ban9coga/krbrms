@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import CheckerTopbar from '../../components/CheckerTopbar'
 import { isMotoLive } from '../../lib/motoStatus'
-import { compareMotoSequence } from '../../lib/motoSequence'
+import { buildCategoryBaseOrder, compareMotoSequence, compareMotoWorkflowSequence } from '../../lib/motoSequence'
 import { supabase } from '../../lib/supabaseClient'
 
 type EventItem = {
@@ -111,9 +111,11 @@ export default function JCSelectorPage() {
       setCategories((categoryJson.data ?? []) as CategoryItem[])
       list.sort(compareMotoSequence)
       setMotos(list)
-      setMotoId((prev) => pickNextMotoId(list, prev))
+      const categoryBaseOrder = buildCategoryBaseOrder(list)
+      const workflowList = [...list].sort((a, b) => compareMotoWorkflowSequence(a, b, categoryBaseOrder))
+      setMotoId((prev) => pickNextMotoId(workflowList, prev))
 
-      const liveMotos = list.filter((m) => isMotoLive(m.status))
+      const liveMotos = workflowList.filter((m) => isMotoLive(m.status))
       if (
         !didAutoRedirect &&
         singleLiveEventId &&

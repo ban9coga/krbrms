@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../../../lib/supabaseClient'
 import { useHighVisibility } from '../../../hooks/useHighVisibility'
-import { compareMotoSequence } from '../../../lib/motoSequence'
+import { buildCategoryBaseOrder, compareMotoSequence, compareMotoWorkflowSequence } from '../../../lib/motoSequence'
 import { isMotoLive } from '../../../lib/motoStatus'
 import CheckerTopbar from '../../../components/CheckerTopbar'
 
@@ -197,10 +197,13 @@ export default function JuryFinishPage() {
     )
     const catRows = (catJson.data ?? []) as CategoryItem[]
     setCategories(catRows)
-    const sortedMotos = [...((motoJson.data ?? []) as MotoItem[])].sort(compareMotoSequence)
+    const rawMotos = (motoJson.data ?? []) as MotoItem[]
+    const sortedMotos = [...rawMotos].sort(compareMotoSequence)
+    const categoryBaseOrder = buildCategoryBaseOrder(rawMotos)
+    const workflowMotos = [...rawMotos].sort((a, b) => compareMotoWorkflowSequence(a, b, categoryBaseOrder))
     setMotos(sortedMotos)
-    setSelectedMotoId((prev) => pickNextSelectableMotoId(sortedMotos, prev))
-    return sortedMotos
+    setSelectedMotoId((prev) => pickNextSelectableMotoId(workflowMotos, prev))
+    return workflowMotos
   }, [apiFetch, eventId, pickNextSelectableMotoId])
 
   useEffect(() => {

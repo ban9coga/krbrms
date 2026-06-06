@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import CheckerTopbar from '../../../../components/CheckerTopbar'
 import { useHighVisibility } from '../../../../hooks/useHighVisibility'
-import { compareMotoSequence } from '../../../../lib/motoSequence'
+import { buildCategoryBaseOrder, compareMotoSequence, compareMotoWorkflowSequence } from '../../../../lib/motoSequence'
 import { supabase } from '../../../../lib/supabaseClient'
 import { isMotoLive, isMotoUpcoming } from '../../../../lib/motoStatus'
 
@@ -289,10 +289,13 @@ export default function JCPage() {
       const motoRes = await fetch(`/api/motos?event_id=${eventId}`)
       const motoJson = await motoRes.json()
 
-      const sortedMotos = [...((motoJson.data ?? []) as MotoItem[])].sort(compareMotoSequence)
+      const rawMotos = (motoJson.data ?? []) as MotoItem[]
+      const sortedMotos = [...rawMotos].sort(compareMotoSequence)
+      const categoryBaseOrder = buildCategoryBaseOrder(rawMotos)
+      const workflowMotos = [...rawMotos].sort((a, b) => compareMotoWorkflowSequence(a, b, categoryBaseOrder))
       setMotos(sortedMotos)
-      const liveMoto = sortedMotos.find((m) => isMotoLive(m.status))
-      const nextMotoId = pickPrepMotoId(sortedMotos, selectedMotoId, liveMoto?.id ?? null, allReadyDone)
+      const liveMoto = workflowMotos.find((m) => isMotoLive(m.status))
+      const nextMotoId = pickPrepMotoId(workflowMotos, selectedMotoId, liveMoto?.id ?? null, allReadyDone)
       if (nextMotoId && nextMotoId !== selectedMotoId) {
         const nextMoto = sortedMotos.find((m) => m.id === nextMotoId)
         setSelectedMotoId(nextMotoId)
@@ -311,7 +314,7 @@ export default function JCPage() {
         setAllReadyDone(false)
         setBulkReadyState(null)
       }
-      return sortedMotos
+      return workflowMotos
     } catch (err: unknown) {
       setErrorMessage(err instanceof Error ? err.message : 'Gagal memuat data JC.')
     } finally {
