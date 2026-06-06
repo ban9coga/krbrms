@@ -54,6 +54,7 @@ type MotoItem = {
   is_published?: boolean | null
   published_at?: string | null
   provisional_at?: string | null
+  checker_prep_ready_at?: string | null
 }
 
 type GateMotoItem = {
@@ -95,6 +96,24 @@ const parseMotoBatch = (motoName: string) => {
   return {
     motoNo: Number(match[1] ?? 0),
     batchNo: Number(match[2] ?? 0),
+  }
+}
+
+const getCheckerPrepBadge = (moto: MotoItem) => {
+  if (moto.status !== 'UPCOMING') return null
+  if (moto.checker_prep_ready_at) {
+    return {
+      label: 'SIAP START',
+      background: '#dcfce7',
+      color: '#14532d',
+      borderColor: '#16a34a',
+    }
+  }
+  return {
+    label: 'BELUM DICEK',
+    background: '#fef3c7',
+    color: '#92400e',
+    borderColor: '#f59e0b',
   }
 }
 
@@ -1046,6 +1065,25 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                       </div>
                       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontWeight: 800, fontSize: 12 }}>
                         <span>Status: {m.status}</span>
+                        {(() => {
+                          const prepBadge = getCheckerPrepBadge(m)
+                          if (!prepBadge) return null
+                          return (
+                            <span
+                              title={m.checker_prep_ready_at ? `Checker ready: ${new Date(m.checker_prep_ready_at).toLocaleString()}` : 'Checker belum klik Moto Ready'}
+                              style={{
+                                padding: '2px 8px',
+                                borderRadius: 999,
+                                border: `2px solid ${prepBadge.borderColor}`,
+                                background: prepBadge.background,
+                                color: prepBadge.color,
+                                fontWeight: 950,
+                              }}
+                            >
+                              {prepBadge.label}
+                            </span>
+                          )
+                        })()}
                         {m.status === 'LIVE' && (
                           <span
                             style={{
