@@ -433,6 +433,44 @@ const buildSequentialGateRows = (motoId: string, riderIds: string[]) =>
     gate_position: index + 1,
   }))
 
+const backfillMissingGatePositionsForCategory = async (eventId: string, categoryId: string) => {
+  const { data: motos, error: motoError } = await adminClient
+    .from('motos')
+    .select('id')
+    .eq('event_id', eventId)
+    .eq('category_id', categoryId)
+  if (motoError || !motos || motos.length === 0) return motoError?.message ?? null
+
+  const motoIds = motos.map((m) => m.id)
+  const [{ data: gateRows, error: gateError }, { data: assignmentRows, error: assignmentError }] = await Promise.all([
+    adminClient.from('moto_gate_positions').select('moto_id').in('moto_id', motoIds),
+    adminClient
+      .from('moto_riders')
+      .select('moto_id, rider_id, created_at')
+      .in('moto_id', motoIds)
+      .order('created_at', { ascending: true }),
+  ])
+  if (gateError) return gateError.message
+  if (assignmentError) return assignmentError.message
+
+  const motosWithGates = new Set((gateRows ?? []).map((row) => row.moto_id))
+  const rowsByMoto = new Map<string, string[]>()
+  for (const row of assignmentRows ?? []) {
+    if (motosWithGates.has(row.moto_id)) continue
+    const list = rowsByMoto.get(row.moto_id) ?? []
+    list.push(row.rider_id)
+    rowsByMoto.set(row.moto_id, list)
+  }
+
+  const rows = Array.from(rowsByMoto.entries()).flatMap(([motoId, riderIds]) =>
+    buildSequentialGateRows(motoId, Array.from(new Set(riderIds)))
+  )
+  if (rows.length === 0) return null
+
+  const { error } = await adminClient.from('moto_gate_positions').insert(rows)
+  return error?.message ?? null
+}
+
 const hasMotoResults = (motoId: string, resultRows: ResultRow[]) =>
   resultRows.some((row) => row.moto_id === motoId && row.finish_order !== null)
 
@@ -1273,6 +1311,11 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
   if (gateTableReady && uniqueNewGatePositions.length > 0) {
     const { error: gateError } = await adminClient.from('moto_gate_positions').insert(uniqueNewGatePositions)
     if (gateError) return { ok: false, warning: gateError.message }
+  }
+
+  if (gateTableReady) {
+    const backfillWarning = await backfillMissingGatePositionsForCategory(eventId, categoryId)
+    if (backfillWarning) return { ok: false, warning: backfillWarning }
   }
 
   await normalizeEventMotoSequence(eventId)
