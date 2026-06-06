@@ -595,8 +595,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       }
     })
     .sort((a, b) => {
-      if (a.sequence_order !== b.sequence_order) return a.sequence_order - b.sequence_order
-      return a.batch_index - b.batch_index
+      if (a.batch_index !== b.batch_index) return a.batch_index - b.batch_index
+      return a.sequence_order - b.sequence_order
     })
 
   const stageMotos = motoRows.filter((m) => !parseBatchKey(m.moto_name))
