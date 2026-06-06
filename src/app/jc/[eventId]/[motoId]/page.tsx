@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import CheckerTopbar from '../../../../components/CheckerTopbar'
 import { useHighVisibility } from '../../../../hooks/useHighVisibility'
@@ -169,6 +169,7 @@ export default function JCPage() {
   const [motos, setMotos] = useState<MotoItem[]>([])
   const [categories, setCategories] = useState<CategoryItem[]>([])
   const [selectedMotoId, setSelectedMotoId] = useState(initialMotoId)
+  const selectedMotoIdRef = useRef(initialMotoId)
   const [riders, setRiders] = useState<RiderItem[]>([])
   const [statuses, setStatuses] = useState<Record<string, StatusRow>>({})
   const [incidentRiders, setIncidentRiders] = useState<RiderItem[]>([])
@@ -246,6 +247,13 @@ export default function JCPage() {
 
   const incidentMoto = useMemo(() => motos.find((m) => isMotoLive(m.status)) ?? null, [motos])
   const incidentMotoId = incidentMoto?.id ?? ''
+
+  useEffect(() => {
+    selectedMotoIdRef.current = selectedMotoId
+    setRiders([])
+    setStatuses({})
+    setLastUpdated(null)
+  }, [selectedMotoId])
 
   const loadStaticConfig = useCallback(async () => {
     if (!eventId) return
@@ -326,7 +334,8 @@ export default function JCPage() {
   }, [loadMotos, loadStaticConfig])
 
   const loadMoto = async (silent = false, preserveAllReadyDone = silent) => {
-    if (!selectedMotoId || !eventId) {
+    const targetMotoId = selectedMotoId
+    if (!targetMotoId || !eventId) {
       setLocked(false)
       setRiders([])
       setStatuses({})
@@ -338,14 +347,18 @@ export default function JCPage() {
     if (!silent) setErrorMessage(null)
     try {
       const [lockRes, riderRes, statusRes, safetyRes] = await Promise.all([
-        apiFetch(`/api/jury/motos/${selectedMotoId}/lock-status`),
-        apiFetch(`/api/jury/motos/${selectedMotoId}/riders`),
-        apiFetch(`/api/jury/events/${eventId}/rider-status?moto_id=${selectedMotoId}`),
-        apiFetch(`/api/jury/motos/${selectedMotoId}/safety-checks`),
+        apiFetch(`/api/jury/motos/${targetMotoId}/lock-status`),
+        apiFetch(`/api/jury/motos/${targetMotoId}/riders`),
+        apiFetch(`/api/jury/events/${eventId}/rider-status?moto_id=${targetMotoId}`),
+        apiFetch(`/api/jury/motos/${targetMotoId}/safety-checks`),
       ])
 
+      if (selectedMotoIdRef.current !== targetMotoId) return
       setLocked(!!lockRes.data)
       if (lockRes.data) {
+        setRiders([])
+        setStatuses({})
+        setLastUpdated(null)
         await loadMotos(true)
         return
       }
