@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import CheckerTopbar from '../../../../components/CheckerTopbar'
 import { useHighVisibility } from '../../../../hooks/useHighVisibility'
-import { compareMotoSequence } from '../../../../lib/motoSequence'
+import { buildCategoryBaseOrder, compareMotoWorkflowSequence } from '../../../../lib/motoSequence'
 import { supabase } from '../../../../lib/supabaseClient'
 import { isMotoLive, isMotoUpcoming } from '../../../../lib/motoStatus'
 
@@ -281,7 +281,9 @@ export default function JCPage() {
       const motoRes = await fetch(`/api/motos?event_id=${eventId}`)
       const motoJson = await motoRes.json()
 
-      const sortedMotos = [...(motoJson.data ?? [])].sort(compareMotoSequence)
+      const rawMotos = (motoJson.data ?? []) as MotoItem[]
+      const categoryBaseOrder = buildCategoryBaseOrder(rawMotos)
+      const sortedMotos = [...rawMotos].sort((a, b) => compareMotoWorkflowSequence(a, b, categoryBaseOrder))
       setMotos(sortedMotos)
       const liveMoto = sortedMotos.find((m) => isMotoLive(m.status))
       const nextMotoId = pickPrepMotoId(sortedMotos, selectedMotoId, liveMoto?.id ?? null, allReadyDone)

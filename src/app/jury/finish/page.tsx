@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../../../lib/supabaseClient'
 import { useHighVisibility } from '../../../hooks/useHighVisibility'
-import { compareMotoSequence } from '../../../lib/motoSequence'
+import { buildCategoryBaseOrder, compareMotoWorkflowSequence } from '../../../lib/motoSequence'
 import { isMotoLive } from '../../../lib/motoStatus'
 import CheckerTopbar from '../../../components/CheckerTopbar'
 
@@ -197,7 +197,9 @@ export default function JuryFinishPage() {
     )
     const catRows = (catJson.data ?? []) as CategoryItem[]
     setCategories(catRows)
-    const sortedMotos = [...(motoJson.data ?? [])].sort(compareMotoSequence)
+    const rawMotos = (motoJson.data ?? []) as MotoItem[]
+    const categoryBaseOrder = buildCategoryBaseOrder(rawMotos)
+    const sortedMotos = [...rawMotos].sort((a, b) => compareMotoWorkflowSequence(a, b, categoryBaseOrder))
     setMotos(sortedMotos)
     setSelectedMotoId((prev) => pickNextSelectableMotoId(sortedMotos, prev))
     return sortedMotos

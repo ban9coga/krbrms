@@ -95,12 +95,60 @@ const parseAdvancedMoto = (name?: string | null): ParsedAdvancedMoto | null => {
 const getAdvancedStageOrder = (stage: string): number => {
   const stageOrder: Record<string, number> = {
     QUALIFICATION: 1,
-    QUARTER_FINAL: 2,
-    REPECHAGE: 3,
+    REPECHAGE: 2,
+    QUARTER_FINAL: 3,
     SEMI_FINAL: 4,
     FINAL: 5,
   }
   return stageOrder[stage] ?? 99
+}
+
+const getAdvancedSubOrder = (parsed: ParsedAdvancedMoto | null): number => {
+  if (!parsed) return 9999
+  if (parsed.stage === 'QUALIFICATION') {
+    return (parsed.motoIndex ?? 0) * 100 + (parsed.batchIndex ?? 0)
+  }
+  if (parsed.stage === 'FINAL') return FINAL_CLASS_ORDER_MAP[parsed.finalClass ?? ''] ?? 99
+  return parsed.heatIndex ?? 99
+}
+
+export const buildCategoryBaseOrder = <T extends MotoLike>(motos: T[]) => {
+  const categoryBaseOrder = new Map<string, number>()
+  for (const moto of motos) {
+    if (!moto.category_id) continue
+    const current = categoryBaseOrder.get(moto.category_id)
+    const order = typeof moto.moto_order === 'number' ? moto.moto_order : Number.MAX_SAFE_INTEGER
+    if (current == null || order < current) categoryBaseOrder.set(moto.category_id, order)
+  }
+  return categoryBaseOrder
+}
+
+export const compareMotoWorkflowSequence = (
+  a: MotoLike,
+  b: MotoLike,
+  categoryBaseOrder: Map<string, number> = new Map()
+) => {
+  const aCategory = typeof a.category_id === 'string' ? a.category_id : null
+  const bCategory = typeof b.category_id === 'string' ? b.category_id : null
+  const ao = typeof a.moto_order === 'number' ? a.moto_order : Number.MAX_SAFE_INTEGER
+  const bo = typeof b.moto_order === 'number' ? b.moto_order : Number.MAX_SAFE_INTEGER
+  const aCategoryOrder = aCategory ? categoryBaseOrder.get(aCategory) ?? ao : ao
+  const bCategoryOrder = bCategory ? categoryBaseOrder.get(bCategory) ?? bo : bo
+
+  if (aCategoryOrder !== bCategoryOrder) return aCategoryOrder - bCategoryOrder
+  if (aCategory && bCategory && aCategory !== bCategory) return aCategory.localeCompare(bCategory)
+
+  const advancedA = parseAdvancedMoto(a.moto_name)
+  const advancedB = parseAdvancedMoto(b.moto_name)
+  const stageOrderA = advancedA ? getAdvancedStageOrder(advancedA.stage) : 99
+  const stageOrderB = advancedB ? getAdvancedStageOrder(advancedB.stage) : 99
+  if (stageOrderA !== stageOrderB) return stageOrderA - stageOrderB
+
+  const subOrderA = getAdvancedSubOrder(advancedA)
+  const subOrderB = getAdvancedSubOrder(advancedB)
+  if (subOrderA !== subOrderB) return subOrderA - subOrderB
+
+  return ao - bo
 }
 
 export const compareMotoSequence = (a: MotoLike, b: MotoLike) => {
