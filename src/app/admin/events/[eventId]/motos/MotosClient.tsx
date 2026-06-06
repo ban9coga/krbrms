@@ -997,52 +997,6 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                 </button>
               </div>
             </div>
-            {computeAction.visible && (
-              <div
-                className="no-print"
-                style={{
-                  padding: 12,
-                  borderRadius: 14,
-                  border: '2px solid #111',
-                  background: '#f8fafc',
-                  display: 'grid',
-                  gap: 10,
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <div style={{ display: 'grid', gap: 4 }}>
-                    <div style={{ fontWeight: 900, fontSize: 13 }}>Aksi Stage Kategori</div>
-                    <div style={{ fontSize: 12, color: '#334155', fontWeight: 700 }}>{computeAction.description}</div>
-                    {summary && (
-                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 11, fontWeight: 800, color: '#475569' }}>
-                        <span>Q: {summary.stageCounts?.QUALIFICATION ?? 0}</span>
-                        <span>QF: {summary.stageCounts?.QUARTER_FINAL ?? 0}</span>
-                        <span>REP: {summary.stageCounts?.REPECHAGE ?? 0}</span>
-                        <span>SF: {summary.stageCounts?.SEMI_FINAL ?? 0}</span>
-                        <span>F: {summary.stageCounts?.FINAL ?? 0}</span>
-                      </div>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => computeAction.endpoint && handleComputeCategory(cat.id, computeAction.endpoint)}
-                    disabled={computeAction.disabled || computingCategoryId === cat.id}
-                    className="motos-compute-button"
-                    style={{
-                      padding: '10px 14px',
-                      borderRadius: 12,
-                      border: '2px solid #111',
-                      background: computeAction.disabled ? '#e5e7eb' : '#dbeafe',
-                      fontWeight: 900,
-                      cursor: computeAction.disabled || computingCategoryId === cat.id ? 'not-allowed' : 'pointer',
-                      minWidth: 220,
-                    }}
-                  >
-                    {computingCategoryId === cat.id ? 'Memproses...' : computeAction.label}
-                  </button>
-                </div>
-              </div>
-            )}
             {isHidden ? null : (
               <div style={{ display: 'grid', gap: 8 }}>
                 {list.map((m) => (
@@ -1207,6 +1161,52 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+            {computeAction.visible && (
+              <div
+                className="no-print"
+                style={{
+                  padding: 12,
+                  borderRadius: 14,
+                  border: '2px solid #111',
+                  background: '#f8fafc',
+                  display: 'grid',
+                  gap: 10,
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'grid', gap: 4 }}>
+                    <div style={{ fontWeight: 900, fontSize: 13 }}>Aksi Stage Kategori</div>
+                    <div style={{ fontSize: 12, color: '#334155', fontWeight: 700 }}>{computeAction.description}</div>
+                    {summary && (
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 11, fontWeight: 800, color: '#475569' }}>
+                        <span>Q: {summary.stageCounts?.QUALIFICATION ?? 0}</span>
+                        <span>QF: {summary.stageCounts?.QUARTER_FINAL ?? 0}</span>
+                        <span>REP: {summary.stageCounts?.REPECHAGE ?? 0}</span>
+                        <span>SF: {summary.stageCounts?.SEMI_FINAL ?? 0}</span>
+                        <span>F: {summary.stageCounts?.FINAL ?? 0}</span>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => computeAction.endpoint && handleComputeCategory(cat.id, computeAction.endpoint)}
+                    disabled={computeAction.disabled || computingCategoryId === cat.id}
+                    className="motos-compute-button"
+                    style={{
+                      padding: '10px 14px',
+                      borderRadius: 12,
+                      border: '2px solid #111',
+                      background: computeAction.disabled ? '#e5e7eb' : '#dbeafe',
+                      fontWeight: 900,
+                      cursor: computeAction.disabled || computingCategoryId === cat.id ? 'not-allowed' : 'pointer',
+                      minWidth: 220,
+                    }}
+                  >
+                    {computingCategoryId === cat.id ? 'Memproses...' : computeAction.label}
+                  </button>
+                </div>
               </div>
             )}
           </div>
