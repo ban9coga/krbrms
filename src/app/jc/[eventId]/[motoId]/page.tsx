@@ -1712,8 +1712,12 @@ export default function JCPage() {
                   <button
                     className="jc-action-btn"
                     type="button"
-                    onClick={() => handleSaveStatus(r.id, 'ABSENT', r.gate_position ?? 0)}
-                    disabled={absentDisabled || isRiderReady || isRiderAbsent}
+                    onClick={() =>
+                      isRiderAbsent
+                        ? handleSaveStatus(r.id, 'ACTIVE', r.gate_position ?? 0)
+                        : handleSaveStatus(r.id, 'ABSENT', r.gate_position ?? 0)
+                    }
+                    disabled={absentDisabled || isRiderReady}
                     style={{
                       padding: highVisibility ? (isCompactLayout ? '12px 14px' : '14px 16px') : isCompactLayout ? '10px 12px' : '12px 14px',
                       borderRadius: 999,
@@ -1724,7 +1728,7 @@ export default function JCPage() {
                       fontSize: highVisibility ? (isCompactLayout ? 14 : 16) : isCompactLayout ? 12 : undefined,
                     }}
                   >
-                    ABSENT
+                    {isRiderAbsent ? 'UNDO ABSENT' : 'ABSENT'}
                   </button>
                 </div>
               </div>
