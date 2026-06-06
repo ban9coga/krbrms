@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import CheckerTopbar from '../../components/CheckerTopbar'
 import { supabase } from '../../lib/supabaseClient'
 
@@ -65,6 +65,7 @@ export default function RaceControlPage() {
   const [queue, setQueue] = useState<QueueMoto[]>([])
   const [refreshing, setRefreshing] = useState(false)
   const [highVisibility, setHighVisibility] = useState(false)
+  const scrollRestoreRef = useRef<{ x: number; y: number } | null>(null)
 
   useEffect(() => {
     const loadEvents = async () => {
@@ -109,6 +110,9 @@ export default function RaceControlPage() {
 
   const refresh = useCallback(async () => {
     if (!eventId) return
+    if (typeof window !== 'undefined') {
+      scrollRestoreRef.current = { x: window.scrollX, y: window.scrollY }
+    }
     setRefreshing(true)
     try {
       await loadQueue(eventId)
@@ -116,6 +120,16 @@ export default function RaceControlPage() {
       setRefreshing(false)
     }
   }, [eventId, loadQueue])
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || refreshing) return
+    const restore = scrollRestoreRef.current
+    if (!restore) return
+    scrollRestoreRef.current = null
+    window.requestAnimationFrame(() => {
+      window.scrollTo({ left: restore.x, top: restore.y, behavior: 'instant' })
+    })
+  }, [queue, refreshing])
 
   useEffect(() => {
     void loadQueue(eventId)
