@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { compareMotoDisplayOrder, formatMotoDisplayName } from '../../../../../lib/motoDisplayOrder'
 import { buildBrandedPrintHtml } from '../../../../../lib/printTheme'
 import { supabase } from '../../../../../lib/supabaseClient'
@@ -270,6 +270,31 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     }
     return grouped
   }, [motos])
+
+  const isCategoryComplete = useCallback(
+    (categoryId: string) => {
+      const list = motosByCategory.get(categoryId) ?? []
+      return list.length > 0 && list.every((moto) => moto.status === 'LOCKED')
+    },
+    [motosByCategory]
+  )
+
+  const displayCategoriesSorted = useMemo(() => {
+    return [...categoriesSorted].sort((a, b) => {
+      const aComplete = isCategoryComplete(a.id)
+      const bComplete = isCategoryComplete(b.id)
+      if (aComplete !== bComplete) return aComplete ? 1 : -1
+      return 0
+    })
+  }, [categoriesSorted, isCategoryComplete])
+
+  useEffect(() => {
+    const completedCategoryIds = categories
+      .filter((category) => isCategoryComplete(category.id))
+      .map((category) => category.id)
+    if (completedCategoryIds.length === 0) return
+    setHiddenCategoryIds((prev) => Array.from(new Set([...prev, ...completedCategoryIds])))
+  }, [categories, isCategoryComplete])
 
   const printGroups = useMemo(() => {
     return categoriesSorted
@@ -900,10 +925,11 @@ export default function MotosClient({ eventId }: { eventId: string }) {
           </div>
         )}
 
-        {categoriesSorted.map((cat) => {
+        {displayCategoriesSorted.map((cat) => {
           const list = motosByCategory.get(cat.id) ?? []
           if (list.length === 0) return null
           const isHidden = hiddenCategoryIds.includes(cat.id)
+          const isComplete = isCategoryComplete(cat.id)
           const computeAction = getComputeAction(cat.id)
           const summary = advancedSummaryByCategory[cat.id]
           const statusChips = getCategoryStatusChips(cat.id)
@@ -925,6 +951,23 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                 <div style={{ fontWeight: 950, fontSize: 18 }}>
                   {categoryLabel.get(cat.id) ?? `Category ${cat.id}`}
                 </div>
+                {isComplete && (
+                  <div
+                    className="no-print"
+                    style={{
+                      width: 'fit-content',
+                      padding: '4px 10px',
+                      borderRadius: 999,
+                      border: '1px solid #86efac',
+                      background: '#f0fdf4',
+                      color: '#166534',
+                      fontSize: 11,
+                      fontWeight: 950,
+                    }}
+                  >
+                    SELESAI / LOCKED
+                  </div>
+                )}
                 {statusChips.length > 0 && (
                   <div className="no-print" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     {statusChips.map((chip) => {
