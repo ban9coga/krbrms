@@ -383,6 +383,15 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
     await saveGlobalMotoOrder(next)
   }
 
+  const handleNormalizeMotoOrder = async () => {
+    if (globalMotoSequence.length === 0) return
+    const ok = window.confirm(
+      'Normalize Moto Order?\n\nNomor urut moto akan dirapikan menjadi 1, 2, 3, ... sesuai susunan yang sedang tampil di Moto Sequence.'
+    )
+    if (!ok) return
+    await saveGlobalMotoOrder(globalMotoSequence)
+  }
+
   const renderMotoRow = (moto: MotoItem, index: number, totalCount: number, opts?: { lockedSection?: boolean; labelPrefix?: string }) => {
     const lockedSection = opts?.lockedSection ?? false
     const labelPrefix = opts?.labelPrefix ?? 'Global'
@@ -637,21 +646,39 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
       <div style={{ marginBottom: '30px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
           <h1 style={{ margin: 0, fontSize: '28px', fontWeight: 900 }}>Global Moto Planner</h1>
-          <button
-            onClick={() => void loadData('refresh')}
-            disabled={loading || refreshing || savingSequence}
-            style={{
-              padding: '8px 16px',
-              borderRadius: '8px',
-              border: '1px solid #ddd',
-              background: '#fff',
-              cursor: loading || refreshing || savingSequence ? 'not-allowed' : 'pointer',
-              opacity: loading || refreshing || savingSequence ? 0.6 : 1,
-              fontWeight: 600,
-            }}
-          >
-            {savingSequence ? 'Saving Order...' : refreshing ? 'Refreshing...' : 'Refresh'}
-          </button>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end' }}>
+            <button
+              onClick={() => void handleNormalizeMotoOrder()}
+              disabled={loading || refreshing || savingSequence || globalMotoSequence.length === 0}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '8px',
+                border: '1px solid #16a34a',
+                background: '#dcfce7',
+                color: '#14532d',
+                cursor: loading || refreshing || savingSequence || globalMotoSequence.length === 0 ? 'not-allowed' : 'pointer',
+                opacity: loading || refreshing || savingSequence || globalMotoSequence.length === 0 ? 0.6 : 1,
+                fontWeight: 900,
+              }}
+            >
+              Normalize Order
+            </button>
+            <button
+              onClick={() => void loadData('refresh')}
+              disabled={loading || refreshing || savingSequence}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '8px',
+                border: '1px solid #ddd',
+                background: '#fff',
+                cursor: loading || refreshing || savingSequence ? 'not-allowed' : 'pointer',
+                opacity: loading || refreshing || savingSequence ? 0.6 : 1,
+                fontWeight: 600,
+              }}
+            >
+              {savingSequence ? 'Saving Order...' : refreshing ? 'Refreshing...' : 'Refresh'}
+            </button>
+          </div>
         </div>
         <p style={{ margin: 0, color: '#666', fontSize: '14px' }}>
           Atur semua moto lintas kategori dalam satu daftar global. Planner ini jadi acuan urutan moto yang akan LIVE.
