@@ -460,7 +460,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
 
 
   const business = eventMeta?.business_settings ?? null
-  const publicEventTitle = business?.public_event_title?.trim() || eventMeta?.name || 'Results Summary'
+  const publicEventTitle = business?.public_event_title?.trim() || eventMeta?.name || 'Rekap Hasil Akhir'
   const publicBrandName = business?.public_brand_name?.trim() || ''
   const operatingCommitteeLabel = business?.operating_committee_label?.trim() || business?.operating_committee_name?.trim() || ''
   const scoringSupportLabel = business?.scoring_support_label?.trim() || business?.scoring_support_name?.trim() || ''
@@ -549,6 +549,9 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
     <div style={{ maxWidth: 1020 }}>
       <h1 style={{ fontSize: 26, fontWeight: 950, margin: 0 }}>{publicEventTitle}</h1>
       <div style={{ marginTop: 8, color: '#333', fontWeight: 700 }}>
+        Rekap data final / hasil akhir dengan filter kategori, jenis rekap, batch/final, status, export CSV, dan print PDF.
+      </div>
+      <div style={{ display: 'none' }}>
         {publicBrandName || 'Results Summary'} • Ringkasan hasil per kategori + export CSV / print PDF.
       </div>
       {(operatingCommitteeLabel || scoringSupportLabel) && (
@@ -579,15 +582,15 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
             }}
             style={{ padding: '8px 12px', borderRadius: 10, border: '2px solid #111', fontWeight: 800 }}
           >
-            <option value="QUALIFICATION">Qualification / Batch</option>
-            <option value="STAGES">Final / Advanced Stage</option>
+            <option value="QUALIFICATION">Kualifikasi / Batch</option>
+            <option value="STAGES">Final / Stage Lanjutan</option>
           </select>
           <select
             value={batchFilter}
             onChange={(e) => setBatchFilter(e.target.value as typeof batchFilter)}
             style={{ padding: '8px 12px', borderRadius: 10, border: '2px solid #111', fontWeight: 800 }}
           >
-            <option value="ALL">{resultView === 'QUALIFICATION' ? 'All Batches' : 'All Finals / Stages'}</option>
+            <option value="ALL">{resultView === 'QUALIFICATION' ? 'Semua Batch' : 'Semua Final / Stage'}</option>
             {resultView === 'QUALIFICATION'
               ? batches.map((b) => (
                   <option key={b.batch_index} value={String(b.batch_index)}>
@@ -605,8 +608,8 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
             onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
             style={{ padding: '8px 12px', borderRadius: 10, border: '2px solid #111', fontWeight: 800 }}
           >
-            <option value="ALL">All Status</option>
-            <option value="FINISHED">FINISHED</option>
+            <option value="ALL">Semua Status</option>
+            <option value="FINISHED">FINISH</option>
             <option value="DNF">DNF</option>
             <option value="DNS">DNS</option>
             <option value="DQ">DQ</option>
@@ -651,7 +654,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
               cursor: 'pointer',
             }}
           >
-            Export per Batch
+            Export per Batch/Final
           </button>
           <button
             type="button"
@@ -687,7 +690,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
             <div style={{ fontSize: 18 }}>{summary.total}</div>
           </div>
           <div style={{ padding: 10, borderRadius: 12, border: '2px solid #111', background: '#fff', fontWeight: 900 }}>
-            Avg Total Point
+            Rata-rata Point
             <div style={{ fontSize: 18 }}>{summary.avg.toFixed(2)}</div>
           </div>
           <div style={{ padding: 10, borderRadius: 12, border: '2px solid #111', background: '#fff', fontWeight: 900 }}>

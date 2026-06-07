@@ -34,7 +34,7 @@ const EVENT_NAV = (eventId: string): NavItem[] => [
   { label: 'Advanced Multi-Stage', href: `/admin/events/${eventId}/advanced-race`, icon: 'advanced' },
   { label: 'Final Class Rules', href: `/admin/events/${eventId}/custom-final-split`, icon: 'customSplit' },
   { label: 'Race Schedule', href: `/admin/events/${eventId}/schedule`, icon: 'schedule' },
-  { label: 'Results Summary', href: `/admin/events/${eventId}/results`, icon: 'results' },
+  { label: 'Rekap Hasil Akhir', href: `/admin/events/${eventId}/results`, icon: 'results' },
   { label: 'Penalties', href: `/admin/events/${eventId}/penalties`, icon: 'penalties' },
   { label: 'Event Settings', href: `/admin/events/${eventId}/settings`, icon: 'settings' },
 ]
