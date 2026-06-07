@@ -1,7 +1,7 @@
 'use client'
 
 import Image from 'next/image'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import * as XLSX from 'xlsx'
 import ResultStoryCard, {
   generateResultStoryCardPngBlob,
@@ -63,6 +63,8 @@ type StageGroup = {
   rows: StageRow[]
 }
 
+type SectionFilter = 'ALL' | 'FINALS' | 'ADVANCED' | string
+
 type CategoryRecap = {
   category: CategoryItem
   stages: StageGroup[]
@@ -84,6 +86,8 @@ type PenaltyRow = {
   created_at: string | null
 }
 
+const isFinalStage = (stage: StageGroup) => stage.title.trim().toLowerCase().startsWith('final')
+
 export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
   const [categories, setCategories] = useState<CategoryItem[]>([])
   const [eventMeta, setEventMeta] = useState<EventMeta | null>(null)
@@ -93,7 +97,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'FINISHED' | 'DNF' | 'DNS' | 'DQ'>('ALL')
-  const [sectionFilter, setSectionFilter] = useState<'ALL' | string>('ALL')
+  const [sectionFilter, setSectionFilter] = useState<SectionFilter>('ALL')
   const [resultView] = useState<'QUALIFICATION' | 'STAGES'>('STAGES')
   const [recapCategories, setRecapCategories] = useState<CategoryRecap[]>([])
   const [penaltyMap, setPenaltyMap] = useState<Record<string, PenaltyRow[]>>({})
@@ -194,7 +198,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
         const valid =
           resultView === 'QUALIFICATION'
             ? next.some((b) => String(b.batch_index) === sectionFilter)
-            : nextStages.some((stage) => stage.moto_id === sectionFilter)
+            : sectionFilter === 'FINALS' || sectionFilter === 'ADVANCED' || nextStages.some((stage) => stage.moto_id === sectionFilter)
         if (!valid) setSectionFilter('ALL')
       }
     } catch (err: unknown) {
@@ -276,11 +280,18 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
     return name
   }
 
+  const matchesSectionFilter = useCallback((stage: StageGroup) => {
+    if (sectionFilter === 'ALL') return true
+    if (sectionFilter === 'FINALS') return isFinalStage(stage)
+    if (sectionFilter === 'ADVANCED') return !isFinalStage(stage)
+    return stage.moto_id === sectionFilter
+  }, [sectionFilter])
+
   const exportFinalXlsx = () => {
     const selectedGroups = recapCategories
       .map((group) => ({
         ...group,
-        stages: group.stages.filter((stage) => sectionFilter === 'ALL' || stage.moto_id === sectionFilter),
+        stages: group.stages.filter(matchesSectionFilter),
       }))
       .filter((group) => group.stages.length > 0)
 
@@ -379,7 +390,9 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
   )
   const recapTypeLabel = resultView === 'QUALIFICATION' ? 'Kualifikasi / Batch' : 'Final / Stage Lanjutan'
   const sectionLabel = useMemo(() => {
-    if (sectionFilter === 'ALL') return resultView === 'QUALIFICATION' ? 'Semua Batch' : 'Semua Final / Stage'
+    if (sectionFilter === 'ALL') return resultView === 'QUALIFICATION' ? 'Semua Batch' : 'Semua Final + Stage'
+    if (sectionFilter === 'FINALS') return 'Semua Final'
+    if (sectionFilter === 'ADVANCED') return 'Semua Stage Lanjutan'
     if (selectedCategory === 'ALL_CATEGORIES') return 'Final / Stage Terpilih'
     if (resultView === 'QUALIFICATION') return `Batch ${sectionFilter}`
     return stages.find((stage) => stage.moto_id === sectionFilter)?.title ?? 'Final / Stage'
@@ -499,9 +512,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
       const rows =
         sectionFilter === 'ALL'
           ? recapCategories.flatMap((group) => group.stages.flatMap((stage) => stage.rows))
-          : recapCategories.flatMap((group) =>
-              group.stages.filter((stage) => stage.moto_id === sectionFilter).flatMap((stage) => stage.rows)
-            )
+          : recapCategories.flatMap((group) => group.stages.filter(matchesSectionFilter).flatMap((stage) => stage.rows))
       const filtered = statusFilter === 'ALL'
         ? rows
         : rows.filter((r) => (statusFilter === 'FINISHED' ? r.status === 'FINISH' : r.status === statusFilter))
@@ -537,7 +548,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
       .sort((a, b) => (a.total_point ?? 9999) - (b.total_point ?? 9999))
       .slice(0, 3)
     return { total, avg, top }
-  }, [sectionFilter, batches, recapCategories, resultView, statusFilter])
+  }, [sectionFilter, batches, matchesSectionFilter, recapCategories, resultView, statusFilter])
 
   return (
     <div className="results-root" style={{ maxWidth: 1020 }}>
@@ -616,7 +627,9 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
             onChange={(e) => setSectionFilter(e.target.value as typeof sectionFilter)}
             style={{ padding: '8px 12px', borderRadius: 10, border: '2px solid #111', fontWeight: 800 }}
           >
-            <option value="ALL">Semua Final / Stage</option>
+            <option value="ALL">Semua Final + Stage</option>
+            <option value="FINALS">Semua Final</option>
+            <option value="ADVANCED">Semua Stage Lanjutan</option>
             {selectedCategory !== 'ALL_CATEGORIES' &&
               stages.map((stage) => (
                 <option key={stage.moto_id} value={stage.moto_id}>
@@ -737,7 +750,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
         )}
 
         {resultView === 'STAGES' && recapCategories.map((group) => {
-          const visibleStages = group.stages.filter((stage) => sectionFilter === 'ALL' || stage.moto_id === sectionFilter)
+          const visibleStages = group.stages.filter(matchesSectionFilter)
           if (visibleStages.length === 0) return null
           return (
             <div key={group.category.id} style={{ display: 'grid', gap: 12 }}>
@@ -881,7 +894,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
         </div>
 
         {recapCategories.map((group) => {
-          const visibleStages = group.stages.filter((stage) => sectionFilter === 'ALL' || stage.moto_id === sectionFilter)
+          const visibleStages = group.stages.filter(matchesSectionFilter)
           if (visibleStages.length === 0) return null
           return (
             <section key={`print-${group.category.id}`} className="print-category-section">
