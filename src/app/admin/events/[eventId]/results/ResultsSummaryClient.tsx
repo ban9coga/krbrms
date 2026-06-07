@@ -63,6 +63,11 @@ type StageGroup = {
   rows: StageRow[]
 }
 
+type CategoryRecap = {
+  category: CategoryItem
+  stages: StageGroup[]
+}
+
 type EventMeta = {
   name: string
   location?: string | null
@@ -90,6 +95,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'FINISHED' | 'DNF' | 'DNS' | 'DQ'>('ALL')
   const [sectionFilter, setSectionFilter] = useState<'ALL' | string>('ALL')
   const [resultView] = useState<'QUALIFICATION' | 'STAGES'>('STAGES')
+  const [recapCategories, setRecapCategories] = useState<CategoryRecap[]>([])
   const [penaltyMap, setPenaltyMap] = useState<Record<string, PenaltyRow[]>>({})
   const [storyData, setStoryData] = useState<ResultStoryCardData | null>(null)
   const [storyDownloading, setStoryDownloading] = useState(false)
@@ -129,20 +135,13 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
     }
   }
 
-  const loadSummary = async (categoryId: string) => {
-    if (!categoryId) return
-    setLoading(true)
-    setErrorMsg(null)
-    try {
-      const { res, json } = await apiFetch(
-        `/api/admin/events/${eventId}/final-recap?category_id=${encodeURIComponent(categoryId)}`
-      )
-      if (!res.ok) {
-        setErrorMsg(json?.error || 'Gagal memuat summary.')
-        setBatches([])
-        setStages([])
-        return
-      }
+  const fetchSummary = async (categoryId: string) => {
+    const { res, json } = await apiFetch(
+      `/api/admin/events/${eventId}/final-recap?category_id=${encodeURIComponent(categoryId)}`
+    )
+    if (!res.ok) {
+      throw new Error(json?.error || 'Gagal memuat summary.')
+    }
       const data = json.data ?? {}
       const rawBatches = (data.batches ?? []) as Array<{ batch_index: number; rows: SummaryRow[] }>
       const rawStages = (data.stages ?? []) as StageGroup[]
@@ -161,8 +160,35 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
           return (a.gate ?? 9999) - (b.gate ?? 9999)
         }),
       }))
+    return { batches: next, stages: nextStages }
+  }
+
+  const loadSummary = async (categoryId: string) => {
+    if (!categoryId) return
+    setLoading(true)
+    setErrorMsg(null)
+    try {
+      if (categoryId === 'ALL_CATEGORIES') {
+        const groups: CategoryRecap[] = []
+        for (const category of categories) {
+          const summary = await fetchSummary(category.id)
+          groups.push({ category, stages: summary.stages })
+        }
+        setBatches([])
+        setStages(groups.flatMap((group) => group.stages))
+        setRecapCategories(groups)
+        await loadPenalties([], groups.flatMap((group) => group.stages))
+        setSectionFilter('ALL')
+        return
+      }
+
+      const summary = await fetchSummary(categoryId)
+      const category = categories.find((item) => item.id === categoryId)
+      const next = summary.batches
+      const nextStages = summary.stages
       setBatches(next)
       setStages(nextStages)
+      setRecapCategories(category ? [{ category, stages: nextStages }] : [])
       await loadPenalties(next, nextStages)
       if (sectionFilter !== 'ALL') {
         const valid =
@@ -171,10 +197,11 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
             : nextStages.some((stage) => stage.moto_id === sectionFilter)
         if (!valid) setSectionFilter('ALL')
       }
-    } catch {
-      setErrorMsg('Gagal memuat summary.')
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : 'Gagal memuat summary.')
       setBatches([])
       setStages([])
+      setRecapCategories([])
     } finally {
       setLoading(false)
     }
@@ -237,54 +264,74 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
     const cleaned = value.replace(/[:\\/?*[\]]/g, ' ').replace(/\s+/g, ' ').trim()
     return (cleaned || fallback).slice(0, 31)
   }
+  const uniqueSheetName = (workbook: XLSX.WorkBook, value: string, fallback: string) => {
+    const base = sanitizeSheetName(value, fallback).slice(0, 28)
+    let name = base
+    let counter = 2
+    while (workbook.SheetNames.includes(name)) {
+      const suffix = ` ${counter}`
+      name = `${base.slice(0, 31 - suffix.length)}${suffix}`
+      counter += 1
+    }
+    return name
+  }
 
   const exportFinalXlsx = () => {
-    const selectedStages = stages.filter((stage) => sectionFilter === 'ALL' || stage.moto_id === sectionFilter)
-    if (selectedStages.length === 0) {
+    const selectedGroups = recapCategories
+      .map((group) => ({
+        ...group,
+        stages: group.stages.filter((stage) => sectionFilter === 'ALL' || stage.moto_id === sectionFilter),
+      }))
+      .filter((group) => group.stages.length > 0)
+
+    if (selectedGroups.length === 0) {
       alert('Tidak ada hasil final/stage untuk diexport.')
       return
     }
 
     const workbook = XLSX.utils.book_new()
     let sheetCount = 0
-    selectedStages.forEach((stage) => {
-      const rows = statusFilter === 'ALL'
-        ? stage.rows
-        : stage.rows.filter((r) => (statusFilter === 'FINISHED' ? r.status === 'FINISH' : r.status === statusFilter))
-      if (rows.length === 0) return
+    selectedGroups.forEach((group) => {
+      group.stages.forEach((stage) => {
+        const rows = statusFilter === 'ALL'
+          ? stage.rows
+          : stage.rows.filter((r) => (statusFilter === 'FINISHED' ? r.status === 'FINISH' : r.status === statusFilter))
+        if (rows.length === 0) return
 
-      const sheetRows = [
-        ['Event', publicEventTitle],
-        ['Kategori', categoryLabel],
-        ['Final / Stage', stage.title],
-        ['Lokasi', eventMeta?.location ?? '-'],
-        ['Tanggal', eventMeta?.event_date ?? '-'],
-        [],
-        ['Gate', 'Nama Peserta', 'No Plat', 'Komunitas', 'Point', 'Penalty', 'Rank', 'Status'],
-        ...rows.map((row) => [
-          row.gate ?? '',
-          row.name ?? '',
-          row.no_plate ?? '',
-          row.club ?? '',
-          row.point ?? '',
-          row.penalty_total ?? 0,
-          row.rank ?? '',
-          row.status === 'FINISH' ? 'FINISHED' : row.status ?? '',
-        ]),
-      ]
-      const worksheet = XLSX.utils.aoa_to_sheet(sheetRows)
-      worksheet['!cols'] = [
-        { wch: 8 },
-        { wch: 32 },
-        { wch: 12 },
-        { wch: 28 },
-        { wch: 10 },
-        { wch: 10 },
-        { wch: 8 },
-        { wch: 14 },
-      ]
-      XLSX.utils.book_append_sheet(workbook, worksheet, sanitizeSheetName(stage.title, `Final ${sheetCount + 1}`))
-      sheetCount += 1
+        const sheetRows = [
+          ['Event', publicEventTitle],
+          ['Kategori', group.category.label],
+          ['Final / Stage', stage.title],
+          ['Lokasi', eventMeta?.location ?? '-'],
+          ['Tanggal', eventMeta?.event_date ?? '-'],
+          [],
+          ['Gate', 'Nama Peserta', 'No Plat', 'Komunitas', 'Point', 'Penalty', 'Rank', 'Status'],
+          ...rows.map((row) => [
+            row.gate ?? '',
+            row.name ?? '',
+            row.no_plate ?? '',
+            row.club ?? '',
+            row.point ?? '',
+            row.penalty_total ?? 0,
+            row.rank ?? '',
+            row.status === 'FINISH' ? 'FINISHED' : row.status ?? '',
+          ]),
+        ]
+        const worksheet = XLSX.utils.aoa_to_sheet(sheetRows)
+        worksheet['!cols'] = [
+          { wch: 8 },
+          { wch: 32 },
+          { wch: 12 },
+          { wch: 28 },
+          { wch: 10 },
+          { wch: 10 },
+          { wch: 8 },
+          { wch: 14 },
+        ]
+        const sheetName = uniqueSheetName(workbook, `${group.category.label} ${stage.title}`, `Final ${sheetCount + 1}`)
+        XLSX.utils.book_append_sheet(workbook, worksheet, sheetName)
+        sheetCount += 1
+      })
     })
 
     if (sheetCount === 0) {
@@ -327,15 +374,16 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
   const eventLogoUrl = eventMeta?.event_logo_url ?? null
 
   const categoryLabel = useMemo(
-    () => categories.find((c) => c.id === selectedCategory)?.label ?? 'Category',
+    () => selectedCategory === 'ALL_CATEGORIES' ? 'Semua Kategori' : categories.find((c) => c.id === selectedCategory)?.label ?? 'Category',
     [categories, selectedCategory]
   )
   const recapTypeLabel = resultView === 'QUALIFICATION' ? 'Kualifikasi / Batch' : 'Final / Stage Lanjutan'
   const sectionLabel = useMemo(() => {
     if (sectionFilter === 'ALL') return resultView === 'QUALIFICATION' ? 'Semua Batch' : 'Semua Final / Stage'
+    if (selectedCategory === 'ALL_CATEGORIES') return 'Final / Stage Terpilih'
     if (resultView === 'QUALIFICATION') return `Batch ${sectionFilter}`
     return stages.find((stage) => stage.moto_id === sectionFilter)?.title ?? 'Final / Stage'
-  }, [sectionFilter, resultView, stages])
+  }, [sectionFilter, resultView, selectedCategory, stages])
 
   const createStoryData = (row: SummaryRow): ResultStoryCardData => ({
     eventTitle: publicEventTitle,
@@ -369,12 +417,91 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
     scoringSupportLabel: scoringSupportLabel || null,
   })
 
+  const renderStageTable = (stage: StageGroup) => {
+    const rows = statusFilter === 'ALL'
+      ? stage.rows
+      : stage.rows.filter((r) => (statusFilter === 'FINISHED' ? r.status === 'FINISH' : r.status === statusFilter))
+    if (rows.length === 0) return null
+
+    return (
+      <div key={stage.moto_id} style={{ border: '2px solid #111', borderRadius: 14, background: '#fff' }}>
+        <div style={{ padding: '10px 12px', borderBottom: '2px solid #111', fontWeight: 900 }}>
+          {stage.title}
+        </div>
+        <div className="table-mobile-hint" style={{ margin: '8px 12px 0 12px' }}>
+          Geser kiri/kanan untuk lihat semua kolom.
+        </div>
+        <div className="table-scroll-x" style={{ overscrollBehaviorX: 'contain', WebkitOverflowScrolling: 'touch' }}>
+          <table className="table-striped" style={{ width: '100%', borderCollapse: 'collapse', minWidth: 760 }}>
+            <thead>
+              <tr style={{ background: '#f5f5f5', textAlign: 'left' }}>
+                {['Rank', 'Gate', 'Nama', 'No Plat', 'Komunitas', 'Point', 'Penalty', 'Status', 'Story'].map((h) => (
+                  <th key={h} style={{ padding: 8, borderBottom: '2px solid #111', fontWeight: 900 }}>
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={`${stage.moto_id}-${row.rider_id}`} style={{ borderBottom: '1px solid #ddd' }}>
+                  <td style={{ padding: 8 }}>{row.rank ?? '-'}</td>
+                  <td style={{ padding: 8 }}>{row.gate ?? '-'}</td>
+                  <td style={{ padding: 8, fontWeight: 800 }}>{row.name}</td>
+                  <td style={{ padding: 8 }}>{row.no_plate}</td>
+                  <td style={{ padding: 8 }}>{row.club ?? '-'}</td>
+                  <td style={{ padding: 8, fontWeight: 900 }}>{row.point ?? '-'}</td>
+                  <td style={{ padding: 8 }}>
+                    {row.penalty_total ?? '-'}
+                    {penaltyMap[row.rider_id]?.length ? (
+                      <details style={{ marginTop: 4 }}>
+                        <summary style={{ cursor: 'pointer', fontWeight: 800 }}>Detail</summary>
+                        <div style={{ display: 'grid', gap: 4, paddingTop: 4 }}>
+                          {penaltyMap[row.rider_id].map((p, idx) => (
+                            <div key={`${row.rider_id}-${idx}`} style={{ fontSize: 12 }}>
+                              {p.rule_code ?? 'RULE'} | {p.penalty_point ?? 0} | {p.approval_status ?? '-'}
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    ) : null}
+                  </td>
+                  <td style={{ padding: 8 }}>{row.status === 'FINISH' ? 'FINISHED' : row.status}</td>
+                  <td style={{ padding: 8 }}>
+                    <button
+                      type="button"
+                      onClick={() => setStoryData(createStageStoryData(row, stage.title))}
+                      style={{
+                        padding: '8px 10px',
+                        borderRadius: 10,
+                        border: '2px solid #111',
+                        background: '#fbbf24',
+                        color: '#111',
+                        fontWeight: 900,
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      Preview
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    )
+  }
+
   const summary = useMemo(() => {
     if (resultView === 'STAGES') {
       const rows =
         sectionFilter === 'ALL'
-          ? stages.flatMap((stage) => stage.rows)
-          : stages.find((stage) => stage.moto_id === sectionFilter)?.rows ?? []
+          ? recapCategories.flatMap((group) => group.stages.flatMap((stage) => stage.rows))
+          : recapCategories.flatMap((group) =>
+              group.stages.filter((stage) => stage.moto_id === sectionFilter).flatMap((stage) => stage.rows)
+            )
       const filtered = statusFilter === 'ALL'
         ? rows
         : rows.filter((r) => (statusFilter === 'FINISHED' ? r.status === 'FINISH' : r.status === statusFilter))
@@ -410,7 +537,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
       .sort((a, b) => (a.total_point ?? 9999) - (b.total_point ?? 9999))
       .slice(0, 3)
     return { total, avg, top }
-  }, [sectionFilter, batches, resultView, stages, statusFilter])
+  }, [sectionFilter, batches, recapCategories, resultView, statusFilter])
 
   return (
     <div style={{ maxWidth: 1020 }}>
@@ -471,9 +598,13 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }} className="no-print">
           <select
             value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
+            onChange={(e) => {
+              setSelectedCategory(e.target.value)
+              setSectionFilter('ALL')
+            }}
             style={{ padding: '8px 12px', borderRadius: 10, border: '2px solid #111', fontWeight: 800 }}
           >
+            <option value="ALL_CATEGORIES">Semua Kategori</option>
             {categories.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.label}
@@ -486,11 +617,12 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
             style={{ padding: '8px 12px', borderRadius: 10, border: '2px solid #111', fontWeight: 800 }}
           >
             <option value="ALL">Semua Final / Stage</option>
-            {stages.map((stage) => (
-              <option key={stage.moto_id} value={stage.moto_id}>
-                {stage.title}
-              </option>
-            ))}
+            {selectedCategory !== 'ALL_CATEGORIES' &&
+              stages.map((stage) => (
+                <option key={stage.moto_id} value={stage.moto_id}>
+                  {stage.title}
+                </option>
+              ))}
           </select>
           <select
             value={statusFilter}
@@ -598,85 +730,21 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
             Belum ada hasil.
           </div>
         )}
-        {!loading && !errorMsg && resultView === 'STAGES' && stages.length === 0 && (
+        {!loading && !errorMsg && resultView === 'STAGES' && recapCategories.every((group) => group.stages.length === 0) && (
           <div style={{ padding: 12, border: '2px dashed #111', borderRadius: 12, background: '#fff', fontWeight: 900 }}>
             Belum ada final / advanced stage.
           </div>
         )}
 
-        {resultView === 'STAGES' && stages.map((stage) => {
-          if (sectionFilter !== 'ALL' && stage.moto_id !== sectionFilter) return null
-          const rows = statusFilter === 'ALL'
-            ? stage.rows
-            : stage.rows.filter((r) => (statusFilter === 'FINISHED' ? r.status === 'FINISH' : r.status === statusFilter))
-          if (rows.length === 0) return null
+        {resultView === 'STAGES' && recapCategories.map((group) => {
+          const visibleStages = group.stages.filter((stage) => sectionFilter === 'ALL' || stage.moto_id === sectionFilter)
+          if (visibleStages.length === 0) return null
           return (
-            <div key={stage.moto_id} style={{ border: '2px solid #111', borderRadius: 14, background: '#fff' }}>
-              <div style={{ padding: '10px 12px', borderBottom: '2px solid #111', fontWeight: 900 }}>
-                {stage.title}
+            <div key={group.category.id} style={{ display: 'grid', gap: 12 }}>
+              <div style={{ padding: '10px 12px', border: '2px solid #111', borderRadius: 14, background: '#eef7ff', fontWeight: 950 }}>
+                Kategori: {group.category.label}
               </div>
-              <div className="table-mobile-hint" style={{ margin: '8px 12px 0 12px' }}>
-                Geser kiri/kanan untuk lihat semua kolom.
-              </div>
-              <div className="table-scroll-x" style={{ overscrollBehaviorX: 'contain', WebkitOverflowScrolling: 'touch' }}>
-                <table className="table-striped" style={{ width: '100%', borderCollapse: 'collapse', minWidth: 760 }}>
-                  <thead>
-                    <tr style={{ background: '#f5f5f5', textAlign: 'left' }}>
-                      {['Rank', 'Gate', 'Nama', 'No Plat', 'Komunitas', 'Point', 'Penalty', 'Status', 'Story'].map((h) => (
-                        <th key={h} style={{ padding: 8, borderBottom: '2px solid #111', fontWeight: 900 }}>
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((row) => (
-                      <tr key={`${stage.moto_id}-${row.rider_id}`} style={{ borderBottom: '1px solid #ddd' }}>
-                        <td style={{ padding: 8 }}>{row.rank ?? '-'}</td>
-                        <td style={{ padding: 8 }}>{row.gate ?? '-'}</td>
-                        <td style={{ padding: 8, fontWeight: 800 }}>{row.name}</td>
-                        <td style={{ padding: 8 }}>{row.no_plate}</td>
-                        <td style={{ padding: 8 }}>{row.club ?? '-'}</td>
-                        <td style={{ padding: 8, fontWeight: 900 }}>{row.point ?? '-'}</td>
-                        <td style={{ padding: 8 }}>
-                          {row.penalty_total ?? '-'}
-                          {penaltyMap[row.rider_id]?.length ? (
-                            <details style={{ marginTop: 4 }}>
-                              <summary style={{ cursor: 'pointer', fontWeight: 800 }}>Detail</summary>
-                              <div style={{ display: 'grid', gap: 4, paddingTop: 4 }}>
-                                {penaltyMap[row.rider_id].map((p, idx) => (
-                                  <div key={`${row.rider_id}-${idx}`} style={{ fontSize: 12 }}>
-                                    {p.rule_code ?? 'RULE'} · {p.penalty_point ?? 0} · {p.approval_status ?? '-'}
-                                  </div>
-                                ))}
-                              </div>
-                            </details>
-                          ) : null}
-                        </td>
-                        <td style={{ padding: 8 }}>{row.status === 'FINISH' ? 'FINISHED' : row.status}</td>
-                        <td style={{ padding: 8 }}>
-                          <button
-                            type="button"
-                            onClick={() => setStoryData(createStageStoryData(row, stage.title))}
-                            style={{
-                              padding: '8px 10px',
-                              borderRadius: 10,
-                              border: '2px solid #111',
-                              background: '#fbbf24',
-                              color: '#111',
-                              fontWeight: 900,
-                              cursor: 'pointer',
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            Preview
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              {visibleStages.map((stage) => renderStageTable(stage))}
             </div>
           )
         })}
