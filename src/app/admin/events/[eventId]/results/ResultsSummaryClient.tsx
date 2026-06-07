@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useEffect, useMemo, useState } from 'react'
 import ResultStoryCard, {
   generateResultStoryCardPngBlob,
@@ -86,7 +87,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'FINISHED' | 'DNF' | 'DNS' | 'DQ'>('ALL')
-  const [batchFilter, setBatchFilter] = useState<'ALL' | string>('ALL')
+  const [sectionFilter, setSectionFilter] = useState<'ALL' | string>('ALL')
   const [resultView, setResultView] = useState<'QUALIFICATION' | 'STAGES'>('QUALIFICATION')
   const [penaltyMap, setPenaltyMap] = useState<Record<string, PenaltyRow[]>>({})
   const [storyData, setStoryData] = useState<ResultStoryCardData | null>(null)
@@ -99,6 +100,14 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
     const json = await res.json().catch(() => ({}))
     return { res, json }
   }
+
+  const csvCell = (value: unknown) => {
+    if (value === null || value === undefined) return ''
+    const text = String(value)
+    return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
+  }
+
+  const csvRow = (values: unknown[]) => values.map(csvCell).join(',')
 
   const loadEventMeta = async () => {
     try {
@@ -133,7 +142,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
     setErrorMsg(null)
     try {
       const { res, json } = await apiFetch(
-        `/api/public/events/${eventId}/live-score?category_id=${encodeURIComponent(categoryId)}`
+        `/api/admin/events/${eventId}/final-recap?category_id=${encodeURIComponent(categoryId)}`
       )
       if (!res.ok) {
         setErrorMsg(json?.error || 'Gagal memuat summary.')
@@ -162,12 +171,12 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
       setBatches(next)
       setStages(nextStages)
       await loadPenalties(next, nextStages)
-      if (batchFilter !== 'ALL') {
+      if (sectionFilter !== 'ALL') {
         const valid =
           resultView === 'QUALIFICATION'
-            ? next.some((b) => String(b.batch_index) === batchFilter)
-            : nextStages.some((stage) => stage.moto_id === batchFilter)
-        if (!valid) setBatchFilter('ALL')
+            ? next.some((b) => String(b.batch_index) === sectionFilter)
+            : nextStages.some((stage) => stage.moto_id === sectionFilter)
+        if (!valid) setSectionFilter('ALL')
       }
     } catch {
       setErrorMsg('Gagal memuat summary.')
@@ -242,23 +251,23 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
       }
       const header = ['stage', 'rank', 'gate', 'name', 'no_plate', 'club', 'point', 'penalty', 'status']
       const csv = [
-        `# Event,${publicEventTitle}`,
-        `# Brand,${publicBrandName || '-'}`,
-        `# Category,${categoryLabel}`,
-        `# View,Final / Advanced Stage`,
-        header.join(','),
+        csvRow(['# Event', publicEventTitle]),
+        csvRow(['# Brand', publicBrandName || '-']),
+        csvRow(['# Category', categoryLabel]),
+        csvRow(['# View', 'Final / Advanced Stage']),
+        csvRow(header),
         ...filtered.map((r) =>
-          [
-            `"${r.stageTitle ?? ''}"`,
+          csvRow([
+            r.stageTitle ?? '',
             r.rank ?? '',
             r.gate ?? '',
-            `"${r.name ?? ''}"`,
-            `"${r.no_plate ?? ''}"`,
-            `"${r.club ?? ''}"`,
+            r.name ?? '',
+            r.no_plate ?? '',
+            r.club ?? '',
             r.point ?? '',
             r.penalty_total ?? 0,
             r.status ?? '',
-          ].join(',')
+          ])
         ),
       ].join('\n')
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
@@ -296,19 +305,19 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
       'status',
     ]
     const csv = [
-      `# Event,${publicEventTitle}`,
-      `# Brand,${publicBrandName || '-'}`,
-      `# Category,${categoryLabel}`,
-      `# Operator,${operatingCommitteeLabel || '-'}`,
-      `# Scoring,${scoringSupportLabel || '-'}`,
-      header.join(','),
+      csvRow(['# Event', publicEventTitle]),
+      csvRow(['# Brand', publicBrandName || '-']),
+      csvRow(['# Category', categoryLabel]),
+      csvRow(['# Operator', operatingCommitteeLabel || '-']),
+      csvRow(['# Scoring', scoringSupportLabel || '-']),
+      csvRow(header),
       ...filtered.map((r) =>
-        [
+        csvRow([
           r.batch_index,
           r.rank_point ?? '',
-          `"${r.name ?? ''}"`,
-          `"${r.no_plate ?? ''}"`,
-          `"${r.club ?? ''}"`,
+          r.name ?? '',
+          r.no_plate ?? '',
+          r.club ?? '',
           r.gate_moto1 ?? '',
           r.gate_moto2 ?? '',
           r.gate_moto3 ?? '',
@@ -319,7 +328,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
           r.total_point ?? '',
           r.class_label ?? '',
           r.status ?? '',
-        ].join(',')
+        ])
       ),
     ].join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
@@ -345,22 +354,22 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
         if (rows.length === 0) return
         const header = ['rank', 'gate', 'name', 'no_plate', 'club', 'point', 'penalty', 'status']
         const csv = [
-          `# Event,${publicEventTitle}`,
-          `# Brand,${publicBrandName || '-'}`,
-          `# Category,${categoryLabel}`,
-          `# Stage,${stage.title}`,
-          header.join(','),
+          csvRow(['# Event', publicEventTitle]),
+          csvRow(['# Brand', publicBrandName || '-']),
+          csvRow(['# Category', categoryLabel]),
+          csvRow(['# Stage', stage.title]),
+          csvRow(header),
           ...rows.map((r) =>
-            [
+            csvRow([
               r.rank ?? '',
               r.gate ?? '',
-              `"${r.name ?? ''}"`,
-              `"${r.no_plate ?? ''}"`,
-              `"${r.club ?? ''}"`,
+              r.name ?? '',
+              r.no_plate ?? '',
+              r.club ?? '',
               r.point ?? '',
               r.penalty_total ?? 0,
               r.status ?? '',
-            ].join(',')
+            ])
           ),
         ].join('\n')
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
@@ -402,20 +411,20 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
         : batch.rows.filter((r) => r.status === statusFilter)
       if (rows.length === 0) return
       const csv = [
-        `# Event,${publicEventTitle}`,
-        `# Brand,${publicBrandName || '-'}`,
-        `# Category,${categoryLabel}`,
-        `# Batch,${batch.batch_index}`,
-        `# Operator,${operatingCommitteeLabel || '-'}`,
-        `# Scoring,${scoringSupportLabel || '-'}`,
-        header.join(','),
+        csvRow(['# Event', publicEventTitle]),
+        csvRow(['# Brand', publicBrandName || '-']),
+        csvRow(['# Category', categoryLabel]),
+        csvRow(['# Batch', batch.batch_index]),
+        csvRow(['# Operator', operatingCommitteeLabel || '-']),
+        csvRow(['# Scoring', scoringSupportLabel || '-']),
+        csvRow(header),
         ...rows.map((r) =>
-          [
+          csvRow([
             r.batch_index,
             r.rank_point ?? '',
-            `"${r.name ?? ''}"`,
-            `"${r.no_plate ?? ''}"`,
-            `"${r.club ?? ''}"`,
+            r.name ?? '',
+            r.no_plate ?? '',
+            r.club ?? '',
             r.gate_moto1 ?? '',
             r.gate_moto2 ?? '',
             r.gate_moto3 ?? '',
@@ -426,7 +435,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
             r.total_point ?? '',
             r.class_label ?? '',
             r.status ?? '',
-          ].join(',')
+          ])
         ),
       ].join('\n')
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
@@ -464,11 +473,18 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
   const publicBrandName = business?.public_brand_name?.trim() || ''
   const operatingCommitteeLabel = business?.operating_committee_label?.trim() || business?.operating_committee_name?.trim() || ''
   const scoringSupportLabel = business?.scoring_support_label?.trim() || business?.scoring_support_name?.trim() || ''
+  const eventLogoUrl = eventMeta?.event_logo_url ?? null
 
   const categoryLabel = useMemo(
     () => categories.find((c) => c.id === selectedCategory)?.label ?? 'Category',
     [categories, selectedCategory]
   )
+  const recapTypeLabel = resultView === 'QUALIFICATION' ? 'Kualifikasi / Batch' : 'Final / Stage Lanjutan'
+  const sectionLabel = useMemo(() => {
+    if (sectionFilter === 'ALL') return resultView === 'QUALIFICATION' ? 'Semua Batch' : 'Semua Final / Stage'
+    if (resultView === 'QUALIFICATION') return `Batch ${sectionFilter}`
+    return stages.find((stage) => stage.moto_id === sectionFilter)?.title ?? 'Final / Stage'
+  }, [sectionFilter, resultView, stages])
 
   const createStoryData = (row: SummaryRow): ResultStoryCardData => ({
     eventTitle: publicEventTitle,
@@ -505,9 +521,9 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
   const summary = useMemo(() => {
     if (resultView === 'STAGES') {
       const rows =
-        batchFilter === 'ALL'
+        sectionFilter === 'ALL'
           ? stages.flatMap((stage) => stage.rows)
-          : stages.find((stage) => stage.moto_id === batchFilter)?.rows ?? []
+          : stages.find((stage) => stage.moto_id === sectionFilter)?.rows ?? []
       const filtered = statusFilter === 'ALL'
         ? rows
         : rows.filter((r) => (statusFilter === 'FINISHED' ? r.status === 'FINISH' : r.status === statusFilter))
@@ -522,9 +538,9 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
     }
 
     const rows =
-      batchFilter === 'ALL'
+      sectionFilter === 'ALL'
         ? batches.flatMap((b) => b.rows)
-        : batches.find((b) => String(b.batch_index) === batchFilter)?.rows ?? []
+        : batches.find((b) => String(b.batch_index) === sectionFilter)?.rows ?? []
     const filtered = statusFilter === 'ALL' ? rows : rows.filter((r) => r.status === statusFilter)
     if (filtered.length === 0) {
       return {
@@ -543,16 +559,55 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
       .sort((a, b) => (a.total_point ?? 9999) - (b.total_point ?? 9999))
       .slice(0, 3)
     return { total, avg, top }
-  }, [batchFilter, batches, resultView, stages, statusFilter])
+  }, [sectionFilter, batches, resultView, stages, statusFilter])
 
   return (
     <div style={{ maxWidth: 1020 }}>
-      <h1 style={{ fontSize: 26, fontWeight: 950, margin: 0 }}>{publicEventTitle}</h1>
-      <div style={{ marginTop: 8, color: '#333', fontWeight: 700 }}>
-        Rekap data final / hasil akhir dengan filter kategori, jenis rekap, batch/final, status, export CSV, dan print PDF.
-      </div>
-      <div style={{ display: 'none' }}>
-        {publicBrandName || 'Results Summary'} • Ringkasan hasil per kategori + export CSV / print PDF.
+      <div
+        className="results-print-header"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: eventLogoUrl ? '96px 1fr' : '1fr',
+          gap: 16,
+          alignItems: 'center',
+          padding: 16,
+          borderRadius: 18,
+          border: '2px solid #111',
+          background: '#fff',
+        }}
+      >
+        {eventLogoUrl && (
+          <div
+            style={{
+              position: 'relative',
+              width: 96,
+              height: 96,
+              borderRadius: 14,
+              border: '1px solid #cbd5e1',
+              background: '#f8fafc',
+              overflow: 'hidden',
+            }}
+          >
+            <Image src={eventLogoUrl} alt="Logo acara" fill sizes="96px" style={{ objectFit: 'contain' }} />
+          </div>
+        )}
+        <div style={{ display: 'grid', gap: 6 }}>
+          <div style={{ fontSize: 12, fontWeight: 950, letterSpacing: '0.12em', color: '#475569', textTransform: 'uppercase' }}>
+            Rekap Hasil Akhir
+          </div>
+          <h1 style={{ fontSize: 26, fontWeight: 950, margin: 0 }}>{publicEventTitle}</h1>
+          {publicBrandName && <div style={{ fontWeight: 900 }}>{publicBrandName}</div>}
+          <div style={{ color: '#334155', fontWeight: 800 }}>
+            {eventMeta?.location ?? '-'}
+            {eventMeta?.event_date ? ` | ${eventMeta.event_date}` : ''}
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 12, fontWeight: 900 }}>
+            <span>Kategori: {categoryLabel}</span>
+            <span>Tipe Rekap: {recapTypeLabel}</span>
+            <span>Filter: {sectionLabel}</span>
+            <span>Status: {statusFilter === 'ALL' ? 'Semua Status' : statusFilter === 'FINISHED' ? 'FINISH' : statusFilter}</span>
+          </div>
+        </div>
       </div>
       {(operatingCommitteeLabel || scoringSupportLabel) && (
         <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -578,7 +633,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
             value={resultView}
             onChange={(e) => {
               setResultView(e.target.value as typeof resultView)
-              setBatchFilter('ALL')
+              setSectionFilter('ALL')
             }}
             style={{ padding: '8px 12px', borderRadius: 10, border: '2px solid #111', fontWeight: 800 }}
           >
@@ -586,8 +641,8 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
             <option value="STAGES">Final / Stage Lanjutan</option>
           </select>
           <select
-            value={batchFilter}
-            onChange={(e) => setBatchFilter(e.target.value as typeof batchFilter)}
+            value={sectionFilter}
+            onChange={(e) => setSectionFilter(e.target.value as typeof sectionFilter)}
             style={{ padding: '8px 12px', borderRadius: 10, border: '2px solid #111', fontWeight: 800 }}
           >
             <option value="ALL">{resultView === 'QUALIFICATION' ? 'Semua Batch' : 'Semua Final / Stage'}</option>
@@ -668,14 +723,14 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
               cursor: 'pointer',
             }}
           >
-            Print
+            Cetak PDF
           </button>
         </div>
 
         <div style={{ display: 'grid', gap: 4 }}>
           <div style={{ fontWeight: 900 }}>Kategori: {categoryLabel}</div>
           <div style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>
-            Print / Save as PDF akan memakai identitas event dan metadata operator/scoring ini.
+            Cetak PDF akan memakai logo, identitas event, dan metadata operator/scoring ini.
           </div>
         </div>
         <div
@@ -730,7 +785,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
         )}
 
         {resultView === 'STAGES' && stages.map((stage) => {
-          if (batchFilter !== 'ALL' && stage.moto_id !== batchFilter) return null
+          if (sectionFilter !== 'ALL' && stage.moto_id !== sectionFilter) return null
           const rows = statusFilter === 'ALL'
             ? stage.rows
             : stage.rows.filter((r) => (statusFilter === 'FINISHED' ? r.status === 'FINISH' : r.status === statusFilter))
@@ -807,7 +862,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
         })}
 
         {resultView === 'QUALIFICATION' && batches.map((batch) => {
-          if (batchFilter !== 'ALL' && String(batch.batch_index) !== batchFilter) return null
+          if (sectionFilter !== 'ALL' && String(batch.batch_index) !== sectionFilter) return null
           const rows = statusFilter === 'ALL'
             ? batch.rows
             : batch.rows.filter((r) => r.status === statusFilter)
@@ -1017,8 +1072,16 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
       )}
       <style>
         {`
+          .results-print-header {
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
           @media print {
             .no-print { display: none !important; }
+            .results-print-header {
+              margin-bottom: 14px !important;
+              border-color: #111 !important;
+            }
             html, body {
               background:
                 radial-gradient(circle at top left, rgba(251, 191, 36, 0.18), transparent 28%),
