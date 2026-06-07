@@ -540,7 +540,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
   }, [sectionFilter, batches, recapCategories, resultView, statusFilter])
 
   return (
-    <div style={{ maxWidth: 1020 }}>
+    <div className="results-root" style={{ maxWidth: 1020 }}>
       <div
         className="results-print-header"
         style={{
@@ -852,6 +852,83 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
           )
         })}
       </div>
+      <div className="print-document">
+        <div className={eventLogoUrl ? 'print-doc-header' : 'print-doc-header print-doc-header-no-logo'}>
+          {eventLogoUrl && (
+            <div className="print-doc-logo">
+              <Image src={eventLogoUrl} alt="Logo acara" fill sizes="80px" style={{ objectFit: 'contain' }} />
+            </div>
+          )}
+          <div>
+            <div className="print-doc-kicker">Rekap Hasil Akhir</div>
+            <div className="print-doc-title">{publicEventTitle}</div>
+            {publicBrandName && <div className="print-doc-brand">{publicBrandName}</div>}
+            <div className="print-doc-meta">
+              Lokasi: {eventMeta?.location ?? '-'} | Tanggal: {eventMeta?.event_date ?? '-'}
+            </div>
+            <div className="print-doc-meta">
+              Kategori: {categoryLabel} | Tipe Rekap: {recapTypeLabel} | Filter: {sectionLabel} | Status:{' '}
+              {statusFilter === 'ALL' ? 'Semua Status' : statusFilter === 'FINISHED' ? 'FINISH' : statusFilter}
+            </div>
+            {(operatingCommitteeLabel || scoringSupportLabel) && (
+              <div className="print-doc-meta">
+                {operatingCommitteeLabel ? `Operating Committee: ${operatingCommitteeLabel}` : ''}
+                {operatingCommitteeLabel && scoringSupportLabel ? ' | ' : ''}
+                {scoringSupportLabel ? `Scoring Support: ${scoringSupportLabel}` : ''}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {recapCategories.map((group) => {
+          const visibleStages = group.stages.filter((stage) => sectionFilter === 'ALL' || stage.moto_id === sectionFilter)
+          if (visibleStages.length === 0) return null
+          return (
+            <section key={`print-${group.category.id}`} className="print-category-section">
+              <h2>Kategori: {group.category.label}</h2>
+              {visibleStages.map((stage) => {
+                const rows = statusFilter === 'ALL'
+                  ? stage.rows
+                  : stage.rows.filter((row) => (statusFilter === 'FINISHED' ? row.status === 'FINISH' : row.status === statusFilter))
+                if (rows.length === 0) return null
+                return (
+                  <div key={`print-${stage.moto_id}`} className="print-stage-block">
+                    <h3>{stage.title}</h3>
+                    <table className="print-results-table">
+                      <thead>
+                        <tr>
+                          <th>Gate</th>
+                          <th>Nama Peserta</th>
+                          <th>No Plat</th>
+                          <th>Komunitas</th>
+                          <th>Point</th>
+                          <th>Penalty</th>
+                          <th>Rank</th>
+                          <th>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rows.map((row) => (
+                          <tr key={`print-${stage.moto_id}-${row.rider_id}`}>
+                            <td>{row.gate ?? '-'}</td>
+                            <td>{row.name}</td>
+                            <td>{row.no_plate}</td>
+                            <td>{row.club ?? '-'}</td>
+                            <td>{row.point ?? '-'}</td>
+                            <td>{row.penalty_total ?? '-'}</td>
+                            <td>{row.rank ?? '-'}</td>
+                            <td>{row.status === 'FINISH' ? 'FINISHED' : row.status}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )
+              })}
+            </section>
+          )
+        })}
+      </div>
       {storyData && (
         <div
           className="no-print"
@@ -964,11 +1041,140 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
             break-inside: avoid;
             page-break-inside: avoid;
           }
+          .print-document {
+            display: none;
+          }
           @media print {
+            .results-root > :not(.print-document) {
+              display: none !important;
+            }
+            .print-document {
+              display: block !important;
+              color: #111;
+              font-family: Arial, sans-serif;
+            }
             .no-print { display: none !important; }
             .results-print-header {
               margin-bottom: 14px !important;
               border-color: #111 !important;
+            }
+            .print-doc-header {
+              display: grid;
+              grid-template-columns: 88px 1fr;
+              gap: 14px;
+              align-items: center;
+              border-bottom: 3px solid #111;
+              padding-bottom: 10px;
+              margin-bottom: 14px;
+              break-inside: avoid;
+              page-break-inside: avoid;
+            }
+            .print-doc-header-no-logo {
+              grid-template-columns: 1fr;
+            }
+            .print-doc-logo {
+              position: relative;
+              width: 80px;
+              height: 80px;
+              border: 1px solid #111;
+              border-radius: 8px;
+              overflow: hidden;
+            }
+            .print-doc-kicker {
+              font-size: 10px;
+              font-weight: 900;
+              letter-spacing: 0.14em;
+              text-transform: uppercase;
+            }
+            .print-doc-title {
+              font-size: 22px;
+              font-weight: 950;
+              line-height: 1.05;
+            }
+            .print-doc-brand {
+              font-size: 13px;
+              font-weight: 900;
+              margin-top: 2px;
+            }
+            .print-doc-meta {
+              font-size: 10px;
+              font-weight: 700;
+              margin-top: 3px;
+            }
+            .print-category-section {
+              margin-top: 14px;
+              break-inside: auto;
+            }
+            .print-category-section h2 {
+              font-size: 15px;
+              margin: 0 0 8px;
+              padding: 6px 8px;
+              border: 2px solid #111;
+              background: #eaf4ff;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            .print-stage-block {
+              margin: 0 0 12px;
+              break-inside: avoid;
+              page-break-inside: avoid;
+            }
+            .print-stage-block h3 {
+              font-size: 13px;
+              margin: 0;
+              padding: 6px 8px;
+              border: 1px solid #111;
+              border-bottom: 0;
+              background: #f3f4f6;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            .print-results-table {
+              width: 100%;
+              border-collapse: collapse;
+              table-layout: fixed;
+              font-size: 9px;
+            }
+            .print-results-table th,
+            .print-results-table td {
+              border: 1px solid #111;
+              padding: 4px 5px;
+              vertical-align: top;
+              word-break: break-word;
+            }
+            .print-results-table th {
+              background: #e5e7eb;
+              font-weight: 900;
+              text-transform: uppercase;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            .print-results-table th:nth-child(1),
+            .print-results-table td:nth-child(1),
+            .print-results-table th:nth-child(5),
+            .print-results-table td:nth-child(5),
+            .print-results-table th:nth-child(6),
+            .print-results-table td:nth-child(6),
+            .print-results-table th:nth-child(7),
+            .print-results-table td:nth-child(7) {
+              width: 7%;
+              text-align: center;
+            }
+            .print-results-table th:nth-child(2),
+            .print-results-table td:nth-child(2) {
+              width: 28%;
+              font-weight: 800;
+            }
+            .print-results-table th:nth-child(3),
+            .print-results-table td:nth-child(3),
+            .print-results-table th:nth-child(8),
+            .print-results-table td:nth-child(8) {
+              width: 9%;
+              text-align: center;
+            }
+            .print-results-table th:nth-child(4),
+            .print-results-table td:nth-child(4) {
+              width: 26%;
             }
             html, body {
               background:
