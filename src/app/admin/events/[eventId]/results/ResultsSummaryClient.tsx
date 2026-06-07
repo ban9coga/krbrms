@@ -2,6 +2,7 @@
 
 import Image from 'next/image'
 import { useEffect, useMemo, useState } from 'react'
+import * as XLSX from 'xlsx'
 import ResultStoryCard, {
   generateResultStoryCardPngBlob,
   getResultStoryCardFilename,
@@ -88,7 +89,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'FINISHED' | 'DNF' | 'DNS' | 'DQ'>('ALL')
   const [sectionFilter, setSectionFilter] = useState<'ALL' | string>('ALL')
-  const [resultView, setResultView] = useState<'QUALIFICATION' | 'STAGES'>('QUALIFICATION')
+  const [resultView] = useState<'QUALIFICATION' | 'STAGES'>('STAGES')
   const [penaltyMap, setPenaltyMap] = useState<Record<string, PenaltyRow[]>>({})
   const [storyData, setStoryData] = useState<ResultStoryCardData | null>(null)
   const [storyDownloading, setStoryDownloading] = useState(false)
@@ -100,14 +101,6 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
     const json = await res.json().catch(() => ({}))
     return { res, json }
   }
-
-  const csvCell = (value: unknown) => {
-    if (value === null || value === undefined) return ''
-    const text = String(value)
-    return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
-  }
-
-  const csvRow = (values: unknown[]) => values.map(csvCell).join(',')
 
   const loadEventMeta = async () => {
     try {
@@ -239,214 +232,72 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCategory])
 
-  const exportCsv = () => {
-    if (resultView === 'STAGES') {
-      const rows = stages.flatMap((stage) => stage.rows.map((row) => ({ ...row, stageTitle: stage.title })))
-      const filtered = statusFilter === 'ALL'
-        ? rows
-        : rows.filter((r) => (statusFilter === 'FINISHED' ? r.status === 'FINISH' : r.status === statusFilter))
-      if (filtered.length === 0) {
-        alert('Tidak ada data untuk diexport.')
-        return
-      }
-      const header = ['stage', 'rank', 'gate', 'name', 'no_plate', 'club', 'point', 'penalty', 'status']
-      const csv = [
-        csvRow(['# Event', publicEventTitle]),
-        csvRow(['# Brand', publicBrandName || '-']),
-        csvRow(['# Category', categoryLabel]),
-        csvRow(['# View', 'Final / Advanced Stage']),
-        csvRow(header),
-        ...filtered.map((r) =>
-          csvRow([
-            r.stageTitle ?? '',
-            r.rank ?? '',
-            r.gate ?? '',
-            r.name ?? '',
-            r.no_plate ?? '',
-            r.club ?? '',
-            r.point ?? '',
-            r.penalty_total ?? 0,
-            r.status ?? '',
-          ])
-        ),
-      ].join('\n')
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      const fileBase = `${(publicBrandName || publicEventTitle || 'results').replace(/[^a-z0-9]+/gi, '_')}_${categoryLabel.replace(/[^a-z0-9]+/gi, '_')}_finals`.toLowerCase()
-      a.download = `${fileBase}.csv`
-      a.click()
-      URL.revokeObjectURL(url)
-      return
-    }
-
-    const rows = batches.flatMap((batch) => batch.rows)
-    const filtered = statusFilter === 'ALL' ? rows : rows.filter((r) => r.status === statusFilter)
-    if (filtered.length === 0) {
-      alert('Tidak ada data untuk diexport.')
-      return
-    }
-    const header = [
-      'batch',
-      'rank',
-      'name',
-      'no_plate',
-      'club',
-      'gate_m1',
-      'gate_m2',
-      'gate_m3',
-      'point_m1',
-      'point_m2',
-      'point_m3',
-      'penalty',
-      'total_point',
-      'class',
-      'status',
-    ]
-    const csv = [
-      csvRow(['# Event', publicEventTitle]),
-      csvRow(['# Brand', publicBrandName || '-']),
-      csvRow(['# Category', categoryLabel]),
-      csvRow(['# Operator', operatingCommitteeLabel || '-']),
-      csvRow(['# Scoring', scoringSupportLabel || '-']),
-      csvRow(header),
-      ...filtered.map((r) =>
-        csvRow([
-          r.batch_index,
-          r.rank_point ?? '',
-          r.name ?? '',
-          r.no_plate ?? '',
-          r.club ?? '',
-          r.gate_moto1 ?? '',
-          r.gate_moto2 ?? '',
-          r.gate_moto3 ?? '',
-          r.point_moto1 ?? '',
-          r.point_moto2 ?? '',
-          r.point_moto3 ?? '',
-          r.penalty_total ?? 0,
-          r.total_point ?? '',
-          r.class_label ?? '',
-          r.status ?? '',
-        ])
-      ),
-    ].join('\n')
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    const fileBase = `${(publicBrandName || publicEventTitle || 'results').replace(/[^a-z0-9]+/gi, '_')}_${categoryLabel.replace(/[^a-z0-9]+/gi, '_')}`.toLowerCase()
-    a.download = `${fileBase}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
+  const sanitizeFilePart = (value: string) => value.replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '').toLowerCase()
+  const sanitizeSheetName = (value: string, fallback: string) => {
+    const cleaned = value.replace(/[:\\/?*[\]]/g, ' ').replace(/\s+/g, ' ').trim()
+    return (cleaned || fallback).slice(0, 31)
   }
 
-  const exportPerBatch = () => {
-    if (resultView === 'STAGES') {
-      if (stages.length === 0) {
-        alert('Tidak ada final/stage untuk diexport.')
-        return
-      }
-      stages.forEach((stage) => {
-        const rows = statusFilter === 'ALL'
-          ? stage.rows
-          : stage.rows.filter((r) => (statusFilter === 'FINISHED' ? r.status === 'FINISH' : r.status === statusFilter))
-        if (rows.length === 0) return
-        const header = ['rank', 'gate', 'name', 'no_plate', 'club', 'point', 'penalty', 'status']
-        const csv = [
-          csvRow(['# Event', publicEventTitle]),
-          csvRow(['# Brand', publicBrandName || '-']),
-          csvRow(['# Category', categoryLabel]),
-          csvRow(['# Stage', stage.title]),
-          csvRow(header),
-          ...rows.map((r) =>
-            csvRow([
-              r.rank ?? '',
-              r.gate ?? '',
-              r.name ?? '',
-              r.no_plate ?? '',
-              r.club ?? '',
-              r.point ?? '',
-              r.penalty_total ?? 0,
-              r.status ?? '',
-            ])
-          ),
-        ].join('\n')
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        const fileBase = `${(publicBrandName || publicEventTitle || 'results').replace(/[^a-z0-9]+/gi, '_')}_${categoryLabel.replace(/[^a-z0-9]+/gi, '_')}_${stage.title.replace(/[^a-z0-9]+/gi, '_')}`.toLowerCase()
-        a.download = `${fileBase}.csv`
-        a.click()
-        URL.revokeObjectURL(url)
-      })
+  const exportFinalXlsx = () => {
+    const selectedStages = stages.filter((stage) => sectionFilter === 'ALL' || stage.moto_id === sectionFilter)
+    if (selectedStages.length === 0) {
+      alert('Tidak ada hasil final/stage untuk diexport.')
       return
     }
 
-    if (batches.length === 0) {
-      alert('Tidak ada batch untuk diexport.')
+    const workbook = XLSX.utils.book_new()
+    let sheetCount = 0
+    selectedStages.forEach((stage) => {
+      const rows = statusFilter === 'ALL'
+        ? stage.rows
+        : stage.rows.filter((r) => (statusFilter === 'FINISHED' ? r.status === 'FINISH' : r.status === statusFilter))
+      if (rows.length === 0) return
+
+      const sheetRows = [
+        ['Event', publicEventTitle],
+        ['Kategori', categoryLabel],
+        ['Final / Stage', stage.title],
+        ['Lokasi', eventMeta?.location ?? '-'],
+        ['Tanggal', eventMeta?.event_date ?? '-'],
+        [],
+        ['Gate', 'Nama Peserta', 'No Plat', 'Komunitas', 'Point', 'Penalty', 'Rank', 'Status'],
+        ...rows.map((row) => [
+          row.gate ?? '',
+          row.name ?? '',
+          row.no_plate ?? '',
+          row.club ?? '',
+          row.point ?? '',
+          row.penalty_total ?? 0,
+          row.rank ?? '',
+          row.status === 'FINISH' ? 'FINISHED' : row.status ?? '',
+        ]),
+      ]
+      const worksheet = XLSX.utils.aoa_to_sheet(sheetRows)
+      worksheet['!cols'] = [
+        { wch: 8 },
+        { wch: 32 },
+        { wch: 12 },
+        { wch: 28 },
+        { wch: 10 },
+        { wch: 10 },
+        { wch: 8 },
+        { wch: 14 },
+      ]
+      XLSX.utils.book_append_sheet(workbook, worksheet, sanitizeSheetName(stage.title, `Final ${sheetCount + 1}`))
+      sheetCount += 1
+    })
+
+    if (sheetCount === 0) {
+      alert('Tidak ada data final/stage sesuai filter.')
       return
     }
-    const header = [
-      'batch',
-      'rank',
-      'name',
-      'no_plate',
-      'club',
-      'gate_m1',
-      'gate_m2',
-      'gate_m3',
-      'point_m1',
-      'point_m2',
-      'point_m3',
-      'penalty',
-      'total_point',
-      'class',
-      'status',
-    ]
-    batches.forEach((batch) => {
-      const rows = statusFilter === 'ALL'
-        ? batch.rows
-        : batch.rows.filter((r) => r.status === statusFilter)
-      if (rows.length === 0) return
-      const csv = [
-        csvRow(['# Event', publicEventTitle]),
-        csvRow(['# Brand', publicBrandName || '-']),
-        csvRow(['# Category', categoryLabel]),
-        csvRow(['# Batch', batch.batch_index]),
-        csvRow(['# Operator', operatingCommitteeLabel || '-']),
-        csvRow(['# Scoring', scoringSupportLabel || '-']),
-        csvRow(header),
-        ...rows.map((r) =>
-          csvRow([
-            r.batch_index,
-            r.rank_point ?? '',
-            r.name ?? '',
-            r.no_plate ?? '',
-            r.club ?? '',
-            r.gate_moto1 ?? '',
-            r.gate_moto2 ?? '',
-            r.gate_moto3 ?? '',
-            r.point_moto1 ?? '',
-            r.point_moto2 ?? '',
-            r.point_moto3 ?? '',
-            r.penalty_total ?? 0,
-            r.total_point ?? '',
-            r.class_label ?? '',
-            r.status ?? '',
-          ])
-        ),
-      ].join('\n')
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      const fileBase = `${(publicBrandName || publicEventTitle || 'results').replace(/[^a-z0-9]+/gi, '_')}_${categoryLabel.replace(/[^a-z0-9]+/gi, '_')}_batch_${batch.batch_index}`.toLowerCase()
-      a.download = `${fileBase}.csv`
-      a.click()
-      URL.revokeObjectURL(url)
-    })
+
+    const fileBase = [
+      sanitizeFilePart(publicBrandName || publicEventTitle || 'rekap'),
+      sanitizeFilePart(categoryLabel),
+      'hasil_final',
+    ].filter(Boolean).join('_')
+    XLSX.writeFile(workbook, `${fileBase}.xlsx`)
   }
 
   const downloadStoryCard = async (data: ResultStoryCardData) => {
@@ -630,33 +481,16 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
             ))}
           </select>
           <select
-            value={resultView}
-            onChange={(e) => {
-              setResultView(e.target.value as typeof resultView)
-              setSectionFilter('ALL')
-            }}
-            style={{ padding: '8px 12px', borderRadius: 10, border: '2px solid #111', fontWeight: 800 }}
-          >
-            <option value="QUALIFICATION">Kualifikasi / Batch</option>
-            <option value="STAGES">Final / Stage Lanjutan</option>
-          </select>
-          <select
             value={sectionFilter}
             onChange={(e) => setSectionFilter(e.target.value as typeof sectionFilter)}
             style={{ padding: '8px 12px', borderRadius: 10, border: '2px solid #111', fontWeight: 800 }}
           >
-            <option value="ALL">{resultView === 'QUALIFICATION' ? 'Semua Batch' : 'Semua Final / Stage'}</option>
-            {resultView === 'QUALIFICATION'
-              ? batches.map((b) => (
-                  <option key={b.batch_index} value={String(b.batch_index)}>
-                    Batch {b.batch_index}
-                  </option>
-                ))
-              : stages.map((stage) => (
-                  <option key={stage.moto_id} value={stage.moto_id}>
-                    {stage.title}
-                  </option>
-                ))}
+            <option value="ALL">Semua Final / Stage</option>
+            {stages.map((stage) => (
+              <option key={stage.moto_id} value={stage.moto_id}>
+                {stage.title}
+              </option>
+            ))}
           </select>
           <select
             value={statusFilter}
@@ -685,7 +519,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
           </button>
           <button
             type="button"
-            onClick={exportCsv}
+            onClick={exportFinalXlsx}
             style={{
               padding: '8px 12px',
               borderRadius: 10,
@@ -695,21 +529,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
               cursor: 'pointer',
             }}
           >
-            Export CSV
-          </button>
-          <button
-            type="button"
-            onClick={exportPerBatch}
-            style={{
-              padding: '8px 12px',
-              borderRadius: 10,
-              border: '2px solid #111',
-              background: '#d7ecff',
-              fontWeight: 900,
-              cursor: 'pointer',
-            }}
-          >
-            Export per Batch/Final
+            Save as Excel
           </button>
           <button
             type="button"
