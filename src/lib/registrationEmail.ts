@@ -192,14 +192,14 @@ export const sendRegistrationStatusEmail = async (
     .join('')
 
   const isApproved = kind === 'APPROVED'
-  const title = isApproved ? 'Pendaftaran terverifikasi' : 'Pendaftaran belum dapat diverifikasi'
+  const title = isApproved ? 'Pendaftaran telah dikonfirmasi' : 'Pendaftaran perlu ditinjau kembali'
   const intro = isApproved
-    ? `pendaftaran untuk <strong>${escapeHtml(eventTitle)}</strong> sudah diverifikasi dan disetujui panitia.`
-    : `pendaftaran untuk <strong>${escapeHtml(eventTitle)}</strong> belum dapat disetujui oleh panitia.`
-  const statusLabel = isApproved ? 'Pendaftaran disetujui panitia' : 'Pendaftaran ditolak / perlu diperbaiki'
+    ? `pendaftaran untuk <strong>${escapeHtml(eventTitle)}</strong> telah dikonfirmasi oleh panitia.`
+    : `pendaftaran untuk <strong>${escapeHtml(eventTitle)}</strong> belum dapat dikonfirmasi. Silakan cek catatan dari panitia.`
+  const statusLabel = isApproved ? 'Pendaftaran telah dikonfirmasi' : 'Perlu ditinjau / dilengkapi'
   const subject = isApproved
-    ? `Pendaftaran ${riderSummary} terverifikasi - ${eventTitle} #${shortRegistrationId}`
-    : `Pendaftaran ${riderSummary} belum dapat diverifikasi - ${eventTitle} #${shortRegistrationId}`
+    ? `Pendaftaran ${riderSummary} telah dikonfirmasi - ${eventTitle} #${shortRegistrationId}`
+    : `Pendaftaran ${riderSummary} perlu ditinjau - ${eventTitle} #${shortRegistrationId}`
   const noteBlock =
     !isApproved && notes?.trim()
       ? `<div style="padding:12px;border:1px solid #fecdd3;border-radius:12px;background:#fff1f2;margin-bottom:16px;"><strong>Alasan:</strong><br/>${escapeHtml(
