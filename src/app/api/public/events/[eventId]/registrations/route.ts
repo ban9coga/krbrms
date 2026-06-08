@@ -102,6 +102,8 @@ const toStringOrNull = (value: FormDataEntryValue | null) => {
   return trimmed.length > 0 ? trimmed : null
 }
 
+const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
+
 const getJerseySizeOptions = (businessSettings: unknown) => {
   if (!businessSettings || typeof businessSettings !== 'object' || Array.isArray(businessSettings)) {
     return DEFAULT_JERSEY_SIZES
@@ -168,6 +170,9 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
   const { community_name, contact_name, contact_phone, contact_email, items } = payload
   if (!contact_name || !contact_phone || !Array.isArray(items) || items.length === 0) {
     return { error: 'Missing required fields' }
+  }
+  if (contact_email && !isValidEmail(contact_email)) {
+    return { error: 'Format email tidak valid.' }
   }
 
   const { data: settingsRow, error: settingsError } = await adminClient
@@ -249,7 +254,7 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
 
     const exactCandidates = getExactPrimaryCategoryCandidates(eventCategories, birthYear, item.gender)
     if (exactCandidates.length === 0) {
-      preparedItems.push({ error: 'No matching category for rider' })
+      preparedItems.push({ error: 'Tahun lahir/gender rider tidak masuk kategori aktif event ini.' })
       continue
     }
 

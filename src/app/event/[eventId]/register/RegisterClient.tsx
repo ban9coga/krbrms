@@ -70,6 +70,8 @@ const normalizeExternalUrl = (value?: string | null) => {
   return `https://${raw}`
 }
 
+const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
+
 const openExternalLink = (url: string) => {
   if (typeof window === 'undefined' || !url) return
   const opened = window.open(url, '_blank', 'noopener,noreferrer')
@@ -564,7 +566,10 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     })
   }, [])
 
-  const getPrimaryIssueModalMessage = (issue: 'full' | 'fallback_required', riderIndex: number) => {
+  const getPrimaryIssueModalMessage = (issue: 'invalid' | 'full' | 'fallback_required', riderIndex: number) => {
+    if (issue === 'invalid') {
+      return `Rider #${riderIndex + 1}: tahun lahir dan gender rider tidak masuk kategori aktif event ini. Cek ulang tanggal lahir/gender, atau hubungi panitia jika kategori belum dibuat.`
+    }
     if (issue === 'full') {
       return `Rider #${riderIndex + 1}: kategori sesuai umur penuh, dan semua kategori di atas umur rider juga penuh.`
     }
@@ -575,7 +580,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     const issueEntry = riders.findIndex((rider) => {
       const birthYear = rider.dateOfBirth ? new Date(rider.dateOfBirth).getUTCFullYear() : null
       const issue = getPrimaryCategoryIssue(birthYear, rider.gender, rider.primaryCategoryId)
-      return issue === 'full' || issue === 'fallback_required'
+      return issue === 'invalid' || issue === 'full' || issue === 'fallback_required'
     })
 
     if (issueEntry < 0) {
@@ -586,13 +591,16 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     const rider = riders[issueEntry]
     const birthYear = rider.dateOfBirth ? new Date(rider.dateOfBirth).getUTCFullYear() : null
     const issue = getPrimaryCategoryIssue(birthYear, rider.gender, rider.primaryCategoryId)
-    if (issue !== 'full' && issue !== 'fallback_required') return
+    if (issue !== 'invalid' && issue !== 'full' && issue !== 'fallback_required') return
 
     const issueKey = `${issueEntry}-${rider.dateOfBirth}-${rider.gender}-${issue}`
     if (lastAutoCategoryModalKeyRef.current === issueKey) return
 
     lastAutoCategoryModalKeyRef.current = issueKey
-    openSlotFullModal(getPrimaryIssueModalMessage(issue, issueEntry))
+    setSlotFullModal({
+      title: issue === 'invalid' ? 'Kategori Tidak Tersedia' : 'Slot Pendaftaran Penuh',
+      message: getPrimaryIssueModalMessage(issue, issueEntry),
+    })
   }, [getPrimaryCategoryIssue, openSlotFullModal, riders])
 
   useEffect(() => {
@@ -679,6 +687,10 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
       alert('Nama dan nomor kontak wajib diisi')
       return
     }
+    if (contactEmail.trim() && !isValidEmail(contactEmail)) {
+      alert('Format email tidak valid. Contoh: nama@email.com')
+      return
+    }
     if (!bankName.trim()) {
       alert('Bank pengirim wajib diisi')
       return
@@ -720,7 +732,10 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
       return
     }
     if (hasMissingPrimaryCategory) {
-      alert('Kategori otomatis belum tersedia untuk beberapa rider karena range usia atau gender tidak cocok dengan kategori yang tersedia.')
+      setSlotFullModal({
+        title: 'Kategori Tidak Tersedia',
+        message: 'Ada rider dengan tahun lahir/gender yang tidak masuk kategori aktif event ini. Cek ulang tanggal lahir/gender, atau hubungi panitia jika kategori belum dibuat.',
+      })
       return
     }
     if (hasFullExtraCategory) {
@@ -758,6 +773,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
       const paymentError = validateUploadFile(paymentProof, 'Bukti pembayaran', 'payment')
       if (paymentError) throw new Error(paymentError)
 
+      const shouldSendEmail = contactEmail.trim().length > 0
       const items = riders.map((r) => {
         const birthYear = r.dateOfBirth ? new Date(r.dateOfBirth).getUTCFullYear() : null
         const exactPrimaryCategory = getAvailableExactPrimaryCategory(birthYear, r.gender)
@@ -850,7 +866,11 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         createdUploadToken
       )
 
-      setSuccess('Pendaftaran telah dikirim. Admin akan memverifikasi data dan pembayaran Anda.')
+      setSuccess(
+        `Pendaftaran telah dikirim. Admin akan memverifikasi data dan pembayaran Anda.${
+          shouldSendEmail ? ' Ringkasan pendaftaran juga dikirim ke email Anda.' : ''
+        }${whatsappGroupInviteUrl ? ' Tombol grup WhatsApp tersedia di bawah.' : ''}`
+      )
       if (typeof window !== 'undefined') {
         window.scrollTo({ top: 0, behavior: 'smooth' })
       }
@@ -1057,12 +1077,16 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
               value={contactPhone}
               onChange={(e) => setContactPhone(e.target.value)}
               placeholder="Nomor WhatsApp"
+              type="tel"
+              inputMode="tel"
               className={fieldClass}
             />
             <input
               value={contactEmail}
               onChange={(e) => setContactEmail(e.target.value)}
               placeholder="Email (opsional)"
+              type="email"
+              inputMode="email"
               className={fieldClass}
             />
             <input
