@@ -35,6 +35,7 @@ type RiderForm = {
   requestedPlateSuffix: string
   usePlateSuffix: boolean
   photo?: File | null
+  docType: 'KK' | 'AKTE' | 'KIA'
   docKk?: File | null
 }
 
@@ -47,7 +48,7 @@ type PlateCheckState = {
 type RegistrationSuccess = {
   riderNames: string[]
   totalAmount: number
-  emailSent: boolean
+  hasContactEmail: boolean
 }
 
 const DEFAULT_BASE_PRICE = 250000
@@ -70,6 +71,14 @@ const formatRupiah = (value: number) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value)
 
 const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
+
+const normalizePhoneDigits = (value: string) => value.replace(/[^\d]/g, '').slice(0, 15)
+
+const isValidWhatsappNumber = (value: string) => {
+  const digits = normalizePhoneDigits(value)
+  if (digits.length < 10 || digits.length > 15) return false
+  return digits.startsWith('08') || digits.startsWith('62')
+}
 
 const getCompleteBirthYear = (dateOfBirth: string) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)) return null
@@ -170,6 +179,7 @@ const initialRider = (): RiderForm => ({
   requestedPlateSuffix: '',
   usePlateSuffix: false,
   photo: null,
+  docType: 'KK',
   docKk: null,
 })
 
@@ -382,6 +392,10 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
       setBirthDateTouched((prev) => prev.map((item, idx) => (idx === index ? false : item)))
     }
 
+    if (typeof normalizedUpdates.requestedPlateNumber === 'string') {
+      normalizedUpdates.requestedPlateNumber = normalizedUpdates.requestedPlateNumber.replace(/[^\d]/g, '').slice(0, 3)
+    }
+
     if (typeof normalizedUpdates.requestedPlateNumber === 'string' && normalizedUpdates.requestedPlateNumber.trim() === '') {
       normalizedUpdates.requestedPlateSuffix = ''
       normalizedUpdates.usePlateSuffix = false
@@ -559,6 +573,8 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
       : DEFAULT_JERSEY_SIZE_OPTIONS
   const contactEmailValue = contactEmail.trim()
   const contactEmailInvalid = contactEmailValue.length > 0 && !isValidEmail(contactEmailValue)
+  const contactPhoneValue = contactPhone.trim()
+  const contactPhoneInvalid = contactPhoneValue.length > 0 && !isValidWhatsappNumber(contactPhoneValue)
   const showPaymentDestination = Boolean(paymentBankName || paymentAccountName || paymentAccountNumber || paymentQrisImageUrl)
   const showEventOwner = Boolean(
     businessSettings?.show_event_owner_publicly && businessSettings?.event_owner_name?.trim()
@@ -722,12 +738,17 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   const handleSubmit = async () => {
     setSuccess(null)
     setSlotFullModal(null)
+    const normalizedContactPhone = normalizePhoneDigits(contactPhone)
     if (!registrationOpen) {
       alert('Pendaftaran untuk event ini sedang ditutup oleh panitia.')
       return
     }
     if (!contactName || !contactPhone) {
       alert('Nama dan nomor kontak wajib diisi')
+      return
+    }
+    if (!isValidWhatsappNumber(contactPhone)) {
+      alert('Nomor WhatsApp belum valid. Gunakan format 08... atau 62..., minimal 10 digit.')
       return
     }
     if (contactEmailInvalid) {
@@ -763,9 +784,14 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     if (hasInvalid) {
       alert(
         riderPhotoUploadEnabled
-          ? 'Lengkapi data rider. Wajib: nama lengkap, panggilan, nomor plate, foto rider, KK/Akte, dan ukuran jersey (jika diwajibkan).'
-          : 'Lengkapi data rider. Wajib: nama lengkap, panggilan, nomor plate, KK/Akte, dan ukuran jersey (jika diwajibkan).'
+          ? 'Lengkapi data rider. Wajib: nama lengkap, panggilan, nomor plate, foto rider, KK/Akte/KIA, dan ukuran jersey (jika diwajibkan).'
+          : 'Lengkapi data rider. Wajib: nama lengkap, panggilan, nomor plate, KK/Akte/KIA, dan ukuran jersey (jika diwajibkan).'
       )
+      return
+    }
+    const invalidPlateIndex = riders.findIndex((rider) => !/^\d{1,3}$/.test(rider.requestedPlateNumber.trim()))
+    if (invalidPlateIndex >= 0) {
+      alert(`Nomor plate rider #${invalidPlateIndex + 1} wajib angka dan maksimal 3 digit.`)
       return
     }
     if (hasPrimaryCategorySlotFull) {
@@ -824,7 +850,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
           if (photoError) throw new Error(photoError)
         }
 
-        const documentError = validateUploadFile(rider.docKk, `Dokumen KK/Akte rider #${idx + 1}`, 'document')
+        const documentError = validateUploadFile(rider.docKk, `Dokumen KK/Akte/KIA rider #${idx + 1}`, 'document')
         if (documentError) throw new Error(documentError)
       })
       const paymentError = validateUploadFile(paymentProof, 'Bukti pembayaran', 'payment')
@@ -856,7 +882,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
           body: JSON.stringify({
             community_name: communityName || null,
             contact_name: contactName,
-            contact_phone: contactPhone,
+            contact_phone: normalizedContactPhone,
             contact_email: contactEmail || null,
             items,
           }),
@@ -903,7 +929,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
 
         const documentBody = new FormData()
         documentBody.append('registration_item_id', itemId)
-        documentBody.append('document_type', 'KK')
+        documentBody.append('document_type', rider.docType)
         documentBody.append('file', rider.docKk as File)
         await uploadStep(
           `/api/public/events/${eventId}/registrations/${createdRegistrationId}/documents`,
@@ -928,7 +954,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
       setSuccess({
         riderNames: riders.map((rider) => rider.name.trim()).filter(Boolean),
         totalAmount,
-        emailSent: shouldSendEmail,
+        hasContactEmail: shouldSendEmail,
       })
       if (typeof window !== 'undefined') {
         window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -975,6 +1001,11 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   const filePickerClass =
     'flex min-h-[76px] cursor-pointer items-center justify-between gap-3 rounded-2xl border border-dashed border-white/15 bg-slate-950/70 px-4 py-3 transition-colors hover:border-amber-300/70 hover:bg-slate-900/80'
   const labelClass = 'text-xs font-black uppercase tracking-[0.14em] text-slate-300'
+  const requiredLabel = (label: string) => (
+    <span>
+      {label} <span className="text-rose-400">*</span>
+    </span>
+  )
   const helperClass = 'text-[11px] font-semibold leading-5 text-slate-400'
   const sectionHeaderClass = 'text-xs font-black uppercase tracking-[0.18em] text-amber-300'
 
@@ -1132,7 +1163,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
           </div>
           <div className="grid gap-3 md:grid-cols-2">
             <div className="grid gap-2">
-              <label className={labelClass}>Nama Penanggung Jawab</label>
+              <label className={labelClass}>{requiredLabel('Nama Penanggung Jawab')}</label>
               <input
                 value={contactName}
                 onChange={(e) => setContactName(e.target.value)}
@@ -1140,16 +1171,22 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                 className={fieldClass}
               />
             </div>
-            <div className="grid gap-2">
-              <label className={labelClass}>Nomor WhatsApp</label>
+            <div className="grid gap-1.5">
+              <label className={labelClass}>{requiredLabel('Nomor WhatsApp')}</label>
               <input
                 value={contactPhone}
-                onChange={(e) => setContactPhone(e.target.value)}
+                onChange={(e) => setContactPhone(normalizePhoneDigits(e.target.value))}
                 placeholder="Contoh: 0812..."
                 type="tel"
                 inputMode="tel"
-                className={fieldClass}
+                maxLength={15}
+                className={`${fieldClass} ${contactPhoneInvalid ? 'border-rose-400 focus:border-rose-400 focus:ring-rose-400/30' : ''}`}
               />
+              <div className={`text-[11px] font-semibold ${contactPhoneInvalid ? 'text-rose-300' : 'text-slate-400'}`}>
+                {contactPhoneInvalid
+                  ? 'Nomor WhatsApp belum valid. Gunakan 08... atau 62..., minimal 10 digit.'
+                  : 'Nomor ini dipakai panitia untuk konfirmasi cepat lewat WhatsApp.'}
+              </div>
             </div>
             <div className="grid gap-1.5">
               <label className={labelClass}>Email Konfirmasi</label>
@@ -1166,15 +1203,6 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                   ? 'Format email belum benar. Contoh: nama@email.com'
                   : 'Pastikan email aktif karena konfirmasi pendaftaran akan dikirim ke email ini.'}
               </div>
-            </div>
-            <div className="grid gap-2">
-              <label className={labelClass}>Komunitas / Club</label>
-              <input
-                value={communityName}
-                onChange={(e) => setCommunityName(e.target.value)}
-                placeholder="Opsional"
-                className={fieldClass}
-              />
             </div>
           </div>
         </section>
@@ -1244,7 +1272,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
               <div className="grid gap-3">
                 <div className="grid gap-3 md:grid-cols-2">
                   <div className="grid gap-2">
-                    <label className={labelClass}>Nama Lengkap Rider</label>
+                    <label className={labelClass}>{requiredLabel('Nama Lengkap Rider')}</label>
                     <input
                       value={rider.name}
                       onChange={(e) => updateRider(idx, { name: e.target.value })}
@@ -1253,7 +1281,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                     />
                   </div>
                   <div className="grid gap-2">
-                    <label className={labelClass}>Nama Panggilan</label>
+                    <label className={labelClass}>{requiredLabel('Nama Panggilan')}</label>
                     <input
                       value={rider.nickname}
                       onChange={(e) => updateRider(idx, { nickname: e.target.value })}
@@ -1264,18 +1292,21 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                 </div>
                 {requireJerseySize && (
                   <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
-                    <select
-                      value={rider.jerseySize}
-                      onChange={(e) => updateRider(idx, { jerseySize: e.target.value })}
-                      className={fieldClass}
-                    >
-                      <option value="">Ukuran Jersey (wajib)</option>
-                      {jerseySizeOptions.map((size) => (
-                        <option key={size} value={size}>
-                          {size}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="grid gap-2">
+                      <label className={labelClass}>{requiredLabel('Ukuran Jersey')}</label>
+                      <select
+                        value={rider.jerseySize}
+                        onChange={(e) => updateRider(idx, { jerseySize: e.target.value })}
+                        className={fieldClass}
+                      >
+                        <option value="">Pilih ukuran jersey</option>
+                        {jerseySizeOptions.map((size) => (
+                          <option key={size} value={size}>
+                            {size}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                     <div className="overflow-hidden rounded-xl border border-slate-700 bg-white shadow-[0_12px_30px_rgba(2,6,23,0.18)]">
                       <div className="border-b border-slate-200 px-3 py-2">
                         <div className="text-sm font-black uppercase tracking-[0.12em] text-slate-800">Size Chart</div>
@@ -1308,7 +1339,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                 )}
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="grid gap-2">
-                    <label className={labelClass}>Tanggal Lahir Rider</label>
+                    <label className={labelClass}>{requiredLabel('Tanggal Lahir Rider')}</label>
                     <input
                       type="date"
                       value={rider.dateOfBirth}
@@ -1321,7 +1352,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                     </div>
                   </div>
                   <div className="grid gap-2">
-                    <label className={labelClass}>Gender Kategori</label>
+                    <label className={labelClass}>{requiredLabel('Gender Kategori')}</label>
                     <select
                       value={rider.gender}
                       onChange={(e) => updateRider(idx, { gender: e.target.value as 'BOY' | 'GIRL' })}
@@ -1418,7 +1449,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
 
                 <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="text-sm font-black text-slate-100">Nomor Plate yang Diajukan</div>
+                    <div className="text-sm font-black text-slate-100">{requiredLabel('Nomor Plate yang Diajukan')}</div>
                     <div className="rounded-full border border-slate-600 bg-slate-900/80 px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-[0.12em] text-amber-200">
                       Preview: {platePreview}
                     </div>
@@ -1430,9 +1461,10 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                   <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto]">
                     <input
                       value={rider.requestedPlateNumber}
-                      onChange={(e) => updateRider(idx, { requestedPlateNumber: e.target.value.replace(/[^\d]/g, '') })}
+                      onChange={(e) => updateRider(idx, { requestedPlateNumber: e.target.value })}
                       placeholder="Nomor Plate (angka saja)"
                       inputMode="numeric"
+                      maxLength={3}
                       className={fieldClass}
                     />
                     {!showPlateSuffixField && (
@@ -1496,7 +1528,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                 <div className={`grid gap-3 ${riderPhotoUploadEnabled ? 'md:grid-cols-2' : ''}`}>
                   {riderPhotoUploadEnabled && (
                     <div className="grid gap-2">
-                    <label className={labelClass}>Upload Foto Rider</label>
+                    <label className={labelClass}>{requiredLabel('Upload Foto Rider')}</label>
                       <label
                         className={dropZoneClass(`photo-${idx}`)}
                         tabIndex={0}
@@ -1535,7 +1567,16 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                     </div>
                   )}
                   <div className="grid gap-2">
-                    <label className={labelClass}>Upload KK / Akte Kelahiran</label>
+                    <label className={labelClass}>{requiredLabel('Upload KK / Akte / KIA')}</label>
+                    <select
+                      value={rider.docType}
+                      onChange={(e) => updateRider(idx, { docType: e.target.value as RiderForm['docType'] })}
+                      className={fieldClass}
+                    >
+                      <option value="KK">KK</option>
+                      <option value="AKTE">Akte Kelahiran</option>
+                      <option value="KIA">KIA - Kartu Identitas Anak</option>
+                    </select>
                     <label
                       className={dropZoneClass(`doc-${idx}`)}
                       tabIndex={0}
@@ -1543,14 +1584,14 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                       onDragOver={(e) => onDropZoneOver(`doc-${idx}`, e)}
                       onDragLeave={(e) => onDropZoneLeave(`doc-${idx}`, e)}
                       onDrop={(e) =>
-                        onDropZoneDrop(`doc-${idx}`, e, (file) => updateRider(idx, { docKk: file }), `Dokumen KK/Akte rider #${idx + 1}`, 'document', true)
+                        onDropZoneDrop(`doc-${idx}`, e, (file) => updateRider(idx, { docKk: file }), `Dokumen KK/Akte/KIA rider #${idx + 1}`, 'document', true)
                       }
                       onPaste={(e) =>
-                        onDropZonePaste(e, (file) => updateRider(idx, { docKk: file }), `Dokumen KK/Akte rider #${idx + 1}`, 'document', true)
+                        onDropZonePaste(e, (file) => updateRider(idx, { docKk: file }), `Dokumen KK/Akte/KIA rider #${idx + 1}`, 'document', true)
                       }
                     >
                         <span className="truncate text-sm font-bold text-slate-100">
-                          {rider.docKk ? rider.docKk.name : 'Pilih dokumen KK/Akte'}
+                          {rider.docKk ? rider.docKk.name : 'Pilih dokumen KK/Akte/KIA'}
                         </span>
                       <span className="rounded-full border border-amber-300/40 bg-amber-400/10 px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-wide text-amber-100">
                         Browse
@@ -1560,7 +1601,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                         accept="image/*,.pdf"
                         onChange={(e) => {
                           const file = e.target.files?.[0] ?? null
-                          setValidatedUploadFile(file, `Dokumen KK/Akte rider #${idx + 1}`, 'document', (nextFile) =>
+                          setValidatedUploadFile(file, `Dokumen KK/Akte/KIA rider #${idx + 1}`, 'document', (nextFile) =>
                             updateRider(idx, { docKk: nextFile })
                           )
                           e.currentTarget.value = ''
@@ -1638,7 +1679,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
             )}
             <div className="grid gap-3 md:grid-cols-3">
               <div className="grid gap-2">
-                <label className={labelClass}>Bank Pengirim</label>
+                <label className={labelClass}>{requiredLabel('Bank Pengirim')}</label>
                 <input
                   value={bankName}
                   onChange={(e) => setBankName(e.target.value)}
@@ -1647,7 +1688,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                 />
               </div>
               <div className="grid gap-2">
-                <label className={labelClass}>Atas Nama Pengirim</label>
+                <label className={labelClass}>{requiredLabel('Atas Nama Pengirim')}</label>
                 <input
                   value={accountName}
                   onChange={(e) => setAccountName(e.target.value)}
@@ -1656,7 +1697,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                 />
               </div>
               <div className="grid gap-2">
-                <label className={labelClass}>Nomor Rekening Pengirim</label>
+                <label className={labelClass}>{requiredLabel('Nomor Rekening Pengirim')}</label>
                 <input
                   value={accountNumber}
                   onChange={(e) => setAccountNumber(e.target.value)}
@@ -1682,7 +1723,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                 <span>{formatRupiah(totalAmount)}</span>
               </div>
             </div>
-            <label className={labelClass}>Upload Bukti Pembayaran</label>
+            <label className={labelClass}>{requiredLabel('Upload Bukti Pembayaran')}</label>
             <label
               className={dropZoneClass('payment-proof')}
               tabIndex={0}
@@ -1740,9 +1781,9 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
               </div>
             </div>
             <p className="mt-4 text-center text-sm font-semibold leading-6 text-slate-300">
-              Pendaftaran rider sedang menunggu verifikasi panitia. Silakan cek email untuk konfirmasi pendaftaran.
+              Pendaftaran rider sedang menunggu verifikasi panitia. Email konfirmasi akan dikirim setelah pembayaran dan data rider disetujui panitia.
             </p>
-            {!success.emailSent && (
+            {!success.hasContactEmail && (
               <p className="mt-2 text-center text-xs font-semibold leading-5 text-amber-200">
                 Email tidak diisi, jadi konfirmasi email tidak dikirim untuk pendaftaran ini.
               </p>

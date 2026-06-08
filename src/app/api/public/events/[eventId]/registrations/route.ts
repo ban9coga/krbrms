@@ -83,8 +83,16 @@ const normalizePlateNumber = (value: unknown) => {
   if (value === undefined || value === null) return null
   const raw = String(value).trim()
   if (!raw) return null
-  if (!/^\d+$/.test(raw)) return null
+  if (!/^\d{1,3}$/.test(raw)) return null
   return raw
+}
+
+const normalizePhoneDigits = (value: unknown) => String(value ?? '').replace(/[^\d]/g, '').slice(0, 15)
+
+const isValidWhatsappNumber = (value: unknown) => {
+  const digits = normalizePhoneDigits(value)
+  if (digits.length < 10 || digits.length > 15) return false
+  return digits.startsWith('08') || digits.startsWith('62')
 }
 
 const isCategoryFull = (
@@ -172,6 +180,10 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
   const { community_name, contact_name, contact_phone, contact_email, items } = payload
   if (!contact_name || !contact_phone || !Array.isArray(items) || items.length === 0) {
     return { error: 'Missing required fields' }
+  }
+  const normalizedContactPhone = normalizePhoneDigits(contact_phone)
+  if (!isValidWhatsappNumber(normalizedContactPhone)) {
+    return { error: 'Nomor WhatsApp belum valid. Gunakan format 08... atau 62..., minimal 10 digit.' }
   }
   if (contact_email && !isValidEmail(contact_email)) {
     return { error: 'Format email tidak valid.' }
@@ -365,7 +377,7 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
         event_id: eventId,
         community_name: community_name ?? null,
         contact_name,
-        contact_phone,
+        contact_phone: normalizedContactPhone,
         contact_email: contact_email ?? null,
         total_amount: totalAmount,
         status: 'PENDING',
@@ -386,7 +398,7 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
         event_id: eventId,
         community_name: community_name ?? null,
         contact_name,
-        contact_phone,
+        contact_phone: normalizedContactPhone,
         contact_email: contact_email ?? null,
         total_amount: totalAmount,
         status: 'PENDING',

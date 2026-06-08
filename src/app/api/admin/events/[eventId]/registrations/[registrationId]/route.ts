@@ -187,7 +187,7 @@ const normalizePlateNumber = (value: unknown) => {
   if (value === undefined || value === null) return null
   const raw = String(value).trim()
   if (!raw) return null
-  if (!/^\d+$/.test(raw)) return null
+  if (!/^\d{1,3}$/.test(raw)) return null
   return raw
 }
 

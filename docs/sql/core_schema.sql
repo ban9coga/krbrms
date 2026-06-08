@@ -24,7 +24,7 @@ begin
     create type registration_item_status as enum ('PENDING','APPROVED','REJECTED');
   end if;
   if not exists (select 1 from pg_type where typname = 'registration_document_type') then
-    create type registration_document_type as enum ('KK','AKTE');
+    create type registration_document_type as enum ('KK','AKTE','KIA');
   end if;
   if not exists (select 1 from pg_type where typname = 'registration_payment_status') then
     create type registration_payment_status as enum ('PENDING','APPROVED','REJECTED');

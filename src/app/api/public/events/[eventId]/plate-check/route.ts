@@ -14,7 +14,7 @@ const normalizePlateNumber = (value: unknown) => {
   if (value === undefined || value === null) return null
   const raw = String(value).trim()
   if (!raw) return null
-  if (!/^\d+$/.test(raw)) return null
+  if (!/^\d{1,3}$/.test(raw)) return null
   return raw
 }
 
@@ -33,7 +33,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const plateSuffix = normalizePlateSuffix(searchParams.get('plate_suffix'))
 
   if (!plateNumber) {
-    return NextResponse.json({ error: 'plate_number must contain digits only' }, { status: 400 })
+    return NextResponse.json({ error: 'plate_number must contain 1-3 digits only' }, { status: 400 })
   }
 
   const { data: event, error: eventError } = await adminClient

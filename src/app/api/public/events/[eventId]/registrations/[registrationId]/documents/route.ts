@@ -54,19 +54,19 @@ export async function POST(
   const itemId = form.get('registration_item_id')?.toString() || null
 
   if (!(file instanceof File)) {
-    return NextResponse.json({ error: 'Dokumen KK/Akte wajib diupload.' }, { status: 400 })
+    return NextResponse.json({ error: 'Dokumen KK/Akte/KIA wajib diupload.' }, { status: 400 })
   }
-  if (documentType !== 'KK' && documentType !== 'AKTE') {
+  if (documentType !== 'KK' && documentType !== 'AKTE' && documentType !== 'KIA') {
     return NextResponse.json({ error: 'Invalid document_type' }, { status: 400 })
   }
 
   const isImage = file.type.startsWith('image/')
   const isPdf = isPdfFile(file)
   if (!isImage && !isPdf) {
-    return NextResponse.json({ error: 'Dokumen KK/Akte harus berupa gambar atau PDF.' }, { status: 400 })
+    return NextResponse.json({ error: 'Dokumen KK/Akte/KIA harus berupa gambar atau PDF.' }, { status: 400 })
   }
   if (isPdf && file.size > SUPPORTING_PDF_MAX_BYTES) {
-    return NextResponse.json({ error: 'Dokumen KK/Akte terlalu besar. Maksimal 3.0 MB untuk PDF.' }, { status: 400 })
+    return NextResponse.json({ error: 'Dokumen KK/Akte/KIA terlalu besar. Maksimal 3.0 MB untuk PDF.' }, { status: 400 })
   }
 
   if (itemId) {
@@ -87,16 +87,16 @@ export async function POST(
           maxBytes: SUPPORTING_PDF_MAX_BYTES,
           contentType: 'application/pdf',
           extension: 'pdf',
-          label: 'Dokumen KK/Akte',
+          label: 'Dokumen KK/Akte/KIA',
         })
       : await prepareImageUpload(file, {
           maxBytes: SUPPORTING_IMAGE_MAX_BYTES,
           maxDimension: 1200,
           quality: 78,
-          label: 'Dokumen KK/Akte',
+          label: 'Dokumen KK/Akte/KIA',
         })
   } catch (err) {
-    return NextResponse.json({ error: err instanceof Error ? err.message : 'Dokumen KK/Akte gagal diproses.' }, { status: 400 })
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Dokumen KK/Akte/KIA gagal diproses.' }, { status: 400 })
   }
   const path = `${eventId}/${registrationId}/${itemId ?? 'general'}-${documentType}-${Date.now()}.${upload.extension}`
 
