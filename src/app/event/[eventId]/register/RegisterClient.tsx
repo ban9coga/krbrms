@@ -1545,13 +1545,6 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                               Pakai {plateCheck.suggestedSuffix}
                             </button>
                           )}
-                          <button
-                            type="button"
-                            onClick={() => updateRider(idx, { usePlateSuffix: false, requestedPlateSuffix: '' })}
-                            className="rounded-xl border border-slate-500 bg-slate-900/70 px-4 py-3 text-sm font-extrabold uppercase tracking-[0.12em] text-slate-100 transition-colors hover:border-slate-300"
-                          >
-                            Tanpa Huruf
-                          </button>
                         </div>
                       </div>
                       <div className="text-[11px] font-semibold text-slate-400">
