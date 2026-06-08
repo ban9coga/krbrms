@@ -417,6 +417,9 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     business_public_brand_name: '',
     business_public_event_title: '',
     business_public_tagline: '',
+    business_public_contact_name: '',
+    business_public_contact_phone: '',
+    business_public_contact_email: '',
     business_whatsapp_group_invite_url: '',
     business_payment_bank_name: '',
     business_payment_account_name: '',
@@ -574,6 +577,12 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
             typeof business.public_event_title === 'string' ? business.public_event_title : '',
           business_public_tagline:
             typeof business.public_tagline === 'string' ? business.public_tagline : '',
+          business_public_contact_name:
+            typeof business.public_contact_name === 'string' ? business.public_contact_name : '',
+          business_public_contact_phone:
+            typeof business.public_contact_phone === 'string' ? business.public_contact_phone : '',
+          business_public_contact_email:
+            typeof business.public_contact_email === 'string' ? business.public_contact_email : '',
           business_whatsapp_group_invite_url:
             typeof business.whatsapp_group_invite_url === 'string' ? business.whatsapp_group_invite_url : '',
           business_payment_bank_name:
@@ -1148,6 +1157,9 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
       public_brand_name: form.business_public_brand_name.trim() || null,
       public_event_title: form.business_public_event_title.trim() || null,
       public_tagline: form.business_public_tagline.trim() || null,
+      public_contact_name: form.business_public_contact_name.trim() || null,
+      public_contact_phone: form.business_public_contact_phone.trim() || null,
+      public_contact_email: form.business_public_contact_email.trim() || null,
       whatsapp_group_invite_url: form.business_whatsapp_group_invite_url.trim() || null,
       payment_bank_name: form.business_payment_bank_name.trim() || null,
       payment_account_name: form.business_payment_account_name.trim() || null,
@@ -1954,6 +1966,29 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                     onChange={(e) => setForm({ ...form, business_public_tagline: e.target.value })}
                     style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
                   />
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                    <input
+                      placeholder="Nama Kontak Panitia"
+                      value={form.business_public_contact_name}
+                      onChange={(e) => setForm({ ...form, business_public_contact_name: e.target.value })}
+                      style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                    />
+                    <input
+                      placeholder="WhatsApp Panitia"
+                      value={form.business_public_contact_phone}
+                      onChange={(e) => setForm({ ...form, business_public_contact_phone: e.target.value })}
+                      style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                    />
+                    <input
+                      placeholder="Email Panitia"
+                      value={form.business_public_contact_email}
+                      onChange={(e) => setForm({ ...form, business_public_contact_email: e.target.value })}
+                      style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                    />
+                  </div>
+                  <div style={{ fontSize: 12, color: '#333', fontWeight: 700 }}>
+                    Kontak ini akan tampil di email approve/reject pendaftaran sebagai Kontak Panitia.
+                  </div>
                 </div>
                 <div style={{ display: sections.paymentRegistration ? 'grid' : 'none', gap: 8, marginTop: 6 }}>
                   <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>

@@ -5,7 +5,11 @@ import {
   missingPrimaryCategoryMigrationMessage,
 } from '../../../../../../../lib/categoryAssignment'
 import { buildCategoryOccupancyMap } from '../../../../../../../services/categoryOccupancy'
-import { sendRegistrationConfirmationEmail, type RegistrationEmailResult } from '../../../../../../../lib/registrationEmail'
+import {
+  sendRegistrationConfirmationEmail,
+  sendRegistrationRejectionEmail,
+  type RegistrationEmailResult,
+} from '../../../../../../../lib/registrationEmail'
 
 const REGISTRATION_BUCKET = process.env.NEXT_PUBLIC_REGISTRATION_BUCKET || 'registration-docs'
 const RIDER_PHOTO_BUCKET = 'rider-photos'
@@ -395,6 +399,14 @@ export async function PATCH(
       console.warn('[registration-email] failed sending approval confirmation:', reason)
       email = { status: 'failed', reason }
     }
+  } else if (status === 'REJECTED') {
+    try {
+      email = await sendRegistrationRejectionEmail(eventId, registrationId, notes)
+    } catch (emailError) {
+      const reason = emailError instanceof Error ? emailError.message : 'Gagal mengirim email penolakan.'
+      console.warn('[registration-email] failed sending rejection notification:', reason)
+      email = { status: 'failed', reason }
+    }
   }
 
   return NextResponse.json({ ok: true, email })
@@ -407,6 +419,25 @@ export async function DELETE(
   const { eventId, registrationId } = await params
   const auth = await requireAdmin(req.headers.get('authorization'), eventId)
   if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  if (auth.role !== 'SUPER_ADMIN') {
+    const { data: registration, error: registrationError } = await adminClient
+      .from('registrations')
+      .select('status')
+      .eq('id', registrationId)
+      .eq('event_id', eventId)
+      .maybeSingle()
+
+    if (registrationError) return NextResponse.json({ error: registrationError.message }, { status: 400 })
+    if (!registration) return NextResponse.json({ error: 'Registration not found' }, { status: 404 })
+    if (registration.status !== 'REJECTED') {
+      return NextResponse.json(
+        { error: 'Hanya central admin yang bisa delete registrasi yang belum rejected.' },
+        { status: 403 }
+      )
+    }
+  }
+
   const { error } = await adminClient
     .from('registrations')
     .delete()

@@ -245,6 +245,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
 
   const categoryMap = useMemo(() => new Map(categories.map((category) => [category.id, category.label])), [categories])
   const isRegistrationApprover = isRegistrationApproverRole(roleKey)
+  const isCentralAdmin = roleKey === 'SUPER_ADMIN'
   const categoryKpis = useMemo(
     () =>
       [...categories]
@@ -648,6 +649,13 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
     }
   }
 
+  const buildEmailFeedback = (email: ApprovalResponse['email']) => {
+    if (email?.status === 'sent') return 'Email pemberitahuan terkirim.'
+    if (email?.status === 'skipped') return `Email tidak dikirim: ${email.reason ?? 'tidak ada alasan.'}`
+    if (email?.status === 'failed') return `Email gagal dikirim: ${email.reason ?? 'cek konfigurasi Resend.'}`
+    return 'Status email tidak tersedia.'
+  }
+
   const rejectRegistration = async (registration: RegistrationRow, notes: string) => {
     const trimmedNotes = notes.trim()
     if (!trimmedNotes) {
@@ -657,11 +665,15 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
 
     setSavingKey(`registration:${registration.id}`)
     try {
-      await apiFetch(`/api/admin/events/${eventId}/registrations/${registration.id}`, {
+      const rejectionResponse = await apiFetch<ApprovalResponse>(`/api/admin/events/${eventId}/registrations/${registration.id}`, {
         method: 'PATCH',
         body: JSON.stringify({ status: 'REJECTED', notes: trimmedNotes }),
       })
-      setFeedback({ type: 'success', message: `Pendaftaran ${registration.contact_name} berhasil ditolak.` })
+      const email = rejectionResponse?.email
+      setFeedback({
+        type: email?.status === 'failed' ? 'error' : 'success',
+        message: `Pendaftaran ${registration.contact_name} berhasil ditolak. ${buildEmailFeedback(email)}`,
+      })
       setModal(null)
       setModalNotes('')
       setRefreshTick((prev) => prev + 1)
@@ -1283,11 +1295,14 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                         {!isRegistrationApprover && (
                           <button
                             type="button"
-                            disabled={savingKey === `registration:${registration.id}` || registration.status !== 'REJECTED'}
+                            disabled={
+                              savingKey === `registration:${registration.id}` ||
+                              (!isCentralAdmin && registration.status !== 'REJECTED')
+                            }
                             onClick={() => openDeleteModal(registration)}
                             className="rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-black text-slate-700 transition hover:border-slate-950 hover:text-slate-950 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
                           >
-                            Delete
+                            {isCentralAdmin ? 'Delete' : 'Delete Rejected'}
                           </button>
                         )}
                     </div>
@@ -1590,7 +1605,9 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
 
             {modal.type === 'delete' && (
               <div className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-medium text-rose-900">
-                Data pendaftaran ini akan dihapus permanen. Gunakan aksi ini hanya jika pendaftaran memang sudah tidak diperlukan lagi.
+                Data pendaftaran ini akan dihapus permanen. {isCentralAdmin
+                  ? 'Central admin bisa menghapus registrasi walaupun pembayaran/rider sudah approved.'
+                  : 'Admin event hanya bisa menghapus registrasi yang sudah rejected.'}
               </div>
             )}
 

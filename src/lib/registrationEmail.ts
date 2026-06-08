@@ -33,6 +33,8 @@ export type RegistrationEmailResult =
   | { status: 'sent'; id?: string }
   | { status: 'skipped'; reason: string }
 
+type RegistrationEmailKind = 'APPROVED' | 'REJECTED'
+
 const escapeHtml = (value: unknown) =>
   String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -58,9 +60,33 @@ const getBusinessSettings = (value: unknown): BusinessSettings => {
   return {}
 }
 
-export const sendRegistrationConfirmationEmail = async (
+const resolveCommitteeContact = (business: BusinessSettings) => {
+  const name =
+    business.public_contact_name?.trim() ||
+    business.operating_committee_contact_name?.trim() ||
+    business.event_owner_contact_name?.trim() ||
+    business.operating_committee_name?.trim() ||
+    business.event_owner_name?.trim() ||
+    'Panitia'
+  const phone =
+    business.public_contact_phone?.trim() ||
+    business.operating_committee_contact_phone?.trim() ||
+    business.event_owner_contact_phone?.trim() ||
+    ''
+  const email =
+    business.public_contact_email?.trim() ||
+    business.operating_committee_contact_email?.trim() ||
+    business.event_owner_contact_email?.trim() ||
+    ''
+
+  return { name, phone, email }
+}
+
+export const sendRegistrationStatusEmail = async (
   eventId: string,
-  registrationId: string
+  registrationId: string,
+  kind: RegistrationEmailKind,
+  notes?: string | null
 ): Promise<RegistrationEmailResult> => {
   const apiKey = process.env.RESEND_API_KEY?.trim()
   const from = process.env.REGISTRATION_EMAIL_FROM?.trim()
@@ -104,6 +130,7 @@ export const sendRegistrationConfirmationEmail = async (
   const eventTitle = business.public_event_title?.trim() || event?.name || 'Event Pushbike'
   const brandName = business.public_brand_name?.trim() || eventTitle
   const whatsappUrl = normalizeExternalUrl(business.whatsapp_group_invite_url)
+  const committeeContact = resolveCommitteeContact(business)
   const items = (itemRows ?? []) as RegistrationItemRow[]
 
   const riderRows = items
@@ -122,12 +149,30 @@ export const sendRegistrationConfirmationEmail = async (
     })
     .join('')
 
+  const isApproved = kind === 'APPROVED'
+  const title = isApproved ? 'Pendaftaran terverifikasi' : 'Pendaftaran belum dapat diverifikasi'
+  const intro = isApproved
+    ? `pendaftaran untuk <strong>${escapeHtml(eventTitle)}</strong> sudah diverifikasi dan disetujui panitia.`
+    : `pendaftaran untuk <strong>${escapeHtml(eventTitle)}</strong> belum dapat disetujui oleh panitia.`
+  const statusLabel = isApproved ? 'Pendaftaran disetujui panitia' : 'Pendaftaran ditolak / perlu diperbaiki'
+  const noteBlock =
+    !isApproved && notes?.trim()
+      ? `<div style="padding:12px;border:1px solid #fecdd3;border-radius:12px;background:#fff1f2;margin-bottom:16px;"><strong>Alasan:</strong><br/>${escapeHtml(
+          notes.trim()
+        )}</div>`
+      : ''
+  const contactBlock = `
+    <div style="padding:12px;border:1px solid #dbe3ef;border-radius:12px;background:#fff;margin-bottom:16px;">
+      <div><strong>Kontak Panitia:</strong> ${escapeHtml(committeeContact.name)}</div>
+      ${committeeContact.phone ? `<div><strong>WhatsApp:</strong> ${escapeHtml(committeeContact.phone)}</div>` : ''}
+      ${committeeContact.email ? `<div><strong>Email:</strong> ${escapeHtml(committeeContact.email)}</div>` : ''}
+    </div>
+  `
+
   const html = `
     <div style="font-family:Arial,sans-serif;color:#0f172a;line-height:1.5;">
-      <h1 style="margin:0 0 8px;font-size:24px;">Pendaftaran terverifikasi</h1>
-      <p style="margin:0 0 16px;">Halo ${escapeHtml(reg.contact_name || 'Kak')}, pendaftaran untuk <strong>${escapeHtml(
-        eventTitle
-      )}</strong> sudah diverifikasi dan disetujui panitia.</p>
+      <h1 style="margin:0 0 8px;font-size:24px;">${escapeHtml(title)}</h1>
+      <p style="margin:0 0 16px;">Halo ${escapeHtml(reg.contact_name || 'Kak')}, ${intro}</p>
       <div style="padding:14px;border:1px solid #dbe3ef;border-radius:12px;background:#f8fafc;margin-bottom:16px;">
         <div><strong>Event:</strong> ${escapeHtml(eventTitle)}</div>
         <div><strong>Lokasi:</strong> ${escapeHtml(event?.location || '-')}</div>
@@ -135,8 +180,9 @@ export const sendRegistrationConfirmationEmail = async (
         <div><strong>Komunitas:</strong> ${escapeHtml(reg.community_name || '-')}</div>
         <div><strong>Nomor WA:</strong> ${escapeHtml(reg.contact_phone || '-')}</div>
         <div><strong>Total:</strong> ${escapeHtml(formatRupiah(reg.total_amount))}</div>
-        <div><strong>Status:</strong> Pendaftaran disetujui panitia</div>
+        <div><strong>Status:</strong> ${escapeHtml(statusLabel)}</div>
       </div>
+      ${noteBlock}
       <table style="border-collapse:collapse;width:100%;margin-bottom:16px;font-size:13px;">
         <thead>
           <tr style="background:#eaf2ff;">
@@ -151,25 +197,30 @@ export const sendRegistrationConfirmationEmail = async (
         <tbody>${riderRows}</tbody>
       </table>
       ${
-        whatsappUrl
+        isApproved && whatsappUrl
           ? `<p style="margin:0 0 16px;"><a href="${escapeHtml(
               whatsappUrl
             )}" style="display:inline-block;padding:10px 14px;border-radius:10px;background:#16a34a;color:#fff;text-decoration:none;font-weight:700;">Gabung Grup WhatsApp</a></p>`
           : ''
       }
+      ${contactBlock}
       <p style="margin:0;color:#475569;font-size:12px;">Email otomatis dari ${escapeHtml(brandName)}.</p>
     </div>
   `
 
   const text = [
-    'Pendaftaran terverifikasi',
+    title,
     `Event: ${eventTitle}`,
     `Lokasi: ${event?.location || '-'}`,
     `Tanggal: ${event?.event_date || '-'}`,
     `Komunitas: ${reg.community_name || '-'}`,
     `Total: ${formatRupiah(reg.total_amount)}`,
-    'Status: Pendaftaran disetujui panitia',
-    whatsappUrl ? `Grup WhatsApp: ${whatsappUrl}` : '',
+    `Status: ${statusLabel}`,
+    !isApproved && notes?.trim() ? `Alasan: ${notes.trim()}` : '',
+    isApproved && whatsappUrl ? `Grup WhatsApp: ${whatsappUrl}` : '',
+    `Kontak Panitia: ${committeeContact.name}`,
+    committeeContact.phone ? `WhatsApp Panitia: ${committeeContact.phone}` : '',
+    committeeContact.email ? `Email Panitia: ${committeeContact.email}` : '',
   ]
     .filter(Boolean)
     .join('\n')
@@ -183,7 +234,9 @@ export const sendRegistrationConfirmationEmail = async (
     body: JSON.stringify({
       from,
       to: reg.contact_email,
-      subject: `Pendaftaran ${eventTitle} terverifikasi`,
+      subject: isApproved
+        ? `Pendaftaran ${eventTitle} terverifikasi`
+        : `Pendaftaran ${eventTitle} belum dapat diverifikasi`,
       html,
       text,
     }),
@@ -197,3 +250,9 @@ export const sendRegistrationConfirmationEmail = async (
   const body = (await response.json().catch(() => null)) as { id?: string } | null
   return { status: 'sent', id: body?.id }
 }
+
+export const sendRegistrationConfirmationEmail = (eventId: string, registrationId: string) =>
+  sendRegistrationStatusEmail(eventId, registrationId, 'APPROVED')
+
+export const sendRegistrationRejectionEmail = (eventId: string, registrationId: string, notes?: string | null) =>
+  sendRegistrationStatusEmail(eventId, registrationId, 'REJECTED', notes)
