@@ -279,6 +279,7 @@ function JerseySizeChartGraphic() {
 export default function RegisterClient({ eventId }: { eventId: string }) {
   const [categories, setCategories] = useState<CategoryItem[]>([])
   const [eventName, setEventName] = useState<string | null>(null)
+  const [eventLogoUrl, setEventLogoUrl] = useState<string | null>(null)
   const [businessSettings, setBusinessSettings] = useState<BusinessSettings | null>(null)
   const [businessSettingsLoaded, setBusinessSettingsLoaded] = useState(false)
   const [registrationOpen, setRegistrationOpen] = useState(true)
@@ -309,10 +310,12 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         const res = await fetch(`/api/events/${eventId}`)
         const json = await res.json()
         setEventName(json?.data?.name ?? null)
+        setEventLogoUrl(typeof json?.data?.event_logo_url === 'string' ? json.data.event_logo_url : null)
         setBusinessSettings((json?.data?.business_settings ?? null) as BusinessSettings | null)
         setRegistrationOpen(json?.data?.registration_open !== false)
       } catch {
         setEventName(null)
+        setEventLogoUrl(null)
         setBusinessSettings(null)
         setRegistrationOpen(true)
       } finally {
@@ -1074,33 +1077,49 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         )}
         <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,rgba(17,24,39,0.96)_0%,rgba(31,41,55,0.92)_58%,rgba(55,65,81,0.88)_100%)] px-5 py-6 shadow-[0_28px_90px_rgba(2,6,23,0.42)] ring-1 ring-white/5 sm:px-7 md:py-8">
           <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-200/50 to-transparent" />
-          <div className="relative z-10 grid gap-3">
-            <p className="text-xs font-black uppercase tracking-[0.22em] text-amber-300">Event Registration</p>
-            {publicBrandName && (
-              <p className="text-sm font-extrabold uppercase tracking-[0.16em] text-amber-100/90">{publicBrandName}</p>
-            )}
-            <h1 className="max-w-4xl text-3xl font-black tracking-tight text-white md:text-5xl">{publicEventTitle}</h1>
-            <p className="max-w-3xl text-base font-semibold leading-7 text-slate-200 md:text-lg">
-              {publicTagline || eventName || 'Form registrasi event'}
-            </p>
-            {(showEventOwner || showOperatingCommittee || showScoringSupport || showMc) && (
-              <div className="mt-2 flex flex-wrap gap-2 text-xs font-extrabold uppercase tracking-[0.12em] text-slate-100">
-                {showEventOwner && (
-                  <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">Event Owner: {eventOwnerName}</span>
-                )}
-                {showOperatingCommittee && (
-                  <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
-                    Operating Committee: {operatingCommitteeLabel}
-                  </span>
-                )}
-                {showScoringSupport && (
-                  <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
-                    Scoring Support: {scoringSupportLabel}
-                  </span>
-                )}
-                {showMc && (
-                  <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">MC: {mcName}</span>
-                )}
+          <div className="relative z-10 grid gap-5 md:grid-cols-[minmax(0,1fr)_240px] md:items-center">
+            <div className="grid gap-3">
+              <p className="text-xs font-black uppercase tracking-[0.22em] text-amber-300">Event Registration</p>
+              {publicBrandName && (
+                <p className="text-sm font-extrabold uppercase tracking-[0.16em] text-amber-100/90">{publicBrandName}</p>
+              )}
+              <h1 className="max-w-4xl text-3xl font-black tracking-tight text-white md:text-5xl">{publicEventTitle}</h1>
+              <p className="max-w-3xl text-base font-semibold leading-7 text-slate-200 md:text-lg">
+                {publicTagline || eventName || 'Form registrasi event'}
+              </p>
+              {(showEventOwner || showOperatingCommittee || showScoringSupport || showMc) && (
+                <div className="mt-2 flex flex-wrap gap-2 text-xs font-extrabold uppercase tracking-[0.12em] text-slate-100">
+                  {showEventOwner && (
+                    <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">Event Owner: {eventOwnerName}</span>
+                  )}
+                  {showOperatingCommittee && (
+                    <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
+                      Operating Committee: {operatingCommitteeLabel}
+                    </span>
+                  )}
+                  {showScoringSupport && (
+                    <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
+                      Scoring Support: {scoringSupportLabel}
+                    </span>
+                  )}
+                  {showMc && (
+                    <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">MC: {mcName}</span>
+                  )}
+                </div>
+              )}
+            </div>
+            {eventLogoUrl && (
+              <div className="mx-auto w-full max-w-[210px] rounded-[1.5rem] border border-white/15 bg-white p-3 shadow-[0_22px_55px_rgba(2,6,23,0.28)] md:max-w-none">
+                <div className="flex aspect-[4/5] items-center justify-center overflow-hidden rounded-[1rem] bg-slate-100">
+                  <img
+                    src={eventLogoUrl}
+                    alt={`${publicEventTitle} logo`}
+                    className="block h-full w-full object-contain"
+                  />
+                </div>
+                <div className="mt-3 text-center text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+                  Official Event
+                </div>
               </div>
             )}
           </div>
