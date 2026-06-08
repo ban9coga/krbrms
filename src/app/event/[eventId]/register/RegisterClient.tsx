@@ -796,6 +796,22 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
       alert(`Nomor plate rider #${invalidPlateIndex + 1} wajib angka dan maksimal 3 digit.`)
       return
     }
+    const unresolvedPlateIndex = riders.findIndex((rider, index) => {
+      const plateCheck = plateChecks[index] ?? initialPlateCheck()
+      if (!rider.requestedPlateNumber.trim()) return false
+      if (plateCheck.state === 'idle') return true
+      if (plateCheck.state === 'checking' || plateCheck.state === 'error') return true
+      if (plateCheck.state === 'needs_suffix' || plateCheck.state === 'suffix_taken') return true
+      return plateCheck.state !== 'available'
+    })
+    if (unresolvedPlateIndex >= 0) {
+      const plateCheck = plateChecks[unresolvedPlateIndex] ?? initialPlateCheck()
+      alert(
+        plateCheck.message ||
+          `Nomor plate rider #${unresolvedPlateIndex + 1} belum tersedia. Jika disarankan suffix, klik/pilih suffix dulu sebelum lanjut.`
+      )
+      return
+    }
     if (hasPrimaryCategorySlotFull) {
       openSlotFullModal(
         hasPrimaryCategoryAndFallbackFull

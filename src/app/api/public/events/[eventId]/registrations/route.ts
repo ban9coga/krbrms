@@ -363,6 +363,98 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
     (item): item is Exclude<PreparedItem, { error: string }> => !('error' in item)
   )
 
+  const submittedPlateKeys = new Set<string>()
+  const submittedRiderKeys = new Set<string>()
+  for (const item of validItems) {
+    const riderKey = `${item.rider_name.trim().toLowerCase()}:${item.date_of_birth}`
+    if (submittedRiderKeys.has(riderKey)) {
+      return { error: `Rider ${item.rider_name} dengan tanggal lahir ${item.date_of_birth} terisi lebih dari satu kali.` }
+    }
+    submittedRiderKeys.add(riderKey)
+
+    if (!item.requested_plate_number) continue
+    const plateKey = `${item.requested_plate_number}:${item.requested_plate_suffix ?? ''}`
+    if (submittedPlateKeys.has(plateKey)) {
+      return {
+        error: `Nomor plate ${item.requested_plate_number}${item.requested_plate_suffix ?? ''} dipakai lebih dari satu rider dalam pendaftaran ini.`,
+      }
+    }
+    submittedPlateKeys.add(plateKey)
+  }
+
+  for (const item of validItems) {
+    const [{ data: existingRiders, error: existingRiderError }, { data: existingRegistrationItems, error: existingItemError }] =
+      await Promise.all([
+        adminClient
+          .from('riders')
+          .select('id')
+          .eq('event_id', eventId)
+          .eq('date_of_birth', item.date_of_birth)
+          .ilike('name', item.rider_name.trim())
+          .limit(1),
+        adminClient
+          .from('registration_items')
+          .select('id, registrations!inner(event_id, status)')
+          .eq('date_of_birth', item.date_of_birth)
+          .ilike('rider_name', item.rider_name.trim())
+          .eq('registrations.event_id', eventId)
+          .neq('registrations.status', 'REJECTED')
+          .neq('status', 'REJECTED')
+          .limit(1),
+      ])
+
+    if (existingRiderError) return { error: existingRiderError.message }
+    if (existingItemError) return { error: existingItemError.message }
+    if ((existingRiders ?? []).length > 0 || (existingRegistrationItems ?? []).length > 0) {
+      return {
+        error: `Rider ${item.rider_name} dengan tanggal lahir ${item.date_of_birth} sudah pernah didaftarkan di event ini.`,
+      }
+    }
+  }
+
+  const plateNumbers = Array.from(new Set(validItems.map((item) => item.requested_plate_number).filter(Boolean))) as string[]
+  for (const plateNumber of plateNumbers) {
+    const [{ data: riderPlates, error: riderPlateError }, { data: pendingPlateItems, error: pendingPlateError }] =
+      await Promise.all([
+        adminClient
+          .from('riders')
+          .select('plate_suffix')
+          .eq('event_id', eventId)
+          .eq('plate_number', plateNumber),
+        adminClient
+          .from('registration_items')
+          .select('requested_plate_suffix, status, registrations!inner(event_id, status)')
+          .eq('requested_plate_number', plateNumber)
+          .eq('registrations.event_id', eventId)
+          .neq('registrations.status', 'REJECTED')
+          .neq('status', 'REJECTED'),
+      ])
+
+    if (riderPlateError) return { error: riderPlateError.message }
+    if (pendingPlateError) return { error: pendingPlateError.message }
+
+    const usedSuffixes = [
+      ...(riderPlates ?? []).map((row) =>
+        typeof row.plate_suffix === 'string' && row.plate_suffix.trim() ? row.plate_suffix.trim().toUpperCase() : null
+      ),
+      ...(pendingPlateItems ?? []).map((row) =>
+        typeof row.requested_plate_suffix === 'string' && row.requested_plate_suffix.trim()
+          ? row.requested_plate_suffix.trim().toUpperCase()
+          : null
+      ),
+    ]
+
+    for (const item of validItems.filter((entry) => entry.requested_plate_number === plateNumber)) {
+      const displayPlate = `${item.requested_plate_number}${item.requested_plate_suffix ?? ''}`
+      if (!item.requested_plate_suffix && usedSuffixes.length > 0) {
+        return { error: `Nomor plate ${plateNumber} sudah digunakan. Tambahkan suffix/huruf sebelum lanjut pendaftaran.` }
+      }
+      if (item.requested_plate_suffix && usedSuffixes.includes(item.requested_plate_suffix)) {
+        return { error: `Plate ${displayPlate} sudah digunakan. Pilih suffix/huruf lain sebelum lanjut pendaftaran.` }
+      }
+    }
+  }
+
   const totalAmount = validItems.reduce((sum, item) => sum + item.price, 0)
 
   // Secret token to authorize step-by-step uploads (photo/docs/payment) without login.

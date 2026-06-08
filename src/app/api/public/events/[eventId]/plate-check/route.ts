@@ -55,9 +55,26 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
-  const usedSuffixes = (existingPlates ?? []).map((row) =>
-    typeof row.plate_suffix === 'string' && row.plate_suffix.trim() ? row.plate_suffix.trim().toUpperCase() : null
-  )
+  const { data: pendingItems, error: pendingError } = await adminClient
+    .from('registration_items')
+    .select('requested_plate_suffix, status, registrations!inner(event_id, status)')
+    .eq('requested_plate_number', plateNumber)
+    .eq('registrations.event_id', eventId)
+    .neq('registrations.status', 'REJECTED')
+    .neq('status', 'REJECTED')
+
+  if (pendingError) return NextResponse.json({ error: pendingError.message }, { status: 400 })
+
+  const usedSuffixes = [
+    ...(existingPlates ?? []).map((row) =>
+      typeof row.plate_suffix === 'string' && row.plate_suffix.trim() ? row.plate_suffix.trim().toUpperCase() : null
+    ),
+    ...(pendingItems ?? []).map((row) =>
+      typeof row.requested_plate_suffix === 'string' && row.requested_plate_suffix.trim()
+        ? row.requested_plate_suffix.trim().toUpperCase()
+        : null
+    ),
+  ]
   const displayValue = `${plateNumber}${plateSuffix ?? ''}`
 
   if (usedSuffixes.length === 0) {
