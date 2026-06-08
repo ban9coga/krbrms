@@ -713,10 +713,15 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
       return next
     })
     try {
-      await apiFetch(`/api/admin/events/${eventId}/registrations/${registration.id}/payments/${payment.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ status: nextStatus }),
-      })
+      const paymentResponse = await apiFetch<ApprovalResponse>(
+        `/api/admin/events/${eventId}/registrations/${registration.id}/payments/${payment.id}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ status: nextStatus }),
+        }
+      )
+      const email = paymentResponse?.email
+      const emailMessage = nextStatus === 'REJECTED' ? ` ${buildEmailFeedback(email)}` : ''
       setRegistrations((prev) =>
         prev.map((row) =>
           row.id !== registration.id
@@ -730,14 +735,14 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
         )
       )
       setFeedback({
-        type: 'success',
-        message: `Pembayaran ${registration.contact_name} berhasil diubah ke ${nextStatus}.`,
+        type: email?.status === 'failed' ? 'error' : 'success',
+        message: `Pembayaran ${registration.contact_name} berhasil diubah ke ${nextStatus}.${emailMessage}`,
       })
       setPaymentFeedback((prev) => ({
         ...prev,
         [payment.id]: {
-          type: 'success',
-          message: `Status pembayaran langsung berubah ke ${nextStatus}.`,
+          type: email?.status === 'failed' ? 'error' : 'success',
+          message: `Status pembayaran langsung berubah ke ${nextStatus}.${emailMessage}`,
         },
       }))
       setRefreshTick((prev) => prev + 1)

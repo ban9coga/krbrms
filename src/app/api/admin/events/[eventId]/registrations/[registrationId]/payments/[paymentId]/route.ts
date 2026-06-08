@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireBackoffice } from '../../../../../../../../../lib/auth'
+import {
+  sendRegistrationRejectionEmail,
+  type RegistrationEmailResult,
+} from '../../../../../../../../../lib/registrationEmail'
 
 const PAYMENT_STATUSES = ['APPROVED', 'REJECTED'] as const
 
@@ -36,6 +40,22 @@ export async function PATCH(
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-  return NextResponse.json({ data })
+
+  let email: RegistrationEmailResult | { status: 'failed'; reason: string } | null = null
+  if (status === 'REJECTED') {
+    const reason =
+      typeof body?.notes === 'string' && body.notes.trim()
+        ? body.notes.trim()
+        : 'Bukti pembayaran belum dapat dikonfirmasi. Silakan cek kembali bukti pembayaran atau hubungi panitia.'
+    try {
+      email = await sendRegistrationRejectionEmail(eventId, registrationId, reason)
+    } catch (emailError) {
+      const message = emailError instanceof Error ? emailError.message : 'Gagal mengirim email penolakan pembayaran.'
+      console.warn('[registration-email] failed sending payment rejection notification:', message)
+      email = { status: 'failed', reason: message }
+    }
+  }
+
+  return NextResponse.json({ data, email })
 }
 

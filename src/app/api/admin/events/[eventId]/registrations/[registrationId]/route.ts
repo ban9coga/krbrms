@@ -235,7 +235,15 @@ export async function PATCH(
   if (status === 'REJECTED') {
     await adminClient.from('registrations').update({ status, notes: notes ?? null }).eq('id', registrationId)
     await adminClient.from('registration_items').update({ status }).eq('registration_id', registrationId)
-    return NextResponse.json({ ok: true })
+    let email: RegistrationEmailResult | { status: 'failed'; reason: string } | null = null
+    try {
+      email = await sendRegistrationRejectionEmail(eventId, registrationId, notes)
+    } catch (emailError) {
+      const reason = emailError instanceof Error ? emailError.message : 'Gagal mengirim email penolakan.'
+      console.warn('[registration-email] failed sending rejection notification:', reason)
+      email = { status: 'failed', reason }
+    }
+    return NextResponse.json({ ok: true, email })
   }
 
   const categoryIds = new Set<string>()
