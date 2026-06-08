@@ -470,12 +470,14 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     gender: 'BOY' | 'GIRL',
     primaryCategoryId: string
   ) => {
+    const exactCandidates = getExactPrimaryCategories(birthYear, gender)
+    if (birthYear && exactCandidates.length === 0) return null
     const exact = getAvailableExactPrimaryCategory(birthYear, gender)
     if (exact) return exact
     const fallback = getSelectedFallbackPrimaryCategory(birthYear, gender, primaryCategoryId)
     if (!fallback || isCategoryFull(fallback)) return null
     return fallback
-  }, [getAvailableExactPrimaryCategory, getSelectedFallbackPrimaryCategory])
+  }, [getAvailableExactPrimaryCategory, getExactPrimaryCategories, getSelectedFallbackPrimaryCategory])
 
   const getPrimaryCategoryIssue = useCallback((
     birthYear: number | null,
@@ -1210,12 +1212,10 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         {riders.map((rider, idx) => {
           const birthYear = getCompleteBirthYear(rider.dateOfBirth)
           const primaryIssue = getPrimaryCategoryIssue(birthYear, rider.gender, rider.primaryCategoryId)
-          const exactPrimaryCategory = getAvailableExactPrimaryCategory(birthYear, rider.gender)
           const primaryCategory = computePrimaryCategory(birthYear, rider.gender, rider.primaryCategoryId)
           const fallbackPrimaryOptions = getFallbackPrimaryCategories(birthYear, rider.gender)
           const availableFallbackPrimaryOptions = fallbackPrimaryOptions.filter((category) => !isCategoryFull(category))
-          const showFallbackPrimarySelector =
-            birthYear != null && !exactPrimaryCategory && availableFallbackPrimaryOptions.length > 0
+          const showFallbackPrimarySelector = primaryIssue === 'fallback_required' && availableFallbackPrimaryOptions.length > 0
           const extras = extraCategoryOptions(birthYear, rider.gender, primaryCategory)
           const hasMatchedFullCategory = primaryIssue === 'full' || primaryIssue === 'fallback_required'
           const extrasAvailable = extras.some((cat) => !isCategoryFull(cat))
