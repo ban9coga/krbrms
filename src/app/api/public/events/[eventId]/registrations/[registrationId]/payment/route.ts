@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../../../../lib/auth'
 import { sendRegistrationConfirmationEmail } from '../../../../../../../../lib/registrationEmail'
+import { isPdfFile, prepareImageUpload, preparePassthroughUpload } from '../../../../../../../../lib/imageUpload'
 
 const BUCKET = process.env.NEXT_PUBLIC_REGISTRATION_BUCKET || 'registration-docs'
 const SUPPORTING_IMAGE_MAX_BYTES = 2 * 1024 * 1024
@@ -67,20 +68,13 @@ export async function POST(
     return NextResponse.json({ error: 'Nomor rekening pengirim wajib diisi.' }, { status: 400 })
   }
 
-  const lowerName = file.name.toLowerCase()
   const isImage = file.type.startsWith('image/')
-  const isPdf = file.type === 'application/pdf' || lowerName.endsWith('.pdf')
+  const isPdf = isPdfFile(file)
   if (!isImage && !isPdf) {
     return NextResponse.json({ error: 'Bukti pembayaran harus berupa gambar atau PDF.' }, { status: 400 })
   }
-  const limit = isPdf ? SUPPORTING_PDF_MAX_BYTES : SUPPORTING_IMAGE_MAX_BYTES
-  if (file.size > limit) {
-    return NextResponse.json(
-      {
-        error: `Bukti pembayaran terlalu besar. Maksimal ${isPdf ? '3.0 MB untuk PDF' : '2.0 MB untuk gambar'}.`,
-      },
-      { status: 400 }
-    )
+  if (isPdf && file.size > SUPPORTING_PDF_MAX_BYTES) {
+    return NextResponse.json({ error: 'Bukti pembayaran terlalu besar. Maksimal 3.0 MB untuk PDF.' }, { status: 400 })
   }
 
   const { data: reg, error: regError } = await adminClient
@@ -93,13 +87,29 @@ export async function POST(
     return NextResponse.json({ error: 'Registration not found' }, { status: 404 })
   }
 
-  const bytes = await file.arrayBuffer()
-  const buffer = Buffer.from(bytes)
-  const ext = file.name.includes('.') ? file.name.split('.').pop() : 'bin'
-  const path = `${eventId}/${registrationId}/payment-${Date.now()}.${ext}`
+  let upload
+  try {
+    upload = isPdf
+      ? await preparePassthroughUpload(file, {
+          maxBytes: SUPPORTING_PDF_MAX_BYTES,
+          contentType: 'application/pdf',
+          extension: 'pdf',
+          label: 'Bukti pembayaran',
+        })
+      : await prepareImageUpload(file, {
+          maxBytes: SUPPORTING_IMAGE_MAX_BYTES,
+          maxDimension: 1200,
+          quality: 78,
+          label: 'Bukti pembayaran',
+        })
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Bukti pembayaran gagal diproses.' }, { status: 400 })
+  }
+  const path = `${eventId}/${registrationId}/payment-${Date.now()}.${upload.extension}`
 
-  const { error: uploadError } = await adminClient.storage.from(BUCKET).upload(path, buffer, {
-    contentType: file.type || 'application/octet-stream',
+  const { error: uploadError } = await adminClient.storage.from(BUCKET).upload(path, upload.buffer, {
+    contentType: upload.contentType,
+    cacheControl: '31536000',
     upsert: true,
   })
   if (uploadError) return NextResponse.json({ error: uploadError.message }, { status: 400 })

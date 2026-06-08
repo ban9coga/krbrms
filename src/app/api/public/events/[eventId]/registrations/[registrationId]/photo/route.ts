@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../../../../lib/auth'
+import { prepareImageUpload } from '../../../../../../../../lib/imageUpload'
 
 const BUCKET = process.env.NEXT_PUBLIC_REGISTRATION_BUCKET || 'registration-docs'
 const RIDER_PHOTO_MAX_BYTES = Math.round(1.5 * 1024 * 1024)
@@ -72,13 +73,22 @@ export async function POST(
   if (itemErr) return NextResponse.json({ error: itemErr.message }, { status: 400 })
   if (!itemRow) return NextResponse.json({ error: 'registration_item_id not found' }, { status: 404 })
 
-  const bytes = await file.arrayBuffer()
-  const buffer = Buffer.from(bytes)
-  const ext = file.name.includes('.') ? file.name.split('.').pop() : 'jpg'
-  const path = `${eventId}/${registrationId}/${itemId}-photo-${Date.now()}.${ext}`
+  let upload
+  try {
+    upload = await prepareImageUpload(file, {
+      maxBytes: RIDER_PHOTO_MAX_BYTES,
+      maxDimension: 500,
+      quality: 78,
+      label: 'Foto rider',
+    })
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Foto rider gagal diproses.' }, { status: 400 })
+  }
+  const path = `${eventId}/${registrationId}/${itemId}-photo-${Date.now()}.${upload.extension}`
 
-  const { error: uploadError } = await adminClient.storage.from(BUCKET).upload(path, buffer, {
-    contentType: file.type || 'image/jpeg',
+  const { error: uploadError } = await adminClient.storage.from(BUCKET).upload(path, upload.buffer, {
+    contentType: upload.contentType,
+    cacheControl: '31536000',
     upsert: true,
   })
   if (uploadError) return NextResponse.json({ error: uploadError.message }, { status: 400 })

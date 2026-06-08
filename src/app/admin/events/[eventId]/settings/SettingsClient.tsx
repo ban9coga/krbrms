@@ -719,6 +719,14 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
   const handleRegistrationMediaUpload = async (file: File | null, kind: 'qris' | 'jersey-chart') => {
     if (!file) return
     setRegistrationMediaError('')
+    if (!file.type.startsWith('image/')) {
+      setRegistrationMediaError('Media registrasi harus berupa gambar.')
+      return
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setRegistrationMediaError('Media registrasi terlalu besar. Maksimal 2.0 MB.')
+      return
+    }
     setRegistrationMediaUploading(kind)
     try {
       const url = await uploadRegistrationMedia(file, kind)

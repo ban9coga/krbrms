@@ -8,6 +8,7 @@ import {
 } from '../../../../../../lib/categoryAssignment'
 import { buildCategoryOccupancyMap } from '../../../../../../services/categoryOccupancy'
 import { sendRegistrationConfirmationEmail } from '../../../../../../lib/registrationEmail'
+import { isPdfFile, prepareImageUpload, preparePassthroughUpload, type PreparedUpload } from '../../../../../../lib/imageUpload'
 
 type RegistrationItemInput = {
   rider_name: string
@@ -145,16 +146,10 @@ const parseRequest = async (req: Request) => {
   return { payload, formData: null, isMultipart: false as const }
 }
 
-const getExt = (fileName: string, fallback: string) => {
-  const fromName = fileName.includes('.') ? fileName.split('.').pop()?.toLowerCase() : null
-  const safe = fromName?.replace(/[^a-z0-9]/g, '')
-  return safe && safe.length > 0 ? safe : fallback
-}
-
-const uploadFile = async (path: string, file: File, fallbackType: string) => {
-  const buffer = Buffer.from(await file.arrayBuffer())
-  const { error } = await adminClient.storage.from(BUCKET).upload(path, buffer, {
-    contentType: file.type || fallbackType,
+const uploadPreparedFile = async (path: string, upload: PreparedUpload) => {
+  const { error } = await adminClient.storage.from(BUCKET).upload(path, upload.buffer, {
+    contentType: upload.contentType,
+    cacheControl: '31536000',
     upsert: true,
   })
   if (error) throw new Error(error.message)
@@ -485,15 +480,37 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
           throw new Error(`Dokumen KK/Akte wajib untuk rider #${idx + 1}`)
         }
 
-        const docExt = getExt(docFile.name, 'bin')
+        const docIsPdf = isPdfFile(docFile)
+        if (!docFile.type.startsWith('image/') && !docIsPdf) {
+          throw new Error(`Dokumen KK/Akte rider #${idx + 1} harus berupa gambar atau PDF.`)
+        }
+        const docUpload = docIsPdf
+          ? await preparePassthroughUpload(docFile, {
+              maxBytes: 3 * 1024 * 1024,
+              contentType: 'application/pdf',
+              extension: 'pdf',
+              label: `Dokumen KK/Akte rider #${idx + 1}`,
+            })
+          : await prepareImageUpload(docFile, {
+              maxBytes: 2 * 1024 * 1024,
+              maxDimension: 1200,
+              quality: 78,
+              label: `Dokumen KK/Akte rider #${idx + 1}`,
+            })
         const photoPath =
           riderPhotoUploadEnabled && photoFile instanceof File
-            ? `${eventId}/${registration.id}/${itemRow.id}-photo-${Date.now()}-${idx}.${getExt(photoFile.name, 'jpg')}`
+            ? `${eventId}/${registration.id}/${itemRow.id}-photo-${Date.now()}-${idx}.webp`
             : null
-        const docPath = `${eventId}/${registration.id}/${itemRow.id}-${DOCUMENT_TYPE}-${Date.now()}-${idx}.${docExt}`
+        const docPath = `${eventId}/${registration.id}/${itemRow.id}-${DOCUMENT_TYPE}-${Date.now()}-${idx}.${docUpload.extension}`
 
         if (photoPath && photoFile instanceof File) {
-          await uploadFile(photoPath, photoFile, 'image/jpeg')
+          const photoUpload = await prepareImageUpload(photoFile, {
+            maxBytes: 1.5 * 1024 * 1024,
+            maxDimension: 500,
+            quality: 78,
+            label: `Foto rider #${idx + 1}`,
+          })
+          await uploadPreparedFile(photoPath, photoUpload)
           uploadedPaths.push(photoPath)
 
           const { error: updatePhotoError } = await adminClient
@@ -505,7 +522,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
           if (updatePhotoError) throw new Error(updatePhotoError.message)
         }
 
-        await uploadFile(docPath, docFile, 'application/octet-stream')
+        await uploadPreparedFile(docPath, docUpload)
         uploadedPaths.push(docPath)
 
         return {
@@ -520,9 +537,25 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     const { error: docsError } = await adminClient.from('registration_documents').insert(docsToInsert)
     if (docsError) throw new Error(docsError.message)
 
-    const paymentExt = getExt(paymentProof.name, 'bin')
-    const paymentPath = `${eventId}/${registration.id}/payment-${Date.now()}.${paymentExt}`
-    await uploadFile(paymentPath, paymentProof, 'application/octet-stream')
+    const paymentIsPdf = isPdfFile(paymentProof)
+    if (!paymentProof.type.startsWith('image/') && !paymentIsPdf) {
+      throw new Error('Bukti pembayaran harus berupa gambar atau PDF.')
+    }
+    const paymentUpload = paymentIsPdf
+      ? await preparePassthroughUpload(paymentProof, {
+          maxBytes: 3 * 1024 * 1024,
+          contentType: 'application/pdf',
+          extension: 'pdf',
+          label: 'Bukti pembayaran',
+        })
+      : await prepareImageUpload(paymentProof, {
+          maxBytes: 2 * 1024 * 1024,
+          maxDimension: 1200,
+          quality: 78,
+          label: 'Bukti pembayaran',
+        })
+    const paymentPath = `${eventId}/${registration.id}/payment-${Date.now()}.${paymentUpload.extension}`
+    await uploadPreparedFile(paymentPath, paymentUpload)
     uploadedPaths.push(paymentPath)
 
     const { data: payment, error: paymentError } = await adminClient
