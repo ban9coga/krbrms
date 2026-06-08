@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin, requireBackoffice, verifyPasswordForAuthHeader } from '../../../../lib/auth'
 import { syncAdvancedRaceProgress } from '../../../../services/advancedRaceAuto'
 import type { BusinessSettings } from '../../../../lib/eventService'
+import { proxyBusinessSettingsMedia, toPublicMediaUrl, toPublicMediaUrls } from '../../../../lib/publicMedia'
 type DrawMode = 'internal_live_draw' | 'external_draw'
 type EventScope = 'PUBLIC' | 'INTERNAL'
 
@@ -52,11 +53,9 @@ const getLatestRaceFormatSettings = async (eventId: string) => {
   const row = (data ?? [])[0]
   return {
     data: parseRaceFormatSettings(row?.race_format_settings),
-    eventLogoUrl: typeof row?.event_logo_url === 'string' ? row.event_logo_url : null,
-    sponsorLogoUrls: Array.isArray(row?.sponsor_logo_urls)
-      ? row.sponsor_logo_urls.filter((item: unknown) => typeof item === 'string')
-      : [],
-    businessSettings: parseBusinessSettings(row?.business_settings),
+    eventLogoUrl: toPublicMediaUrl(typeof row?.event_logo_url === 'string' ? row.event_logo_url : null),
+    sponsorLogoUrls: toPublicMediaUrls(row?.sponsor_logo_urls),
+    businessSettings: proxyBusinessSettingsMedia(parseBusinessSettings(row?.business_settings)),
     registrationOpen: typeof row?.registration_open === 'boolean' ? row.registration_open : true,
     error: null,
   }

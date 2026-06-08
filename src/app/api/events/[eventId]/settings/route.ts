@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../lib/auth'
 import type { BusinessSettings } from '../../../../../lib/eventService'
+import { proxyBusinessSettingsMedia, toPublicMediaUrl, toPublicMediaUrls } from '../../../../../lib/publicMedia'
 
 const normalizeBusinessSettings = (value: unknown): BusinessSettings => {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
@@ -26,7 +27,9 @@ export async function GET(_: Request, { params }: { params: Promise<{ eventId: s
     data: row
       ? {
           ...row,
-          business_settings: normalizeBusinessSettings(row.business_settings),
+          event_logo_url: toPublicMediaUrl(row.event_logo_url),
+          sponsor_logo_urls: toPublicMediaUrls(row.sponsor_logo_urls),
+          business_settings: proxyBusinessSettingsMedia(normalizeBusinessSettings(row.business_settings)),
         }
       : null,
   })

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../lib/auth'
+import { toPublicMediaUrl } from '../../../../../lib/publicMedia'
 
 const BUCKET = 'event-logos'
 
@@ -29,6 +30,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   if (uploadError) return NextResponse.json({ error: uploadError.message }, { status: 400 })
 
   const publicUrl = adminClient.storage.from(BUCKET).getPublicUrl(path).data.publicUrl
+  const mediaUrl = toPublicMediaUrl(publicUrl) ?? publicUrl
   const { data: existingSettings, error: settingsLookupError } = await adminClient
     .from('event_settings')
     .select('registration_open')
@@ -41,8 +43,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   const registrationOpen = typeof existingSettings?.registration_open === 'boolean' ? existingSettings.registration_open : true
   const { error: upsertError } = await adminClient
     .from('event_settings')
-    .upsert({ event_id: eventId, event_logo_url: publicUrl, registration_open: registrationOpen }, { onConflict: 'event_id' })
+    .upsert({ event_id: eventId, event_logo_url: mediaUrl, registration_open: registrationOpen }, { onConflict: 'event_id' })
   if (upsertError) return NextResponse.json({ error: upsertError.message }, { status: 400 })
 
-  return NextResponse.json({ url: publicUrl })
+  return NextResponse.json({ url: mediaUrl })
 }

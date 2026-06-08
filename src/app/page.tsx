@@ -6,6 +6,7 @@ import EventCard from '../components/EventCard'
 import Link from 'next/link'
 import { adminClient } from '../lib/auth'
 import type { EventItem, EventStatus } from '../lib/eventService'
+import { toPublicMediaUrl } from '../lib/publicMedia'
 
 export const revalidate = 30
 
@@ -51,7 +52,7 @@ const loadEventSettings = async (eventIds: string[]) => {
     const slogan = typeof theme.slogan === 'string' ? theme.slogan : null
     const eventScope = raceFormat.event_scope === 'INTERNAL' ? 'INTERNAL' : 'PUBLIC'
     settingsMap.set(row.event_id, {
-      logo: row.event_logo_url ?? null,
+      logo: toPublicMediaUrl(row.event_logo_url),
       slogan,
       event_scope: eventScope,
       registration_open: typeof row.registration_open === 'boolean' ? row.registration_open : true,

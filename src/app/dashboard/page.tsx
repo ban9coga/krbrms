@@ -2,6 +2,7 @@ import EventCard from '../../components/EventCard'
 import MarketingTopbar from '../../components/MarketingTopbar'
 import type { EventItem, EventStatus } from '../../lib/eventService'
 import { adminClient } from '../../lib/auth'
+import { toPublicMediaUrl } from '../../lib/publicMedia'
 
 export const dynamic = 'force-dynamic'
 
@@ -93,7 +94,7 @@ export default async function DashboardPage() {
       const slogan = typeof theme.slogan === 'string' ? theme.slogan : null
       const eventScope = raceFormat.event_scope === 'INTERNAL' ? 'INTERNAL' : 'PUBLIC'
       settingsMap.set(row.event_id, {
-        logo: row.event_logo_url ?? null,
+        logo: toPublicMediaUrl(row.event_logo_url),
         slogan,
         event_scope: eventScope,
         registration_open: typeof row.registration_open === 'boolean' ? row.registration_open : true,

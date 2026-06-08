@@ -1,6 +1,7 @@
 import LiveDisplayClient from './LiveDisplayClient'
 import { adminClient } from '../../../../lib/auth'
 import type { BusinessSettings, EventItem } from '../../../../lib/eventService'
+import { proxyBusinessSettingsMedia, toPublicMediaUrl, toPublicMediaUrls } from '../../../../lib/publicMedia'
 
 const parseBusinessSettings = (value: unknown): BusinessSettings => {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
@@ -28,11 +29,9 @@ export default async function LiveDisplayPage({ params }: { params: Promise<{ ev
   const initialEvent: EventItem | null = eventRow
     ? {
         ...eventRow,
-        event_logo_url: typeof settingsRow?.event_logo_url === 'string' ? settingsRow.event_logo_url : null,
-        sponsor_logo_urls: Array.isArray(settingsRow?.sponsor_logo_urls)
-          ? settingsRow.sponsor_logo_urls.filter((item): item is string => typeof item === 'string')
-          : [],
-        business_settings: parseBusinessSettings(settingsRow?.business_settings),
+        event_logo_url: toPublicMediaUrl(typeof settingsRow?.event_logo_url === 'string' ? settingsRow.event_logo_url : null),
+        sponsor_logo_urls: toPublicMediaUrls(settingsRow?.sponsor_logo_urls),
+        business_settings: proxyBusinessSettingsMedia(parseBusinessSettings(settingsRow?.business_settings)),
       }
     : null
 

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../lib/auth'
 import { prepareImageUpload } from '../../../../../lib/imageUpload'
+import { toPublicMediaUrl } from '../../../../../lib/publicMedia'
 
 const BUCKET = 'event-logos'
 const ALLOWED_KINDS = new Set(['qris', 'jersey-chart'])
@@ -55,5 +56,5 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   }
 
   const publicUrl = adminClient.storage.from(BUCKET).getPublicUrl(path).data.publicUrl
-  return NextResponse.json({ url: publicUrl })
+  return NextResponse.json({ url: toPublicMediaUrl(publicUrl) ?? publicUrl })
 }

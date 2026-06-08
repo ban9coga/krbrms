@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../lib/auth'
+import { toPublicMediaUrl } from '../../../../../lib/publicMedia'
 
 const BUCKET = 'event-logos'
 
@@ -29,5 +30,5 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   if (uploadError) return NextResponse.json({ error: uploadError.message }, { status: 400 })
 
   const publicUrl = adminClient.storage.from(BUCKET).getPublicUrl(path).data.publicUrl
-  return NextResponse.json({ url: publicUrl })
+  return NextResponse.json({ url: toPublicMediaUrl(publicUrl) ?? publicUrl })
 }
