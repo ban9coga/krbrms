@@ -312,6 +312,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState<RegistrationSuccess | null>(null)
   const [slotFullModal, setSlotFullModal] = useState<{ title: string; message: string } | null>(null)
+  const [duplicateRegistrationModal, setDuplicateRegistrationModal] = useState<{ message: string } | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -598,6 +599,21 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   const scoringSupportLabel =
     businessSettings?.scoring_support_label?.trim() || businessSettings?.scoring_support_name?.trim() || ''
   const mcName = businessSettings?.mc_name?.trim() || ''
+  const publicContactName =
+    businessSettings?.public_contact_name?.trim() ||
+    businessSettings?.event_owner_contact_name?.trim() ||
+    businessSettings?.operating_committee_contact_name?.trim() ||
+    businessSettings?.event_owner_name?.trim() ||
+    'panitia'
+  const publicContactPhone =
+    businessSettings?.public_contact_phone?.trim() ||
+    businessSettings?.event_owner_contact_phone?.trim() ||
+    businessSettings?.operating_committee_contact_phone?.trim() ||
+    ''
+  const publicContactWhatsapp = publicContactPhone
+    ? `https://wa.me/${normalizePhoneDigits(publicContactPhone).replace(/^0/, '62')}`
+    : ''
+  const supportInstagram = '@pushbike.kotaarang'
   const lastAutoCategoryModalKeyRef = useRef('')
 
   useEffect(() => {
@@ -608,6 +624,10 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
       title: 'Slot Pendaftaran Penuh',
       message,
     })
+  }, [])
+
+  const openDuplicateRegistrationModal = useCallback((message: string) => {
+    setDuplicateRegistrationModal({ message })
   }, [])
 
   const getPrimaryIssueModalMessage = useCallback((
@@ -740,6 +760,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   const handleSubmit = async () => {
     setSuccess(null)
     setSlotFullModal(null)
+    setDuplicateRegistrationModal(null)
     const normalizedContactPhone = normalizePhoneDigits(contactPhone)
     if (!registrationOpen) {
       alert('Pendaftaran untuk event ini sedang ditutup oleh panitia.')
@@ -1004,6 +1025,11 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         (message.toLowerCase().includes('kuota') && message.toLowerCase().includes('penuh'))
       ) {
         openSlotFullModal(message)
+      } else if (
+        message.toLowerCase().includes('sudah pernah didaftarkan') ||
+        message.toLowerCase().includes('terisi lebih dari satu kali')
+      ) {
+        openDuplicateRegistrationModal(message)
       } else {
         alert(message)
       }
@@ -1828,6 +1854,46 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                 type="button"
                 onClick={() => setSlotFullModal(null)}
                 className="inline-flex items-center justify-center rounded-xl bg-amber-400 px-4 py-2.5 text-sm font-extrabold uppercase tracking-wide text-slate-950 transition-colors hover:bg-amber-300"
+              >
+                Oke, Mengerti
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {duplicateRegistrationModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/75 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-[1.75rem] border border-rose-300/30 bg-slate-900 p-6 shadow-[0_30px_90px_rgba(2,6,23,0.55)]">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-rose-300/45 bg-rose-400/12 text-2xl font-black text-rose-200">
+              !
+            </div>
+            <div className="mt-4 text-center text-xs font-black uppercase tracking-[0.18em] text-rose-200">
+              Data Rider Sudah Terdaftar
+            </div>
+            <h3 className="mt-3 text-center text-2xl font-black text-white">Pendaftaran belum bisa dilanjutkan</h3>
+            <div className="mt-5 rounded-2xl border border-rose-300/20 bg-rose-400/[0.08] p-4">
+              <p className="text-sm font-semibold leading-6 text-rose-50">{duplicateRegistrationModal.message}</p>
+            </div>
+            <p className="mt-4 text-sm font-semibold leading-6 text-slate-300">
+              Jika ada perubahan atau kesalahan data, hubungi {publicContactName}
+              {publicContactPhone ? ` di ${publicContactPhone}` : ''}, atau DM IG {supportInstagram}.
+            </p>
+            <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
+              {publicContactWhatsapp && (
+                <a
+                  href={publicContactWhatsapp}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center justify-center rounded-xl bg-emerald-400 px-4 py-2.5 text-sm font-extrabold uppercase tracking-wide text-slate-950 transition-colors hover:bg-emerald-300"
+                >
+                  Hubungi Panitia
+                </a>
+              )}
+              <button
+                type="button"
+                onClick={() => setDuplicateRegistrationModal(null)}
+                className="inline-flex items-center justify-center rounded-xl border border-white/15 bg-slate-800 px-4 py-2.5 text-sm font-extrabold uppercase tracking-wide text-white transition-colors hover:bg-slate-700"
               >
                 Oke, Mengerti
               </button>
