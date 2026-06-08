@@ -33,6 +33,7 @@ export type BusinessSettings = {
   payment_account_number?: string | null
   registration_qris_image_url?: string | null
   registration_jersey_size_chart_url?: string | null
+  registration_rider_photo_enabled?: boolean | null
   jersey_size_options?: string[] | null
   public_contact_name?: string | null
   public_contact_phone?: string | null

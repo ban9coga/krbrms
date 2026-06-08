@@ -501,6 +501,10 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   const extraAmount = extraCategoryCount * extraPrice
 
   const hasContact = contactName.trim() && contactPhone.trim()
+  const riderPhotoUploadEnabled =
+    typeof businessSettings?.registration_rider_photo_enabled === 'boolean'
+      ? businessSettings.registration_rider_photo_enabled
+      : true
   const ridersComplete = riders.every(
     (r) =>
       r.name &&
@@ -508,7 +512,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
       (!requireJerseySize || r.jerseySize) &&
       r.dateOfBirth &&
       r.requestedPlateNumber &&
-      r.photo &&
+      (!riderPhotoUploadEnabled || r.photo) &&
       r.docKk
   )
   const showTotal = Boolean(hasContact && ridersComplete)
@@ -750,11 +754,15 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         (requireJerseySize && !r.jerseySize) ||
         !r.dateOfBirth ||
         !r.requestedPlateNumber ||
-        !r.photo ||
+        (riderPhotoUploadEnabled && !r.photo) ||
         !r.docKk
     )
     if (hasInvalid) {
-      alert('Lengkapi data rider. Wajib: nama lengkap, panggilan, nomor plate, foto rider, KK/Akte, dan ukuran jersey (jika diwajibkan).')
+      alert(
+        riderPhotoUploadEnabled
+          ? 'Lengkapi data rider. Wajib: nama lengkap, panggilan, nomor plate, foto rider, KK/Akte, dan ukuran jersey (jika diwajibkan).'
+          : 'Lengkapi data rider. Wajib: nama lengkap, panggilan, nomor plate, KK/Akte, dan ukuran jersey (jika diwajibkan).'
+      )
       return
     }
     if (hasPrimaryCategorySlotFull) {
@@ -808,8 +816,10 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
       }
 
       riders.forEach((rider, idx) => {
-        const photoError = validateUploadFile(rider.photo, `Foto rider #${idx + 1}`, 'rider-photo')
-        if (photoError) throw new Error(photoError)
+        if (riderPhotoUploadEnabled) {
+          const photoError = validateUploadFile(rider.photo, `Foto rider #${idx + 1}`, 'rider-photo')
+          if (photoError) throw new Error(photoError)
+        }
 
         const documentError = validateUploadFile(rider.docKk, `Dokumen KK/Akte rider #${idx + 1}`, 'document')
         if (documentError) throw new Error(documentError)
@@ -876,15 +886,17 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
           throw new Error(`Item registrasi untuk rider #${idx + 1} tidak ditemukan.`)
         }
 
-        const photoBody = new FormData()
-        photoBody.append('registration_item_id', itemId)
-        photoBody.append('file', rider.photo as File)
-        await uploadStep(
-          `/api/public/events/${eventId}/registrations/${createdRegistrationId}/photo`,
-          photoBody,
-          `Upload foto rider #${idx + 1}`,
-          createdUploadToken
-        )
+        if (riderPhotoUploadEnabled) {
+          const photoBody = new FormData()
+          photoBody.append('registration_item_id', itemId)
+          photoBody.append('file', rider.photo as File)
+          await uploadStep(
+            `/api/public/events/${eventId}/registrations/${createdRegistrationId}/photo`,
+            photoBody,
+            `Upload foto rider #${idx + 1}`,
+            createdUploadToken
+          )
+        }
 
         const documentBody = new FormData()
         documentBody.append('registration_item_id', itemId)
@@ -1430,45 +1442,47 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                   )}
                 </div>
 
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div className="grid gap-2">
-                    <label className="text-sm font-bold text-slate-200">Upload Foto Rider (gambar, maks 1.5 MB)</label>
-                    <label
-                      className={dropZoneClass(`photo-${idx}`)}
-                      tabIndex={0}
-                      onDragEnter={(e) => onDropZoneOver(`photo-${idx}`, e)}
-                      onDragOver={(e) => onDropZoneOver(`photo-${idx}`, e)}
-                      onDragLeave={(e) => onDropZoneLeave(`photo-${idx}`, e)}
-                      onDrop={(e) =>
-                        onDropZoneDrop(`photo-${idx}`, e, (file) => updateRider(idx, { photo: file }), `Foto rider #${idx + 1}`, 'rider-photo', false)
-                      }
-                      onPaste={(e) =>
-                        onDropZonePaste(e, (file) => updateRider(idx, { photo: file }), `Foto rider #${idx + 1}`, 'rider-photo', false)
-                      }
-                    >
-                      <span className="truncate text-sm font-semibold text-slate-200">
-                        {rider.photo ? rider.photo.name : 'Pilih file foto'}
-                      </span>
-                      <span className="rounded-lg border border-slate-500 px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-wide text-slate-200">
-                        Browse
-                      </span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0] ?? null
-                          setValidatedUploadFile(file, `Foto rider #${idx + 1}`, 'rider-photo', (nextFile) =>
-                            updateRider(idx, { photo: nextFile })
-                          )
-                          e.currentTarget.value = ''
-                        }}
-                        className="hidden"
-                      />
-                    </label>
-                    <div className="text-[11px] font-semibold text-slate-400">
-                      {getUploadHint('rider-photo')} Bisa drag & drop atau paste (Ctrl+V).
+                <div className={`grid gap-3 ${riderPhotoUploadEnabled ? 'md:grid-cols-2' : ''}`}>
+                  {riderPhotoUploadEnabled && (
+                    <div className="grid gap-2">
+                      <label className="text-sm font-bold text-slate-200">Upload Foto Rider (gambar, maks 1.5 MB)</label>
+                      <label
+                        className={dropZoneClass(`photo-${idx}`)}
+                        tabIndex={0}
+                        onDragEnter={(e) => onDropZoneOver(`photo-${idx}`, e)}
+                        onDragOver={(e) => onDropZoneOver(`photo-${idx}`, e)}
+                        onDragLeave={(e) => onDropZoneLeave(`photo-${idx}`, e)}
+                        onDrop={(e) =>
+                          onDropZoneDrop(`photo-${idx}`, e, (file) => updateRider(idx, { photo: file }), `Foto rider #${idx + 1}`, 'rider-photo', false)
+                        }
+                        onPaste={(e) =>
+                          onDropZonePaste(e, (file) => updateRider(idx, { photo: file }), `Foto rider #${idx + 1}`, 'rider-photo', false)
+                        }
+                      >
+                        <span className="truncate text-sm font-semibold text-slate-200">
+                          {rider.photo ? rider.photo.name : 'Pilih file foto'}
+                        </span>
+                        <span className="rounded-lg border border-slate-500 px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-wide text-slate-200">
+                          Browse
+                        </span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0] ?? null
+                            setValidatedUploadFile(file, `Foto rider #${idx + 1}`, 'rider-photo', (nextFile) =>
+                              updateRider(idx, { photo: nextFile })
+                            )
+                            e.currentTarget.value = ''
+                          }}
+                          className="hidden"
+                        />
+                      </label>
+                      <div className="text-[11px] font-semibold text-slate-400">
+                        {getUploadHint('rider-photo')} Bisa drag & drop atau paste (Ctrl+V).
+                      </div>
                     </div>
-                  </div>
+                  )}
                   <div className="grid gap-2">
                     <label className="text-sm font-bold text-slate-200">
                       Upload KK / Akte Kelahiran (gambar maks 2 MB / PDF maks 3 MB)

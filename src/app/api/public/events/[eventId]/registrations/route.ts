@@ -117,6 +117,14 @@ const getJerseySizeOptions = (businessSettings: unknown) => {
   return options.length > 0 ? options : DEFAULT_JERSEY_SIZES
 }
 
+const getRiderPhotoUploadEnabled = (businessSettings: unknown) => {
+  if (!businessSettings || typeof businessSettings !== 'object' || Array.isArray(businessSettings)) {
+    return true
+  }
+  const raw = (businessSettings as { registration_rider_photo_enabled?: unknown }).registration_rider_photo_enabled
+  return typeof raw === 'boolean' ? raw : true
+}
+
 const parseRequest = async (req: Request) => {
   const contentType = req.headers.get('content-type') ?? ''
   if (contentType.toLowerCase().includes('multipart/form-data')) {
@@ -189,6 +197,7 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
   }
   const requireJerseySize = Boolean(latestSettingsRow?.require_jersey_size)
   const jerseySizes = new Set(getJerseySizeOptions(latestSettingsRow?.business_settings))
+  const riderPhotoUploadEnabled = getRiderPhotoUploadEnabled(latestSettingsRow?.business_settings)
   const basePriceRaw = Number(latestSettingsRow?.base_price)
   const extraPriceRaw = Number(latestSettingsRow?.extra_price)
   const basePrice = Number.isFinite(basePriceRaw) && basePriceRaw > 0 ? basePriceRaw : BASE_PRICE
@@ -421,6 +430,7 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
   return {
     registration: registration as RegistrationRow,
     itemRows: itemRows as RegistrationItemRow[],
+    riderPhotoUploadEnabled,
   }
 }
 
@@ -436,7 +446,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     return NextResponse.json({ error: created.error }, { status: 400 })
   }
 
-  const { registration, itemRows } = created
+  const { registration, itemRows, riderPhotoUploadEnabled } = created
 
   if (!isMultipart || !formData) {
     return NextResponse.json({ data: { registration, items: itemRows, upload_token: registration.upload_token ?? null } })
@@ -468,31 +478,35 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       itemRows.map(async (itemRow, idx) => {
         const photoFile = formData.get(`rider_photo_${idx}`)
         const docFile = formData.get(`rider_doc_${idx}`)
-        if (!(photoFile instanceof File)) {
+        if (riderPhotoUploadEnabled && !(photoFile instanceof File)) {
           throw new Error(`Photo wajib untuk rider #${idx + 1}`)
         }
         if (!(docFile instanceof File)) {
           throw new Error(`Dokumen KK/Akte wajib untuk rider #${idx + 1}`)
         }
 
-        const photoExt = getExt(photoFile.name, 'jpg')
         const docExt = getExt(docFile.name, 'bin')
-        const photoPath = `${eventId}/${registration.id}/${itemRow.id}-photo-${Date.now()}-${idx}.${photoExt}`
+        const photoPath =
+          riderPhotoUploadEnabled && photoFile instanceof File
+            ? `${eventId}/${registration.id}/${itemRow.id}-photo-${Date.now()}-${idx}.${getExt(photoFile.name, 'jpg')}`
+            : null
         const docPath = `${eventId}/${registration.id}/${itemRow.id}-${DOCUMENT_TYPE}-${Date.now()}-${idx}.${docExt}`
 
-        await Promise.all([
-          uploadFile(photoPath, photoFile, 'image/jpeg'),
-          uploadFile(docPath, docFile, 'application/octet-stream'),
-        ])
-        uploadedPaths.push(photoPath, docPath)
+        if (photoPath && photoFile instanceof File) {
+          await uploadFile(photoPath, photoFile, 'image/jpeg')
+          uploadedPaths.push(photoPath)
 
-        const { error: updatePhotoError } = await adminClient
-          .from('registration_items')
-          .update({ photo_url: photoPath })
-          .eq('id', itemRow.id)
-          .eq('registration_id', registration.id)
+          const { error: updatePhotoError } = await adminClient
+            .from('registration_items')
+            .update({ photo_url: photoPath })
+            .eq('id', itemRow.id)
+            .eq('registration_id', registration.id)
 
-        if (updatePhotoError) throw new Error(updatePhotoError.message)
+          if (updatePhotoError) throw new Error(updatePhotoError.message)
+        }
+
+        await uploadFile(docPath, docFile, 'application/octet-stream')
+        uploadedPaths.push(docPath)
 
         return {
           registration_id: registration.id,

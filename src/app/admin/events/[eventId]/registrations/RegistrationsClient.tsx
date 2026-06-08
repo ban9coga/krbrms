@@ -81,6 +81,14 @@ type RegistrationListResponse = {
   }
 }
 
+type EventSettingsResponse = {
+  data?: {
+    business_settings?: {
+      registration_rider_photo_enabled?: boolean | null
+    } | null
+  } | null
+}
+
 type PlateCheckResponse = {
   data?: {
     available: boolean
@@ -224,6 +232,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
   const [modalNotes, setModalNotes] = useState('')
   const [showCategoryKpis, setShowCategoryKpis] = useState(false)
   const [roleKey, setRoleKey] = useState<string | null>(null)
+  const [riderPhotoUploadEnabled, setRiderPhotoUploadEnabled] = useState(true)
 
   const categoryMap = useMemo(() => new Map(categories.map((category) => [category.id, category.label])), [categories])
   const isRegistrationApprover = isRegistrationApproverRole(roleKey)
@@ -351,7 +360,8 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
       registration.registration_items.length > 0 &&
       registration.registration_items.every((item) => (docsByItem.get(item.id) ?? []).length > 0)
     const allItemsHavePhotos =
-      registration.registration_items.length > 0 && registration.registration_items.every((item) => Boolean(item.photo_url))
+      !riderPhotoUploadEnabled ||
+      (registration.registration_items.length > 0 && registration.registration_items.every((item) => Boolean(item.photo_url)))
 
     const plateIssues = registration.registration_items
       .map((item) => ({ item, check: plateChecks[item.id] }))
@@ -384,12 +394,18 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
 
     ;(async () => {
       try {
-        const res = await fetch(`/api/events/${eventId}/categories`)
-        const json = await res.json().catch(() => ({}))
+        const [categoryRes, settingsRes] = await Promise.all([
+          fetch(`/api/events/${eventId}/categories`),
+          apiFetch<EventSettingsResponse>(`/api/events/${eventId}/settings`),
+        ])
+        const json = await categoryRes.json().catch(() => ({}))
         if (cancelled) return
         setCategories((json?.data ?? []) as CategoryItem[])
+        const photoEnabled = settingsRes.data?.business_settings?.registration_rider_photo_enabled
+        setRiderPhotoUploadEnabled(typeof photoEnabled === 'boolean' ? photoEnabled : true)
       } catch {
         if (!cancelled) {
+          setRiderPhotoUploadEnabled(true)
           setFeedback({ type: 'error', message: 'Gagal memuat kategori event.' })
         }
       }
@@ -1208,7 +1224,13 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                           <span>Dikirim {formatDateTime(registration.created_at)}</span>
                           <span>Total {formatRupiah(registration.total_amount)}</span>
                           <span>{readiness.allItemsHaveDocs ? 'Dokumen lengkap' : 'Dokumen belum lengkap'}</span>
-                          <span>{readiness.allItemsHavePhotos ? 'Foto lengkap' : 'Foto belum lengkap'}</span>
+                          <span>
+                            {!riderPhotoUploadEnabled
+                              ? 'Foto tidak diwajibkan'
+                              : readiness.allItemsHavePhotos
+                              ? 'Foto lengkap'
+                              : 'Foto belum lengkap'}
+                          </span>
                         </div>
                       </div>
                     </div>

@@ -423,6 +423,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     business_payment_account_number: '',
     business_registration_qris_image_url: '',
     business_registration_jersey_size_chart_url: '',
+    business_registration_rider_photo_enabled: true,
     business_jersey_size_options: 'XS, S, M, L, XL, 2XL, 3XL',
     business_event_owner_name: '',
     business_event_owner_type: 'COMMUNITY',
@@ -587,6 +588,10 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
             typeof business.registration_jersey_size_chart_url === 'string'
               ? business.registration_jersey_size_chart_url
               : '',
+          business_registration_rider_photo_enabled:
+            typeof business.registration_rider_photo_enabled === 'boolean'
+              ? business.registration_rider_photo_enabled
+              : true,
           business_jersey_size_options:
             Array.isArray(business.jersey_size_options) && business.jersey_size_options.length > 0
               ? business.jersey_size_options.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).join(', ')
@@ -1141,6 +1146,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
       payment_account_number: form.business_payment_account_number.trim() || null,
       registration_qris_image_url: form.business_registration_qris_image_url.trim() || null,
       registration_jersey_size_chart_url: form.business_registration_jersey_size_chart_url.trim() || null,
+      registration_rider_photo_enabled: Boolean(form.business_registration_rider_photo_enabled),
       jersey_size_options: form.business_jersey_size_options
         .split(',')
         .map((value) => value.trim())
@@ -1965,6 +1971,19 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                   </div>
                   <div style={{ fontSize: 12, color: '#333', fontWeight: 700 }}>
                     Base = biaya per rider. Extra = biaya tambahan kategori ekstra.
+                  </div>
+                  <div style={{ display: 'grid', gap: 8, padding: 12, border: '2px solid #111', borderRadius: 14, background: '#fff' }}>
+                    <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 900 }}>
+                      <input
+                        type="checkbox"
+                        checked={form.business_registration_rider_photo_enabled}
+                        onChange={(e) => setForm({ ...form, business_registration_rider_photo_enabled: e.target.checked })}
+                      />
+                      Tampilkan upload foto rider di form registrasi
+                    </label>
+                    <div style={{ fontSize: 12, color: '#333', fontWeight: 700 }}>
+                      Matikan jika event tidak membutuhkan foto rider. Saat dimatikan, pendaftar tidak perlu upload foto dan sistem tidak akan menyimpan foto dari form registrasi.
+                    </div>
                   </div>
                   <input
                     placeholder="Link Grup WhatsApp (contoh: https://chat.whatsapp.com/...)"
