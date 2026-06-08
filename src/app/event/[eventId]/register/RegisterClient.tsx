@@ -966,11 +966,14 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   }
 
   const panelClass =
-    'rounded-[1.5rem] border border-slate-700 bg-slate-900/70 p-4 shadow-[0_20px_45px_rgba(2,6,23,0.3)] sm:p-5'
+    'rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-4 shadow-[0_24px_70px_rgba(2,6,23,0.32)] ring-1 ring-white/5 backdrop-blur sm:p-5'
   const fieldClass =
-    'w-full rounded-xl border border-slate-600 bg-slate-950/70 px-3 py-3 text-sm font-medium text-slate-100 placeholder:text-slate-400 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-400/30'
+    'w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3.5 text-sm font-semibold text-slate-50 shadow-inner shadow-black/20 placeholder:text-slate-500 transition-colors focus:border-amber-300 focus:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-amber-300/25'
   const filePickerClass =
-    'flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-slate-600 bg-slate-950/70 px-3 py-2.5 transition-colors hover:border-amber-400/70'
+    'flex min-h-[76px] cursor-pointer items-center justify-between gap-3 rounded-2xl border border-dashed border-white/15 bg-slate-950/70 px-4 py-3 transition-colors hover:border-amber-300/70 hover:bg-slate-900/80'
+  const labelClass = 'text-xs font-black uppercase tracking-[0.14em] text-slate-300'
+  const helperClass = 'text-[11px] font-semibold leading-5 text-slate-400'
+  const sectionHeaderClass = 'text-xs font-black uppercase tracking-[0.18em] text-amber-300'
 
   const pickAcceptedFile = (files: FileList | null | undefined, allowPdf: boolean) => {
     if (!files) return null
@@ -1058,9 +1061,9 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     `${filePickerClass} ${dragActiveKey === key ? 'border-amber-400 bg-amber-400/10' : ''}`
 
   return (
-    <div className="public-page bg-[linear-gradient(180deg,#020817_0%,#041030_45%,#030712_100%)] text-slate-100">
+    <div className="public-page min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.16),transparent_34%),linear-gradient(180deg,#111827_0%,#0f172a_38%,#020617_100%)] text-slate-100">
       <PublicTopbar />
-      <main className="mx-auto grid w-full max-w-[1200px] gap-4 px-4 pb-32 pt-6 sm:px-6 md:gap-5 md:pt-8">
+      <main className="mx-auto grid w-full max-w-[1120px] gap-4 px-4 pb-36 pt-5 sm:px-6 md:gap-5 md:pt-7">
         {!registrationOpen && (
           <section className="rounded-2xl border border-rose-300/45 bg-rose-500/15 p-4 shadow-[0_16px_36px_rgba(244,63,94,0.14)]">
             <div className="text-xs font-black uppercase tracking-[0.16em] text-rose-200">Registrasi Ditutup</div>
@@ -1069,16 +1072,15 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
             </div>
           </section>
         )}
-        <section className="relative overflow-hidden rounded-[1.75rem] border border-slate-700 bg-[linear-gradient(130deg,#0b1328_0%,#1e293b_52%,#4a1127_100%)] px-5 py-6 shadow-[0_26px_60px_rgba(2,6,23,0.35)] sm:px-7">
-          <div className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full border border-white/20" />
-          <div className="pointer-events-none absolute -left-16 bottom-0 h-44 w-44 rounded-full bg-amber-400/15 blur-3xl" />
-          <div className="relative z-10 grid gap-2">
-            <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-amber-300">Event Registration</p>
+        <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.94)_0%,rgba(30,41,59,0.9)_58%,rgba(120,53,15,0.72)_100%)] px-5 py-6 shadow-[0_28px_90px_rgba(2,6,23,0.42)] ring-1 ring-white/5 sm:px-7 md:py-8">
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-200/50 to-transparent" />
+          <div className="relative z-10 grid gap-3">
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-amber-300">Event Registration</p>
             {publicBrandName && (
               <p className="text-sm font-extrabold uppercase tracking-[0.16em] text-amber-100/90">{publicBrandName}</p>
             )}
-            <h1 className="text-2xl font-black tracking-tight text-white md:text-4xl">{publicEventTitle}</h1>
-            <p className="text-base font-semibold text-slate-200 md:text-lg">
+            <h1 className="max-w-4xl text-3xl font-black tracking-tight text-white md:text-5xl">{publicEventTitle}</h1>
+            <p className="max-w-3xl text-base font-semibold leading-7 text-slate-200 md:text-lg">
               {publicTagline || eventName || 'Form registrasi event'}
             </p>
             {(showEventOwner || showOperatingCommittee || showScoringSupport || showMc) && (
@@ -1105,23 +1107,33 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         </section>
 
         <section className={panelClass}>
-          <div className="mb-3 text-sm font-extrabold uppercase tracking-[0.12em] text-slate-300">Kontak & Komunitas</div>
+          <div className="mb-4 grid gap-1">
+            <div className={sectionHeaderClass}>Kontak Wali / Penanggung Jawab</div>
+            <p className={helperClass}>Data ini dipakai panitia untuk konfirmasi pendaftaran dan pembayaran.</p>
+          </div>
           <div className="grid gap-3 md:grid-cols-2">
-            <input
-              value={contactName}
-              onChange={(e) => setContactName(e.target.value)}
-              placeholder="Nama Penanggung Jawab"
-              className={fieldClass}
-            />
-            <input
-              value={contactPhone}
-              onChange={(e) => setContactPhone(e.target.value)}
-              placeholder="Nomor WhatsApp"
-              type="tel"
-              inputMode="tel"
-              className={fieldClass}
-            />
+            <div className="grid gap-2">
+              <label className={labelClass}>Nama Penanggung Jawab</label>
+              <input
+                value={contactName}
+                onChange={(e) => setContactName(e.target.value)}
+                placeholder="Contoh: Andi Saputra"
+                className={fieldClass}
+              />
+            </div>
+            <div className="grid gap-2">
+              <label className={labelClass}>Nomor WhatsApp</label>
+              <input
+                value={contactPhone}
+                onChange={(e) => setContactPhone(e.target.value)}
+                placeholder="Contoh: 0812..."
+                type="tel"
+                inputMode="tel"
+                className={fieldClass}
+              />
+            </div>
             <div className="grid gap-1.5">
+              <label className={labelClass}>Email Konfirmasi</label>
               <input
                 value={contactEmail}
                 onChange={(e) => setContactEmail(e.target.value)}
@@ -1136,12 +1148,15 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                   : 'Pastikan email aktif karena konfirmasi pendaftaran akan dikirim ke email ini.'}
               </div>
             </div>
-            <input
-              value={communityName}
-              onChange={(e) => setCommunityName(e.target.value)}
-              placeholder="Nama Komunitas (opsional)"
-              className={fieldClass}
-            />
+            <div className="grid gap-2">
+              <label className={labelClass}>Komunitas / Club</label>
+              <input
+                value={communityName}
+                onChange={(e) => setCommunityName(e.target.value)}
+                placeholder="Opsional"
+                className={fieldClass}
+              />
+            </div>
           </div>
         </section>
 
@@ -1191,13 +1206,16 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
               : 'border-slate-700 bg-slate-950/60 text-slate-300'
           return (
             <section key={`rider-${idx}`} className={panelClass}>
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <div className="text-base font-black text-white sm:text-lg">Rider #{idx + 1}</div>
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div className="grid gap-1">
+                  <div className={sectionHeaderClass}>Data Rider #{idx + 1}</div>
+                  <p className={helperClass}>Isi identitas rider sesuai dokumen.</p>
+                </div>
                 {riders.length > 1 && (
                   <button
                     type="button"
                     onClick={() => removeRider(idx)}
-                    className="rounded-lg border border-amber-300/50 bg-amber-400/10 px-3 py-1.5 text-xs font-extrabold uppercase tracking-wide text-amber-200 transition-colors hover:bg-amber-400/20"
+                    className="rounded-full border border-rose-300/40 bg-rose-500/10 px-3 py-2 text-xs font-extrabold uppercase tracking-wide text-rose-100 transition-colors hover:bg-rose-500/20"
                   >
                     Hapus
                   </button>
@@ -1205,18 +1223,26 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
               </div>
 
               <div className="grid gap-3">
-                <input
-                  value={rider.name}
-                  onChange={(e) => updateRider(idx, { name: e.target.value })}
-                  placeholder="Nama Lengkap Rider"
-                  className={fieldClass}
-                />
-                <input
-                  value={rider.nickname}
-                  onChange={(e) => updateRider(idx, { nickname: e.target.value })}
-                  placeholder="Nama Panggilan"
-                  className={fieldClass}
-                />
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="grid gap-2">
+                    <label className={labelClass}>Nama Lengkap Rider</label>
+                    <input
+                      value={rider.name}
+                      onChange={(e) => updateRider(idx, { name: e.target.value })}
+                      placeholder="Sesuai dokumen"
+                      className={fieldClass}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <label className={labelClass}>Nama Panggilan</label>
+                    <input
+                      value={rider.nickname}
+                      onChange={(e) => updateRider(idx, { nickname: e.target.value })}
+                      placeholder="Nama yang dipanggil panitia"
+                      className={fieldClass}
+                    />
+                  </div>
+                </div>
                 {requireJerseySize && (
                   <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
                     <select
@@ -1263,7 +1289,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                 )}
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="grid gap-2">
-                    <label className="text-sm font-bold text-slate-200">Tanggal Lahir Rider</label>
+                    <label className={labelClass}>Tanggal Lahir Rider</label>
                     <input
                       type="date"
                       value={rider.dateOfBirth}
@@ -1275,24 +1301,30 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                       Pastikan ini tanggal lahir rider, bukan tanggal pendaftaran.
                     </div>
                   </div>
-                  <select
-                    value={rider.gender}
-                    onChange={(e) => updateRider(idx, { gender: e.target.value as 'BOY' | 'GIRL' })}
-                    className={fieldClass}
-                  >
-                    <option value="BOY">BOY</option>
-                    <option value="GIRL">GIRL</option>
-                  </select>
+                  <div className="grid gap-2">
+                    <label className={labelClass}>Gender Kategori</label>
+                    <select
+                      value={rider.gender}
+                      onChange={(e) => updateRider(idx, { gender: e.target.value as 'BOY' | 'GIRL' })}
+                      className={fieldClass}
+                    >
+                      <option value="BOY">BOY</option>
+                      <option value="GIRL">GIRL</option>
+                    </select>
+                  </div>
                 </div>
-                <input
-                  value={rider.club}
-                  onChange={(e) => updateRider(idx, { club: e.target.value })}
-                  placeholder="Club / Komunitas"
-                  className={fieldClass}
-                />
+                <div className="grid gap-2">
+                  <label className={labelClass}>Club / Komunitas Rider</label>
+                  <input
+                    value={rider.club}
+                    onChange={(e) => updateRider(idx, { club: e.target.value })}
+                    placeholder="Contoh: Pekanbaru Pushbike"
+                    className={fieldClass}
+                  />
+                </div>
 
-                <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-3">
-                  <div className="text-sm font-bold text-slate-200">
+                <div className="rounded-2xl border border-amber-300/20 bg-amber-400/[0.07] p-4">
+                  <div className="text-sm font-black text-slate-100">
                     Kategori Otomatis: <span className="text-amber-300">{primaryCategory ? primaryCategory.label : 'Belum ditemukan'}</span>
                   </div>
                   {showFallbackPrimarySelector && (
@@ -1334,9 +1366,9 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                   )}
                 </div>
 
-                <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-3">
+                <div className="rounded-2xl border border-emerald-300/20 bg-emerald-500/[0.06] p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="text-sm font-bold text-slate-200">Kategori Tambahan / Up Category</div>
+                    <div className="text-sm font-black text-slate-100">Kategori Tambahan / Up Category</div>
                     <div className="rounded-full border border-emerald-300/25 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-[0.12em] text-emerald-200">
                       + {formatRupiah(extraPrice)}
                     </div>
@@ -1365,9 +1397,9 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                   )}
                 </div>
 
-                <div className="rounded-xl border border-slate-700 bg-slate-950/60 p-3">
+                <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="text-sm font-bold text-slate-200">Nomor Plate yang Diajukan</div>
+                    <div className="text-sm font-black text-slate-100">Nomor Plate yang Diajukan</div>
                     <div className="rounded-full border border-slate-600 bg-slate-900/80 px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-[0.12em] text-amber-200">
                       Preview: {platePreview}
                     </div>
@@ -1445,7 +1477,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                 <div className={`grid gap-3 ${riderPhotoUploadEnabled ? 'md:grid-cols-2' : ''}`}>
                   {riderPhotoUploadEnabled && (
                     <div className="grid gap-2">
-                      <label className="text-sm font-bold text-slate-200">Upload Foto Rider (gambar, maks 1.5 MB)</label>
+                    <label className={labelClass}>Upload Foto Rider</label>
                       <label
                         className={dropZoneClass(`photo-${idx}`)}
                         tabIndex={0}
@@ -1459,10 +1491,10 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                           onDropZonePaste(e, (file) => updateRider(idx, { photo: file }), `Foto rider #${idx + 1}`, 'rider-photo', false)
                         }
                       >
-                        <span className="truncate text-sm font-semibold text-slate-200">
+                        <span className="truncate text-sm font-bold text-slate-100">
                           {rider.photo ? rider.photo.name : 'Pilih file foto'}
                         </span>
-                        <span className="rounded-lg border border-slate-500 px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-wide text-slate-200">
+                        <span className="rounded-full border border-amber-300/40 bg-amber-400/10 px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-wide text-amber-100">
                           Browse
                         </span>
                         <input
@@ -1484,9 +1516,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                     </div>
                   )}
                   <div className="grid gap-2">
-                    <label className="text-sm font-bold text-slate-200">
-                      Upload KK / Akte Kelahiran (gambar maks 2 MB / PDF maks 3 MB)
-                    </label>
+                    <label className={labelClass}>Upload KK / Akte Kelahiran</label>
                     <label
                       className={dropZoneClass(`doc-${idx}`)}
                       tabIndex={0}
@@ -1500,10 +1530,10 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                         onDropZonePaste(e, (file) => updateRider(idx, { docKk: file }), `Dokumen KK/Akte rider #${idx + 1}`, 'document', true)
                       }
                     >
-                      <span className="truncate text-sm font-semibold text-slate-200">
-                        {rider.docKk ? rider.docKk.name : 'Pilih dokumen KK/Akte'}
-                      </span>
-                      <span className="rounded-lg border border-slate-500 px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-wide text-slate-200">
+                        <span className="truncate text-sm font-bold text-slate-100">
+                          {rider.docKk ? rider.docKk.name : 'Pilih dokumen KK/Akte'}
+                        </span>
+                      <span className="rounded-full border border-amber-300/40 bg-amber-400/10 px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-wide text-amber-100">
                         Browse
                       </span>
                       <input
@@ -1532,14 +1562,14 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         <button
           type="button"
           onClick={addRider}
-          className="rounded-xl border border-emerald-300/40 bg-emerald-500/15 px-4 py-3 text-sm font-extrabold uppercase tracking-wide text-emerald-100 transition-colors hover:bg-emerald-500/25"
+          className="rounded-2xl border border-emerald-300/35 bg-emerald-400 px-4 py-3.5 text-sm font-black uppercase tracking-[0.12em] text-slate-950 shadow-[0_18px_40px_rgba(16,185,129,0.2)] transition-colors hover:bg-emerald-300"
         >
           + Tambah Rider
         </button>
 
         <section className={panelClass}>
-          <div className="text-sm font-extrabold uppercase tracking-[0.12em] text-slate-300">Pembayaran Manual</div>
-          <p className="mt-2 text-sm font-medium text-slate-400">
+          <div className={sectionHeaderClass}>Pembayaran Manual</div>
+          <p className="mt-2 text-sm font-semibold leading-6 text-slate-400">
             Silakan transfer total biaya dan upload bukti pembayaran.
           </p>
           <div className="mt-4 grid gap-3">
@@ -1582,25 +1612,36 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                 )}
               </div>
             )}
-            <input
-              value={bankName}
-              onChange={(e) => setBankName(e.target.value)}
-              placeholder="Bank Pengirim"
-              className={fieldClass}
-            />
-            <input
-              value={accountName}
-              onChange={(e) => setAccountName(e.target.value)}
-              placeholder="Atas Nama Pengirim"
-              className={fieldClass}
-            />
-            <input
-              value={accountNumber}
-              onChange={(e) => setAccountNumber(e.target.value)}
-              placeholder="Nomor Rekening Pengirim"
-              className={fieldClass}
-            />
-            <div className="rounded-xl border border-emerald-300/20 bg-emerald-500/10 p-3">
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="grid gap-2">
+                <label className={labelClass}>Bank Pengirim</label>
+                <input
+                  value={bankName}
+                  onChange={(e) => setBankName(e.target.value)}
+                  placeholder="Contoh: BCA"
+                  className={fieldClass}
+                />
+              </div>
+              <div className="grid gap-2">
+                <label className={labelClass}>Atas Nama Pengirim</label>
+                <input
+                  value={accountName}
+                  onChange={(e) => setAccountName(e.target.value)}
+                  placeholder="Nama pemilik rekening"
+                  className={fieldClass}
+                />
+              </div>
+              <div className="grid gap-2">
+                <label className={labelClass}>Nomor Rekening Pengirim</label>
+                <input
+                  value={accountNumber}
+                  onChange={(e) => setAccountNumber(e.target.value)}
+                  placeholder="Nomor rekening"
+                  className={fieldClass}
+                />
+              </div>
+            </div>
+            <div className="rounded-2xl border border-emerald-300/20 bg-emerald-500/10 p-4">
               <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-emerald-200">Ringkasan Biaya</div>
               <div className="mt-2 grid gap-2 text-sm font-semibold text-slate-200">
                 <div className="flex items-center justify-between gap-3">
@@ -1617,7 +1658,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                 <span>{formatRupiah(totalAmount)}</span>
               </div>
             </div>
-            <label className="text-sm font-bold text-slate-200">Upload Bukti Pembayaran (gambar maks 2 MB / PDF maks 3 MB)</label>
+            <label className={labelClass}>Upload Bukti Pembayaran</label>
             <label
               className={dropZoneClass('payment-proof')}
               tabIndex={0}
@@ -1627,10 +1668,10 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
               onDrop={(e) => onDropZoneDrop('payment-proof', e, setPaymentProof, 'Bukti pembayaran', 'payment', true)}
               onPaste={(e) => onDropZonePaste(e, setPaymentProof, 'Bukti pembayaran', 'payment', true)}
             >
-              <span className="truncate text-sm font-semibold text-slate-200">
+              <span className="truncate text-sm font-bold text-slate-100">
                 {paymentProof ? paymentProof.name : 'Upload bukti pembayaran'}
               </span>
-              <span className="rounded-lg border border-slate-500 px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-wide text-slate-200">
+              <span className="rounded-full border border-amber-300/40 bg-amber-400/10 px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-wide text-amber-100">
                 Browse
               </span>
               <input
@@ -1714,10 +1755,11 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         </div>
       )}
 
-      <div className="fixed bottom-24 left-1/2 z-40 flex w-[calc(100%-1.5rem)] max-w-[1200px] -translate-x-1/2 flex-col gap-3 rounded-2xl border border-slate-600 bg-slate-950/95 px-4 py-3 shadow-[0_18px_40px_rgba(2,6,23,0.45)] backdrop-blur md:bottom-4 md:flex-row md:items-center md:justify-between">
+      <div className="fixed bottom-4 left-1/2 z-40 flex w-[calc(100%-1.5rem)] max-w-[1120px] -translate-x-1/2 flex-col gap-3 rounded-[1.35rem] border border-white/10 bg-slate-950/95 px-4 py-3 shadow-[0_22px_70px_rgba(2,6,23,0.58)] ring-1 ring-white/5 backdrop-blur md:flex-row md:items-center md:justify-between">
         <div className="grid gap-1">
-          <div className="text-sm font-black text-slate-100 md:text-base">Total: {formatRupiah(totalAmount)}</div>
-          <div className="text-xs font-semibold text-slate-400">
+          <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Total Pembayaran</div>
+          <div className="text-xl font-black text-amber-300 md:text-2xl">{formatRupiah(totalAmount)}</div>
+          <div className="text-xs font-bold text-slate-400">
             {showTotal
               ? `${riderCount} rider siap diajukan`
               : `Lengkapi kontak & data rider. Saat ini: ${riderCount} rider, ${extraCategoryCount} up category`}
@@ -1727,7 +1769,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
           type="button"
           disabled={submitting || !registrationOpen}
           onClick={handleSubmit}
-          className="inline-flex items-center justify-center rounded-xl bg-amber-400 px-4 py-2.5 text-sm font-extrabold uppercase tracking-wide text-white transition-colors hover:bg-amber-300 disabled:cursor-not-allowed disabled:bg-amber-200"
+          className="inline-flex min-h-[52px] items-center justify-center rounded-2xl bg-amber-400 px-5 py-3 text-sm font-black uppercase tracking-[0.12em] text-slate-950 shadow-[0_16px_35px_rgba(251,191,36,0.18)] transition-colors hover:bg-amber-300 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400 md:min-w-[240px]"
         >
           {!registrationOpen ? 'Registrasi Ditutup' : submitting ? 'Menyimpan...' : 'Kirim Pendaftaran'}
         </button>
