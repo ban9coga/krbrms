@@ -798,6 +798,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
       (r) =>
         !r.name ||
         !r.nickname ||
+        !r.club.trim() ||
         (requireJerseySize && !r.jerseySize) ||
         !r.dateOfBirth ||
         !r.requestedPlateNumber ||
@@ -807,8 +808,8 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     if (hasInvalid) {
       alert(
         riderPhotoUploadEnabled
-          ? 'Lengkapi data rider. Wajib: nama lengkap, panggilan, nomor plate, foto rider, KK/Akte/KIA, dan ukuran jersey (jika diwajibkan).'
-          : 'Lengkapi data rider. Wajib: nama lengkap, panggilan, nomor plate, KK/Akte/KIA, dan ukuran jersey (jika diwajibkan).'
+          ? 'Lengkapi data rider. Wajib: nama lengkap, panggilan, club/komunitas, nomor plate, foto rider, KK/Akte/KIA, dan ukuran jersey (jika diwajibkan).'
+          : 'Lengkapi data rider. Wajib: nama lengkap, panggilan, club/komunitas, nomor plate, KK/Akte/KIA, dan ukuran jersey (jika diwajibkan).'
       )
       return
     }
@@ -905,7 +906,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
           jersey_size: r.jerseySize || null,
           date_of_birth: r.dateOfBirth,
           gender: r.gender,
-          club: r.club || null,
+          club: r.club.trim(),
           primary_category_id: exactPrimaryCategory ? null : r.primaryCategoryId || null,
           extra_category_id: r.extraCategoryId || null,
           requested_plate_number: r.requestedPlateNumber.trim() || null,
@@ -1160,8 +1161,23 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
               )}
               <h1 className="max-w-4xl text-3xl font-black tracking-tight text-white md:text-5xl">{publicEventTitle}</h1>
               <p className="max-w-3xl text-base font-semibold leading-7 text-slate-200 md:text-lg">
-                {publicTagline || eventName || 'Form registrasi event'}
+                {publicTagline || 'Form registrasi event'}
               </p>
+              {publicContactPhone && (
+                <div className="flex flex-wrap items-center gap-2 text-xs font-extrabold uppercase tracking-[0.12em] text-slate-100">
+                  <span className="rounded-full border border-emerald-300/30 bg-emerald-400/10 px-3 py-1 text-emerald-100">
+                    Kontak Panitia: {publicContactName}
+                  </span>
+                  <a
+                    href={publicContactWhatsapp || undefined}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-full border border-emerald-300/30 bg-emerald-400/10 px-3 py-1 text-emerald-100 transition-colors hover:bg-emerald-400/20"
+                  >
+                    WA: {publicContactPhone}
+                  </a>
+                </div>
+              )}
               {(showEventOwner || showOperatingCommittee || showScoringSupport || showMc) && (
                 <div className="mt-2 flex flex-wrap gap-2 text-xs font-extrabold uppercase tracking-[0.12em] text-slate-100">
                   {showEventOwner && (
@@ -1406,7 +1422,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                   </div>
                 </div>
                 <div className="grid gap-2">
-                  <label className={labelClass}>Club / Komunitas Rider</label>
+                  <label className={labelClass}>{requiredLabel('Club / Komunitas Rider')}</label>
                   <input
                     value={rider.club}
                     onChange={(e) => updateRider(idx, { club: e.target.value })}

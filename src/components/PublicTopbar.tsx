@@ -26,6 +26,21 @@ type EventBranding = {
   brand: string
 }
 
+const normalizeBrandingText = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+
+const formatEventBrandingLabel = (branding: EventBranding) => {
+  const brand = branding.brand.trim()
+  const title = branding.title.trim()
+  if (!brand) return title
+  if (!title) return brand
+  if (normalizeBrandingText(brand) === normalizeBrandingText(title)) return title
+  return `${brand} | ${title}`
+}
+
 const roleHome = (value: string | null) => {
   const role = normalizeAppRole(value)
   if (role === 'RACE_DIRECTOR') return '/race-director/approval'
@@ -137,7 +152,7 @@ export default function PublicTopbar({ theme }: PublicTopbarProps) {
                 </span>
                 {eventBranding ? (
                   <span className={`block truncate text-[11px] font-bold ${isDark ? 'text-slate-300' : 'text-slate-500'}`}>
-                    {eventBranding.brand} | {eventBranding.title}
+                    {formatEventBrandingLabel(eventBranding)}
                   </span>
                 ) : (
                   <span className={`block truncate text-[11px] font-bold ${isDark ? 'text-slate-300' : 'text-slate-500'}`}>

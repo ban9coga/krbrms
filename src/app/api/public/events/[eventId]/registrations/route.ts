@@ -254,7 +254,7 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
       continue
     }
 
-    if (!item.rider_name || !item.rider_nickname || !item.date_of_birth || !item.gender) {
+    if (!item.rider_name || !item.rider_nickname || !item.club?.trim() || !item.date_of_birth || !item.gender) {
       preparedItems.push({ error: 'Missing rider fields' })
       continue
     }
@@ -345,7 +345,7 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
       jersey_size: item.jersey_size ?? null,
       date_of_birth: item.date_of_birth,
       gender: item.gender,
-      club: item.club ?? null,
+      club: item.club.trim(),
       primary_category_id: primary.id,
       extra_category_id: extra?.id ?? null,
       requested_plate_number: requestedPlateNumber,
