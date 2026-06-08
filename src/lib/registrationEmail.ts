@@ -13,6 +13,7 @@ type RegistrationRow = {
 type RegistrationItemRow = {
   rider_name: string | null
   rider_nickname: string | null
+  club: string | null
   jersey_size: string | null
   requested_plate_number: string | null
   requested_plate_suffix: string | null
@@ -115,7 +116,7 @@ export const sendRegistrationStatusEmail = async (
         .limit(1),
       adminClient
         .from('registration_items')
-        .select('rider_name, rider_nickname, jersey_size, requested_plate_number, requested_plate_suffix, price')
+        .select('rider_name, rider_nickname, club, jersey_size, requested_plate_number, requested_plate_suffix, price')
         .eq('registration_id', registrationId)
         .order('created_at', { ascending: true }),
     ])
@@ -149,6 +150,7 @@ export const sendRegistrationStatusEmail = async (
           <td style="padding:8px;border:1px solid #dbe3ef;">${index + 1}</td>
           <td style="padding:8px;border:1px solid #dbe3ef;font-weight:700;">${escapeHtml(item.rider_name)}</td>
           <td style="padding:8px;border:1px solid #dbe3ef;">${escapeHtml(item.rider_nickname || '-')}</td>
+          <td style="padding:8px;border:1px solid #dbe3ef;">${escapeHtml(item.club || '-')}</td>
           <td style="padding:8px;border:1px solid #dbe3ef;">${escapeHtml(plate)}</td>
           <td style="padding:8px;border:1px solid #dbe3ef;">${escapeHtml(item.jersey_size || '-')}</td>
           <td style="padding:8px;border:1px solid #dbe3ef;">${escapeHtml(formatRupiah(item.price))}</td>
@@ -198,7 +200,6 @@ export const sendRegistrationStatusEmail = async (
         <div><strong>Event:</strong> ${escapeHtml(eventTitle)}</div>
         <div><strong>Lokasi:</strong> ${escapeHtml(event?.location || '-')}</div>
         <div><strong>Tanggal:</strong> ${escapeHtml(event?.event_date || '-')}</div>
-        <div><strong>Komunitas:</strong> ${escapeHtml(reg.community_name || '-')}</div>
         <div><strong>Nomor WA:</strong> ${escapeHtml(reg.contact_phone || '-')}</div>
         <div><strong>Total:</strong> ${escapeHtml(formatRupiah(reg.total_amount))}</div>
         <div><strong>Status:</strong> ${escapeHtml(statusLabel)}</div>
@@ -210,6 +211,7 @@ export const sendRegistrationStatusEmail = async (
             <th style="padding:8px;border:1px solid #dbe3ef;text-align:left;">#</th>
             <th style="padding:8px;border:1px solid #dbe3ef;text-align:left;">Rider</th>
             <th style="padding:8px;border:1px solid #dbe3ef;text-align:left;">Panggilan</th>
+            <th style="padding:8px;border:1px solid #dbe3ef;text-align:left;">Komunitas</th>
             <th style="padding:8px;border:1px solid #dbe3ef;text-align:left;">Plate</th>
             <th style="padding:8px;border:1px solid #dbe3ef;text-align:left;">Jersey</th>
             <th style="padding:8px;border:1px solid #dbe3ef;text-align:left;">Biaya</th>
@@ -227,7 +229,6 @@ export const sendRegistrationStatusEmail = async (
     `Event: ${eventTitle}`,
     `Lokasi: ${event?.location || '-'}`,
     `Tanggal: ${event?.event_date || '-'}`,
-    `Komunitas: ${reg.community_name || '-'}`,
     `Total: ${formatRupiah(reg.total_amount)}`,
     `Status: ${statusLabel}`,
     !isApproved && notes?.trim() ? `Alasan: ${notes.trim()}` : '',
