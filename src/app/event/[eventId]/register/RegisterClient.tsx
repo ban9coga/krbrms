@@ -58,6 +58,7 @@ const JERSEY_SIZE_GUIDE_ROWS = [
   ['2XL', '47-48', '35-36'],
   ['3XL', '49-50', '37-38'],
 ] as const
+const DEFAULT_JERSEY_SIZE_OPTIONS = JERSEY_SIZE_GUIDE_ROWS.map(([size]) => size)
 
 const formatRupiah = (value: number) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value)
@@ -279,6 +280,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   const [categories, setCategories] = useState<CategoryItem[]>([])
   const [eventName, setEventName] = useState<string | null>(null)
   const [businessSettings, setBusinessSettings] = useState<BusinessSettings | null>(null)
+  const [businessSettingsLoaded, setBusinessSettingsLoaded] = useState(false)
   const [registrationOpen, setRegistrationOpen] = useState(true)
   const [contactName, setContactName] = useState('')
   const [contactPhone, setContactPhone] = useState('')
@@ -288,6 +290,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   const [basePrice, setBasePrice] = useState(DEFAULT_BASE_PRICE)
   const [extraPrice, setExtraPrice] = useState(DEFAULT_EXTRA_PRICE)
   const [requireJerseySize, setRequireJerseySize] = useState(false)
+  const [jerseySizeChartFailed, setJerseySizeChartFailed] = useState(false)
   const [bankName, setBankName] = useState('')
   const [accountName, setAccountName] = useState('')
   const [accountNumber, setAccountNumber] = useState('')
@@ -300,6 +303,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
 
   useEffect(() => {
     const load = async () => {
+      setBusinessSettingsLoaded(false)
       try {
         const res = await fetch(`/api/events/${eventId}`)
         const json = await res.json()
@@ -310,6 +314,8 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         setEventName(null)
         setBusinessSettings(null)
         setRegistrationOpen(true)
+      } finally {
+        setBusinessSettingsLoaded(true)
       }
     }
     const loadCategories = async () => {
@@ -520,6 +526,10 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   const paymentAccountNumber = businessSettings?.payment_account_number?.trim() || ''
   const paymentQrisImageUrl = businessSettings?.registration_qris_image_url?.trim() || ''
   const jerseySizeChartImageUrl = businessSettings?.registration_jersey_size_chart_url?.trim() || ''
+  const jerseySizeOptions =
+    Array.isArray(businessSettings?.jersey_size_options) && businessSettings.jersey_size_options.length > 0
+      ? businessSettings.jersey_size_options.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+      : DEFAULT_JERSEY_SIZE_OPTIONS
   const whatsappGroupInviteUrl = normalizeExternalUrl(businessSettings?.whatsapp_group_invite_url)
   const showPaymentDestination = Boolean(paymentBankName || paymentAccountName || paymentAccountNumber || paymentQrisImageUrl)
   const showEventOwner = Boolean(
@@ -543,6 +553,10 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     businessSettings?.scoring_support_label?.trim() || businessSettings?.scoring_support_name?.trim() || ''
   const mcName = businessSettings?.mc_name?.trim() || ''
   const lastAutoCategoryModalKeyRef = useRef('')
+
+  useEffect(() => {
+    setJerseySizeChartFailed(false)
+  }, [jerseySizeChartImageUrl])
   const openSlotFullModal = useCallback((message: string) => {
     setSlotFullModal({
       title: 'Slot Pendaftaran Penuh',
@@ -1140,28 +1154,35 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                       className={fieldClass}
                     >
                       <option value="">Ukuran Jersey (wajib)</option>
-                      <option value="XS">XS</option>
-                      <option value="S">S</option>
-                      <option value="M">M</option>
-                      <option value="L">L</option>
-                      <option value="XL">XL</option>
-                      <option value="2XL">2XL</option>
-                      <option value="3XL">3XL</option>
+                      {jerseySizeOptions.map((size) => (
+                        <option key={size} value={size}>
+                          {size}
+                        </option>
+                      ))}
                     </select>
                     <div className="overflow-hidden rounded-xl border border-slate-700 bg-white shadow-[0_12px_30px_rgba(2,6,23,0.18)]">
                       <div className="border-b border-slate-200 px-3 py-2">
                         <div className="text-sm font-black uppercase tracking-[0.12em] text-slate-800">Size Chart</div>
                         <div className="text-[11px] font-semibold text-slate-500">
-                          Referensi base layer sleeveless. Pilihan ukuran yang aktif di form saat ini: XS sampai 3XL.
+                          Pilihan ukuran yang aktif di form saat ini: {jerseySizeOptions.join(', ')}.
                         </div>
                       </div>
                       <div className="bg-slate-100 p-2">
-                        {jerseySizeChartImageUrl ? (
+                        {!businessSettingsLoaded ? (
+                          <div className="rounded-lg border border-slate-200 bg-white p-3 text-xs font-bold text-slate-500">
+                            Memuat size chart...
+                          </div>
+                        ) : jerseySizeChartImageUrl && !jerseySizeChartFailed ? (
                           <img
                             src={jerseySizeChartImageUrl}
                             alt="Jersey size chart"
                             className="block w-full h-auto"
+                            onError={() => setJerseySizeChartFailed(true)}
                           />
+                        ) : jerseySizeChartImageUrl && jerseySizeChartFailed ? (
+                          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs font-bold text-red-700">
+                            Gambar size chart gagal dimuat. Cek URL gambar di Event Settings atau upload ulang.
+                          </div>
                         ) : (
                           <JerseySizeChartGraphic />
                         )}

@@ -423,6 +423,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     business_payment_account_number: '',
     business_registration_qris_image_url: '',
     business_registration_jersey_size_chart_url: '',
+    business_jersey_size_options: 'XS, S, M, L, XL, 2XL, 3XL',
     business_event_owner_name: '',
     business_event_owner_type: 'COMMUNITY',
     business_operating_committee_name: '',
@@ -586,6 +587,10 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
             typeof business.registration_jersey_size_chart_url === 'string'
               ? business.registration_jersey_size_chart_url
               : '',
+          business_jersey_size_options:
+            Array.isArray(business.jersey_size_options) && business.jersey_size_options.length > 0
+              ? business.jersey_size_options.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).join(', ')
+              : 'XS, S, M, L, XL, 2XL, 3XL',
           business_event_owner_name:
             typeof business.event_owner_name === 'string' ? business.event_owner_name : '',
           business_event_owner_type:
@@ -1136,6 +1141,10 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
       payment_account_number: form.business_payment_account_number.trim() || null,
       registration_qris_image_url: form.business_registration_qris_image_url.trim() || null,
       registration_jersey_size_chart_url: form.business_registration_jersey_size_chart_url.trim() || null,
+      jersey_size_options: form.business_jersey_size_options
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean),
       event_owner_name: form.business_event_owner_name.trim() || null,
       event_owner_type: ownerType,
       operating_committee_name: form.business_operating_committee_name.trim() || null,
@@ -2067,6 +2076,16 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                       onChange={(e) => setForm({ ...form, business_registration_jersey_size_chart_url: e.target.value })}
                       style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
                     />
+                    <textarea
+                      placeholder="Pilihan ukuran jersey, pisahkan dengan koma. Contoh: XS, S, M, L, XL, 2XL, 3XL"
+                      value={form.business_jersey_size_options}
+                      onChange={(e) => setForm({ ...form, business_jersey_size_options: e.target.value })}
+                      rows={2}
+                      style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800, resize: 'vertical' }}
+                    />
+                    <div style={{ fontSize: 12, color: '#333', fontWeight: 700 }}>
+                      Ukuran ini yang akan muncul di form register rider dan dipakai validasi pendaftaran.
+                    </div>
                     <label
                       style={{
                         display: 'inline-flex',
@@ -2093,6 +2112,25 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                         style={{ display: 'none' }}
                       />
                     </label>
+                    {form.business_registration_jersey_size_chart_url && (
+                      <div style={{ display: 'grid', gap: 8, maxWidth: 360 }}>
+                        <a
+                          href={form.business_registration_jersey_size_chart_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{ fontWeight: 800, color: '#0f766e', textDecoration: 'underline' }}
+                        >
+                          Buka gambar size chart
+                        </a>
+                        <div style={{ overflow: 'hidden', borderRadius: 14, border: '2px solid #111', background: '#fff' }}>
+                          <img
+                            src={form.business_registration_jersey_size_chart_url}
+                            alt="Preview size chart jersey"
+                            style={{ display: 'block', width: '100%', height: 'auto' }}
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                   {registrationMediaError && (
                     <div style={{ fontSize: 12, color: '#b91c1c', fontWeight: 800 }}>{registrationMediaError}</div>

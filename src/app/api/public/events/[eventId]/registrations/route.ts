@@ -69,7 +69,7 @@ type EventCategory = {
 const BASE_PRICE = 250000
 const EXTRA_PRICE = 150000
 const BUCKET = process.env.NEXT_PUBLIC_REGISTRATION_BUCKET || 'registration-docs'
-const JERSEY_SIZES = new Set(['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'])
+const DEFAULT_JERSEY_SIZES = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL']
 const DOCUMENT_TYPE = 'KK'
 
 const toYear = (dateString: string) => {
@@ -99,6 +99,19 @@ const toStringOrNull = (value: FormDataEntryValue | null) => {
   if (typeof value !== 'string') return null
   const trimmed = value.trim()
   return trimmed.length > 0 ? trimmed : null
+}
+
+const getJerseySizeOptions = (businessSettings: unknown) => {
+  if (!businessSettings || typeof businessSettings !== 'object' || Array.isArray(businessSettings)) {
+    return DEFAULT_JERSEY_SIZES
+  }
+  const raw = (businessSettings as { jersey_size_options?: unknown }).jersey_size_options
+  if (!Array.isArray(raw)) return DEFAULT_JERSEY_SIZES
+  const options = raw
+    .filter((item): item is string => typeof item === 'string')
+    .map((item) => item.trim())
+    .filter(Boolean)
+  return options.length > 0 ? options : DEFAULT_JERSEY_SIZES
 }
 
 const parseRequest = async (req: Request) => {
@@ -158,7 +171,7 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
 
   const { data: settingsRow, error: settingsError } = await adminClient
     .from('event_settings')
-    .select('require_jersey_size, base_price, extra_price, registration_open')
+    .select('require_jersey_size, base_price, extra_price, registration_open, business_settings')
     .eq('event_id', eventId)
     .order('updated_at', { ascending: false })
     .limit(1)
@@ -169,6 +182,7 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
     return { error: 'Pendaftaran untuk event ini sedang ditutup.' }
   }
   const requireJerseySize = Boolean(latestSettingsRow?.require_jersey_size)
+  const jerseySizes = new Set(getJerseySizeOptions(latestSettingsRow?.business_settings))
   const basePriceRaw = Number(latestSettingsRow?.base_price)
   const extraPriceRaw = Number(latestSettingsRow?.extra_price)
   const basePrice = Number.isFinite(basePriceRaw) && basePriceRaw > 0 ? basePriceRaw : BASE_PRICE
@@ -227,7 +241,7 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
       preparedItems.push({ error: 'Jersey size required' })
       continue
     }
-    if (item.jersey_size && !JERSEY_SIZES.has(item.jersey_size)) {
+    if (item.jersey_size && !jerseySizes.has(item.jersey_size)) {
       preparedItems.push({ error: 'Invalid jersey size' })
       continue
     }
