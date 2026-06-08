@@ -1109,15 +1109,15 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
               )}
             </div>
             {eventLogoUrl && (
-              <div className="mx-auto w-full max-w-[210px] rounded-[1.5rem] border border-white/15 bg-white p-3 shadow-[0_22px_55px_rgba(2,6,23,0.28)] md:max-w-none">
-                <div className="flex aspect-[4/5] items-center justify-center overflow-hidden rounded-[1rem] bg-slate-100">
+              <div className="mx-auto w-full max-w-[210px] rounded-[1.5rem] border border-white/15 bg-white/5 p-3 shadow-[0_22px_55px_rgba(2,6,23,0.18)] ring-1 ring-white/5 backdrop-blur md:max-w-none">
+                <div className="flex aspect-[4/5] items-center justify-center overflow-hidden rounded-[1rem] bg-transparent">
                   <img
                     src={eventLogoUrl}
                     alt={`${publicEventTitle} logo`}
                     className="block h-full w-full object-contain"
                   />
                 </div>
-                <div className="mt-3 text-center text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+                <div className="mt-3 text-center text-[10px] font-black uppercase tracking-[0.18em] text-slate-300">
                   Official Event
                 </div>
               </div>
