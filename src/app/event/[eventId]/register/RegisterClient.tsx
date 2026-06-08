@@ -429,6 +429,19 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     return getFallbackPrimaryCategoryCandidates(categories, birthYear, gender)
   }, [categories])
 
+  const getAvailableBirthYearRange = useCallback((gender: 'BOY' | 'GIRL') => {
+    const compatibleCategories = categories.filter((category) => category.gender === gender || category.gender === 'MIX')
+    if (compatibleCategories.length === 0) return null
+    const years = compatibleCategories.flatMap((category) => [
+      category.year_min ?? category.year,
+      category.year_max ?? category.year,
+    ])
+    return {
+      min: Math.min(...years),
+      max: Math.max(...years),
+    }
+  }, [categories])
+
   const getSelectedFallbackPrimaryCategory = useCallback((
     birthYear: number | null,
     gender: 'BOY' | 'GIRL',
@@ -573,15 +586,31 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     })
   }, [])
 
-  const getPrimaryIssueModalMessage = (issue: 'invalid' | 'full' | 'fallback_required', riderIndex: number) => {
+  const getPrimaryIssueModalMessage = useCallback((
+    issue: 'invalid' | 'full' | 'fallback_required',
+    riderIndex: number,
+    birthYear: number | null,
+    gender: 'BOY' | 'GIRL'
+  ) => {
     if (issue === 'invalid') {
+      const range = getAvailableBirthYearRange(gender)
+      if (range && birthYear) {
+        const genderLabel = gender === 'BOY' ? 'boys' : 'girls'
+        if (birthYear < range.min) {
+          return `Rider #${riderIndex + 1}: tahun lahir ${birthYear} belum masuk kategori aktif untuk ${genderLabel}. Tahun kelahiran paling awal yang tersedia adalah ${range.min}.`
+        }
+        if (birthYear > range.max) {
+          return `Rider #${riderIndex + 1}: tahun lahir ${birthYear} melewati batas kategori aktif untuk ${genderLabel}. Tahun kelahiran paling akhir yang tersedia adalah ${range.max}.`
+        }
+        return `Rider #${riderIndex + 1}: tahun lahir ${birthYear} tidak cocok dengan kategori aktif untuk ${genderLabel}. Kategori event ini menerima tahun lahir ${range.min} sampai ${range.max}.`
+      }
       return `Rider #${riderIndex + 1}: tahun lahir dan gender rider tidak masuk kategori aktif event ini. Cek ulang tanggal lahir/gender, atau hubungi panitia jika kategori belum dibuat.`
     }
     if (issue === 'full') {
       return `Rider #${riderIndex + 1}: kategori sesuai umur penuh, dan semua kategori di atas umur rider juga penuh.`
     }
     return `Rider #${riderIndex + 1}: kategori sesuai umur penuh. Pilih kategori pengganti yang tersedia.`
-  }
+  }, [getAvailableBirthYearRange])
 
   useEffect(() => {
     const issueEntry = riders.findIndex((rider) => {
@@ -606,9 +635,9 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     lastAutoCategoryModalKeyRef.current = issueKey
     setSlotFullModal({
       title: issue === 'invalid' ? 'Kategori Tidak Tersedia' : 'Slot Pendaftaran Penuh',
-      message: getPrimaryIssueModalMessage(issue, issueEntry),
+      message: getPrimaryIssueModalMessage(issue, issueEntry, birthYear, rider.gender),
     })
-  }, [getPrimaryCategoryIssue, openSlotFullModal, riders])
+  }, [getPrimaryCategoryIssue, getPrimaryIssueModalMessage, openSlotFullModal, riders])
 
   useEffect(() => {
     const timers: Array<ReturnType<typeof setTimeout>> = []
@@ -739,9 +768,17 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
       return
     }
     if (hasMissingPrimaryCategory) {
+      const invalidIndex = riders.findIndex((rider) => {
+        const birthYear = getCompleteBirthYear(rider.dateOfBirth)
+        return getPrimaryCategoryIssue(birthYear, rider.gender, rider.primaryCategoryId) === 'invalid'
+      })
+      const invalidRider = invalidIndex >= 0 ? riders[invalidIndex] : null
+      const invalidBirthYear = invalidRider ? getCompleteBirthYear(invalidRider.dateOfBirth) : null
       setSlotFullModal({
         title: 'Kategori Tidak Tersedia',
-        message: 'Ada rider dengan tahun lahir/gender yang tidak masuk kategori aktif event ini. Cek ulang tanggal lahir/gender, atau hubungi panitia jika kategori belum dibuat.',
+        message: invalidRider
+          ? getPrimaryIssueModalMessage('invalid', invalidIndex, invalidBirthYear, invalidRider.gender)
+          : 'Ada rider dengan tahun lahir/gender yang tidak masuk kategori aktif event ini. Cek ulang tanggal lahir/gender, atau hubungi panitia jika kategori belum dibuat.',
       })
       return
     }
