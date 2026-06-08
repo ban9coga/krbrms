@@ -1061,7 +1061,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     `${filePickerClass} ${dragActiveKey === key ? 'border-amber-400 bg-amber-400/10' : ''}`
 
   return (
-    <div className="public-page min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.16),transparent_34%),linear-gradient(180deg,#111827_0%,#0f172a_38%,#020617_100%)] text-slate-100">
+    <div className="public-page min-h-screen bg-[linear-gradient(180deg,#111827_0%,#1f2937_42%,#111827_100%)] text-slate-100">
       <PublicTopbar />
       <main className="mx-auto grid w-full max-w-[1120px] gap-4 px-4 pb-36 pt-5 sm:px-6 md:gap-5 md:pt-7">
         {!registrationOpen && (
@@ -1072,7 +1072,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
             </div>
           </section>
         )}
-        <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.94)_0%,rgba(30,41,59,0.9)_58%,rgba(120,53,15,0.72)_100%)] px-5 py-6 shadow-[0_28px_90px_rgba(2,6,23,0.42)] ring-1 ring-white/5 sm:px-7 md:py-8">
+        <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,rgba(17,24,39,0.96)_0%,rgba(31,41,55,0.92)_58%,rgba(55,65,81,0.88)_100%)] px-5 py-6 shadow-[0_28px_90px_rgba(2,6,23,0.42)] ring-1 ring-white/5 sm:px-7 md:py-8">
           <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-200/50 to-transparent" />
           <div className="relative z-10 grid gap-3">
             <p className="text-xs font-black uppercase tracking-[0.22em] text-amber-300">Event Registration</p>
@@ -1574,39 +1574,44 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
           </p>
           <div className="mt-4 grid gap-3">
             {showPaymentDestination && (
-              <div className="rounded-xl border border-amber-300/25 bg-amber-400/10 p-3">
-                <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-amber-200">
-                  Rekening Tujuan Transfer
-                </div>
-                <div className="mt-2 grid gap-2 text-sm font-semibold text-slate-100">
-                  {paymentBankName && (
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-slate-300">Bank</span>
-                      <span>{paymentBankName}</span>
-                    </div>
-                  )}
-                  {paymentAccountName && (
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-slate-300">Atas Nama</span>
-                      <span>{paymentAccountName}</span>
-                    </div>
-                  )}
-                  {paymentAccountNumber && (
-                    <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-300/20 bg-slate-950/40 px-3 py-2">
-                      <span className="text-slate-300">No. Rekening</span>
-                      <span className="font-black tracking-[0.08em] text-amber-100">{paymentAccountNumber}</span>
-                    </div>
-                  )}
+              <div className={`grid gap-3 ${paymentQrisImageUrl ? 'lg:grid-cols-[minmax(0,1fr)_320px]' : ''}`}>
+                <div className="rounded-2xl border border-amber-300/25 bg-amber-400/10 p-4">
+                  <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-amber-200">
+                    Rekening Tujuan Transfer
+                  </div>
+                  <div className="mt-3 grid gap-2 text-sm font-semibold text-slate-100">
+                    {paymentBankName && (
+                      <div className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-slate-950/35 px-3 py-2">
+                        <span className="text-slate-300">Bank</span>
+                        <span>{paymentBankName}</span>
+                      </div>
+                    )}
+                    {paymentAccountName && (
+                      <div className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-slate-950/35 px-3 py-2">
+                        <span className="text-slate-300">Atas Nama</span>
+                        <span>{paymentAccountName}</span>
+                      </div>
+                    )}
+                    {paymentAccountNumber && (
+                      <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-300/20 bg-slate-950/45 px-3 py-3">
+                        <span className="text-slate-300">No. Rekening</span>
+                        <span className="font-black tracking-[0.08em] text-amber-100">{paymentAccountNumber}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 {paymentQrisImageUrl && (
-                  <div className="mt-4 overflow-hidden rounded-xl border border-amber-300/20 bg-white p-3">
-                    <div className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-slate-700">
-                      QRIS Pembayaran
+                  <div className="rounded-2xl border border-white/10 bg-white p-3 shadow-[0_18px_45px_rgba(2,6,23,0.18)]">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center">
+                      <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-700">
+                        QRIS Pembayaran
+                      </div>
+                      <div className="mt-1 text-[11px] font-semibold text-slate-500">Scan untuk pembayaran</div>
                     </div>
                     <img
                       src={paymentQrisImageUrl}
                       alt="QRIS pembayaran"
-                      className="mt-3 block w-full max-w-[280px] rounded-lg"
+                      className="mx-auto mt-3 block aspect-[3/4] w-full max-w-[240px] rounded-xl object-contain"
                     />
                   </div>
                 )}
