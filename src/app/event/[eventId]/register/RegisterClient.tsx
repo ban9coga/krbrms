@@ -297,6 +297,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   const [paymentProof, setPaymentProof] = useState<File | null>(null)
   const [dragActiveKey, setDragActiveKey] = useState<string | null>(null)
   const [plateChecks, setPlateChecks] = useState<PlateCheckState[]>([initialPlateCheck()])
+  const [birthDateTouched, setBirthDateTouched] = useState<boolean[]>([false])
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState<RegistrationSuccess | null>(null)
   const [slotFullModal, setSlotFullModal] = useState<{ title: string; message: string } | null>(null)
@@ -354,11 +355,13 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   const addRider = () => {
     setRiders((prev) => [...prev, initialRider()])
     setPlateChecks((prev) => [...prev, initialPlateCheck()])
+    setBirthDateTouched((prev) => [...prev, false])
   }
 
   const removeRider = (index: number) => {
     setRiders((prev) => prev.filter((_, idx) => idx !== index).map((item) => ({ ...item })))
     setPlateChecks((prev) => prev.filter((_, idx) => idx !== index))
+    setBirthDateTouched((prev) => prev.filter((_, idx) => idx !== index))
   }
 
   const updateRider = (index: number, updates: Partial<RiderForm>) => {
@@ -370,6 +373,10 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     ) {
       normalizedUpdates.primaryCategoryId = ''
       normalizedUpdates.extraCategoryId = ''
+    }
+
+    if (Object.prototype.hasOwnProperty.call(normalizedUpdates, 'dateOfBirth')) {
+      setBirthDateTouched((prev) => prev.map((item, idx) => (idx === index ? false : item)))
     }
 
     if (typeof normalizedUpdates.requestedPlateNumber === 'string' && normalizedUpdates.requestedPlateNumber.trim() === '') {
@@ -605,7 +612,8 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   }, [getAvailableBirthYearRange])
 
   useEffect(() => {
-    const issueEntry = riders.findIndex((rider) => {
+    const issueEntry = riders.findIndex((rider, index) => {
+      if (!birthDateTouched[index]) return false
       const birthYear = getCompleteBirthYear(rider.dateOfBirth)
       const issue = getPrimaryCategoryIssue(birthYear, rider.gender, rider.primaryCategoryId)
       return issue === 'invalid' || issue === 'full' || issue === 'fallback_required'
@@ -629,7 +637,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
       title: issue === 'invalid' ? 'Kategori Tidak Tersedia' : 'Slot Pendaftaran Penuh',
       message: getPrimaryIssueModalMessage(issue, issueEntry, birthYear, rider.gender),
     })
-  }, [getPrimaryCategoryIssue, getPrimaryIssueModalMessage, openSlotFullModal, riders])
+  }, [birthDateTouched, getPrimaryCategoryIssue, getPrimaryIssueModalMessage, openSlotFullModal, riders])
 
   useEffect(() => {
     const timers: Array<ReturnType<typeof setTimeout>> = []
@@ -912,6 +920,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
       }
       setRiders([initialRider()])
       setPlateChecks([initialPlateCheck()])
+      setBirthDateTouched([false])
       setContactName('')
       setContactPhone('')
       setContactEmail('')
@@ -1247,6 +1256,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                       type="date"
                       value={rider.dateOfBirth}
                       onChange={(e) => updateRider(idx, { dateOfBirth: e.target.value })}
+                      onBlur={() => setBirthDateTouched((prev) => prev.map((item, index) => (index === idx ? true : item)))}
                       className={fieldClass}
                     />
                     <div className="text-[11px] font-semibold text-slate-400">
