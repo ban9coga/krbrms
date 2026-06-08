@@ -7,6 +7,7 @@ import {
   getCategoryMaxYear,
 } from '../../../../../../lib/categoryAssignment'
 import { buildCategoryOccupancyMap } from '../../../../../../services/categoryOccupancy'
+import { sendRegistrationConfirmationEmail } from '../../../../../../lib/registrationEmail'
 
 type RegistrationItemInput = {
   rider_name: string
@@ -520,6 +521,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       .select('*')
       .single()
     if (paymentError) throw new Error(paymentError.message)
+
+    try {
+      await sendRegistrationConfirmationEmail(eventId, registration.id)
+    } catch (emailError) {
+      console.warn('[registration-email] failed sending confirmation:', emailError)
+    }
 
     return NextResponse.json({
       data: {
