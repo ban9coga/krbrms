@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from 'react'
 import EmptyState from '../../../../../components/EmptyState'
 import LoadingState from '../../../../../components/LoadingState'
 import PublicTopbar from '../../../../../components/PublicTopbar'
-import { getEventById, getEventCategories, type EventItem, type RiderCategory } from '../../../../../lib/eventService'
+import { type EventItem, type RiderCategory } from '../../../../../lib/eventService'
 
 type Row = {
   rider_id: string
@@ -56,6 +56,12 @@ type StageGroup = {
   title: string
   moto_id: string
   rows: StageRow[]
+}
+
+export type LiveScoreData = {
+  category?: string
+  batches?: Batch[]
+  stages?: StageGroup[]
 }
 
 const finalStageDisplayOrder: Record<string, number> = {
@@ -179,19 +185,41 @@ const renderRefreshButton = (refresh: () => void, refreshing: boolean) => (
 )
 
 
-export default function LiveScoreClient({ eventId, categoryId }: { eventId: string; categoryId: string }) {
-  const [loading, setLoading] = useState(false)
-  const [event, setEvent] = useState<EventItem | null>(null)
-  const [categories, setCategories] = useState<RiderCategory[]>([])
-  const [categoryLabel, setCategoryLabel] = useState('')
-  const [batches, setBatches] = useState<Batch[]>([])
-  const [stages, setStages] = useState<StageGroup[]>([])
+type LiveScoreClientProps = {
+  eventId: string
+  categoryId: string
+  initialEvent: EventItem | null
+  initialCategories: RiderCategory[]
+  initialLiveScore: LiveScoreData | null
+}
+
+export default function LiveScoreClient({
+  eventId,
+  categoryId,
+  initialEvent,
+  initialCategories,
+  initialLiveScore,
+}: LiveScoreClientProps) {
+  const [loading, setLoading] = useState(!initialEvent && !initialLiveScore)
+  const [event] = useState<EventItem | null>(initialEvent)
+  const [categories] = useState<RiderCategory[]>(initialCategories.filter((category) => category.enabled))
+  const [categoryLabel, setCategoryLabel] = useState(initialLiveScore?.category ?? '')
+  const [batches, setBatches] = useState<Batch[]>(initialLiveScore?.batches ?? [])
+  const [stages, setStages] = useState<StageGroup[]>(initialLiveScore?.stages ?? [])
   const [sortMode, setSortMode] = useState<'GATE' | 'RANK'>('RANK')
   const [refreshing, setRefreshing] = useState(false)
+  const business = event?.business_settings ?? null
+  const showRiderPhotos =
+    typeof business?.show_rider_photos_public === 'boolean' ? business.show_rider_photos_public : false
 
   const loadLiveScore = async () => {
+    const params = new URLSearchParams({
+      category_id: categoryId,
+      include_upcoming: '1',
+      include_photos: showRiderPhotos ? '1' : '0',
+    })
     const res = await fetch(
-      `/api/public/events/${eventId}/live-score?category_id=${encodeURIComponent(categoryId)}&include_upcoming=1`,
+      `/api/public/events/${eventId}/live-score?${params.toString()}`,
       { cache: 'no-store' }
     )
     const json = await res.json()
@@ -201,21 +229,16 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
   }
 
   useEffect(() => {
+    if (initialLiveScore) return
     const load = async () => {
       setLoading(true)
       try {
-        const [eventData, categoryData] = await Promise.all([
-          getEventById(eventId),
-          getEventCategories(eventId),
-        ])
-        setEvent(eventData)
-        setCategories(categoryData.filter((category) => category.enabled))
         await loadLiveScore()
       } finally {
         setLoading(false)
       }
     }
-    load()
+    void load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId, categoryId])
 
@@ -236,7 +259,6 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId, categoryId])
 
-  const business = event?.business_settings ?? null
   const publicEventTitle = business?.public_event_title?.trim() || event?.name || 'Live Score'
   const publicBrandName = business?.public_brand_name?.trim() || ''
   const publicTagline = business?.public_tagline?.trim() || ''
@@ -252,9 +274,6 @@ export default function LiveScoreClient({ eventId, categoryId }: { eventId: stri
     business?.show_scoring_support_publicly && scoringSupportLabel
   )
   const showMc = Boolean(business?.show_mc_publicly && mcName)
-  const showRiderPhotos =
-    typeof business?.show_rider_photos_public === 'boolean' ? business.show_rider_photos_public : false
-
   const sortedCategories = useMemo(() => {
     const genderOrder = { BOY: 0, GIRL: 1, MIX: 2 } as const
     return [...categories].sort((a, b) => {

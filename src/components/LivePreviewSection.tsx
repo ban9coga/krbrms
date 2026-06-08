@@ -124,7 +124,7 @@ export default function LivePreviewSection() {
 
         for (const category of enabledCategories) {
           const scoreRes = await fetch(
-            `/api/public/events/${liveEvent.id}/live-score?category_id=${encodeURIComponent(category.id)}`,
+            `/api/public/events/${liveEvent.id}/live-score?category_id=${encodeURIComponent(category.id)}&include_photos=0`,
             { cache: 'no-store' }
           )
           const scoreJson = (await scoreRes.json().catch(() => ({}))) as LiveScorePayload
