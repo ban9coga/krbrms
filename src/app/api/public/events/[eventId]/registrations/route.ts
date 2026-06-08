@@ -7,7 +7,6 @@ import {
   getCategoryMaxYear,
 } from '../../../../../../lib/categoryAssignment'
 import { buildCategoryOccupancyMap } from '../../../../../../services/categoryOccupancy'
-import { sendRegistrationConfirmationEmail } from '../../../../../../lib/registrationEmail'
 import { isPdfFile, prepareImageUpload, preparePassthroughUpload, type PreparedUpload } from '../../../../../../lib/imageUpload'
 
 type RegistrationItemInput = {
@@ -573,12 +572,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       .select('*')
       .single()
     if (paymentError) throw new Error(paymentError.message)
-
-    try {
-      await sendRegistrationConfirmationEmail(eventId, registration.id)
-    } catch (emailError) {
-      console.warn('[registration-email] failed sending confirmation:', emailError)
-    }
 
     return NextResponse.json({
       data: {

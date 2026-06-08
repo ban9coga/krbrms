@@ -116,10 +116,10 @@ export const sendRegistrationConfirmationEmail = async (eventId: string, registr
 
   const html = `
     <div style="font-family:Arial,sans-serif;color:#0f172a;line-height:1.5;">
-      <h1 style="margin:0 0 8px;font-size:24px;">Pendaftaran diterima</h1>
+      <h1 style="margin:0 0 8px;font-size:24px;">Pendaftaran terverifikasi</h1>
       <p style="margin:0 0 16px;">Halo ${escapeHtml(reg.contact_name || 'Kak')}, pendaftaran untuk <strong>${escapeHtml(
         eventTitle
-      )}</strong> sudah kami terima.</p>
+      )}</strong> sudah diverifikasi dan disetujui panitia.</p>
       <div style="padding:14px;border:1px solid #dbe3ef;border-radius:12px;background:#f8fafc;margin-bottom:16px;">
         <div><strong>Event:</strong> ${escapeHtml(eventTitle)}</div>
         <div><strong>Lokasi:</strong> ${escapeHtml(event?.location || '-')}</div>
@@ -127,7 +127,7 @@ export const sendRegistrationConfirmationEmail = async (eventId: string, registr
         <div><strong>Komunitas:</strong> ${escapeHtml(reg.community_name || '-')}</div>
         <div><strong>Nomor WA:</strong> ${escapeHtml(reg.contact_phone || '-')}</div>
         <div><strong>Total:</strong> ${escapeHtml(formatRupiah(reg.total_amount))}</div>
-        <div><strong>Status:</strong> Menunggu verifikasi panitia</div>
+        <div><strong>Status:</strong> Pendaftaran disetujui panitia</div>
       </div>
       <table style="border-collapse:collapse;width:100%;margin-bottom:16px;font-size:13px;">
         <thead>
@@ -154,13 +154,13 @@ export const sendRegistrationConfirmationEmail = async (eventId: string, registr
   `
 
   const text = [
-    'Pendaftaran diterima',
+    'Pendaftaran terverifikasi',
     `Event: ${eventTitle}`,
     `Lokasi: ${event?.location || '-'}`,
     `Tanggal: ${event?.event_date || '-'}`,
     `Komunitas: ${reg.community_name || '-'}`,
     `Total: ${formatRupiah(reg.total_amount)}`,
-    'Status: Menunggu verifikasi panitia',
+    'Status: Pendaftaran disetujui panitia',
     whatsappUrl ? `Grup WhatsApp: ${whatsappUrl}` : '',
   ]
     .filter(Boolean)
@@ -175,7 +175,7 @@ export const sendRegistrationConfirmationEmail = async (eventId: string, registr
     body: JSON.stringify({
       from,
       to: reg.contact_email,
-      subject: `Pendaftaran ${eventTitle} diterima`,
+      subject: `Pendaftaran ${eventTitle} terverifikasi`,
       html,
       text,
     }),

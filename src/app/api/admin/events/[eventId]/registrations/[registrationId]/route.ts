@@ -5,6 +5,7 @@ import {
   missingPrimaryCategoryMigrationMessage,
 } from '../../../../../../../lib/categoryAssignment'
 import { buildCategoryOccupancyMap } from '../../../../../../../services/categoryOccupancy'
+import { sendRegistrationConfirmationEmail } from '../../../../../../../lib/registrationEmail'
 
 const REGISTRATION_BUCKET = process.env.NEXT_PUBLIC_REGISTRATION_BUCKET || 'registration-docs'
 const RIDER_PHOTO_BUCKET = 'rider-photos'
@@ -384,6 +385,12 @@ export async function PATCH(
 
   await adminClient.from('registrations').update({ status, notes: notes ?? null }).eq('id', registrationId)
   await adminClient.from('registration_items').update({ status }).eq('registration_id', registrationId)
+
+  try {
+    await sendRegistrationConfirmationEmail(eventId, registrationId)
+  } catch (emailError) {
+    console.warn('[registration-email] failed sending approval confirmation:', emailError)
+  }
 
   return NextResponse.json({ ok: true })
 }

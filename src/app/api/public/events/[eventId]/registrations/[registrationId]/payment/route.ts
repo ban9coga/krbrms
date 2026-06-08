@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../../../../lib/auth'
-import { sendRegistrationConfirmationEmail } from '../../../../../../../../lib/registrationEmail'
 import { isPdfFile, prepareImageUpload, preparePassthroughUpload } from '../../../../../../../../lib/imageUpload'
 
 const BUCKET = process.env.NEXT_PUBLIC_REGISTRATION_BUCKET || 'registration-docs'
@@ -130,12 +129,6 @@ export async function POST(
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-
-  try {
-    await sendRegistrationConfirmationEmail(eventId, registrationId)
-  } catch (emailError) {
-    console.warn('[registration-email] failed sending confirmation:', emailError)
-  }
 
   return NextResponse.json({ data })
 }
