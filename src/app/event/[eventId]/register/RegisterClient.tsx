@@ -72,6 +72,13 @@ const normalizeExternalUrl = (value?: string | null) => {
 
 const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
 
+const getCompleteBirthYear = (dateOfBirth: string) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)) return null
+  const date = new Date(dateOfBirth)
+  if (Number.isNaN(date.getTime())) return null
+  return date.getUTCFullYear()
+}
+
 const openExternalLink = (url: string) => {
   if (typeof window === 'undefined' || !url) return
   const opened = window.open(url, '_blank', 'noopener,noreferrer')
@@ -495,22 +502,22 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   )
   const showTotal = Boolean(hasContact && ridersComplete)
   const hasMissingPrimaryCategory = riders.some((rider) => {
-    const birthYear = rider.dateOfBirth ? new Date(rider.dateOfBirth).getUTCFullYear() : null
+    const birthYear = getCompleteBirthYear(rider.dateOfBirth)
     const issue = getPrimaryCategoryIssue(birthYear, rider.gender, rider.primaryCategoryId)
     return issue === 'invalid'
   })
   const hasPrimaryCategoryAndFallbackFull = riders.some((rider) => {
-    const birthYear = rider.dateOfBirth ? new Date(rider.dateOfBirth).getUTCFullYear() : null
+    const birthYear = getCompleteBirthYear(rider.dateOfBirth)
     const issue = getPrimaryCategoryIssue(birthYear, rider.gender, rider.primaryCategoryId)
     return issue === 'full'
   })
   const hasPrimaryCategoryNeedsFallbackChoice = riders.some((rider) => {
-    const birthYear = rider.dateOfBirth ? new Date(rider.dateOfBirth).getUTCFullYear() : null
+    const birthYear = getCompleteBirthYear(rider.dateOfBirth)
     const issue = getPrimaryCategoryIssue(birthYear, rider.gender, rider.primaryCategoryId)
     return issue === 'fallback_required'
   })
   const hasPrimaryCategorySlotFull = riders.some((rider) => {
-    const birthYear = rider.dateOfBirth ? new Date(rider.dateOfBirth).getUTCFullYear() : null
+    const birthYear = getCompleteBirthYear(rider.dateOfBirth)
     const issue = getPrimaryCategoryIssue(birthYear, rider.gender, rider.primaryCategoryId)
     return issue === 'full' || issue === 'fallback_required'
   })
@@ -578,7 +585,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
 
   useEffect(() => {
     const issueEntry = riders.findIndex((rider) => {
-      const birthYear = rider.dateOfBirth ? new Date(rider.dateOfBirth).getUTCFullYear() : null
+      const birthYear = getCompleteBirthYear(rider.dateOfBirth)
       const issue = getPrimaryCategoryIssue(birthYear, rider.gender, rider.primaryCategoryId)
       return issue === 'invalid' || issue === 'full' || issue === 'fallback_required'
     })
@@ -589,7 +596,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     }
 
     const rider = riders[issueEntry]
-    const birthYear = rider.dateOfBirth ? new Date(rider.dateOfBirth).getUTCFullYear() : null
+    const birthYear = getCompleteBirthYear(rider.dateOfBirth)
     const issue = getPrimaryCategoryIssue(birthYear, rider.gender, rider.primaryCategoryId)
     if (issue !== 'invalid' && issue !== 'full' && issue !== 'fallback_required') return
 
@@ -775,7 +782,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
 
       const shouldSendEmail = contactEmail.trim().length > 0
       const items = riders.map((r) => {
-        const birthYear = r.dateOfBirth ? new Date(r.dateOfBirth).getUTCFullYear() : null
+        const birthYear = getCompleteBirthYear(r.dateOfBirth)
         const exactPrimaryCategory = getAvailableExactPrimaryCategory(birthYear, r.gender)
         return {
           rider_name: r.name,
@@ -1099,7 +1106,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         </section>
 
         {riders.map((rider, idx) => {
-          const birthYear = rider.dateOfBirth ? new Date(rider.dateOfBirth).getUTCFullYear() : null
+          const birthYear = getCompleteBirthYear(rider.dateOfBirth)
           const primaryIssue = getPrimaryCategoryIssue(birthYear, rider.gender, rider.primaryCategoryId)
           const exactPrimaryCategory = getAvailableExactPrimaryCategory(birthYear, rider.gender)
           const primaryCategory = computePrimaryCategory(birthYear, rider.gender, rider.primaryCategoryId)
