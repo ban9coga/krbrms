@@ -529,6 +529,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     (r) =>
       r.name &&
       r.nickname &&
+      r.club.trim() &&
       (!requireJerseySize || r.jerseySize) &&
       r.dateOfBirth &&
       r.requestedPlateNumber &&

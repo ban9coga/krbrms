@@ -41,7 +41,7 @@ export type RegistrationEmailResult =
   | { status: 'sent'; id?: string }
   | { status: 'skipped'; reason: string }
 
-type RegistrationEmailKind = 'APPROVED' | 'REJECTED'
+type RegistrationEmailKind = 'APPROVED' | 'REJECTED' | 'PAYMENT_REJECTED'
 
 const escapeHtml = (value: unknown) =>
   String(value ?? '')
@@ -192,13 +192,26 @@ export const sendRegistrationStatusEmail = async (
     .join('')
 
   const isApproved = kind === 'APPROVED'
-  const title = isApproved ? 'Pendaftaran telah dikonfirmasi' : 'Pendaftaran perlu ditinjau kembali'
+  const isPaymentRejected = kind === 'PAYMENT_REJECTED'
+  const title = isApproved
+    ? 'Pendaftaran telah dikonfirmasi'
+    : isPaymentRejected
+    ? 'Bukti pembayaran perlu diperbaiki'
+    : 'Pendaftaran perlu ditinjau kembali'
   const intro = isApproved
     ? `pendaftaran untuk <strong>${escapeHtml(eventTitle)}</strong> telah dikonfirmasi oleh panitia.`
+    : isPaymentRejected
+    ? `bukti pembayaran untuk pendaftaran <strong>${escapeHtml(eventTitle)}</strong> belum dapat dikonfirmasi. Silakan cek catatan dari panitia.`
     : `pendaftaran untuk <strong>${escapeHtml(eventTitle)}</strong> belum dapat dikonfirmasi. Silakan cek catatan dari panitia.`
-  const statusLabel = isApproved ? 'Pendaftaran telah dikonfirmasi' : 'Perlu ditinjau / dilengkapi'
+  const statusLabel = isApproved
+    ? 'Pendaftaran telah dikonfirmasi'
+    : isPaymentRejected
+    ? 'Bukti pembayaran perlu diperbaiki'
+    : 'Perlu ditinjau / dilengkapi'
   const subject = isApproved
     ? `Pendaftaran ${riderSummary} telah dikonfirmasi - ${eventTitle} #${shortRegistrationId}`
+    : isPaymentRejected
+    ? `Bukti pembayaran ${riderSummary} perlu diperbaiki - ${eventTitle} #${shortRegistrationId}`
     : `Pendaftaran ${riderSummary} perlu ditinjau - ${eventTitle} #${shortRegistrationId}`
   const noteBlock =
     !isApproved && notes?.trim()
@@ -303,3 +316,6 @@ export const sendRegistrationConfirmationEmail = (eventId: string, registrationI
 
 export const sendRegistrationRejectionEmail = (eventId: string, registrationId: string, notes?: string | null) =>
   sendRegistrationStatusEmail(eventId, registrationId, 'REJECTED', notes)
+
+export const sendRegistrationPaymentRejectionEmail = (eventId: string, registrationId: string, notes?: string | null) =>
+  sendRegistrationStatusEmail(eventId, registrationId, 'PAYMENT_REJECTED', notes)

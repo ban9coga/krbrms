@@ -5,7 +5,7 @@ const BUCKET = process.env.NEXT_PUBLIC_REGISTRATION_BUCKET || 'registration-docs
 
 export const runtime = 'nodejs'
 
-type RegRow = { id: string; event_id: string; upload_token: string | null }
+type RegRow = { id: string; event_id: string; status: string | null; upload_token: string | null }
 
 const requireUploadToken = async (req: Request, eventId: string, registrationId: string) => {
   const token = req.headers.get('x-upload-token') ?? new URL(req.url).searchParams.get('upload_token')
@@ -15,7 +15,7 @@ const requireUploadToken = async (req: Request, eventId: string, registrationId:
 
   const { data: reg, error } = await adminClient
     .from('registrations')
-    .select('id, event_id, upload_token')
+    .select('id, event_id, status, upload_token')
     .eq('id', registrationId)
     .maybeSingle()
 
@@ -24,6 +24,9 @@ const requireUploadToken = async (req: Request, eventId: string, registrationId:
   }
   if (!reg || reg.event_id !== eventId) {
     return { ok: false as const, res: NextResponse.json({ error: 'Registration not found' }, { status: 404 }) }
+  }
+  if (reg.status !== 'PENDING') {
+    return { ok: false as const, res: NextResponse.json({ error: 'Registration sudah diproses.' }, { status: 409 }) }
   }
   if (!reg.upload_token) {
     return {

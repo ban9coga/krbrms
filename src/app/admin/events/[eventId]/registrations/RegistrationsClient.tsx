@@ -372,6 +372,9 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
     const allItemsHavePhotos =
       !riderPhotoUploadEnabled ||
       (registration.registration_items.length > 0 && registration.registration_items.every((item) => Boolean(item.photo_url)))
+    const allItemsHaveClub =
+      registration.registration_items.length > 0 &&
+      registration.registration_items.every((item) => Boolean(item.club?.trim()))
 
     const plateIssues = registration.registration_items
       .map((item) => ({ item, check: plateChecks[item.id] }))
@@ -379,6 +382,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
 
     const blockingReasons: string[] = []
     if (registration.status !== 'PENDING') blockingReasons.push('Pendaftaran ini sudah diproses.')
+    if (!allItemsHaveClub) blockingReasons.push('Club/komunitas rider wajib diisi.')
     if (!hasApprovedPayment) blockingReasons.push('Minimal satu pembayaran harus berstatus APPROVED.')
     if (!allItemsHaveDocs) blockingReasons.push('Masih ada rider yang dokumennya belum lengkap.')
     if (!allItemsHavePhotos) blockingReasons.push('Masih ada rider yang foto profilnya belum lengkap.')

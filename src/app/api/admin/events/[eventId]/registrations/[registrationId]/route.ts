@@ -233,7 +233,10 @@ export async function PATCH(
   if (itemError) return NextResponse.json({ error: itemError.message }, { status: 400 })
 
   if (status === 'REJECTED') {
-    await adminClient.from('registrations').update({ status, notes: notes ?? null }).eq('id', registrationId)
+    await adminClient
+      .from('registrations')
+      .update({ status, notes: notes ?? null, upload_token: null })
+      .eq('id', registrationId)
     await adminClient.from('registration_items').update({ status }).eq('registration_id', registrationId)
     let email: RegistrationEmailResult | { status: 'failed'; reason: string } | null = null
     try {
@@ -248,6 +251,9 @@ export async function PATCH(
 
   const categoryIds = new Set<string>()
   for (const item of itemRows ?? []) {
+    if (!String(item.club ?? '').trim()) {
+      return NextResponse.json({ error: 'Club/komunitas rider wajib diisi sebelum approve.' }, { status: 400 })
+    }
     if (item.primary_category_id) categoryIds.add(item.primary_category_id as string)
     if (item.extra_category_id) categoryIds.add(item.extra_category_id as string)
   }
@@ -367,7 +373,7 @@ export async function PATCH(
         gender: item.gender,
         plate_number: plateNumber,
         plate_suffix: plateSuffix,
-        club: item.club ?? null,
+        club: String(item.club ?? '').trim(),
       })
       .select('id')
       .single()
@@ -395,7 +401,10 @@ export async function PATCH(
     if (extraError) return NextResponse.json({ error: extraError.message }, { status: 400 })
   }
 
-  await adminClient.from('registrations').update({ status, notes: notes ?? null }).eq('id', registrationId)
+  await adminClient
+    .from('registrations')
+    .update({ status, notes: notes ?? null, upload_token: null })
+    .eq('id', registrationId)
   await adminClient.from('registration_items').update({ status }).eq('registration_id', registrationId)
 
   let email: RegistrationEmailResult | { status: 'failed'; reason: string } | null = null
