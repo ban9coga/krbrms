@@ -132,6 +132,14 @@ export const sendRegistrationStatusEmail = async (
   const whatsappUrl = normalizeExternalUrl(business.whatsapp_group_invite_url)
   const committeeContact = resolveCommitteeContact(business)
   const items = (itemRows ?? []) as RegistrationItemRow[]
+  const riderNames = items.map((item) => item.rider_name?.trim()).filter((name): name is string => Boolean(name))
+  const riderSummary =
+    riderNames.length === 0
+      ? 'Rider'
+      : riderNames.length === 1
+      ? riderNames[0]
+      : `${riderNames[0]} +${riderNames.length - 1} rider`
+  const shortRegistrationId = reg.id.slice(0, 8).toUpperCase()
 
   const riderRows = items
     .map((item, index) => {
@@ -155,11 +163,20 @@ export const sendRegistrationStatusEmail = async (
     ? `pendaftaran untuk <strong>${escapeHtml(eventTitle)}</strong> sudah diverifikasi dan disetujui panitia.`
     : `pendaftaran untuk <strong>${escapeHtml(eventTitle)}</strong> belum dapat disetujui oleh panitia.`
   const statusLabel = isApproved ? 'Pendaftaran disetujui panitia' : 'Pendaftaran ditolak / perlu diperbaiki'
+  const subject = isApproved
+    ? `Pendaftaran ${riderSummary} terverifikasi - ${eventTitle} #${shortRegistrationId}`
+    : `Pendaftaran ${riderSummary} belum dapat diverifikasi - ${eventTitle} #${shortRegistrationId}`
   const noteBlock =
     !isApproved && notes?.trim()
       ? `<div style="padding:12px;border:1px solid #fecdd3;border-radius:12px;background:#fff1f2;margin-bottom:16px;"><strong>Alasan:</strong><br/>${escapeHtml(
           notes.trim()
         )}</div>`
+      : ''
+  const whatsappButton =
+    isApproved && whatsappUrl
+      ? `<p style="margin:0 0 16px;"><a href="${escapeHtml(
+          whatsappUrl
+        )}" style="display:inline-block;padding:10px 14px;border-radius:10px;background:#16a34a;color:#fff;text-decoration:none;font-weight:700;">Gabung Grup WhatsApp</a></p>`
       : ''
   const contactBlock = `
     <div style="padding:12px;border:1px solid #dbe3ef;border-radius:12px;background:#fff;margin-bottom:16px;">
@@ -171,8 +188,12 @@ export const sendRegistrationStatusEmail = async (
 
   const html = `
     <div style="font-family:Arial,sans-serif;color:#0f172a;line-height:1.5;">
+      <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${escapeHtml(
+        `${title} untuk ${riderSummary}. Kode registrasi ${shortRegistrationId}.`
+      )}</div>
       <h1 style="margin:0 0 8px;font-size:24px;">${escapeHtml(title)}</h1>
       <p style="margin:0 0 16px;">Halo ${escapeHtml(reg.contact_name || 'Kak')}, ${intro}</p>
+      ${whatsappButton}
       <div style="padding:14px;border:1px solid #dbe3ef;border-radius:12px;background:#f8fafc;margin-bottom:16px;">
         <div><strong>Event:</strong> ${escapeHtml(eventTitle)}</div>
         <div><strong>Lokasi:</strong> ${escapeHtml(event?.location || '-')}</div>
@@ -196,13 +217,6 @@ export const sendRegistrationStatusEmail = async (
         </thead>
         <tbody>${riderRows}</tbody>
       </table>
-      ${
-        isApproved && whatsappUrl
-          ? `<p style="margin:0 0 16px;"><a href="${escapeHtml(
-              whatsappUrl
-            )}" style="display:inline-block;padding:10px 14px;border-radius:10px;background:#16a34a;color:#fff;text-decoration:none;font-weight:700;">Gabung Grup WhatsApp</a></p>`
-          : ''
-      }
       ${contactBlock}
       <p style="margin:0;color:#475569;font-size:12px;">Email otomatis dari ${escapeHtml(brandName)}.</p>
     </div>
@@ -234,9 +248,7 @@ export const sendRegistrationStatusEmail = async (
     body: JSON.stringify({
       from,
       to: reg.contact_email,
-      subject: isApproved
-        ? `Pendaftaran ${eventTitle} terverifikasi`
-        : `Pendaftaran ${eventTitle} belum dapat diverifikasi`,
+      subject,
       html,
       text,
     }),
