@@ -44,6 +44,12 @@ type PlateCheckState = {
   suggestedSuffix: string | null
 }
 
+type RegistrationSuccess = {
+  riderNames: string[]
+  totalAmount: number
+  emailSent: boolean
+}
+
 const DEFAULT_BASE_PRICE = 250000
 const DEFAULT_EXTRA_PRICE = 150000
 const RIDER_PHOTO_MAX_BYTES = Math.round(1.5 * 1024 * 1024)
@@ -63,13 +69,6 @@ const DEFAULT_JERSEY_SIZE_OPTIONS = JERSEY_SIZE_GUIDE_ROWS.map(([size]) => size)
 const formatRupiah = (value: number) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value)
 
-const normalizeExternalUrl = (value?: string | null) => {
-  const raw = value?.trim()
-  if (!raw) return ''
-  if (/^https?:\/\//i.test(raw)) return raw
-  return `https://${raw}`
-}
-
 const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
 
 const getCompleteBirthYear = (dateOfBirth: string) => {
@@ -77,14 +76,6 @@ const getCompleteBirthYear = (dateOfBirth: string) => {
   const date = new Date(dateOfBirth)
   if (Number.isNaN(date.getTime())) return null
   return date.getUTCFullYear()
-}
-
-const openExternalLink = (url: string) => {
-  if (typeof window === 'undefined' || !url) return
-  const opened = window.open(url, '_blank', 'noopener,noreferrer')
-  if (!opened) {
-    window.location.href = url
-  }
 }
 
 const formatFileSize = (bytes: number) => {
@@ -307,7 +298,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   const [dragActiveKey, setDragActiveKey] = useState<string | null>(null)
   const [plateChecks, setPlateChecks] = useState<PlateCheckState[]>([initialPlateCheck()])
   const [submitting, setSubmitting] = useState(false)
-  const [success, setSuccess] = useState<string | null>(null)
+  const [success, setSuccess] = useState<RegistrationSuccess | null>(null)
   const [slotFullModal, setSlotFullModal] = useState<{ title: string; message: string } | null>(null)
 
   useEffect(() => {
@@ -552,7 +543,8 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     Array.isArray(businessSettings?.jersey_size_options) && businessSettings.jersey_size_options.length > 0
       ? businessSettings.jersey_size_options.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
       : DEFAULT_JERSEY_SIZE_OPTIONS
-  const whatsappGroupInviteUrl = normalizeExternalUrl(businessSettings?.whatsapp_group_invite_url)
+  const contactEmailValue = contactEmail.trim()
+  const contactEmailInvalid = contactEmailValue.length > 0 && !isValidEmail(contactEmailValue)
   const showPaymentDestination = Boolean(paymentBankName || paymentAccountName || paymentAccountNumber || paymentQrisImageUrl)
   const showEventOwner = Boolean(
     businessSettings?.show_event_owner_publicly && businessSettings?.event_owner_name?.trim()
@@ -723,7 +715,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
       alert('Nama dan nomor kontak wajib diisi')
       return
     }
-    if (contactEmail.trim() && !isValidEmail(contactEmail)) {
+    if (contactEmailInvalid) {
       alert('Format email tidak valid. Contoh: nama@email.com')
       return
     }
@@ -910,11 +902,11 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         createdUploadToken
       )
 
-      setSuccess(
-        `Pendaftaran telah dikirim. Admin akan memverifikasi data dan pembayaran Anda.${
-          shouldSendEmail ? ' Ringkasan pendaftaran juga dikirim ke email Anda.' : ''
-        }${whatsappGroupInviteUrl ? ' Tombol grup WhatsApp tersedia di bawah.' : ''}`
-      )
+      setSuccess({
+        riderNames: riders.map((rider) => rider.name.trim()).filter(Boolean),
+        totalAmount,
+        emailSent: shouldSendEmail,
+      })
       if (typeof window !== 'undefined') {
         window.scrollTo({ top: 0, behavior: 'smooth' })
       }
@@ -1048,23 +1040,6 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     <div className="public-page bg-[linear-gradient(180deg,#020817_0%,#041030_45%,#030712_100%)] text-slate-100">
       <PublicTopbar />
       <main className="mx-auto grid w-full max-w-[1200px] gap-4 px-4 pb-32 pt-6 sm:px-6 md:gap-5 md:pt-8">
-        {success && (
-          <section className="rounded-2xl border border-emerald-300/45 bg-emerald-500/15 p-4 shadow-[0_16px_36px_rgba(16,185,129,0.12)]">
-            <div className="text-xs font-black uppercase tracking-[0.16em] text-emerald-200">Pendaftaran Terkirim</div>
-            <div className="mt-2 text-sm font-semibold text-emerald-50">{success}</div>
-            {whatsappGroupInviteUrl && (
-              <div className="mt-3">
-                <button
-                  type="button"
-                  onClick={() => openExternalLink(whatsappGroupInviteUrl)}
-                  className="inline-flex items-center justify-center rounded-xl bg-emerald-400 px-4 py-2.5 text-xs font-black uppercase tracking-[0.14em] text-slate-950 transition-colors hover:bg-emerald-300"
-                >
-                  Masuk Grup WhatsApp
-                </button>
-              </div>
-            )}
-          </section>
-        )}
         {!registrationOpen && (
           <section className="rounded-2xl border border-rose-300/45 bg-rose-500/15 p-4 shadow-[0_16px_36px_rgba(244,63,94,0.14)]">
             <div className="text-xs font-black uppercase tracking-[0.16em] text-rose-200">Registrasi Ditutup</div>
@@ -1125,14 +1100,21 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
               inputMode="tel"
               className={fieldClass}
             />
-            <input
-              value={contactEmail}
-              onChange={(e) => setContactEmail(e.target.value)}
-              placeholder="Email (opsional)"
-              type="email"
-              inputMode="email"
-              className={fieldClass}
-            />
+            <div className="grid gap-1.5">
+              <input
+                value={contactEmail}
+                onChange={(e) => setContactEmail(e.target.value)}
+                placeholder="Email aktif untuk konfirmasi pendaftaran"
+                type="email"
+                inputMode="email"
+                className={`${fieldClass} ${contactEmailInvalid ? 'border-rose-400 focus:border-rose-400 focus:ring-rose-400/30' : ''}`}
+              />
+              <div className={`text-[11px] font-semibold ${contactEmailInvalid ? 'text-rose-300' : 'text-slate-400'}`}>
+                {contactEmailInvalid
+                  ? 'Format email belum benar. Contoh: nama@email.com'
+                  : 'Pastikan email aktif karena konfirmasi pendaftaran akan dikirim ke email ini.'}
+              </div>
+            </div>
             <input
               value={communityName}
               onChange={(e) => setCommunityName(e.target.value)}
@@ -1647,9 +1629,45 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
       </main>
 
       {success && (
-        <div className="fixed right-4 top-4 z-50 w-[calc(100%-2rem)] max-w-sm rounded-2xl border border-emerald-300/50 bg-emerald-500/20 p-4 shadow-[0_20px_45px_rgba(16,185,129,0.22)] backdrop-blur">
-          <div className="text-xs font-black uppercase tracking-[0.16em] text-emerald-200">Notif Pendaftaran</div>
-          <div className="mt-2 text-sm font-semibold text-white">{success}</div>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/75 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-[1.75rem] border border-emerald-300/40 bg-slate-900 p-6 shadow-[0_30px_90px_rgba(2,6,23,0.55)]">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-emerald-300/50 bg-emerald-400/15 text-4xl font-black text-emerald-300">
+              ✓
+            </div>
+            <div className="mt-4 text-center text-xs font-black uppercase tracking-[0.18em] text-emerald-300">
+              Pendaftaran Berhasil Dikirim
+            </div>
+            <h3 className="mt-3 text-center text-2xl font-black text-white">Menunggu Verifikasi Panitia</h3>
+            <div className="mt-5 rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
+              <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">Total Pembayaran</div>
+              <div className="mt-1 text-2xl font-black text-amber-300">{formatRupiah(success.totalAmount)}</div>
+              <div className="mt-4 text-xs font-black uppercase tracking-[0.16em] text-slate-400">Rider Terdaftar</div>
+              <div className="mt-2 grid gap-2">
+                {success.riderNames.map((name, index) => (
+                  <div key={`${name}-${index}`} className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm font-extrabold text-white">
+                    {index + 1}. {name}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <p className="mt-4 text-center text-sm font-semibold leading-6 text-slate-300">
+              Pendaftaran rider sedang menunggu verifikasi panitia. Silakan cek email untuk konfirmasi pendaftaran.
+            </p>
+            {!success.emailSent && (
+              <p className="mt-2 text-center text-xs font-semibold leading-5 text-amber-200">
+                Email tidak diisi, jadi konfirmasi email tidak dikirim untuk pendaftaran ini.
+              </p>
+            )}
+            <div className="mt-5 flex justify-center">
+              <button
+                type="button"
+                onClick={() => setSuccess(null)}
+                className="inline-flex items-center justify-center rounded-xl bg-emerald-400 px-5 py-2.5 text-sm font-extrabold uppercase tracking-wide text-slate-950 transition-colors hover:bg-emerald-300"
+              >
+                Oke, Mengerti
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
