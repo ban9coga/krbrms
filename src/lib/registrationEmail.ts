@@ -14,10 +14,17 @@ type RegistrationItemRow = {
   rider_name: string | null
   rider_nickname: string | null
   club: string | null
+  primary_category_id: string | null
+  extra_category_id: string | null
   jersey_size: string | null
   requested_plate_number: string | null
   requested_plate_suffix: string | null
   price: number | null
+}
+
+type CategoryRow = {
+  id: string
+  label: string | null
 }
 
 type EventRow = {
@@ -116,7 +123,9 @@ export const sendRegistrationStatusEmail = async (
         .limit(1),
       adminClient
         .from('registration_items')
-        .select('rider_name, rider_nickname, club, jersey_size, requested_plate_number, requested_plate_suffix, price')
+        .select(
+          'rider_name, rider_nickname, club, primary_category_id, extra_category_id, jersey_size, requested_plate_number, requested_plate_suffix, price'
+        )
         .eq('registration_id', registrationId)
         .order('created_at', { ascending: true }),
     ])
@@ -133,6 +142,25 @@ export const sendRegistrationStatusEmail = async (
   const whatsappUrl = normalizeExternalUrl(business.whatsapp_group_invite_url)
   const committeeContact = resolveCommitteeContact(business)
   const items = (itemRows ?? []) as RegistrationItemRow[]
+  const categoryIds = Array.from(
+    new Set(
+      items
+        .flatMap((item) => [item.primary_category_id, item.extra_category_id])
+        .filter((id): id is string => Boolean(id))
+    )
+  )
+  let categoryMap = new Map<string, string>()
+  if (categoryIds.length > 0) {
+    const { data: categoryRows, error: categoryError } = await adminClient
+      .from('categories')
+      .select('id, label')
+      .in('id', categoryIds)
+
+    if (categoryError) throw new Error(categoryError.message)
+    categoryMap = new Map(
+      ((categoryRows ?? []) as CategoryRow[]).map((category) => [category.id, category.label || category.id])
+    )
+  }
   const riderNames = items.map((item) => item.rider_name?.trim()).filter((name): name is string => Boolean(name))
   const riderSummary =
     riderNames.length === 0
@@ -145,12 +173,16 @@ export const sendRegistrationStatusEmail = async (
   const riderRows = items
     .map((item, index) => {
       const plate = `${item.requested_plate_number ?? '-'}${item.requested_plate_suffix ?? ''}`
+      const primaryCategory = item.primary_category_id ? categoryMap.get(item.primary_category_id) ?? '-' : '-'
+      const extraCategory = item.extra_category_id ? categoryMap.get(item.extra_category_id) ?? '-' : '-'
       return `
         <tr>
           <td style="padding:8px;border:1px solid #dbe3ef;">${index + 1}</td>
           <td style="padding:8px;border:1px solid #dbe3ef;font-weight:700;">${escapeHtml(item.rider_name)}</td>
           <td style="padding:8px;border:1px solid #dbe3ef;">${escapeHtml(item.rider_nickname || '-')}</td>
           <td style="padding:8px;border:1px solid #dbe3ef;">${escapeHtml(item.club || '-')}</td>
+          <td style="padding:8px;border:1px solid #dbe3ef;">${escapeHtml(primaryCategory)}</td>
+          <td style="padding:8px;border:1px solid #dbe3ef;">${escapeHtml(extraCategory)}</td>
           <td style="padding:8px;border:1px solid #dbe3ef;">${escapeHtml(plate)}</td>
           <td style="padding:8px;border:1px solid #dbe3ef;">${escapeHtml(item.jersey_size || '-')}</td>
           <td style="padding:8px;border:1px solid #dbe3ef;">${escapeHtml(formatRupiah(item.price))}</td>
@@ -212,6 +244,8 @@ export const sendRegistrationStatusEmail = async (
             <th style="padding:8px;border:1px solid #dbe3ef;text-align:left;">Rider</th>
             <th style="padding:8px;border:1px solid #dbe3ef;text-align:left;">Panggilan</th>
             <th style="padding:8px;border:1px solid #dbe3ef;text-align:left;">Komunitas</th>
+            <th style="padding:8px;border:1px solid #dbe3ef;text-align:left;">Kategori Terdaftar</th>
+            <th style="padding:8px;border:1px solid #dbe3ef;text-align:left;">Kategori Upclass</th>
             <th style="padding:8px;border:1px solid #dbe3ef;text-align:left;">Plate</th>
             <th style="padding:8px;border:1px solid #dbe3ef;text-align:left;">Jersey</th>
             <th style="padding:8px;border:1px solid #dbe3ef;text-align:left;">Biaya</th>
