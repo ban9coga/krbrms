@@ -100,6 +100,15 @@ type PlateCheckResponse = {
   }
 }
 
+type ApprovalResponse = {
+  ok?: boolean
+  email?: {
+    status: 'sent' | 'skipped' | 'failed'
+    id?: string
+    reason?: string
+  } | null
+}
+
 type PlateCheckState = {
   state: 'idle' | 'checking' | 'available' | 'needs_suffix' | 'suffix_taken' | 'duplicate' | 'invalid' | 'error'
   message: string
@@ -607,7 +616,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
         }
       })
 
-      await apiFetch(`/api/admin/events/${eventId}/registrations/${registration.id}`, {
+      const approvalResponse = await apiFetch<ApprovalResponse>(`/api/admin/events/${eventId}/registrations/${registration.id}`, {
         method: 'PATCH',
         body: JSON.stringify({
           status: 'APPROVED',
@@ -616,7 +625,19 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
         }),
       })
 
-      setFeedback({ type: 'success', message: `Pendaftaran ${registration.contact_name} berhasil di-approve.` })
+      const email = approvalResponse?.email
+      const emailMessage =
+        email?.status === 'sent'
+          ? 'Email konfirmasi terkirim.'
+          : email?.status === 'skipped'
+          ? `Email tidak dikirim: ${email.reason ?? 'tidak ada alasan.'}`
+          : email?.status === 'failed'
+          ? `Email gagal dikirim: ${email.reason ?? 'cek konfigurasi Resend.'}`
+          : 'Status email tidak tersedia.'
+      setFeedback({
+        type: email?.status === 'failed' ? 'error' : 'success',
+        message: `Pendaftaran ${registration.contact_name} berhasil di-approve. ${emailMessage}`,
+      })
       setModal(null)
       setModalNotes('')
       setRefreshTick((prev) => prev + 1)

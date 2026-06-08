@@ -29,6 +29,10 @@ type SettingsRow = {
   business_settings: BusinessSettings | null
 }
 
+export type RegistrationEmailResult =
+  | { status: 'sent'; id?: string }
+  | { status: 'skipped'; reason: string }
+
 const escapeHtml = (value: unknown) =>
   String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -54,10 +58,14 @@ const getBusinessSettings = (value: unknown): BusinessSettings => {
   return {}
 }
 
-export const sendRegistrationConfirmationEmail = async (eventId: string, registrationId: string) => {
+export const sendRegistrationConfirmationEmail = async (
+  eventId: string,
+  registrationId: string
+): Promise<RegistrationEmailResult> => {
   const apiKey = process.env.RESEND_API_KEY?.trim()
   const from = process.env.REGISTRATION_EMAIL_FROM?.trim()
-  if (!apiKey || !from) return
+  if (!apiKey) return { status: 'skipped', reason: 'RESEND_API_KEY belum diset.' }
+  if (!from) return { status: 'skipped', reason: 'REGISTRATION_EMAIL_FROM belum diset.' }
 
   const { data: registration, error: registrationError } = await adminClient
     .from('registrations')
@@ -68,7 +76,7 @@ export const sendRegistrationConfirmationEmail = async (eventId: string, registr
 
   if (registrationError) throw new Error(registrationError.message)
   const reg = registration as RegistrationRow | null
-  if (!reg?.contact_email) return
+  if (!reg?.contact_email) return { status: 'skipped', reason: 'Email wali rider kosong.' }
 
   const [{ data: eventRow, error: eventError }, { data: settingsRows, error: settingsError }, { data: itemRows, error: itemError }] =
     await Promise.all([
@@ -185,4 +193,7 @@ export const sendRegistrationConfirmationEmail = async (eventId: string, registr
     const body = await response.text().catch(() => '')
     throw new Error(`Failed sending registration email: ${response.status} ${body}`)
   }
+
+  const body = (await response.json().catch(() => null)) as { id?: string } | null
+  return { status: 'sent', id: body?.id }
 }
