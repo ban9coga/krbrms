@@ -2000,7 +2000,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                     style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
                   />
                   <div style={{ fontSize: 12, color: '#333', fontWeight: 700 }}>
-                    Jika diisi, tombol masuk grup WhatsApp akan muncul setelah pendaftaran berhasil dikirim.
+                    Jika diisi, tombol gabung grup WhatsApp akan masuk ke email konfirmasi setelah pendaftaran di-approve.
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
                     <input
