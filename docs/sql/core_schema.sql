@@ -661,6 +661,7 @@ create table if not exists user_event_roles (
     upper(role) in (
       'SUPER_ADMIN',
       'ADMIN',
+      'REGISTRATION_APPROVER',
       'CHECKER',
       'FINISHER',
       'RACE_DIRECTOR',

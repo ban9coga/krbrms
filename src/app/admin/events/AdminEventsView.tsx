@@ -633,9 +633,11 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
                         <Link href={`/admin/events/${event.id}/registrations`} className={primaryButtonClass}>
                           Registrations
                         </Link>
-                        <Link href={`/admin/events/${event.id}/riders`} className={subtleButtonClass}>
-                          Riders
-                        </Link>
+                        {!isRegistrationApprover && (
+                          <Link href={`/admin/events/${event.id}/riders`} className={subtleButtonClass}>
+                            Riders
+                          </Link>
+                        )}
                         {!isRegistrationApprover && (
                           <Link href={`/admin/events/${event.id}/settings`} className={subtleButtonClass}>
                             Event Settings

@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server'
-import { requireBackoffice } from '../../../../lib/auth'
+import { getAccessibleEventIds, requireBackoffice } from '../../../../lib/auth'
 
-const getHomePath = (role: string) => {
-  if (role === 'REGISTRATION_APPROVER') return '/admin/events'
+const getHomePath = async (role: string, userId: string) => {
+  if (role === 'REGISTRATION_APPROVER') {
+    const eventIds = await getAccessibleEventIds(userId, ['REGISTRATION_APPROVER'])
+    return eventIds.length === 1 ? `/admin/events/${eventIds[0]}/registrations` : '/admin/events'
+  }
   return '/admin'
 }
 
@@ -16,7 +19,7 @@ export async function GET(req: Request) {
     data: {
       ok: true,
       role: auth.role,
-      home: getHomePath(auth.role),
+      home: await getHomePath(auth.role, auth.user.id),
     },
   })
 }

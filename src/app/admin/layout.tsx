@@ -74,10 +74,7 @@ const getRoleTone = (role: string | null) => {
 const isAllowedAdminPath = (role: string | null, pathname: string) => {
   if (!isRegistrationApproverRole(role)) return true
   if (pathname === '/admin' || pathname === '/admin/events') return true
-  return (
-    /^\/admin\/events\/[^/]+\/registrations(?:\/|$)/.test(pathname) ||
-    /^\/admin\/events\/[^/]+\/riders(?:\/|$)/.test(pathname)
-  )
+  return /^\/admin\/events\/[^/]+\/registrations(?:\/|$)/.test(pathname)
 }
 
 function Icon({ type, active }: { type: NavItem['icon']; active: boolean }) {
@@ -289,7 +286,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     if (!eventId) return []
     const items = EVENT_NAV(eventId)
     if (isRegistrationApproverRole(userRole)) {
-      return items.filter((item) => item.icon === 'registrations' || item.icon === 'riders')
+      return items.filter((item) => item.icon === 'registrations')
     }
     return items
   }, [eventId, userRole])
@@ -354,13 +351,22 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             const accessJson = await accessRes.json()
             const backofficeRole =
               typeof accessJson?.data?.role === 'string' ? accessJson.data.role : null
+            const backofficeHome =
+              typeof accessJson?.data?.home === 'string' ? accessJson.data.home : roleHome(backofficeRole)
 
             setUserRole(backofficeRole)
+
+            if (isRegistrationApproverRole(backofficeRole) && pathname === '/admin') {
+              setAuthorized(false)
+              setAuthChecked(true)
+              router.replace(backofficeHome)
+              return
+            }
 
             if (!isAllowedAdminPath(backofficeRole, pathname)) {
               setAuthorized(false)
               setAuthChecked(true)
-              router.replace('/admin/events')
+              router.replace(backofficeHome)
               return
             }
 
@@ -391,7 +397,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       if (!isAllowedAdminPath(role, pathname)) {
         setAuthorized(false)
         setAuthChecked(true)
-        router.replace('/admin/events')
+        router.replace(roleHome(role))
         return
       }
 

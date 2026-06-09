@@ -308,7 +308,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
     if (pathOrUrl.startsWith('http')) return pathOrUrl
     const res = await apiFetch<{ data?: { signedUrl?: string | null } }>('/api/admin/storage/signed-url', {
       method: 'POST',
-      body: JSON.stringify({ path: pathOrUrl }),
+      body: JSON.stringify({ eventId, path: pathOrUrl }),
     })
     return res?.data?.signedUrl ?? null
   }

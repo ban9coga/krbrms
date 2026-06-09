@@ -104,6 +104,7 @@ const pickQueueMoto = (motos: MotoItem[], anchorMoto?: MotoItem | null) => {
 }
 
 const PUBLIC_DISPLAY_REFRESH_INTERVAL_MS = 15000
+const PUBLIC_DISPLAY_SETTINGS_REFRESH_INTERVAL_MS = 5 * 60 * 1000
 
 const isSameStringList = (a: string[], b: string[]) => a.length === b.length && a.every((item, index) => item === b[index])
 
@@ -325,7 +326,7 @@ export default function LiveDisplayClient({
     refreshInFlightRef.current = true
     if (!background) setRefreshing(true)
     try {
-      const [categoryIds] = await Promise.all([fetchMotos(), fetchEventSettings()])
+      const categoryIds = await fetchMotos()
       await fetchLiveScores(categoryIds)
     } finally {
       refreshInFlightRef.current = false
@@ -337,6 +338,14 @@ export default function LiveDisplayClient({
     const interval = setInterval(() => {
       refresh(true)
     }, PUBLIC_DISPLAY_REFRESH_INTERVAL_MS)
+    return () => clearInterval(interval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventId])
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      void fetchEventSettings()
+    }, PUBLIC_DISPLAY_SETTINGS_REFRESH_INTERVAL_MS)
     return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
