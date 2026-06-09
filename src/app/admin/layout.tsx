@@ -71,6 +71,17 @@ const getRoleTone = (role: string | null) => {
   return 'border-slate-200 bg-slate-100 text-slate-600'
 }
 
+const readCookieValue = (name: string) => {
+  if (typeof document === 'undefined') return null
+  const prefix = `${name}=`
+  const cookie = document.cookie
+    .split(';')
+    .map((item) => item.trim())
+    .find((item) => item.startsWith(prefix))
+  if (!cookie) return null
+  return decodeURIComponent(cookie.slice(prefix.length))
+}
+
 const isAllowedAdminPath = (role: string | null, pathname: string) => {
   if (!isRegistrationApproverRole(role)) return true
   if (pathname === '/admin' || pathname === '/admin/events') return true
@@ -327,8 +338,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         supabase.auth.getUser(),
         supabase.auth.getSession(),
       ])
-      const user = userData.user
-      const token = sessionData.session?.access_token
+      let user = userData.user
+      const cookieToken = readCookieValue('sb-access-token')
+      const token = sessionData.session?.access_token ?? cookieToken
+
+      if (!user && cookieToken) {
+        const { data: cookieUserData } = await supabase.auth.getUser(cookieToken)
+        user = cookieUserData.user
+      }
 
       if (!user) {
         setAuthorized(false)

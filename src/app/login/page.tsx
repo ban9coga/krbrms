@@ -51,9 +51,17 @@ export default function LoginPage() {
     }
 
     const accessToken = data.session?.access_token
+    const refreshToken = data.session?.refresh_token
+    if (accessToken && refreshToken) {
+      await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      })
+    }
     if (accessToken) {
       const maxAge = data.session?.expires_in ?? 3600
-      document.cookie = `sb-access-token=${encodeURIComponent(accessToken)}; Path=/; Max-Age=${maxAge}; Secure; SameSite=Lax`
+      const secureCookie = window.location.protocol === 'https:' ? '; Secure' : ''
+      document.cookie = `sb-access-token=${encodeURIComponent(accessToken)}; Path=/; Max-Age=${maxAge}${secureCookie}; SameSite=Lax`
     }
 
     if (accessToken) {
@@ -70,12 +78,12 @@ export default function LoginPage() {
           window.location.href = backofficeHome
           return
         }
-        if (accessRes.status === 403) {
+        if (accessRes.status !== 403) {
           const message =
             typeof accessJson?.error === 'string'
               ? accessJson.error
-              : 'Akun ini belum punya akses event. Pastikan role dan assignment event sudah aktif.'
-          setErrorMessage(message)
+              : 'Login berhasil, tapi akses panel gagal dimuat. Coba refresh atau login ulang.'
+          setErrorMessage(`Login berhasil, tapi akses panel gagal: ${message}`)
           return
         }
       } catch {
