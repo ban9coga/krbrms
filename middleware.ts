@@ -4,7 +4,7 @@ const PROTECTED_PATHS = ['/admin', '/scoring', '/race-control', '/super-admin', 
 
 const ROLE_GUARDS: Record<string, string[]> = {
   '/admin/users': ['super_admin'],
-  '/admin': ['admin', 'super_admin'],
+  '/admin': ['admin', 'super_admin', 'REGISTRATION_APPROVER'],
   '/jc': ['CHECKER', 'RACE_DIRECTOR', 'super_admin'],
   '/scoring': ['CHECKER', 'FINISHER', 'RACE_DIRECTOR', 'super_admin'],
   '/jury/start': ['CHECKER', 'RACE_DIRECTOR', 'super_admin'],
@@ -79,12 +79,23 @@ export function middleware(req: NextRequest) {
     payload?.app_metadata?.role ||
     payload?.role ||
     ''
+  const normalizedRole = String(rawRole).trim()
   const role =
-    rawRole === 'jury_start'
+    normalizedRole === 'jury_start'
       ? 'CHECKER'
-      : rawRole === 'jury_finish'
+      : normalizedRole === 'JURY_START'
+      ? 'CHECKER'
+      : normalizedRole === 'jury_finish'
       ? 'FINISHER'
-      : rawRole
+      : normalizedRole === 'JURY_FINISH'
+      ? 'FINISHER'
+      : normalizedRole === 'ADMIN'
+      ? 'admin'
+      : normalizedRole === 'SUPER_ADMIN'
+      ? 'super_admin'
+      : normalizedRole === 'RACE_CONTROL'
+      ? 'race_control'
+      : normalizedRole
 
   // Match the most specific guard first (longer path wins).
   const guardPath = Object.keys(ROLE_GUARDS)
@@ -94,6 +105,7 @@ export function middleware(req: NextRequest) {
     if (r === 'RACE_DIRECTOR') return '/race-director/approval'
     if (r === 'FINISHER') return '/jury/finish'
     if (r === 'CHECKER') return '/jc'
+    if (r === 'REGISTRATION_APPROVER') return '/admin/events'
     if (r === 'super_admin') return '/admin'
     if (r === 'admin') return '/admin'
     if (r === 'race_control') return '/race-control'
