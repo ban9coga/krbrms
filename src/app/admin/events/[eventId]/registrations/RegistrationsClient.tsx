@@ -86,6 +86,7 @@ type EventSettingsResponse = {
   data?: {
     business_settings?: {
       registration_rider_photo_enabled?: boolean | null
+      whatsapp_group_invite_url?: string | null
     } | null
   } | null
 }
@@ -228,12 +229,24 @@ const normalizeWhatsAppPhone = (value: string | null | undefined) => {
   return digits
 }
 
-const buildWhatsAppMessage = (registration: RegistrationRow, kind: 'APPROVED' | 'REJECTED' | 'PAYMENT_REJECTED') => {
+const normalizeExternalUrl = (value: string | null | undefined) => {
+  const trimmed = String(value ?? '').trim()
+  if (!trimmed) return ''
+  if (/^https?:\/\//i.test(trimmed)) return trimmed
+  return `https://${trimmed}`
+}
+
+const buildWhatsAppMessage = (
+  registration: RegistrationRow,
+  kind: 'APPROVED' | 'REJECTED' | 'PAYMENT_REJECTED',
+  whatsappGroupInviteUrl?: string | null
+) => {
   const riderNames = registration.registration_items
     .map((item) => item.rider_name?.trim())
     .filter((name): name is string => Boolean(name))
   const riderText = riderNames.length > 0 ? riderNames.join(', ') : 'rider'
   const total = formatRupiah(registration.total_amount)
+  const whatsappGroupUrl = normalizeExternalUrl(whatsappGroupInviteUrl)
 
   if (kind === 'APPROVED') {
     return [
@@ -242,7 +255,9 @@ const buildWhatsAppMessage = (registration: RegistrationRow, kind: 'APPROVED' | 
       `Pendaftaran ${riderText} telah dikonfirmasi oleh panitia.`,
       `Total pembayaran: ${total}`,
       '',
-      'Silakan cek email untuk detail pendaftaran dan informasi grup WhatsApp event.',
+      whatsappGroupUrl
+        ? `Silakan bergabung ke grup WhatsApp event melalui link berikut:\n${whatsappGroupUrl}`
+        : 'Silakan cek email untuk detail pendaftaran dan informasi grup WhatsApp event.',
       'Terima kasih.',
     ].join('\n')
   }
@@ -268,10 +283,14 @@ const buildWhatsAppMessage = (registration: RegistrationRow, kind: 'APPROVED' | 
   ].join('\n')
 }
 
-const buildWhatsAppUrl = (registration: RegistrationRow, kind: 'APPROVED' | 'REJECTED' | 'PAYMENT_REJECTED') => {
+const buildWhatsAppUrl = (
+  registration: RegistrationRow,
+  kind: 'APPROVED' | 'REJECTED' | 'PAYMENT_REJECTED',
+  whatsappGroupInviteUrl?: string | null
+) => {
   const phone = normalizeWhatsAppPhone(registration.contact_phone)
   if (!phone) return ''
-  return `https://wa.me/${phone}?text=${encodeURIComponent(buildWhatsAppMessage(registration, kind))}`
+  return `https://wa.me/${phone}?text=${encodeURIComponent(buildWhatsAppMessage(registration, kind, whatsappGroupInviteUrl))}`
 }
 
 function WhatsAppAction({
@@ -279,13 +298,15 @@ function WhatsAppAction({
   kind,
   className = '',
   label,
+  whatsappGroupInviteUrl,
 }: {
   registration: RegistrationRow
   kind: 'APPROVED' | 'REJECTED' | 'PAYMENT_REJECTED'
   className?: string
   label?: string
+  whatsappGroupInviteUrl?: string | null
 }) {
-  const href = buildWhatsAppUrl(registration, kind)
+  const href = buildWhatsAppUrl(registration, kind, whatsappGroupInviteUrl)
   if (!href) return null
   return (
     <a
@@ -323,6 +344,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
   const [showCategoryKpis, setShowCategoryKpis] = useState(false)
   const [roleKey, setRoleKey] = useState<string | null>(null)
   const [riderPhotoUploadEnabled, setRiderPhotoUploadEnabled] = useState(true)
+  const [whatsappGroupInviteUrl, setWhatsappGroupInviteUrl] = useState<string | null>(null)
 
   const categoryMap = useMemo(() => new Map(categories.map((category) => [category.id, category.label])), [categories])
   const isRegistrationApprover = isRegistrationApproverRole(roleKey)
@@ -496,11 +518,14 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
         const json = await categoryRes.json().catch(() => ({}))
         if (cancelled) return
         setCategories((json?.data ?? []) as CategoryItem[])
-        const photoEnabled = settingsRes.data?.business_settings?.registration_rider_photo_enabled
+        const businessSettings = settingsRes.data?.business_settings
+        const photoEnabled = businessSettings?.registration_rider_photo_enabled
         setRiderPhotoUploadEnabled(typeof photoEnabled === 'boolean' ? photoEnabled : true)
+        setWhatsappGroupInviteUrl(businessSettings?.whatsapp_group_invite_url?.trim() || null)
       } catch {
         if (!cancelled) {
           setRiderPhotoUploadEnabled(true)
+          setWhatsappGroupInviteUrl(null)
           setFeedback({ type: 'error', message: 'Gagal memuat kategori event.' })
         }
       }
@@ -725,7 +750,13 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
         message: (
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <span>{`Pendaftaran ${registration.contact_name} berhasil di-approve. ${emailMessage}`}</span>
-            <WhatsAppAction registration={registration} kind="APPROVED" className="w-full sm:w-auto" label="Kirim WA Konfirmasi" />
+            <WhatsAppAction
+              registration={registration}
+              kind="APPROVED"
+              className="w-full sm:w-auto"
+              label="Kirim WA Konfirmasi"
+              whatsappGroupInviteUrl={whatsappGroupInviteUrl}
+            />
           </div>
         ),
       })
@@ -1388,6 +1419,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                           kind={registration.status === 'REJECTED' ? 'REJECTED' : 'APPROVED'}
                           className="w-full xl:w-auto"
                           label={registration.status === 'REJECTED' ? 'Kirim WA Penolakan' : 'Kirim WA Konfirmasi'}
+                          whatsappGroupInviteUrl={registration.status === 'APPROVED' ? whatsappGroupInviteUrl : null}
                         />
                       )}
                       <button
