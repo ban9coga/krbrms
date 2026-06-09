@@ -74,10 +74,15 @@ const STANDARD_JERSEY_SIZES = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'] as const
 const DEFAULT_JERSEY_SIZES = [...STANDARD_JERSEY_SIZES]
 const DOCUMENT_TYPE = 'KK'
 
+const JERSEY_SIZE_ALIAS_MAP: Record<string, string> = {
+  XXL: '2XL',
+}
+
 const normalizeJerseySize = (value: unknown) => {
   if (value === undefined || value === null) return null
   const normalized = String(value).trim().toUpperCase()
-  return normalized.length > 0 ? normalized : null
+  const canonical = JERSEY_SIZE_ALIAS_MAP[normalized] ?? normalized
+  return canonical.length > 0 ? canonical : null
 }
 
 const toYear = (dateString: string) => {
@@ -122,7 +127,8 @@ const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.
 const normalizeJerseySizeOption = (value: unknown) => {
   if (typeof value !== 'string') return null
   const normalized = value.trim().toUpperCase()
-  return normalized.length > 0 ? normalized : null
+  const canonical = JERSEY_SIZE_ALIAS_MAP[normalized] ?? normalized
+  return canonical.length > 0 ? canonical : null
 }
 
 const parseJerseySizeOptions = (value: unknown) => {

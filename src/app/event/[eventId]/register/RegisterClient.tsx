@@ -573,7 +573,11 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   const jerseySizeChartImageUrl = businessSettings?.registration_jersey_size_chart_url?.trim() || ''
   const jerseySizeOptions =
     Array.isArray(businessSettings?.jersey_size_options) && businessSettings.jersey_size_options.length > 0
-      ? businessSettings.jersey_size_options.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+      ? businessSettings.jersey_size_options
+          .map((item) => (typeof item === 'string' ? item.trim().toUpperCase() : ''))
+          .map((item) => (item === 'XXL' ? '2XL' : item))
+          .filter((item): item is string => ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'].includes(item))
+          .filter((item, index, array) => array.indexOf(item) === index)
       : DEFAULT_JERSEY_SIZE_OPTIONS
   const contactEmailValue = contactEmail.trim()
   const contactEmailInvalid = contactEmailValue.length > 0 && !isValidEmail(contactEmailValue)
