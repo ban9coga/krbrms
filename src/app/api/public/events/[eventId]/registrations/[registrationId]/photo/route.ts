@@ -89,7 +89,8 @@ export async function POST(
   }
   const path = `${eventId}/${registrationId}/${itemId}-photo-${Date.now()}.${upload.extension}`
 
-  const { error: uploadError } = await adminClient.storage.from(BUCKET).upload(path, upload.buffer, {
+  const storagePath = `events/${path}`
+  const { error: uploadError } = await adminClient.storage.from(BUCKET).upload(storagePath, upload.buffer, {
     contentType: upload.contentType,
     cacheControl: '31536000',
     upsert: true,
@@ -98,10 +99,10 @@ export async function POST(
 
   const { error } = await adminClient
     .from('registration_items')
-    .update({ photo_url: path })
+    .update({ photo_url: storagePath })
     .eq('id', itemId)
     .eq('registration_id', registrationId)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-  return NextResponse.json({ data: { photo_url: path } })
+  return NextResponse.json({ data: { photo_url: storagePath } })
 }

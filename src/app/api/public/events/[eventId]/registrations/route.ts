@@ -602,9 +602,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
             })
         const photoPath =
           riderPhotoUploadEnabled && photoFile instanceof File
-            ? `${eventId}/${registration.id}/${itemRow.id}-photo-${Date.now()}-${idx}.webp`
+            ? `events/${eventId}/${registration.id}/${itemRow.id}-photo-${Date.now()}-${idx}.webp`
             : null
-        const docPath = `${eventId}/${registration.id}/${itemRow.id}-${DOCUMENT_TYPE}-${Date.now()}-${idx}.${docUpload.extension}`
+        const docPath = `events/${eventId}/${registration.id}/${itemRow.id}-${DOCUMENT_TYPE}-${Date.now()}-${idx}.${docUpload.extension}`
 
         if (photoPath && photoFile instanceof File) {
           const photoUpload = await prepareImageUpload(photoFile, {
@@ -657,7 +657,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
           quality: 78,
           label: 'Bukti pembayaran',
         })
-    const paymentPath = `${eventId}/${registration.id}/payment-${Date.now()}.${paymentUpload.extension}`
+    const paymentPath = `events/${eventId}/${registration.id}/payment-${Date.now()}.${paymentUpload.extension}`
     await uploadPreparedFile(paymentPath, paymentUpload)
     uploadedPaths.push(paymentPath)
 

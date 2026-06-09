@@ -103,7 +103,8 @@ export async function POST(
   }
   const path = `${eventId}/${registrationId}/${itemId ?? 'general'}-${documentType}-${Date.now()}.${upload.extension}`
 
-  const { error: uploadError } = await adminClient.storage.from(BUCKET).upload(path, upload.buffer, {
+  const storagePath = `events/${path}`
+  const { error: uploadError } = await adminClient.storage.from(BUCKET).upload(storagePath, upload.buffer, {
     contentType: upload.contentType,
     cacheControl: '31536000',
     upsert: true,
@@ -116,7 +117,7 @@ export async function POST(
       registration_id: registrationId,
       registration_item_id: itemId,
       document_type: documentType,
-      file_url: path,
+      file_url: storagePath,
     })
     .select('*')
     .single()

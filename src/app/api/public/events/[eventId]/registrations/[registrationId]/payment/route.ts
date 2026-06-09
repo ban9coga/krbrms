@@ -109,7 +109,8 @@ export async function POST(
   }
   const path = `${eventId}/${registrationId}/payment-${Date.now()}.${upload.extension}`
 
-  const { error: uploadError } = await adminClient.storage.from(BUCKET).upload(path, upload.buffer, {
+  const storagePath = `events/${path}`
+  const { error: uploadError } = await adminClient.storage.from(BUCKET).upload(storagePath, upload.buffer, {
     contentType: upload.contentType,
     cacheControl: '31536000',
     upsert: true,
@@ -124,7 +125,7 @@ export async function POST(
       bank_name: bankName,
       account_name: accountName,
       account_number: accountNumber,
-      proof_url: path,
+      proof_url: storagePath,
       status: 'PENDING',
       payment_method: 'MANUAL_TRANSFER',
     })

@@ -15,9 +15,12 @@ export async function POST(req: Request) {
   const eventId = typeof body?.eventId === 'string' ? body.eventId.trim() : ''
   const auth = await requireBackoffice(req.headers.get('authorization'), eventId)
   if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const path = normalizePath(body?.path)
+  let path = normalizePath(body?.path)
   if (!eventId) return NextResponse.json({ error: 'eventId required' }, { status: 400 })
   if (!path) return NextResponse.json({ error: 'path required' }, { status: 400 })
+  if (path.startsWith(`${eventId}/`)) {
+    path = `events/${path}`
+  }
   if (!path.startsWith(`events/${eventId}/`)) {
     return NextResponse.json({ error: 'File path is outside this event.' }, { status: 403 })
   }
