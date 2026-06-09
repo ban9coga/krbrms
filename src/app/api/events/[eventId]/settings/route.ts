@@ -17,7 +17,7 @@ const normalizeJerseySizeOption = (value: unknown) => {
 const normalizeBusinessSettings = (value: unknown): BusinessSettings => {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
     const settings = value as BusinessSettings
-    const rawSizes = settings.jersey_size_options
+    const rawSizes = (settings as { jersey_size_options?: unknown }).jersey_size_options
     const normalizedSizes = Array.isArray(rawSizes)
       ? rawSizes
           .map(normalizeJerseySizeOption)
