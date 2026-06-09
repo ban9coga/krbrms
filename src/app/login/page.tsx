@@ -10,7 +10,15 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [errorMessage, setErrorMessage] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null
+    const reason = new URLSearchParams(window.location.search).get('error')
+    if (reason === 'backoffice_access') {
+      return 'Akun ini belum punya akses menu yang diminta. Pastikan role dan assignment event sudah aktif.'
+    }
+    if (reason === 'session_expired') return 'Session habis. Silakan login ulang.'
+    return null
+  })
 
   const normalizeRole = (value: string) => {
     const upper = value.toUpperCase()
@@ -56,10 +64,18 @@ export default function LoginPage() {
           },
         })
 
+        const accessJson = await accessRes.json().catch(() => ({}))
         if (accessRes.ok) {
-          const accessJson = await accessRes.json()
           const backofficeHome = typeof accessJson?.data?.home === 'string' ? accessJson.data.home : '/admin'
           window.location.href = backofficeHome
+          return
+        }
+        if (accessRes.status === 403) {
+          const message =
+            typeof accessJson?.error === 'string'
+              ? accessJson.error
+              : 'Akun ini belum punya akses event. Pastikan role dan assignment event sudah aktif.'
+          setErrorMessage(message)
           return
         }
       } catch {

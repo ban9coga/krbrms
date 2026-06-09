@@ -333,7 +333,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       if (!user) {
         setAuthorized(false)
         setAuthChecked(true)
-        router.replace('/login')
+        router.replace('/login?error=session_expired')
         return
       }
 
@@ -347,8 +347,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             },
           })
 
+          const accessJson = await accessRes.json().catch(() => ({}))
+
           if (accessRes.ok) {
-            const accessJson = await accessRes.json()
             const backofficeRole =
               typeof accessJson?.data?.role === 'string' ? accessJson.data.role : null
             const backofficeHome =
@@ -372,6 +373,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
             setAuthorized(true)
             setAuthChecked(true)
+            return
+          }
+
+          if (accessRes.status === 403) {
+            setAuthorized(false)
+            setAuthChecked(true)
+            router.replace('/login?error=backoffice_access')
             return
           }
         } catch {
