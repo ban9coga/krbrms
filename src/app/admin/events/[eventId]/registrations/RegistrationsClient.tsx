@@ -1,5 +1,6 @@
 ﻿'use client'
 
+import type { ReactNode } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { isRegistrationApproverRole, normalizeAppRole } from '../../../../../lib/roles'
 import { supabase } from '../../../../../lib/supabaseClient'
@@ -121,7 +122,7 @@ type ModalState =
   | { type: 'delete'; registration: RegistrationRow }
   | null
 
-type FeedbackState = { type: 'success' | 'error'; message: string } | null
+type FeedbackState = { type: 'success' | 'error'; message: ReactNode } | null
 type InlineFeedbackState = { type: 'success' | 'error'; message: string }
 
 const STATUS_OPTIONS: Array<{ value: 'ALL' | RegistrationStatus; label: string }> = [
@@ -217,6 +218,86 @@ const plateMessageTone = (state: PlateCheckState['state']) => {
 }
 
 const isPlateReady = (state: PlateCheckState | undefined) => state?.state === 'available'
+
+const normalizeWhatsAppPhone = (value: string | null | undefined) => {
+  const digits = String(value ?? '').replace(/[^\d]/g, '')
+  if (!digits) return ''
+  if (digits.startsWith('62')) return digits
+  if (digits.startsWith('0')) return `62${digits.slice(1)}`
+  if (digits.startsWith('8')) return `62${digits}`
+  return digits
+}
+
+const buildWhatsAppMessage = (registration: RegistrationRow, kind: 'APPROVED' | 'REJECTED' | 'PAYMENT_REJECTED') => {
+  const riderNames = registration.registration_items
+    .map((item) => item.rider_name?.trim())
+    .filter((name): name is string => Boolean(name))
+  const riderText = riderNames.length > 0 ? riderNames.join(', ') : 'rider'
+  const total = formatRupiah(registration.total_amount)
+
+  if (kind === 'APPROVED') {
+    return [
+      `Halo ${registration.contact_name},`,
+      '',
+      `Pendaftaran ${riderText} telah dikonfirmasi oleh panitia.`,
+      `Total pembayaran: ${total}`,
+      '',
+      'Silakan cek email untuk detail pendaftaran dan informasi grup WhatsApp event.',
+      'Terima kasih.',
+    ].join('\n')
+  }
+
+  if (kind === 'PAYMENT_REJECTED') {
+    return [
+      `Halo ${registration.contact_name},`,
+      '',
+      `Bukti pembayaran untuk pendaftaran ${riderText} belum dapat dikonfirmasi.`,
+      'Silakan cek email/catatan panitia lalu upload ulang bukti pembayaran yang benar.',
+      '',
+      'Terima kasih.',
+    ].join('\n')
+  }
+
+  return [
+    `Halo ${registration.contact_name},`,
+    '',
+    `Pendaftaran ${riderText} belum dapat dikonfirmasi oleh panitia.`,
+    'Silakan cek email/catatan panitia untuk informasi perbaikan data.',
+    '',
+    'Terima kasih.',
+  ].join('\n')
+}
+
+const buildWhatsAppUrl = (registration: RegistrationRow, kind: 'APPROVED' | 'REJECTED' | 'PAYMENT_REJECTED') => {
+  const phone = normalizeWhatsAppPhone(registration.contact_phone)
+  if (!phone) return ''
+  return `https://wa.me/${phone}?text=${encodeURIComponent(buildWhatsAppMessage(registration, kind))}`
+}
+
+function WhatsAppAction({
+  registration,
+  kind,
+  className = '',
+  label,
+}: {
+  registration: RegistrationRow
+  kind: 'APPROVED' | 'REJECTED' | 'PAYMENT_REJECTED'
+  className?: string
+  label?: string
+}) {
+  const href = buildWhatsAppUrl(registration, kind)
+  if (!href) return null
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`inline-flex min-h-11 items-center justify-center rounded-2xl border border-emerald-300 bg-emerald-600 px-4 py-2 text-sm font-black text-white transition hover:bg-emerald-700 ${className}`}
+    >
+      {label ?? 'Kirim WA'}
+    </a>
+  )
+}
 
 export default function RegistrationsClient({ eventId }: { eventId: string }) {
   const [loading, setLoading] = useState(false)
@@ -641,7 +722,12 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
           : 'Status email tidak tersedia.'
       setFeedback({
         type: email?.status === 'failed' ? 'error' : 'success',
-        message: `Pendaftaran ${registration.contact_name} berhasil di-approve. ${emailMessage}`,
+        message: (
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <span>{`Pendaftaran ${registration.contact_name} berhasil di-approve. ${emailMessage}`}</span>
+            <WhatsAppAction registration={registration} kind="APPROVED" className="w-full sm:w-auto" label="Kirim WA Konfirmasi" />
+          </div>
+        ),
       })
       setModal(null)
       setModalNotes('')
@@ -676,7 +762,12 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
       const email = rejectionResponse?.email
       setFeedback({
         type: email?.status === 'failed' ? 'error' : 'success',
-        message: `Pendaftaran ${registration.contact_name} berhasil ditolak. ${buildEmailFeedback(email)}`,
+        message: (
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <span>{`Pendaftaran ${registration.contact_name} berhasil ditolak. ${buildEmailFeedback(email)}`}</span>
+            <WhatsAppAction registration={registration} kind="REJECTED" className="w-full sm:w-auto" label="Kirim WA Penolakan" />
+          </div>
+        ),
       })
       setModal(null)
       setModalNotes('')
@@ -740,7 +831,20 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
       )
       setFeedback({
         type: email?.status === 'failed' ? 'error' : 'success',
-        message: `Pembayaran ${registration.contact_name} berhasil diubah ke ${nextStatus}.${emailMessage}`,
+        message:
+          nextStatus === 'REJECTED' ? (
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <span>{`Pembayaran ${registration.contact_name} berhasil diubah ke ${nextStatus}.${emailMessage}`}</span>
+              <WhatsAppAction
+                registration={registration}
+                kind="PAYMENT_REJECTED"
+                className="w-full sm:w-auto"
+                label="Kirim WA Pembayaran"
+              />
+            </div>
+          ) : (
+            `Pembayaran ${registration.contact_name} berhasil diubah ke ${nextStatus}.${emailMessage}`
+          ),
       })
       setPaymentFeedback((prev) => ({
         ...prev,
@@ -991,8 +1095,8 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
   }
 
   return (
-    <div className="grid gap-5 p-4 md:p-6">
-      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="grid gap-4 p-3 sm:gap-5 sm:p-4 md:p-6">
+      <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="grid gap-2">
             <div className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Admin Registrations</div>
@@ -1008,7 +1112,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
         </div>
 
         <form
-          className="mt-5 grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4"
+          className="mt-5 grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:p-4"
           onSubmit={(e) => {
             e.preventDefault()
             setPage(1)
@@ -1020,7 +1124,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               placeholder="Cari nama kontak, WA, email, komunitas, nama rider, atau plate"
-              className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none ring-0 transition focus:border-slate-950"
+              className="min-h-12 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none ring-0 transition focus:border-slate-950"
             />
             <select
               value={filterStatus}
@@ -1028,7 +1132,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                 setFilterStatus(e.target.value as 'ALL' | RegistrationStatus)
                 setPage(1)
               }}
-              className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-slate-950"
+              className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-slate-950"
             >
               {STATUS_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -1042,7 +1146,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                 setPaymentFilter(e.target.value as PaymentFilter)
                 setPage(1)
               }}
-              className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-slate-950"
+              className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-slate-950"
             >
               {PAYMENT_FILTER_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -1277,11 +1381,19 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="grid gap-2 sm:grid-cols-2 xl:flex xl:flex-wrap xl:items-center xl:justify-end">
+                      {registration.status !== 'PENDING' && (
+                        <WhatsAppAction
+                          registration={registration}
+                          kind={registration.status === 'REJECTED' ? 'REJECTED' : 'APPROVED'}
+                          className="w-full xl:w-auto"
+                          label={registration.status === 'REJECTED' ? 'Kirim WA Penolakan' : 'Kirim WA Konfirmasi'}
+                        />
+                      )}
                       <button
                         type="button"
                         onClick={() => setExpanded((prev) => ({ ...prev, [registration.id]: !isExpanded }))}
-                        className="rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-black text-slate-700 transition hover:border-slate-950 hover:text-slate-950"
+                        className="min-h-11 rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-black text-slate-700 transition hover:border-slate-950 hover:text-slate-950"
                       >
                         {isExpanded ? 'Sembunyikan Detail' : 'Lihat Detail'}
                       </button>
@@ -1289,7 +1401,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                         type="button"
                         disabled={savingKey === `registration:${registration.id}` || !readiness.canApprove}
                         onClick={() => openApproveModal(registration)}
-                        className="rounded-2xl border border-emerald-300 bg-emerald-100 px-4 py-2 text-sm font-black text-emerald-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                        className="min-h-11 rounded-2xl border border-emerald-300 bg-emerald-100 px-4 py-2 text-sm font-black text-emerald-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
                       >
                         Approve & Create Riders
                       </button>
@@ -1297,7 +1409,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                         type="button"
                         disabled={savingKey === `registration:${registration.id}` || registration.status !== 'PENDING'}
                         onClick={() => openRejectModal(registration)}
-                        className="rounded-2xl border border-rose-300 bg-rose-100 px-4 py-2 text-sm font-black text-rose-950 transition hover:bg-rose-200 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                        className="min-h-11 rounded-2xl border border-rose-300 bg-rose-100 px-4 py-2 text-sm font-black text-rose-950 transition hover:bg-rose-200 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
                       >
                         Reject
                       </button>
@@ -1309,7 +1421,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                               (!isCentralAdmin && registration.status !== 'REJECTED')
                             }
                             onClick={() => openDeleteModal(registration)}
-                            className="rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-black text-slate-700 transition hover:border-slate-950 hover:text-slate-950 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                            className="min-h-11 rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-black text-slate-700 transition hover:border-slate-950 hover:text-slate-950 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
                           >
                             {isCentralAdmin ? 'Delete' : 'Delete Rejected'}
                           </button>
@@ -1375,11 +1487,11 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                                 </div>
                               </div>
 
-                              <div className="flex flex-wrap items-center gap-2">
+                              <div className="grid gap-2 sm:grid-cols-3 lg:flex lg:flex-wrap lg:items-center">
                                 <button
                                   type="button"
                                   onClick={() => openFile(payment.proof_url)}
-                                  className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 transition hover:border-slate-950 hover:text-slate-950"
+                                  className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 transition hover:border-slate-950 hover:text-slate-950"
                                 >
                                   Lihat Bukti
                                 </button>
@@ -1387,7 +1499,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                                   type="button"
                                   disabled={savingKey === `payment:${payment.id}` || payment.status === 'APPROVED'}
                                   onClick={() => updatePaymentStatus(registration, payment, 'APPROVED')}
-                                  className="rounded-xl border border-emerald-300 bg-emerald-100 px-3 py-2 text-sm font-bold text-emerald-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                                  className="min-h-11 rounded-xl border border-emerald-300 bg-emerald-100 px-3 py-2 text-sm font-bold text-emerald-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
                                 >
                                   {savingKey === `payment:${payment.id}` ? 'Menyimpan...' : 'Approve Payment'}
                                 </button>
@@ -1395,7 +1507,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                                   type="button"
                                   disabled={savingKey === `payment:${payment.id}` || payment.status === 'REJECTED'}
                                   onClick={() => updatePaymentStatus(registration, payment, 'REJECTED')}
-                                  className="rounded-xl border border-rose-300 bg-rose-100 px-3 py-2 text-sm font-bold text-rose-950 transition hover:bg-rose-200 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                                  className="min-h-11 rounded-xl border border-rose-300 bg-rose-100 px-3 py-2 text-sm font-bold text-rose-950 transition hover:bg-rose-200 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
                                 >
                                   {savingKey === `payment:${payment.id}` ? 'Menyimpan...' : 'Reject Payment'}
                                 </button>
@@ -1557,8 +1669,8 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
       </section>
 
       {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-xl rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 p-3 backdrop-blur-sm sm:items-center sm:p-4">
+          <div className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-3xl border border-slate-200 bg-white p-4 shadow-2xl sm:p-6">
             <div className="flex items-start justify-between gap-3">
               <div className="grid gap-1">
                 <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">
