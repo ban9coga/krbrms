@@ -76,10 +76,22 @@ export async function PUT(req: Request, { params }: { params: Promise<{ eventId:
   const body = (await req.json().catch(() => ({}))) as { assignments?: AssignmentPayload[] }
   const incoming = Array.isArray(body.assignments) ? body.assignments : []
 
+  const invalidRows = incoming.filter((item) => {
+    const userId = typeof item.user_id === 'string' ? item.user_id.trim() : ''
+    const role = normalizeAssignmentRole(item.role)
+    return !userId || !ASSIGNABLE_ROLES.includes(role)
+  })
+  if (invalidRows.length > 0) {
+    return NextResponse.json(
+      { error: 'Ada assignment yang belum lengkap. Pilih user dan role sebelum menyimpan.' },
+      { status: 400 }
+    )
+  }
+
   const normalized = incoming
     .map((item) => ({
       id: typeof item.id === 'string' && item.id.trim() ? item.id : undefined,
-      user_id: typeof item.user_id === 'string' ? item.user_id : '',
+      user_id: typeof item.user_id === 'string' ? item.user_id.trim() : '',
       role: normalizeAssignmentRole(item.role),
       is_active: item.is_active !== false,
       notes: typeof item.notes === 'string' && item.notes.trim() ? item.notes.trim() : null,
@@ -95,51 +107,15 @@ export async function PUT(req: Request, { params }: { params: Promise<{ eventId:
     seen.add(key)
   }
 
-  const { data: existing, error: existingError } = await adminClient
+  const { error: deleteError } = await adminClient
     .from('user_event_roles')
-    .select('id, user_id, role')
+    .delete()
     .eq('event_id', eventId)
 
-  if (existingError) return NextResponse.json({ error: existingError.message }, { status: 400 })
+  if (deleteError) return NextResponse.json({ error: deleteError.message }, { status: 400 })
 
-  const keepIds = normalized.map((item) => item.id).filter(Boolean) as string[]
-  const deleteIds = (existing ?? [])
-    .map((row) => row.id)
-    .filter((id) => !keepIds.includes(id))
-
-  if (deleteIds.length > 0) {
-    const { error: deleteError } = await adminClient
-      .from('user_event_roles')
-      .delete()
-      .eq('event_id', eventId)
-      .in('id', deleteIds)
-    if (deleteError) return NextResponse.json({ error: deleteError.message }, { status: 400 })
-  }
-
-  const existingIds = new Set((existing ?? []).map((row) => row.id))
-  const updates = normalized.filter((item) => item.id && existingIds.has(item.id))
-  const inserts = normalized.filter((item) => !item.id)
-
-  if (updates.length > 0) {
-    for (const item of updates) {
-      const { error: updateError } = await adminClient
-        .from('user_event_roles')
-        .update({
-          user_id: item.user_id,
-          role: item.role,
-          is_active: item.is_active,
-          notes: item.notes,
-          assigned_by: assignedBy,
-        })
-        .eq('id', item.id as string)
-        .eq('event_id', eventId)
-
-      if (updateError) return NextResponse.json({ error: updateError.message }, { status: 400 })
-    }
-  }
-
-  if (inserts.length > 0) {
-    const payload = inserts.map((item) => ({
+  if (normalized.length > 0) {
+    const payload = normalized.map((item) => ({
       user_id: item.user_id,
       event_id: eventId,
       role: item.role,
