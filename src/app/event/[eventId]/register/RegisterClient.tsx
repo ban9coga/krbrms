@@ -35,7 +35,6 @@ type RiderForm = {
   requestedPlateSuffix: string
   usePlateSuffix: boolean
   photo?: File | null
-  docType: 'KK' | 'AKTE' | 'KIA'
   docKk?: File | null
 }
 
@@ -179,7 +178,6 @@ const initialRider = (): RiderForm => ({
   requestedPlateSuffix: '',
   usePlateSuffix: false,
   photo: null,
-  docType: 'KK',
   docKk: null,
 })
 
@@ -974,7 +972,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
 
         const documentBody = new FormData()
         documentBody.append('registration_item_id', itemId)
-        documentBody.append('document_type', rider.docType)
+        documentBody.append('document_type', 'KK')
         documentBody.append('file', rider.docKk as File)
         await uploadStep(
           `/api/public/events/${eventId}/registrations/${createdRegistrationId}/documents`,
@@ -1624,15 +1622,6 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                   )}
                   <div className="grid gap-2">
                     <label className={labelClass}>{requiredLabel('Upload KK / Akte / KIA')}</label>
-                    <select
-                      value={rider.docType}
-                      onChange={(e) => updateRider(idx, { docType: e.target.value as RiderForm['docType'] })}
-                      className={fieldClass}
-                    >
-                      <option value="KK">KK</option>
-                      <option value="AKTE">Akte Kelahiran</option>
-                      <option value="KIA">KIA - Kartu Identitas Anak</option>
-                    </select>
                     <label
                       className={dropZoneClass(`doc-${idx}`)}
                       tabIndex={0}

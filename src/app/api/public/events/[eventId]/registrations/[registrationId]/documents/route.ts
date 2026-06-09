@@ -6,6 +6,15 @@ const BUCKET = process.env.NEXT_PUBLIC_REGISTRATION_BUCKET || 'registration-docs
 const SUPPORTING_IMAGE_MAX_BYTES = 2 * 1024 * 1024
 const SUPPORTING_PDF_MAX_BYTES = 3 * 1024 * 1024
 
+const normalizeDocumentType = (value: unknown) => {
+  const normalized = String(value || '').trim().toUpperCase()
+  if (normalized === 'KK' || normalized === 'AKTE' || normalized === 'KIA') return normalized
+  return null
+}
+
+const isDocumentTypeConstraintError = (message: string) =>
+  /registration_documents_document_type_check|invalid input value for enum/i.test(message)
+
 export const runtime = 'nodejs'
 
 type RegRow = { id: string; event_id: string; status: string | null; upload_token: string | null }
@@ -53,13 +62,14 @@ export async function POST(
 
   const form = await req.formData()
   const file = form.get('file')
-  const documentType = String(form.get('document_type') || '').toUpperCase()
+  const rawDocumentType = form.get('document_type')
+  const documentType = rawDocumentType === null ? 'KK' : normalizeDocumentType(rawDocumentType)
   const itemId = form.get('registration_item_id')?.toString() || null
 
   if (!(file instanceof File)) {
     return NextResponse.json({ error: 'Dokumen KK/Akte/KIA wajib diupload.' }, { status: 400 })
   }
-  if (documentType !== 'KK' && documentType !== 'AKTE' && documentType !== 'KIA') {
+  if (!documentType) {
     return NextResponse.json({ error: 'Invalid document_type' }, { status: 400 })
   }
 
@@ -111,17 +121,27 @@ export async function POST(
   })
   if (uploadError) return NextResponse.json({ error: uploadError.message }, { status: 400 })
 
-  const { data, error } = await adminClient
-    .from('registration_documents')
-    .insert({
-      registration_id: registrationId,
-      registration_item_id: itemId,
-      document_type: documentType,
-      file_url: storagePath,
-    })
-    .select('*')
-    .single()
+  const insertDocument = async (type: string) =>
+    adminClient
+      .from('registration_documents')
+      .insert({
+        registration_id: registrationId,
+        registration_item_id: itemId,
+        document_type: type,
+        file_url: storagePath,
+      })
+      .select('*')
+      .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-  return NextResponse.json({ data })
+  let result = await insertDocument(documentType)
+  if (
+    result.error &&
+    documentType === 'KIA' &&
+    isDocumentTypeConstraintError(String(result.error.message))
+  ) {
+    result = await insertDocument('AKTE')
+  }
+
+  if (result.error) return NextResponse.json({ error: result.error.message }, { status: 400 })
+  return NextResponse.json({ data: result.data })
 }
