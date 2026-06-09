@@ -70,8 +70,15 @@ type EventCategory = {
 const BASE_PRICE = 250000
 const EXTRA_PRICE = 150000
 const BUCKET = process.env.NEXT_PUBLIC_REGISTRATION_BUCKET || 'registration-docs'
-const DEFAULT_JERSEY_SIZES = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL']
+const STANDARD_JERSEY_SIZES = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'] as const
+const DEFAULT_JERSEY_SIZES = [...STANDARD_JERSEY_SIZES]
 const DOCUMENT_TYPE = 'KK'
+
+const normalizeJerseySize = (value: unknown) => {
+  if (value === undefined || value === null) return null
+  const normalized = String(value).trim().toUpperCase()
+  return normalized.length > 0 ? normalized : null
+}
 
 const toYear = (dateString: string) => {
   const d = new Date(dateString)
@@ -120,8 +127,9 @@ const getJerseySizeOptions = (businessSettings: unknown) => {
   if (!Array.isArray(raw)) return DEFAULT_JERSEY_SIZES
   const options = raw
     .filter((item): item is string => typeof item === 'string')
-    .map((item) => item.trim())
-    .filter(Boolean)
+    .map((item) => item.trim().toUpperCase())
+    .filter((item) => STANDARD_JERSEY_SIZES.includes(item as typeof STANDARD_JERSEY_SIZES[number]))
+    .filter((item, index, array) => array.indexOf(item) === index)
   return options.length > 0 ? options : DEFAULT_JERSEY_SIZES
 }
 
@@ -258,11 +266,12 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
       preparedItems.push({ error: 'Missing rider fields' })
       continue
     }
-    if (requireJerseySize && !item.jersey_size) {
+    const jerseySize = normalizeJerseySize(item.jersey_size)
+    if (requireJerseySize && !jerseySize) {
       preparedItems.push({ error: 'Jersey size required' })
       continue
     }
-    if (item.jersey_size && !jerseySizes.has(item.jersey_size)) {
+    if (jerseySize && !jerseySizes.has(jerseySize)) {
       preparedItems.push({ error: 'Invalid jersey size' })
       continue
     }
@@ -342,7 +351,7 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
     preparedItems.push({
       rider_name: item.rider_name,
       rider_nickname: item.rider_nickname ?? null,
-      jersey_size: item.jersey_size ?? null,
+      jersey_size: jerseySize ?? null,
       date_of_birth: item.date_of_birth,
       gender: item.gender,
       club: item.club.trim(),

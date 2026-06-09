@@ -1169,8 +1169,9 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
       registration_rider_photo_enabled: Boolean(form.business_registration_rider_photo_enabled),
       jersey_size_options: form.business_jersey_size_options
         .split(',')
-        .map((value) => value.trim())
-        .filter(Boolean),
+        .map((value) => value.trim().toUpperCase())
+        .filter((value) => ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'].includes(value))
+        .filter((value, index, array) => array.indexOf(value) === index),
       event_owner_name: form.business_event_owner_name.trim() || null,
       event_owner_type: ownerType,
       operating_committee_name: form.business_operating_committee_name.trim() || null,
