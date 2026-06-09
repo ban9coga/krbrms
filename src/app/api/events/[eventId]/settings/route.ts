@@ -5,7 +5,25 @@ import { proxyBusinessSettingsMedia, toPublicMediaUrl, toPublicMediaUrls } from 
 
 const normalizeBusinessSettings = (value: unknown): BusinessSettings => {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
-    return value as BusinessSettings
+    const settings = value as BusinessSettings
+    const rawSizes = settings.jersey_size_options
+    const normalizedSizes = Array.isArray(rawSizes)
+      ? rawSizes
+          .map((item) => (typeof item === 'string' ? item.trim().toUpperCase() : ''))
+          .filter((item): item is string => item.length > 0)
+      : typeof rawSizes === 'string'
+      ? rawSizes
+          .split(',')
+          .map((item) => item.trim().toUpperCase())
+          .filter((item) => item.length > 0)
+      : []
+    const jerseySizeOptions = normalizedSizes.filter(
+      (item, index, array) => ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'].includes(item) && array.indexOf(item) === index
+    )
+    return {
+      ...settings,
+      jersey_size_options: jerseySizeOptions.length > 0 ? jerseySizeOptions : settings.jersey_size_options,
+    }
   }
   return {}
 }

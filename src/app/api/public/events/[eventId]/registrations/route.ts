@@ -119,17 +119,32 @@ const toStringOrNull = (value: FormDataEntryValue | null) => {
 
 const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
 
+const normalizeJerseySizeOption = (value: unknown) => {
+  if (typeof value !== 'string') return null
+  const normalized = value.trim().toUpperCase()
+  return normalized.length > 0 ? normalized : null
+}
+
+const parseJerseySizeOptions = (value: unknown) => {
+  if (typeof value === 'string') {
+    return value.split(',').map(normalizeJerseySizeOption).filter((item): item is string => item !== null)
+  }
+  if (Array.isArray(value)) {
+    return value.map(normalizeJerseySizeOption).filter((item): item is string => item !== null)
+  }
+  return []
+}
+
 const getJerseySizeOptions = (businessSettings: unknown) => {
   if (!businessSettings || typeof businessSettings !== 'object' || Array.isArray(businessSettings)) {
     return DEFAULT_JERSEY_SIZES
   }
   const raw = (businessSettings as { jersey_size_options?: unknown }).jersey_size_options
-  if (!Array.isArray(raw)) return DEFAULT_JERSEY_SIZES
-  const options = raw
-    .filter((item): item is string => typeof item === 'string')
-    .map((item) => item.trim().toUpperCase())
-    .filter((item) => STANDARD_JERSEY_SIZES.includes(item as typeof STANDARD_JERSEY_SIZES[number]))
-    .filter((item, index, array) => array.indexOf(item) === index)
+  const parsed = parseJerseySizeOptions(raw)
+  const options = parsed
+    .filter((item, index, array) =>
+      STANDARD_JERSEY_SIZES.includes(item as typeof STANDARD_JERSEY_SIZES[number]) && array.indexOf(item) === index
+    )
   return options.length > 0 ? options : DEFAULT_JERSEY_SIZES
 }
 
