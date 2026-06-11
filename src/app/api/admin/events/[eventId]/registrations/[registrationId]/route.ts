@@ -133,54 +133,6 @@ const syncRegistrationPhotoToRider = async (
   }
 }
 
-const resolveCategory = async (
-  eventId: string,
-  birthYear: number,
-  gender: 'BOY' | 'GIRL'
-) => {
-  const { data: categories } = await adminClient
-    .from('categories')
-    .select('id, year, year_min, year_max, gender')
-    .eq('event_id', eventId)
-    .eq('enabled', true)
-
-  const list = (categories ?? []).map((c) => ({
-    ...c,
-    year_min: c.year_min ?? c.year,
-    year_max: c.year_max ?? c.year,
-  }))
-
-  if (list.length === 0) {
-    const label = `${birthYear} ${gender === 'BOY' ? 'Boys' : 'Girls'}`
-    const { data: created, error } = await adminClient
-      .from('categories')
-      .insert([
-        {
-          event_id: eventId,
-          year: birthYear,
-          year_min: birthYear,
-          year_max: birthYear,
-          gender,
-          label,
-          enabled: true,
-        },
-      ])
-      .select('id')
-      .single()
-    if (error || !created?.id) throw new Error('Failed to create category')
-    return created.id
-  }
-
-  const candidates = list.filter((c) => birthYear >= c.year_min && birthYear <= c.year_max)
-  const genderMatch = candidates.filter((c) => c.gender === gender)
-  const chosen =
-    genderMatch.sort((a, b) => a.year_max - b.year_max)[0] ??
-    candidates.filter((c) => c.gender === 'MIX').sort((a, b) => a.year_max - b.year_max)[0]
-
-  if (!chosen?.id) throw new Error('No matching category for rider')
-  return chosen.id as string
-}
-
 type ApprovalItem = {
   id: string
   plate_number?: string | null
@@ -254,7 +206,15 @@ export async function PATCH(
     if (!String(item.club ?? '').trim()) {
       return NextResponse.json({ error: 'Club/komunitas rider wajib diisi sebelum approve.' }, { status: 400 })
     }
-    if (item.primary_category_id) categoryIds.add(item.primary_category_id as string)
+    if (!String(item.primary_category_id ?? '').trim()) {
+      return NextResponse.json(
+        {
+          error: `Kategori utama rider ${item.rider_name ?? ''} belum terisi. Minta wali rider perbaiki pendaftaran atau daftar ulang sebelum approve.`,
+        },
+        { status: 400 }
+      )
+    }
+    categoryIds.add(item.primary_category_id as string)
     if (item.extra_category_id) categoryIds.add(item.extra_category_id as string)
   }
 
@@ -356,10 +316,7 @@ export async function PATCH(
     if (Number.isNaN(birthYear)) {
       return NextResponse.json({ error: `Invalid date_of_birth for ${item.rider_name}` }, { status: 400 })
     }
-    const primaryCategoryId =
-      typeof item.primary_category_id === 'string' && item.primary_category_id
-        ? item.primary_category_id
-        : await resolveCategory(eventId, birthYear, item.gender)
+    const primaryCategoryId = item.primary_category_id as string
 
     const { data: riderRow, error: riderError } = await adminClient
       .from('riders')

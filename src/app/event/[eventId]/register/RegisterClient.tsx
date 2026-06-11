@@ -900,9 +900,16 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
       if (paymentError) throw new Error(paymentError)
 
       const shouldSendEmail = contactEmail.trim().length > 0
-      const items = riders.map((r) => {
+      const items = riders.map((r, idx) => {
         const birthYear = getCompleteBirthYear(r.dateOfBirth)
-        const exactPrimaryCategory = getAvailableExactPrimaryCategory(birthYear, r.gender)
+        const primaryCategory = computePrimaryCategory(birthYear, r.gender, r.primaryCategoryId)
+        if (!birthYear || !primaryCategory) {
+          const issue = getPrimaryCategoryIssue(birthYear, r.gender, r.primaryCategoryId)
+          if (issue === 'invalid' || issue === 'full' || issue === 'fallback_required') {
+            throw new Error(getPrimaryIssueModalMessage(issue, idx, birthYear, r.gender))
+          }
+          throw new Error(`Kategori utama rider ${r.name || ''} belum terdeteksi. Cek ulang tanggal lahir dan gender rider.`)
+        }
         return {
           rider_name: r.name,
           rider_nickname: r.nickname || null,
@@ -910,7 +917,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
           date_of_birth: r.dateOfBirth,
           gender: r.gender,
           club: r.club.trim(),
-          primary_category_id: exactPrimaryCategory ? null : r.primaryCategoryId || null,
+          primary_category_id: primaryCategory.id,
           extra_category_id: r.extraCategoryId || null,
           requested_plate_number: r.requestedPlateNumber.trim() || null,
           requested_plate_suffix: r.requestedPlateSuffix.trim().toUpperCase().slice(0, 1) || null,
@@ -1927,4 +1934,3 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     </div>
   )
 }
-
