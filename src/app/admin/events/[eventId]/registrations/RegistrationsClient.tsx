@@ -236,10 +236,33 @@ const normalizeExternalUrl = (value: string | null | undefined) => {
   return `https://${trimmed}`
 }
 
+const buildWhatsAppRiderLines = (registration: RegistrationRow, categoryMap?: Map<string, string>) => {
+  if (registration.registration_items.length === 0) return ['Rider: -']
+
+  return registration.registration_items.flatMap((item, index) => {
+    const primaryCategory = item.primary_category_id
+      ? categoryMap?.get(item.primary_category_id) ?? item.primary_category_id
+      : '-'
+    const extraCategory = item.extra_category_id ? categoryMap?.get(item.extra_category_id) ?? item.extra_category_id : '-'
+    const plate = buildPlateDisplay(item.requested_plate_number, item.requested_plate_suffix) || '-'
+    return [
+      `${index + 1}. ${item.rider_name || '-'}`,
+      `   Panggilan: ${item.rider_nickname || '-'}`,
+      `   Komunitas: ${item.club || registration.community_name || '-'}`,
+      `   Kategori Terdaftar: ${primaryCategory}`,
+      `   Kategori Upclass: ${extraCategory}`,
+      `   Plate: ${plate}`,
+      `   Jersey: ${item.jersey_size || '-'}`,
+      `   Biaya: ${formatRupiah(item.price || 0)}`,
+    ]
+  })
+}
+
 const buildWhatsAppMessage = (
   registration: RegistrationRow,
   kind: 'APPROVED' | 'REJECTED' | 'PAYMENT_REJECTED',
-  whatsappGroupInviteUrl?: string | null
+  whatsappGroupInviteUrl?: string | null,
+  categoryMap?: Map<string, string>
 ) => {
   const riderNames = registration.registration_items
     .map((item) => item.rider_name?.trim())
@@ -254,6 +277,10 @@ const buildWhatsAppMessage = (
       '',
       `Pendaftaran ${riderText} telah dikonfirmasi oleh panitia.`,
       `Total pembayaran: ${total}`,
+      'Status: Pendaftaran telah dikonfirmasi',
+      '',
+      'Data rider:',
+      ...buildWhatsAppRiderLines(registration, categoryMap),
       '',
       whatsappGroupUrl
         ? `Silakan bergabung ke grup WhatsApp event melalui link berikut:\n${whatsappGroupUrl}`
@@ -286,11 +313,14 @@ const buildWhatsAppMessage = (
 const buildWhatsAppUrl = (
   registration: RegistrationRow,
   kind: 'APPROVED' | 'REJECTED' | 'PAYMENT_REJECTED',
-  whatsappGroupInviteUrl?: string | null
+  whatsappGroupInviteUrl?: string | null,
+  categoryMap?: Map<string, string>
 ) => {
   const phone = normalizeWhatsAppPhone(registration.contact_phone)
   if (!phone) return ''
-  return `https://wa.me/${phone}?text=${encodeURIComponent(buildWhatsAppMessage(registration, kind, whatsappGroupInviteUrl))}`
+  return `https://wa.me/${phone}?text=${encodeURIComponent(
+    buildWhatsAppMessage(registration, kind, whatsappGroupInviteUrl, categoryMap)
+  )}`
 }
 
 function WhatsAppAction({
@@ -299,14 +329,16 @@ function WhatsAppAction({
   className = '',
   label,
   whatsappGroupInviteUrl,
+  categoryMap,
 }: {
   registration: RegistrationRow
   kind: 'APPROVED' | 'REJECTED' | 'PAYMENT_REJECTED'
   className?: string
   label?: string
   whatsappGroupInviteUrl?: string | null
+  categoryMap?: Map<string, string>
 }) {
-  const href = buildWhatsAppUrl(registration, kind, whatsappGroupInviteUrl)
+  const href = buildWhatsAppUrl(registration, kind, whatsappGroupInviteUrl, categoryMap)
   if (!href) return null
   return (
     <a
@@ -756,6 +788,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
               className="w-full sm:w-auto"
               label="Kirim WA Konfirmasi"
               whatsappGroupInviteUrl={whatsappGroupInviteUrl}
+              categoryMap={categoryMap}
             />
           </div>
         ),
@@ -1420,6 +1453,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                           className="w-full xl:w-auto"
                           label={registration.status === 'REJECTED' ? 'Kirim WA Penolakan' : 'Kirim WA Konfirmasi'}
                           whatsappGroupInviteUrl={registration.status === 'APPROVED' ? whatsappGroupInviteUrl : null}
+                          categoryMap={registration.status === 'APPROVED' ? categoryMap : undefined}
                         />
                       )}
                       <button
