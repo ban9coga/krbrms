@@ -566,7 +566,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
     return () => {
       cancelled = true
     }
-  }, [eventId])
+  }, [eventId, refreshTick])
 
   useEffect(() => {
     if (!eventId) return
