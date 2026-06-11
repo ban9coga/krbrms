@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../lib/auth'
+import { applyBestTeamSettingsNormalization } from '../../../../../lib/bestTeam'
 import type { BusinessSettings } from '../../../../../lib/eventService'
 import { proxyBusinessSettingsMedia, toPublicMediaUrl, toPublicMediaUrls } from '../../../../../lib/publicMedia'
 
@@ -58,7 +59,9 @@ export async function GET(_: Request, { params }: { params: Promise<{ eventId: s
           ...row,
           event_logo_url: toPublicMediaUrl(row.event_logo_url),
           sponsor_logo_urls: toPublicMediaUrls(row.sponsor_logo_urls),
-          business_settings: proxyBusinessSettingsMedia(normalizeBusinessSettings(row.business_settings)),
+          business_settings: proxyBusinessSettingsMedia(
+            applyBestTeamSettingsNormalization(normalizeBusinessSettings(row.business_settings))
+          ),
         }
       : null,
   })
@@ -114,7 +117,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ eventI
           scoring_rules,
           display_theme,
           race_format_settings,
-          business_settings: normalizeBusinessSettings(business_settings),
+          business_settings: applyBestTeamSettingsNormalization(normalizeBusinessSettings(business_settings)),
         },
       ],
       { onConflict: 'event_id' }

@@ -75,6 +75,11 @@ export type BusinessSettings = {
   sponsor_section_title?: string | null
   sponsor_section_subtitle?: string | null
   show_rider_photos_public?: boolean | null
+  best_team_enabled?: boolean | null
+  best_team_label?: string | null
+  best_team_scope?: 'ALL_FINALS' | 'FINAL_ELITE' | null
+  best_team_point_rules?: Array<{ rank: number; points: number }> | null
+  best_team_club_aliases?: Array<{ source: string; target: string }> | null
   sponsors?: EventSponsor[] | null
 }
 

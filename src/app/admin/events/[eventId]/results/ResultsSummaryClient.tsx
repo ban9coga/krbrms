@@ -86,6 +86,37 @@ type PenaltyRow = {
   created_at: string | null
 }
 
+type BestTeamEntry = {
+  rider_id: string
+  rider_name: string
+  no_plate: string
+  raw_club: string
+  team_name: string
+  category_label: string
+  stage_title: string
+  rank: number
+  awarded_points: number
+  status: string
+}
+
+type BestTeamRow = {
+  team_name: string
+  total_points: number
+  wins: number
+  podiums: number
+  rider_count: number
+  entries: BestTeamEntry[]
+}
+
+type BestTeamState = {
+  enabled: boolean
+  label: string
+  scope: 'ALL_FINALS' | 'FINAL_ELITE'
+  point_rules: Array<{ rank: number; points: number }>
+  club_aliases: Array<{ source: string; target: string }>
+  rows: BestTeamRow[]
+}
+
 const isFinalStage = (stage: StageGroup) => stage.title.trim().toLowerCase().startsWith('final')
 
 export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
@@ -103,6 +134,8 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
   const [penaltyMap, setPenaltyMap] = useState<Record<string, PenaltyRow[]>>({})
   const [storyData, setStoryData] = useState<ResultStoryCardData | null>(null)
   const [storyDownloading, setStoryDownloading] = useState(false)
+  const [bestTeam, setBestTeam] = useState<BestTeamState | null>(null)
+  const [bestTeamLoading, setBestTeamLoading] = useState(false)
 
   const apiFetch = async (url: string) => {
     const { data } = await supabase.auth.getSession()
@@ -117,6 +150,20 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
       const { res, json } = await apiFetch(`/api/events/${eventId}`)
       if (res.ok) setEventMeta((json.data ?? null) as EventMeta | null)
     } catch {}
+  }
+
+  const loadBestTeam = async () => {
+    if (!eventId) return
+    setBestTeamLoading(true)
+    try {
+      const { res, json } = await apiFetch(`/api/admin/events/${eventId}/best-team`)
+      if (!res.ok) throw new Error(json?.error || 'Gagal memuat best team.')
+      setBestTeam((json.data ?? null) as BestTeamState | null)
+    } catch {
+      setBestTeam(null)
+    } finally {
+      setBestTeamLoading(false)
+    }
   }
 
   const loadCategories = async () => {
@@ -253,6 +300,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
     if (!eventId) return
     loadEventMeta()
     loadCategories()
+    loadBestTeam()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
 
@@ -302,6 +350,36 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
 
     const workbook = XLSX.utils.book_new()
     let sheetCount = 0
+    if (bestTeam?.enabled && bestTeam.rows.length > 0) {
+      const bestTeamRows = [
+        ['Event', publicEventTitle],
+        ['Tipe Rekap', bestTeam.label],
+        ['Scope', bestTeam.scope === 'FINAL_ELITE' ? 'Final Elite' : 'Semua Final'],
+        ['Lokasi', eventMeta?.location ?? '-'],
+        ['Tanggal', eventMeta?.event_date ?? '-'],
+        [],
+        ['Rank Team', 'Team', 'Total Point', 'Wins', 'Podium', 'Jumlah Rider Final'],
+        ...bestTeam.rows.map((row, index) => [
+          index + 1,
+          row.team_name,
+          row.total_points,
+          row.wins,
+          row.podiums,
+          row.rider_count,
+        ]),
+      ]
+      const worksheet = XLSX.utils.aoa_to_sheet(bestTeamRows)
+      worksheet['!cols'] = [
+        { wch: 12 },
+        { wch: 28 },
+        { wch: 12 },
+        { wch: 10 },
+        { wch: 10 },
+        { wch: 18 },
+      ]
+      XLSX.utils.book_append_sheet(workbook, worksheet, uniqueSheetName(workbook, bestTeam.label, 'Best Team'))
+      sheetCount += 1
+    }
     selectedGroups.forEach((group) => {
       group.stages.forEach((stage) => {
         const rows = statusFilter === 'ALL'
@@ -397,6 +475,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
     if (resultView === 'QUALIFICATION') return `Batch ${sectionFilter}`
     return stages.find((stage) => stage.moto_id === sectionFilter)?.title ?? 'Final / Stage'
   }, [sectionFilter, resultView, selectedCategory, stages])
+  const bestTeamScopeLabel = bestTeam?.scope === 'FINAL_ELITE' ? 'Final Elite saja' : 'Semua final class'
 
   const createStoryData = (row: SummaryRow): ResultStoryCardData => ({
     eventTitle: publicEventTitle,
@@ -650,7 +729,10 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
           </select>
           <button
             type="button"
-            onClick={() => loadSummary(selectedCategory)}
+            onClick={() => {
+              void loadSummary(selectedCategory)
+              void loadBestTeam()
+            }}
             style={{
               padding: '8px 12px',
               borderRadius: 10,
@@ -691,6 +773,78 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
             Cetak PDF
           </button>
         </div>
+
+        {bestTeamLoading && (
+          <div style={{ padding: 12, border: '2px dashed #111', borderRadius: 12, background: '#fff', fontWeight: 900 }}>
+            Loading {bestTeam?.label || 'Best Team'}...
+          </div>
+        )}
+        {!bestTeamLoading && bestTeam?.enabled && (
+          <div style={{ display: 'grid', gap: 10, padding: 14, borderRadius: 16, border: '2px solid #111', background: '#f8fafc' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+              <div style={{ display: 'grid', gap: 4 }}>
+                <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#475569' }}>
+                  Leaderboard Tim
+                </div>
+                <div style={{ fontSize: 22, fontWeight: 950 }}>{bestTeam.label}</div>
+                <div style={{ fontSize: 12, fontWeight: 800, color: '#334155' }}>
+                  Scope: {bestTeamScopeLabel} | Mapping club: {bestTeam.club_aliases.length}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {bestTeam.point_rules.map((item) => (
+                  <span key={`best-team-rule-${item.rank}`} style={{ padding: '6px 10px', borderRadius: 999, border: '1px solid #cbd5e1', background: '#fff', fontSize: 12, fontWeight: 900 }}>
+                    R{item.rank}={item.points}
+                  </span>
+                ))}
+              </div>
+            </div>
+            {bestTeam.rows.length === 0 ? (
+              <div style={{ fontSize: 13, fontWeight: 800, color: '#475569' }}>
+                Belum ada hasil final yang bisa dihitung untuk leaderboard tim.
+              </div>
+            ) : (
+              <div className="table-scroll-x" style={{ overscrollBehaviorX: 'contain', WebkitOverflowScrolling: 'touch' }}>
+                <table className="table-striped" style={{ width: '100%', borderCollapse: 'collapse', minWidth: 720 }}>
+                  <thead>
+                    <tr style={{ background: '#e2e8f0', textAlign: 'left' }}>
+                      {['Rank', 'Team', 'Total', 'Wins', 'Podium', 'Rider Final', 'Detail'].map((header) => (
+                        <th key={header} style={{ padding: 8, borderBottom: '2px solid #111', fontWeight: 900 }}>
+                          {header}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bestTeam.rows.map((row, index) => (
+                      <tr key={row.team_name} style={{ borderBottom: '1px solid #dbe4ee' }}>
+                        <td style={{ padding: 8, fontWeight: 900 }}>{index + 1}</td>
+                        <td style={{ padding: 8, fontWeight: 900 }}>{row.team_name}</td>
+                        <td style={{ padding: 8, fontWeight: 900 }}>{row.total_points}</td>
+                        <td style={{ padding: 8 }}>{row.wins}</td>
+                        <td style={{ padding: 8 }}>{row.podiums}</td>
+                        <td style={{ padding: 8 }}>{row.rider_count}</td>
+                        <td style={{ padding: 8 }}>
+                          <details>
+                            <summary style={{ cursor: 'pointer', fontWeight: 800 }}>Lihat rider</summary>
+                            <div style={{ display: 'grid', gap: 6, paddingTop: 8 }}>
+                              {row.entries.map((entry) => (
+                                <div key={`${row.team_name}-${entry.rider_id}-${entry.stage_title}`} style={{ fontSize: 12, fontWeight: 700 }}>
+                                  {entry.category_label} | {entry.stage_title} | {entry.rider_name} ({entry.no_plate}) | Rank {entry.rank} | +{entry.awarded_points}
+                                  {entry.raw_club !== row.team_name ? ` | Club asli: ${entry.raw_club}` : ''}
+                                </div>
+                              ))}
+                            </div>
+                          </details>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
 
         <div style={{ display: 'grid', gap: 4 }}>
           <div style={{ fontWeight: 900 }}>Kategori: {categoryLabel}</div>
@@ -941,6 +1095,37 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
             </section>
           )
         })}
+
+        {bestTeam?.enabled && bestTeam.rows.length > 0 && (
+          <section className="print-category-section">
+            <h2>{bestTeam.label}</h2>
+            <div className="print-doc-meta">Scope: {bestTeamScopeLabel}</div>
+            <table className="print-results-table">
+              <thead>
+                <tr>
+                  <th>Rank Team</th>
+                  <th>Nama Team</th>
+                  <th>Total Point</th>
+                  <th>Wins</th>
+                  <th>Podium</th>
+                  <th>Rider Final</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bestTeam.rows.map((row, index) => (
+                  <tr key={`print-best-team-${row.team_name}`}>
+                    <td>{index + 1}</td>
+                    <td>{row.team_name}</td>
+                    <td>{row.total_points}</td>
+                    <td>{row.wins}</td>
+                    <td>{row.podiums}</td>
+                    <td>{row.rider_count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+        )}
       </div>
       {storyData && (
         <div

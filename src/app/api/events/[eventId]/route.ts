@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin, requireBackoffice, verifyPasswordForAuthHeader } from '../../../../lib/auth'
+import { applyBestTeamSettingsNormalization } from '../../../../lib/bestTeam'
 import { syncAdvancedRaceProgress } from '../../../../services/advancedRaceAuto'
 import type { BusinessSettings } from '../../../../lib/eventService'
 import { proxyBusinessSettingsMedia, toPublicMediaUrl, toPublicMediaUrls } from '../../../../lib/publicMedia'
@@ -21,7 +22,7 @@ const parseRaceFormatSettings = (value: unknown): Record<string, unknown> => {
 
 const parseBusinessSettings = (value: unknown): BusinessSettings => {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
-    return value as BusinessSettings
+    return applyBestTeamSettingsNormalization(value as BusinessSettings)
   }
   return {}
 }

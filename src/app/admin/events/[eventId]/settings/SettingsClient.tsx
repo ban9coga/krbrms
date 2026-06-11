@@ -3,6 +3,14 @@
 import Link from 'next/link'
 import { useEffect, useMemo, useState, type DragEvent } from 'react'
 import SponsorMarquee from '../../../../../components/SponsorMarquee'
+import {
+  DEFAULT_BEST_TEAM_POINT_RULES,
+  normalizeBestTeamClubAliases,
+  normalizeBestTeamPointRules,
+  normalizeBestTeamScope,
+  type BestTeamClubAlias,
+  type BestTeamPointRule,
+} from '../../../../../lib/bestTeam'
 import { formatAppRoleLabel } from '../../../../../lib/roles'
 import { supabase } from '../../../../../lib/supabaseClient'
 import type { BusinessSettings, EventSponsor, EventSponsorTier } from '../../../../../lib/eventService'
@@ -103,6 +111,60 @@ const parseStageCapacityValue = (value: string) => {
   const parsed = Number(value)
   if (!Number.isFinite(parsed)) return null
   return Math.max(1, parsed)
+}
+
+const formatBestTeamPointRulesText = (rules: Array<{ rank: number; points: number }> | null | undefined) =>
+  (rules && rules.length > 0 ? rules : DEFAULT_BEST_TEAM_POINT_RULES).map((item) => `${item.rank}=${item.points}`).join('\n')
+
+const parseBestTeamPointRulesText = (value: string): { rules: BestTeamPointRule[]; invalidLines: string[] } => {
+  const invalidLines: string[] = []
+  const rawRules: BestTeamPointRule[] = []
+
+  for (const line of value.split(/\r?\n/)) {
+    const trimmed = line.trim()
+    if (!trimmed) continue
+    const match = trimmed.match(/^(\d+)\s*[:=]\s*(-?\d+)$/)
+    if (!match) {
+      invalidLines.push(trimmed)
+      continue
+    }
+    rawRules.push({
+      rank: Number(match[1]),
+      points: Number(match[2]),
+    })
+  }
+
+  return {
+    rules: normalizeBestTeamPointRules(rawRules),
+    invalidLines,
+  }
+}
+
+const formatBestTeamClubAliasesText = (aliases: Array<{ source: string; target: string }> | null | undefined) =>
+  (aliases ?? []).map((item) => `${item.source} => ${item.target}`).join('\n')
+
+const parseBestTeamClubAliasesText = (value: string): { aliases: BestTeamClubAlias[]; invalidLines: string[] } => {
+  const invalidLines: string[] = []
+  const rawAliases: BestTeamClubAlias[] = []
+
+  for (const line of value.split(/\r?\n/)) {
+    const trimmed = line.trim()
+    if (!trimmed) continue
+    const match = trimmed.match(/^(.+?)\s*(?:=>|=)\s*(.+)$/)
+    if (!match) {
+      invalidLines.push(trimmed)
+      continue
+    }
+    rawAliases.push({
+      source: match[1].trim(),
+      target: match[2].trim(),
+    })
+  }
+
+  return {
+    aliases: normalizeBestTeamClubAliases(rawAliases),
+    invalidLines,
+  }
 }
 
 const buildStandardBatchRules = (gateSize: number): CategoryRule[] => {
@@ -443,6 +505,11 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     business_show_scoring_support_publicly: true,
     business_show_race_director_publicly: true,
     business_show_mc_publicly: true,
+    business_best_team_enabled: false,
+    business_best_team_label: 'Best Team',
+    business_best_team_scope: 'ALL_FINALS',
+    business_best_team_point_rules: formatBestTeamPointRulesText(DEFAULT_BEST_TEAM_POINT_RULES),
+    business_best_team_club_aliases: '',
     race_moto_per_batch: '3',
     race_gate_positions: '8',
     race_qualification_enabled: true,
@@ -635,6 +702,16 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
             typeof business.show_race_director_publicly === 'boolean' ? business.show_race_director_publicly : true,
           business_show_mc_publicly:
             typeof business.show_mc_publicly === 'boolean' ? business.show_mc_publicly : true,
+          business_best_team_enabled:
+            typeof business.best_team_enabled === 'boolean' ? business.best_team_enabled : false,
+          business_best_team_label:
+            typeof business.best_team_label === 'string' && business.best_team_label.trim()
+              ? business.best_team_label
+              : 'Best Team',
+          business_best_team_scope:
+            normalizeBestTeamScope(business.best_team_scope),
+          business_best_team_point_rules: formatBestTeamPointRulesText(business.best_team_point_rules),
+          business_best_team_club_aliases: formatBestTeamClubAliasesText(business.best_team_club_aliases),
           race_moto_per_batch:
             typeof format.moto_per_batch === 'number' ? String(format.moto_per_batch) : '3',
           race_gate_positions:
@@ -1148,10 +1225,21 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     const ownerType: NonNullable<BusinessSettings['event_owner_type']> =
       (form.business_event_owner_type || 'COMMUNITY') as NonNullable<BusinessSettings['event_owner_type']>
     const normalizedSponsors = sanitizeSponsorDrafts(sponsorItems)
+    const bestTeamPointRulesResult = parseBestTeamPointRulesText(form.business_best_team_point_rules)
+    if (bestTeamPointRulesResult.invalidLines.length > 0) {
+      alert(`Format point Best Team tidak valid:\n${bestTeamPointRulesResult.invalidLines.join('\n')}\n\nGunakan format rank=point, contoh 1=10`)
+      return
+    }
+    const bestTeamClubAliasesResult = parseBestTeamClubAliasesText(form.business_best_team_club_aliases)
+    if (bestTeamClubAliasesResult.invalidLines.length > 0) {
+      alert(`Format alias club Best Team tidak valid:\n${bestTeamClubAliasesResult.invalidLines.join('\n')}\n\nGunakan format club asli => nama team skor`)
+      return
+    }
     const existingBusinessSettings =
       row?.business_settings && typeof row.business_settings === 'object' && !Array.isArray(row.business_settings)
         ? (row.business_settings as BusinessSettings)
         : {}
+    const bestTeamScope = normalizeBestTeamScope(form.business_best_team_scope)
     const businessSettings: BusinessSettings = {
       ...existingBusinessSettings,
       public_brand_name: form.business_public_brand_name.trim() || null,
@@ -1187,6 +1275,11 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
       show_scoring_support_publicly: Boolean(form.business_show_scoring_support_publicly),
       show_race_director_publicly: Boolean(form.business_show_race_director_publicly),
       show_mc_publicly: Boolean(form.business_show_mc_publicly),
+      best_team_enabled: Boolean(form.business_best_team_enabled),
+      best_team_label: form.business_best_team_label.trim() || 'Best Team',
+      best_team_scope: bestTeamScope,
+      best_team_point_rules: bestTeamPointRulesResult.rules,
+      best_team_club_aliases: bestTeamClubAliasesResult.aliases,
       sponsor_section_enabled: Boolean(sponsorSectionEnabled),
       sponsor_section_title: sponsorSectionTitle.trim() || null,
       sponsor_section_subtitle: sponsorSectionSubtitle.trim() || null,
@@ -1290,7 +1383,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
   } | Foto rider ${showRiderPhotosPublic ? 'ON' : 'OFF'}`
   const publicInfoSummary = `Brand ${form.business_public_brand_name || 'Belum diisi'} | Scoring Support ${
     form.business_scoring_support_name || 'Belum diisi'
-  }`
+  } | Best Team ${form.business_best_team_enabled ? 'ON' : 'OFF'}`
   const paymentRegistrationSummary = `Base ${Number(form.base_price || 0).toLocaleString()} | Extra ${Number(
     form.extra_price || 0
   ).toLocaleString()} | Jersey ${form.require_jersey_size ? 'Wajib' : 'Opsional'}`
@@ -1943,6 +2036,9 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                     <span style={{ borderRadius: 999, border: '1px solid rgba(251,191,36,0.4)', background: 'rgba(251,191,36,0.16)', padding: '6px 12px', fontSize: 12, fontWeight: 900, color: '#fde68a' }}>
                       Central Control: {form.business_central_control_enabled ? 'Active' : 'Off'}
                     </span>
+                    <span style={{ borderRadius: 999, border: '1px solid rgba(52,211,153,0.32)', background: 'rgba(16,185,129,0.14)', padding: '6px 12px', fontSize: 12, fontWeight: 900, color: '#a7f3d0' }}>
+                      {form.business_best_team_label || 'Best Team'}: {form.business_best_team_enabled ? 'Active' : 'Off'}
+                    </span>
                   </div>
                 </div>
                 <div style={{ display: 'grid', gap: 8, marginTop: 6 }}>
@@ -1989,6 +2085,68 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                   </div>
                   <div style={{ fontSize: 12, color: '#333', fontWeight: 700 }}>
                     Kontak ini akan tampil di email approve/reject pendaftaran sebagai Kontak Panitia.
+                  </div>
+                </div>
+                <div style={{ display: sections.publicInfo ? 'grid' : 'none', gap: 8, marginTop: 6 }}>
+                  <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                    Best Team / Juara Umum
+                  </div>
+                  <div style={{ display: 'grid', gap: 8, padding: 14, border: '2px solid #111', borderRadius: 16, background: '#f8fafc' }}>
+                    <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 900 }}>
+                      <input
+                        type="checkbox"
+                        checked={form.business_best_team_enabled}
+                        onChange={(e) => setForm({ ...form, business_best_team_enabled: e.target.checked })}
+                      />
+                      Aktifkan penilaian Best Team / Juara Umum untuk event ini
+                    </label>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                      <input
+                        placeholder="Label publik, contoh: Best Team atau Juara Umum"
+                        value={form.business_best_team_label}
+                        onChange={(e) => setForm({ ...form, business_best_team_label: e.target.value })}
+                        style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                      />
+                      <select
+                        value={form.business_best_team_scope}
+                        onChange={(e) => setForm({ ...form, business_best_team_scope: e.target.value })}
+                        style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                      >
+                        <option value="ALL_FINALS">Hitung semua final class</option>
+                        <option value="FINAL_ELITE">Hitung Final Elite saja</option>
+                      </select>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                      <div style={{ display: 'grid', gap: 6 }}>
+                        <div style={{ fontWeight: 900 }}>Point per rank</div>
+                        <textarea
+                          rows={8}
+                          placeholder={'1=10\n2=8\n3=6'}
+                          value={form.business_best_team_point_rules}
+                          onChange={(e) => setForm({ ...form, business_best_team_point_rules: e.target.value })}
+                          style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800, resize: 'vertical' }}
+                        />
+                        <div style={{ fontSize: 12, color: '#334155', fontWeight: 700 }}>
+                          Satu baris satu rank. Format: rank=point. Contoh: 1=10
+                        </div>
+                      </div>
+                      <div style={{ display: 'grid', gap: 6 }}>
+                        <div style={{ fontWeight: 900 }}>Mapping nama club ke team skor</div>
+                        <textarea
+                          rows={8}
+                          placeholder={'XBC Malang X Dunia Pushbike Indonesia => XBC Malang\nKota Arang x PBR => Kota Arang'}
+                          value={form.business_best_team_club_aliases}
+                          onChange={(e) => setForm({ ...form, business_best_team_club_aliases: e.target.value })}
+                          style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800, resize: 'vertical' }}
+                        />
+                        <div style={{ fontSize: 12, color: '#334155', fontWeight: 700 }}>
+                          Pakai ini kalau nama club rider gabungan, join, atau penulisannya tidak konsisten. Format: club asli =&gt; nama team skor
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 12, color: '#334155', fontWeight: 700 }}>
+                      Leaderboard Best Team akan dihitung dari hasil final resmi yang sudah masuk recap hasil akhir. Rider DQ otomatis tidak menambah point team.
+                    </div>
                   </div>
                 </div>
                 <div style={{ display: sections.paymentRegistration ? 'grid' : 'none', gap: 8, marginTop: 6 }}>
