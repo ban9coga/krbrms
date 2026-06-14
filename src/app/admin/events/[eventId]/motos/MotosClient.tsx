@@ -432,7 +432,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     if (!moto) return
 
     const ok = confirm(
-      `Lock moto: ${formatMotoDisplayName(moto.moto_name)}?\n\nSetelah LOCKED, hasil dianggap final. Moto berikutnya otomatis menjadi LIVE hanya kalau checker sudah menekan Moto Ready.`
+      `Lock moto: ${formatMotoDisplayName(moto.moto_name)}?\n\nSetelah LOCKED, hasil dianggap final. Auto-live moto berikutnya sekarang dipicu saat hasil submit PROVISIONAL atau saat checker menekan Moto Ready.`
     )
     if (!ok) return
 

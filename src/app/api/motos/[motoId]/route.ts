@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../lib/auth'
+import { autoLockPreviousProvisionalForLiveMoto } from '../../../../services/motoProgression'
 
 const getAllowedNextStatuses = (current?: string | null) => {
   const normalized = (current ?? '').toUpperCase()
@@ -74,5 +75,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ motoId
     .select('*')
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  if (status !== undefined && String(status).toUpperCase() === 'LIVE') {
+    const autoLock = await autoLockPreviousProvisionalForLiveMoto(existingMoto.event_id, motoId)
+    return NextResponse.json({ data, auto_lock: autoLock })
+  }
   return NextResponse.json({ data })
 }

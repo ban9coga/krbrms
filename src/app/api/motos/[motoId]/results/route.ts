@@ -3,6 +3,7 @@ import { adminClient, requireAdmin } from '../../../../../lib/auth'
 import { assertMotoEditable, assertMotoNotUnderProtest } from '../../../../../lib/motoLock'
 import { resolveBasePointForRaceResult, resolveNonFinishAutoPenalty } from '../../../../../lib/nonFinishScoring'
 import { syncAdvancedRaceProgress } from '../../../../../services/advancedRaceAuto'
+import { promoteNextMotoToLive } from '../../../../../services/motoProgression'
 import { upsertRiderParticipationStatuses } from '../../../../../services/riderParticipationStatus'
 
 export async function GET(_: Request, { params }: { params: Promise<{ motoId: string }> }) {
@@ -166,6 +167,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
     .update({ status: 'PROVISIONAL', provisional_at: new Date().toISOString() })
     .eq('id', motoId)
 
+  const promotionResult = await promoteNextMotoToLive(moto.event_id, motoId)
+
   // Auto-progress AMS incrementally per batch, then finalize later stages only when their pools are fully ready.
   if (moto?.event_id && moto?.category_id) {
     const { data: cfg } = await adminClient
@@ -180,5 +183,5 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
     }
   }
 
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, next_moto: promotionResult })
 }
