@@ -50,7 +50,7 @@ type MotoItem = {
   category_id: string
   moto_name: string
   moto_order: number
-  status: 'UPCOMING' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED'
+  status: 'UPCOMING' | 'READY' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED'
   is_published?: boolean | null
   published_at?: string | null
   provisional_at?: string | null
@@ -74,7 +74,9 @@ type GateMotoItem = {
 const getAllowedMotoStatuses = (current: MotoItem['status']) => {
   switch (current) {
     case 'UPCOMING':
-      return ['UPCOMING', 'LIVE'] as MotoItem['status'][]
+      return ['UPCOMING', 'READY', 'LIVE'] as MotoItem['status'][]
+    case 'READY':
+      return ['UPCOMING', 'READY', 'LIVE'] as MotoItem['status'][]
     case 'LIVE':
       return ['UPCOMING', 'LIVE', 'PROVISIONAL'] as MotoItem['status'][]
     case 'PROVISIONAL':
@@ -100,10 +102,10 @@ const parseMotoBatch = (motoName: string) => {
 }
 
 const getCheckerPrepBadge = (moto: MotoItem) => {
-  if (moto.status !== 'UPCOMING') return null
-  if (moto.checker_prep_ready_at) {
+  if (moto.status !== 'UPCOMING' && moto.status !== 'READY') return null
+  if (moto.status === 'READY' || moto.checker_prep_ready_at) {
     return {
-      label: 'SIAP START',
+      label: 'READY',
       background: '#dcfce7',
       color: '#14532d',
       borderColor: '#16a34a',
@@ -126,7 +128,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
-  const [eventStatus, setEventStatus] = useState<'UPCOMING' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED' | null>(null)
+  const [eventStatus, setEventStatus] = useState<'UPCOMING' | 'READY' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED' | null>(null)
   const [eventName, setEventName] = useState('Event')
   const [advancedEnabledByCategory, setAdvancedEnabledByCategory] = useState<Record<string, boolean>>({})
   const [advancedSummaryByCategory, setAdvancedSummaryByCategory] = useState<Record<string, AdvancedSummaryItem>>({})
@@ -893,7 +895,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
             display: 'inline-block',
           }}
         />
-        Auto Live Next aktif: submit hasil akan menghentikan moto di PROVISIONAL. Moto berikutnya baru otomatis menjadi LIVE setelah moto ini LOCKED dan checker sudah menekan Moto Ready.
+        Flow prep: checker menekan Moto Ready untuk mengubah moto menjadi READY. Moto READY belum race; status ini menjadi syarat sebelum moto masuk LIVE.
       </div>
       {eventStatus && eventStatus !== 'LIVE' && (
         <div

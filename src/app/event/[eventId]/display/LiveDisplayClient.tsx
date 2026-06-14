@@ -70,7 +70,7 @@ type MotoItem = {
   category_id: string
   moto_name: string
   moto_order: number
-  status: 'UPCOMING' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED'
+  status: 'UPCOMING' | 'READY' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED'
   provisional_at?: string | null
   locked_at?: string | null
 }

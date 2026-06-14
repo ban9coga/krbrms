@@ -14,6 +14,11 @@ type MotoQueueRow = {
 
 const normalizeStatus = (status?: string | null) => (status ?? '').toUpperCase()
 const isUpcomingMoto = (row: MotoQueueRow) => normalizeStatus(row.status) === 'UPCOMING'
+const isReadyMoto = (row: MotoQueueRow) => normalizeStatus(row.status) === 'READY'
+const isLegacyPreparedMoto = (row: MotoQueueRow) =>
+  normalizeStatus(row.status) === 'UPCOMING' && Boolean(row.checker_prep_ready_at)
+const isPromotableMoto = (row: MotoQueueRow) => isReadyMoto(row) || isLegacyPreparedMoto(row)
+const isNextCandidateMoto = (row: MotoQueueRow) => isReadyMoto(row) || isUpcomingMoto(row)
 
 const pickNextMotoToPromote = (rows: MotoQueueRow[], currentMoto: MotoQueueRow) => {
   const currentIndex = rows.findIndex((row) => row.id === currentMoto.id)
@@ -22,8 +27,8 @@ const pickNextMotoToPromote = (rows: MotoQueueRow[], currentMoto: MotoQueueRow) 
   const afterCurrent = rows.slice(currentIndex + 1)
   const sameCategory = (row: MotoQueueRow) => row.category_id === currentMoto.category_id
   const nextMoto =
-    afterCurrent.find((row) => sameCategory(row) && isUpcomingMoto(row)) ??
-    rows.find((row) => sameCategory(row) && isUpcomingMoto(row)) ??
+    afterCurrent.find((row) => sameCategory(row) && isNextCandidateMoto(row)) ??
+    rows.find((row) => sameCategory(row) && isNextCandidateMoto(row)) ??
     null
 
   return { nextMoto, warning: null }
@@ -60,7 +65,7 @@ export async function promoteNextMotoToLive(eventId: string, currentMotoId: stri
   if (!nextMoto) {
     return { ok: true as const, skipped: true as const }
   }
-  if (!nextMoto.checker_prep_ready_at) {
+  if (!isPromotableMoto(nextMoto)) {
     return {
       ok: true as const,
       skipped: true as const,

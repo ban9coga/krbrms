@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import CheckerTopbar from '../../components/CheckerTopbar'
-import { isMotoLive } from '../../lib/motoStatus'
+import { isMotoLive, isMotoReady, isMotoUpcoming } from '../../lib/motoStatus'
 import { buildCategoryBaseOrder, compareMotoSequence, compareMotoWorkflowSequence } from '../../lib/motoSequence'
 import { supabase } from '../../lib/supabaseClient'
 
@@ -42,10 +42,13 @@ export default function JCSelectorPage() {
   const pickNextMotoId = useCallback((list: MotoItem[], currentMotoId: string) => {
     if (!list.length) return ''
     const liveMotos = list.filter((m) => isMotoLive(m.status))
+    const prepMotos = list.filter(
+      (m) => !['LOCKED', 'FINISHED'].includes(String(m.status ?? '').toUpperCase()) && (isMotoReady(m.status) || isMotoUpcoming(m.status))
+    )
     if (currentMotoId && list.some((m) => m.id === currentMotoId && isMotoLive(m.status))) {
       return currentMotoId
     }
-    return (liveMotos[0] ?? list[0]).id
+    return (liveMotos[0] ?? prepMotos[0] ?? list[0]).id
   }, [])
 
   const getToken = useCallback(async () => {

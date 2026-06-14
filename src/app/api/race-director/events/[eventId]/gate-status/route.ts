@@ -20,7 +20,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     .from('motos')
     .select('id, category_id, moto_name, moto_order, status')
     .eq('event_id', eventId)
-    .in('status', ['LIVE', 'UPCOMING', 'PROVISIONAL', 'LOCKED'])
+    .in('status', ['LIVE', 'READY', 'UPCOMING', 'PROVISIONAL', 'LOCKED'])
     .order('moto_order', { ascending: true })
   if (motoError) return NextResponse.json({ error: motoError.message }, { status: 400 })
 

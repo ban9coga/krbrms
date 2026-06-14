@@ -56,21 +56,24 @@ type StageSeedRow = {
   points: number | null
 }
 
-const isUpcomingMoto = (moto: MotoRow) => (moto.status ?? '').toUpperCase() === 'UPCOMING'
+const isPrepMoto = (moto: MotoRow) => {
+  const status = (moto.status ?? '').toUpperCase()
+  return status === 'UPCOMING' || status === 'READY'
+}
 
 const pickNextMotoForCall = (list: MotoRow[], anchorMoto: MotoRow | null) => {
   const sorted = [...list].sort(compareMotoSequence)
-  if (!anchorMoto) return sorted.find(isUpcomingMoto) ?? null
+  if (!anchorMoto) return sorted.find(isPrepMoto) ?? null
 
   const anchorIndex = sorted.findIndex((row) => row.id === anchorMoto.id)
   const afterAnchor = anchorIndex >= 0 ? sorted.slice(anchorIndex + 1) : sorted
   const sameCategory = (row: MotoRow) => row.category_id === anchorMoto.category_id
 
   return (
-    afterAnchor.find((row) => sameCategory(row) && isUpcomingMoto(row)) ??
-    afterAnchor.find(isUpcomingMoto) ??
-    sorted.find((row) => sameCategory(row) && isUpcomingMoto(row)) ??
-    sorted.find(isUpcomingMoto) ??
+    afterAnchor.find((row) => sameCategory(row) && isPrepMoto(row)) ??
+    afterAnchor.find(isPrepMoto) ??
+    sorted.find((row) => sameCategory(row) && isPrepMoto(row)) ??
+    sorted.find(isPrepMoto) ??
     null
   )
 }
@@ -80,7 +83,7 @@ const pickNowRacingMoto = (motos: MotoRow[]) => {
   if (live.length > 0) return live[0]
   const provisional = motos.filter((m) => m.status === 'PROVISIONAL')
   if (provisional.length > 0) return provisional[provisional.length - 1]
-  const upcoming = motos.filter((m) => m.status === 'UPCOMING')
+  const upcoming = motos.filter((m) => m.status === 'UPCOMING' || m.status === 'READY')
   if (upcoming.length > 0) return upcoming[0]
   const locked = motos.filter((m) => m.status === 'LOCKED' || m.status === 'FINISHED')
   if (locked.length > 0) return locked[locked.length - 1]
@@ -94,7 +97,7 @@ const pickResultMoto = (motos: MotoRow[]) => {
   if (live.length > 0) return live[0]
   const locked = motos.filter((m) => m.status === 'LOCKED' || m.status === 'FINISHED')
   if (locked.length > 0) return locked[locked.length - 1]
-  const upcoming = motos.filter((m) => m.status === 'UPCOMING')
+  const upcoming = motos.filter((m) => m.status === 'UPCOMING' || m.status === 'READY')
   if (upcoming.length > 0) return upcoming[0]
   return motos[0] ?? null
 }
@@ -201,7 +204,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     .from('motos')
     .select('id, moto_name, moto_order, status, category_id, is_published')
     .eq('event_id', eventId)
-    .in('status', ['UPCOMING', 'LIVE', 'PROVISIONAL', 'LOCKED', 'FINISHED'])
+    .in('status', ['UPCOMING', 'READY', 'LIVE', 'PROVISIONAL', 'LOCKED', 'FINISHED'])
     .order('moto_order', { ascending: true })
 
   if (motoError) return NextResponse.json({ error: motoError.message }, { status: 400 })

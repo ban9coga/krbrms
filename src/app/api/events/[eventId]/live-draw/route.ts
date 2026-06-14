@@ -22,7 +22,7 @@ type RiderRow = {
   gender: 'BOY' | 'GIRL'
 }
 
-type MotoStatus = 'UPCOMING' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED'
+type MotoStatus = 'UPCOMING' | 'READY' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED'
 
 const resolveQualificationMotoCount = async (eventId: string, categoryId: string) => {
   const { data } = await adminClient

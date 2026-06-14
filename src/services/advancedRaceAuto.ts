@@ -21,7 +21,7 @@ type MotoRow = {
   id: string
   moto_name: string
   moto_order: number
-  status: 'UPCOMING' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED'
+  status: 'UPCOMING' | 'READY' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED'
 }
 
 type ResultRow = {

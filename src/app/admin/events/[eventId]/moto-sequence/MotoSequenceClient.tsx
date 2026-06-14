@@ -19,7 +19,7 @@ type MotoItem = {
   category_id: string
   moto_name: string
   moto_order: number
-  status: 'UPCOMING' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED'
+  status: 'UPCOMING' | 'READY' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED'
   is_published?: boolean | null
 }
 
@@ -39,6 +39,7 @@ type GateMotoItem = {
 
 const STATUS_COLORS: Record<string, string> = {
   UPCOMING: '#6366f1',
+  READY: '#22c55e',
   LIVE: '#ef4444',
   FINISHED: '#10b981',
   PROVISIONAL: '#f59e0b',
@@ -48,6 +49,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 const STATUS_LABELS: Record<string, string> = {
   UPCOMING: 'Upcoming',
+  READY: 'Ready',
   LIVE: 'LIVE',
   FINISHED: 'Finished',
   PROVISIONAL: 'Provisional',
@@ -255,16 +257,17 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
   }, [activeMotoSequence])
 
   const nextMoto = useMemo(() => {
+    const isNextCandidate = (moto: MotoItem) => moto.status === 'READY' || moto.status === 'UPCOMING'
     if (activeMotoSequence.length === 0) return null
     const currentIndex = currentMoto ? activeMotoSequence.findIndex((moto) => moto.id === currentMoto.id) : -1
     if (currentIndex >= 0) {
       return (
-        activeMotoSequence.slice(currentIndex + 1).find((moto) => moto.status === 'UPCOMING') ??
-        activeMotoSequence.find((moto) => moto.status === 'UPCOMING') ??
+        activeMotoSequence.slice(currentIndex + 1).find(isNextCandidate) ??
+        activeMotoSequence.find(isNextCandidate) ??
         null
       )
     }
-    return activeMotoSequence.find((moto) => moto.status === 'UPCOMING') ?? null
+    return activeMotoSequence.find(isNextCandidate) ?? null
   }, [activeMotoSequence, currentMoto])
 
   const moveCategory = async (categoryId: string, direction: -1 | 1) => {

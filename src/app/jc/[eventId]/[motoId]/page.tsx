@@ -6,7 +6,7 @@ import CheckerTopbar from '../../../../components/CheckerTopbar'
 import { useHighVisibility } from '../../../../hooks/useHighVisibility'
 import { buildCategoryBaseOrder, compareMotoSequence, compareMotoWorkflowSequence } from '../../../../lib/motoSequence'
 import { supabase } from '../../../../lib/supabaseClient'
-import { isMotoLive, isMotoUpcoming } from '../../../../lib/motoStatus'
+import { isMotoLive, isMotoReady, isMotoUpcoming } from '../../../../lib/motoStatus'
 
 type CategoryItem = {
   id: string
@@ -45,8 +45,9 @@ type EventFlags = {
 }
 
 const isLockedStatus = (status?: string | null) => String(status ?? '').toUpperCase() === 'LOCKED'
+const isPrepMotoStatus = (status?: string | null) => isMotoUpcoming(status) || isMotoReady(status)
 const pickUpcomingMoto = (list: MotoItem[], anchorMoto?: MotoItem | null) => {
-  const selectableUpcoming = list.filter((m) => !isLockedStatus(m.status) && isMotoUpcoming(m.status))
+  const selectableUpcoming = list.filter((m) => !isLockedStatus(m.status) && isPrepMotoStatus(m.status))
   if (!anchorMoto) return selectableUpcoming[0] ?? null
 
   const anchorIndex = list.findIndex((m) => m.id === anchorMoto.id)
@@ -54,8 +55,8 @@ const pickUpcomingMoto = (list: MotoItem[], anchorMoto?: MotoItem | null) => {
   const sameCategory = (m: MotoItem) => Boolean(anchorMoto.category_id) && m.category_id === anchorMoto.category_id
 
   return (
-    afterAnchor.find((m) => sameCategory(m) && !isLockedStatus(m.status) && isMotoUpcoming(m.status)) ??
-    afterAnchor.find((m) => !isLockedStatus(m.status) && isMotoUpcoming(m.status)) ??
+    afterAnchor.find((m) => sameCategory(m) && !isLockedStatus(m.status) && isPrepMotoStatus(m.status)) ??
+    afterAnchor.find((m) => !isLockedStatus(m.status) && isPrepMotoStatus(m.status)) ??
     selectableUpcoming.find(sameCategory) ??
     selectableUpcoming[0] ??
     null
@@ -76,7 +77,7 @@ const pickPrepMotoId = (
 
   if (currentId) {
     const currentMoto = list.find((m) => m.id === currentId)
-    if (currentMoto && !isLockedStatus(currentMoto.status) && isMotoLive(currentMoto.status) && !currentPrepFinalized) {
+    if (currentMoto && !isLockedStatus(currentMoto.status) && isPrepMotoStatus(currentMoto.status) && !currentPrepFinalized) {
       return currentId
     }
   }
@@ -483,19 +484,19 @@ export default function JCPage() {
   }, [categories])
 
   const selectableMotos = useMemo(
-    () => motos.filter((m) => !isLockedStatus(m.status) && isMotoUpcoming(m.status)),
+    () => motos.filter((m) => !isLockedStatus(m.status) && isPrepMotoStatus(m.status)),
     [motos]
   )
   const selectedMoto = useMemo(() => motos.find((m) => m.id === selectedMotoId) ?? null, [motos, selectedMotoId])
   const selectedMotoUpcoming = isMotoUpcoming(selectedMoto?.status)
-  const selectedMotoLive = isMotoLive(selectedMoto?.status)
-  const selectedMotoPreppable = !!selectedMoto && !isLockedStatus(selectedMoto.status) && (selectedMotoUpcoming || selectedMotoLive)
+  const selectedMotoReady = isMotoReady(selectedMoto?.status)
+  const selectedMotoPreppable = !!selectedMoto && !isLockedStatus(selectedMoto.status) && (selectedMotoUpcoming || selectedMotoReady)
   const prepSelectOptions = useMemo(() => {
-    if (!selectedMoto || !selectedMotoLive || selectableMotos.some((m) => m.id === selectedMoto.id)) {
+    if (!selectedMoto || !selectedMotoPreppable || selectableMotos.some((m) => m.id === selectedMoto.id)) {
       return selectableMotos
     }
     return [selectedMoto, ...selectableMotos]
-  }, [selectableMotos, selectedMoto, selectedMotoLive])
+  }, [selectableMotos, selectedMoto, selectedMotoPreppable])
   const bulkReadyApplied = bulkReadyState?.motoId === selectedMotoId
   const incidentCategoryLabel = incidentMoto
     ? categoryLabel.get(incidentMoto.category_id ?? '') ?? 'Unknown Category'
@@ -914,7 +915,7 @@ export default function JCPage() {
       await apiFetch(`/api/jury/motos/${selectedMotoId}/prep-ready`, { method: 'POST' })
       setMotos((prev) =>
         prev.map((moto) =>
-          moto.id === selectedMotoId ? { ...moto, checker_prep_ready_at: new Date().toISOString() } : moto
+          moto.id === selectedMotoId ? { ...moto, status: 'READY', checker_prep_ready_at: new Date().toISOString() } : moto
         )
       )
       setWarningMessage('Status prep rider saat ini dikunci. MC akan baca READY atau ABSENT sesuai hasil pengecekan checker.')
@@ -934,7 +935,7 @@ export default function JCPage() {
       await apiFetch(`/api/jury/motos/${selectedMotoId}/prep-ready`, { method: 'DELETE' })
       setAllReadyDone(false)
       setMotos((prev) =>
-        prev.map((moto) => (moto.id === selectedMotoId ? { ...moto, checker_prep_ready_at: null } : moto))
+        prev.map((moto) => (moto.id === selectedMotoId ? { ...moto, status: 'UPCOMING', checker_prep_ready_at: null } : moto))
       )
       setWarningMessage('Prep dibuka lagi. Setelah koreksi selesai, tekan Moto Ready lagi.')
     } catch (err: unknown) {
@@ -998,7 +999,7 @@ export default function JCPage() {
               {prepSelectOptions.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.moto_order}. {m.moto_name} - {categoryLabel.get(m.category_id ?? '') ?? 'Category'}
-                  {isMotoLive(m.status) ? ' (LIVE safety prep)' : ''}
+                  {isMotoReady(m.status) ? ' (READY)' : ''}
                 </option>
                 ))}
             </select>
@@ -1334,10 +1335,10 @@ export default function JCPage() {
               {selectedCategoryLabel}
             </span>
             <span style={{ fontSize: 12, color: '#475569', fontWeight: 800 }}>
-              {selectedMotoLive
+              {selectedMotoReady
                 ? allReadyDone
-                  ? 'Moto sudah LIVE dan prep sudah dikonfirmasi.'
-                  : 'Moto sudah LIVE; checker tetap bisa selesaikan safety prep di sini.'
+                  ? 'Moto sudah READY dan prep sudah dikonfirmasi.'
+                  : 'Moto sudah READY; checker masih bisa koreksi sebelum race berjalan.'
                 : 'Moto ini masih fase prep sebelum start.'}
             </span>
           </div>

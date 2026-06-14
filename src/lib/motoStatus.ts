@@ -1,5 +1,6 @@
 export type MotoStatus =
   | 'UPCOMING'
+  | 'READY'
   | 'LIVE'
   | 'FINISHED'
   | 'PROVISIONAL'
@@ -12,6 +13,7 @@ export const normalizeMotoStatus = (status?: string | null): MotoStatus => {
 }
 
 export const isMotoUpcoming = (status?: string | null) => normalizeMotoStatus(status) === 'UPCOMING'
+export const isMotoReady = (status?: string | null) => normalizeMotoStatus(status) === 'READY'
 export const isMotoLive = (status?: string | null) => normalizeMotoStatus(status) === 'LIVE'
 export const isMotoFinished = (status?: string | null) => normalizeMotoStatus(status) === 'FINISHED'
 export const isMotoProvisional = (status?: string | null) => normalizeMotoStatus(status) === 'PROVISIONAL'

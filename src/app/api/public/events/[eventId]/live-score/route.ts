@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../../lib/auth'
 import { formatMotoDisplayName } from '../../../../../../lib/motoDisplayOrder'
 import { resolveBasePointForRaceResult, resolveNonFinishAutoPenalty } from '../../../../../../lib/nonFinishScoring'
-import { isMotoPublicVisible, isMotoUpcoming } from '../../../../../../lib/motoStatus'
+import { isMotoPublicVisible, isMotoReady, isMotoUpcoming } from '../../../../../../lib/motoStatus'
 import { formatStageAdvanceLabel } from '../../../../../../services/raceStageEngine'
 
 type MotoRow = {
@@ -236,7 +236,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   if (motoError) return NextResponse.json({ error: motoError.message }, { status: 400 })
   const motoRows = ((motos ?? []) as MotoRow[]).filter((m) => {
     if (isMotoPublicVisible(m.status, m.is_published)) return true
-    if (includeUpcoming && isMotoUpcoming(m.status)) return true
+    if (includeUpcoming && (isMotoUpcoming(m.status) || isMotoReady(m.status))) return true
     return false
   })
 

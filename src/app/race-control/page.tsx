@@ -7,7 +7,7 @@ import { supabase } from '../../lib/supabaseClient'
 type EventRow = {
   id: string
   name: string
-  status: 'UPCOMING' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED'
+  status: 'UPCOMING' | 'READY' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED'
   event_date: string
 }
 
@@ -16,7 +16,7 @@ type QueueMoto = {
   moto_name: string
   moto_order: number
   global_order: number
-  status: 'UPCOMING' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED'
+  status: 'UPCOMING' | 'READY' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED'
   category_label: string
   rows: Array<{
     rider_id: string
@@ -29,6 +29,7 @@ type QueueMoto = {
 
 const statusBadgeClasses = (status: QueueMoto['status']) => {
   if (status === 'LIVE') return 'border-emerald-300 bg-emerald-100 text-emerald-800'
+  if (status === 'READY') return 'border-lime-300 bg-lime-100 text-lime-800'
   if (status === 'UPCOMING') return 'border-amber-300 bg-amber-100 text-amber-800'
   return 'border-slate-300 bg-slate-100 text-slate-700'
 }
@@ -152,7 +153,7 @@ export default function RaceControlPage() {
     })
   }, [])
 
-  const activeQueue = useMemo(() => queue.filter((m) => m.status === 'LIVE' || m.status === 'UPCOMING'), [queue])
+  const activeQueue = useMemo(() => queue.filter((m) => m.status === 'LIVE' || m.status === 'READY' || m.status === 'UPCOMING'), [queue])
   const visibleQueue = useMemo(() => activeQueue.slice(0, 3), [activeQueue])
 
   return (

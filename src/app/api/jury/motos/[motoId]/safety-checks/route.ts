@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../../lib/auth'
 import { assertMotoEditable, assertMotoNotUnderProtest } from '../../../../../../lib/motoLock'
-import { isMotoLive, isMotoUpcoming } from '../../../../../../lib/motoStatus'
+import { isMotoLive, isMotoReady, isMotoUpcoming } from '../../../../../../lib/motoStatus'
 import { requireJury } from '../../../../../../services/juryAuth'
 
 const getMotoEvent = async (motoId: string) => {
@@ -67,7 +67,7 @@ const syncSafetyPenalty = async ({
 
   const noteTag = `AUTO_SAFETY_REQUIREMENT:${check.requirement_id}`
   const shouldManagePenalty =
-    (isMotoLive(motoStatus) || isMotoUpcoming(motoStatus)) &&
+    (isMotoLive(motoStatus) || isMotoReady(motoStatus) || isMotoUpcoming(motoStatus)) &&
     typeof requirement?.penalty_code === 'string' &&
     requirement.penalty_code.trim().length > 0
 

@@ -5,7 +5,9 @@ const getAllowedNextStatuses = (current?: string | null) => {
   const normalized = (current ?? '').toUpperCase()
   switch (normalized) {
     case 'UPCOMING':
-      return ['LIVE']
+      return ['READY', 'LIVE']
+    case 'READY':
+      return ['UPCOMING', 'LIVE']
     case 'LIVE':
       return ['UPCOMING', 'PROVISIONAL']
     case 'PROVISIONAL':
@@ -62,7 +64,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ motoId
     payload.status = status
     const nextStatus = String(status).toUpperCase()
     if (nextStatus === 'PROVISIONAL') payload.provisional_at = new Date().toISOString()
-    if (nextStatus === 'LIVE' || nextStatus === 'UPCOMING') payload.provisional_at = null
+    if (nextStatus === 'LIVE' || nextStatus === 'READY' || nextStatus === 'UPCOMING') payload.provisional_at = null
   }
 
   const { data, error } = await adminClient

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../../lib/auth'
 import { assertMotoEditable, assertMotoNotUnderProtest } from '../../../../../../lib/motoLock'
-import { isMotoLive, isMotoUpcoming } from '../../../../../../lib/motoStatus'
+import { isMotoReady, isMotoUpcoming } from '../../../../../../lib/motoStatus'
 import { requireJury } from '../../../../../../services/juryAuth'
 
 const getMoto = async (motoId: string) => {
@@ -29,19 +29,21 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Moto locked.' }, { status: 409 })
   }
 
-  if (!isMotoUpcoming(moto.status) && !isMotoLive(moto.status)) {
-    return NextResponse.json({ error: 'Prep hanya bisa dikonfirmasi saat moto UPCOMING atau LIVE.' }, { status: 409 })
+  if (!isMotoUpcoming(moto.status) && !isMotoReady(moto.status)) {
+    return NextResponse.json({ error: 'Prep hanya bisa dikonfirmasi saat moto UPCOMING atau READY.' }, { status: 409 })
   }
 
   const now = new Date().toISOString()
   const { data, error } = await adminClient
     .from('motos')
     .update({
+      status: 'READY',
+      provisional_at: null,
       checker_prep_ready_at: now,
       checker_prep_ready_by: auth.user?.id ?? null,
     })
     .eq('id', motoId)
-    .select('id, checker_prep_ready_at')
+    .select('id, status, checker_prep_ready_at')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
@@ -63,9 +65,15 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ motoI
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Moto locked.' }, { status: 409 })
   }
 
+  if (!isMotoUpcoming(moto.status) && !isMotoReady(moto.status)) {
+    return NextResponse.json({ error: 'Edit prep hanya bisa dibuka saat moto UPCOMING atau READY.' }, { status: 409 })
+  }
+
   const { error } = await adminClient
     .from('motos')
     .update({
+      status: 'UPCOMING',
+      provisional_at: null,
       checker_prep_ready_at: null,
       checker_prep_ready_by: null,
     })

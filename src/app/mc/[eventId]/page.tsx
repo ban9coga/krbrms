@@ -12,7 +12,7 @@ type MotoInfo = {
   id: string
   moto_name: string
   moto_order: number
-  status: 'UPCOMING' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED'
+  status: 'UPCOMING' | 'READY' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED'
   is_published: boolean | null
 }
 
@@ -48,7 +48,7 @@ type NextMotoInfo = {
   moto_name: string
   moto_label: string
   moto_order: number
-  status: 'UPCOMING' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED'
+  status: 'UPCOMING' | 'READY' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED'
   category: string | null
   batch: string | null
 }
@@ -73,6 +73,7 @@ type McResponse = {
 const statusBadge = (moto?: MotoInfo | null) => {
   if (!moto) return { label: 'NO MOTO', className: 'border-slate-300 bg-slate-100 text-slate-700' }
   if (moto.status === 'LIVE') return { label: 'Race Berlangsung', className: 'border-emerald-300 bg-emerald-50 text-emerald-700' }
+  if (moto.status === 'READY') return { label: 'Ready Start', className: 'border-emerald-300 bg-emerald-50 text-emerald-700' }
   if (moto.status === 'UPCOMING') return { label: 'Menunggu Start', className: 'border-slate-300 bg-slate-100 text-slate-700' }
   if (moto.status === 'PROVISIONAL') return { label: 'Hasil Sementara', className: 'border-amber-300 bg-amber-50 text-amber-700' }
   if (moto.status === 'LOCKED' || moto.status === 'FINISHED') return { label: 'Moto Selesai', className: 'border-sky-300 bg-sky-50 text-sky-700' }
@@ -122,6 +123,7 @@ const mcCueText = (nowMoto?: MotoInfo | null, resultMoto?: MotoInfo | null, next
   const moto = nowMoto ?? resultMoto
   if (!moto) return 'Menunggu data moto dari sistem.'
   if (moto.status === 'LIVE') return 'Pandu suasana dan siapkan rider berikutnya ke area tunggu.'
+  if (moto.status === 'READY') return 'Moto sudah ready dari checker. Panggil rider ke gate dan siapkan start.'
   if (moto.status === 'UPCOMING') return 'Panggil rider ke gate sesuai urutan start.'
   if (moto.status === 'PROVISIONAL') return nextMoto ? 'Bacakan hasil sementara, lalu lanjut panggil starter moto berikutnya.' : 'Bacakan hasil sementara kepada penonton.'
   if (moto.status === 'LOCKED' || moto.status === 'FINISHED') return nextMoto ? 'Hasil sudah siap dibacakan. Lanjutkan calling rider untuk moto berikutnya.' : 'Hasil sudah final dan siap dibacakan.'
