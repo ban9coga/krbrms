@@ -2,7 +2,6 @@
 
 import type { ReactNode } from 'react'
 import { useEffect, useMemo, useState } from 'react'
-import { buildBrandedPrintHtml } from '../../../../../lib/printTheme'
 import { isRegistrationApproverRole, normalizeAppRole } from '../../../../../lib/roles'
 import { supabase } from '../../../../../lib/supabaseClient'
 
@@ -85,11 +84,23 @@ type RegistrationListResponse = {
 
 type EventSettingsResponse = {
   data?: {
+    event_logo_url?: string | null
+    display_theme?: Record<string, unknown> | null
     business_settings?: {
+      public_brand_name?: string | null
       registration_rider_photo_enabled?: boolean | null
       whatsapp_group_invite_url?: string | null
     } | null
   } | null
+}
+
+type EventBrandingState = {
+  logoUrl: string | null
+  primaryColor: string
+  secondaryColor: string
+  headerBg: string
+  cardBg: string
+  brandName: string | null
 }
 
 type PlateCheckResponse = {
@@ -237,6 +248,14 @@ const normalizeExternalUrl = (value: string | null | undefined) => {
   return `https://${trimmed}`
 }
 
+const safeCssColor = (value: unknown, fallback: string) => {
+  if (typeof value !== 'string') return fallback
+  const trimmed = value.trim()
+  if (/^#[0-9a-f]{3,8}$/i.test(trimmed)) return trimmed
+  if (/^(rgb|rgba|hsl|hsla)\([0-9%.,\s-]+\)$/i.test(trimmed)) return trimmed
+  return fallback
+}
+
 const buildWhatsAppRiderLines = (registration: RegistrationRow, categoryMap?: Map<string, string>) => {
   if (registration.registration_items.length === 0) return ['Rider: -']
 
@@ -379,6 +398,14 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
   const [roleKey, setRoleKey] = useState<string | null>(null)
   const [riderPhotoUploadEnabled, setRiderPhotoUploadEnabled] = useState(true)
   const [whatsappGroupInviteUrl, setWhatsappGroupInviteUrl] = useState<string | null>(null)
+  const [eventBranding, setEventBranding] = useState<EventBrandingState>({
+    logoUrl: null,
+    primaryColor: '#2ecc71',
+    secondaryColor: '#111827',
+    headerBg: '#eaf7ee',
+    cardBg: '#ffffff',
+    brandName: null,
+  })
 
   const categoryMap = useMemo(() => new Map(categories.map((category) => [category.id, category.label])), [categories])
   const isRegistrationApprover = isRegistrationApproverRole(roleKey)
@@ -553,13 +580,33 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
         if (cancelled) return
         setCategories((json?.data ?? []) as CategoryItem[])
         const businessSettings = settingsRes.data?.business_settings
+        const theme = settingsRes.data?.display_theme ?? {}
         const photoEnabled = businessSettings?.registration_rider_photo_enabled
         setRiderPhotoUploadEnabled(typeof photoEnabled === 'boolean' ? photoEnabled : true)
         setWhatsappGroupInviteUrl(businessSettings?.whatsapp_group_invite_url?.trim() || null)
+        setEventBranding({
+          logoUrl:
+            (typeof theme.logo_url === 'string' && theme.logo_url.trim()) ||
+            settingsRes.data?.event_logo_url?.trim() ||
+            null,
+          primaryColor: safeCssColor(theme.primary_color, '#2ecc71'),
+          secondaryColor: safeCssColor(theme.secondary_color, '#111827'),
+          headerBg: safeCssColor(theme.header_bg, '#eaf7ee'),
+          cardBg: safeCssColor(theme.card_bg, '#ffffff'),
+          brandName: businessSettings?.public_brand_name?.trim() || null,
+        })
       } catch {
         if (!cancelled) {
           setRiderPhotoUploadEnabled(true)
           setWhatsappGroupInviteUrl(null)
+          setEventBranding({
+            logoUrl: null,
+            primaryColor: '#2ecc71',
+            secondaryColor: '#111827',
+            headerBg: '#eaf7ee',
+            cardBg: '#ffffff',
+            brandName: null,
+          })
           setFeedback({ type: 'error', message: 'Gagal memuat kategori event.' })
         }
       }
@@ -1013,6 +1060,190 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
     return parts.length > 0 ? parts.join(' | ') : 'Semua data registrasi'
   }
 
+  const buildThemedRegistrationPrintHtml = ({
+    title,
+    eventName,
+    location,
+    eventDate,
+    generatedAt,
+    totalRiders,
+    body,
+  }: {
+    title: string
+    eventName: string
+    location: string
+    eventDate: string
+    generatedAt: string
+    totalRiders: number
+    body: string
+  }) => {
+    const primaryColor = safeCssColor(eventBranding.primaryColor, '#2ecc71')
+    const secondaryColor = safeCssColor(eventBranding.secondaryColor, '#111827')
+    const headerBg = safeCssColor(eventBranding.headerBg, '#eaf7ee')
+    const cardBg = safeCssColor(eventBranding.cardBg, '#ffffff')
+    const logoUrl = eventBranding.logoUrl?.trim()
+    const brandName = eventBranding.brandName?.trim() || eventName
+
+    return `
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>${escapeHtml(title)}</title>
+    <style>
+      @page { size: A4 landscape; margin: 10mm; }
+      html, body {
+        margin: 0;
+        padding: 0;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      body {
+        font-family: Arial, sans-serif;
+        color: #0f172a;
+        background: ${headerBg};
+        padding: 16px;
+      }
+      .sheet {
+        display: grid;
+        gap: 14px;
+      }
+      .hero {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 18px;
+        align-items: center;
+        border: 2px solid ${secondaryColor};
+        border-radius: 22px;
+        padding: 18px 20px;
+        background:
+          linear-gradient(135deg, ${secondaryColor} 0%, #1f2937 58%, ${primaryColor} 150%);
+        color: #ffffff;
+        box-shadow: 0 18px 40px rgba(15, 23, 42, 0.16);
+      }
+      .brand-mark {
+        display: grid;
+        place-items: center;
+        width: 112px;
+        height: 112px;
+        border-radius: 18px;
+        background: rgba(255,255,255,0.94);
+        border: 1px solid rgba(255,255,255,0.55);
+        overflow: hidden;
+      }
+      .brand-mark img {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+        display: block;
+      }
+      .brand-fallback {
+        color: ${secondaryColor};
+        font-size: 14px;
+        font-weight: 900;
+        text-align: center;
+        padding: 10px;
+      }
+      .eyebrow {
+        display: inline-flex;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.14);
+        border: 1px solid rgba(255,255,255,0.24);
+        font-size: 10px;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.16em;
+      }
+      h1 {
+        margin: 10px 0 6px;
+        font-size: 26px;
+        line-height: 1.08;
+      }
+      .subtitle {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 10px;
+      }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        padding: 5px 9px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.14);
+        border: 1px solid rgba(255,255,255,0.22);
+        color: rgba(255,255,255,0.9);
+        font-size: 11px;
+        font-weight: 800;
+      }
+      .section-card {
+        border: 1px solid #cbd5e1;
+        border-radius: 18px;
+        padding: 12px;
+        background: ${cardBg};
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.07);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 10px;
+      }
+      th, td {
+        padding: 6px 7px;
+        border-bottom: 1px solid #dbeafe;
+        text-align: left;
+        vertical-align: top;
+      }
+      th {
+        background: color-mix(in srgb, ${primaryColor} 18%, #ffffff);
+        color: #0f172a;
+        font-size: 9px;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+      tbody tr:nth-child(even) td {
+        background: rgba(248, 250, 252, 0.86);
+      }
+      .footer-note {
+        font-size: 10px;
+        font-weight: 700;
+        color: #475569;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="sheet">
+      <header class="hero">
+        <div>
+          <div class="eyebrow">Data Rider Registrasi</div>
+          <h1>${escapeHtml(eventName)}</h1>
+          <div style="font-size:13px;font-weight:800;color:rgba(255,255,255,0.84);">${escapeHtml(brandName)}</div>
+          <div class="subtitle">
+            <span class="pill">Lokasi: ${escapeHtml(location)}</span>
+            <span class="pill">Tanggal: ${escapeHtml(eventDate)}</span>
+            <span class="pill">Total Rider: ${escapeHtml(totalRiders)}</span>
+            <span class="pill">Generated: ${escapeHtml(generatedAt)}</span>
+            <span class="pill">${escapeHtml(buildFilterSummary())}</span>
+          </div>
+        </div>
+        <div class="brand-mark">
+          ${
+            logoUrl
+              ? `<img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(brandName)}" />`
+              : `<div class="brand-fallback">${escapeHtml(brandName)}</div>`
+          }
+        </div>
+      </header>
+      ${body}
+      <div class="footer-note">Dokumen export otomatis dari dashboard registrasi Race Pushbike.</div>
+    </div>
+  </body>
+</html>
+`
+  }
+
   const handleExportPdf = async () => {
     if (!eventId) return
     setExportingPdf(true)
@@ -1073,12 +1304,13 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
         })
         .join('')
 
-      const html = buildBrandedPrintHtml({
-        title: `Data Rider Registrasi - ${escapeHtml(eventName)}`,
-        eyebrow: 'Registration Rider Export',
-        heading: `Data Rider Registrasi - ${escapeHtml(eventName)}`,
-        subtitle: `Lokasi: ${escapeHtml(eventLocation)} | Tanggal Event: ${escapeHtml(eventDate)} | Total Rider: ${riderRows.length} | Generated: ${escapeHtml(generatedAt)} | ${escapeHtml(buildFilterSummary())}`,
-        pageSize: 'A4 landscape',
+      const html = buildThemedRegistrationPrintHtml({
+        title: `Data Rider Registrasi - ${eventName}`,
+        eventName,
+        location: eventLocation,
+        eventDate,
+        generatedAt,
+        totalRiders: riderRows.length,
         body: `
           <section class="section-card">
             <table>
