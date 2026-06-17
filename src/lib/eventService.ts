@@ -23,6 +23,14 @@ export type EventSponsor = {
   notes?: string | null
 }
 
+export type CommunityShowcaseItem = {
+  id?: string | null
+  name?: string | null
+  logo_url?: string | null
+  sort_order?: number | null
+  is_active?: boolean | null
+}
+
 export type BusinessSettings = {
   public_brand_name?: string | null
   public_event_title?: string | null
@@ -74,6 +82,8 @@ export type BusinessSettings = {
   sponsor_section_enabled?: boolean | null
   sponsor_section_title?: string | null
   sponsor_section_subtitle?: string | null
+  community_showcase_enabled?: boolean | null
+  community_showcase_logos?: CommunityShowcaseItem[] | null
   show_rider_photos_public?: boolean | null
   best_team_enabled?: boolean | null
   best_team_label?: string | null

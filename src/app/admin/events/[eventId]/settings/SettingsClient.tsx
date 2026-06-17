@@ -13,7 +13,7 @@ import {
 } from '../../../../../lib/bestTeam'
 import { formatAppRoleLabel } from '../../../../../lib/roles'
 import { supabase } from '../../../../../lib/supabaseClient'
-import type { BusinessSettings, EventSponsor, EventSponsorTier } from '../../../../../lib/eventService'
+import type { BusinessSettings, CommunityShowcaseItem, EventSponsor, EventSponsorTier } from '../../../../../lib/eventService'
 
 type SettingsRow = {
   event_id: string
@@ -100,6 +100,14 @@ type SponsorDraft = {
   is_active: boolean
   show_on_event_page: boolean
   show_on_live_display: boolean
+}
+
+type CommunityLogoDraft = {
+  id: string
+  name: string
+  logo_url: string
+  sort_order: string
+  is_active: boolean
 }
 
 const sponsorTierOptions: EventSponsorTier[] = ['TITLE', 'MAIN', 'SUPPORT', 'MEDIA', 'COMMUNITY', 'PARTNER']
@@ -383,6 +391,43 @@ const sanitizeSponsorDrafts = (items: SponsorDraft[]): EventSponsor[] =>
     })
     .filter(Boolean) as EventSponsor[]
 
+const createEmptyCommunityLogoDraft = (index = 0): CommunityLogoDraft => ({
+  id: '',
+  name: '',
+  logo_url: '',
+  sort_order: String(index + 1),
+  is_active: true,
+})
+
+const communityLogoDraftFromItem = (item: Partial<CommunityShowcaseItem>, index: number): CommunityLogoDraft => ({
+  id: typeof item.id === 'string' ? item.id : '',
+  name: typeof item.name === 'string' ? item.name : '',
+  logo_url: typeof item.logo_url === 'string' ? item.logo_url : '',
+  sort_order:
+    typeof item.sort_order === 'number'
+      ? String(item.sort_order)
+      : typeof item.sort_order === 'string'
+      ? item.sort_order
+      : String(index + 1),
+  is_active: typeof item.is_active === 'boolean' ? item.is_active : true,
+})
+
+const sanitizeCommunityLogoDrafts = (items: CommunityLogoDraft[]): CommunityShowcaseItem[] =>
+  items
+    .map((item, index) => {
+      const logoUrl = item.logo_url.trim()
+      const name = item.name.trim()
+      if (!logoUrl || !name) return null
+      return {
+        id: item.id.trim() || `community-${index + 1}`,
+        name,
+        logo_url: logoUrl,
+        sort_order: Number(item.sort_order) || index + 1,
+        is_active: Boolean(item.is_active),
+      } satisfies CommunityShowcaseItem
+    })
+    .filter(Boolean) as CommunityShowcaseItem[]
+
 export default function SettingsClient({ eventId, mode = 'full' }: { eventId: string; mode?: 'full' | 'advanced' }) {
   const advancedOnly = mode === 'advanced'
   const [loading, setLoading] = useState(false)
@@ -424,12 +469,14 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
   >({})
   const [sections, setSections] = useState<{
     sponsors: boolean
+    communityShowcase: boolean
     appearance: boolean
     publicInfo: boolean
     paymentRegistration: boolean
     eventStaff: boolean
   }>({
     sponsors: true,
+    communityShowcase: false,
     appearance: false,
     publicInfo: false,
     paymentRegistration: false,
@@ -461,6 +508,13 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
   })
   const [dragSponsorIndex, setDragSponsorIndex] = useState<number | null>(null)
   const [dragOverSponsorIndex, setDragOverSponsorIndex] = useState<number | null>(null)
+  const [communityShowcaseEnabled, setCommunityShowcaseEnabled] = useState(true)
+  const [communityLogoItems, setCommunityLogoItems] = useState<CommunityLogoDraft[]>([])
+  const [communityLogoUploadingIndex, setCommunityLogoUploadingIndex] = useState<number | null>(null)
+  const [communityLogoUploadError, setCommunityLogoUploadError] = useState<{ index: number | null; message: string }>({
+    index: null,
+    message: '',
+  })
 
   const [form, setForm] = useState({
     event_logo_url: '',
@@ -560,6 +614,22 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     })
     const json = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(json?.error || 'Gagal upload logo sponsor.')
+    return json?.url as string
+  }
+
+  const uploadCommunityLogo = async (file: File) => {
+    const { data } = await supabase.auth.getSession()
+    const token = data.session?.access_token
+    if (!token) throw new Error('Session expired. Silakan login ulang.')
+    const body = new FormData()
+    body.append('file', file)
+    const res = await fetch(`/api/events/${eventId}/community-logo`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body,
+    })
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(json?.error || 'Gagal upload logo komunitas.')
     return json?.url as string
   }
 
@@ -730,6 +800,13 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
         }
         setForm(nextForm)
         setSponsorItems(loadedSponsors)
+        const loadedCommunityLogos = Array.isArray(business.community_showcase_logos)
+          ? business.community_showcase_logos.map((item, index) => communityLogoDraftFromItem(item, index))
+          : []
+        setCommunityLogoItems(loadedCommunityLogos)
+        setCommunityShowcaseEnabled(
+          typeof business.community_showcase_enabled === 'boolean' ? business.community_showcase_enabled : true
+        )
         setSponsorSectionEnabled(
           typeof business.sponsor_section_enabled === 'boolean' ? business.sponsor_section_enabled : true
         )
@@ -758,6 +835,9 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
             showRiderPhotosPublic:
               typeof business.show_rider_photos_public === 'boolean' ? business.show_rider_photos_public : true,
             sponsorItems: loadedSponsors,
+            communityShowcaseEnabled:
+              typeof business.community_showcase_enabled === 'boolean' ? business.community_showcase_enabled : true,
+            communityLogoItems: loadedCommunityLogos,
           })
         )
       }
@@ -1152,6 +1232,44 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     }
   }
 
+  const addCommunityLogoItem = () => {
+    setCommunityLogoItems((prev) => [...prev, createEmptyCommunityLogoDraft(prev.length)])
+  }
+
+  const updateCommunityLogoItem = (index: number, patch: Partial<CommunityLogoDraft>) => {
+    setCommunityLogoItems((prev) =>
+      prev.map((item, idx) => {
+        if (idx !== index) return item
+        return { ...item, ...patch }
+      })
+    )
+  }
+
+  const removeCommunityLogoItem = (index: number) => {
+    setCommunityLogoItems((prev) =>
+      prev
+        .filter((_, idx) => idx !== index)
+        .map((item, idx) => ({ ...item, sort_order: String(idx + 1) }))
+    )
+  }
+
+  const handleCommunityLogoUpload = async (index: number, file?: File | null) => {
+    if (!file) return
+    setCommunityLogoUploadError({ index: null, message: '' })
+    setCommunityLogoUploadingIndex(index)
+    try {
+      const url = await uploadCommunityLogo(file)
+      updateCommunityLogoItem(index, { logo_url: url })
+    } catch (err: unknown) {
+      setCommunityLogoUploadError({
+        index,
+        message: err instanceof Error ? err.message : 'Gagal upload logo komunitas.',
+      })
+    } finally {
+      setCommunityLogoUploadingIndex(null)
+    }
+  }
+
   const handleSponsorDragStart = (index: number) => (event: DragEvent<HTMLDivElement>) => {
     setDragSponsorIndex(index)
     setDragOverSponsorIndex(index)
@@ -1225,6 +1343,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     const ownerType: NonNullable<BusinessSettings['event_owner_type']> =
       (form.business_event_owner_type || 'COMMUNITY') as NonNullable<BusinessSettings['event_owner_type']>
     const normalizedSponsors = sanitizeSponsorDrafts(sponsorItems)
+    const normalizedCommunityLogos = sanitizeCommunityLogoDrafts(communityLogoItems)
     const bestTeamPointRulesResult = parseBestTeamPointRulesText(form.business_best_team_point_rules)
     if (bestTeamPointRulesResult.invalidLines.length > 0) {
       alert(`Format point Best Team tidak valid:\n${bestTeamPointRulesResult.invalidLines.join('\n')}\n\nGunakan format rank=point, contoh 1=10`)
@@ -1283,6 +1402,8 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
       sponsor_section_enabled: Boolean(sponsorSectionEnabled),
       sponsor_section_title: sponsorSectionTitle.trim() || null,
       sponsor_section_subtitle: sponsorSectionSubtitle.trim() || null,
+      community_showcase_enabled: Boolean(communityShowcaseEnabled),
+      community_showcase_logos: normalizedCommunityLogos,
       show_rider_photos_public: Boolean(showRiderPhotosPublic),
       sponsors: normalizedSponsors,
     }
@@ -1416,10 +1537,11 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
             gap: 10,
           }}
         >
-          {[
-            { key: 'sponsors', label: 'Sponsors' },
-            { key: 'appearance', label: 'Display / Branding & Race Format' },
-            { key: 'publicInfo', label: 'Public Info' },
+            {[
+              { key: 'sponsors', label: 'Sponsors' },
+              { key: 'communityShowcase', label: 'Community Showcase' },
+              { key: 'appearance', label: 'Display / Branding & Race Format' },
+              { key: 'publicInfo', label: 'Public Info' },
             { key: 'paymentRegistration', label: 'Payment & Registration' },
             { key: 'eventStaff', label: 'Event Staff' },
           ].map((section) => {
@@ -1963,6 +2085,170 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                     <div>Aktif/nonaktifkan modul DNS dan DNF dari menu Penalties.</div>
                   </div>
                 </div>
+              </>
+            )}
+
+            {!advancedOnly && sections.communityShowcase && (
+              <>
+                <div style={{ fontWeight: 950, fontSize: 18 }}>Community Showcase</div>
+                <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                  Logo Komunitas & Partner Homepage
+                </div>
+                <div style={{ color: '#475569', fontWeight: 700, fontSize: 13 }}>
+                  Kelola logo komunitas yang tampil di homepage bagian Completed Event. Ini terpisah dari sponsor
+                  section, jadi tetap tampil walaupun sponsor section dimatikan.
+                </div>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 800 }}>
+                    <input
+                      type="checkbox"
+                      checked={communityShowcaseEnabled}
+                      onChange={(e) => setCommunityShowcaseEnabled(e.target.checked)}
+                    />
+                    Tampilkan di homepage
+                  </label>
+                  <button
+                    type="button"
+                    onClick={addCommunityLogoItem}
+                    style={{
+                      padding: '8px 12px',
+                      borderRadius: 10,
+                      border: '2px solid #111',
+                      background: '#bfead2',
+                      fontWeight: 900,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Add Community Logo
+                  </button>
+                </div>
+
+                {communityLogoItems.length === 0 ? (
+                  <div
+                    style={{
+                      padding: 12,
+                      borderRadius: 12,
+                      border: '2px dashed #111',
+                      background: '#f8fafc',
+                      fontWeight: 800,
+                      color: '#475569',
+                    }}
+                  >
+                    Belum ada logo komunitas. Klik <strong>Add Community Logo</strong> untuk mulai.
+                  </div>
+                ) : (
+                  <div style={{ display: 'grid', gap: 12 }}>
+                    {communityLogoItems.map((item, index) => (
+                      <div
+                        key={`community-logo-${index}`}
+                        style={{
+                          padding: 12,
+                          borderRadius: 14,
+                          border: '2px solid #111',
+                          background: '#f8fafc',
+                          display: 'grid',
+                          gap: 10,
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <div style={{ fontWeight: 900 }}>Community Logo #{index + 1}</div>
+                          <button
+                            type="button"
+                            onClick={() => removeCommunityLogoItem(index)}
+                            style={{
+                              padding: '6px 10px',
+                              borderRadius: 10,
+                              border: '2px solid #b91c1c',
+                              background: '#fee2e2',
+                              color: '#7f1d1d',
+                              fontWeight: 900,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Remove
+                          </button>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 10 }}>
+                          <input
+                            value={item.name}
+                            onChange={(e) => updateCommunityLogoItem(index, { name: e.target.value })}
+                            placeholder="Nama komunitas / partner"
+                            style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                          />
+                          <input
+                            value={item.sort_order}
+                            onChange={(e) => updateCommunityLogoItem(index, { sort_order: e.target.value })}
+                            placeholder="Sort order"
+                            type="number"
+                            min={1}
+                            style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                          />
+                        </div>
+
+                        <input
+                          value={item.logo_url}
+                          onChange={(e) => updateCommunityLogoItem(index, { logo_url: e.target.value })}
+                          placeholder="Logo URL"
+                          style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                        />
+
+                        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                          <label
+                            style={{
+                              padding: '8px 12px',
+                              borderRadius: 10,
+                              border: '2px solid #111',
+                              background: '#fff',
+                              fontWeight: 900,
+                              cursor: communityLogoUploadingIndex === index ? 'progress' : 'pointer',
+                            }}
+                          >
+                            {communityLogoUploadingIndex === index ? 'Uploading...' : 'Upload Logo'}
+                            <input
+                              type="file"
+                              accept="image/*"
+                              disabled={communityLogoUploadingIndex !== null}
+                              onChange={async (e) => {
+                                const file = e.currentTarget.files?.[0]
+                                await handleCommunityLogoUpload(index, file)
+                                e.currentTarget.value = ''
+                              }}
+                              style={{ display: 'none' }}
+                            />
+                          </label>
+                          <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 800 }}>
+                            <input
+                              type="checkbox"
+                              checked={item.is_active}
+                              onChange={(e) => updateCommunityLogoItem(index, { is_active: e.target.checked })}
+                            />
+                            Active
+                          </label>
+                        </div>
+
+                        {communityLogoUploadError.index === index && communityLogoUploadError.message && (
+                          <div style={{ fontSize: 12, fontWeight: 800, color: '#b91c1c' }}>
+                            {communityLogoUploadError.message}
+                          </div>
+                        )}
+
+                        {item.logo_url.trim() && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <img
+                              src={item.logo_url}
+                              alt={item.name || `Community Logo ${index + 1}`}
+                              style={{ height: 56, width: 'auto', maxWidth: 180, objectFit: 'contain', borderRadius: 8, background: '#fff', border: '1px solid #cbd5e1', padding: 6 }}
+                            />
+                            <div style={{ fontSize: 12, color: '#475569', fontWeight: 700 }}>
+                              Preview logo komunitas homepage
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </>
             )}
 
