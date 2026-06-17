@@ -71,12 +71,26 @@ const formatRupiah = (value: number) =>
 
 const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
 
-const normalizePhoneDigits = (value: string) => value.replace(/[^\d]/g, '').slice(0, 15)
+const normalizePhoneDigits = (value: string) => {
+  const trimmed = value.trim()
+  const digits = trimmed.replace(/[^\d]/g, '').slice(0, 15)
+  if (!digits) return ''
+  if (trimmed.startsWith('+')) return digits
+  if (digits.startsWith('00')) return digits.slice(2)
+  return digits
+}
+
+const normalizeWhatsappDigits = (value: string) => {
+  const digits = normalizePhoneDigits(value)
+  if (!digits) return ''
+  if (digits.startsWith('0')) return `62${digits.slice(1)}`
+  return digits
+}
 
 const isValidWhatsappNumber = (value: string) => {
-  const digits = normalizePhoneDigits(value)
+  const digits = normalizeWhatsappDigits(value)
   if (digits.length < 10 || digits.length > 15) return false
-  return digits.startsWith('08') || digits.startsWith('62')
+  return /^[1-9]\d{9,14}$/.test(digits)
 }
 
 const getCompleteBirthYear = (dateOfBirth: string) => {
@@ -614,7 +628,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     businessSettings?.operating_committee_contact_phone?.trim() ||
     ''
   const publicContactWhatsapp = publicContactPhone
-    ? `https://wa.me/${normalizePhoneDigits(publicContactPhone).replace(/^0/, '62')}`
+    ? `https://wa.me/${normalizeWhatsappDigits(publicContactPhone)}`
     : ''
   const supportInstagram = '@pushbike.kotaarang'
   const lastAutoCategoryModalKeyRef = useRef('')
@@ -764,7 +778,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     setSuccess(null)
     setSlotFullModal(null)
     setDuplicateRegistrationModal(null)
-    const normalizedContactPhone = normalizePhoneDigits(contactPhone)
+    const normalizedContactPhone = normalizeWhatsappDigits(contactPhone)
     if (!registrationOpen) {
       alert('Pendaftaran untuk event ini sedang ditutup oleh panitia.')
       return
@@ -774,7 +788,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
       return
     }
     if (!isValidWhatsappNumber(contactPhone)) {
-      alert('Nomor WhatsApp belum valid. Gunakan format 08... atau 62..., minimal 10 digit.')
+      alert('Nomor WhatsApp belum valid. Gunakan format Indonesia 08.../62... atau internasional +60..., minimal 10 digit.')
       return
     }
     if (contactEmailInvalid) {
@@ -1245,17 +1259,18 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
               <label className={labelClass}>{requiredLabel('Nomor WhatsApp')}</label>
               <input
                 value={contactPhone}
-                onChange={(e) => setContactPhone(normalizePhoneDigits(e.target.value))}
-                placeholder="Contoh: 0812..."
+                onChange={(e) => setContactPhone(e.target.value.replace(/[^\d+\s()-]/g, '').slice(0, 24))}
+                onBlur={() => setContactPhone((current) => normalizeWhatsappDigits(current))}
+                placeholder="Contoh: 0812... / +60..."
                 type="tel"
                 inputMode="tel"
-                maxLength={15}
+                maxLength={24}
                 className={`${fieldClass} ${contactPhoneInvalid ? 'border-rose-400 focus:border-rose-400 focus:ring-rose-400/30' : ''}`}
               />
               <div className={`text-[11px] font-semibold ${contactPhoneInvalid ? 'text-rose-300' : 'text-slate-400'}`}>
                 {contactPhoneInvalid
-                  ? 'Nomor WhatsApp belum valid. Gunakan 08... atau 62..., minimal 10 digit.'
-                  : 'Nomor ini dipakai panitia untuk konfirmasi cepat lewat WhatsApp.'}
+                  ? 'Nomor WhatsApp belum valid. Bisa pakai 08..., 62..., atau format internasional +60...'
+                  : 'Nomor ini dipakai panitia untuk konfirmasi cepat lewat WhatsApp. Peserta luar negeri bisa pakai kode negara, misalnya +60.'}
               </div>
             </div>
             <div className="grid gap-1.5">
