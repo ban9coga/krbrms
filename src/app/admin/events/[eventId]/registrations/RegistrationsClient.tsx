@@ -103,6 +103,34 @@ type EventBrandingState = {
   brandName: string | null
 }
 
+type RiderExportItem = {
+  id: string
+  name: string
+  rider_nickname?: string | null
+  jersey_size?: string | null
+  date_of_birth: string
+  birth_year?: number | null
+  gender: 'BOY' | 'GIRL'
+  plate_number: string
+  plate_suffix?: string | null
+  no_plate_display: string
+  club?: string | null
+}
+
+type ExportCategorySummary = {
+  id: string
+  label: string
+  capacity: number | null
+  filled: number
+  remaining: number | null
+  status: 'PENUH' | 'TERSEDIA' | 'TANPA BATAS'
+}
+
+type ExportCategoryGroup = {
+  summary: ExportCategorySummary
+  rows: RiderExportItem[]
+}
+
 type PlateCheckResponse = {
   data?: {
     available: boolean
@@ -374,8 +402,10 @@ function WhatsAppAction({
 
 export default function RegistrationsClient({ eventId }: { eventId: string }) {
   const [loading, setLoading] = useState(false)
-  const [exportingExcel, setExportingExcel] = useState(false)
-  const [exportingPdf, setExportingPdf] = useState(false)
+  const [exportingRegistrationExcel, setExportingRegistrationExcel] = useState(false)
+  const [exportingRiderExcel, setExportingRiderExcel] = useState(false)
+  const [exportingRegistrationPdf, setExportingRegistrationPdf] = useState(false)
+  const [exportingRiderPdf, setExportingRiderPdf] = useState(false)
   const [categories, setCategories] = useState<CategoryItem[]>([])
   const [registrations, setRegistrations] = useState<RegistrationRow[]>([])
   const [meta, setMeta] = useState({ page: 1, pageSize: 10, total: 0, totalPages: 1 })
@@ -1029,6 +1059,80 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
     return exportRows
   }
 
+  const fetchRiderExportRows = async (categoryId?: string | null) => {
+    const exportRows: RiderExportItem[] = []
+    const exportPageSize = 200
+    let currentPage = 1
+    let expectedTotal = 0
+
+    while (true) {
+      const qs = new URLSearchParams({
+        event_id: eventId,
+        page: String(currentPage),
+        page_size: String(exportPageSize),
+      })
+      if (categoryId) qs.set('category_id', categoryId)
+
+      const res = await fetch(`/api/riders?${qs.toString()}`)
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(json?.error || 'Gagal mengambil data rider untuk export.')
+      }
+
+      const pageRows = (json.data ?? []) as RiderExportItem[]
+      expectedTotal = Number(json.total ?? 0)
+      exportRows.push(...pageRows)
+
+      if (pageRows.length === 0 || exportRows.length >= expectedTotal) break
+      currentPage += 1
+    }
+
+    return exportRows
+  }
+
+  const buildRiderCategoryExportData = async () => {
+    const exportCategories = [...categories].filter((category) => category.enabled !== false)
+    if (exportCategories.length === 0) {
+      throw new Error('Belum ada kategori aktif untuk diexport.')
+    }
+
+    const allRegisteredRows = await fetchRiderExportRows()
+    const totalRegistered = allRegisteredRows.length
+    if (totalRegistered === 0) {
+      throw new Error('Belum ada rider approved di menu Rider.')
+    }
+
+    const categoryGroups: ExportCategoryGroup[] = []
+    let totalAcrossCategories = 0
+
+    for (const category of exportCategories) {
+      const rows = await fetchRiderExportRows(category.id)
+      totalAcrossCategories += rows.length
+      const capacity = typeof category.capacity === 'number' ? category.capacity : null
+      const filled = rows.length
+      const remaining = capacity == null ? null : Math.max(0, capacity - filled)
+      const status = capacity == null ? 'TANPA BATAS' : filled >= capacity ? 'PENUH' : 'TERSEDIA'
+
+      categoryGroups.push({
+        summary: {
+          id: category.id,
+          label: category.label,
+          capacity,
+          filled,
+          remaining,
+          status,
+        },
+        rows,
+      })
+    }
+
+    return {
+      totalRegistered,
+      upClassCount: Math.max(0, totalAcrossCategories - totalRegistered),
+      categoryGroups,
+    }
+  }
+
   const escapeHtml = (value: string | number | null | undefined) => {
     return String(value ?? '')
       .replaceAll('&', '&amp;')
@@ -1062,19 +1166,25 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
 
   const buildThemedRegistrationPrintHtml = ({
     title,
+    eyebrow,
     eventName,
     location,
     eventDate,
     generatedAt,
-    totalRiders,
+    totalLabel,
+    totalValue,
+    filterSummary,
     body,
   }: {
     title: string
+    eyebrow: string
     eventName: string
     location: string
     eventDate: string
     generatedAt: string
-    totalRiders: number
+    totalLabel: string
+    totalValue: number
+    filterSummary?: string
     body: string
   }) => {
     const primaryColor = safeCssColor(eventBranding.primaryColor, '#2ecc71')
@@ -1211,21 +1321,26 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
         font-weight: 700;
         color: #475569;
       }
+      .empty {
+        color: #64748b;
+        font-style: italic;
+        text-align: center;
+      }
     </style>
   </head>
   <body>
     <div class="sheet">
       <header class="hero">
         <div>
-          <div class="eyebrow">Data Rider Registrasi</div>
+          <div class="eyebrow">${escapeHtml(eyebrow)}</div>
           <h1>${escapeHtml(eventName)}</h1>
           <div style="font-size:13px;font-weight:800;color:rgba(255,255,255,0.84);">${escapeHtml(brandName)}</div>
           <div class="subtitle">
             <span class="pill">Lokasi: ${escapeHtml(location)}</span>
             <span class="pill">Tanggal: ${escapeHtml(eventDate)}</span>
-            <span class="pill">Total Rider: ${escapeHtml(totalRiders)}</span>
+            <span class="pill">${escapeHtml(totalLabel)}: ${escapeHtml(totalValue)}</span>
             <span class="pill">Generated: ${escapeHtml(generatedAt)}</span>
-            <span class="pill">${escapeHtml(buildFilterSummary())}</span>
+            <span class="pill">${escapeHtml(filterSummary ?? buildFilterSummary())}</span>
           </div>
         </div>
         <div class="brand-mark">
@@ -1244,9 +1359,9 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
 `
   }
 
-  const handleExportPdf = async () => {
+  const handleExportRegistrationPdf = async () => {
     if (!eventId) return
-    setExportingPdf(true)
+    setExportingRegistrationPdf(true)
     try {
       const [eventRes, exportRows] = await Promise.all([
         apiFetch<{ data?: { name?: string; location?: string | null; event_date?: string | null; status?: string | null } }>(
@@ -1256,7 +1371,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
       ])
 
       if (exportRows.length === 0) {
-        throw new Error('Tidak ada data rider untuk diexport dengan filter saat ini.')
+        throw new Error('Tidak ada data registrasi untuk diexport dengan filter saat ini.')
       }
 
       const eventName = eventRes.data?.name?.trim() || 'Event'
@@ -1305,12 +1420,14 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
         .join('')
 
       const html = buildThemedRegistrationPrintHtml({
-        title: `Data Rider Registrasi - ${eventName}`,
+        title: `Data Registrasi - ${eventName}`,
+        eyebrow: 'Data Registrasi',
         eventName,
         location: eventLocation,
         eventDate,
         generatedAt,
-        totalRiders: riderRows.length,
+        totalLabel: 'Total Rider',
+        totalValue: riderRows.length,
         body: `
           <section class="section-card">
             <table>
@@ -1344,15 +1461,15 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
 
       openPrintPreview(html)
     } catch (err: unknown) {
-      setFeedback({ type: 'error', message: err instanceof Error ? err.message : 'Gagal export PDF data rider.' })
+      setFeedback({ type: 'error', message: err instanceof Error ? err.message : 'Gagal export PDF data registrasi.' })
     } finally {
-      setExportingPdf(false)
+      setExportingRegistrationPdf(false)
     }
   }
 
-  const handleExportExcel = async () => {
+  const handleExportRegistrationExcel = async () => {
     if (!eventId) return
-    setExportingExcel(true)
+    setExportingRegistrationExcel(true)
     try {
       const [eventRes, exportRows] = await Promise.all([
         apiFetch<{ data?: { name?: string; location?: string | null; event_date?: string | null; status?: string | null } }>(
@@ -1383,7 +1500,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
       )
 
       const summarySheetData: Array<Array<string | number>> = [
-        ['LAPORAN DATA RIDER REGISTRASI EVENT'],
+        ['LAPORAN DATA REGISTRASI EVENT'],
         [eventName],
         [],
         ['Generated', generatedAt.toLocaleString('id-ID')],
@@ -1404,7 +1521,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
       ]
 
       const detailSheetData: Array<Array<string | number>> = [
-        ['DATA RIDER REGISTRASI EVENT'],
+        ['DATA REGISTRASI EVENT'],
         [eventName],
         [`Generated: ${generatedAt.toLocaleString('id-ID')}`],
         [],
@@ -1477,6 +1594,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
       const detailSheet = XLSX.utils.aoa_to_sheet(detailSheetData)
 
       summarySheet['!cols'] = [{ wch: 24 }, { wch: 48 }]
+      summarySheet['!views'] = [{ state: 'frozen', ySplit: 8 }]
       detailSheet['!cols'] = [
         { wch: 6 },
         { wch: 22 },
@@ -1506,17 +1624,216 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
       summarySheet['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: 1 } }]
       detailSheet['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 23 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: 23 } }, { s: { r: 2, c: 0 }, e: { r: 2, c: 23 } }]
       detailSheet['!autofilter'] = { ref: `A5:X${detailSheetData.length}` }
+      detailSheet['!views'] = [{ state: 'frozen', ySplit: 5 }]
 
-      XLSX.utils.book_append_sheet(workbook, summarySheet, 'Ringkasan')
-      XLSX.utils.book_append_sheet(workbook, detailSheet, 'Data Rider')
+      XLSX.utils.book_append_sheet(workbook, summarySheet, 'Ringkasan Registrasi')
+      XLSX.utils.book_append_sheet(workbook, detailSheet, 'Detail Registrasi')
 
       const stamp = generatedAt.toISOString().slice(0, 19).replace(/[:T]/g, '-')
       const safeEventName = eventName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'event'
-      XLSX.writeFile(workbook, `data-rider-registrasi_${safeEventName}_${stamp}.xlsx`)
+      XLSX.writeFile(workbook, `data-registrasi_${safeEventName}_${stamp}.xlsx`)
     } catch (err: unknown) {
       setFeedback({ type: 'error', message: err instanceof Error ? err.message : 'Gagal export Excel registrasi.' })
     } finally {
-      setExportingExcel(false)
+      setExportingRegistrationExcel(false)
+    }
+  }
+
+  const handleExportRiderExcel = async () => {
+    if (!eventId) return
+    setExportingRiderExcel(true)
+    try {
+      const { totalRegistered, upClassCount, categoryGroups } = await buildRiderCategoryExportData()
+      const generatedAt = new Date()
+      const XLSX = await import('xlsx')
+      const summarySheetData: Array<Array<string | number>> = [
+        ['LAPORAN RIDER EVENT'],
+        [`Generated: ${generatedAt.toLocaleString('id-ID')}`],
+        [],
+        ['Jumlah Rider Terdaftar', totalRegistered],
+        ['Jumlah Rider Ambil Up Class', upClassCount],
+        [],
+        ['Kategori', 'Kapasitas', 'Terisi', 'Sisa Slot', 'Status'],
+        ...categoryGroups.map(({ summary }) => [
+          summary.label,
+          summary.capacity == null ? 'Tanpa batas' : summary.capacity,
+          summary.filled,
+          summary.remaining == null ? 'Tanpa batas' : summary.remaining,
+          summary.status,
+        ]),
+      ]
+
+      const detailSheetData: Array<Array<string | number>> = [
+        ['SEMUA RIDER PER KATEGORI'],
+        [`Generated: ${generatedAt.toLocaleString('id-ID')}`],
+        [],
+      ]
+
+      for (const { summary, rows } of categoryGroups) {
+        detailSheetData.push([summary.label])
+        detailSheetData.push([
+          'Kapasitas',
+          summary.capacity == null ? 'Tanpa batas' : summary.capacity,
+          'Terisi',
+          summary.filled,
+          'Sisa Slot',
+          summary.remaining == null ? 'Tanpa batas' : summary.remaining,
+          'Status',
+          summary.status,
+        ])
+        detailSheetData.push([
+          'No Plate',
+          'Plate Number',
+          'Suffix',
+          'Nama Rider',
+          'Panggilan',
+          'Gender',
+          'Tanggal Lahir',
+          'Tahun Lahir',
+          'Jersey',
+          'Club',
+        ])
+
+        if (rows.length === 0) {
+          detailSheetData.push(['Tidak ada rider terdaftar di kategori ini'])
+        } else {
+          detailSheetData.push(
+            ...rows.map((row) => [
+              row.no_plate_display,
+              row.plate_number,
+              row.plate_suffix ?? '-',
+              row.name,
+              row.rider_nickname ?? '-',
+              row.gender,
+              row.date_of_birth,
+              row.birth_year ?? '',
+              row.jersey_size ?? '-',
+              row.club ?? '-',
+            ])
+          )
+        }
+
+        detailSheetData.push([])
+      }
+
+      const workbook = XLSX.utils.book_new()
+      const summarySheet = XLSX.utils.aoa_to_sheet(summarySheetData)
+      const detailSheet = XLSX.utils.aoa_to_sheet(detailSheetData)
+
+      summarySheet['!cols'] = [{ wch: 30 }, { wch: 16 }, { wch: 12 }, { wch: 14 }, { wch: 14 }]
+      summarySheet['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }]
+      summarySheet['!autofilter'] = { ref: `A7:E${summarySheetData.length}` }
+      summarySheet['!views'] = [{ state: 'frozen', ySplit: 7 }]
+
+      detailSheet['!cols'] = [
+        { wch: 12 },
+        { wch: 12 },
+        { wch: 10 },
+        { wch: 30 },
+        { wch: 22 },
+        { wch: 10 },
+        { wch: 14 },
+        { wch: 12 },
+        { wch: 12 },
+        { wch: 32 },
+      ]
+      detailSheet['!views'] = [{ state: 'frozen', ySplit: 3 }]
+
+      XLSX.utils.book_append_sheet(workbook, summarySheet, 'Ringkasan Rider')
+      XLSX.utils.book_append_sheet(workbook, detailSheet, 'Rider per Kategori')
+      const stamp = generatedAt.toISOString().slice(0, 19).replace(/[:T]/g, '-')
+      XLSX.writeFile(workbook, `data-rider_${stamp}.xlsx`)
+    } catch (err: unknown) {
+      setFeedback({ type: 'error', message: err instanceof Error ? err.message : 'Gagal export Excel data rider.' })
+    } finally {
+      setExportingRiderExcel(false)
+    }
+  }
+
+  const handleExportRiderPdf = async () => {
+    if (!eventId) return
+    setExportingRiderPdf(true)
+    try {
+      const [eventRes, riderExport] = await Promise.all([
+        apiFetch<{ data?: { name?: string; location?: string | null; event_date?: string | null; status?: string | null } }>(
+          `/api/events/${eventId}`
+        ),
+        buildRiderCategoryExportData(),
+      ])
+      const eventName = eventRes.data?.name?.trim() || 'Event'
+      const eventLocation = eventRes.data?.location?.trim() || '-'
+      const eventDate = eventRes.data?.event_date ? formatDateTime(eventRes.data.event_date) : '-'
+      const generatedAt = new Date().toLocaleString('id-ID')
+
+      const sections = riderExport.categoryGroups
+        .map(({ summary, rows }) => {
+          const tableRows =
+            rows.length === 0
+              ? '<tr><td colspan="8" class="empty">Tidak ada rider terdaftar di kategori ini</td></tr>'
+              : rows
+                  .map(
+                    (row, index) => `
+                      <tr>
+                        <td>${index + 1}</td>
+                        <td>${escapeHtml(row.no_plate_display)}</td>
+                        <td>${escapeHtml(row.name)}</td>
+                        <td>${escapeHtml(row.rider_nickname ?? '-')}</td>
+                        <td>${escapeHtml(row.gender)}</td>
+                        <td>${escapeHtml(row.date_of_birth)}</td>
+                        <td>${escapeHtml(row.jersey_size ?? '-')}</td>
+                        <td>${escapeHtml(row.club ?? '-')}</td>
+                      </tr>
+                    `
+                  )
+                  .join('')
+
+          return `
+            <section class="section-card">
+              <h2 style="margin:0 0 8px;font-size:16px;font-weight:900;">${escapeHtml(summary.label)}</h2>
+              <div class="subtitle" style="margin:0 0 10px;">
+                <span class="pill" style="color:#0f172a;background:#f8fafc;border-color:#cbd5e1;">Kapasitas: ${escapeHtml(summary.capacity == null ? 'Tanpa batas' : summary.capacity)}</span>
+                <span class="pill" style="color:#0f172a;background:#f8fafc;border-color:#cbd5e1;">Terisi: ${escapeHtml(summary.filled)}</span>
+                <span class="pill" style="color:#0f172a;background:#f8fafc;border-color:#cbd5e1;">Sisa: ${escapeHtml(summary.remaining == null ? 'Tanpa batas' : summary.remaining)}</span>
+                <span class="pill" style="color:#0f172a;background:#f8fafc;border-color:#cbd5e1;">Status: ${escapeHtml(summary.status)}</span>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>No</th>
+                    <th>No Plate</th>
+                    <th>Nama Rider</th>
+                    <th>Panggilan</th>
+                    <th>Gender</th>
+                    <th>Tanggal Lahir</th>
+                    <th>Jersey</th>
+                    <th>Club</th>
+                  </tr>
+                </thead>
+                <tbody>${tableRows}</tbody>
+              </table>
+            </section>
+          `
+        })
+        .join('')
+
+      const html = buildThemedRegistrationPrintHtml({
+        title: `Data Rider - ${eventName}`,
+        eyebrow: 'Data Rider',
+        eventName,
+        location: eventLocation,
+        eventDate,
+        generatedAt,
+        totalLabel: 'Rider Terdaftar',
+        totalValue: riderExport.totalRegistered,
+        filterSummary: `Up Class: ${riderExport.upClassCount}`,
+        body: sections,
+      })
+
+      openPrintPreview(html)
+    } catch (err: unknown) {
+      setFeedback({ type: 'error', message: err instanceof Error ? err.message : 'Gagal export PDF data rider.' })
+    } finally {
+      setExportingRiderPdf(false)
     }
   }
 
@@ -1624,19 +1941,59 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                onClick={handleExportExcel}
-                disabled={loading || exportingExcel || exportingPdf}
+                onClick={handleExportRegistrationExcel}
+                disabled={
+                  loading ||
+                  exportingRegistrationExcel ||
+                  exportingRegistrationPdf ||
+                  exportingRiderExcel ||
+                  exportingRiderPdf
+                }
                 className="rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-black text-emerald-900 transition hover:border-emerald-500 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
               >
-                {exportingExcel ? 'Menyiapkan XLSX...' : 'Export Data Rider XLSX'}
+                {exportingRegistrationExcel ? 'Menyiapkan XLSX...' : 'Export Registrasi XLSX'}
               </button>
               <button
                 type="button"
-                onClick={handleExportPdf}
-                disabled={loading || exportingPdf || exportingExcel}
+                onClick={handleExportRegistrationPdf}
+                disabled={
+                  loading ||
+                  exportingRegistrationPdf ||
+                  exportingRegistrationExcel ||
+                  exportingRiderExcel ||
+                  exportingRiderPdf
+                }
                 className="rounded-full border border-sky-300 bg-sky-50 px-3 py-1.5 text-xs font-black text-sky-900 transition hover:border-sky-500 hover:bg-sky-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
               >
-                {exportingPdf ? 'Menyiapkan PDF...' : 'Export Data Rider PDF'}
+                {exportingRegistrationPdf ? 'Menyiapkan PDF...' : 'Export Registrasi PDF'}
+              </button>
+              <button
+                type="button"
+                onClick={handleExportRiderExcel}
+                disabled={
+                  loading ||
+                  exportingRiderExcel ||
+                  exportingRiderPdf ||
+                  exportingRegistrationExcel ||
+                  exportingRegistrationPdf
+                }
+                className="rounded-full border border-violet-300 bg-violet-50 px-3 py-1.5 text-xs font-black text-violet-900 transition hover:border-violet-500 hover:bg-violet-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+              >
+                {exportingRiderExcel ? 'Menyiapkan XLSX...' : 'Export Rider XLSX'}
+              </button>
+              <button
+                type="button"
+                onClick={handleExportRiderPdf}
+                disabled={
+                  loading ||
+                  exportingRiderPdf ||
+                  exportingRiderExcel ||
+                  exportingRegistrationExcel ||
+                  exportingRegistrationPdf
+                }
+                className="rounded-full border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-xs font-black text-indigo-900 transition hover:border-indigo-500 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+              >
+                {exportingRiderPdf ? 'Menyiapkan PDF...' : 'Export Rider PDF'}
               </button>
               <button
                 type="button"
