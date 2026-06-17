@@ -155,6 +155,7 @@ function LandingEventSection({
   eyebrow,
   title,
   description,
+  eyebrowAsTitle = false,
   events,
   settingsMap,
   registrationAvailability,
@@ -165,6 +166,7 @@ function LandingEventSection({
   eyebrow: string
   title: string
   description: string
+  eyebrowAsTitle?: boolean
   events: EventItem[]
   settingsMap: Map<string, LandingEventSettings>
   registrationAvailability?: Map<string, boolean>
@@ -182,9 +184,15 @@ function LandingEventSection({
           <div className="relative z-10">
             <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-end">
               <div className="grid gap-2">
-                <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-amber-300">{eyebrow}</p>
-                <h2 className="text-3xl font-black tracking-tight text-white md:text-4xl">{title}</h2>
-                <p className="max-w-3xl text-sm font-medium text-slate-200 md:text-base">{description}</p>
+                {eyebrowAsTitle ? (
+                  <h2 className="text-4xl font-black uppercase tracking-[0.18em] text-amber-300 md:text-6xl">{eyebrow}</h2>
+                ) : (
+                  <>
+                    <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-amber-300">{eyebrow}</p>
+                    <h2 className="text-3xl font-black tracking-tight text-white md:text-4xl">{title}</h2>
+                    <p className="max-w-3xl text-sm font-medium text-slate-200 md:text-base">{description}</p>
+                  </>
+                )}
               </div>
 
               <Link
@@ -266,19 +274,21 @@ export default async function LandingPage() {
         />
         <LandingEventSection
           eyebrow="Completed Event"
-          title="Event yang Sudah Selesai"
-          description="Buka arsip event yang telah selesai dan lihat hasil race publik yang sudah tersedia."
+          title=""
+          description=""
+          eyebrowAsTitle
           events={finishedEvents}
           settingsMap={settingsMap}
           emptyMessage="Belum ada completed event yang tampil untuk publik."
         >
           {communityLogos.length > 0 && (
-            <div className="mt-6 rounded-2xl border border-slate-700/70 bg-white p-4">
-              <div className="flex flex-wrap items-center justify-center gap-4">
+            <div className="mt-8 grid gap-4">
+              <h3 className="text-xl font-black uppercase tracking-[0.16em] text-white md:text-2xl">Komunitas & Partner</h3>
+              <div className="flex flex-wrap items-center gap-5">
                 {communityLogos.map((item) => (
                   <div
                     key={item.name}
-                    className="flex h-16 w-28 items-center justify-center rounded-xl border border-slate-200 bg-white p-2 shadow-sm"
+                    className="flex h-16 w-28 items-center justify-center p-1"
                     title={item.name}
                   >
                     <Image
