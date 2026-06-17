@@ -1462,14 +1462,6 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
         }),
       })
       await load()
-      setInitialForm(JSON.stringify({
-        ...form,
-        sponsorSectionEnabled,
-        sponsorSectionTitle,
-        sponsorSectionSubtitle,
-        showRiderPhotosPublic,
-        sponsorItems,
-      }))
       alert('Settings dan staff assignments tersimpan.')
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Gagal menyimpan settings.')
@@ -1498,6 +1490,8 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
       sponsorSectionSubtitle,
       showRiderPhotosPublic,
       sponsorItems,
+      communityShowcaseEnabled,
+      communityLogoItems,
     })
   const sponsorSummary = `Sponsor ${previewSponsors.length} | ${
     sponsorSectionEnabled ? 'Tampil di publik' : 'Disembunyikan'
