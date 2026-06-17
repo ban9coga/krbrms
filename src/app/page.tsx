@@ -7,7 +7,7 @@ import Image from 'next/image'
 import { adminClient } from '../lib/auth'
 import type { EventItem, EventStatus } from '../lib/eventService'
 import { toPublicMediaUrl } from '../lib/publicMedia'
-import { communityShowcaseLogos } from '../lib/communityShowcase'
+import { getCommunityShowcaseLogos, type CommunityShowcaseLogo } from '../lib/communityShowcase'
 
 export const revalidate = 30
 
@@ -43,11 +43,11 @@ const fetchLandingEvents = async (status: EventStatus): Promise<EventItem[]> => 
 
 const loadEventSettings = async (eventIds: string[]) => {
   const settingsMap = new Map<string, LandingEventSettings>()
-  if (eventIds.length === 0) return settingsMap
+  if (eventIds.length === 0) return { settingsMap, communityLogos: [] as CommunityShowcaseLogo[] }
 
   const { data: settingsRows } = await adminClient
       .from('event_settings')
-      .select('event_id, event_logo_url, display_theme, race_format_settings, registration_open')
+      .select('event_id, event_logo_url, display_theme, race_format_settings, registration_open, business_settings')
       .in('event_id', eventIds)
 
   for (const row of settingsRows ?? []) {
@@ -63,7 +63,10 @@ const loadEventSettings = async (eventIds: string[]) => {
     })
   }
 
-  return settingsMap
+  return {
+    settingsMap,
+    communityLogos: getCommunityShowcaseLogos(settingsRows ?? []),
+  }
 }
 
 const loadRegistrationAvailability = async (eventIds: string[]) => {
@@ -238,10 +241,11 @@ export default async function LandingPage() {
     fetchLandingEvents('FINISHED'),
   ])
   const landingEventIds = Array.from(new Set([...upcomingEventsRaw, ...finishedEventsRaw].map((e) => e.id)))
-  const [settingsMap, registrationAvailability] = await Promise.all([
+  const [landingSettings, registrationAvailability] = await Promise.all([
     loadEventSettings(landingEventIds),
     loadRegistrationAvailability(upcomingEventsRaw.map((event) => event.id)),
   ])
+  const { settingsMap, communityLogos } = landingSettings
   const upcomingEvents = attachLandingSettings(upcomingEventsRaw, settingsMap)
   const finishedEvents = attachLandingSettings(finishedEventsRaw, settingsMap)
 
@@ -268,10 +272,10 @@ export default async function LandingPage() {
           settingsMap={settingsMap}
           emptyMessage="Belum ada completed event yang tampil untuk publik."
         >
-          {communityShowcaseLogos.length > 0 && (
+          {communityLogos.length > 0 && (
             <div className="mt-6 rounded-2xl border border-slate-700/70 bg-white p-4">
               <div className="flex flex-wrap items-center justify-center gap-4">
-                {communityShowcaseLogos.map((item) => (
+                {communityLogos.map((item) => (
                   <div
                     key={item.name}
                     className="flex h-16 w-28 items-center justify-center rounded-xl border border-slate-200 bg-white p-2 shadow-sm"

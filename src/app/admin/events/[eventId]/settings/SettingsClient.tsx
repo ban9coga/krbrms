@@ -1514,6 +1514,10 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                   Kelola sponsor per item untuk event page dan live display. Logo URL tetap akan disimpan juga
                   sebagai fallback cepat.
                 </div>
+                <div style={{ color: '#0f5132', fontWeight: 900, fontSize: 13 }}>
+                  Untuk logo komunitas pengguna sistem di homepage, tambahkan item sponsor dengan tier COMMUNITY,
+                  isi nama komunitas, upload logo, lalu Save Settings.
+                </div>
                 <div style={{ display: 'grid', gap: 10 }}>
                   <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                     <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 800 }}>
