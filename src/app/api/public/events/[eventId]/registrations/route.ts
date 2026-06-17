@@ -99,12 +99,26 @@ const normalizePlateNumber = (value: unknown) => {
   return raw
 }
 
-const normalizePhoneDigits = (value: unknown) => String(value ?? '').replace(/[^\d]/g, '').slice(0, 15)
+const normalizePhoneDigits = (value: unknown) => {
+  const raw = String(value ?? '').trim()
+  const digits = raw.replace(/[^\d]/g, '').slice(0, 15)
+  if (!digits) return ''
+  if (raw.startsWith('+')) return digits
+  if (digits.startsWith('00')) return digits.slice(2)
+  return digits
+}
+
+const normalizeWhatsappDigits = (value: unknown) => {
+  const digits = normalizePhoneDigits(value)
+  if (!digits) return ''
+  if (digits.startsWith('0')) return `62${digits.slice(1)}`
+  return digits
+}
 
 const isValidWhatsappNumber = (value: unknown) => {
-  const digits = normalizePhoneDigits(value)
+  const digits = normalizeWhatsappDigits(value)
   if (digits.length < 10 || digits.length > 15) return false
-  return digits.startsWith('08') || digits.startsWith('62')
+  return /^[1-9]\d{9,14}$/.test(digits)
 }
 
 const isCategoryFull = (
@@ -210,9 +224,9 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
   if (!contact_name || !contact_phone || !Array.isArray(items) || items.length === 0) {
     return { error: 'Missing required fields' }
   }
-  const normalizedContactPhone = normalizePhoneDigits(contact_phone)
+  const normalizedContactPhone = normalizeWhatsappDigits(contact_phone)
   if (!isValidWhatsappNumber(normalizedContactPhone)) {
-    return { error: 'Nomor WhatsApp belum valid. Gunakan format 08... atau 62..., minimal 10 digit.' }
+    return { error: 'Nomor WhatsApp belum valid. Gunakan format Indonesia 08.../62... atau internasional +60..., minimal 10 digit.' }
   }
   if (contact_email && !isValidEmail(contact_email)) {
     return { error: 'Format email tidak valid.' }
@@ -721,4 +735,3 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     return NextResponse.json({ error: message }, { status: 400 })
   }
 }
-
