@@ -3,8 +3,9 @@ import MarketingTopbar from '../components/MarketingTopbar'
 import PerformanceStats from '../components/PerformanceStats'
 import EventCard from '../components/EventCard'
 import Link from 'next/link'
+import Image from 'next/image'
 import { adminClient } from '../lib/auth'
-import type { BusinessSettings, EventItem, EventStatus } from '../lib/eventService'
+import type { EventItem, EventStatus } from '../lib/eventService'
 import { toPublicMediaUrl } from '../lib/publicMedia'
 
 export const revalidate = 30
@@ -20,8 +21,6 @@ type LandingEventSettings = {
   slogan?: string | null
   event_scope?: 'PUBLIC' | 'INTERNAL'
   registration_open?: boolean
-  owner_name?: string | null
-  partner_name?: string | null
 }
 
 const fetchLandingEvents = async (status: EventStatus): Promise<EventItem[]> => {
@@ -53,7 +52,6 @@ const loadEventSettings = async (eventIds: string[]) => {
   for (const row of settingsRows ?? []) {
     const theme = (row.display_theme ?? {}) as Record<string, unknown>
     const raceFormat = (row.race_format_settings ?? {}) as Record<string, unknown>
-    const business = (row.business_settings ?? {}) as BusinessSettings
     const slogan = typeof theme.slogan === 'string' ? theme.slogan : null
     const eventScope = raceFormat.event_scope === 'INTERNAL' ? 'INTERNAL' : 'PUBLIC'
     settingsMap.set(row.event_id, {
@@ -61,12 +59,6 @@ const loadEventSettings = async (eventIds: string[]) => {
       slogan,
       event_scope: eventScope,
       registration_open: typeof row.registration_open === 'boolean' ? row.registration_open : true,
-      owner_name: business.event_owner_name?.trim() || business.public_brand_name?.trim() || null,
-      partner_name:
-        business.operating_committee_name?.trim() ||
-        business.scoring_support_name?.trim() ||
-        business.platform_powered_by?.trim() ||
-        null,
     })
   }
 
@@ -154,16 +146,6 @@ const attachLandingSettings = (events: EventItem[], settingsMap: Map<string, Lan
     event_scope: settingsMap.get(event.id)?.event_scope ?? 'PUBLIC',
     registration_open: settingsMap.get(event.id)?.registration_open ?? true,
   }))
-
-const uniqueLabels = (values: Array<string | null | undefined>) =>
-  Array.from(
-    new Map(
-      values
-        .map((value) => value?.trim())
-        .filter((value): value is string => Boolean(value))
-        .map((value) => [value.toLowerCase(), value])
-    ).values()
-  )
 
 function LandingEventSection({
   eyebrow,
@@ -261,8 +243,13 @@ export default async function LandingPage() {
   ])
   const upcomingEvents = attachLandingSettings(upcomingEventsRaw, settingsMap)
   const finishedEvents = attachLandingSettings(finishedEventsRaw, settingsMap)
-  const ownerLabels = uniqueLabels(finishedEvents.map((event) => settingsMap.get(event.id)?.owner_name))
-  const partnerLabels = uniqueLabels(finishedEvents.map((event) => settingsMap.get(event.id)?.partner_name))
+  const completedLogos = finishedEvents
+    .map((event) => ({
+      id: event.id,
+      name: event.name,
+      logoUrl: settingsMap.get(event.id)?.logo ?? null,
+    }))
+    .filter((item) => Boolean(item.logoUrl))
 
   return (
     <div className="public-page" style={{ background: '#f6fbf7', color: '#111' }}>
@@ -287,32 +274,25 @@ export default async function LandingPage() {
           settingsMap={settingsMap}
           emptyMessage="Belum ada completed event yang tampil untuk publik."
         >
-          {(ownerLabels.length > 0 || partnerLabels.length > 0) && (
-            <div className="mt-6 grid gap-3 rounded-2xl border border-slate-700/70 bg-slate-900/45 p-4 md:grid-cols-2">
-              {ownerLabels.length > 0 && (
-                <div className="grid gap-2">
-                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-300">Komunitas Pengguna Sistem</p>
-                  <div className="flex flex-wrap gap-2">
-                    {ownerLabels.map((label) => (
-                      <span key={label} className="rounded-full border border-slate-600 bg-slate-800 px-3 py-1 text-xs font-bold text-slate-100">
-                        {label}
-                      </span>
-                    ))}
+          {completedLogos.length > 0 && (
+            <div className="mt-6 rounded-2xl border border-slate-700/70 bg-white p-4">
+              <div className="flex flex-wrap items-center justify-center gap-4">
+                {completedLogos.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex h-16 w-28 items-center justify-center rounded-xl border border-slate-200 bg-white p-2 shadow-sm"
+                    title={item.name}
+                  >
+                    <Image
+                      src={item.logoUrl ?? ''}
+                      alt={item.name}
+                      width={112}
+                      height={64}
+                      className="max-h-full max-w-full object-contain"
+                    />
                   </div>
-                </div>
-              )}
-              {partnerLabels.length > 0 && (
-                <div className="grid gap-2">
-                  <p className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-300">Partner Event</p>
-                  <div className="flex flex-wrap gap-2">
-                    {partnerLabels.map((label) => (
-                      <span key={label} className="rounded-full border border-slate-600 bg-slate-800 px-3 py-1 text-xs font-bold text-slate-100">
-                        {label}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
+                ))}
+              </div>
             </div>
           )}
         </LandingEventSection>
