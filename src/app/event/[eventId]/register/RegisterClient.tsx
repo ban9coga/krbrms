@@ -7,6 +7,7 @@ import {
   getFallbackPrimaryCategoryCandidates,
 } from '../../../../lib/categoryAssignment'
 import type { BusinessSettings } from '../../../../lib/eventService'
+import { buildQrCodeUrl } from '../../../../lib/publicLinks'
 
 type CategoryItem = {
   id: string
@@ -79,6 +80,9 @@ const DEFAULT_JERSEY_SIZE_OPTIONS = JERSEY_SIZE_GUIDE_ROWS.map(([size]) => size)
 
 const formatRupiah = (value: number) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value)
+
+const buildRegistrationStatusUrl = (registrationCode: string) =>
+  `https://racepushbike.com/registration-status?code=${encodeURIComponent(registrationCode)}`
 
 const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
 
@@ -2263,7 +2267,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
 
       {success && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#1d0d07]/75 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-[1.75rem] border border-[#d9c9ae] bg-[#fff8e8] p-6 text-[#1d0d07] shadow-[0_30px_90px_rgba(55,23,9,0.45)]">
+          <div className="max-h-[calc(100vh-2rem)] w-full max-w-lg overflow-y-auto rounded-[1.75rem] border border-[#d9c9ae] bg-[#fff8e8] p-6 text-[#1d0d07] shadow-[0_30px_90px_rgba(55,23,9,0.45)]">
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-[#d8a916] bg-[#f3c63d] text-4xl font-black text-[#1d0d07] shadow-[0_10px_24px_rgba(243,198,61,0.28)]">
               ✓
             </div>
@@ -2278,6 +2282,19 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
               </div>
               <p className="mt-1 text-xs font-semibold text-[#796657]">
                 Simpan kode ini untuk mengecek status pendaftaran.
+              </p>
+              <div className="mx-auto mt-4 w-fit rounded-2xl border border-[#d9c9ae] bg-white p-3 shadow-sm">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={buildQrCodeUrl(buildRegistrationStatusUrl(success.registrationCode), 180)}
+                  alt={`QR status pendaftaran ${success.registrationCode}`}
+                  width={180}
+                  height={180}
+                  className="h-[150px] w-[150px] sm:h-[180px] sm:w-[180px]"
+                />
+              </div>
+              <p className="mt-2 text-[11px] font-semibold text-[#796657]">
+                Scan QR untuk membuka halaman cek status.
               </p>
               <button
                 type="button"

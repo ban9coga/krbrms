@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import PublicTopbar from '../../components/PublicTopbar'
+import { buildQrCodeUrl } from '../../lib/publicLinks'
 
 type RegistrationStatusData = {
   registration_code: string
@@ -24,6 +25,9 @@ type RegistrationStatusData = {
 
 const formatRupiah = (value: number) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value)
+
+const buildRegistrationStatusUrl = (registrationCode: string) =>
+  `https://racepushbike.com/registration-status?code=${encodeURIComponent(registrationCode)}`
 
 const registrationStatusLabel = {
   PENDING: 'Menunggu Verifikasi',
@@ -50,6 +54,11 @@ export default function RegistrationStatusPage() {
   const [result, setResult] = useState<RegistrationStatusData | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get('code')?.trim().toUpperCase()
+    if (code) setRegistrationCode(code.slice(0, 19))
+  }, [])
 
   const checkStatus = async () => {
     setError('')
@@ -155,6 +164,23 @@ export default function RegistrationStatusPage() {
                 <p className="mt-1 text-sm font-semibold leading-6 text-[#68420a]">{result.notes}</p>
               </div>
             )}
+
+            <div className="rounded-2xl border border-[#d9c9ae] bg-[#f8eedb] p-4 text-center">
+              <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[#796657]">QR Pendaftaran</div>
+              <div className="mx-auto mt-3 w-fit rounded-2xl border border-[#d9c9ae] bg-white p-3 shadow-sm">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={buildQrCodeUrl(buildRegistrationStatusUrl(result.registration_code), 220)}
+                  alt={`QR status pendaftaran ${result.registration_code}`}
+                  width={220}
+                  height={220}
+                  className="h-[180px] w-[180px] sm:h-[220px] sm:w-[220px]"
+                />
+              </div>
+              <p className="mt-2 text-xs font-semibold text-[#796657]">
+                Simpan QR ini untuk akses status dan proses check-in berikutnya.
+              </p>
+            </div>
 
             <div className="grid gap-3">
               <div className="text-xs font-black uppercase text-[#5f4638]">Rider Terdaftar</div>
