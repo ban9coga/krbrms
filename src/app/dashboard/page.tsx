@@ -118,82 +118,94 @@ export default async function DashboardPage() {
   }))
 
   return (
-    <div className="public-page" style={{ background: '#f6fbf7', color: '#111' }}>
-      <MarketingTopbar />
+    <div className="public-page homepage-editorial-page dashboard-editorial-page">
+      <MarketingTopbar variant="editorial" />
 
-      <main className="w-full bg-slate-100 px-2 py-4 sm:px-4 md:px-6 md:py-8">
-        <section className="mx-auto w-full max-w-[1500px]">
-          <div className="relative overflow-hidden rounded-[2rem] bg-[linear-gradient(125deg,#090f1d_0%,#1e293b_42%,#78350f_100%)] px-5 py-10 shadow-[0_40px_120px_rgba(15,23,42,0.32)] sm:px-8 sm:py-12 md:rounded-[2.5rem] md:px-14 md:py-14">
-            <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-amber-400/15 blur-3xl" />
-            <div className="pointer-events-none absolute -top-24 right-0 h-72 w-72 rounded-full bg-sky-400/15 blur-3xl" />
+      <main className="dashboard-editorial-main">
+        <header className="dashboard-editorial-heading">
+          <p>Race calendar</p>
+          <h1>Semua Event</h1>
+          <span>Pantau event live, daftar race berikutnya, dan buka kembali hasil event yang sudah selesai.</span>
+        </header>
 
-            <div className="relative z-10">
-              <h1 className="text-center text-3xl font-extrabold tracking-tight text-white sm:text-4xl md:text-5xl">
-                Event Dashboard
-              </h1>
-              <p className="mx-auto mt-3 max-w-3xl text-center text-sm text-slate-200 sm:text-base md:text-lg">
-                Pantau event yang sedang berjalan, upcoming race, dan hasil kompetisi dalam satu tampilan.
-              </p>
-
-              <div className="mx-auto mt-8 grid max-w-[1120px] gap-6 sm:mt-10 md:gap-8">
-                <div id="live-results" className="rounded-3xl border border-slate-700/70 bg-slate-900/55 p-4 backdrop-blur-sm sm:p-6">
-                  <h2 className="mb-4 text-2xl font-bold text-white">Live Results</h2>
-                  {ongoingEvents.length === 0 && (
-                    <p className="pb-2 text-sm font-semibold text-slate-300">Belum ada event yang sedang berlangsung.</p>
-                  )}
-                  <div style={{ display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
-                    {ongoingEvents.map((event, idx) => (
-                      <EventCard
-                        key={event.id}
-                        event={event}
-                        index={idx}
-                        logoUrl={settingsMap.get(event.id)?.logo ?? null}
-                        slogan={settingsMap.get(event.id)?.slogan ?? null}
-                        canRegister={event.registration_open !== false && (registrationAvailability.get(event.id) ?? true)}
-                      />
-                    ))}
-                  </div>
-                </div>
-
-                <div className="rounded-3xl border border-slate-700/70 bg-slate-900/55 p-4 backdrop-blur-sm sm:p-6">
-                  <h2 className="mb-4 text-2xl font-bold text-white">Upcoming Events</h2>
-                  {upcomingEvents.length === 0 && (
-                    <p className="pb-2 text-sm font-semibold text-slate-300">Belum ada event yang akan datang.</p>
-                  )}
-                  <div style={{ display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
-                    {upcomingEvents.map((event, idx) => (
-                      <EventCard
-                        key={event.id}
-                        event={event}
-                        index={idx}
-                        logoUrl={settingsMap.get(event.id)?.logo ?? null}
-                        slogan={settingsMap.get(event.id)?.slogan ?? null}
-                        canRegister={event.registration_open !== false && (registrationAvailability.get(event.id) ?? true)}
-                      />
-                    ))}
-                  </div>
-                </div>
-
-                <div className="rounded-3xl border border-slate-700/70 bg-slate-900/55 p-4 backdrop-blur-sm sm:p-6">
-                  <h2 className="mb-4 text-2xl font-bold text-white">Finished Events</h2>
-                  {finishedEvents.length === 0 && (
-                    <p className="pb-2 text-sm font-semibold text-slate-300">Belum ada event yang selesai.</p>
-                  )}
-                  <div style={{ display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
-                    {finishedEvents.map((event, idx) => (
-                      <EventCard
-                        key={event.id}
-                        event={event}
-                        index={idx}
-                        logoUrl={settingsMap.get(event.id)?.logo ?? null}
-                        slogan={settingsMap.get(event.id)?.slogan ?? null}
-                      />
-                    ))}
-                  </div>
-                </div>
-              </div>
+        <section id="live-results" className="dashboard-editorial-section dashboard-editorial-section-live">
+          <div className="dashboard-editorial-section-head">
+            <div>
+              <p>Live now</p>
+              <h2>Event Berlangsung</h2>
             </div>
+            <span>{ongoingEvents.length} event</span>
           </div>
+          {ongoingEvents.length === 0 ? (
+            <div className="dashboard-editorial-empty">Belum ada event yang sedang berlangsung.</div>
+          ) : (
+            <div className="dashboard-editorial-grid">
+              {ongoingEvents.map((event, idx) => (
+                <EventCard
+                  key={event.id}
+                  event={event}
+                  index={idx}
+                  logoUrl={settingsMap.get(event.id)?.logo ?? null}
+                  slogan={settingsMap.get(event.id)?.slogan ?? null}
+                  canRegister={event.registration_open !== false && (registrationAvailability.get(event.id) ?? true)}
+                  variant="editorial"
+                />
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="dashboard-editorial-section dashboard-editorial-section-upcoming">
+          <div className="dashboard-editorial-section-head">
+            <div>
+              <p>Upcoming event</p>
+              <h2>Event yang Akan Datang</h2>
+            </div>
+            <span>{upcomingEvents.length} event</span>
+          </div>
+          {upcomingEvents.length === 0 ? (
+            <div className="dashboard-editorial-empty">Belum ada event yang akan datang.</div>
+          ) : (
+            <div className="dashboard-editorial-grid">
+              {upcomingEvents.map((event, idx) => (
+                <EventCard
+                  key={event.id}
+                  event={event}
+                  index={idx}
+                  logoUrl={settingsMap.get(event.id)?.logo ?? null}
+                  slogan={settingsMap.get(event.id)?.slogan ?? null}
+                  canRegister={event.registration_open !== false && (registrationAvailability.get(event.id) ?? true)}
+                  variant="editorial"
+                />
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="dashboard-editorial-section dashboard-editorial-section-finished">
+          <div className="dashboard-editorial-section-head">
+            <div>
+              <p>Race archive</p>
+              <h2>Completed Event</h2>
+            </div>
+            <span>{finishedEvents.length} event</span>
+          </div>
+          {finishedEvents.length === 0 ? (
+            <div className="dashboard-editorial-empty">Belum ada event yang selesai.</div>
+          ) : (
+            <div className="dashboard-editorial-grid">
+              {finishedEvents.map((event, idx) => (
+                <EventCard
+                  key={event.id}
+                  event={event}
+                  index={idx}
+                  logoUrl={settingsMap.get(event.id)?.logo ?? null}
+                  slogan={settingsMap.get(event.id)?.slogan ?? null}
+                  variant="editorial"
+                />
+              ))}
+            </div>
+          )}
         </section>
       </main>
     </div>
