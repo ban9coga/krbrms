@@ -27,6 +27,8 @@ type PublicRegistrationRow = {
   status: 'PENDING' | 'APPROVED' | 'REJECTED'
   notes: string | null
   created_at: string
+  checked_in_at: string | null
+  goodie_bag_collected_at: string | null
   events: { name: string | null } | Array<{ name: string | null }> | null
   registration_items: Array<{
     rider_name: string
@@ -54,7 +56,7 @@ export async function POST(req: Request) {
   const { data, error } = await adminClient
     .from('registrations')
     .select(
-      'registration_code, contact_name, contact_phone, community_name, total_amount, status, notes, created_at, events(name), registration_items(rider_name, rider_nickname, requested_plate_number, requested_plate_suffix, status, categories!registration_items_primary_category_id_fkey(label)), registration_payments(status)'
+      'registration_code, contact_name, contact_phone, community_name, total_amount, status, notes, created_at, checked_in_at, goodie_bag_collected_at, events(name), registration_items(rider_name, rider_nickname, requested_plate_number, requested_plate_suffix, status, categories!registration_items_primary_category_id_fkey(label)), registration_payments(status)'
     )
     .eq('registration_code', registrationCode)
     .eq('contact_phone', contactPhone)
@@ -97,6 +99,8 @@ export async function POST(req: Request) {
       status: registration.status,
       notes: registration.notes,
       created_at: registration.created_at,
+      checked_in_at: registration.checked_in_at,
+      goodie_bag_collected_at: registration.goodie_bag_collected_at,
       event_name: Array.isArray(registration.events)
         ? registration.events[0]?.name ?? 'Event'
         : registration.events?.name ?? 'Event',

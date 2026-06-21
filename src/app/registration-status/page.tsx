@@ -12,6 +12,8 @@ type RegistrationStatusData = {
   status: 'PENDING' | 'APPROVED' | 'REJECTED'
   notes: string | null
   created_at: string
+  checked_in_at: string | null
+  goodie_bag_collected_at: string | null
   event_name: string
   payment_status: 'NO_PAYMENT' | 'PENDING' | 'APPROVED' | 'REJECTED'
   riders: Array<{
@@ -47,6 +49,15 @@ const statusClass = (status: string) => {
   if (status === 'REJECTED') return 'border-[#ef9a9a] bg-[#ffe1e1] text-[#a61919]'
   return 'border-[#efd289] bg-[#fff2c9] text-[#8a5700]'
 }
+
+const formatDateTime = (value: string | null) =>
+  value
+    ? new Intl.DateTimeFormat('id-ID', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+        timeZone: 'Asia/Jakarta',
+      }).format(new Date(value))
+    : null
 
 export default function RegistrationStatusPage() {
   const [registrationCode, setRegistrationCode] = useState('')
@@ -155,6 +166,23 @@ export default function RegistrationStatusPage() {
               <div>
                 <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[#796657]">Total</div>
                 <div className="mt-1 font-black text-[#087443]">{formatRupiah(result.total_amount)}</div>
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className={`rounded-2xl border p-4 ${result.checked_in_at ? 'border-[#9bc9ae] bg-[#e3f3e6]' : 'border-[#d9c9ae] bg-white'}`}>
+                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[#796657]">Check-in Venue</div>
+                <div className={`mt-1 font-black ${result.checked_in_at ? 'text-[#087443]' : 'text-[#58493d]'}`}>
+                  {result.checked_in_at ? `Sudah · ${formatDateTime(result.checked_in_at)}` : 'Belum check-in'}
+                </div>
+              </div>
+              <div className={`rounded-2xl border p-4 ${result.goodie_bag_collected_at ? 'border-[#9bc9ae] bg-[#e3f3e6]' : 'border-[#d9c9ae] bg-white'}`}>
+                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[#796657]">Goodie Bag</div>
+                <div className={`mt-1 font-black ${result.goodie_bag_collected_at ? 'text-[#087443]' : 'text-[#58493d]'}`}>
+                  {result.goodie_bag_collected_at
+                    ? `Sudah diambil · ${formatDateTime(result.goodie_bag_collected_at)}`
+                    : 'Belum diambil'}
+                </div>
               </div>
             </div>
 

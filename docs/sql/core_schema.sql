@@ -277,6 +277,10 @@ create table if not exists registrations (
   total_amount int not null default 0,
   status registration_status not null default 'PENDING',
   notes text,
+  checked_in_at timestamptz,
+  checked_in_by uuid,
+  goodie_bag_collected_at timestamptz,
+  goodie_bag_collected_by uuid,
   upload_token text,
   upload_token_created_at timestamptz,
   created_at timestamptz not null default now(),
@@ -370,6 +374,22 @@ drop trigger if exists trg_registration_payments_updated_at on registration_paym
 create trigger trg_registration_payments_updated_at
 before update on registration_payments
 for each row execute function set_updated_at();
+
+create table if not exists registration_checkin_logs (
+  id uuid primary key default uuid_generate_v4(),
+  registration_id uuid not null references registrations(id) on delete cascade,
+  event_id uuid not null references events(id) on delete cascade,
+  action text not null,
+  performed_by uuid,
+  performed_at timestamptz not null default now(),
+  constraint ck_registration_checkin_logs_action
+    check (action in ('CHECK_IN', 'GOODIE_BAG_COLLECTED'))
+);
+
+create index if not exists idx_registration_checkin_logs_registration
+  on registration_checkin_logs (registration_id, performed_at desc);
+create index if not exists idx_registration_checkin_logs_event
+  on registration_checkin_logs (event_id, performed_at desc);
 
 -- OPTIONAL MODULES
 

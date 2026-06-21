@@ -1,5 +1,6 @@
 import { adminClient } from './auth'
 import type { BusinessSettings } from './eventService'
+import { buildQrCodeUrl } from './publicLinks'
 
 type RegistrationRow = {
   id: string
@@ -170,6 +171,8 @@ export const sendRegistrationStatusEmail = async (
       ? riderNames[0]
       : `${riderNames[0]} +${riderNames.length - 1} rider`
   const shortRegistrationId = reg.registration_code || reg.id.slice(0, 8).toUpperCase()
+  const statusUrl = `https://racepushbike.com/registration-status?code=${encodeURIComponent(shortRegistrationId)}`
+  const qrCodeUrl = buildQrCodeUrl(statusUrl, 240)
 
   const riderRows = items
     .map((item, index) => {
@@ -251,6 +254,17 @@ export const sendRegistrationStatusEmail = async (
         <div><strong>Total:</strong> ${escapeHtml(formatRupiah(reg.total_amount))}</div>
         <div><strong>Status:</strong> ${escapeHtml(statusLabel)}</div>
       </div>
+      <div style="padding:16px;border:1px solid #fde68a;border-radius:14px;background:#fffbeb;margin-bottom:16px;text-align:center;">
+        <div style="font-size:12px;font-weight:700;text-transform:uppercase;color:#92400e;margin-bottom:8px;">QR Pendaftaran</div>
+        <img src="${escapeHtml(qrCodeUrl)}" width="200" height="200" alt="QR status pendaftaran ${escapeHtml(
+          shortRegistrationId
+        )}" style="display:block;width:200px;height:200px;margin:0 auto 10px;background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:8px;" />
+        <div style="font-size:14px;font-weight:700;margin-bottom:10px;">${escapeHtml(shortRegistrationId)}</div>
+        <a href="${escapeHtml(
+          statusUrl
+        )}" style="display:inline-block;padding:10px 16px;border-radius:999px;background:#f3c63d;color:#1d0d07;text-decoration:none;font-weight:700;">Cek Status Pendaftaran</a>
+        <p style="margin:10px 0 0;color:#6b7280;font-size:12px;">Nomor WhatsApp tetap diperlukan saat membuka status pendaftaran.</p>
+      </div>
       ${noteBlock}
       <table style="border-collapse:collapse;width:100%;margin-bottom:16px;font-size:13px;">
         <thead>
@@ -279,6 +293,7 @@ export const sendRegistrationStatusEmail = async (
     `Lokasi: ${event?.location || '-'}`,
     `Tanggal: ${event?.event_date || '-'}`,
     `Kode Registrasi: ${shortRegistrationId}`,
+    `Cek Status: ${statusUrl}`,
     `Total: ${formatRupiah(reg.total_amount)}`,
     `Status: ${statusLabel}`,
     !isApproved && notes?.trim() ? `Alasan: ${notes.trim()}` : '',

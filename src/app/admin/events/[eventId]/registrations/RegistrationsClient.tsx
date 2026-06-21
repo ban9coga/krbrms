@@ -1,6 +1,7 @@
 ﻿'use client'
 
 import type { ReactNode } from 'react'
+import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { isRegistrationApproverRole, normalizeAppRole } from '../../../../../lib/roles'
 import { supabase } from '../../../../../lib/supabaseClient'
@@ -319,6 +320,13 @@ const buildWhatsAppMessage = (
   const riderText = riderNames.length > 0 ? riderNames.join(', ') : 'rider'
   const total = formatRupiah(registration.total_amount)
   const whatsappGroupUrl = normalizeExternalUrl(whatsappGroupInviteUrl)
+  const registrationCode = registration.registration_code || registration.id.slice(0, 8).toUpperCase()
+  const statusUrl = `https://racepushbike.com/registration-status?code=${encodeURIComponent(registrationCode)}`
+  const statusLines = [
+    `Kode registrasi: ${registrationCode}`,
+    `Cek status & QR: ${statusUrl}`,
+    'Masukkan nomor WhatsApp yang digunakan saat mendaftar.',
+  ]
 
   if (kind === 'APPROVED') {
     return [
@@ -327,6 +335,7 @@ const buildWhatsAppMessage = (
       `Pendaftaran ${riderText} telah dikonfirmasi oleh panitia.`,
       `Total pembayaran: ${total}`,
       'Status: Pendaftaran telah dikonfirmasi',
+      ...statusLines,
       '',
       'Data rider:',
       ...buildWhatsAppRiderLines(registration, categoryMap),
@@ -343,6 +352,7 @@ const buildWhatsAppMessage = (
       `Halo ${registration.contact_name},`,
       '',
       `Bukti pembayaran untuk pendaftaran ${riderText} belum dapat dikonfirmasi.`,
+      ...statusLines,
       'Silakan cek email/catatan panitia lalu upload ulang bukti pembayaran yang benar.',
       '',
       'Terima kasih.',
@@ -353,6 +363,7 @@ const buildWhatsAppMessage = (
     `Halo ${registration.contact_name},`,
     '',
     `Pendaftaran ${riderText} belum dapat dikonfirmasi oleh panitia.`,
+    ...statusLines,
     'Silakan cek email/catatan panitia untuk informasi perbaikan data.',
     '',
     'Terima kasih.',
@@ -1849,9 +1860,17 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
               Review bukti pembayaran, validasi dokumen, rapikan nomor plate, lalu approve rider saat semua persyaratan sudah aman.
             </p>
           </div>
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
-            Menampilkan <span className="font-black text-slate-950">{registrations.length}</span> dari{' '}
-            <span className="font-black text-slate-950">{meta.total}</span> pendaftaran
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              href={`/admin/events/${eventId}/check-in`}
+              className="rounded-2xl border border-amber-400 bg-amber-100 px-4 py-3 text-sm font-black uppercase text-amber-900 hover:bg-amber-200"
+            >
+              Check-in & Goodie Bag
+            </Link>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+              Menampilkan <span className="font-black text-slate-950">{registrations.length}</span> dari{' '}
+              <span className="font-black text-slate-950">{meta.total}</span> pendaftaran
+            </div>
           </div>
         </div>
 
