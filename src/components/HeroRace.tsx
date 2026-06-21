@@ -1,11 +1,5 @@
 import Link from 'next/link'
-import LiveEntryButton from './LiveEntryButton'
-
-type LiveEventItem = {
-  id: string
-  name: string
-  location?: string | null
-}
+import type { LiveEventItem } from '../lib/liveEvent'
 
 const heroStats = [
   { value: '01', label: 'Integrated Platform' },
@@ -14,8 +8,6 @@ const heroStats = [
 ]
 
 export default function HeroRace({ liveEvent }: { liveEvent: LiveEventItem | null }) {
-  const eventHref = liveEvent ? `/event/${liveEvent.id}` : '/dashboard'
-
   return (
     <section className="homepage-editorial-hero-shell">
       <div className="homepage-editorial-hero">
@@ -25,30 +17,27 @@ export default function HeroRace({ liveEvent }: { liveEvent: LiveEventItem | nul
         <div className="homepage-editorial-hero-content">
           <div className="homepage-editorial-kicker">
             <span className={liveEvent ? 'homepage-editorial-live-dot' : 'homepage-editorial-idle-dot'} />
-            {liveEvent ? `LIVE EVENT · ${liveEvent.name}` : 'PUSHBIKE RACE MANAGEMENT · SEASON 2026'}
+            RACEPUSHBIKE.COM - PLATFORM RACE PUSHBIKE &amp; BALANCE BIKE · INDONESIA
           </div>
 
           <h1 className="homepage-editorial-title">
-            <span>Race management built for</span>
+            <span>Platform Race Pushbike</span>
             <span className="homepage-editorial-title-line">
-              <mark>faster</mark> decisions.
+              <mark>Terpercaya</mark> untuk Komunitas se-Indonesia
             </span>
           </h1>
 
           <p className="homepage-editorial-copy">
-            Registrasi rider, gate assignment, jury workflow, penalty, scoring, dan live results dalam satu
-            platform untuk race day yang lebih terkendali.
+            Daftarkan si kecil ke race pushbike terdekat, atau kelola event komunitasmu sendiri dengan sistem
+            live scoring real-time yang sudah dipercaya komunitas di berbagai kota.
           </p>
 
           <div className="homepage-editorial-actions">
-            <LiveEntryButton
-              label="Pantau Live"
-              mode="display"
-              fallbackHref="/dashboard"
-              className="homepage-editorial-action homepage-editorial-action-primary"
-            />
-            <Link href={eventHref} className="homepage-editorial-action homepage-editorial-action-secondary">
-              {liveEvent ? 'Buka Event Live' : 'Lihat Semua Event'}
+            <Link href="/dashboard" className="homepage-editorial-action homepage-editorial-action-primary">
+              Cari Race &amp; Daftar
+            </Link>
+            <Link href="/live-results" className="homepage-editorial-action homepage-editorial-action-secondary">
+              Cek Live Skor
               <span aria-hidden="true">→</span>
             </Link>
           </div>
@@ -64,14 +53,12 @@ export default function HeroRace({ liveEvent }: { liveEvent: LiveEventItem | nul
         </div>
 
         <div className="homepage-editorial-ticker" aria-label="Platform features">
-          <span>LIVE SCORING</span>
-          <strong>READY</strong>
-          <span>GATE & MOTO CONTROL</span>
-          <strong>CONNECTED</strong>
-          <span>CHECKER · FINISHER · MC</span>
-          <strong>ACTIVE</strong>
-          <span>PUBLIC RESULTS</span>
-          <strong>UPDATED</strong>
+          <span>LIVE SCORING REAL-TIME</span>
+          <strong>PENDAFTARAN ONLINE</strong>
+          <span>HASIL RACE TRANSPARAN</span>
+          <strong>MULTI KATEGORI USIA</strong>
+          <span>JURY &amp; MARSHAL DASHBOARD</span>
+          <strong>KOMUNITAS PUSHBIKE &amp; BALANCE BIKE INDONESIA</strong>
         </div>
       </div>
     </section>

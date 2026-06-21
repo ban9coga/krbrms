@@ -7,14 +7,9 @@ import { adminClient } from '../lib/auth'
 import type { EventItem, EventStatus } from '../lib/eventService'
 import { toPublicMediaUrl } from '../lib/publicMedia'
 import { getCommunityShowcaseLogos, type CommunityShowcaseLogo } from '../lib/communityShowcase'
+import { getLiveEvent } from '../lib/liveEvent'
 
 export const revalidate = 30
-
-type LiveEventItem = {
-  id: string
-  name: string
-  location?: string | null
-}
 
 type LandingEventSettings = {
   logo?: string | null
@@ -121,28 +116,6 @@ const loadRegistrationAvailability = async (eventIds: string[]) => {
   return availability
 }
 
-const getLiveEvent = async (): Promise<LiveEventItem | null> => {
-  const { data, error } = await adminClient
-    .from('events')
-    .select('id, name, location, status, is_public, event_date')
-    .eq('status', 'LIVE')
-    .eq('is_public', true)
-    .order('event_date', { ascending: false })
-    .limit(1)
-
-  if (error) {
-    return null
-  }
-
-  const row = (data ?? [])[0]
-  if (!row) return null
-  return {
-    id: row.id,
-    name: row.name,
-    location: row.location,
-  }
-}
-
 const attachLandingSettings = (events: EventItem[], settingsMap: Map<string, LandingEventSettings>) =>
   events.map((event) => ({
     ...event,
@@ -197,8 +170,6 @@ function LandingEventSection({
           </Link>
         </div>
 
-        {children}
-
         <div className="homepage-editorial-events">
           {events.length === 0 ? (
             <div className="homepage-editorial-empty-state">{emptyMessage}</div>
@@ -222,6 +193,8 @@ function LandingEventSection({
             </div>
           )}
         </div>
+
+        {children}
       </div>
     </section>
   )

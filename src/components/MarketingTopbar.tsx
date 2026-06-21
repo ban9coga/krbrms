@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import { formatAppRoleLabel, normalizeAppRole } from '../lib/roles'
 import { supabase } from '../lib/supabaseClient'
-import { useTheme } from './ThemeProvider'
+import { ThemeToggleSwitch, useTheme } from './ThemeProvider'
 import PublicBottomBar from './PublicBottomBar'
 import LiveEntryButton from './LiveEntryButton'
 
@@ -113,7 +113,7 @@ export default function MarketingTopbar({
                       : `text-sm sm:text-base md:text-lg ${isDark ? 'text-slate-100' : 'text-slate-900'}`
                   }`}
                 >
-                  {editorial ? 'RacePushbike' : 'Pushbike Race Management Platform'}
+                  {editorial ? 'RacePushbike.com' : 'Pushbike Race Management Platform'}
                 </span>
                 {!editorial && (
                   <span className={`block truncate text-[11px] font-bold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
@@ -166,8 +166,10 @@ export default function MarketingTopbar({
               </nav>
             )}
 
-            {showLoginButton && !isLoginPage ? (
-              <div className={`flex items-center gap-2 ${editorial ? 'homepage-editorial-auth' : ''}`}>
+            <div className={`flex shrink-0 items-center gap-2 ${editorial ? 'homepage-editorial-auth' : ''}`}>
+              <ThemeToggleSwitch />
+              {showLoginButton && !isLoginPage ? (
+                <>
                 {isLoggedIn ? (
                   <>
                     <Link
@@ -207,10 +209,9 @@ export default function MarketingTopbar({
                     Login
                   </Link>
                 )}
-              </div>
-            ) : (
-              <div />
-            )}
+                </>
+              ) : null}
+            </div>
           </div>
 
           {showNav && (

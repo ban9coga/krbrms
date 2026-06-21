@@ -1,16 +1,20 @@
 import type { Metadata } from 'next'
+import FloatingLiveScoreButton from '../components/FloatingLiveScoreButton'
 import { PwaRegister } from '../components/PwaRegister'
 import { ThemeProvider } from '../components/ThemeProvider'
+import { getLiveEvent } from '../lib/liveEvent'
 import './globals.css'
+
+export const revalidate = 30
 
 export const metadata: Metadata = {
   title: {
-    default: 'Pushbike Race Management Platform',
+    default: 'RacePushbike — Live Skor & Pendaftaran Race Pushbike Indonesia',
     template: '%s | Pushbike Race Management Platform',
   },
   manifest: '/manifest.webmanifest',
   description:
-    'Sistem manajemen event pushbike real-time: live scoring, hasil race, dan dashboard admin untuk organizer di Indonesia.',
+    'Cek live skor race pushbike, daftarkan rider, dan pantau hasil race real-time. Platform terpercaya untuk komunitas pushbike di Indonesia.',
   keywords: ['pushbike', 'runbike', 'race management', 'live results', 'scoring', 'Padang', 'Indonesia'],
   authors: [{ name: 'FernTech Studio' }],
   creator: 'FernTech Studio',
@@ -19,8 +23,9 @@ export const metadata: Metadata = {
     google: '5hpTlLiEQ5f3Qldh9rkNfgpdnsHzMExsT9IAEeCR9XA', // tambah ini
   },
   openGraph: {
-    title: 'Pushbike Race Management Platform',
-    description: 'Sistem manajemen event pushbike real-time: live scoring, hasil race, dan dashboard admin.',
+    title: 'RacePushbike — Live Skor & Pendaftaran Race Pushbike Indonesia',
+    description:
+      'Cek live skor race pushbike, daftarkan rider, dan pantau hasil race real-time. Platform terpercaya untuk komunitas pushbike di Indonesia.',
     url: 'https://racepushbike.com',
     siteName: 'Pushbike Race Management Platform',
     locale: 'id_ID',
@@ -28,8 +33,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Pushbike Race Management Platform',
-    description: 'Sistem manajemen event pushbike real-time: live scoring, hasil race, dan dashboard admin.',
+    title: 'RacePushbike — Live Skor & Pendaftaran Race Pushbike Indonesia',
+    description:
+      'Cek live skor race pushbike, daftarkan rider, dan pantau hasil race real-time. Platform terpercaya untuk komunitas pushbike di Indonesia.',
   },
   robots: {
     index: true,
@@ -42,12 +48,17 @@ export const metadata: Metadata = {
   },
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const liveEvent = await getLiveEvent()
+
   return (
     <html lang="id">
       <body style={{ margin: 0, fontFamily: 'sans-serif' }}>
         <PwaRegister />
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          {children}
+          <FloatingLiveScoreButton hasLiveEvent={Boolean(liveEvent)} />
+        </ThemeProvider>
       </body>
     </html>
   )

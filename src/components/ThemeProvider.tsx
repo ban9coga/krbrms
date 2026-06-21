@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState, useSyncExternalStore } from 'react'
 
 type ThemeMode = 'light' | 'dark'
 
@@ -11,7 +11,6 @@ type ThemeContextValue = {
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null)
-
 const STORAGE_KEY = 'krb_theme_mode'
 
 const applyTheme = (theme: ThemeMode) => {
@@ -20,24 +19,51 @@ const applyTheme = (theme: ThemeMode) => {
   document.documentElement.style.colorScheme = theme
 }
 
-function ThemeToggleButton() {
+export function ThemeToggleSwitch({ className = '' }: { className?: string }) {
   const { theme, toggleTheme } = useTheme()
+  const mounted = useSyncExternalStore(
+    () => () => undefined,
+    () => true,
+    () => false
+  )
   const isDark = theme === 'dark'
 
+  if (!mounted) {
+    return <span className={`theme-switch-placeholder ${className}`.trim()} aria-hidden="true" />
+  }
+
   return (
-    <button
-      type="button"
-      onClick={toggleTheme}
+    <label
+      className={`switch theme-switch ${className}`.trim()}
       aria-label={isDark ? 'Aktifkan mode terang' : 'Aktifkan mode gelap'}
       title={isDark ? 'Mode terang' : 'Mode gelap'}
-      className="fixed bottom-24 right-4 z-[90] inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white/92 px-4 py-2.5 text-sm font-black text-slate-800 shadow-[0_14px_34px_rgba(15,23,42,0.18)] backdrop-blur transition hover:bg-white data-[theme=dark]:border-slate-600 data-[theme=dark]:bg-slate-900/92 data-[theme=dark]:text-slate-100 md:bottom-4"
-      data-theme={theme}
     >
-      <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-current/20">
-        {isDark ? '☀' : '☾'}
+      <input type="checkbox" checked={!isDark} onChange={toggleTheme} />
+      <span className="slider">
+        <span className="moons-hole" aria-hidden="true">
+          <span className="moon-hole" />
+          <span className="moon-hole" />
+          <span className="moon-hole" />
+        </span>
+        <span className="stars" aria-hidden="true">
+          {[0, 1, 2, 3, 4].map((star) => (
+            <svg key={star} className="star" viewBox="0 0 24 24">
+              <path d="m12 1.8 2.1 6.1 6.4.1-5.1 3.9 1.9 6.2-5.3-3.6-5.3 3.6 1.9-6.2L3.5 8l6.4-.1L12 1.8Z" />
+            </svg>
+          ))}
+        </span>
+        <span className="black-clouds" aria-hidden="true">
+          <span className="black-cloud" />
+          <span className="black-cloud" />
+          <span className="black-cloud" />
+        </span>
+        <span className="clouds" aria-hidden="true">
+          {[0, 1, 2, 3, 4, 5, 6].map((cloud) => (
+            <span key={cloud} className="cloud" />
+          ))}
+        </span>
       </span>
-      <span>{isDark ? 'Light' : 'Dark'}</span>
-    </button>
+    </label>
   )
 }
 
@@ -46,12 +72,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     if (typeof window === 'undefined') return 'light'
     return window.localStorage.getItem(STORAGE_KEY) === 'dark' ? 'dark' : 'light'
   })
-  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
     applyTheme(theme)
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setMounted(true)
   }, [theme])
 
   const setTheme = useCallback((nextTheme: ThemeMode) => {
@@ -66,12 +89,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     setTheme(theme === 'dark' ? 'light' : 'dark')
   }, [setTheme, theme])
 
-  return (
-    <ThemeContext.Provider value={{ theme, setTheme, toggleTheme }}>
-      {children}
-      {mounted ? <ThemeToggleButton /> : null}
-    </ThemeContext.Provider>
-  )
+  return <ThemeContext.Provider value={{ theme, setTheme, toggleTheme }}>{children}</ThemeContext.Provider>
 }
 
 export const useTheme = () => {
