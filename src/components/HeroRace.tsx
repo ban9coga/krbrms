@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import Image from 'next/image'
 import type { LiveEventItem } from '../lib/liveEvent'
 
 const heroStats = [
@@ -11,7 +12,15 @@ export default function HeroRace({ liveEvent }: { liveEvent: LiveEventItem | nul
   return (
     <section className="homepage-editorial-hero-shell">
       <div className="homepage-editorial-hero">
-        <div className="homepage-editorial-hero-media" aria-hidden="true" />
+        <Image
+          src="/homepage-hero-texture-v1.webp"
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          className="homepage-editorial-hero-media"
+          aria-hidden="true"
+        />
         <div className="homepage-editorial-hero-shade" aria-hidden="true" />
 
         <div className="homepage-editorial-hero-content">

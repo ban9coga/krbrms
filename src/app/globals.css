@@ -1456,9 +1456,7 @@ html[data-theme='dark'] .setting-toggle-control:has(input:checked) .setting-togg
 
 .homepage-editorial-hero-media {
   z-index: -2;
-  background-image: url('/homepage-hero-texture-v1.webp');
-  background-position: center;
-  background-size: cover;
+  object-fit: cover;
 }
 
 .homepage-editorial-hero-shade {
@@ -2176,6 +2174,11 @@ html[data-theme='dark'] .setting-toggle-control:has(input:checked) .setting-togg
   content: "";
 }
 
+.editorial-event-card-image {
+  z-index: -2;
+  object-fit: cover;
+}
+
 .editorial-event-card-placeholder {
   position: absolute;
   inset: 0;
@@ -2229,7 +2232,7 @@ html[data-theme='dark'] .setting-toggle-control:has(input:checked) .setting-togg
   display: flex;
   align-items: center;
   justify-content: space-between;
-  color: #db4213;
+  color: #b93612;
   font-size: 10px;
   font-weight: 900;
   text-transform: uppercase;

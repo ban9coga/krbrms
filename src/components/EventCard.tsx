@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import type { EventItem } from '../lib/eventService'
 import { buildGoogleMapsUrl } from '../lib/publicLinks'
 
@@ -67,9 +68,16 @@ export default function EventCard({
         <Link
           href={detailHref}
           className="editorial-event-card-media"
-          aria-label={`Buka event ${event.name}`}
-          style={logoUrl ? { backgroundImage: `url(${logoUrl})` } : undefined}
         >
+          {logoUrl && (
+            <Image
+              src={logoUrl}
+              alt=""
+              fill
+              sizes="(max-width: 640px) calc(100vw - 24px), (max-width: 1024px) 50vw, 420px"
+              className="editorial-event-card-image"
+            />
+          )}
           {!logoUrl && (
             <span className="editorial-event-card-placeholder" aria-hidden="true">
               RP
@@ -151,10 +159,17 @@ export default function EventCard({
     <article className="group relative overflow-hidden rounded-[1.8rem] border border-slate-200 bg-white/95 shadow-[0_16px_34px_rgba(15,23,42,0.12)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_44px_rgba(15,23,42,0.2)]">
       <Link href={detailHref} className="block text-slate-900 no-underline" aria-label={`Open event ${event.name}`}>
         <div className="relative h-56 overflow-hidden">
-          <div
-            className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-105"
-            style={coverStyle}
-          />
+          {logoUrl ? (
+            <Image
+              src={logoUrl}
+              alt=""
+              fill
+              sizes="(max-width: 640px) calc(100vw - 24px), (max-width: 1024px) 50vw, 420px"
+              className="object-cover transition-transform duration-500 group-hover:scale-105"
+            />
+          ) : (
+            <div className="absolute inset-0" style={coverStyle} />
+          )}
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_85%_at_80%_10%,rgba(251,191,36,0.18),rgba(2,6,23,0)_55%)]" />
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/70 via-slate-950/10 to-transparent" />
           <div className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full border border-white/20" />
