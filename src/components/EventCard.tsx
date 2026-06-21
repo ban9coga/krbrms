@@ -56,7 +56,6 @@ export default function EventCard({
   const upcomingStateLabel = !registrationOpen ? 'Registration Closed' : canRegister ? 'Registration Open' : 'Kuota Penuh'
 
   if (variant === 'editorial') {
-    const sequence = String(index + 1).padStart(2, '0')
     const isUpcoming = event.status === 'UPCOMING'
     const actionLabel = event.status === 'LIVE' ? 'Buka Live Event' : 'Lihat Hasil'
 
@@ -91,13 +90,6 @@ export default function EventCard({
         </Link>
 
         <div className="editorial-event-card-body" style={isUpcoming ? { background: '#1d0d07' } : undefined}>
-          {!isUpcoming && (
-            <div className="editorial-event-card-index">
-              <span>{sequence}</span>
-              <span>{event.status === 'LIVE' ? 'Live now' : 'Race archive'}</span>
-            </div>
-          )}
-
           <Link
             href={detailHref}
             className="editorial-event-card-title"

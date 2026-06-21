@@ -20,6 +20,8 @@ type RegistrationItemInput = {
   extra_category_id?: string | null
   requested_plate_number?: string | null
   requested_plate_suffix?: string | null
+  photo_url?: string | null
+  document_url?: string | null
 }
 
 type PreparedItem =
@@ -44,6 +46,12 @@ type RegistrationPayload = {
   contact_phone?: string
   contact_email?: string | null
   items?: RegistrationItemInput[]
+  payment?: {
+    bank_name?: string
+    account_name?: string
+    account_number?: string
+    proof_url?: string
+  }
 }
 
 type RegistrationRow = {
@@ -73,6 +81,14 @@ const BUCKET = process.env.NEXT_PUBLIC_REGISTRATION_BUCKET || 'registration-docs
 const STANDARD_JERSEY_SIZES = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'] as const
 const DEFAULT_JERSEY_SIZES = [...STANDARD_JERSEY_SIZES]
 const DOCUMENT_TYPE = 'KK'
+const getPendingUploadPrefix = (eventId: string) => `events/${eventId}/pending/`
+
+const normalizePendingUploadPath = (value: unknown, eventId: string, kind: 'rider-photo' | 'document' | 'payment') => {
+  if (typeof value !== 'string') return null
+  const path = value.trim()
+  const prefix = `${getPendingUploadPrefix(eventId)}${kind}-`
+  return path.startsWith(prefix) ? path : null
+}
 
 const JERSEY_SIZE_ALIAS_MAP: Record<string, string> = {
   XXL: '2XL',
@@ -591,7 +607,101 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   const { registration, itemRows, riderPhotoUploadEnabled } = created
 
   if (!isMultipart || !formData) {
-    return NextResponse.json({ data: { registration, items: itemRows, upload_token: registration.upload_token ?? null } })
+    const usesPreuploadedFiles = Boolean(
+      payload.payment ||
+        payload.items?.some((item) => Boolean(item.photo_url || item.document_url))
+    )
+    if (!usesPreuploadedFiles) {
+      return NextResponse.json({ data: { registration, items: itemRows, upload_token: registration.upload_token ?? null } })
+    }
+
+    try {
+      const payloadItems = payload.items ?? []
+      const payment = payload.payment
+      if (payloadItems.length !== itemRows.length) {
+        throw new Error('Jumlah file rider tidak sesuai dengan data pendaftaran.')
+      }
+
+      const documents = payloadItems.map((item, index) => {
+        const photoPath = normalizePendingUploadPath(item.photo_url, eventId, 'rider-photo')
+        const documentPath = normalizePendingUploadPath(item.document_url, eventId, 'document')
+
+        if (riderPhotoUploadEnabled && !photoPath) {
+          throw new Error(`Foto rider #${index + 1} belum selesai diupload.`)
+        }
+        if (!documentPath) {
+          throw new Error(`Dokumen rider #${index + 1} belum selesai diupload.`)
+        }
+
+        return {
+          itemId: itemRows[index].id,
+          photoPath,
+          documentPath,
+        }
+      })
+
+      const bankName = typeof payment?.bank_name === 'string' ? payment.bank_name.trim() : ''
+      const accountName = typeof payment?.account_name === 'string' ? payment.account_name.trim() : ''
+      const accountNumber = typeof payment?.account_number === 'string' ? payment.account_number.trim() : ''
+      const proofPath = normalizePendingUploadPath(payment?.proof_url, eventId, 'payment')
+
+      if (!bankName) throw new Error('Bank pengirim wajib diisi.')
+      if (!accountName) throw new Error('Nama pengirim wajib diisi.')
+      if (!accountNumber) throw new Error('Nomor rekening pengirim wajib diisi.')
+      if (!proofPath) throw new Error('Bukti pembayaran belum selesai diupload.')
+
+      for (const document of documents) {
+        if (document.photoPath) {
+          const { error } = await adminClient
+            .from('registration_items')
+            .update({ photo_url: document.photoPath })
+            .eq('id', document.itemId)
+            .eq('registration_id', registration.id)
+          if (error) throw new Error(error.message)
+        }
+      }
+
+      const { error: documentsError } = await adminClient.from('registration_documents').insert(
+        documents.map((document) => ({
+          registration_id: registration.id,
+          registration_item_id: document.itemId,
+          document_type: DOCUMENT_TYPE,
+          file_url: document.documentPath,
+        }))
+      )
+      if (documentsError) throw new Error(documentsError.message)
+
+      const { data: paymentRow, error: paymentError } = await adminClient
+        .from('registration_payments')
+        .insert({
+          registration_id: registration.id,
+          amount: registration.total_amount,
+          bank_name: bankName,
+          account_name: accountName,
+          account_number: accountNumber,
+          proof_url: proofPath,
+          status: 'PENDING',
+          payment_method: 'MANUAL_TRANSFER',
+        })
+        .select('*')
+        .single()
+      if (paymentError) throw new Error(paymentError.message)
+
+      return NextResponse.json({
+        data: {
+          registration,
+          items: itemRows,
+          upload_token: registration.upload_token ?? null,
+          payment: paymentRow,
+        },
+      })
+    } catch (error) {
+      await rollbackRegistration(registration.id, [])
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : 'Gagal menyimpan file pendaftaran.' },
+        { status: 400 }
+      )
+    }
   }
 
   const uploadedPaths: string[] = []

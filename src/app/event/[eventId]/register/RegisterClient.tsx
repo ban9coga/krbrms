@@ -36,7 +36,15 @@ type RiderForm = {
   usePlateSuffix: boolean
   photo?: File | null
   docKk?: File | null
+  photoUrl?: string | null
+  photoUploadStatus?: UploadStatus
+  photoUploadError?: string
+  docKkUrl?: string | null
+  docKkUploadStatus?: UploadStatus
+  docKkUploadError?: string
 }
+
+type UploadStatus = 'idle' | 'uploading' | 'uploaded' | 'error'
 
 type PlateCheckState = {
   state: 'idle' | 'checking' | 'available' | 'needs_suffix' | 'suffix_taken' | 'error'
@@ -49,6 +57,8 @@ type RegistrationSuccess = {
   totalAmount: number
   hasContactEmail: boolean
 }
+
+const REGISTRATION_STEPS = ['Kontak', 'Rider', 'Pembayaran', 'Review & Kirim'] as const
 
 const DEFAULT_BASE_PRICE = 250000
 const DEFAULT_EXTRA_PRICE = 150000
@@ -193,6 +203,12 @@ const initialRider = (): RiderForm => ({
   usePlateSuffix: false,
   photo: null,
   docKk: null,
+  photoUrl: null,
+  photoUploadStatus: 'idle',
+  photoUploadError: '',
+  docKkUrl: null,
+  docKkUploadStatus: 'idle',
+  docKkUploadError: '',
 })
 
 const initialPlateCheck = (): PlateCheckState => ({
@@ -299,6 +315,7 @@ function JerseySizeChartGraphic() {
 }
 
 export default function RegisterClient({ eventId }: { eventId: string }) {
+  const [activeStep, setActiveStep] = useState(1)
   const [categories, setCategories] = useState<CategoryItem[]>([])
   const [eventName, setEventName] = useState<string | null>(null)
   const [eventLogoUrl, setEventLogoUrl] = useState<string | null>(null)
@@ -318,11 +335,16 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   const [accountName, setAccountName] = useState('')
   const [accountNumber, setAccountNumber] = useState('')
   const [paymentProof, setPaymentProof] = useState<File | null>(null)
+  const [paymentProofUrl, setPaymentProofUrl] = useState<string | null>(null)
+  const [paymentUploadStatus, setPaymentUploadStatus] = useState<UploadStatus>('idle')
+  const [paymentUploadError, setPaymentUploadError] = useState('')
+  const paymentProofSelectionRef = useRef<File | null>(null)
   const [dragActiveKey, setDragActiveKey] = useState<string | null>(null)
   const [plateChecks, setPlateChecks] = useState<PlateCheckState[]>([initialPlateCheck()])
   const [birthDateTouched, setBirthDateTouched] = useState<boolean[]>([false])
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState<RegistrationSuccess | null>(null)
+  const [submitConfirmationOpen, setSubmitConfirmationOpen] = useState(false)
   const [slotFullModal, setSlotFullModal] = useState<{ title: string; message: string } | null>(null)
   const [duplicateRegistrationModal, setDuplicateRegistrationModal] = useState<{ message: string } | null>(null)
 
@@ -378,6 +400,133 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     loadSettings()
   }, [eventId])
 
+  const deletePendingUpload = async (path: string | null | undefined) => {
+    if (!path) return
+    try {
+      await fetch(`/api/public/events/${eventId}/registration-uploads`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path }),
+      })
+    } catch {}
+  }
+
+  const uploadRegistrationFile = async (
+    file: File,
+    kind: 'rider-photo' | 'document' | 'payment',
+    label: string
+  ) => {
+    const body = new FormData()
+    body.append('file', file)
+    body.append('kind', kind)
+
+    let response: Response
+    try {
+      response = await fetch(`/api/public/events/${eventId}/registration-uploads`, {
+        method: 'POST',
+        body,
+      })
+    } catch {
+      throw new Error(buildNetworkStepError(`Upload ${label}`))
+    }
+
+    const json = await parseJsonResponse(response)
+    if (!response.ok) {
+      throw new Error(json?.error || json?._raw || `${label} gagal diupload.`)
+    }
+
+    const path = typeof json?.data?.path === 'string' ? json.data.path : ''
+    if (!path) throw new Error(`${label} berhasil diproses, tetapi URL file tidak ditemukan.`)
+    return path
+  }
+
+  const uploadRiderFile = async (
+    index: number,
+    file: File | null,
+    kind: 'rider-photo' | 'document',
+    label: string
+  ) => {
+    if (!file) return
+    const currentRider = riders[index]
+    const previousPath = kind === 'rider-photo' ? currentRider?.photoUrl : currentRider?.docKkUrl
+    const fileField = kind === 'rider-photo' ? 'photo' : 'docKk'
+    const urlField = kind === 'rider-photo' ? 'photoUrl' : 'docKkUrl'
+    const statusField = kind === 'rider-photo' ? 'photoUploadStatus' : 'docKkUploadStatus'
+    const errorField = kind === 'rider-photo' ? 'photoUploadError' : 'docKkUploadError'
+
+    setRiders((prev) =>
+      prev.map((rider, idx) =>
+        idx === index
+          ? {
+              ...rider,
+              [fileField]: file,
+              [urlField]: null,
+              [statusField]: 'uploading',
+              [errorField]: '',
+            }
+          : rider
+      )
+    )
+
+    try {
+      const path = await uploadRegistrationFile(file, kind, label)
+      setRiders((prev) =>
+        prev.map((rider, idx) =>
+          idx === index && rider[fileField] === file
+            ? {
+                ...rider,
+                [urlField]: path,
+                [statusField]: 'uploaded',
+                [errorField]: '',
+              }
+            : rider
+        )
+      )
+      if (previousPath && previousPath !== path) void deletePendingUpload(previousPath)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : `${label} gagal diupload.`
+      setRiders((prev) =>
+        prev.map((rider, idx) =>
+          idx === index && rider[fileField] === file
+            ? {
+                ...rider,
+                [urlField]: null,
+                [statusField]: 'error',
+                [errorField]: message,
+              }
+            : rider
+        )
+      )
+    }
+  }
+
+  const uploadPaymentProof = async (file: File | null) => {
+    if (!file) return
+    const previousPath = paymentProofUrl
+    paymentProofSelectionRef.current = file
+    setPaymentProof(file)
+    setPaymentProofUrl(null)
+    setPaymentUploadStatus('uploading')
+    setPaymentUploadError('')
+
+    try {
+      const path = await uploadRegistrationFile(file, 'payment', 'bukti pembayaran')
+      if (paymentProofSelectionRef.current !== file) {
+        void deletePendingUpload(path)
+        return
+      }
+      setPaymentProofUrl(path)
+      setPaymentUploadStatus('uploaded')
+      setPaymentUploadError('')
+      if (previousPath && previousPath !== path) void deletePendingUpload(previousPath)
+    } catch (error) {
+      if (paymentProofSelectionRef.current !== file) return
+      setPaymentProofUrl(null)
+      setPaymentUploadStatus('error')
+      setPaymentUploadError(error instanceof Error ? error.message : 'Bukti pembayaran gagal diupload.')
+    }
+  }
+
   const addRider = () => {
     setRiders((prev) => [...prev, initialRider()])
     setPlateChecks((prev) => [...prev, initialPlateCheck()])
@@ -385,6 +534,9 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   }
 
   const removeRider = (index: number) => {
+    const removedRider = riders[index]
+    if (removedRider?.photoUrl) void deletePendingUpload(removedRider.photoUrl)
+    if (removedRider?.docKkUrl) void deletePendingUpload(removedRider.docKkUrl)
     setRiders((prev) => prev.filter((_, idx) => idx !== index).map((item) => ({ ...item })))
     setPlateChecks((prev) => prev.filter((_, idx) => idx !== index))
     setBirthDateTouched((prev) => prev.filter((_, idx) => idx !== index))
@@ -545,8 +697,9 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
       (!requireJerseySize || r.jerseySize) &&
       r.dateOfBirth &&
       r.requestedPlateNumber &&
-      (!riderPhotoUploadEnabled || r.photo) &&
-      r.docKk
+      (!riderPhotoUploadEnabled || (r.photoUrl && r.photoUploadStatus === 'uploaded')) &&
+      r.docKkUrl &&
+      r.docKkUploadStatus === 'uploaded'
   )
   const showTotal = Boolean(hasContact && ridersComplete)
   const hasMissingPrimaryCategory = riders.some((rider) => {
@@ -595,6 +748,63 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   const contactEmailInvalid = contactEmailValue.length > 0 && !isValidEmail(contactEmailValue)
   const contactPhoneValue = contactPhone.trim()
   const contactPhoneInvalid = contactPhoneValue.length > 0 && !isValidWhatsappNumber(contactPhoneValue)
+
+  const continueFromContact = () => {
+    if (!contactName.trim()) {
+      alert('Nama penanggung jawab wajib diisi.')
+      return
+    }
+    if (!contactPhone.trim() || contactPhoneInvalid) {
+      alert('Masukkan nomor WhatsApp yang valid.')
+      return
+    }
+    if (contactEmailInvalid) {
+      alert('Format email konfirmasi belum valid.')
+      return
+    }
+
+    setContactPhone(normalizeWhatsappDigits(contactPhone))
+    setActiveStep(2)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const goToStep = (step: number) => {
+    setActiveStep(step)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const continueFromRider = () => {
+    if (!ridersComplete) {
+      alert('Lengkapi seluruh data, kategori, plate, dan dokumen rider sebelum lanjut.')
+      return
+    }
+    if (hasPrimaryCategorySlotFull || hasMissingPrimaryCategory || hasFullExtraCategory) {
+      alert('Masih ada kategori rider yang belum valid atau kuotanya penuh.')
+      return
+    }
+    goToStep(3)
+  }
+
+  const continueFromPayment = () => {
+    if (!bankName.trim() || !accountName.trim() || !accountNumber.trim()) {
+      alert('Lengkapi data rekening pengirim.')
+      return
+    }
+    if (!paymentProof || !paymentProofUrl || paymentUploadStatus !== 'uploaded') {
+      alert(
+        paymentUploadStatus === 'uploading'
+          ? 'Bukti pembayaran masih diupload. Tunggu sampai selesai.'
+          : paymentUploadError || 'Upload bukti pembayaran sebelum lanjut.'
+      )
+      return
+    }
+    const paymentError = validateUploadFile(paymentProof, 'Bukti pembayaran', 'payment')
+    if (paymentError) {
+      alert(paymentError)
+      return
+    }
+    goToStep(4)
+  }
   const showPaymentDestination = Boolean(paymentBankName || paymentAccountName || paymentAccountNumber || paymentQrisImageUrl)
   const showEventOwner = Boolean(
     businessSettings?.show_event_owner_publicly && businessSettings?.event_owner_name?.trim()
@@ -807,8 +1017,12 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
       alert('Nomor rekening pengirim wajib diisi')
       return
     }
-    if (!paymentProof) {
-      alert('Bukti pembayaran wajib diupload')
+    if (!paymentProof || !paymentProofUrl || paymentUploadStatus !== 'uploaded') {
+      alert(
+        paymentUploadStatus === 'uploading'
+          ? 'Bukti pembayaran masih diupload. Tunggu sampai selesai.'
+          : paymentUploadError || 'Bukti pembayaran wajib diupload.'
+      )
       return
     }
     const hasInvalid = riders.some(
@@ -819,8 +1033,9 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         (requireJerseySize && !r.jerseySize) ||
         !r.dateOfBirth ||
         !r.requestedPlateNumber ||
-        (riderPhotoUploadEnabled && !r.photo) ||
-        !r.docKk
+        (riderPhotoUploadEnabled && (!r.photoUrl || r.photoUploadStatus !== 'uploaded')) ||
+        !r.docKkUrl ||
+        r.docKkUploadStatus !== 'uploaded'
     )
     if (hasInvalid) {
       alert(
@@ -881,37 +1096,29 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
       return
     }
 
+    setSubmitConfirmationOpen(false)
     setSubmitting(true)
-    let createdRegistrationId: string | null = null
-    let createdUploadToken: string | null = null
     try {
-      const uploadStep = async (path: string, body: FormData, fallbackMessage: string, uploadToken: string) => {
-        let res: Response
-        try {
-          res = await fetch(path, {
-            method: 'POST',
-            headers: { 'x-upload-token': uploadToken },
-            body,
-          })
-        } catch {
-          throw new Error(buildNetworkStepError(fallbackMessage))
-        }
-        const json = await parseJsonResponse(res)
-        if (!res.ok) throw new Error(json?.error || json?._raw || fallbackMessage)
-        return json
-      }
-
       riders.forEach((rider, idx) => {
         if (riderPhotoUploadEnabled) {
           const photoError = validateUploadFile(rider.photo, `Foto rider #${idx + 1}`, 'rider-photo')
           if (photoError) throw new Error(photoError)
+          if (!rider.photoUrl || rider.photoUploadStatus !== 'uploaded') {
+            throw new Error(`Foto rider #${idx + 1} belum selesai diupload.`)
+          }
         }
 
         const documentError = validateUploadFile(rider.docKk, `Dokumen KK/Akte/KIA rider #${idx + 1}`, 'document')
         if (documentError) throw new Error(documentError)
+        if (!rider.docKkUrl || rider.docKkUploadStatus !== 'uploaded') {
+          throw new Error(`Dokumen rider #${idx + 1} belum selesai diupload.`)
+        }
       })
       const paymentError = validateUploadFile(paymentProof, 'Bukti pembayaran', 'payment')
       if (paymentError) throw new Error(paymentError)
+      if (!paymentProofUrl || paymentUploadStatus !== 'uploaded') {
+        throw new Error('Bukti pembayaran belum selesai diupload.')
+      }
 
       const shouldSendEmail = contactEmail.trim().length > 0
       const items = riders.map((r, idx) => {
@@ -935,6 +1142,8 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
           extra_category_id: r.extraCategoryId || null,
           requested_plate_number: r.requestedPlateNumber.trim() || null,
           requested_plate_suffix: r.requestedPlateSuffix.trim().toUpperCase().slice(0, 1) || null,
+          photo_url: riderPhotoUploadEnabled ? r.photoUrl : null,
+          document_url: r.docKkUrl,
         }
       })
 
@@ -949,6 +1158,12 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
             contact_phone: normalizedContactPhone,
             contact_email: contactEmail || null,
             items,
+            payment: {
+              bank_name: bankName,
+              account_name: accountName,
+              account_number: accountNumber,
+              proof_url: paymentProofUrl,
+            },
           }),
         })
       } catch {
@@ -957,63 +1172,10 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
       const createJson = await parseJsonResponse(createRes)
       if (!createRes.ok) throw new Error(createJson?.error || createJson?._raw || 'Gagal membuat pendaftaran')
 
-      createdRegistrationId = createJson?.data?.registration?.id ?? null
-      createdUploadToken = createJson?.data?.upload_token ?? null
-      const createdItems = Array.isArray(createJson?.data?.items) ? createJson.data.items : []
-
+      const createdRegistrationId = createJson?.data?.registration?.id ?? null
       if (!createdRegistrationId) {
         throw new Error('Registrasi berhasil dibuat, tetapi ID registrasi tidak ditemukan.')
       }
-      if (!createdUploadToken) {
-        throw new Error(
-          'Mode upload bertahap belum aktif di database. Jalankan migration 2026-03-14_registration_upload_token.sql lalu deploy ulang.'
-        )
-      }
-      if (createdItems.length !== riders.length) {
-        throw new Error('Jumlah item registrasi tidak sesuai dengan jumlah rider yang dikirim.')
-      }
-
-      for (const [idx, rider] of riders.entries()) {
-        const itemId = createdItems[idx]?.id
-        if (!itemId) {
-          throw new Error(`Item registrasi untuk rider #${idx + 1} tidak ditemukan.`)
-        }
-
-        if (riderPhotoUploadEnabled) {
-          const photoBody = new FormData()
-          photoBody.append('registration_item_id', itemId)
-          photoBody.append('file', rider.photo as File)
-          await uploadStep(
-            `/api/public/events/${eventId}/registrations/${createdRegistrationId}/photo`,
-            photoBody,
-            `Upload foto rider #${idx + 1}`,
-            createdUploadToken
-          )
-        }
-
-        const documentBody = new FormData()
-        documentBody.append('registration_item_id', itemId)
-        documentBody.append('document_type', 'KK')
-        documentBody.append('file', rider.docKk as File)
-        await uploadStep(
-          `/api/public/events/${eventId}/registrations/${createdRegistrationId}/documents`,
-          documentBody,
-          `Upload dokumen rider #${idx + 1}`,
-          createdUploadToken
-        )
-      }
-
-      const paymentBody = new FormData()
-      paymentBody.append('file', paymentProof as File)
-      paymentBody.append('bank_name', bankName)
-      paymentBody.append('account_name', accountName)
-      paymentBody.append('account_number', accountNumber)
-      await uploadStep(
-        `/api/public/events/${eventId}/registrations/${createdRegistrationId}/payment`,
-        paymentBody,
-        'Upload bukti pembayaran',
-        createdUploadToken
-      )
 
       setSuccess({
         riderNames: riders.map((rider) => rider.name.trim()).filter(Boolean),
@@ -1023,26 +1185,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
       if (typeof window !== 'undefined') {
         window.scrollTo({ top: 0, behavior: 'smooth' })
       }
-      setRiders([initialRider()])
-      setPlateChecks([initialPlateCheck()])
-      setBirthDateTouched([false])
-      setContactName('')
-      setContactPhone('')
-      setContactEmail('')
-      setCommunityName('')
-      setBankName('')
-      setAccountName('')
-      setAccountNumber('')
-      setPaymentProof(null)
     } catch (err: unknown) {
-      if (createdRegistrationId && createdUploadToken) {
-        try {
-          await fetch(`/api/public/events/${eventId}/registrations/${createdRegistrationId}`, {
-            method: 'DELETE',
-            headers: { 'x-upload-token': createdUploadToken },
-          })
-        } catch {}
-      }
       const message = err instanceof Error ? err.message : 'Gagal menyimpan pendaftaran'
       if (
         message.includes('Kuota kategori') ||
@@ -1061,6 +1204,33 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     } finally {
       setSubmitting(false)
     }
+  }
+
+  const resetRegistrationForm = () => {
+    setActiveStep(1)
+    setRiders([initialRider()])
+    setPlateChecks([initialPlateCheck()])
+    setBirthDateTouched([false])
+    setContactName('')
+    setContactPhone('')
+    setContactEmail('')
+    setCommunityName('')
+    setBankName('')
+    setAccountName('')
+    setAccountNumber('')
+    setPaymentProof(null)
+    paymentProofSelectionRef.current = null
+    setPaymentProofUrl(null)
+    setPaymentUploadStatus('idle')
+    setPaymentUploadError('')
+    setDragActiveKey(null)
+    setSubmitConfirmationOpen(false)
+  }
+
+  const handleSuccessClose = () => {
+    setSuccess(null)
+    resetRegistrationForm()
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   const panelClass =
@@ -1239,13 +1409,55 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
           </div>
         </section>
 
+        <section className="registration-stepper rounded-[1.5rem] border border-[#d9c9ae] bg-[#fff8e8] p-4 shadow-[0_14px_34px_rgba(55,23,9,0.1)] sm:p-5">
+          <div className="grid grid-cols-4 gap-2">
+            {REGISTRATION_STEPS.map((step, index) => {
+              const stepNumber = index + 1
+              const isActive = activeStep === stepNumber
+              const isComplete = activeStep > stepNumber
+              return (
+                <div key={step} className="grid min-w-0 justify-items-center gap-2 text-center">
+                  <div
+                    className={`flex h-9 w-9 items-center justify-center rounded-full border text-xs font-black ${
+                      isActive
+                        ? 'border-[#1d0d07] bg-[#1d0d07] text-[#fff8e8]'
+                        : isComplete
+                        ? 'border-emerald-700 bg-emerald-700 text-white'
+                        : 'border-[#c8b699] bg-[#efe2c7] text-[#796657]'
+                    }`}
+                  >
+                    {isComplete ? '✓' : stepNumber}
+                  </div>
+                  <span
+                    className={`truncate text-[10px] font-black uppercase sm:text-xs ${
+                      isActive ? 'text-[#1d0d07]' : isComplete ? 'text-emerald-800' : 'text-[#796657]'
+                    }`}
+                  >
+                    {step}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+          <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-[#e2d5bd]">
+            <div
+              className="h-full rounded-full bg-[#e84b16] transition-[width] duration-300"
+              style={{ width: `${(activeStep / REGISTRATION_STEPS.length) * 100}%` }}
+            />
+          </div>
+          <p className="mt-3 text-center text-xs font-bold text-[#796657]">
+            Langkah {activeStep} dari {REGISTRATION_STEPS.length}: {REGISTRATION_STEPS[activeStep - 1]}
+          </p>
+        </section>
+
+        {activeStep === 1 ? (
         <section className={panelClass}>
           <div className="mb-4 grid gap-1">
             <div className={sectionHeaderClass}>Kontak Wali / Penanggung Jawab</div>
             <p className={helperClass}>Data ini dipakai panitia untuk konfirmasi pendaftaran dan pembayaran.</p>
           </div>
-          <div className="grid gap-3 md:grid-cols-2">
-            <div className="grid gap-2">
+          <div className="grid items-start gap-3 md:grid-cols-2">
+            <div className="grid gap-1.5">
               <label className={labelClass}>{requiredLabel('Nama Penanggung Jawab')}</label>
               <input
                 value={contactName}
@@ -1288,8 +1500,22 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                   : 'Pastikan email aktif karena konfirmasi pendaftaran akan dikirim ke email ini.'}
               </div>
             </div>
+            <div className="grid gap-1.5">
+              <label className={labelClass}>Komunitas / Club</label>
+              <input
+                value={communityName}
+                onChange={(e) => setCommunityName(e.target.value)}
+                placeholder="Contoh: Pekanbaru Pushbike"
+                className={fieldClass}
+              />
+              <div className="text-[11px] font-semibold text-slate-400">
+                Opsional. Isi komunitas atau club keluarga/rider.
+              </div>
+            </div>
           </div>
         </section>
+        ) : activeStep === 2 ? (
+        <>
 
         {riders.map((rider, idx) => {
           const birthYear = getCompleteBirthYear(rider.dateOfBirth)
@@ -1335,8 +1561,8 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
               : 'border-slate-700 bg-slate-950/60 text-slate-300'
           return (
             <section key={`rider-${idx}`} className={panelClass}>
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div className="grid gap-1">
+              <div className="mb-4 flex min-w-0 items-start justify-between gap-3">
+                <div className="min-w-0 flex-1 grid gap-1">
                   <div className={sectionHeaderClass}>Data Rider #{idx + 1}</div>
                   <p className={helperClass}>Isi identitas rider sesuai dokumen.</p>
                 </div>
@@ -1344,7 +1570,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                   <button
                     type="button"
                     onClick={() => removeRider(idx)}
-                    className="rounded-full border border-rose-300/40 bg-rose-500/10 px-3 py-2 text-xs font-extrabold uppercase tracking-wide text-rose-100 transition-colors hover:bg-rose-500/20"
+                    className="shrink-0 rounded-full border border-[#ef9a9a] bg-[#ffe1e1] px-3.5 py-2 text-xs font-black uppercase tracking-wide text-[#a61919] shadow-sm transition-colors hover:border-[#d94b4b] hover:bg-[#ffcaca]"
                   >
                     Hapus
                   </button>
@@ -1611,10 +1837,10 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                         onDragOver={(e) => onDropZoneOver(`photo-${idx}`, e)}
                         onDragLeave={(e) => onDropZoneLeave(`photo-${idx}`, e)}
                         onDrop={(e) =>
-                          onDropZoneDrop(`photo-${idx}`, e, (file) => updateRider(idx, { photo: file }), `Foto rider #${idx + 1}`, 'rider-photo', false)
+                          onDropZoneDrop(`photo-${idx}`, e, (file) => void uploadRiderFile(idx, file, 'rider-photo', `Foto rider #${idx + 1}`), `Foto rider #${idx + 1}`, 'rider-photo', false)
                         }
                         onPaste={(e) =>
-                          onDropZonePaste(e, (file) => updateRider(idx, { photo: file }), `Foto rider #${idx + 1}`, 'rider-photo', false)
+                          onDropZonePaste(e, (file) => void uploadRiderFile(idx, file, 'rider-photo', `Foto rider #${idx + 1}`), `Foto rider #${idx + 1}`, 'rider-photo', false)
                         }
                       >
                         <span className="truncate text-sm font-bold text-slate-100">
@@ -1629,7 +1855,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                           onChange={(e) => {
                             const file = e.target.files?.[0] ?? null
                             setValidatedUploadFile(file, `Foto rider #${idx + 1}`, 'rider-photo', (nextFile) =>
-                              updateRider(idx, { photo: nextFile })
+                              void uploadRiderFile(idx, nextFile, 'rider-photo', `Foto rider #${idx + 1}`)
                             )
                             e.currentTarget.value = ''
                           }}
@@ -1639,6 +1865,15 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                       <div className="text-[11px] font-semibold text-slate-400">
                         {getUploadHint('rider-photo')} Bisa drag & drop atau paste (Ctrl+V).
                       </div>
+                      {rider.photoUploadStatus === 'uploading' && (
+                        <div className="text-[11px] font-black text-[#9a4b08]">Mengupload foto...</div>
+                      )}
+                      {rider.photoUploadStatus === 'uploaded' && (
+                        <div className="text-[11px] font-black text-[#087443]">Foto berhasil diupload.</div>
+                      )}
+                      {rider.photoUploadStatus === 'error' && (
+                        <div className="text-[11px] font-black text-[#b93612]">{rider.photoUploadError}</div>
+                      )}
                     </div>
                   )}
                   <div className="grid gap-2">
@@ -1650,10 +1885,10 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                       onDragOver={(e) => onDropZoneOver(`doc-${idx}`, e)}
                       onDragLeave={(e) => onDropZoneLeave(`doc-${idx}`, e)}
                       onDrop={(e) =>
-                        onDropZoneDrop(`doc-${idx}`, e, (file) => updateRider(idx, { docKk: file }), `Dokumen KK/Akte/KIA rider #${idx + 1}`, 'document', true)
+                        onDropZoneDrop(`doc-${idx}`, e, (file) => void uploadRiderFile(idx, file, 'document', `Dokumen rider #${idx + 1}`), `Dokumen KK/Akte/KIA rider #${idx + 1}`, 'document', true)
                       }
                       onPaste={(e) =>
-                        onDropZonePaste(e, (file) => updateRider(idx, { docKk: file }), `Dokumen KK/Akte/KIA rider #${idx + 1}`, 'document', true)
+                        onDropZonePaste(e, (file) => void uploadRiderFile(idx, file, 'document', `Dokumen rider #${idx + 1}`), `Dokumen KK/Akte/KIA rider #${idx + 1}`, 'document', true)
                       }
                     >
                         <span className="truncate text-sm font-bold text-slate-100">
@@ -1668,7 +1903,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                         onChange={(e) => {
                           const file = e.target.files?.[0] ?? null
                           setValidatedUploadFile(file, `Dokumen KK/Akte/KIA rider #${idx + 1}`, 'document', (nextFile) =>
-                            updateRider(idx, { docKk: nextFile })
+                            void uploadRiderFile(idx, nextFile, 'document', `Dokumen rider #${idx + 1}`)
                           )
                           e.currentTarget.value = ''
                         }}
@@ -1678,6 +1913,15 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                     <div className="text-[11px] font-semibold text-slate-400">
                       {getUploadHint('document')} Bisa drag & drop atau paste (Ctrl+V).
                     </div>
+                    {rider.docKkUploadStatus === 'uploading' && (
+                      <div className="text-[11px] font-black text-[#9a4b08]">Mengupload dokumen...</div>
+                    )}
+                    {rider.docKkUploadStatus === 'uploaded' && (
+                      <div className="text-[11px] font-black text-[#087443]">Dokumen berhasil diupload.</div>
+                    )}
+                    {rider.docKkUploadStatus === 'error' && (
+                      <div className="text-[11px] font-black text-[#b93612]">{rider.docKkUploadError}</div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1692,6 +1936,9 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         >
           + Tambah Rider
         </button>
+        </>
+        ) : activeStep === 3 ? (
+        <>
 
         <section className={panelClass}>
           <div className={sectionHeaderClass}>Pembayaran Manual</div>
@@ -1796,8 +2043,8 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
               onDragEnter={(e) => onDropZoneOver('payment-proof', e)}
               onDragOver={(e) => onDropZoneOver('payment-proof', e)}
               onDragLeave={(e) => onDropZoneLeave('payment-proof', e)}
-              onDrop={(e) => onDropZoneDrop('payment-proof', e, setPaymentProof, 'Bukti pembayaran', 'payment', true)}
-              onPaste={(e) => onDropZonePaste(e, setPaymentProof, 'Bukti pembayaran', 'payment', true)}
+              onDrop={(e) => onDropZoneDrop('payment-proof', e, (file) => void uploadPaymentProof(file), 'Bukti pembayaran', 'payment', true)}
+              onPaste={(e) => onDropZonePaste(e, (file) => void uploadPaymentProof(file), 'Bukti pembayaran', 'payment', true)}
             >
               <span className="truncate text-sm font-bold text-slate-100">
                 {paymentProof ? paymentProof.name : 'Upload bukti pembayaran'}
@@ -1810,7 +2057,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                 accept="image/*,.pdf"
                 onChange={(e) => {
                   const file = e.target.files?.[0] ?? null
-                  setValidatedUploadFile(file, 'Bukti pembayaran', 'payment', setPaymentProof)
+                  setValidatedUploadFile(file, 'Bukti pembayaran', 'payment', (nextFile) => void uploadPaymentProof(nextFile))
                   e.currentTarget.value = ''
                 }}
                 className="hidden"
@@ -1819,46 +2066,211 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
             <div className="text-[11px] font-semibold text-slate-400">
               {getUploadHint('payment')} Bisa drag & drop atau paste (Ctrl+V).
             </div>
+            {paymentUploadStatus === 'uploading' && (
+              <div className="text-[11px] font-black text-[#9a4b08]">Mengupload bukti pembayaran...</div>
+            )}
+            {paymentUploadStatus === 'uploaded' && (
+              <div className="text-[11px] font-black text-[#087443]">Bukti pembayaran berhasil diupload.</div>
+            )}
+            {paymentUploadStatus === 'error' && (
+              <div className="text-[11px] font-black text-[#b93612]">{paymentUploadError}</div>
+            )}
           </div>
         </section>
+        </>
+        ) : (
+        <section className={panelClass}>
+          <div className="mb-5 grid gap-1">
+            <div className={sectionHeaderClass}>Review Pendaftaran</div>
+            <p className={helperClass}>Periksa kembali seluruh data sebelum dikirim ke panitia.</p>
+          </div>
+
+          <div className="grid gap-4">
+            <div className="rounded-2xl border border-[#d9c9ae] bg-[#f8eedb] p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-sm font-black uppercase text-[#1d0d07]">Kontak Wali</div>
+                <button type="button" onClick={() => goToStep(1)} className="text-xs font-black uppercase text-[#b93612]">
+                  Ubah
+                </button>
+              </div>
+              <div className="mt-3 grid gap-1 text-sm font-semibold text-[#58493d]">
+                <div>{contactName}</div>
+                <div>{contactPhone}</div>
+                <div>{contactEmail || 'Email tidak diisi'}</div>
+                <div>{communityName || 'Komunitas tidak diisi'}</div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-[#d9c9ae] bg-[#f8eedb] p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-sm font-black uppercase text-[#1d0d07]">Data Rider</div>
+                <button type="button" onClick={() => goToStep(2)} className="text-xs font-black uppercase text-[#b93612]">
+                  Ubah
+                </button>
+              </div>
+              <div className="mt-3 grid gap-2">
+                {riders.map((rider, index) => {
+                  const birthYear = getCompleteBirthYear(rider.dateOfBirth)
+                  const primaryCategory = computePrimaryCategory(
+                    birthYear,
+                    rider.gender,
+                    rider.primaryCategoryId
+                  )
+                  const extraCategory = categories.find((category) => category.id === rider.extraCategoryId) ?? null
+                  const plate = formatPlateDisplay(
+                    rider.requestedPlateNumber,
+                    rider.requestedPlateSuffix,
+                    Boolean(rider.requestedPlateSuffix)
+                  )
+
+                  return (
+                    <div key={`review-${index}`} className="rounded-xl border border-[#e2d5bd] bg-[#fff8e8] p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <div className="font-black text-[#1d0d07]">Rider {index + 1}: {rider.name}</div>
+                          <div className="mt-1 text-xs font-semibold text-[#796657]">
+                            Nama panggilan: {rider.nickname}
+                          </div>
+                        </div>
+                        <span className="rounded-full border border-[#d9c9ae] bg-[#efe2c7] px-3 py-1 text-xs font-black uppercase text-[#58493d]">
+                          Plate {plate}
+                        </span>
+                      </div>
+
+                      <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+                        <div>
+                          <dt className="text-[10px] font-black uppercase text-[#9a4b08]">Tanggal Lahir</dt>
+                          <dd className="mt-1 font-bold text-[#3f2b20]">{rider.dateOfBirth}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-[10px] font-black uppercase text-[#9a4b08]">Gender</dt>
+                          <dd className="mt-1 font-bold text-[#3f2b20]">{rider.gender}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-[10px] font-black uppercase text-[#9a4b08]">Club / Komunitas</dt>
+                          <dd className="mt-1 font-bold text-[#3f2b20]">{rider.club}</dd>
+                        </div>
+                        {requireJerseySize && (
+                          <div>
+                            <dt className="text-[10px] font-black uppercase text-[#9a4b08]">Ukuran Jersey</dt>
+                            <dd className="mt-1 font-bold text-[#3f2b20]">{rider.jerseySize}</dd>
+                          </div>
+                        )}
+                        <div>
+                          <dt className="text-[10px] font-black uppercase text-[#9a4b08]">Kategori Utama</dt>
+                          <dd className="mt-1 font-bold text-[#3f2b20]">{primaryCategory?.label ?? '-'}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-[10px] font-black uppercase text-[#9a4b08]">Kategori Tambahan</dt>
+                          <dd className="mt-1 font-bold text-[#3f2b20]">{extraCategory?.label ?? 'Tidak ikut'}</dd>
+                        </div>
+                        {riderPhotoUploadEnabled && (
+                          <div>
+                            <dt className="text-[10px] font-black uppercase text-[#9a4b08]">Foto Rider</dt>
+                            <dd className="mt-1 break-all font-bold text-[#3f2b20]">{rider.photo?.name ?? '-'}</dd>
+                          </div>
+                        )}
+                        <div>
+                          <dt className="text-[10px] font-black uppercase text-[#9a4b08]">Dokumen Rider</dt>
+                          <dd className="mt-1 break-all font-bold text-[#3f2b20]">{rider.docKk?.name ?? '-'}</dd>
+                        </div>
+                      </dl>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-[#d9c9ae] bg-[#f8eedb] p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-sm font-black uppercase text-[#1d0d07]">Pembayaran</div>
+                <button type="button" onClick={() => goToStep(3)} className="text-xs font-black uppercase text-[#b93612]">
+                  Ubah
+                </button>
+              </div>
+              <div className="mt-3 grid gap-1 text-sm font-semibold text-[#58493d]">
+                <div>{bankName} · {accountName}</div>
+                <div>{accountNumber}</div>
+                <div>Bukti: {paymentProof?.name}</div>
+                <div className="mt-2 text-lg font-black text-[#087443]">Total {formatRupiah(totalAmount)}</div>
+              </div>
+            </div>
+          </div>
+        </section>
+        )}
 
       </main>
 
+      {submitConfirmationOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#1d0d07]/75 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-[1.75rem] border border-[#d9c9ae] bg-[#fff8e8] p-6 text-[#1d0d07] shadow-[0_30px_90px_rgba(55,23,9,0.45)]">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-[#d8a916] bg-[#f3c63d] text-3xl font-black">
+              !
+            </div>
+            <div className="mt-4 text-center text-xs font-black uppercase tracking-[0.18em] text-[#e84b16]">
+              Konfirmasi Pendaftaran
+            </div>
+            <h3 className="mt-2 text-center text-2xl font-black">Kirim data pendaftaran?</h3>
+            <p className="mt-3 text-center text-sm font-semibold leading-6 text-[#58493d]">
+              Pastikan data kontak, rider, kategori, nomor plate, dan pembayaran sudah benar. Data akan dikirim ke panitia untuk diverifikasi.
+            </p>
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={() => setSubmitConfirmationOpen(false)}
+                className="inline-flex min-h-[48px] items-center justify-center rounded-full border border-[#705547] px-5 py-3 text-sm font-black uppercase text-[#58493d] hover:border-[#e84b16] hover:text-[#e84b16]"
+              >
+                Cek Lagi
+              </button>
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={handleSubmit}
+                className="inline-flex min-h-[48px] items-center justify-center rounded-full bg-[#f3c63d] px-5 py-3 text-sm font-black uppercase text-[#1d0d07] hover:bg-[#ffda5a] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {submitting ? 'Mengirim...' : 'Ya, Kirim'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {success && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/75 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-[1.75rem] border border-emerald-300/40 bg-slate-900 p-6 shadow-[0_30px_90px_rgba(2,6,23,0.55)]">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-emerald-300/50 bg-emerald-400/15 text-4xl font-black text-emerald-300">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#1d0d07]/75 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-[1.75rem] border border-[#d9c9ae] bg-[#fff8e8] p-6 text-[#1d0d07] shadow-[0_30px_90px_rgba(55,23,9,0.45)]">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-[#d8a916] bg-[#f3c63d] text-4xl font-black text-[#1d0d07] shadow-[0_10px_24px_rgba(243,198,61,0.28)]">
               ✓
             </div>
-            <div className="mt-4 text-center text-xs font-black uppercase tracking-[0.18em] text-emerald-300">
+            <div className="mt-4 text-center text-xs font-black uppercase tracking-[0.18em] text-[#e84b16]">
               Pendaftaran Berhasil Dikirim
             </div>
-            <h3 className="mt-3 text-center text-2xl font-black text-white">Menunggu Verifikasi Panitia</h3>
-            <div className="mt-5 rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
-              <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">Total Pembayaran</div>
-              <div className="mt-1 text-2xl font-black text-amber-300">{formatRupiah(success.totalAmount)}</div>
-              <div className="mt-4 text-xs font-black uppercase tracking-[0.16em] text-slate-400">Rider Terdaftar</div>
+            <h3 className="mt-3 text-center text-2xl font-black text-[#1d0d07]">Menunggu Verifikasi Panitia</h3>
+            <div className="mt-5 rounded-2xl border border-[#d9c9ae] bg-[#f8eedb] p-4">
+              <div className="text-xs font-black uppercase tracking-[0.16em] text-[#796657]">Total Pembayaran</div>
+              <div className="mt-1 text-2xl font-black text-[#087443]">{formatRupiah(success.totalAmount)}</div>
+              <div className="mt-4 text-xs font-black uppercase tracking-[0.16em] text-[#796657]">Rider Terdaftar</div>
               <div className="mt-2 grid gap-2">
                 {success.riderNames.map((name, index) => (
-                  <div key={`${name}-${index}`} className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm font-extrabold text-white">
+                  <div key={`${name}-${index}`} className="rounded-xl border border-[#e2d5bd] bg-[#fff8e8] px-3 py-2 text-sm font-extrabold text-[#1d0d07]">
                     {index + 1}. {name}
                   </div>
                 ))}
               </div>
             </div>
-            <p className="mt-4 text-center text-sm font-semibold leading-6 text-slate-300">
+            <p className="mt-4 text-center text-sm font-semibold leading-6 text-[#58493d]">
               Pendaftaran rider sedang menunggu verifikasi panitia. Email konfirmasi akan dikirim setelah pembayaran dan data rider disetujui panitia.
             </p>
             {!success.hasContactEmail && (
-              <p className="mt-2 text-center text-xs font-semibold leading-5 text-amber-200">
+              <p className="mt-2 rounded-xl border border-[#efd289] bg-[#fff2c9] px-3 py-2 text-center text-xs font-semibold leading-5 text-[#8a5700]">
                 Email tidak diisi, jadi konfirmasi email tidak dikirim untuk pendaftaran ini.
               </p>
             )}
             <div className="mt-5 flex justify-center">
               <button
                 type="button"
-                onClick={() => setSuccess(null)}
-                className="inline-flex items-center justify-center rounded-xl bg-emerald-400 px-5 py-2.5 text-sm font-extrabold uppercase tracking-wide text-slate-950 transition-colors hover:bg-emerald-300"
+                onClick={handleSuccessClose}
+                className="inline-flex items-center justify-center rounded-full bg-[#f3c63d] px-6 py-3 text-sm font-black uppercase tracking-wide text-[#1d0d07] shadow-[0_12px_28px_rgba(243,198,61,0.25)] transition-colors hover:bg-[#ffda5a]"
               >
                 Oke, Mengerti
               </button>
@@ -1927,7 +2339,74 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
       )}
 
       <div className="registration-editorial-submit fixed bottom-4 left-1/2 z-40 flex w-[calc(100%-1.5rem)] max-w-[1120px] -translate-x-1/2 flex-col gap-3 rounded-[1.35rem] border border-[#5a4032] bg-[#1d0d07]/96 px-4 py-3 text-[#fff8e8] shadow-[0_22px_70px_rgba(55,23,9,0.36)] backdrop-blur md:flex-row md:items-center md:justify-between">
-        <div className="grid gap-1">
+        {activeStep === 1 ? (
+          <>
+            <div className="grid gap-1">
+              <div className="text-[11px] font-black uppercase tracking-[0.16em] text-[#f3c63d]">
+                Langkah 1 dari 4
+              </div>
+              <div className="text-lg font-black text-[#fff8e8]">Kontak Wali</div>
+              <div className="text-xs font-bold text-[#c9b7a5]">
+                Lengkapi data kontak sebelum mengisi data rider.
+              </div>
+            </div>
+            <button
+              type="button"
+              disabled={!registrationOpen}
+              onClick={continueFromContact}
+              className="inline-flex min-h-[56px] items-center justify-center rounded-full bg-[#f3c63d] px-7 py-3 text-sm font-black uppercase text-[#1d0d07] shadow-[0_16px_35px_rgba(243,198,61,0.24)] transition-transform hover:-translate-y-0.5 hover:bg-[#ffda5a] disabled:cursor-not-allowed disabled:bg-[#705547] disabled:text-[#c9b7a5] md:min-w-[260px]"
+            >
+              {registrationOpen ? 'Lanjut ke Data Rider' : 'Registrasi Ditutup'}
+            </button>
+          </>
+        ) : activeStep === 2 ? (
+          <>
+            <button
+              type="button"
+              onClick={() => goToStep(1)}
+              className="inline-flex min-h-[48px] items-center justify-center rounded-full border border-[#705547] px-6 py-3 text-sm font-black uppercase text-[#fff8e8] hover:border-[#f3c63d] hover:text-[#f3c63d]"
+            >
+              Kembali
+            </button>
+            <button
+              type="button"
+              onClick={continueFromRider}
+              className="inline-flex min-h-[56px] items-center justify-center rounded-full bg-[#f3c63d] px-7 py-3 text-sm font-black uppercase text-[#1d0d07] hover:bg-[#ffda5a] md:min-w-[260px]"
+            >
+              Lanjut ke Pembayaran
+            </button>
+          </>
+        ) : activeStep === 3 ? (
+          <>
+            <button
+              type="button"
+              onClick={() => goToStep(2)}
+              className="inline-flex min-h-[48px] items-center justify-center rounded-full border border-[#705547] px-6 py-3 text-sm font-black uppercase text-[#fff8e8] hover:border-[#f3c63d] hover:text-[#f3c63d]"
+            >
+              Kembali
+            </button>
+            <div className="grid gap-1 md:ml-auto">
+              <div className="text-[11px] font-black uppercase text-[#c9b7a5]">Total Pembayaran</div>
+              <div className="text-xl font-black text-[#f3c63d]">{formatRupiah(totalAmount)}</div>
+            </div>
+            <button
+              type="button"
+              onClick={continueFromPayment}
+              className="inline-flex min-h-[56px] items-center justify-center rounded-full bg-[#f3c63d] px-7 py-3 text-sm font-black uppercase text-[#1d0d07] hover:bg-[#ffda5a] md:min-w-[260px]"
+            >
+              Review Pendaftaran
+            </button>
+          </>
+        ) : (
+        <>
+          <button
+            type="button"
+            onClick={() => goToStep(3)}
+            className="inline-flex min-h-[48px] items-center justify-center rounded-full border border-[#705547] px-6 py-3 text-sm font-black uppercase text-[#fff8e8] hover:border-[#f3c63d] hover:text-[#f3c63d]"
+          >
+            Kembali
+          </button>
+          <div className="grid gap-1">
           <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Total Pembayaran</div>
           <div className="text-xl font-black text-amber-300 md:text-2xl">{formatRupiah(totalAmount)}</div>
           <div className="text-xs font-bold text-slate-400">
@@ -1939,11 +2418,13 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         <button
           type="button"
           disabled={submitting || !registrationOpen}
-          onClick={handleSubmit}
+          onClick={() => setSubmitConfirmationOpen(true)}
           className="inline-flex min-h-[56px] items-center justify-center rounded-full bg-[#f3c63d] px-7 py-3 text-sm font-black uppercase text-[#1d0d07] shadow-[0_16px_35px_rgba(243,198,61,0.24)] transition-transform hover:-translate-y-0.5 hover:bg-[#ffda5a] disabled:cursor-not-allowed disabled:bg-[#705547] disabled:text-[#c9b7a5] md:min-w-[260px]"
         >
           {!registrationOpen ? 'Registrasi Ditutup' : submitting ? 'Menyimpan...' : 'Kirim Pendaftaran'}
         </button>
+        </>
+        )}
       </div>
     </div>
   )

@@ -21,7 +21,7 @@ export default function PublicBottomBar({ variant = 'default' }: { variant?: 'de
 
         <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 ${editorial ? 'text-[#eadcca]' : 'text-slate-300'}`}>
           <a
-            href="https://instagram.com/yogafernands"
+            href="https://instagram.com/racepushbike"
             target="_blank"
             rel="noopener noreferrer"
             className={`inline-flex items-center gap-1.5 transition-colors ${
@@ -33,7 +33,7 @@ export default function PublicBottomBar({ variant = 'default' }: { variant?: 'de
               <circle cx="12" cy="12" r="4" />
               <circle cx="17.3" cy="6.7" r="0.8" fill="currentColor" stroke="none" />
             </svg>
-            <span>@yogafernands</span>
+            <span>@racepushbike</span>
           </a>
           <span className={editorial ? 'text-[#c9b7a5]' : 'text-slate-400'}>
             Sistem by{' '}
