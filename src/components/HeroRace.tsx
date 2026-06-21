@@ -13,10 +13,12 @@ export default function HeroRace({ liveEvent }: { liveEvent: LiveEventItem | nul
     <section className="homepage-editorial-hero-shell">
       <div className="homepage-editorial-hero">
         <Image
-          src="/homepage-hero-texture-v1.webp"
+          src="/homepage-hero-texture-v2.webp"
           alt=""
           fill
           priority
+          fetchPriority="high"
+          unoptimized
           sizes="100vw"
           className="homepage-editorial-hero-media"
           aria-hidden="true"

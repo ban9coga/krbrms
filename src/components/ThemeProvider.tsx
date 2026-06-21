@@ -34,32 +34,23 @@ export function ThemeToggleSwitch({ className = '' }: { className?: string }) {
 
   return (
     <label
-      className={`switch theme-switch ${className}`.trim()}
+      className={`theme ${className}`.trim()}
       aria-label={isDark ? 'Aktifkan mode terang' : 'Aktifkan mode gelap'}
       title={isDark ? 'Mode terang' : 'Mode gelap'}
     >
-      <input type="checkbox" checked={!isDark} onChange={toggleTheme} />
-      <span className="slider">
-        <span className="moons-hole" aria-hidden="true">
-          <span className="moon-hole" />
-          <span className="moon-hole" />
-          <span className="moon-hole" />
-        </span>
-        <span className="stars" aria-hidden="true">
-          {[0, 1, 2, 3, 4].map((star) => (
-            <svg key={star} className="star" viewBox="0 0 24 24">
-              <path d="m12 1.8 2.1 6.1 6.4.1-5.1 3.9 1.9 6.2-5.3-3.6-5.3 3.6 1.9-6.2L3.5 8l6.4-.1L12 1.8Z" />
-            </svg>
-          ))}
-        </span>
-        <span className="black-clouds" aria-hidden="true">
-          <span className="black-cloud" />
-          <span className="black-cloud" />
-          <span className="black-cloud" />
-        </span>
-        <span className="clouds" aria-hidden="true">
-          {[0, 1, 2, 3, 4, 5, 6].map((cloud) => (
-            <span key={cloud} className="cloud" />
+      <span className="theme__toggle-wrap">
+        <input
+          className="theme__toggle"
+          type="checkbox"
+          checked={isDark}
+          onChange={toggleTheme}
+          role="switch"
+          aria-checked={isDark}
+        />
+        <span className="theme__fill" aria-hidden="true" />
+        <span className="theme__icon" aria-hidden="true">
+          {Array.from({ length: 9 }, (_, index) => (
+            <span key={index} className="theme__icon-part" />
           ))}
         </span>
       </span>
