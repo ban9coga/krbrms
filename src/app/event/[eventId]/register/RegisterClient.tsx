@@ -53,6 +53,7 @@ type PlateCheckState = {
 }
 
 type RegistrationSuccess = {
+  registrationCode: string
   riderNames: string[]
   totalAmount: number
   hasContactEmail: boolean
@@ -344,6 +345,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   const [birthDateTouched, setBirthDateTouched] = useState<boolean[]>([false])
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState<RegistrationSuccess | null>(null)
+  const [codeCopied, setCodeCopied] = useState(false)
   const [submitConfirmationOpen, setSubmitConfirmationOpen] = useState(false)
   const [slotFullModal, setSlotFullModal] = useState<{ title: string; message: string } | null>(null)
   const [duplicateRegistrationModal, setDuplicateRegistrationModal] = useState<{ message: string } | null>(null)
@@ -1173,11 +1175,16 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
       if (!createRes.ok) throw new Error(createJson?.error || createJson?._raw || 'Gagal membuat pendaftaran')
 
       const createdRegistrationId = createJson?.data?.registration?.id ?? null
+      const createdRegistrationCode = createJson?.data?.registration?.registration_code ?? null
       if (!createdRegistrationId) {
         throw new Error('Registrasi berhasil dibuat, tetapi ID registrasi tidak ditemukan.')
       }
+      if (!createdRegistrationCode) {
+        throw new Error('Registrasi berhasil dibuat, tetapi kode registrasi tidak ditemukan.')
+      }
 
       setSuccess({
+        registrationCode: createdRegistrationCode,
         riderNames: riders.map((rider) => rider.name.trim()).filter(Boolean),
         totalAmount,
         hasContactEmail: shouldSendEmail,
@@ -1229,8 +1236,26 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
 
   const handleSuccessClose = () => {
     setSuccess(null)
+    setCodeCopied(false)
     resetRegistrationForm()
     window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const copyRegistrationCode = async (code: string) => {
+    try {
+      await navigator.clipboard.writeText(code)
+    } catch {
+      const textArea = document.createElement('textarea')
+      textArea.value = code
+      textArea.style.position = 'fixed'
+      textArea.style.opacity = '0'
+      document.body.appendChild(textArea)
+      textArea.select()
+      document.execCommand('copy')
+      textArea.remove()
+    }
+    setCodeCopied(true)
+    window.setTimeout(() => setCodeCopied(false), 2200)
   }
 
   const panelClass =
@@ -2246,6 +2271,30 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
               Pendaftaran Berhasil Dikirim
             </div>
             <h3 className="mt-3 text-center text-2xl font-black text-[#1d0d07]">Menunggu Verifikasi Panitia</h3>
+            <div className="mt-5 rounded-2xl border border-[#efd289] bg-[#fff2c9] p-4 text-center">
+              <div className="text-[10px] font-black uppercase tracking-[0.16em] text-[#8a5700]">Kode Registrasi</div>
+              <div className="mt-1 break-all text-2xl font-black tracking-wide text-[#1d0d07]">
+                {success.registrationCode}
+              </div>
+              <p className="mt-1 text-xs font-semibold text-[#796657]">
+                Simpan kode ini untuk mengecek status pendaftaran.
+              </p>
+              <button
+                type="button"
+                onClick={() => void copyRegistrationCode(success.registrationCode)}
+                className="mt-3 rounded-full border border-[#d8a916] bg-[#fff8e8] px-4 py-2 text-xs font-black uppercase text-[#68420a] hover:bg-white"
+              >
+                {codeCopied ? 'Tersalin' : 'Salin Kode'}
+              </button>
+              {codeCopied && (
+                <div
+                  role="status"
+                  className="mx-auto mt-3 w-fit rounded-full border border-[#9bc9ae] bg-[#e3f3e6] px-3 py-1.5 text-xs font-black text-[#087443] shadow-sm"
+                >
+                  ✓ Kode telah disalin
+                </div>
+              )}
+            </div>
             <div className="mt-5 rounded-2xl border border-[#d9c9ae] bg-[#f8eedb] p-4">
               <div className="text-xs font-black uppercase tracking-[0.16em] text-[#796657]">Total Pembayaran</div>
               <div className="mt-1 text-2xl font-black text-[#087443]">{formatRupiah(success.totalAmount)}</div>

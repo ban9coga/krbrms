@@ -3,6 +3,7 @@ import type { BusinessSettings } from './eventService'
 
 type RegistrationRow = {
   id: string
+  registration_code: string | null
   community_name: string | null
   contact_name: string | null
   contact_phone: string | null
@@ -103,7 +104,7 @@ export const sendRegistrationStatusEmail = async (
 
   const { data: registration, error: registrationError } = await adminClient
     .from('registrations')
-    .select('id, community_name, contact_name, contact_phone, contact_email, total_amount')
+    .select('id, registration_code, community_name, contact_name, contact_phone, contact_email, total_amount')
     .eq('id', registrationId)
     .eq('event_id', eventId)
     .maybeSingle()
@@ -168,7 +169,7 @@ export const sendRegistrationStatusEmail = async (
       : riderNames.length === 1
       ? riderNames[0]
       : `${riderNames[0]} +${riderNames.length - 1} rider`
-  const shortRegistrationId = reg.id.slice(0, 8).toUpperCase()
+  const shortRegistrationId = reg.registration_code || reg.id.slice(0, 8).toUpperCase()
 
   const riderRows = items
     .map((item, index) => {
@@ -246,6 +247,7 @@ export const sendRegistrationStatusEmail = async (
         <div><strong>Lokasi:</strong> ${escapeHtml(event?.location || '-')}</div>
         <div><strong>Tanggal:</strong> ${escapeHtml(event?.event_date || '-')}</div>
         <div><strong>Nomor WA:</strong> ${escapeHtml(reg.contact_phone || '-')}</div>
+        <div><strong>Kode Registrasi:</strong> ${escapeHtml(shortRegistrationId)}</div>
         <div><strong>Total:</strong> ${escapeHtml(formatRupiah(reg.total_amount))}</div>
         <div><strong>Status:</strong> ${escapeHtml(statusLabel)}</div>
       </div>
@@ -276,6 +278,7 @@ export const sendRegistrationStatusEmail = async (
     `Event: ${eventTitle}`,
     `Lokasi: ${event?.location || '-'}`,
     `Tanggal: ${event?.event_date || '-'}`,
+    `Kode Registrasi: ${shortRegistrationId}`,
     `Total: ${formatRupiah(reg.total_amount)}`,
     `Status: ${statusLabel}`,
     !isApproved && notes?.trim() ? `Alasan: ${notes.trim()}` : '',

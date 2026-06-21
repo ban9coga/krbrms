@@ -32,6 +32,7 @@ const searchRegistrationIds = async (eventId: string, rawQuery: string) => {
   if (!query) return null
 
   const topLevelFilters = [
+    `registration_code.ilike.%${query.toUpperCase()}%`,
     `contact_name.ilike.%${query}%`,
     `contact_phone.ilike.%${query}%`,
     `contact_email.ilike.%${query}%`,

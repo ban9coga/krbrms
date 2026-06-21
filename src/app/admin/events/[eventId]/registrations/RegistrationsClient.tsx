@@ -59,6 +59,7 @@ type RegistrationDocument = {
 
 type RegistrationRow = {
   id: string
+  registration_code?: string | null
   community_name: string | null
   contact_name: string
   contact_phone: string
@@ -2159,6 +2160,11 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                         </div>
                         <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
                           <span>Dikirim {formatDateTime(registration.created_at)}</span>
+                          {registration.registration_code && (
+                            <span className="rounded-full border border-amber-300 bg-amber-100 px-2.5 py-1 font-black text-amber-900">
+                              {registration.registration_code}
+                            </span>
+                          )}
                           <span>Total {formatRupiah(registration.total_amount)}</span>
                           <span>{readiness.allItemsHaveDocs ? 'Dokumen lengkap' : 'Dokumen belum lengkap'}</span>
                           <span>

@@ -273,6 +273,7 @@ create table if not exists registrations (
   contact_name text not null,
   contact_phone text not null,
   contact_email text,
+  registration_code text not null,
   total_amount int not null default 0,
   status registration_status not null default 'PENDING',
   notes text,
@@ -285,6 +286,8 @@ create table if not exists registrations (
 
 create index if not exists idx_registrations_event on registrations(event_id);
 create index if not exists idx_registrations_status on registrations(event_id, status);
+create unique index if not exists registrations_registration_code_unique on registrations(registration_code);
+create index if not exists idx_registrations_public_lookup on registrations(registration_code, contact_phone);
 create unique index if not exists registrations_upload_token_unique on registrations(upload_token) where upload_token is not null;
 
 drop trigger if exists trg_registrations_updated_at on registrations;

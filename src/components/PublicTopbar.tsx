@@ -12,6 +12,7 @@ import LiveEntryButton from './LiveEntryButton'
 const navItems = [
   { href: '/', label: 'Home' },
   { href: '/dashboard', label: 'Events' },
+  { href: '/registration-status', label: 'Cek Status' },
 ]
 
 type PublicTopbarTheme = 'light' | 'dark'

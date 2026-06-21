@@ -57,6 +57,7 @@ type RegistrationPayload = {
 type RegistrationRow = {
   id: string
   total_amount: number
+  registration_code?: string | null
   upload_token?: string | null
 }
 
@@ -88,6 +89,18 @@ const normalizePendingUploadPath = (value: unknown, eventId: string, kind: 'ride
   const path = value.trim()
   const prefix = `${getPendingUploadPrefix(eventId)}${kind}-`
   return path.startsWith(prefix) ? path : null
+}
+
+const createRegistrationCode = () => {
+  const dateParts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta',
+    year: '2-digit',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date())
+  const part = (type: Intl.DateTimeFormatPartTypes) => dateParts.find((item) => item.type === type)?.value ?? ''
+  const dateCode = `${part('year')}${part('month')}${part('day')}`
+  return `RPB-${dateCode}-${randomBytes(4).toString('hex').toUpperCase()}`
 }
 
 const JERSEY_SIZE_ALIAS_MAP: Record<string, string> = {
@@ -519,6 +532,7 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
 
   // Secret token to authorize step-by-step uploads (photo/docs/payment) without login.
   const uploadToken = randomBytes(32).toString('hex')
+  const registrationCode = createRegistrationCode()
 
   let registration: RegistrationRow | null = null
   let regError: { message: string } | null = null
@@ -531,12 +545,13 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
         contact_name,
         contact_phone: normalizedContactPhone,
         contact_email: contact_email ?? null,
+        registration_code: registrationCode,
         total_amount: totalAmount,
         status: 'PENDING',
         upload_token: uploadToken,
         upload_token_created_at: new Date().toISOString(),
       })
-      .select('id, total_amount, upload_token')
+      .select('id, total_amount, registration_code, upload_token')
       .single()
     return {
       data: data as RegistrationRow | null,
@@ -552,10 +567,11 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
         contact_name,
         contact_phone: normalizedContactPhone,
         contact_email: contact_email ?? null,
+        registration_code: registrationCode,
         total_amount: totalAmount,
         status: 'PENDING',
       })
-      .select('id, total_amount')
+      .select('id, total_amount, registration_code')
       .single()
     return {
       data: data as RegistrationRow | null,
