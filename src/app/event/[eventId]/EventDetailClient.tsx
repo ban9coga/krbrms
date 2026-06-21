@@ -26,9 +26,15 @@ const categoryCoverGradients = [
   'linear-gradient(140deg,#1f2937 0%,#334155 52%,#7f1d1d 100%)',
 ]
 
-export default function EventDetailClient({ eventId }: { eventId: string }) {
+export default function EventDetailClient({
+  eventId,
+  initialEvent,
+}: {
+  eventId: string
+  initialEvent: EventItem | null
+}) {
   const hideRegistrationAndVenueActions = eventId === '1d063c20-af89-4416-a578-cc06b824adc2'
-  const [event, setEvent] = useState<EventItem | null>(null)
+  const [event, setEvent] = useState<EventItem | null>(initialEvent)
   const [categories, setCategories] = useState<RiderCategory[]>([])
   const [liveMotos, setLiveMotos] = useState<MotoItem[]>([])
   const [liveResults, setLiveResults] = useState<Record<string, LeaderboardRow[]>>({})
@@ -52,9 +58,9 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
 
   useEffect(() => {
     const load = async () => {
-      setLoading(true)
+      setLoading(!initialEvent)
       const [eventData, categoryData, riderData, motoRes] = await Promise.all([
-        getEventById(eventId),
+        initialEvent ? Promise.resolve(initialEvent) : getEventById(eventId),
         getEventCategories(eventId),
         getRidersByEvent(eventId, 1, 1),
         fetch(`/api/motos?event_id=${eventId}`),
@@ -68,7 +74,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
       setLoading(false)
     }
     if (eventId) load()
-  }, [eventId])
+  }, [eventId, initialEvent])
 
   const totalFilledSlots = useMemo(
     () => categories.reduce((sum, category) => sum + Math.max(0, Number(category.filled ?? 0)), 0),
@@ -176,7 +182,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
   return (
     <div className="public-page public-editorial-page public-editorial-detail bg-[#f5ecd7] text-[#1d0d07]">
       <PublicTopbar />
-      <div className="mx-auto w-full max-w-[1500px] px-2 py-4 sm:px-4 md:px-6 md:py-8">
+      <main className="mx-auto w-full max-w-[1500px] px-2 py-4 sm:px-4 md:px-6 md:py-8">
         {loading && <LoadingState label="Memuat detail event..." />}
         {!loading && !event && <EmptyState label="Event tidak ditemukan." />}
 
@@ -376,7 +382,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                             <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">{category.label}</p>
                             <Link
                               href={`/event/${eventId}/live-score/${encodeURIComponent(category.id)}`}
-                              className="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-extrabold uppercase tracking-[0.12em] text-white transition-colors hover:bg-emerald-500"
+                              className="inline-flex items-center justify-center rounded-xl bg-emerald-700 px-4 py-2.5 text-xs font-extrabold uppercase tracking-[0.12em] text-white transition-colors hover:bg-emerald-600"
                             >
                               {event.status === 'FINISHED' ? 'View Results' : 'View Live Results'}
                             </Link>
@@ -506,7 +512,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
 
           </div>
         )}
-      </div>
+      </main>
     </div>
   )
 }

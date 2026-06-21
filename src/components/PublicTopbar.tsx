@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import { formatAppRoleLabel, normalizeAppRole } from '../lib/roles'
@@ -124,9 +125,12 @@ export default function PublicTopbar({}: PublicTopbarProps) {
           <div className="flex items-center justify-between gap-4">
             <Link href="/" className="flex min-w-0 items-center gap-3">
               <span className="relative flex h-10 w-10 items-center justify-center">
-                <img
+                <Image
                   src="/platform-logo.png"
                   alt="Platform Logo"
+                  width={50}
+                  height={35}
+                  sizes="50px"
                   className="relative h-10 w-10 object-contain"
                 />
               </span>
