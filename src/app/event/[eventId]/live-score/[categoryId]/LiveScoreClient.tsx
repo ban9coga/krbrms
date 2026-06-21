@@ -155,7 +155,7 @@ const renderSortButtons = (
   sortMode: 'GATE' | 'RANK',
   setSortMode: (mode: 'GATE' | 'RANK') => void
 ) => (
-  <div className="flex flex-wrap items-center gap-2">
+  <div className="live-score-editorial-sort flex flex-wrap items-center gap-2">
     {(['GATE', 'RANK'] as const).map((mode) => (
       <button
         key={mode}
@@ -178,7 +178,7 @@ const renderRefreshButton = (refresh: () => void, refreshing: boolean) => (
     type="button"
     onClick={refresh}
     disabled={refreshing}
-    className="rounded-full border border-emerald-300/70 bg-emerald-50 px-4 py-2 text-xs font-extrabold uppercase tracking-[0.12em] text-emerald-700 transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-70"
+    className="live-score-editorial-refresh rounded-full border px-4 py-2 text-xs font-extrabold uppercase transition-colors disabled:cursor-not-allowed disabled:opacity-70"
   >
     {refreshing ? 'Refreshing...' : 'Refresh'}
   </button>
@@ -360,41 +360,39 @@ export default function LiveScoreClient({
   )
 
   return (
-    <div className="public-page">
+    <div className="public-page public-editorial-page live-score-editorial-page">
       <PublicTopbar theme="dark" />
-      <main className="public-main">
-        <section className="public-hero !rounded-[28px] px-4 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-7">
-          <div className="pointer-events-none absolute -bottom-16 -left-12 h-56 w-56 rounded-full bg-amber-400/15 blur-3xl sm:h-64 sm:w-64" />
-          <div className="pointer-events-none absolute -top-20 right-0 h-56 w-56 rounded-full bg-sky-400/15 blur-3xl sm:h-64 sm:w-64" />
+      <main className="public-main live-score-editorial-main">
+        <section className="public-hero live-score-editorial-hero !rounded-[28px] px-4 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-7">
           <div className="relative z-10 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="grid gap-2 sm:gap-2.5">
               <div className="flex flex-wrap items-center gap-3">
                 <Link
                   href={`/event/${eventId}#race-categories`}
-                  className="inline-flex min-h-[48px] items-center justify-center rounded-2xl border border-amber-300 bg-amber-400 px-4 py-3 text-sm font-black uppercase tracking-[0.12em] text-slate-950 shadow-[0_14px_32px_rgba(251,191,36,0.28)] transition-transform transition-colors hover:-translate-y-0.5 hover:bg-amber-300"
+                  className="live-score-editorial-back inline-flex min-h-[48px] items-center justify-center rounded-full px-5 py-3 text-sm font-black uppercase transition-transform hover:-translate-y-0.5"
                 >
                   Back to Categories
                 </Link>
                 {nextCategory ? (
                   <Link
                     href={`/event/${eventId}/live-score/${nextCategory.id}`}
-                    className="inline-flex min-h-[48px] items-center justify-center rounded-2xl border border-white/25 bg-white/12 px-4 py-3 text-sm font-black uppercase tracking-[0.12em] text-white shadow-[0_14px_32px_rgba(15,23,42,0.22)] transition-transform transition-colors hover:-translate-y-0.5 hover:bg-white/18"
+                    className="live-score-editorial-next inline-flex min-h-[48px] items-center justify-center rounded-full px-5 py-3 text-sm font-black uppercase transition-transform hover:-translate-y-0.5"
                   >
                     Next Category: {nextCategory.label}
                   </Link>
                 ) : (
-                  <span className="inline-flex min-h-[48px] items-center justify-center rounded-2xl border border-white/20 bg-white/8 px-4 py-3 text-sm font-black uppercase tracking-[0.12em] text-slate-300">
+                  <span className="live-score-editorial-next inline-flex min-h-[48px] items-center justify-center rounded-full px-5 py-3 text-sm font-black uppercase opacity-65">
                     Last Category
                   </span>
                 )}
               </div>
-              <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-amber-300">
+              <p className="text-xs font-extrabold uppercase text-[#f3c63d]">
                 {publicBrandName || 'Live Score'}
               </p>
-              <h1 className="max-w-4xl text-3xl font-black tracking-tight text-white sm:text-4xl lg:text-[3.2rem] lg:leading-none">
+              <h1 className="max-w-4xl text-3xl font-black text-[#fff8e8] sm:text-4xl lg:text-[3.2rem] lg:leading-none">
                 {publicEventTitle}
               </h1>
-              <p className="text-sm font-semibold text-slate-200 sm:text-base">
+              <p className="text-sm font-semibold text-[#eadcca] sm:text-base">
                 {categoryLabel || 'Category'}
               </p>
               {(publicTagline || showOperatingCommittee || showScoringSupport || showMc) && (
@@ -433,13 +431,13 @@ export default function LiveScoreClient({
     </article>
   )}
           {tableRowsByBatch.map((batch) => (
-            <article key={batch.batch_index} className="public-panel-dark">
+            <article key={batch.batch_index} className="public-panel-dark live-score-editorial-panel">
               <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-lg font-black uppercase tracking-[0.08em] text-white">
+                  <h2 className="text-lg font-black uppercase text-[#fff8e8]">
                     Batch {batch.batch_index}
                   </h2>
-                  <span className="rounded-full border border-slate-600 bg-slate-800 px-3 py-1 text-xs font-extrabold uppercase tracking-[0.1em] text-slate-200">
+                  <span className="live-score-editorial-stage-badge rounded-full border px-3 py-1 text-xs font-extrabold uppercase">
                     Kualifikasi Moto
                   </span>
                 </div>
@@ -517,15 +515,15 @@ export default function LiveScoreClient({
         {sortedStages.length > 0 && (
           <section className="grid gap-4">
             {sortedStages.map((stage) => (
-              <article key={stage.moto_id} className="public-panel-dark">
+              <article key={stage.moto_id} className="public-panel-dark live-score-editorial-panel">
                 {(() => {
                   const showStageNextColumn = !isFinalStageTitle(stage.title)
                   return (
                     <>
                 <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-lg font-black uppercase tracking-[0.08em] text-white">{stage.title}</h2>
-                    <span className="rounded-full border border-slate-600 bg-slate-800 px-3 py-1 text-xs font-extrabold uppercase tracking-[0.1em] text-slate-200">
+                    <h2 className="text-lg font-black uppercase text-[#fff8e8]">{stage.title}</h2>
+                    <span className="live-score-editorial-stage-badge rounded-full border px-3 py-1 text-xs font-extrabold uppercase">
                       Advanced Stage
                     </span>
                   </div>
