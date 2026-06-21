@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import ToggleSwitch from '../../../../../components/ToggleSwitch'
 import { DEFAULT_NON_FINISH_AUTO_PENALTY } from '../../../../../lib/nonFinishScoring'
 import { supabase } from '../../../../../lib/supabaseClient'
 
@@ -581,66 +582,54 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
       >
         <div style={{ fontWeight: 950 }}>Feature Flags</div>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-          <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 900 }}>
-            <input
-              type="checkbox"
-              checked={flags?.penalty_enabled ?? false}
-              onChange={(e) =>
-                saveFlags({
-                  penalty_enabled: e.target.checked,
-                  absent_enabled: flags?.absent_enabled ?? false,
-                  dns_enabled: flags?.dns_enabled ?? false,
-                  dnf_enabled: flags?.dnf_enabled ?? false,
-                })
-              }
-            />
-            Enable Penalty Module
-          </label>
-          <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 900 }}>
-            <input
-              type="checkbox"
-              checked={flags?.absent_enabled ?? false}
-              onChange={(e) =>
-                saveFlags({
-                  penalty_enabled: flags?.penalty_enabled ?? false,
-                  absent_enabled: e.target.checked,
-                  dns_enabled: flags?.dns_enabled ?? false,
-                  dnf_enabled: flags?.dnf_enabled ?? false,
-                })
-              }
-            />
-            Enable Absent Module
-          </label>
-          <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 900 }}>
-            <input
-              type="checkbox"
-              checked={flags?.dns_enabled ?? false}
-              onChange={(e) =>
-                saveFlags({
-                  penalty_enabled: flags?.penalty_enabled ?? false,
-                  absent_enabled: flags?.absent_enabled ?? false,
-                  dns_enabled: e.target.checked,
-                  dnf_enabled: flags?.dnf_enabled ?? false,
-                })
-              }
-            />
-            Enable DNS Module
-          </label>
-          <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 900 }}>
-            <input
-              type="checkbox"
-              checked={flags?.dnf_enabled ?? false}
-              onChange={(e) =>
-                saveFlags({
-                  penalty_enabled: flags?.penalty_enabled ?? false,
-                  absent_enabled: flags?.absent_enabled ?? false,
-                  dns_enabled: flags?.dns_enabled ?? false,
-                  dnf_enabled: e.target.checked,
-                })
-              }
-            />
-            Enable DNF Module
-          </label>
+          <ToggleSwitch
+            checked={flags?.penalty_enabled ?? false}
+            onChange={(checked) =>
+              saveFlags({
+                penalty_enabled: checked,
+                absent_enabled: flags?.absent_enabled ?? false,
+                dns_enabled: flags?.dns_enabled ?? false,
+                dnf_enabled: flags?.dnf_enabled ?? false,
+              })
+            }
+            label="Modul penalty aktif"
+          />
+          <ToggleSwitch
+            checked={flags?.absent_enabled ?? false}
+            onChange={(checked) =>
+              saveFlags({
+                penalty_enabled: flags?.penalty_enabled ?? false,
+                absent_enabled: checked,
+                dns_enabled: flags?.dns_enabled ?? false,
+                dnf_enabled: flags?.dnf_enabled ?? false,
+              })
+            }
+            label="Modul absent aktif"
+          />
+          <ToggleSwitch
+            checked={flags?.dns_enabled ?? false}
+            onChange={(checked) =>
+              saveFlags({
+                penalty_enabled: flags?.penalty_enabled ?? false,
+                absent_enabled: flags?.absent_enabled ?? false,
+                dns_enabled: checked,
+                dnf_enabled: flags?.dnf_enabled ?? false,
+              })
+            }
+            label="Modul DNS aktif"
+          />
+          <ToggleSwitch
+            checked={flags?.dnf_enabled ?? false}
+            onChange={(checked) =>
+              saveFlags({
+                penalty_enabled: flags?.penalty_enabled ?? false,
+                absent_enabled: flags?.absent_enabled ?? false,
+                dns_enabled: flags?.dns_enabled ?? false,
+                dnf_enabled: checked,
+              })
+            }
+            label="Modul DNF aktif"
+          />
         </div>
         <div style={{ display: 'grid', gap: 6, fontSize: 12, fontWeight: 800, color: '#334155' }}>
           <div>DNS module: checker bisa menandai rider DNS. Nilai rider otomatis dihitung sebagai jumlah rider + 2.</div>
@@ -689,30 +678,21 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
               <option key={s} value={s}>{s}</option>
             ))}
           </select>
-          <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 900 }}>
-            <input
-              type="checkbox"
-              checked={ruleForm.is_active}
-              onChange={(e) => setRuleForm({ ...ruleForm, is_active: e.target.checked })}
-            />
-            Active
-          </label>
-          <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 900 }}>
-            <input
-              type="checkbox"
-              checked={ruleForm.checker_enabled}
-              onChange={(e) => setRuleForm({ ...ruleForm, checker_enabled: e.target.checked })}
-            />
-            Checker Auto
-          </label>
-          <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 900 }}>
-            <input
-              type="checkbox"
-              checked={ruleForm.rd_enabled}
-              onChange={(e) => setRuleForm({ ...ruleForm, rd_enabled: e.target.checked })}
-            />
-            RD Manual
-          </label>
+          <ToggleSwitch
+            checked={ruleForm.is_active}
+            onChange={(checked) => setRuleForm({ ...ruleForm, is_active: checked })}
+            label="Rule aktif"
+          />
+          <ToggleSwitch
+            checked={ruleForm.checker_enabled}
+            onChange={(checked) => setRuleForm({ ...ruleForm, checker_enabled: checked })}
+            label="Checker Auto aktif"
+          />
+          <ToggleSwitch
+            checked={ruleForm.rd_enabled}
+            onChange={(checked) => setRuleForm({ ...ruleForm, rd_enabled: checked })}
+            label="RD Manual aktif"
+          />
           <button
             type="button"
             onClick={handleCreateRule}
@@ -731,38 +711,31 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
                 {rule.description || '-'} • {rule.penalty_point} pts • {rule.applies_to_stage}
               </div>
               <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                  <input
-                    type="checkbox"
-                    checked={rule.is_active}
-                    onChange={(e) => setRules((prev) => prev.map((r) => (r.id === rule.id ? { ...r, is_active: e.target.checked } : r)))}
-                  />
-                  Active
-                </label>
-                <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                  <input
-                    type="checkbox"
-                    checked={rule.checker_enabled}
-                    onChange={(e) =>
-                      setRules((prev) =>
-                        prev.map((r) => (r.id === rule.id ? { ...r, checker_enabled: e.target.checked } : r))
-                      )
-                    }
-                  />
-                  Checker Auto
-                </label>
-                <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                  <input
-                    type="checkbox"
-                    checked={rule.rd_enabled}
-                    onChange={(e) =>
-                      setRules((prev) =>
-                        prev.map((r) => (r.id === rule.id ? { ...r, rd_enabled: e.target.checked } : r))
-                      )
-                    }
-                  />
-                  RD Manual
-                </label>
+                <ToggleSwitch
+                  checked={rule.is_active}
+                  onChange={(checked) =>
+                    setRules((prev) => prev.map((r) => (r.id === rule.id ? { ...r, is_active: checked } : r)))
+                  }
+                  label="Rule aktif"
+                />
+                <ToggleSwitch
+                  checked={rule.checker_enabled}
+                  onChange={(checked) =>
+                    setRules((prev) =>
+                      prev.map((r) => (r.id === rule.id ? { ...r, checker_enabled: checked } : r))
+                    )
+                  }
+                  label="Checker Auto"
+                />
+                <ToggleSwitch
+                  checked={rule.rd_enabled}
+                  onChange={(checked) =>
+                    setRules((prev) =>
+                      prev.map((r) => (r.id === rule.id ? { ...r, rd_enabled: checked } : r))
+                    )
+                  }
+                  label="RD Manual"
+                />
                 <button
                   type="button"
                   onClick={() => handleSaveRule(rule)}

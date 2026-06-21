@@ -5,7 +5,6 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import { formatAppRoleLabel, normalizeAppRole } from '../lib/roles'
 import { supabase } from '../lib/supabaseClient'
-import { useTheme } from './ThemeProvider'
 import PublicBottomBar from './PublicBottomBar'
 import LiveEntryButton from './LiveEntryButton'
 
@@ -53,15 +52,12 @@ const roleHome = (value: string | null) => {
   return '/dashboard'
 }
 
-export default function PublicTopbar({ theme }: PublicTopbarProps) {
+export default function PublicTopbar({}: PublicTopbarProps) {
   const pathname = usePathname()
   const router = useRouter()
-  const { theme: globalTheme } = useTheme()
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [roleKey, setRoleKey] = useState<string | null>(null)
   const [eventBranding, setEventBranding] = useState<EventBranding | null>(null)
-  const resolvedTheme = theme ?? globalTheme
-  const isDark = resolvedTheme === 'dark'
 
   const panelHref = useMemo(() => roleHome(roleKey), [roleKey])
   const panelLabel = useMemo(() => formatAppRoleLabel(roleKey), [roleKey])
@@ -122,40 +118,28 @@ export default function PublicTopbar({ theme }: PublicTopbarProps) {
   return (
     <>
       <header
-        className={`sticky top-0 z-50 backdrop-blur ${
-          isDark ? 'border-b border-slate-800 bg-[#0b1633]/95' : 'border-b border-slate-200/80 bg-white/95'
-        }`}
+        className="public-editorial-topbar sticky top-0 z-50 border-b border-[#d9ceb4] bg-[#f5ecd7]/95 text-[#1d0d07] backdrop-blur"
       >
-        <div className="relative w-full px-4 py-3 md:px-6">
+        <div className="relative w-full px-4 py-2.5 md:px-6">
           <div className="flex items-center justify-between gap-4">
             <Link href="/" className="flex min-w-0 items-center gap-3">
               <span className="relative flex h-10 w-10 items-center justify-center">
-                {isDark && (
-                  <>
-                    <span className="absolute inset-1 rounded-full bg-white/70 blur-md" />
-                    <span className="absolute inset-0 rounded-full bg-gradient-to-br from-white/35 via-amber-200/15 to-transparent" />
-                  </>
-                )}
                 <img
                   src="/platform-logo.png"
                   alt="Platform Logo"
-                  className={`relative h-10 w-10 object-contain ${isDark ? 'drop-shadow-[0_2px_10px_rgba(255,255,255,0.35)]' : ''}`}
+                  className="relative h-10 w-10 object-contain"
                 />
               </span>
               <span className="min-w-0">
-                <span
-                  className={`block truncate text-sm font-black tracking-tight sm:text-base md:text-lg ${
-                    isDark ? 'text-slate-100' : 'text-slate-900'
-                  }`}
-                >
-                  Pushbike Race Management Platform
+                <span className="block truncate text-sm font-black sm:text-base md:text-lg">
+                  RacePushbike
                 </span>
                 {eventBranding ? (
-                  <span className={`block truncate text-[11px] font-bold ${isDark ? 'text-slate-300' : 'text-slate-500'}`}>
+                  <span className="block truncate text-[11px] font-bold text-[#796657]">
                     {formatEventBrandingLabel(eventBranding)}
                   </span>
                 ) : (
-                  <span className={`block truncate text-[11px] font-bold ${isDark ? 'text-slate-300' : 'text-slate-500'}`}>
+                  <span className="block truncate text-[11px] font-bold text-[#796657]">
                     Public Event & Live Results
                   </span>
                 )}
@@ -163,9 +147,7 @@ export default function PublicTopbar({ theme }: PublicTopbarProps) {
             </Link>
 
             <nav
-              className={`absolute left-1/2 hidden -translate-x-1/2 items-center gap-6 text-sm font-semibold md:flex ${
-                isDark ? 'text-slate-300' : 'text-slate-600'
-              }`}
+              className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-1 rounded-full border border-[#d9ceb4] bg-[#fff8e8] p-1 text-sm font-bold text-[#2a160d] shadow-sm md:flex"
             >
               {navItems.map((item) => {
                 const baseHref = item.href.split('#')[0]
@@ -177,9 +159,9 @@ export default function PublicTopbar({ theme }: PublicTopbarProps) {
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={`transition-colors ${
-                      isDark ? 'hover:text-amber-300' : 'hover:text-amber-500'
-                    } ${active ? (isDark ? 'text-amber-300' : 'text-amber-500') : ''}`}
+                    className={`rounded-full px-4 py-2 transition-colors ${
+                      active ? 'bg-[#1d0d07] text-[#fff8e8]' : 'hover:bg-[#efe3c8]'
+                    }`}
                   >
                     {item.label}
                   </Link>
@@ -189,10 +171,8 @@ export default function PublicTopbar({ theme }: PublicTopbarProps) {
                 label="Live Results"
                 mode="results"
                 fallbackHref="/dashboard#live-results"
-                className={`transition-colors ${
-                  isDark ? 'hover:text-amber-300' : 'hover:text-amber-500'
-                }`}
-                activeClassName={isDark ? 'text-amber-300' : 'text-amber-500'}
+                className="rounded-full px-4 py-2 transition-colors hover:bg-[#efe3c8]"
+                activeClassName="bg-[#1d0d07] text-[#fff8e8]"
               />
             </nav>
 
@@ -201,11 +181,7 @@ export default function PublicTopbar({ theme }: PublicTopbarProps) {
                 <>
                   <Link
                     href={panelHref}
-                    className={`max-w-[160px] truncate rounded-full border px-3 py-2 text-xs font-extrabold uppercase tracking-[0.08em] transition-colors ${
-                      isDark
-                        ? 'border-slate-600 bg-slate-800/70 text-slate-200 hover:bg-slate-700'
-                        : 'border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200'
-                    }`}
+                    className="max-w-[160px] truncate rounded-full border border-[#d9ceb4] bg-[#fff8e8] px-3 py-2 text-xs font-extrabold uppercase text-[#2a160d] transition-colors hover:bg-[#efe3c8]"
                     title={userEmail ?? undefined}
                   >
                     {panelLabel}
@@ -213,9 +189,7 @@ export default function PublicTopbar({ theme }: PublicTopbarProps) {
                   <button
                     type="button"
                     onClick={handleLogout}
-                    className={`rounded-full px-5 py-2 text-sm font-bold transition-colors ${
-                      isDark ? 'bg-amber-400 text-slate-900 hover:bg-amber-300' : 'bg-amber-400 text-slate-900 hover:bg-amber-300'
-                    }`}
+                    className="rounded-full bg-[#1d0d07] px-5 py-2 text-sm font-bold text-[#fff8e8] transition-colors hover:bg-[#e84b16]"
                   >
                     Logout
                   </button>
@@ -223,9 +197,7 @@ export default function PublicTopbar({ theme }: PublicTopbarProps) {
               ) : (
                 <Link
                   href="/login"
-                  className={`rounded-full px-5 py-2 text-sm font-bold transition-colors ${
-                    isDark ? 'bg-amber-400 text-slate-900 hover:bg-amber-300' : 'bg-amber-400 text-slate-900 hover:bg-amber-300'
-                  }`}
+                  className="rounded-full bg-[#1d0d07] px-5 py-2 text-sm font-bold text-[#fff8e8] transition-colors hover:bg-[#e84b16]"
                 >
                   Login
                 </Link>
@@ -234,9 +206,7 @@ export default function PublicTopbar({ theme }: PublicTopbarProps) {
           </div>
 
           <nav
-            className={`mt-3 flex items-center justify-center gap-4 text-sm font-semibold md:hidden ${
-              isDark ? 'text-slate-300' : 'text-slate-600'
-            }`}
+            className="mt-3 flex items-center justify-center gap-4 text-sm font-semibold text-[#2a160d] md:hidden"
           >
             {navItems.map((item) => {
               const baseHref = item.href.split('#')[0]
@@ -249,8 +219,8 @@ export default function PublicTopbar({ theme }: PublicTopbarProps) {
                   key={`${item.href}-mobile`}
                   href={item.href}
                   className={`transition-colors ${
-                    isDark ? 'hover:text-amber-300' : 'hover:text-amber-500'
-                  } ${active ? (isDark ? 'text-amber-300' : 'text-amber-500') : ''}`}
+                    active ? 'font-black text-[#e84b16]' : 'hover:text-[#e84b16]'
+                  }`}
                 >
                   {item.label}
                 </Link>
@@ -260,15 +230,13 @@ export default function PublicTopbar({ theme }: PublicTopbarProps) {
               label="Live Results"
               mode="results"
               fallbackHref="/dashboard#live-results"
-              className={`transition-colors ${
-                isDark ? 'hover:text-amber-300' : 'hover:text-amber-500'
-              }`}
-              activeClassName={isDark ? 'text-amber-300' : 'text-amber-500'}
+              className="transition-colors hover:text-[#e84b16]"
+              activeClassName="font-black text-[#e84b16]"
             />
           </nav>
         </div>
       </header>
-      <PublicBottomBar />
+      <PublicBottomBar variant="editorial" />
     </>
   )
 }

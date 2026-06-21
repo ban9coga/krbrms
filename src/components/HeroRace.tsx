@@ -7,68 +7,71 @@ type LiveEventItem = {
   location?: string | null
 }
 
+const heroStats = [
+  { value: '01', label: 'Integrated Platform' },
+  { value: 'Multi', label: 'Stage Race Engine' },
+  { value: 'Live', label: 'Public Results' },
+]
+
 export default function HeroRace({ liveEvent }: { liveEvent: LiveEventItem | null }) {
+  const eventHref = liveEvent ? `/event/${liveEvent.id}` : '/dashboard'
+
   return (
-    <section className="w-full bg-slate-100 px-2 py-4 sm:px-4 md:px-6 md:py-8">
-      <div className="mx-auto w-full max-w-[1500px]">
-        <div className="relative overflow-hidden rounded-[2rem] bg-[linear-gradient(125deg,#090f1d_0%,#1e293b_42%,#78350f_100%)] px-5 py-14 shadow-[0_40px_120px_rgba(15,23,42,0.32)] sm:px-8 sm:py-16 md:rounded-[2.5rem] md:px-14 md:py-24 lg:py-28">
-          <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-amber-400/15 blur-3xl" />
-          <div className="pointer-events-none absolute -top-24 right-0 h-72 w-72 rounded-full bg-amber-200/10 blur-3xl" />
-          <div className="pointer-events-none absolute right-16 top-1/2 hidden h-56 w-56 -translate-y-1/2 rounded-full border border-amber-200/20 md:block" />
+    <section className="homepage-editorial-hero-shell">
+      <div className="homepage-editorial-hero">
+        <div className="homepage-editorial-hero-media" aria-hidden="true" />
+        <div className="homepage-editorial-hero-shade" aria-hidden="true" />
 
-          <div className="relative z-10 mx-auto max-w-5xl text-center">
-            <div className="mb-6 flex justify-center">
-              {liveEvent ? (
-                <Link
-                  href={`/event/${liveEvent.id}`}
-                  className="inline-flex max-w-full items-center gap-3 rounded-full border border-amber-300/40 bg-amber-400/10 px-4 py-2 text-left text-amber-100 transition-colors hover:border-amber-200/60 hover:bg-amber-400/20"
-                >
-                  <span className="relative inline-flex h-3 w-3 shrink-0">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-300 opacity-75" />
-                    <span className="relative inline-flex h-3 w-3 rounded-full bg-amber-300 shadow-[0_0_12px_rgba(251,191,36,0.95)]" />
-                  </span>
-                  <span className="truncate text-xs font-black tracking-[0.14em] sm:text-sm">
-                    LIVE NOW: {liveEvent.name}
-                  </span>
-                </Link>
-              ) : (
-                <div className="inline-flex items-center gap-2 rounded-full border border-slate-200/30 bg-slate-900/20 px-4 py-2 text-xs font-bold tracking-[0.14em] text-slate-200 sm:text-sm">
-                  <span className="inline-flex h-2 w-2 rounded-full bg-slate-300/80" />
-                  NO LIVE EVENT
-                </div>
-              )}
-            </div>
-
-            <h1 className="mt-1 text-4xl font-black leading-[0.95] tracking-tight text-white sm:text-5xl md:mt-2 md:text-6xl lg:text-7xl">
-              <span className="block">
-                <span className="font-black text-amber-400 drop-shadow-[0_16px_50px_rgba(251,191,36,0.35)]">PUSHBIKE</span>{' '}
-                <span className="font-extrabold text-white/95">Race Platform</span>
-              </span>
-            </h1>
-
-            <p className="mx-auto mt-4 max-w-3xl text-base font-semibold tracking-tight text-slate-100 sm:text-lg md:mt-5 md:text-xl">
-              Real-Time Pushbike Race Management System
-            </p>
-
-            <p className="mx-auto mt-3 max-w-3xl text-sm font-medium leading-relaxed text-slate-200 sm:text-base md:mt-4">
-              Presisi di Setiap Detik, Transparansi di Setiap Garis Finish.
-            </p>
-
-            <div className="mt-10 flex flex-col items-stretch justify-center gap-3 sm:mt-12 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
-              <Link
-                href="/dashboard"
-                className="inline-flex w-full justify-center rounded-2xl bg-amber-400 px-8 py-3 text-base font-bold tracking-[0.12em] text-slate-900 transition-colors duration-200 hover:bg-amber-300 sm:w-auto sm:px-10 sm:py-4 sm:tracking-[0.15em]"
-              >
-                Eksplor Event
-              </Link>
-              <LiveEntryButton
-                label="Pantau Live"
-                mode="display"
-                fallbackHref="/dashboard#live-results"
-                className="inline-flex w-full justify-center rounded-2xl border border-slate-200/30 bg-slate-900/20 px-8 py-3 text-base font-bold tracking-[0.12em] text-white transition-colors duration-200 hover:border-slate-100/50 hover:bg-slate-900/40 sm:w-auto sm:px-10 sm:py-4 sm:tracking-[0.15em]"
-              />
-            </div>
+        <div className="homepage-editorial-hero-content">
+          <div className="homepage-editorial-kicker">
+            <span className={liveEvent ? 'homepage-editorial-live-dot' : 'homepage-editorial-idle-dot'} />
+            {liveEvent ? `LIVE EVENT · ${liveEvent.name}` : 'PUSHBIKE RACE MANAGEMENT · SEASON 2026'}
           </div>
+
+          <h1 className="homepage-editorial-title">
+            <span>Race management built for</span>
+            <span className="homepage-editorial-title-line">
+              <mark>faster</mark> decisions.
+            </span>
+          </h1>
+
+          <p className="homepage-editorial-copy">
+            Registrasi rider, gate assignment, jury workflow, penalty, scoring, dan live results dalam satu
+            platform untuk race day yang lebih terkendali.
+          </p>
+
+          <div className="homepage-editorial-actions">
+            <LiveEntryButton
+              label="Pantau Live"
+              mode="display"
+              fallbackHref="/dashboard"
+              className="homepage-editorial-action homepage-editorial-action-primary"
+            />
+            <Link href={eventHref} className="homepage-editorial-action homepage-editorial-action-secondary">
+              {liveEvent ? 'Buka Event Live' : 'Lihat Semua Event'}
+              <span aria-hidden="true">→</span>
+            </Link>
+          </div>
+
+          <div className="homepage-editorial-stats" aria-label="Platform capabilities">
+            {heroStats.map((stat) => (
+              <div key={stat.label} className="homepage-editorial-stat">
+                <strong>{stat.value}</strong>
+                <span>{stat.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="homepage-editorial-ticker" aria-label="Platform features">
+          <span>LIVE SCORING</span>
+          <strong>READY</strong>
+          <span>GATE & MOTO CONTROL</span>
+          <strong>CONNECTED</strong>
+          <span>CHECKER · FINISHER · MC</span>
+          <strong>ACTIVE</strong>
+          <span>PUBLIC RESULTS</span>
+          <strong>UPDATED</strong>
         </div>
       </div>
     </section>

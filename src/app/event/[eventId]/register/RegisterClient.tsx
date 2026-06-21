@@ -1064,19 +1064,19 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   }
 
   const panelClass =
-    'rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-4 shadow-[0_24px_70px_rgba(2,6,23,0.32)] ring-1 ring-white/5 backdrop-blur sm:p-5'
+    'registration-editorial-panel rounded-[1.5rem] border border-[#dfd1b8] bg-[#fff8e8] p-4 text-[#1d0d07] shadow-[0_18px_44px_rgba(55,23,9,0.1)] sm:p-5'
   const fieldClass =
-    'w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3.5 text-sm font-semibold text-slate-50 shadow-inner shadow-black/20 placeholder:text-slate-500 transition-colors focus:border-amber-300 focus:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-amber-300/25'
+    'w-full rounded-2xl border border-[#d9c9ae] bg-white px-4 py-3.5 text-sm font-semibold text-[#1d0d07] shadow-inner shadow-[#e9dcc4] placeholder:text-[#9a8774] transition-colors focus:border-[#e84b16] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#e84b16]/20'
   const filePickerClass =
-    'flex min-h-[76px] cursor-pointer items-center justify-between gap-3 rounded-2xl border border-dashed border-white/15 bg-slate-950/70 px-4 py-3 transition-colors hover:border-amber-300/70 hover:bg-slate-900/80'
-  const labelClass = 'text-xs font-black uppercase tracking-[0.14em] text-slate-300'
+    'registration-editorial-file flex min-h-[76px] cursor-pointer items-center justify-between gap-3 rounded-2xl border border-dashed border-[#c8b699] bg-[#f8eedb] px-4 py-3 transition-colors hover:border-[#e84b16] hover:bg-[#fff3dc]'
+  const labelClass = 'text-xs font-black uppercase text-[#5f4638]'
   const requiredLabel = (label: string) => (
     <span>
       {label} <span className="text-rose-400">*</span>
     </span>
   )
-  const helperClass = 'text-[11px] font-semibold leading-5 text-slate-400'
-  const sectionHeaderClass = 'text-xs font-black uppercase tracking-[0.18em] text-amber-300'
+  const helperClass = 'text-[11px] font-semibold leading-5 text-[#796657]'
+  const sectionHeaderClass = 'text-xs font-black uppercase text-[#e84b16]'
 
   const pickAcceptedFile = (files: FileList | null | undefined, allowPdf: boolean) => {
     if (!files) return null
@@ -1164,7 +1164,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     `${filePickerClass} ${dragActiveKey === key ? 'border-amber-400 bg-amber-400/10' : ''}`
 
   return (
-    <div className="public-page min-h-screen bg-[linear-gradient(180deg,#111827_0%,#1f2937_42%,#111827_100%)] text-slate-100">
+    <div className="public-page public-editorial-page public-editorial-registration min-h-screen bg-[#f5ecd7] text-[#1d0d07]">
       <PublicTopbar />
       <main className="mx-auto grid w-full max-w-[1120px] gap-4 px-4 pb-36 pt-5 sm:px-6 md:gap-5 md:pt-7">
         {!registrationOpen && (
@@ -1175,16 +1175,15 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
             </div>
           </section>
         )}
-        <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,rgba(17,24,39,0.96)_0%,rgba(31,41,55,0.92)_58%,rgba(55,65,81,0.88)_100%)] px-5 py-6 shadow-[0_28px_90px_rgba(2,6,23,0.42)] ring-1 ring-white/5 sm:px-7 md:py-8">
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-200/50 to-transparent" />
+        <section className="registration-editorial-hero relative overflow-hidden rounded-[2rem] border border-[#4f372b] bg-[#1d0d07] px-5 py-6 text-[#fff8e8] shadow-[0_28px_70px_rgba(55,23,9,0.24)] sm:px-7 md:py-8">
           <div className="relative z-10 grid gap-5 md:grid-cols-[minmax(0,1fr)_240px] md:items-center">
             <div className="grid gap-3">
-              <p className="text-xs font-black uppercase tracking-[0.22em] text-amber-300">Event Registration</p>
+              <p className="text-xs font-black uppercase text-[#f3c63d]">Event Registration</p>
               {publicBrandName && (
-                <p className="text-sm font-extrabold uppercase tracking-[0.16em] text-amber-100/90">{publicBrandName}</p>
+                <p className="text-sm font-extrabold uppercase text-[#eadcca]">{publicBrandName}</p>
               )}
-              <h1 className="max-w-4xl text-3xl font-black tracking-tight text-white md:text-5xl">{publicEventTitle}</h1>
-              <p className="max-w-3xl text-base font-semibold leading-7 text-slate-200 md:text-lg">
+              <h1 className="max-w-4xl text-3xl font-black text-[#fff8e8] md:text-5xl">{publicEventTitle}</h1>
+              <p className="max-w-3xl text-base font-semibold leading-7 text-[#c9b7a5] md:text-lg">
                 {publicTagline || 'Form registrasi event'}
               </p>
               {publicContactPhone && (
@@ -1689,7 +1688,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         <button
           type="button"
           onClick={addRider}
-          className="rounded-2xl border border-emerald-300/35 bg-emerald-400 px-4 py-3.5 text-sm font-black uppercase tracking-[0.12em] text-slate-950 shadow-[0_18px_40px_rgba(16,185,129,0.2)] transition-colors hover:bg-emerald-300"
+          className="rounded-2xl border border-[#1d0d07] bg-[#1d0d07] px-4 py-3.5 text-sm font-black uppercase text-[#fff8e8] shadow-[0_14px_30px_rgba(55,23,9,0.16)] transition-colors hover:bg-[#e84b16]"
         >
           + Tambah Rider
         </button>
@@ -1927,7 +1926,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         </div>
       )}
 
-      <div className="fixed bottom-4 left-1/2 z-40 flex w-[calc(100%-1.5rem)] max-w-[1120px] -translate-x-1/2 flex-col gap-3 rounded-[1.35rem] border border-white/10 bg-slate-950/95 px-4 py-3 shadow-[0_22px_70px_rgba(2,6,23,0.58)] ring-1 ring-white/5 backdrop-blur md:flex-row md:items-center md:justify-between">
+      <div className="registration-editorial-submit fixed bottom-4 left-1/2 z-40 flex w-[calc(100%-1.5rem)] max-w-[1120px] -translate-x-1/2 flex-col gap-3 rounded-[1.35rem] border border-[#5a4032] bg-[#1d0d07]/96 px-4 py-3 text-[#fff8e8] shadow-[0_22px_70px_rgba(55,23,9,0.36)] backdrop-blur md:flex-row md:items-center md:justify-between">
         <div className="grid gap-1">
           <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Total Pembayaran</div>
           <div className="text-xl font-black text-amber-300 md:text-2xl">{formatRupiah(totalAmount)}</div>
@@ -1941,7 +1940,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
           type="button"
           disabled={submitting || !registrationOpen}
           onClick={handleSubmit}
-          className="inline-flex min-h-[52px] items-center justify-center rounded-2xl bg-amber-400 px-5 py-3 text-sm font-black uppercase tracking-[0.12em] text-slate-950 shadow-[0_16px_35px_rgba(251,191,36,0.18)] transition-colors hover:bg-amber-300 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400 md:min-w-[240px]"
+          className="inline-flex min-h-[56px] items-center justify-center rounded-full bg-[#f3c63d] px-7 py-3 text-sm font-black uppercase text-[#1d0d07] shadow-[0_16px_35px_rgba(243,198,61,0.24)] transition-transform hover:-translate-y-0.5 hover:bg-[#ffda5a] disabled:cursor-not-allowed disabled:bg-[#705547] disabled:text-[#c9b7a5] md:min-w-[260px]"
         >
           {!registrationOpen ? 'Registrasi Ditutup' : submitting ? 'Menyimpan...' : 'Kirim Pendaftaran'}
         </button>

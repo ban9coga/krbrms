@@ -23,12 +23,14 @@ export default function EventCard({
   logoUrl,
   slogan,
   canRegister = true,
+  variant = 'default',
 }: {
   event: EventItem
   index?: number
   logoUrl?: string | null
   slogan?: string | null
   canRegister?: boolean
+  variant?: 'default' | 'editorial'
 }) {
   const status = statusConfig[event.status]
   const fallback = fallbackCovers[index % fallbackCovers.length]
@@ -51,6 +53,99 @@ export default function EventCard({
   const mapsUrl = buildGoogleMapsUrl(event.name, event.location)
   const showRegisterButton = event.status === 'UPCOMING' && registrationOpen && canRegister
   const upcomingStateLabel = !registrationOpen ? 'Registration Closed' : canRegister ? 'Registration Open' : 'Kuota Penuh'
+
+  if (variant === 'editorial') {
+    const sequence = String(index + 1).padStart(2, '0')
+    const isUpcoming = event.status === 'UPCOMING'
+    const actionLabel = event.status === 'LIVE' ? 'Buka Live Event' : 'Lihat Hasil'
+
+    return (
+      <article
+        className={`editorial-event-card editorial-event-card-${event.status.toLowerCase()}`}
+        style={isUpcoming ? { background: '#1d0d07', borderColor: '#4f372b' } : undefined}
+      >
+        <Link
+          href={detailHref}
+          className="editorial-event-card-media"
+          aria-label={`Buka event ${event.name}`}
+          style={logoUrl ? { backgroundImage: `url(${logoUrl})` } : undefined}
+        >
+          {!logoUrl && (
+            <span className="editorial-event-card-placeholder" aria-hidden="true">
+              RP
+            </span>
+          )}
+          <span className="editorial-event-status">{status.label}</span>
+          <span className="editorial-event-date">
+            <strong>{dayLabel}</strong>
+            {dateLabel}
+          </span>
+        </Link>
+
+        <div className="editorial-event-card-body" style={isUpcoming ? { background: '#1d0d07' } : undefined}>
+          {!isUpcoming && (
+            <div className="editorial-event-card-index">
+              <span>{sequence}</span>
+              <span>{event.status === 'LIVE' ? 'Live now' : 'Race archive'}</span>
+            </div>
+          )}
+
+          <Link
+            href={detailHref}
+            className="editorial-event-card-title"
+            style={isUpcoming ? { color: '#fff8e8' } : undefined}
+          >
+            {event.name}
+          </Link>
+
+          <p className="editorial-event-card-location" style={isUpcoming ? { color: '#dfd1c2' } : undefined}>
+            {event.location || 'Lokasi akan diumumkan'}
+          </p>
+          {slogan ? (
+            <p className="editorial-event-card-slogan" style={isUpcoming ? { color: '#bca998' } : undefined}>
+              {slogan}
+            </p>
+          ) : null}
+
+          <div
+            className="editorial-event-card-footer"
+            style={isUpcoming ? { borderTopColor: '#554034', color: '#bca998' } : undefined}
+          >
+            <span>{eventScope === 'INTERNAL' ? 'Internal event' : 'Public event'}</span>
+            {isUpcoming ? (
+              <div className="editorial-event-card-actions">
+                {showRegisterButton ? (
+                  <Link href={registerHref} className="editorial-event-card-action editorial-event-card-action-primary">
+                    Daftar Sekarang
+                  </Link>
+                ) : (
+                  <span className="editorial-event-card-registration-state">{upcomingStateLabel}</span>
+                )}
+                <Link href={detailHref} className="editorial-event-card-action editorial-event-card-action-secondary">
+                  Lihat Detail
+                </Link>
+                {mapsUrl ? (
+                  <a
+                    href={mapsUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="editorial-event-card-action editorial-event-card-action-secondary"
+                  >
+                    Buka GMaps
+                  </a>
+                ) : null}
+              </div>
+            ) : (
+              <Link href={detailHref} className="editorial-event-card-action">
+                {actionLabel}
+                <span aria-hidden="true">→</span>
+              </Link>
+            )}
+          </div>
+        </div>
+      </article>
+    )
+  }
 
   return (
     <article className="group relative overflow-hidden rounded-[1.8rem] border border-slate-200 bg-white/95 shadow-[0_16px_34px_rgba(15,23,42,0.12)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_44px_rgba(15,23,42,0.2)]">

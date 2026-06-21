@@ -17,6 +17,7 @@ const navItems = [
 type MarketingTopbarProps = {
   showNav?: boolean
   showLoginButton?: boolean
+  variant?: 'default' | 'editorial'
 }
 
 const roleHome = (value: string | null) => {
@@ -31,12 +32,17 @@ const roleHome = (value: string | null) => {
   return '/dashboard'
 }
 
-export default function MarketingTopbar({ showNav = true, showLoginButton = true }: MarketingTopbarProps) {
+export default function MarketingTopbar({
+  showNav = true,
+  showLoginButton = true,
+  variant = 'default',
+}: MarketingTopbarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const { theme } = useTheme()
   const isLoginPage = pathname === '/login'
   const isDark = theme === 'dark'
+  const editorial = variant === 'editorial'
 
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [roleKey, setRoleKey] = useState<string | null>(null)
@@ -83,35 +89,63 @@ export default function MarketingTopbar({ showNav = true, showLoginButton = true
   return (
     <>
       <header
-        className={`sticky top-0 z-50 backdrop-blur ${
-          isDark ? 'border-b border-slate-800 bg-slate-950/92' : 'border-b border-slate-200/80 bg-white/95'
-        }`}
+        className={
+          editorial
+            ? 'homepage-editorial-topbar sticky top-0 z-50 border-b border-[#d9ceb4] bg-[#f5ecd7]/95 backdrop-blur'
+            : `sticky top-0 z-50 backdrop-blur ${
+                isDark ? 'border-b border-slate-800 bg-slate-950/92' : 'border-b border-slate-200/80 bg-white/95'
+              }`
+        }
       >
-        <div className="relative w-full px-4 py-3 md:px-6">
+        <div className={`relative w-full px-4 md:px-6 ${editorial ? 'py-2.5' : 'py-3'}`}>
           <div className="flex items-center justify-between gap-4">
             <Link href="/" className="flex min-w-0 items-center gap-3">
               <img
                 src="/platform-logo.png"
                 alt="Platform Logo"
-                className="h-10 w-10 object-contain"
+                className={editorial ? 'h-9 w-9 object-contain' : 'h-10 w-10 object-contain'}
               />
               <span className="min-w-0">
-                <span className={`block truncate text-sm font-black tracking-tight sm:text-base md:text-lg ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
-                  Pushbike Race Management Platform
+                <span
+                  className={`block truncate font-black tracking-tight ${
+                    editorial
+                      ? 'text-sm text-[#1d0d07] sm:text-base'
+                      : `text-sm sm:text-base md:text-lg ${isDark ? 'text-slate-100' : 'text-slate-900'}`
+                  }`}
+                >
+                  {editorial ? 'RacePushbike' : 'Pushbike Race Management Platform'}
                 </span>
-                <span className={`block truncate text-[11px] font-bold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                  Public Event, Live Results, and Race Control
-                </span>
+                {!editorial && (
+                  <span className={`block truncate text-[11px] font-bold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    Public Event, Live Results, and Race Control
+                  </span>
+                )}
               </span>
             </Link>
 
             {showNav && (
-              <nav className={`absolute left-1/2 hidden -translate-x-1/2 items-center gap-6 text-sm font-semibold md:flex ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+              <nav
+                className={
+                  editorial
+                    ? 'homepage-editorial-desktop-nav absolute left-1/2 hidden -translate-x-1/2 items-center gap-1 rounded-full border border-[#d9ceb4] bg-[#fffaf0] p-1 text-sm font-bold text-[#2a160d] shadow-sm md:flex'
+                    : `absolute left-1/2 hidden -translate-x-1/2 items-center gap-6 text-sm font-semibold md:flex ${
+                        isDark ? 'text-slate-300' : 'text-slate-600'
+                      }`
+                }
+              >
                 {navItems.map((item) => (
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={`transition-colors ${isDark ? 'hover:text-amber-300' : 'hover:text-amber-500'} ${isActive(item.href) ? (isDark ? 'text-amber-300' : 'text-amber-500') : ''}`}
+                    className={
+                      editorial
+                        ? `rounded-full px-4 py-2 transition-colors ${
+                            isActive(item.href) ? 'bg-[#1d0d07] text-white' : 'hover:bg-[#efe3c8]'
+                          }`
+                        : `transition-colors ${isDark ? 'hover:text-amber-300' : 'hover:text-amber-500'} ${
+                            isActive(item.href) ? (isDark ? 'text-amber-300' : 'text-amber-500') : ''
+                          }`
+                    }
                   >
                     {item.label}
                   </Link>
@@ -120,20 +154,28 @@ export default function MarketingTopbar({ showNav = true, showLoginButton = true
                   label="Live Results"
                   mode="results"
                   fallbackHref="/dashboard#live-results"
-                  className={`transition-colors ${isDark ? 'hover:text-amber-300' : 'hover:text-amber-500'}`}
-                  activeClassName={isDark ? 'text-amber-300' : 'text-amber-500'}
+                  className={
+                    editorial
+                      ? 'rounded-full px-4 py-2 transition-colors hover:bg-[#efe3c8]'
+                      : `transition-colors ${isDark ? 'hover:text-amber-300' : 'hover:text-amber-500'}`
+                  }
+                  activeClassName={
+                    editorial ? 'bg-[#1d0d07] text-white' : isDark ? 'text-amber-300' : 'text-amber-500'
+                  }
                 />
               </nav>
             )}
 
             {showLoginButton && !isLoginPage ? (
-              <div className="flex items-center gap-2">
+              <div className={`flex items-center gap-2 ${editorial ? 'homepage-editorial-auth' : ''}`}>
                 {isLoggedIn ? (
                   <>
                     <Link
                       href={panelHref}
                       className={`max-w-[160px] truncate rounded-full border px-3 py-2 text-xs font-extrabold uppercase tracking-[0.08em] transition-colors ${
-                        isDark
+                        editorial
+                          ? 'border-[#d9ceb4] bg-[#fffaf0] text-[#2a160d] hover:bg-[#efe3c8]'
+                          : isDark
                           ? 'border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700'
                           : 'border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200'
                       }`}
@@ -144,7 +186,11 @@ export default function MarketingTopbar({ showNav = true, showLoginButton = true
                     <button
                       type="button"
                       onClick={handleLogout}
-                      className="rounded-full bg-amber-400 px-5 py-2 text-sm font-bold text-slate-900 transition-colors hover:bg-amber-300"
+                      className={
+                        editorial
+                          ? 'rounded-full bg-[#1d0d07] px-5 py-2 text-sm font-bold text-white transition-colors hover:bg-[#ee4b16]'
+                          : 'rounded-full bg-amber-400 px-5 py-2 text-sm font-bold text-slate-900 transition-colors hover:bg-amber-300'
+                      }
                     >
                       Logout
                     </button>
@@ -152,7 +198,11 @@ export default function MarketingTopbar({ showNav = true, showLoginButton = true
                 ) : (
                   <Link
                     href="/login"
-                    className="rounded-full bg-amber-400 px-5 py-2 text-sm font-bold text-slate-900 transition-colors hover:bg-amber-300"
+                    className={
+                      editorial
+                        ? 'rounded-full bg-[#1d0d07] px-5 py-2 text-sm font-bold text-white transition-colors hover:bg-[#ee4b16]'
+                        : 'rounded-full bg-amber-400 px-5 py-2 text-sm font-bold text-slate-900 transition-colors hover:bg-amber-300'
+                    }
                   >
                     Login
                   </Link>
@@ -164,12 +214,24 @@ export default function MarketingTopbar({ showNav = true, showLoginButton = true
           </div>
 
           {showNav && (
-            <nav className={`mt-3 flex items-center justify-center gap-4 text-sm font-semibold md:hidden ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+            <nav
+              className={`mt-3 flex items-center justify-center gap-4 text-sm font-semibold md:hidden ${
+                editorial ? 'text-[#2a160d]' : isDark ? 'text-slate-300' : 'text-slate-600'
+              }`}
+            >
               {navItems.map((item) => (
                 <Link
                   key={`${item.href}-mobile`}
                   href={item.href}
-                  className={`transition-colors ${isDark ? 'hover:text-amber-300' : 'hover:text-amber-500'} ${isActive(item.href) ? (isDark ? 'text-amber-300' : 'text-amber-500') : ''}`}
+                  className={`transition-colors ${
+                    editorial
+                      ? isActive(item.href)
+                        ? 'font-black text-[#ee4b16]'
+                        : 'hover:text-[#ee4b16]'
+                      : `${isDark ? 'hover:text-amber-300' : 'hover:text-amber-500'} ${
+                          isActive(item.href) ? (isDark ? 'text-amber-300' : 'text-amber-500') : ''
+                        }`
+                  }`}
                 >
                   {item.label}
                 </Link>
@@ -178,14 +240,16 @@ export default function MarketingTopbar({ showNav = true, showLoginButton = true
                 label="Live Results"
                 mode="results"
                 fallbackHref="/dashboard#live-results"
-                className={`transition-colors ${isDark ? 'hover:text-amber-300' : 'hover:text-amber-500'}`}
-                activeClassName={isDark ? 'text-amber-300' : 'text-amber-500'}
+                className={`transition-colors ${
+                  editorial ? 'hover:text-[#ee4b16]' : isDark ? 'hover:text-amber-300' : 'hover:text-amber-500'
+                }`}
+                activeClassName={editorial ? 'font-black text-[#ee4b16]' : isDark ? 'text-amber-300' : 'text-amber-500'}
               />
             </nav>
           )}
         </div>
       </header>
-      <PublicBottomBar />
+      <PublicBottomBar variant={editorial ? 'editorial' : 'default'} />
     </>
   )
 }

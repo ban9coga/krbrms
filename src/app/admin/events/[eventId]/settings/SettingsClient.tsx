@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useMemo, useState, type DragEvent } from 'react'
 import SponsorMarquee from '../../../../../components/SponsorMarquee'
+import ToggleSwitch from '../../../../../components/ToggleSwitch'
 import {
   DEFAULT_BEST_TEAM_POINT_RULES,
   normalizeBestTeamClubAliases,
@@ -1636,22 +1637,16 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                 </div>
                 <div style={{ display: 'grid', gap: 10 }}>
                   <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-                    <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 800 }}>
-                      <input
-                        type="checkbox"
-                        checked={sponsorSectionEnabled}
-                        onChange={(e) => setSponsorSectionEnabled(e.target.checked)}
-                      />
-                      Tampilkan sponsor section
-                    </label>
-                    <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 800 }}>
-                      <input
-                        type="checkbox"
-                        checked={showRiderPhotosPublic}
-                        onChange={(e) => setShowRiderPhotosPublic(e.target.checked)}
-                      />
-                      Tampilkan foto rider di public display
-                    </label>
+                    <ToggleSwitch
+                      checked={sponsorSectionEnabled}
+                      onChange={setSponsorSectionEnabled}
+                      label="Tampilkan sponsor section"
+                    />
+                    <ToggleSwitch
+                      checked={showRiderPhotosPublic}
+                      onChange={setShowRiderPhotosPublic}
+                      label="Tampilkan foto rider di public display"
+                    />
                     <button
                       type="button"
                       onClick={addSponsorItem}
@@ -1881,30 +1876,21 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                           </div>
 
                           <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-                            <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 800 }}>
-                              <input
-                                type="checkbox"
-                                checked={item.is_active}
-                                onChange={(e) => updateSponsorItem(index, { is_active: e.target.checked })}
-                              />
-                              Active
-                            </label>
-                            <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 800 }}>
-                              <input
-                                type="checkbox"
-                                checked={item.show_on_event_page}
-                                onChange={(e) => updateSponsorItem(index, { show_on_event_page: e.target.checked })}
-                              />
-                              Event Page
-                            </label>
-                            <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 800 }}>
-                              <input
-                                type="checkbox"
-                                checked={item.show_on_live_display}
-                                onChange={(e) => updateSponsorItem(index, { show_on_live_display: e.target.checked })}
-                              />
-                              Live Display
-                            </label>
+                            <ToggleSwitch
+                              checked={item.is_active}
+                              onChange={(checked) => updateSponsorItem(index, { is_active: checked })}
+                              label="Sponsor aktif"
+                            />
+                            <ToggleSwitch
+                              checked={item.show_on_event_page}
+                              onChange={(checked) => updateSponsorItem(index, { show_on_event_page: checked })}
+                              label="Tampil di Event Page"
+                            />
+                            <ToggleSwitch
+                              checked={item.show_on_live_display}
+                              onChange={(checked) => updateSponsorItem(index, { show_on_live_display: checked })}
+                              label="Tampil di Live Display"
+                            />
                           </div>
 
                           {item.logo_url.trim() && (
@@ -2093,14 +2079,11 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                   section, jadi tetap tampil walaupun sponsor section dimatikan.
                 </div>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-                  <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 800 }}>
-                    <input
-                      type="checkbox"
-                      checked={communityShowcaseEnabled}
-                      onChange={(e) => setCommunityShowcaseEnabled(e.target.checked)}
-                    />
-                    Tampilkan di homepage
-                  </label>
+                  <ToggleSwitch
+                    checked={communityShowcaseEnabled}
+                    onChange={setCommunityShowcaseEnabled}
+                    label="Tampilkan di homepage"
+                  />
                   <button
                     type="button"
                     onClick={addCommunityLogoItem}
@@ -2211,14 +2194,11 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                               style={{ display: 'none' }}
                             />
                           </label>
-                          <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 800 }}>
-                            <input
-                              type="checkbox"
-                              checked={item.is_active}
-                              onChange={(e) => updateCommunityLogoItem(index, { is_active: e.target.checked })}
-                            />
-                            Active
-                          </label>
+                          <ToggleSwitch
+                            checked={item.is_active}
+                            onChange={(checked) => updateCommunityLogoItem(index, { is_active: checked })}
+                            label="Logo aktif"
+                          />
                         </div>
 
                         {communityLogoUploadError.index === index && communityLogoUploadError.message && (
@@ -2376,14 +2356,11 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                     Best Team / Juara Umum
                   </div>
                   <div style={{ display: 'grid', gap: 8, padding: 14, border: '2px solid #111', borderRadius: 16, background: '#f8fafc' }}>
-                    <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 900 }}>
-                      <input
-                        type="checkbox"
-                        checked={form.business_best_team_enabled}
-                        onChange={(e) => setForm({ ...form, business_best_team_enabled: e.target.checked })}
-                      />
-                      Aktifkan penilaian Best Team / Juara Umum untuk event ini
-                    </label>
+                    <ToggleSwitch
+                      checked={form.business_best_team_enabled}
+                      onChange={(checked) => setForm({ ...form, business_best_team_enabled: checked })}
+                      label="Aktifkan penilaian Best Team / Juara Umum untuk event ini"
+                    />
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                       <input
                         placeholder="Label publik, contoh: Best Team atau Juara Umum"
@@ -2459,14 +2436,11 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                     Base = biaya per rider. Extra = biaya tambahan kategori ekstra.
                   </div>
                   <div style={{ display: 'grid', gap: 8, padding: 12, border: '2px solid #111', borderRadius: 14, background: '#fff' }}>
-                    <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 900 }}>
-                      <input
-                        type="checkbox"
-                        checked={form.business_registration_rider_photo_enabled}
-                        onChange={(e) => setForm({ ...form, business_registration_rider_photo_enabled: e.target.checked })}
-                      />
-                      Tampilkan upload foto rider di form registrasi
-                    </label>
+                    <ToggleSwitch
+                      checked={form.business_registration_rider_photo_enabled}
+                      onChange={(checked) => setForm({ ...form, business_registration_rider_photo_enabled: checked })}
+                      label="Tampilkan upload foto rider di form registrasi"
+                    />
                     <div style={{ fontSize: 12, color: '#333', fontWeight: 700 }}>
                       Matikan jika event tidak membutuhkan foto rider. Saat dimatikan, pendaftar tidak perlu upload foto dan sistem tidak akan menyimpan foto dari form registrasi.
                     </div>
@@ -2664,14 +2638,11 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                       <option value="OTHER">OTHER</option>
                     </select>
                   </div>
-                  <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 800 }}>
-                    <input
-                      type="checkbox"
-                      checked={form.business_show_event_owner_publicly}
-                      onChange={(e) => setForm({ ...form, business_show_event_owner_publicly: e.target.checked })}
-                    />
-                    Tampilkan event owner di halaman publik
-                  </label>
+                  <ToggleSwitch
+                    checked={form.business_show_event_owner_publicly}
+                    onChange={(checked) => setForm({ ...form, business_show_event_owner_publicly: checked })}
+                    label="Tampilkan event owner di halaman publik"
+                  />
                 </div>
                 <div style={{ display: sections.publicInfo ? 'grid' : 'none', gap: 8, marginTop: 6 }}>
                   <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
@@ -2689,16 +2660,13 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                     onChange={(e) => setForm({ ...form, business_operating_committee_label: e.target.value })}
                     style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
                   />
-                  <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 800 }}>
-                    <input
-                      type="checkbox"
-                      checked={form.business_show_operating_committee_publicly}
-                      onChange={(e) =>
-                        setForm({ ...form, business_show_operating_committee_publicly: e.target.checked })
-                      }
-                    />
-                    Tampilkan operating committee di halaman publik
-                  </label>
+                  <ToggleSwitch
+                    checked={form.business_show_operating_committee_publicly}
+                    onChange={(checked) =>
+                      setForm({ ...form, business_show_operating_committee_publicly: checked })
+                    }
+                    label="Tampilkan operating committee di halaman publik"
+                  />
                 </div>
                 <div style={{ display: sections.publicInfo ? 'grid' : 'none', gap: 8, marginTop: 6 }}>
                   <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
@@ -2716,14 +2684,11 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                     onChange={(e) => setForm({ ...form, business_scoring_support_label: e.target.value })}
                     style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
                   />
-                  <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 800 }}>
-                    <input
-                      type="checkbox"
-                      checked={form.business_show_scoring_support_publicly}
-                      onChange={(e) => setForm({ ...form, business_show_scoring_support_publicly: e.target.checked })}
-                    />
-                    Tampilkan scoring support di halaman publik
-                  </label>
+                  <ToggleSwitch
+                    checked={form.business_show_scoring_support_publicly}
+                    onChange={(checked) => setForm({ ...form, business_show_scoring_support_publicly: checked })}
+                    label="Tampilkan scoring support di halaman publik"
+                  />
                 </div>
                 <div style={{ display: sections.publicInfo ? 'grid' : 'none', gap: 8, marginTop: 6 }}>
                   <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
@@ -2735,14 +2700,11 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                     onChange={(e) => setForm({ ...form, business_race_director_name: e.target.value })}
                     style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
                   />
-                  <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 800 }}>
-                    <input
-                      type="checkbox"
-                      checked={form.business_show_race_director_publicly}
-                      onChange={(e) => setForm({ ...form, business_show_race_director_publicly: e.target.checked })}
-                    />
-                    Tampilkan Race Director di halaman publik
-                  </label>
+                  <ToggleSwitch
+                    checked={form.business_show_race_director_publicly}
+                    onChange={(checked) => setForm({ ...form, business_show_race_director_publicly: checked })}
+                    label="Tampilkan Race Director di halaman publik"
+                  />
                 </div>
                 <div style={{ display: sections.publicInfo ? 'grid' : 'none', gap: 8, marginTop: 6 }}>
                   <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
@@ -2754,35 +2716,26 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                     onChange={(e) => setForm({ ...form, business_mc_name: e.target.value })}
                     style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
                   />
-                  <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 800 }}>
-                    <input
-                      type="checkbox"
-                      checked={form.business_show_mc_publicly}
-                      onChange={(e) => setForm({ ...form, business_show_mc_publicly: e.target.checked })}
-                    />
-                    Tampilkan MC di halaman publik
-                  </label>
+                  <ToggleSwitch
+                    checked={form.business_show_mc_publicly}
+                    onChange={(checked) => setForm({ ...form, business_show_mc_publicly: checked })}
+                    label="Tampilkan MC di halaman publik"
+                  />
                 </div>
                 <div style={{ display: sections.eventStaff ? 'grid' : 'none', gap: 8, marginTop: 6 }}>
                   <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
                     Central Control
                   </div>
-                  <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 800 }}>
-                    <input
-                      type="checkbox"
-                      checked={form.business_central_control_enabled}
-                      onChange={(e) => setForm({ ...form, business_central_control_enabled: e.target.checked })}
-                    />
-                    Central control / kamar hitung aktif
-                  </label>
-                  <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 800 }}>
-                    <input
-                      type="checkbox"
-                      checked={form.business_requires_platform_approval}
-                      onChange={(e) => setForm({ ...form, business_requires_platform_approval: e.target.checked })}
-                    />
-                    Perlu approval platform untuk keputusan tertentu
-                  </label>
+                  <ToggleSwitch
+                    checked={form.business_central_control_enabled}
+                    onChange={(checked) => setForm({ ...form, business_central_control_enabled: checked })}
+                    label="Central control / kamar hitung aktif"
+                  />
+                  <ToggleSwitch
+                    checked={form.business_requires_platform_approval}
+                    onChange={(checked) => setForm({ ...form, business_requires_platform_approval: checked })}
+                    label="Perlu approval platform untuk keputusan tertentu"
+                  />
                 </div>
                 <div style={{ display: sections.eventStaff ? 'grid' : 'none', gap: 10, marginTop: 12 }}>
                   <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
@@ -2906,14 +2859,11 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                             placeholder="Notes (optional)"
                             style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
                           />
-                          <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 800 }}>
-                            <input
-                              type="checkbox"
-                              checked={assignment.is_active}
-                              onChange={(e) => updateStaffAssignment(index, { is_active: e.target.checked })}
-                            />
-                            Active
-                          </label>
+                          <ToggleSwitch
+                            checked={assignment.is_active}
+                            onChange={(checked) => updateStaffAssignment(index, { is_active: checked })}
+                            label="Assignment aktif"
+                          />
                         </div>
                         <div style={{ fontSize: 12, color: '#333', fontWeight: 700 }}>
                           Global role: {assignment.global_role ? formatAppRoleLabel(assignment.global_role) : '-'}{' '}
@@ -3006,22 +2956,16 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                   />
                 </div>
                 <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-                  <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 800 }}>
-                    <input
-                      type="checkbox"
-                      checked={form.race_qualification_enabled}
-                      onChange={(e) => setForm({ ...form, race_qualification_enabled: e.target.checked })}
-                    />
-                    Qualification enabled
-                  </label>
-                  <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 800 }}>
-                    <input
-                      type="checkbox"
-                      checked={form.race_auto_advance}
-                      onChange={(e) => setForm({ ...form, race_auto_advance: e.target.checked })}
-                    />
-                    Auto advance
-                  </label>
+                  <ToggleSwitch
+                    checked={form.race_qualification_enabled}
+                    onChange={(checked) => setForm({ ...form, race_qualification_enabled: checked })}
+                    label="Qualification aktif"
+                  />
+                  <ToggleSwitch
+                    checked={form.race_auto_advance}
+                    onChange={(checked) => setForm({ ...form, race_auto_advance: checked })}
+                    label="Auto advance aktif"
+                  />
                 </div>
                 <input
                   value={form.race_final_classes}
@@ -3127,15 +3071,12 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                   </button>
                 </div>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-                  <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 800 }}>
-                    <input
-                      type="checkbox"
-                      checked={item.config?.enabled ?? false}
-                      onChange={(e) => saveAdvanced(item.category.id, e.target.checked)}
-                      disabled={advancedSaving}
-                    />
-                    Enable Advanced Stage
-                  </label>
+                  <ToggleSwitch
+                    checked={item.config?.enabled ?? false}
+                    onChange={(checked) => saveAdvanced(item.category.id, checked)}
+                    disabled={advancedSaving}
+                    label="Advanced Stage aktif"
+                  />
                   <button
                     type="button"
                     onClick={() => togglePreview(item.category.id)}
@@ -3405,16 +3346,14 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                                 { key: 'enable_semi_final', label: 'Semi Final' },
                               ] as const
                             ).map((opt) => (
-                              <label key={opt.key} style={{ display: 'flex', gap: 6, alignItems: 'center', fontWeight: 800 }}>
-                                <input
-                                  type="checkbox"
-                                  checked={Boolean(draftRules[item.category.id]?.[opt.key])}
-                                  onChange={(e) =>
-                                    updateDraft(item.category.id, { [opt.key]: e.target.checked } as Partial<CategoryRule>)
-                                  }
-                                />
-                                {opt.label}
-                              </label>
+                              <ToggleSwitch
+                                key={opt.key}
+                                checked={Boolean(draftRules[item.category.id]?.[opt.key])}
+                                onChange={(checked) =>
+                                  updateDraft(item.category.id, { [opt.key]: checked } as Partial<CategoryRule>)
+                                }
+                                label={`${opt.label} aktif`}
+                              />
                             ))}
                           </div>
                           <input

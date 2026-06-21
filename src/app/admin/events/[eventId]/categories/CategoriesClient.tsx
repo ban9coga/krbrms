@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import ToggleSwitch from '../../../../../components/ToggleSwitch'
 import { supabase } from '../../../../../lib/supabaseClient'
 
 type CategoryItem = {
@@ -435,21 +436,12 @@ export default function CategoriesClient({ eventId }: { eventId: string }) {
                 </button>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => toggle(item)}
+            <ToggleSwitch
+              checked={item.enabled}
+              onChange={() => toggle(item)}
               disabled={savingId === item.id}
-              style={{
-                padding: '8px 12px',
-                borderRadius: 12,
-                border: '2px solid #111',
-                background: item.enabled ? '#2ecc71' : '#fff',
-                fontWeight: 900,
-                cursor: 'pointer',
-              }}
-            >
-              {savingId === item.id ? 'Saving...' : item.enabled ? 'Enabled' : 'Disabled'}
-            </button>
+              label={savingId === item.id ? 'Menyimpan kategori...' : 'Kategori aktif'}
+            />
           </div>
         )})}
       </div>

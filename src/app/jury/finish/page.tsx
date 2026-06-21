@@ -718,37 +718,22 @@ export default function JuryFinishPage() {
                   <button
                     key={r.id}
                     type="button"
+                    className={`finisher-rider-btn ${isReady ? 'is-ready' : ''} ${
+                      pressedId === r.id ? 'is-pressed' : ''
+                    } ${highVisibility ? 'is-large' : ''}`}
                     onContextMenu={(event) => event.preventDefault()}
                     onPointerDown={(event) => onCardPointerDown(event, r.id)}
                     onPointerUp={(event) => onCardPointerUp(event, r.id)}
                     onPointerLeave={() => onCardPointerLeave(r.id)}
                     onPointerCancel={() => onCardPointerLeave(r.id)}
                     disabled={role === 'RACE_DIRECTOR' || motoLocked || !selectedMotoLive}
-                    style={{
-                      height: highVisibility ? 144 : 120,
-                      borderRadius: 16,
-                      border: isReady ? '2px solid #15803d' : '2px solid #0f172a',
-                      borderBottomWidth: 4,
-                      background: isReady ? 'linear-gradient(180deg, #dcfce7 0%, #bbf7d0 100%)' : '#ffffff',
-                      color: '#0f172a',
-                      fontWeight: 900,
-                      fontSize: highVisibility ? 56 : 44,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      cursor: role === 'RACE_DIRECTOR' || motoLocked || !selectedMotoLive ? 'not-allowed' : 'pointer',
-                      transform: pressedId === r.id ? 'translateY(4px)' : 'translateY(0)',
-                      transition: 'transform 0.08s ease',
-                      userSelect: 'none',
-                      WebkitUserSelect: 'none',
-                      WebkitTouchCallout: 'none',
-                      touchAction: 'manipulation',
-                      boxShadow: isReady ? '0 10px 24px rgba(22, 163, 74, 0.18)' : 'none',
-                    }}
                   >
-                    <div style={{ lineHeight: 1 }}>{r.no_plate_display}</div>
-                    <div style={{ marginTop: 6, fontSize: highVisibility ? 14 : 12, fontWeight: 700, color: isReady ? '#166534' : '#475569' }}>{r.name}</div>
+                    <span className="finisher-rider-shadow" />
+                    <span className="finisher-rider-edge" />
+                    <span className="finisher-rider-front">
+                      <span className="finisher-rider-plate">{r.no_plate_display}</span>
+                      <span className="finisher-rider-name">{r.name}</span>
+                    </span>
                   </button>
                 )
               })}
@@ -905,7 +890,130 @@ export default function JuryFinishPage() {
         .input-grid {
           display: grid;
           grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 12px;
+          gap: 18px 12px;
+          padding-top: 8px;
+        }
+        .finisher-rider-btn {
+          position: relative;
+          min-width: 0;
+          min-height: 120px;
+          padding: 0;
+          border: 0;
+          background: transparent;
+          cursor: pointer;
+          outline-offset: 4px;
+          -webkit-tap-highlight-color: transparent;
+          -webkit-touch-callout: none;
+          touch-action: manipulation;
+          user-select: none;
+          -webkit-user-select: none;
+        }
+        .finisher-rider-btn.is-large {
+          min-height: 144px;
+        }
+        .finisher-rider-shadow,
+        .finisher-rider-edge {
+          position: absolute;
+          inset: 0;
+          border-radius: 16px;
+          pointer-events: none;
+        }
+        .finisher-rider-shadow {
+          background: rgba(15, 23, 42, 0.2);
+          filter: blur(5px);
+          transform: translateY(6px);
+          transition: transform 120ms ease, filter 120ms ease;
+          will-change: transform;
+        }
+        .finisher-rider-edge {
+          background: linear-gradient(
+            to left,
+            hsl(222, 47%, 24%) 0%,
+            hsl(217, 33%, 38%) 12%,
+            hsl(217, 33%, 38%) 88%,
+            hsl(222, 47%, 24%) 100%
+          );
+        }
+        .finisher-rider-btn.is-ready .finisher-rider-edge {
+          background: linear-gradient(
+            to left,
+            hsl(142, 72%, 25%) 0%,
+            hsl(142, 69%, 38%) 12%,
+            hsl(142, 69%, 38%) 88%,
+            hsl(142, 72%, 25%) 100%
+          );
+        }
+        .finisher-rider-front {
+          position: relative;
+          display: flex;
+          min-height: 120px;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: 14px 10px;
+          border-radius: 16px;
+          background: hsl(217, 70%, 62%);
+          box-shadow:
+            inset 0 2px 3px rgba(255, 255, 255, 0.42),
+            inset 0 -2px 3px rgba(0, 0, 0, 0.16);
+          color: white;
+          text-shadow: 0 1px 2px rgba(0, 0, 0, 0.24);
+          transform: translateY(-7px);
+          transition: transform 110ms cubic-bezier(0.3, 0.7, 0.4, 1), background-color 150ms ease;
+          will-change: transform;
+        }
+        .finisher-rider-btn.is-large .finisher-rider-front {
+          min-height: 144px;
+        }
+        .finisher-rider-btn.is-ready .finisher-rider-front {
+          background: hsl(142, 58%, 50%);
+        }
+        .finisher-rider-btn:hover:not(:disabled) .finisher-rider-front {
+          transform: translateY(-9px);
+        }
+        .finisher-rider-btn:hover:not(:disabled) .finisher-rider-shadow {
+          filter: blur(7px);
+          transform: translateY(9px);
+        }
+        .finisher-rider-btn.is-pressed .finisher-rider-front,
+        .finisher-rider-btn:active:not(:disabled) .finisher-rider-front {
+          transform: translateY(-2px);
+          transition-duration: 45ms;
+        }
+        .finisher-rider-btn.is-pressed .finisher-rider-shadow,
+        .finisher-rider-btn:active:not(:disabled) .finisher-rider-shadow {
+          filter: blur(2px);
+          transform: translateY(2px);
+          transition-duration: 45ms;
+        }
+        .finisher-rider-btn:focus-visible {
+          outline: 4px solid rgba(59, 130, 246, 0.45);
+          border-radius: 16px;
+        }
+        .finisher-rider-btn:disabled {
+          cursor: not-allowed;
+          opacity: 0.5;
+        }
+        .finisher-rider-plate {
+          font-size: 44px;
+          font-weight: 950;
+          line-height: 1;
+          letter-spacing: 0.5px;
+        }
+        .finisher-rider-name {
+          margin-top: 7px;
+          max-width: 100%;
+          overflow-wrap: anywhere;
+          font-size: 12px;
+          font-weight: 800;
+          line-height: 1.2;
+          text-align: center;
+        }
+        .finisher-rider-btn.is-large .finisher-rider-plate {
+          font-size: 56px;
+        }
+        .finisher-rider-btn.is-large .finisher-rider-name {
+          font-size: 14px;
         }
         .jf-actions {
           background: rgba(241, 245, 249, 0.94);
@@ -930,9 +1038,18 @@ export default function JuryFinishPage() {
           .jf-actions > button {
             width: 100%;
           }
-          .input-grid > button {
-            height: 136px !important;
-            font-size: 48px !important;
+          .finisher-rider-btn,
+          .finisher-rider-front {
+            min-height: 136px;
+          }
+          .finisher-rider-plate {
+            font-size: 48px;
+          }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .finisher-rider-front,
+          .finisher-rider-shadow {
+            transition: none;
           }
         }
       `}</style>

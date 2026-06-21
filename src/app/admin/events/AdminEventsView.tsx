@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import ToggleSwitch from '../../../components/ToggleSwitch'
 import { isRegistrationApproverRole, normalizeAppRole } from '../../../lib/roles'
 import { supabase } from '../../../lib/supabaseClient'
 
@@ -630,21 +631,33 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
                     </div>
 
                       <div className="flex flex-wrap gap-2">
-                        <Link href={`/admin/events/${event.id}/registrations`} className={primaryButtonClass}>
-                          Registrations
+                        <Link href={`/admin/events/${event.id}/registrations`} className="event-card-nav-button">
+                          <span>Registrations</span>
+                          <span className="event-card-nav-arrow-wrapper" aria-hidden="true">
+                            <span className="event-card-nav-arrow" />
+                          </span>
                         </Link>
                         {!isRegistrationApprover && (
-                          <Link href={`/admin/events/${event.id}/riders`} className={subtleButtonClass}>
-                            Riders
+                          <Link href={`/admin/events/${event.id}/riders`} className="event-card-nav-button">
+                            <span>Riders</span>
+                            <span className="event-card-nav-arrow-wrapper" aria-hidden="true">
+                              <span className="event-card-nav-arrow" />
+                            </span>
                           </Link>
                         )}
                         {!isRegistrationApprover && (
-                          <Link href={`/admin/events/${event.id}/settings`} className={subtleButtonClass}>
-                            Event Settings
+                          <Link href={`/admin/events/${event.id}/settings`} className="event-card-nav-button">
+                            <span>Event Settings</span>
+                            <span className="event-card-nav-arrow-wrapper" aria-hidden="true">
+                              <span className="event-card-nav-arrow" />
+                            </span>
                           </Link>
                         )}
-                        <Link href={`/event/${event.id}`} className={subtleButtonClass}>
-                          Public Page
+                        <Link href={`/event/${event.id}`} className="event-card-nav-button">
+                          <span>Public Page</span>
+                          <span className="event-card-nav-arrow-wrapper" aria-hidden="true">
+                            <span className="event-card-nav-arrow" />
+                          </span>
                         </Link>
                       </div>
                     </div>
@@ -696,39 +709,43 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
                 </div>
 
                 {!isRegistrationApprover && <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-4">
+                  <ToggleSwitch
+                    checked={registrationOpen}
+                    onChange={(checked) => void handleRegistrationOpen(event, checked)}
+                    disabled={busy}
+                    label="Registrasi dibuka"
+                  />
+                  <ToggleSwitch
+                    checked={isPublic}
+                    onChange={(checked) => void handleVisibility(event, checked)}
+                    disabled={busy}
+                    label="Tampilkan di publik"
+                  />
                   <button
                     type="button"
-                    onClick={() => void handleRegistrationOpen(event, !registrationOpen)}
-                    className={`inline-flex items-center justify-center rounded-2xl border px-4 py-2.5 text-sm font-bold transition-colors ${
-                      registrationOpen
-                        ? 'border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100'
-                        : 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                    }`}
+                    onClick={() => void handleEdit(event)}
+                    className="event-card-ghost-button"
                     disabled={busy}
                   >
-                    {registrationOpen ? 'Tutup Registrasi' : 'Buka Registrasi'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleVisibility(event, !isPublic)}
-                    className={subtleButtonClass}
-                    disabled={busy}
-                  >
-                    {isPublic ? 'Hide from Public' : 'Show on Public'}
-                  </button>
-                  <button type="button" onClick={() => void handleEdit(event)} className={subtleButtonClass} disabled={busy}>
                     Edit Basics
                   </button>
-                  <button type="button" onClick={() => void handleDuplicate(event)} className={subtleButtonClass} disabled={busy}>
+                  <button
+                    type="button"
+                    onClick={() => void handleDuplicate(event)}
+                    className="event-card-ghost-button"
+                    disabled={busy}
+                  >
                     Duplicate Event
                   </button>
                   <button
                     type="button"
                     onClick={() => void handleDelete(event)}
-                    className="inline-flex items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-bold text-rose-700 transition-colors hover:bg-rose-100"
+                    className="event-card-delete-button"
                     disabled={busy}
                   >
-                    Delete Event
+                    <span className="event-card-delete-shadow" />
+                    <span className="event-card-delete-edge" />
+                    <span className="event-card-delete-front">Delete Event</span>
                   </button>
                   {busy && (
                     <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-black uppercase tracking-[0.14em] text-amber-700">

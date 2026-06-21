@@ -174,7 +174,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
   }
 
   return (
-    <div className="public-page bg-slate-100 text-slate-900">
+    <div className="public-page public-editorial-page public-editorial-detail bg-[#f5ecd7] text-[#1d0d07]">
       <PublicTopbar />
       <div className="mx-auto w-full max-w-[1500px] px-2 py-4 sm:px-4 md:px-6 md:py-8">
         {loading && <LoadingState label="Memuat detail event..." />}
@@ -182,25 +182,23 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
 
         {event && (
           <div className="grid gap-6">
-            <section className="relative overflow-hidden rounded-[2rem] bg-[linear-gradient(125deg,#090f1d_0%,#1e293b_42%,#78350f_100%)] px-5 py-8 shadow-[0_34px_90px_rgba(15,23,42,0.3)] sm:px-8 md:rounded-[2.5rem] md:px-12 md:py-10">
-              <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-amber-400/15 blur-3xl" />
-              <div className="pointer-events-none absolute -top-24 right-0 h-72 w-72 rounded-full bg-sky-400/15 blur-3xl" />
+            <section className="public-editorial-event-hero relative overflow-hidden rounded-[2rem] border border-[#4f372b] bg-[#1d0d07] px-5 py-8 shadow-[0_30px_70px_rgba(55,23,9,0.22)] sm:px-8 md:rounded-[2.5rem] md:px-12 md:py-10">
               <div className="relative z-10 grid gap-6">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="grid gap-2">
-                    <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-amber-300">Event Detail</p>
+                    <p className="text-xs font-extrabold uppercase text-[#f3c63d]">Event Detail</p>
                     {publicBrandName && (
-                      <p className="text-sm font-extrabold uppercase tracking-[0.16em] text-amber-100/90">
+                      <p className="text-sm font-extrabold uppercase text-[#eadcca]">
                         {publicBrandName}
                       </p>
                     )}
-                    <h1 className="text-3xl font-black leading-tight tracking-tight text-white md:text-5xl">
+                    <h1 className="text-3xl font-black leading-tight text-[#fff8e8] md:text-5xl">
                       {publicEventTitle}
                     </h1>
                     {publicTagline && (
-                      <p className="max-w-3xl text-sm font-semibold text-slate-200 md:text-base">{publicTagline}</p>
+                      <p className="max-w-3xl text-sm font-semibold text-[#c9b7a5] md:text-base">{publicTagline}</p>
                     )}
-                    <div className="flex flex-wrap gap-3 text-sm font-semibold text-slate-200 md:text-base">
+                    <div className="flex flex-wrap gap-3 text-sm font-semibold text-[#eadcca] md:text-base">
                       <span className="inline-flex items-center gap-2">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4 text-amber-300">
                           <path d="M12 20s6-5.2 6-10a6 6 0 1 0-12 0c0 4.8 6 10 6 10z" strokeLinecap="round" />
@@ -258,23 +256,23 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-2xl border border-slate-500 bg-slate-900/50 p-4 text-white">
-                    <p className="text-xs font-bold uppercase tracking-wide text-slate-300">Total Riders</p>
+                  <div className="rounded-2xl border border-[#705547] bg-[#2a160d] p-4 text-[#fff8e8]">
+                    <p className="text-xs font-bold uppercase text-[#c9b7a5]">Total Riders</p>
                     <p className="mt-2 text-3xl font-black">{event.status === 'UPCOMING' ? '-' : totalFilledSlots}</p>
-                    <p className="mt-1 text-xs font-semibold text-slate-300">
+                    <p className="mt-1 text-xs font-semibold text-[#c9b7a5]">
                       {event.status === 'UPCOMING'
                         ? 'Terkunci sampai LIVE'
                         : `${riderTotal} rider${upclassSlotCount > 0 ? ` + ${upclassSlotCount} rider upclass` : ''}`}
                     </p>
                   </div>
 
-                  <div className="rounded-2xl border border-slate-500 bg-slate-900/50 p-4 text-white">
-                    <p className="text-xs font-bold uppercase tracking-wide text-slate-300">Total Categories</p>
+                  <div className="rounded-2xl border border-[#705547] bg-[#2a160d] p-4 text-[#fff8e8]">
+                    <p className="text-xs font-bold uppercase text-[#c9b7a5]">Total Categories</p>
                     <p className="mt-2 text-3xl font-black">{categories.length}</p>
                   </div>
 
-                  <div className="rounded-2xl border border-slate-500 bg-slate-900/50 p-4 text-white">
-                    <p className="text-xs font-bold uppercase tracking-wide text-slate-300">Countdown</p>
+                  <div className="rounded-2xl border border-[#705547] bg-[#2a160d] p-4 text-[#fff8e8]">
+                    <p className="text-xs font-bold uppercase text-[#c9b7a5]">Countdown</p>
                     <p className="mt-2 text-2xl font-black">
                       {event.status === 'UPCOMING' && daysToEvent !== null
                         ? `${Math.max(daysToEvent, 0)} hari lagi`
@@ -297,9 +295,9 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
                   {event.status === 'UPCOMING' && !hideRegistrationAndVenueActions && canRegister && (
                     <Link
                       href={`/event/${event.id}/register`}
-                      className="inline-flex items-center rounded-xl bg-amber-400 px-5 py-3 text-sm font-extrabold uppercase tracking-wide text-white transition-colors hover:bg-amber-300"
+                      className="public-editorial-register-cta inline-flex min-h-[54px] items-center rounded-full bg-[#f3c63d] px-8 py-3 text-sm font-black uppercase text-[#1d0d07] shadow-[0_12px_28px_rgba(243,198,61,0.24)] transition-transform hover:-translate-y-0.5 hover:bg-[#ffda5a]"
                     >
-                      Register Rider
+                      Daftar Sekarang
                     </Link>
                   )}
                 </div>
@@ -328,7 +326,7 @@ export default function EventDetailClient({ eventId }: { eventId: string }) {
 
             <section
               id="race-categories"
-              className="rounded-[1.5rem] border border-slate-800 bg-slate-900 px-4 py-5 text-slate-100 shadow-[0_20px_40px_rgba(2,6,23,0.2)] sm:px-6"
+              className="rounded-[1.5rem] border border-[#4f372b] bg-[#1d0d07] px-4 py-5 text-[#fff8e8] shadow-[0_20px_40px_rgba(55,23,9,0.18)] sm:px-6"
             >
               <div className="mb-4 flex items-center gap-2">
                 <h2 className="text-2xl font-black tracking-tight text-white">Race Categories</h2>
