@@ -3,6 +3,16 @@ import { adminClient, requireBackoffice } from '../../../../../../lib/auth'
 
 const REGISTRATION_STATUSES = ['PENDING', 'APPROVED', 'REJECTED'] as const
 const PAYMENT_FILTERS = ['ALL', 'NO_PAYMENT', 'PENDING', 'APPROVED', 'REJECTED'] as const
+const ATTENDANCE_FILTERS = [
+  'ALL',
+  'ATTENDING',
+  'NOT_ATTENDING',
+  'UNCONFIRMED',
+  'CHECKED_IN',
+  'NOT_CHECKED_IN',
+  'GOODIE_BAG_COLLECTED',
+  'GOODIE_BAG_NOT_COLLECTED',
+] as const
 
 const sanitizeSearchTerm = (value: string) => value.replace(/[%(),]/g, ' ').trim()
 
@@ -24,6 +34,13 @@ const normalizePaymentFilter = (value: string | null) => {
   const normalized = String(value ?? 'ALL').trim().toUpperCase()
   return PAYMENT_FILTERS.includes(normalized as (typeof PAYMENT_FILTERS)[number])
     ? (normalized as (typeof PAYMENT_FILTERS)[number])
+    : 'ALL'
+}
+
+const normalizeAttendanceFilter = (value: string | null) => {
+  const normalized = String(value ?? 'ALL').trim().toUpperCase()
+  return ATTENDANCE_FILTERS.includes(normalized as (typeof ATTENDANCE_FILTERS)[number])
+    ? (normalized as (typeof ATTENDANCE_FILTERS)[number])
     : 'ALL'
 }
 
@@ -157,6 +174,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const summary = String(searchParams.get('summary') ?? '').trim().toLowerCase()
   const status = normalizeRegistrationStatus(searchParams.get('status'))
   const paymentFilter = normalizePaymentFilter(searchParams.get('payment_status'))
+  const attendanceFilter = normalizeAttendanceFilter(searchParams.get('attendance'))
   const q = String(searchParams.get('q') ?? '').trim()
   const page = parsePositiveInt(searchParams.get('page'), 1)
   const pageSize = Math.min(50, Math.max(5, parsePositiveInt(searchParams.get('page_size'), 10)))
@@ -184,7 +202,18 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       .eq('event_id', eventId)
       .order('created_at', { ascending: false })
 
-    if (status !== 'ALL') query = query.eq('status', status)
+    if (attendanceFilter !== 'ALL') {
+      query = query.eq('status', 'APPROVED')
+      if (attendanceFilter === 'ATTENDING') query = query.eq('attendance_status', 'ATTENDING')
+      if (attendanceFilter === 'NOT_ATTENDING') query = query.eq('attendance_status', 'NOT_ATTENDING')
+      if (attendanceFilter === 'UNCONFIRMED') query = query.eq('attendance_status', 'UNCONFIRMED')
+      if (attendanceFilter === 'CHECKED_IN') query = query.not('checked_in_at', 'is', null)
+      if (attendanceFilter === 'NOT_CHECKED_IN') query = query.is('checked_in_at', null)
+      if (attendanceFilter === 'GOODIE_BAG_COLLECTED') query = query.not('goodie_bag_collected_at', 'is', null)
+      if (attendanceFilter === 'GOODIE_BAG_NOT_COLLECTED') query = query.is('goodie_bag_collected_at', null)
+    } else if (status !== 'ALL') {
+      query = query.eq('status', status)
+    }
     if (searchIds) query = query.in('id', searchIds)
     if (paymentIds) query = query.in('id', paymentIds)
 

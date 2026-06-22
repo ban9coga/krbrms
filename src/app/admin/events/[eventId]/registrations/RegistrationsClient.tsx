@@ -23,6 +23,15 @@ type CategoryItem = {
 type RegistrationStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
 type PaymentStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
 type PaymentFilter = 'ALL' | 'NO_PAYMENT' | PaymentStatus
+type AttendanceFilter =
+  | 'ALL'
+  | 'ATTENDING'
+  | 'NOT_ATTENDING'
+  | 'UNCONFIRMED'
+  | 'CHECKED_IN'
+  | 'NOT_CHECKED_IN'
+  | 'GOODIE_BAG_COLLECTED'
+  | 'GOODIE_BAG_NOT_COLLECTED'
 
 type RegistrationItem = {
   id: string
@@ -194,6 +203,17 @@ const PAYMENT_FILTER_OPTIONS: Array<{ value: PaymentFilter; label: string }> = [
   { value: 'PENDING', label: 'Menunggu Review' },
   { value: 'APPROVED', label: 'Pembayaran Approved' },
   { value: 'REJECTED', label: 'Pembayaran Rejected' },
+]
+
+const ATTENDANCE_FILTER_OPTIONS: Array<{ value: AttendanceFilter; label: string }> = [
+  { value: 'ALL', label: 'Semua Kehadiran' },
+  { value: 'ATTENDING', label: 'Akan Hadir' },
+  { value: 'NOT_ATTENDING', label: 'Tidak Hadir' },
+  { value: 'UNCONFIRMED', label: 'Belum Konfirmasi' },
+  { value: 'CHECKED_IN', label: 'Sudah Check-in' },
+  { value: 'NOT_CHECKED_IN', label: 'Belum Check-in' },
+  { value: 'GOODIE_BAG_COLLECTED', label: 'Goodie Bag Diambil' },
+  { value: 'GOODIE_BAG_NOT_COLLECTED', label: 'Goodie Bag Belum Diambil' },
 ]
 
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 30]
@@ -443,6 +463,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [filterStatus, setFilterStatus] = useState<'ALL' | RegistrationStatus>('ALL')
   const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>('ALL')
+  const [attendanceFilter, setAttendanceFilter] = useState<AttendanceFilter>('ALL')
   const [searchInput, setSearchInput] = useState('')
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(1)
@@ -505,6 +526,12 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
     () => categoryKpis.reduce((sum, category) => sum + (category.pendingFilled ?? 0), 0),
     [categoryKpis]
   )
+
+  const applyAttendanceFilter = (value: AttendanceFilter) => {
+    setAttendanceFilter(value)
+    if (value !== 'ALL') setFilterStatus('APPROVED')
+    setPage(1)
+  }
 
   useEffect(() => {
     const loadRole = async () => {
@@ -707,6 +734,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
           page_size: String(pageSize),
           status: filterStatus,
           payment_status: paymentFilter,
+          attendance: attendanceFilter,
         })
         if (query.trim()) params.set('q', query.trim())
 
@@ -751,7 +779,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
     return () => {
       cancelled = true
     }
-  }, [eventId, filterStatus, paymentFilter, page, pageSize, query, refreshTick])
+  }, [attendanceFilter, eventId, filterStatus, paymentFilter, page, pageSize, query, refreshTick])
 
   useEffect(() => {
     if (!eventId || registrations.length === 0) return
@@ -1077,11 +1105,11 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
     if (query.trim()) {
       return `Tidak ada pendaftaran yang cocok dengan pencarian "${query}".`
     }
-    if (filterStatus !== 'ALL' || paymentFilter !== 'ALL') {
+    if (filterStatus !== 'ALL' || paymentFilter !== 'ALL' || attendanceFilter !== 'ALL') {
       return 'Tidak ada pendaftaran yang cocok dengan filter saat ini.'
     }
     return 'Belum ada pendaftaran masuk untuk event ini.'
-  }, [filterStatus, loading, paymentFilter, query])
+  }, [attendanceFilter, filterStatus, loading, paymentFilter, query])
 
   const fetchAllRegistrationsForExport = async () => {
     const exportRows: RegistrationRow[] = []
@@ -1095,6 +1123,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
         page_size: String(exportPageSize),
         status: filterStatus,
         payment_status: paymentFilter,
+        attendance: attendanceFilter,
       })
       if (query.trim()) params.set('q', query.trim())
 
@@ -1208,6 +1237,10 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
     const parts: string[] = []
     if (filterStatus !== 'ALL') parts.push(`Status Registrasi: ${filterStatus}`)
     if (paymentFilter !== 'ALL') parts.push(`Status Pembayaran: ${paymentFilter}`)
+    if (attendanceFilter !== 'ALL') {
+      const label = ATTENDANCE_FILTER_OPTIONS.find((option) => option.value === attendanceFilter)?.label
+      parts.push(`Kehadiran: ${label ?? attendanceFilter}`)
+    }
     if (query.trim()) parts.push(`Pencarian: ${query.trim()}`)
     return parts.length > 0 ? parts.join(' | ') : 'Semua data registrasi'
   }
@@ -1918,7 +1951,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
             setQuery(searchInput.trim())
           }}
         >
-          <div className="grid gap-3 lg:grid-cols-[minmax(0,1.6fr)_repeat(3,minmax(0,0.7fr))_auto_auto]">
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1.6fr)_repeat(4,minmax(0,0.7fr))_auto_auto]">
             <input
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
@@ -1928,7 +1961,9 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
             <select
               value={filterStatus}
               onChange={(e) => {
-                setFilterStatus(e.target.value as 'ALL' | RegistrationStatus)
+                const nextStatus = e.target.value as 'ALL' | RegistrationStatus
+                setFilterStatus(nextStatus)
+                if (nextStatus !== 'APPROVED') setAttendanceFilter('ALL')
                 setPage(1)
               }}
               className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-slate-950"
@@ -1948,6 +1983,17 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
               className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-slate-950"
             >
               {PAYMENT_FILTER_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <select
+              value={attendanceFilter}
+              onChange={(e) => applyAttendanceFilter(e.target.value as AttendanceFilter)}
+              className="min-h-12 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-slate-950"
+            >
+              {ATTENDANCE_FILTER_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
@@ -1980,6 +2026,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                 setQuery('')
                 setFilterStatus('ALL')
                 setPaymentFilter('ALL')
+                setAttendanceFilter('ALL')
                 setPage(1)
                 setPageSize(10)
                 setFeedback(null)
@@ -2081,42 +2128,90 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
         </div>
 
         <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <button
+            type="button"
+            onClick={() => {
+              setFilterStatus('APPROVED')
+              setAttendanceFilter('ALL')
+              setPage(1)
+            }}
+            className={`rounded-2xl border bg-slate-50 p-4 text-left transition hover:-translate-y-0.5 hover:border-slate-400 hover:shadow-sm ${
+              filterStatus === 'APPROVED' && attendanceFilter === 'ALL'
+                ? 'border-slate-900 ring-2 ring-slate-900/10'
+                : 'border-slate-200'
+            }`}
+          >
             <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Approved</div>
             <div className="mt-2 text-3xl font-black text-slate-950">{attendanceSummary?.approved ?? '-'}</div>
             <div className="mt-1 text-xs font-semibold text-slate-500">Registrasi valid</div>
-          </div>
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+          </button>
+          <button
+            type="button"
+            onClick={() => applyAttendanceFilter('ATTENDING')}
+            className={`rounded-2xl border bg-emerald-50 p-4 text-left transition hover:-translate-y-0.5 hover:border-emerald-500 hover:shadow-sm ${
+              attendanceFilter === 'ATTENDING'
+                ? 'border-emerald-700 ring-2 ring-emerald-600/15'
+                : 'border-emerald-200'
+            }`}
+          >
             <div className="text-[11px] font-black uppercase tracking-[0.14em] text-emerald-700">Akan Hadir</div>
             <div className="mt-2 text-3xl font-black text-emerald-900">
               {attendanceSummary?.confirmed_attending ?? '-'}
             </div>
             <div className="mt-1 text-xs font-semibold text-emerald-700">Konfirmasi wali</div>
-          </div>
-          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4">
+          </button>
+          <button
+            type="button"
+            onClick={() => applyAttendanceFilter('NOT_ATTENDING')}
+            className={`rounded-2xl border bg-rose-50 p-4 text-left transition hover:-translate-y-0.5 hover:border-rose-500 hover:shadow-sm ${
+              attendanceFilter === 'NOT_ATTENDING' ? 'border-rose-700 ring-2 ring-rose-600/15' : 'border-rose-200'
+            }`}
+          >
             <div className="text-[11px] font-black uppercase tracking-[0.14em] text-rose-700">Tidak Hadir</div>
             <div className="mt-2 text-3xl font-black text-rose-900">
               {attendanceSummary?.confirmed_not_attending ?? '-'}
             </div>
             <div className="mt-1 text-xs font-semibold text-rose-700">Konfirmasi wali</div>
-          </div>
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          </button>
+          <button
+            type="button"
+            onClick={() => applyAttendanceFilter('UNCONFIRMED')}
+            className={`rounded-2xl border bg-amber-50 p-4 text-left transition hover:-translate-y-0.5 hover:border-amber-500 hover:shadow-sm ${
+              attendanceFilter === 'UNCONFIRMED'
+                ? 'border-amber-700 ring-2 ring-amber-600/15'
+                : 'border-amber-200'
+            }`}
+          >
             <div className="text-[11px] font-black uppercase tracking-[0.14em] text-amber-700">Belum Konfirmasi</div>
             <div className="mt-2 text-3xl font-black text-amber-900">{attendanceSummary?.unconfirmed ?? '-'}</div>
             <div className="mt-1 text-xs font-semibold text-amber-700">Perlu follow-up</div>
-          </div>
-          <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4">
+          </button>
+          <button
+            type="button"
+            onClick={() => applyAttendanceFilter('CHECKED_IN')}
+            className={`rounded-2xl border bg-sky-50 p-4 text-left transition hover:-translate-y-0.5 hover:border-sky-500 hover:shadow-sm ${
+              attendanceFilter === 'CHECKED_IN' ? 'border-sky-700 ring-2 ring-sky-600/15' : 'border-sky-200'
+            }`}
+          >
             <div className="text-[11px] font-black uppercase tracking-[0.14em] text-sky-700">Check-in</div>
             <div className="mt-2 text-3xl font-black text-sky-900">{attendanceSummary?.checked_in ?? '-'}</div>
             <div className="mt-1 text-xs font-semibold text-sky-700">Hadir aktual</div>
-          </div>
-          <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4">
+          </button>
+          <button
+            type="button"
+            onClick={() => applyAttendanceFilter('GOODIE_BAG_COLLECTED')}
+            className={`rounded-2xl border bg-violet-50 p-4 text-left transition hover:-translate-y-0.5 hover:border-violet-500 hover:shadow-sm ${
+              attendanceFilter === 'GOODIE_BAG_COLLECTED'
+                ? 'border-violet-700 ring-2 ring-violet-600/15'
+                : 'border-violet-200'
+            }`}
+          >
             <div className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-700">Goodie Bag</div>
             <div className="mt-2 text-3xl font-black text-violet-900">
               {attendanceSummary?.goodie_bag_collected ?? '-'}
             </div>
             <div className="mt-1 text-xs font-semibold text-violet-700">Sudah diambil</div>
-          </div>
+          </button>
         </div>
       </section>
 
