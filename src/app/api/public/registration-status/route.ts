@@ -63,11 +63,17 @@ const findRegistration = async (registrationCode: string, contactPhone: string) 
     .from('registrations')
     .select(FULL_REGISTRATION_SELECT)
     .eq('registration_code', registrationCode)
-    .eq('contact_phone', contactPhone)
     .maybeSingle()
 
   if (!fullResult.error || !isMissingAttendanceFeatureError(fullResult.error.message)) {
-    return { ...fullResult, attendanceFeaturesAvailable: true }
+    const storedPhone = normalizeWhatsappDigits(
+      (fullResult.data as { contact_phone?: string | null } | null)?.contact_phone
+    )
+    return {
+      ...fullResult,
+      data: storedPhone && storedPhone === contactPhone ? fullResult.data : null,
+      attendanceFeaturesAvailable: true,
+    }
   }
 
   console.warn('[registration-status] attendance columns unavailable, using base status fallback:', fullResult.error.message)
@@ -75,10 +81,16 @@ const findRegistration = async (registrationCode: string, contactPhone: string) 
     .from('registrations')
     .select(BASE_REGISTRATION_SELECT)
     .eq('registration_code', registrationCode)
-    .eq('contact_phone', contactPhone)
     .maybeSingle()
 
-  return { ...baseResult, attendanceFeaturesAvailable: false }
+  const storedPhone = normalizeWhatsappDigits(
+    (baseResult.data as { contact_phone?: string | null } | null)?.contact_phone
+  )
+  return {
+    ...baseResult,
+    data: storedPhone && storedPhone === contactPhone ? baseResult.data : null,
+    attendanceFeaturesAvailable: false,
+  }
 }
 
 const jakartaDate = () =>
@@ -225,7 +237,6 @@ export async function PATCH(req: Request) {
       'id, event_id, registration_code, contact_name, contact_phone, community_name, total_amount, status, notes, created_at, attendance_status, attendance_confirmed_at, checked_in_at, goodie_bag_collected_at, events(name, event_date, status), registration_items(rider_name, rider_nickname, requested_plate_number, requested_plate_suffix, status, categories!registration_items_primary_category_id_fkey(label)), registration_payments(status)'
     )
     .eq('registration_code', registrationCode)
-    .eq('contact_phone', contactPhone)
     .maybeSingle()
 
   if (error) {
@@ -239,7 +250,12 @@ export async function PATCH(req: Request) {
       { status: 400 }
     )
   }
-  if (!data) return NextResponse.json({ error: 'Pendaftaran tidak ditemukan.' }, { status: 404 })
+  const storedPhone = normalizeWhatsappDigits(
+    (data as { contact_phone?: string | null } | null)?.contact_phone
+  )
+  if (!data || !storedPhone || storedPhone !== contactPhone) {
+    return NextResponse.json({ error: 'Pendaftaran tidak ditemukan.' }, { status: 404 })
+  }
 
   const registration = data as unknown as PublicRegistrationRow & { id: string }
   const availability = await getAttendanceAvailability(registration)
