@@ -34,6 +34,18 @@ type RiderItem = {
   photo_thumbnail_url?: string | null
 }
 
+type UpclassRiderItem = {
+  id: string
+  name: string
+  rider_nickname?: string | null
+  date_of_birth: string
+  gender: 'BOY' | 'GIRL'
+  plate: string
+  club?: string | null
+  primary_category: string
+  upclass_category: string
+}
+
 type ExportCategorySummary = {
   id: string
   label: string
@@ -122,6 +134,11 @@ export default function RidersClient({ eventId }: { eventId: string }) {
   const [exportingExcel, setExportingExcel] = useState(false)
   const [exportingPdf, setExportingPdf] = useState(false)
   const [exportingAllPdf, setExportingAllPdf] = useState(false)
+  const [upclassModalOpen, setUpclassModalOpen] = useState(false)
+  const [upclassLoading, setUpclassLoading] = useState(false)
+  const [upclassRiders, setUpclassRiders] = useState<UpclassRiderItem[]>([])
+  const [upclassQuery, setUpclassQuery] = useState('')
+  const [upclassError, setUpclassError] = useState('')
 
   const [categories, setCategories] = useState<CategoryItem[]>([])
   const [selectedCategory, setSelectedCategory] = useState('')
@@ -168,6 +185,20 @@ export default function RidersClient({ eventId }: { eventId: string }) {
   const [addExtraCategoryId, setAddExtraCategoryId] = useState<string | null>(null)
   const [extraCategoryId, setExtraCategoryId] = useState<string | null>(null)
   const canManageRiders = !isRegistrationApproverRole(roleKey)
+  const filteredUpclassRiders = useMemo(() => {
+    const keyword = upclassQuery.trim().toLowerCase()
+    if (!keyword) return upclassRiders
+    return upclassRiders.filter((rider) =>
+      [
+        rider.name,
+        rider.rider_nickname,
+        rider.plate,
+        rider.club,
+        rider.primary_category,
+        rider.upclass_category,
+      ].some((value) => String(value ?? '').toLowerCase().includes(keyword))
+    )
+  }, [upclassQuery, upclassRiders])
 
   useEffect(() => {
     const loadRole = async () => {
@@ -319,6 +350,49 @@ export default function RidersClient({ eventId }: { eventId: string }) {
     })
     setPhotoFile(null)
     setAddExtraCategoryId(null)
+  }
+
+  const openUpclassRiders = async () => {
+    setUpclassModalOpen(true)
+    setUpclassLoading(true)
+    setUpclassError('')
+    try {
+      const { res, json } = await apiFetch(`/api/admin/events/${eventId}/upclass-riders`)
+      if (!res.ok) throw new Error(json?.error || 'Gagal memuat rider upclass.')
+      setUpclassRiders((json.data ?? []) as UpclassRiderItem[])
+    } catch (error) {
+      setUpclassRiders([])
+      setUpclassError(error instanceof Error ? error.message : 'Gagal memuat rider upclass.')
+    } finally {
+      setUpclassLoading(false)
+    }
+  }
+
+  const exportUpclassRiders = () => {
+    const rows = filteredUpclassRiders
+    if (rows.length === 0) return
+    const csvCell = (value: unknown) => `"${String(value ?? '').replaceAll('"', '""')}"`
+    const csv = [
+      ['No', 'Plate', 'Nama Rider', 'Panggilan', 'Club', 'Kategori Utama', 'Kategori Upclass'],
+      ...rows.map((rider, index) => [
+        index + 1,
+        rider.plate,
+        rider.name,
+        rider.rider_nickname ?? '-',
+        rider.club ?? '-',
+        rider.primary_category,
+        rider.upclass_category,
+      ]),
+    ]
+      .map((row) => row.map(csvCell).join(','))
+      .join('\r\n')
+    const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `rider-upclass-${eventId}.csv`
+    anchor.click()
+    URL.revokeObjectURL(url)
   }
 
   const closeAddModal = () => {
@@ -1120,11 +1194,16 @@ export default function RidersClient({ eventId }: { eventId: string }) {
             <div className={labelClass}>Riders</div>
             <h1 className="text-3xl font-black tracking-tight text-slate-950">Riders</h1>
           </div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => void openUpclassRiders()} className={buttonSecondaryClass}>
+              Lihat Rider Upclass
+            </button>
             {canManageRiders && (
               <button type="button" onClick={() => setAddModalOpen(true)} className={buttonPrimaryClass}>
                 Add Rider
               </button>
             )}
+          </div>
         </div>
       </section>
 
@@ -1495,6 +1574,101 @@ export default function RidersClient({ eventId }: { eventId: string }) {
               <button type="button" onClick={handleCreate} disabled={saving || !addEligibleCategories} className={buttonPrimaryClass}>
                 {saving ? 'Saving...' : 'Add Rider'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {upclassModalOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/65 p-4 backdrop-blur-sm">
+          <div className="max-h-[calc(100vh-2rem)] w-full max-w-6xl overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-2xl">
+            <div className="flex flex-col gap-4 border-b border-slate-200 bg-slate-50 px-5 py-5 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className={labelClass}>Daftar Upclass</div>
+                <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-950">Rider yang Mengambil Upclass</h2>
+                <p className="mt-1 text-sm font-semibold text-slate-500">
+                  Total {upclassRiders.length} rider · Ditampilkan {filteredUpclassRiders.length}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={exportUpclassRiders}
+                  disabled={filteredUpclassRiders.length === 0}
+                  className={buttonSecondaryClass}
+                >
+                  Export CSV
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUpclassModalOpen(false)
+                    setUpclassQuery('')
+                  }}
+                  className={buttonPrimaryClass}
+                >
+                  Tutup
+                </button>
+              </div>
+            </div>
+
+            <div className="grid max-h-[calc(100vh-11rem)] gap-4 overflow-y-auto p-5">
+              <input
+                value={upclassQuery}
+                onChange={(event) => setUpclassQuery(event.target.value)}
+                placeholder="Cari nama, plate, club, atau kategori..."
+                className={inputClass}
+              />
+
+              {upclassLoading ? (
+                <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center text-sm font-bold text-slate-500">
+                  Memuat rider upclass...
+                </div>
+              ) : upclassError ? (
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-bold text-rose-700">
+                  {upclassError}
+                </div>
+              ) : filteredUpclassRiders.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center text-sm font-bold text-slate-500">
+                  Tidak ada rider upclass yang cocok.
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                  <table className="min-w-full text-left text-sm">
+                    <thead className="bg-slate-950 text-xs font-black uppercase tracking-[0.1em] text-white">
+                      <tr>
+                        <th className="px-4 py-3">No</th>
+                        <th className="px-4 py-3">Plate</th>
+                        <th className="px-4 py-3">Rider</th>
+                        <th className="px-4 py-3">Club</th>
+                        <th className="px-4 py-3">Kategori Utama</th>
+                        <th className="px-4 py-3">Kategori Upclass</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {filteredUpclassRiders.map((rider, index) => (
+                        <tr key={rider.id} className="bg-white hover:bg-amber-50">
+                          <td className="px-4 py-3 font-bold text-slate-500">{index + 1}</td>
+                          <td className="px-4 py-3 font-black text-slate-950">{rider.plate}</td>
+                          <td className="px-4 py-3">
+                            <div className="font-black text-slate-950">{rider.name}</div>
+                            <div className="text-xs font-semibold text-slate-500">
+                              {rider.rider_nickname || '-'} · {rider.gender}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 font-semibold text-slate-700">{rider.club || '-'}</td>
+                          <td className="px-4 py-3 font-semibold text-slate-700">{rider.primary_category}</td>
+                          <td className="px-4 py-3">
+                            <span className="rounded-full border border-amber-300 bg-amber-100 px-3 py-1 text-xs font-black text-amber-900">
+                              {rider.upclass_category}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </div>
         </div>

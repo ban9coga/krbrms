@@ -26,7 +26,6 @@ type PublicRegistrationRow = {
   community_name: string | null
   total_amount: number
   status: 'PENDING' | 'APPROVED' | 'REJECTED'
-  notes: string | null
   created_at: string
   attendance_status?: 'UNCONFIRMED' | 'ATTENDING' | 'NOT_ATTENDING' | null
   attendance_confirmed_at?: string | null
@@ -48,10 +47,10 @@ type PublicRegistrationRow = {
 }
 
 const BASE_REGISTRATION_SELECT =
-  'event_id, registration_code, contact_name, contact_phone, community_name, total_amount, status, notes, created_at, events(name, event_date, status), registration_items(rider_name, rider_nickname, requested_plate_number, requested_plate_suffix, status, categories!registration_items_primary_category_id_fkey(label)), registration_payments(status)'
+  'event_id, registration_code, contact_name, contact_phone, community_name, total_amount, status, created_at, events(name, event_date, status), registration_items(rider_name, rider_nickname, requested_plate_number, requested_plate_suffix, status, categories!registration_items_primary_category_id_fkey(label)), registration_payments(status)'
 
 const FULL_REGISTRATION_SELECT =
-  'event_id, registration_code, contact_name, contact_phone, community_name, total_amount, status, notes, created_at, attendance_status, attendance_confirmed_at, checked_in_at, goodie_bag_collected_at, events(name, event_date, status), registration_items(rider_name, rider_nickname, requested_plate_number, requested_plate_suffix, status, categories!registration_items_primary_category_id_fkey(label)), registration_payments(status)'
+  'event_id, registration_code, contact_name, contact_phone, community_name, total_amount, status, created_at, attendance_status, attendance_confirmed_at, checked_in_at, goodie_bag_collected_at, events(name, event_date, status), registration_items(rider_name, rider_nickname, requested_plate_number, requested_plate_suffix, status, categories!registration_items_primary_category_id_fkey(label)), registration_payments(status)'
 
 const isMissingRegistrationCodeError = (message: string) => /registration_code/i.test(message)
 
@@ -194,7 +193,6 @@ export async function POST(req: Request) {
       community_name: registration.community_name,
       total_amount: registration.total_amount,
       status: registration.status,
-      notes: registration.notes,
       created_at: registration.created_at,
       attendance_status: registration.attendance_status ?? 'UNCONFIRMED',
       attendance_confirmed_at: registration.attendance_confirmed_at ?? null,
@@ -234,7 +232,7 @@ export async function PATCH(req: Request) {
   const { data, error } = await adminClient
     .from('registrations')
     .select(
-      'id, event_id, registration_code, contact_name, contact_phone, community_name, total_amount, status, notes, created_at, attendance_status, attendance_confirmed_at, checked_in_at, goodie_bag_collected_at, events(name, event_date, status), registration_items(rider_name, rider_nickname, requested_plate_number, requested_plate_suffix, status, categories!registration_items_primary_category_id_fkey(label)), registration_payments(status)'
+      'id, event_id, registration_code, contact_name, contact_phone, community_name, total_amount, status, created_at, attendance_status, attendance_confirmed_at, checked_in_at, goodie_bag_collected_at, events(name, event_date, status), registration_items(rider_name, rider_nickname, requested_plate_number, requested_plate_suffix, status, categories!registration_items_primary_category_id_fkey(label)), registration_payments(status)'
     )
     .eq('registration_code', registrationCode)
     .maybeSingle()

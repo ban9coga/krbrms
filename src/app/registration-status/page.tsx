@@ -10,7 +10,6 @@ type RegistrationStatusData = {
   community_name: string | null
   total_amount: number
   status: 'PENDING' | 'APPROVED' | 'REJECTED'
-  notes: string | null
   created_at: string
   attendance_status: 'UNCONFIRMED' | 'ATTENDING' | 'NOT_ATTENDING'
   attendance_confirmed_at: string | null
@@ -266,13 +265,6 @@ export default function RegistrationStatusPage() {
                 </div>
               </div>
             </div>
-
-            {result.notes && (
-              <div className="rounded-xl border border-[#efd289] bg-[#fff2c9] px-4 py-3">
-                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[#8a5700]">Catatan Panitia</div>
-                <p className="mt-1 text-sm font-semibold leading-6 text-[#68420a]">{result.notes}</p>
-              </div>
-            )}
 
             <div className="rounded-2xl border border-[#d9c9ae] bg-[#f8eedb] p-4 text-center">
               <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[#796657]">QR Pendaftaran</div>
