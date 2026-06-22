@@ -1877,11 +1877,7 @@ html[data-theme='dark'] .setting-toggle-control:has(input:checked) .setting-togg
   }
 
   .homepage-race-track-mark {
-    top: 18px;
-    right: 16px;
-    width: 62px;
-    height: 50px;
-    opacity: 0.65;
+    display: none;
   }
 
   .homepage-race-track-mark strong {
@@ -1893,7 +1889,7 @@ html[data-theme='dark'] .setting-toggle-control:has(input:checked) .setting-togg
     left: -78px;
     width: 78vw;
     height: 145px;
-    opacity: 0.2;
+    opacity: 0.13;
   }
 
   .homepage-race-checkered-flag span {
@@ -1923,8 +1919,15 @@ html[data-theme='dark'] .setting-toggle-control:has(input:checked) .setting-togg
   }
 
   .homepage-editorial-kicker {
+    max-width: calc(100% - 16px);
+    justify-content: center;
+    overflow: visible;
     font-size: 9px;
     letter-spacing: 0.12em;
+    line-height: 1.45;
+    text-align: center;
+    text-overflow: clip;
+    white-space: normal;
   }
 
   .homepage-editorial-title {
@@ -1952,21 +1955,29 @@ html[data-theme='dark'] .setting-toggle-control:has(input:checked) .setting-togg
   }
 
   .homepage-editorial-stats {
+    gap: 0;
     margin-top: 28px;
     padding-top: 20px;
   }
 
   .homepage-editorial-stat {
-    padding-inline: 7px;
+    align-content: start;
+    gap: 7px;
+    padding-inline: 5px;
   }
 
   .homepage-editorial-stat strong {
-    font-size: 21px;
+    min-height: 34px;
+    font-size: clamp(13px, 3.8vw, 16px);
+    line-height: 1.05;
+    overflow-wrap: normal;
+    word-break: normal;
   }
 
   .homepage-editorial-stat span {
-    font-size: 8px;
-    letter-spacing: 0.08em;
+    font-size: 7px;
+    letter-spacing: 0.04em;
+    line-height: 1.35;
   }
 
   .homepage-editorial-ticker {
