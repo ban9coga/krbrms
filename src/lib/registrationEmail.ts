@@ -43,7 +43,7 @@ export type RegistrationEmailResult =
   | { status: 'sent'; id?: string }
   | { status: 'skipped'; reason: string }
 
-type RegistrationEmailKind = 'APPROVED' | 'REJECTED' | 'PAYMENT_REJECTED'
+type RegistrationEmailKind = 'APPROVED' | 'REJECTED' | 'PAYMENT_REJECTED' | 'STATUS_ACCESS'
 
 const escapeHtml = (value: unknown) =>
   String(value ?? '')
@@ -197,34 +197,43 @@ export const sendRegistrationStatusEmail = async (
 
   const isApproved = kind === 'APPROVED'
   const isPaymentRejected = kind === 'PAYMENT_REJECTED'
-  const title = isApproved
+  const isStatusAccess = kind === 'STATUS_ACCESS'
+  const title = isStatusAccess
+    ? 'Akses status dan QR pendaftaran'
+    : isApproved
     ? 'Pendaftaran telah dikonfirmasi'
     : isPaymentRejected
     ? 'Bukti pembayaran perlu diperbaiki'
     : 'Pendaftaran perlu ditinjau kembali'
-  const intro = isApproved
+  const intro = isStatusAccess
+    ? `berikut kode registrasi, QR, dan akses status pendaftaran untuk <strong>${escapeHtml(eventTitle)}</strong>.`
+    : isApproved
     ? `pendaftaran untuk <strong>${escapeHtml(eventTitle)}</strong> telah dikonfirmasi oleh panitia.`
     : isPaymentRejected
     ? `bukti pembayaran untuk pendaftaran <strong>${escapeHtml(eventTitle)}</strong> belum dapat dikonfirmasi. Silakan cek catatan dari panitia.`
     : `pendaftaran untuk <strong>${escapeHtml(eventTitle)}</strong> belum dapat dikonfirmasi. Silakan cek catatan dari panitia.`
-  const statusLabel = isApproved
+  const statusLabel = isStatusAccess
+    ? 'Silakan cek status terbaru melalui tombol atau QR di bawah'
+    : isApproved
     ? 'Pendaftaran telah dikonfirmasi'
     : isPaymentRejected
     ? 'Bukti pembayaran perlu diperbaiki'
     : 'Perlu ditinjau / dilengkapi'
-  const subject = isApproved
+  const subject = isStatusAccess
+    ? `Akses status & QR ${riderSummary} - ${eventTitle} #${shortRegistrationId}`
+    : isApproved
     ? `Pendaftaran ${riderSummary} telah dikonfirmasi - ${eventTitle} #${shortRegistrationId}`
     : isPaymentRejected
     ? `Bukti pembayaran ${riderSummary} perlu diperbaiki - ${eventTitle} #${shortRegistrationId}`
     : `Pendaftaran ${riderSummary} perlu ditinjau - ${eventTitle} #${shortRegistrationId}`
   const noteBlock =
-    !isApproved && notes?.trim()
+    !isApproved && !isStatusAccess && notes?.trim()
       ? `<div style="padding:12px;border:1px solid #fecdd3;border-radius:12px;background:#fff1f2;margin-bottom:16px;"><strong>Alasan:</strong><br/>${escapeHtml(
           notes.trim()
         )}</div>`
       : ''
   const whatsappButton =
-    isApproved && whatsappUrl
+    (isApproved || isStatusAccess) && whatsappUrl
       ? `<p style="margin:0 0 16px;"><a href="${escapeHtml(
           whatsappUrl
         )}" style="display:inline-block;padding:10px 14px;border-radius:10px;background:#16a34a;color:#fff;text-decoration:none;font-weight:700;">Gabung Grup WhatsApp</a></p>`
@@ -296,8 +305,8 @@ export const sendRegistrationStatusEmail = async (
     `Cek Status: ${statusUrl}`,
     `Total: ${formatRupiah(reg.total_amount)}`,
     `Status: ${statusLabel}`,
-    !isApproved && notes?.trim() ? `Alasan: ${notes.trim()}` : '',
-    isApproved && whatsappUrl ? `Grup WhatsApp: ${whatsappUrl}` : '',
+    !isApproved && !isStatusAccess && notes?.trim() ? `Alasan: ${notes.trim()}` : '',
+    (isApproved || isStatusAccess) && whatsappUrl ? `Grup WhatsApp: ${whatsappUrl}` : '',
     `Kontak Panitia: ${committeeContact.name}`,
     committeeContact.phone ? `WhatsApp Panitia: ${committeeContact.phone}` : '',
     committeeContact.email ? `Email Panitia: ${committeeContact.email}` : '',
@@ -337,3 +346,6 @@ export const sendRegistrationRejectionEmail = (eventId: string, registrationId: 
 
 export const sendRegistrationPaymentRejectionEmail = (eventId: string, registrationId: string, notes?: string | null) =>
   sendRegistrationStatusEmail(eventId, registrationId, 'PAYMENT_REJECTED', notes)
+
+export const sendRegistrationStatusAccessEmail = (eventId: string, registrationId: string) =>
+  sendRegistrationStatusEmail(eventId, registrationId, 'STATUS_ACCESS')

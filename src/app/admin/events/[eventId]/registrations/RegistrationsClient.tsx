@@ -23,6 +23,7 @@ type CategoryItem = {
 type RegistrationStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
 type PaymentStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
 type PaymentFilter = 'ALL' | 'NO_PAYMENT' | PaymentStatus
+type AttendanceStatus = 'UNCONFIRMED' | 'ATTENDING' | 'NOT_ATTENDING'
 type AttendanceFilter =
   | 'ALL'
   | 'ATTENDING'
@@ -78,6 +79,10 @@ type RegistrationRow = {
   total_amount: number
   notes: string | null
   created_at: string
+  attendance_status?: AttendanceStatus | null
+  attendance_confirmed_at?: string | null
+  checked_in_at?: string | null
+  goodie_bag_collected_at?: string | null
   registration_items: RegistrationItem[]
   registration_payments: RegistrationPayment[]
   registration_documents: RegistrationDocument[]
@@ -311,6 +316,23 @@ const normalizeExternalUrl = (value: string | null | undefined) => {
   return `https://${trimmed}`
 }
 
+const attendanceStatusLabel: Record<AttendanceStatus, string> = {
+  UNCONFIRMED: 'Belum Konfirmasi',
+  ATTENDING: 'Akan Hadir',
+  NOT_ATTENDING: 'Tidak Hadir',
+}
+
+const getRegistrationStatusUrl = (registrationCode: string | null | undefined) => {
+  const code = String(registrationCode ?? '').trim()
+  return code ? `https://racepushbike.com/registration-status?code=${encodeURIComponent(code)}` : ''
+}
+
+const getAttendanceLabel = (registration: RegistrationRow) =>
+  attendanceStatusLabel[registration.attendance_status ?? 'UNCONFIRMED']
+
+const getVenueStatusLabel = (value: string | null | undefined, completeLabel: string, pendingLabel: string) =>
+  value ? `${completeLabel} - ${formatDateTime(value)}` : pendingLabel
+
 const safeCssColor = (value: unknown, fallback: string) => {
   if (typeof value !== 'string') return fallback
   const trimmed = value.trim()
@@ -343,7 +365,7 @@ const buildWhatsAppRiderLines = (registration: RegistrationRow, categoryMap?: Ma
 
 const buildWhatsAppMessage = (
   registration: RegistrationRow,
-  kind: 'APPROVED' | 'REJECTED' | 'PAYMENT_REJECTED',
+  kind: 'APPROVED' | 'REJECTED' | 'PAYMENT_REJECTED' | 'STATUS_ACCESS',
   whatsappGroupInviteUrl?: string | null,
   categoryMap?: Map<string, string>
 ) => {
@@ -353,13 +375,32 @@ const buildWhatsAppMessage = (
   const riderText = riderNames.length > 0 ? riderNames.join(', ') : 'rider'
   const total = formatRupiah(registration.total_amount)
   const whatsappGroupUrl = normalizeExternalUrl(whatsappGroupInviteUrl)
-  const registrationCode = registration.registration_code || registration.id.slice(0, 8).toUpperCase()
-  const statusUrl = `https://racepushbike.com/registration-status?code=${encodeURIComponent(registrationCode)}`
-  const statusLines = [
-    `Kode registrasi: ${registrationCode}`,
-    `Cek status & QR: ${statusUrl}`,
-    'Masukkan nomor WhatsApp yang digunakan saat mendaftar.',
-  ]
+  const registrationCode = registration.registration_code?.trim() || ''
+  const statusUrl = getRegistrationStatusUrl(registrationCode)
+  const statusLines = registrationCode
+    ? [
+        `Kode registrasi: ${registrationCode}`,
+        `Cek status & QR: ${statusUrl}`,
+        'Masukkan nomor WhatsApp yang digunakan saat mendaftar.',
+      ]
+    : ['Kode registrasi belum tersedia. Silakan hubungi panitia.']
+
+  if (kind === 'STATUS_ACCESS') {
+    return [
+      `Halo ${registration.contact_name},`,
+      '',
+      `Berikut akses status dan QR pendaftaran ${riderText}:`,
+      ...statusLines,
+      '',
+      `Status registrasi: ${registration.status}`,
+      `Konfirmasi kehadiran: ${getAttendanceLabel(registration)}`,
+      getVenueStatusLabel(registration.checked_in_at, 'Sudah check-in', 'Belum check-in'),
+      getVenueStatusLabel(registration.goodie_bag_collected_at, 'Goodie bag sudah diambil', 'Goodie bag belum diambil'),
+      '',
+      'Simpan kode atau QR tersebut untuk proses check-in di venue.',
+      'Terima kasih.',
+    ].join('\n')
+  }
 
   if (kind === 'APPROVED') {
     return [
@@ -405,12 +446,12 @@ const buildWhatsAppMessage = (
 
 const buildWhatsAppUrl = (
   registration: RegistrationRow,
-  kind: 'APPROVED' | 'REJECTED' | 'PAYMENT_REJECTED',
+  kind: 'APPROVED' | 'REJECTED' | 'PAYMENT_REJECTED' | 'STATUS_ACCESS',
   whatsappGroupInviteUrl?: string | null,
   categoryMap?: Map<string, string>
 ) => {
   const phone = normalizeWhatsAppPhone(registration.contact_phone)
-  if (!phone) return ''
+  if (!phone || (kind === 'STATUS_ACCESS' && !registration.registration_code?.trim())) return ''
   return `https://wa.me/${phone}?text=${encodeURIComponent(
     buildWhatsAppMessage(registration, kind, whatsappGroupInviteUrl, categoryMap)
   )}`
@@ -425,7 +466,7 @@ function WhatsAppAction({
   categoryMap,
 }: {
   registration: RegistrationRow
-  kind: 'APPROVED' | 'REJECTED' | 'PAYMENT_REJECTED'
+  kind: 'APPROVED' | 'REJECTED' | 'PAYMENT_REJECTED' | 'STATUS_ACCESS'
   className?: string
   label?: string
   whatsappGroupInviteUrl?: string | null
@@ -1136,6 +1177,38 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
     return exportRows
   }
 
+  const resendStatusEmail = async (registration: RegistrationRow) => {
+    if (!registration.contact_email?.trim()) {
+      setFeedback({ type: 'error', message: 'Email wali rider belum diisi.' })
+      return
+    }
+    if (!registration.registration_code?.trim()) {
+      setFeedback({ type: 'error', message: 'Kode registrasi belum tersedia.' })
+      return
+    }
+
+    setSavingKey(`email:${registration.id}`)
+    try {
+      const response = await apiFetch<ApprovalResponse>(
+        `/api/admin/events/${eventId}/registrations/${registration.id}/email`,
+        { method: 'POST' }
+      )
+      const email = response.email
+      const message =
+        email?.status === 'sent'
+          ? `Email QR dan status berhasil dikirim ulang ke ${registration.contact_email}.`
+          : `Email tidak dikirim: ${email?.reason ?? 'konfigurasi email belum tersedia.'}`
+      setFeedback({ type: email?.status === 'sent' ? 'success' : 'error', message })
+    } catch (err: unknown) {
+      setFeedback({
+        type: 'error',
+        message: err instanceof Error ? err.message : 'Gagal mengirim ulang email QR dan status.',
+      })
+    } finally {
+      setSavingKey(null)
+    }
+  }
+
   const fetchRiderExportRows = async (categoryId?: string | null) => {
     const exportRows: RiderExportItem[] = []
     const exportPageSize = 200
@@ -1475,12 +1548,18 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
           const primaryCategory = item.primary_category_id ? categoryMap.get(item.primary_category_id) ?? item.primary_category_id : '-'
           const extraCategory = item.extra_category_id ? categoryMap.get(item.extra_category_id) ?? item.extra_category_id : '-'
           const plate = buildPlateDisplay(item.requested_plate_number, item.requested_plate_suffix) || '-'
+          const registrationCode = registration.registration_code?.trim() || '-'
+          const statusUrl = getRegistrationStatusUrl(registration.registration_code) || '-'
           return `
             <tr>
               <td>${index + 1}</td>
               <td>${escapeHtml(formatDateTime(registration.created_at))}</td>
+              <td>${escapeHtml(registrationCode)}</td>
               <td>${escapeHtml(registration.status)}</td>
               <td>${escapeHtml(paymentAggregate)}</td>
+              <td>${escapeHtml(getAttendanceLabel(registration))}</td>
+              <td>${escapeHtml(registration.checked_in_at ? 'Sudah' : 'Belum')}</td>
+              <td>${escapeHtml(registration.goodie_bag_collected_at ? 'Sudah' : 'Belum')}</td>
               <td>${escapeHtml(registration.contact_name)}</td>
               <td>${escapeHtml(registration.contact_phone)}</td>
               <td>${escapeHtml(item.rider_name)}</td>
@@ -1495,6 +1574,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
               <td>${escapeHtml(formatRupiah(item.price || 0))}</td>
               <td>${escapeHtml(item.status)}</td>
               <td>${escapeHtml(documentCount)}</td>
+              <td style="word-break:break-all">${escapeHtml(statusUrl)}</td>
             </tr>
           `
         })
@@ -1516,8 +1596,12 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                 <tr>
                   <th>No</th>
                   <th>Tanggal</th>
+                  <th>Kode</th>
                   <th>Registrasi</th>
                   <th>Bayar</th>
+                  <th>Kehadiran</th>
+                  <th>Check-in</th>
+                  <th>Goodie</th>
                   <th>Kontak</th>
                   <th>WhatsApp</th>
                   <th>Nama Rider</th>
@@ -1532,6 +1616,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                   <th>Harga</th>
                   <th>Status Item</th>
                   <th>Dok</th>
+                  <th>Link Status / QR</th>
                 </tr>
               </thead>
               <tbody>${tableRows}</tbody>
@@ -1609,8 +1694,14 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
         [
           'No',
           'Tanggal Registrasi',
+          'Kode Registrasi',
+          'Link Status / QR',
           'Status Registrasi',
           'Status Pembayaran',
+          'Konfirmasi Kehadiran',
+          'Waktu Konfirmasi',
+          'Check-in Venue',
+          'Goodie Bag',
           'Komunitas',
           'Nama Kontak',
           'No. WhatsApp',
@@ -1642,8 +1733,18 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
           detailSheetData.push([
             detailIndex,
             formatDateTime(registration.created_at),
+            registration.registration_code?.trim() || '-',
+            getRegistrationStatusUrl(registration.registration_code) || '-',
             registration.status,
             paymentAggregate,
+            getAttendanceLabel(registration),
+            registration.attendance_confirmed_at ? formatDateTime(registration.attendance_confirmed_at) : '-',
+            getVenueStatusLabel(registration.checked_in_at, 'Sudah check-in', 'Belum check-in'),
+            getVenueStatusLabel(
+              registration.goodie_bag_collected_at,
+              'Sudah diambil',
+              'Belum diambil'
+            ),
             registration.community_name ?? '-',
             registration.contact_name,
             registration.contact_phone,
@@ -1669,18 +1770,50 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
         }
       }
 
+      const whatsappSheetData: Array<Array<string | number>> = [
+        [
+          'No',
+          'Nama Kontak',
+          'No. WhatsApp',
+          'Kode Registrasi',
+          'Status Registrasi',
+          'Konfirmasi Kehadiran',
+          'Link Status / QR',
+          'Link Kirim WhatsApp',
+          'Template WhatsApp QR & Status',
+        ],
+        ...exportRows.map((registration, index) => [
+          index + 1,
+          registration.contact_name,
+          registration.contact_phone,
+          registration.registration_code?.trim() || '-',
+          registration.status,
+          getAttendanceLabel(registration),
+          getRegistrationStatusUrl(registration.registration_code) || '-',
+          buildWhatsAppUrl(registration, 'STATUS_ACCESS') || '-',
+          buildWhatsAppMessage(registration, 'STATUS_ACCESS', null, categoryMap),
+        ]),
+      ]
+
       const XLSX = await import('xlsx')
       const workbook = XLSX.utils.book_new()
       const summarySheet = XLSX.utils.aoa_to_sheet(summarySheetData)
       const detailSheet = XLSX.utils.aoa_to_sheet(detailSheetData)
+      const whatsappSheet = XLSX.utils.aoa_to_sheet(whatsappSheetData)
 
       summarySheet['!cols'] = [{ wch: 24 }, { wch: 48 }]
       summarySheet['!views'] = [{ state: 'frozen', ySplit: 8 }]
       detailSheet['!cols'] = [
         { wch: 6 },
         { wch: 22 },
+        { wch: 22 },
+        { wch: 55 },
         { wch: 18 },
         { wch: 18 },
+        { wch: 22 },
+        { wch: 22 },
+        { wch: 24 },
+        { wch: 24 },
         { wch: 22 },
         { wch: 22 },
         { wch: 18 },
@@ -1702,13 +1835,27 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
         { wch: 14 },
         { wch: 28 },
       ]
+      whatsappSheet['!cols'] = [
+        { wch: 6 },
+        { wch: 24 },
+        { wch: 18 },
+        { wch: 22 },
+        { wch: 18 },
+        { wch: 22 },
+        { wch: 55 },
+        { wch: 70 },
+        { wch: 90 },
+      ]
       summarySheet['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: 1 } }]
-      detailSheet['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 23 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: 23 } }, { s: { r: 2, c: 0 }, e: { r: 2, c: 23 } }]
-      detailSheet['!autofilter'] = { ref: `A5:X${detailSheetData.length}` }
+      detailSheet['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 29 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: 29 } }, { s: { r: 2, c: 0 }, e: { r: 2, c: 29 } }]
+      detailSheet['!autofilter'] = { ref: `A5:AD${detailSheetData.length}` }
       detailSheet['!views'] = [{ state: 'frozen', ySplit: 5 }]
+      whatsappSheet['!autofilter'] = { ref: `A1:I${whatsappSheetData.length}` }
+      whatsappSheet['!views'] = [{ state: 'frozen', ySplit: 1 }]
 
       XLSX.utils.book_append_sheet(workbook, summarySheet, 'Ringkasan Registrasi')
       XLSX.utils.book_append_sheet(workbook, detailSheet, 'Detail Registrasi')
+      XLSX.utils.book_append_sheet(workbook, whatsappSheet, 'WhatsApp Registrasi')
 
       const stamp = generatedAt.toISOString().slice(0, 19).replace(/[:T]/g, '-')
       const safeEventName = eventName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'event'
@@ -2386,6 +2533,33 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                     </div>
 
                     <div className="grid gap-2 sm:grid-cols-2 xl:flex xl:flex-wrap xl:items-center xl:justify-end">
+                      {registration.registration_code && (
+                        <WhatsAppAction
+                          registration={registration}
+                          kind="STATUS_ACCESS"
+                          className="w-full border-sky-300 bg-sky-600 hover:bg-sky-700 xl:w-auto"
+                          label="Kirim QR & Status"
+                        />
+                      )}
+                      <button
+                        type="button"
+                        disabled={
+                          savingKey === `email:${registration.id}` ||
+                          !registration.registration_code?.trim() ||
+                          !registration.contact_email?.trim()
+                        }
+                        onClick={() => void resendStatusEmail(registration)}
+                        title={
+                          !registration.contact_email?.trim()
+                            ? 'Email wali rider belum diisi'
+                            : !registration.registration_code?.trim()
+                            ? 'Kode registrasi belum tersedia'
+                            : 'Kirim ulang email berisi kode, QR, dan link status'
+                        }
+                        className="min-h-11 rounded-2xl border border-indigo-300 bg-indigo-50 px-4 py-2 text-sm font-black text-indigo-900 transition hover:border-indigo-500 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                      >
+                        {savingKey === `email:${registration.id}` ? 'Mengirim Email...' : 'Kirim Email QR & Status'}
+                      </button>
                       {registration.status !== 'PENDING' && (
                         <WhatsAppAction
                           registration={registration}
