@@ -26,6 +26,9 @@ type RegistrationStatusData = {
     plate: string
     status: string
     category: string
+    venue_status: 'UNMARKED' | 'CHECKED_IN' | 'NOT_ATTENDING'
+    checked_in_at: string | null
+    goodie_bag_collected_at: string | null
   }>
 }
 
@@ -286,13 +289,32 @@ export default function RegistrationStatusPage() {
             <div className="grid gap-3">
               <div className="text-xs font-black uppercase text-[#5f4638]">Rider Terdaftar</div>
               {result.riders.map((rider, index) => (
-                <div key={`${rider.name}-${index}`} className="rounded-2xl border border-[#e2d5bd] bg-white p-4">
+                <div
+                  key={`${rider.name}-${index}`}
+                  className={`rounded-2xl border p-4 ${
+                    rider.venue_status === 'CHECKED_IN'
+                      ? 'border-[#9bc9ae] bg-[#e3f3e6]'
+                      : rider.venue_status === 'NOT_ATTENDING'
+                        ? 'border-[#ef9a9a] bg-[#ffe1e1]'
+                        : 'border-[#e2d5bd] bg-white'
+                  }`}
+                >
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="font-black">{index + 1}. {rider.name}</div>
                       <div className="mt-1 text-xs font-semibold text-[#796657]">
                         {rider.nickname || 'Tanpa nama panggilan'} · {rider.category}
                       </div>
+                      <div className="mt-2 text-xs font-black uppercase">
+                        {rider.venue_status === 'CHECKED_IN'
+                          ? 'Sudah check-in'
+                          : rider.venue_status === 'NOT_ATTENDING'
+                            ? 'Tidak hadir'
+                            : 'Belum diproses di venue'}
+                      </div>
+                      {rider.goodie_bag_collected_at && (
+                        <div className="mt-1 text-xs font-bold text-[#8a5700]">Goodie bag sudah diambil</div>
+                      )}
                     </div>
                     <span className="rounded-full border border-[#d9c9ae] bg-[#efe2c7] px-3 py-1 text-xs font-black">
                       Plate {rider.plate}

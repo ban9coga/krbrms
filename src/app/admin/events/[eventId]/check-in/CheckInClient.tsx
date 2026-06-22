@@ -17,10 +17,14 @@ type CheckInRegistration = {
   checked_in_at: string | null
   goodie_bag_collected_at: string | null
   registration_items: Array<{
+    id: string
     rider_name: string
     rider_nickname: string | null
     requested_plate_number: string | null
     requested_plate_suffix: string | null
+    venue_status: 'UNMARKED' | 'CHECKED_IN' | 'NOT_ATTENDING'
+    checked_in_at: string | null
+    goodie_bag_collected_at: string | null
     categories: { label: string | null } | Array<{ label: string | null }> | null
   }>
   registration_payments: Array<{ status: string }>
@@ -70,7 +74,7 @@ export default function CheckInClient({ eventId }: { eventId: string }) {
   const [code, setCode] = useState('')
   const [registration, setRegistration] = useState<CheckInRegistration | null>(null)
   const [loading, setLoading] = useState(false)
-  const [saving, setSaving] = useState<'CHECK_IN' | 'GOODIE_BAG_COLLECTED' | null>(null)
+  const [saving, setSaving] = useState<string | null>(null)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [scannerActive, setScannerActive] = useState(false)
   const [scannerSupported, setScannerSupported] = useState(true)
@@ -177,26 +181,34 @@ export default function CheckInClient({ eventId }: { eventId: string }) {
     }
   }
 
-  const processAction = async (action: 'CHECK_IN' | 'GOODIE_BAG_COLLECTED') => {
+  const processAction = async (
+    action: 'CHECK_IN' | 'NOT_ATTENDING' | 'GOODIE_BAG_COLLECTED',
+    registrationItemId?: string,
+    applyToAll = false
+  ) => {
     if (!registration) return
-    setSaving(action)
+    const savingKey = applyToAll ? `${action}:ALL` : `${action}:${registrationItemId}`
+    setSaving(savingKey)
     setMessage(null)
     try {
       const json = await apiFetch(`/api/admin/events/${eventId}/check-in`, {
         method: 'PATCH',
-        body: JSON.stringify({ registration_code: registration.registration_code, action }),
+        body: JSON.stringify({
+          registration_code: registration.registration_code,
+          registration_item_id: registrationItemId,
+          apply_to_all: applyToAll,
+          action,
+        }),
       })
       setRegistration(json.data as CheckInRegistration)
       setMessage({
         type: 'success',
         text:
           action === 'CHECK_IN'
-            ? json.already_processed
-              ? 'Rider sudah pernah check-in.'
-              : 'Check-in venue berhasil.'
-            : json.already_processed
-              ? 'Goodie bag sudah pernah diambil.'
-              : 'Pengambilan goodie bag berhasil dicatat.',
+            ? `${json.processed_count ?? 1} rider berhasil check-in.`
+            : action === 'NOT_ATTENDING'
+              ? 'Rider ditandai tidak hadir.'
+              : `Goodie bag untuk ${json.processed_count ?? 1} rider berhasil dicatat.`,
       })
     } catch (error) {
       setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Proses gagal.' })
@@ -206,7 +218,15 @@ export default function CheckInClient({ eventId }: { eventId: string }) {
   }
 
   const paymentApproved = registration?.registration_payments?.some((payment) => payment.status === 'APPROVED')
-  const needsNotAttendingOverride = registration?.attendance_status === 'NOT_ATTENDING' && !registration.checked_in_at
+  const checkedInCount =
+    registration?.registration_items.filter((item) => item.venue_status === 'CHECKED_IN').length ?? 0
+  const notAttendingCount =
+    registration?.registration_items.filter((item) => item.venue_status === 'NOT_ATTENDING').length ?? 0
+  const unmarkedCount =
+    registration?.registration_items.filter((item) => item.venue_status === 'UNMARKED').length ?? 0
+  const goodieBagCount =
+    registration?.registration_items.filter((item) => Boolean(item.goodie_bag_collected_at)).length ?? 0
+  const needsNotAttendingOverride = registration?.attendance_status === 'NOT_ATTENDING' && checkedInCount === 0
 
   return (
     <div className="min-h-screen bg-slate-100 p-4 text-slate-950 md:p-6">
@@ -316,83 +336,132 @@ export default function CheckInClient({ eventId }: { eventId: string }) {
               </div>
             )}
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div className={`rounded-2xl border p-4 ${attendanceClass(registration.attendance_status)}`}>
-                <div className="text-xs font-black uppercase opacity-75">Konfirmasi Kehadiran</div>
+                <div className="text-xs font-black uppercase opacity-75">Konfirmasi Wali</div>
                 <div className="mt-2 font-black">{attendanceStatusLabel[registration.attendance_status]}</div>
-                {registration.attendance_confirmed_at && (
-                  <div className="mt-1 text-xs font-semibold">
-                    {formatDateTime(registration.attendance_confirmed_at)}
-                  </div>
-                )}
               </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <div className="text-xs font-black uppercase text-slate-500">Check-in Venue</div>
-                <div className="mt-2 font-black">
-                  {registration.checked_in_at ? `Sudah · ${formatDateTime(registration.checked_in_at)}` : 'Belum check-in'}
-                </div>
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                <div className="text-xs font-black uppercase text-emerald-700">Rider Hadir</div>
+                <div className="mt-2 text-2xl font-black text-emerald-900">{checkedInCount}</div>
               </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <div className="text-xs font-black uppercase text-slate-500">Goodie Bag</div>
-                <div className="mt-2 font-black">
-                  {registration.goodie_bag_collected_at
-                    ? `Sudah diambil · ${formatDateTime(registration.goodie_bag_collected_at)}`
-                    : 'Belum diambil'}
+              <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4">
+                <div className="text-xs font-black uppercase text-rose-700">Tidak Hadir</div>
+                <div className="mt-2 text-2xl font-black text-rose-900">{notAttendingCount}</div>
+              </div>
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                <div className="text-xs font-black uppercase text-amber-700">Goodie Bag</div>
+                <div className="mt-2 text-2xl font-black text-amber-900">
+                  {goodieBagCount}/{registration.registration_items.length}
                 </div>
               </div>
             </div>
 
+            {registration.status === 'APPROVED' && (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {unmarkedCount > 0 && (
+                  <button
+                    type="button"
+                    disabled={saving !== null}
+                    onClick={() => void processAction('CHECK_IN', undefined, true)}
+                    className="min-h-12 rounded-2xl bg-emerald-600 px-5 text-sm font-black uppercase text-white disabled:bg-slate-300"
+                  >
+                    {saving === 'CHECK_IN:ALL' ? 'Memproses...' : `Check-in Semua (${unmarkedCount})`}
+                  </button>
+                )}
+                {checkedInCount > goodieBagCount && (
+                  <button
+                    type="button"
+                    disabled={saving !== null}
+                    onClick={() => void processAction('GOODIE_BAG_COLLECTED', undefined, true)}
+                    className="min-h-12 rounded-2xl bg-amber-400 px-5 text-sm font-black uppercase text-slate-950 disabled:bg-slate-300"
+                  >
+                    {saving === 'GOODIE_BAG_COLLECTED:ALL'
+                      ? 'Memproses...'
+                      : `Goodie Bag Semua Rider Hadir (${checkedInCount - goodieBagCount})`}
+                  </button>
+                )}
+              </div>
+            )}
+
             <div className="grid gap-3">
               {registration.registration_items.map((rider, index) => (
-                <div key={`${rider.rider_name}-${index}`} className="rounded-2xl border border-slate-200 p-4">
-                  <div className="flex items-start justify-between gap-3">
+                <div
+                  key={rider.id}
+                  className={`rounded-2xl border p-4 ${
+                    rider.venue_status === 'CHECKED_IN'
+                      ? 'border-emerald-300 bg-emerald-50'
+                      : rider.venue_status === 'NOT_ATTENDING'
+                        ? 'border-rose-300 bg-rose-50'
+                        : 'border-slate-200 bg-white'
+                  }`}
+                >
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div>
-                      <div className="font-black">{index + 1}. {rider.rider_name}</div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="font-black">{index + 1}. {rider.rider_name}</div>
+                        <span className="rounded-full border border-slate-300 bg-white px-3 py-1 text-[10px] font-black uppercase">
+                          {rider.venue_status === 'CHECKED_IN'
+                            ? 'Sudah Check-in'
+                            : rider.venue_status === 'NOT_ATTENDING'
+                              ? 'Tidak Hadir'
+                              : 'Belum Diproses'}
+                        </span>
+                      </div>
                       <div className="mt-1 text-xs font-semibold text-slate-600">
                         {rider.rider_nickname || '-'} · {getCategoryLabel(rider.categories)}
                       </div>
+                      {rider.checked_in_at && (
+                        <div className="mt-2 text-xs font-bold text-emerald-800">
+                          Check-in {formatDateTime(rider.checked_in_at)}
+                        </div>
+                      )}
+                      {rider.goodie_bag_collected_at && (
+                        <div className="mt-1 text-xs font-bold text-amber-800">
+                          Goodie bag {formatDateTime(rider.goodie_bag_collected_at)}
+                        </div>
+                      )}
                     </div>
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black">
-                      Plate {rider.requested_plate_number ?? '-'}{rider.requested_plate_suffix ?? ''}
-                    </span>
+                    <div className="grid gap-2 sm:grid-cols-2 lg:min-w-[390px]">
+                      <span className="flex items-center justify-center rounded-xl bg-slate-100 px-3 py-2 text-xs font-black">
+                        Plate {rider.requested_plate_number ?? '-'}{rider.requested_plate_suffix ?? ''}
+                      </span>
+                      {rider.venue_status !== 'CHECKED_IN' && (
+                        <button
+                          type="button"
+                          disabled={saving !== null || registration.status !== 'APPROVED'}
+                          onClick={() => void processAction('CHECK_IN', rider.id)}
+                          className="min-h-11 rounded-xl bg-emerald-600 px-3 text-xs font-black uppercase text-white disabled:bg-slate-300"
+                        >
+                          {saving === `CHECK_IN:${rider.id}` ? 'Memproses...' : 'Check-in Rider'}
+                        </button>
+                      )}
+                      {rider.venue_status === 'UNMARKED' && (
+                        <button
+                          type="button"
+                          disabled={saving !== null || registration.status !== 'APPROVED'}
+                          onClick={() => void processAction('NOT_ATTENDING', rider.id)}
+                          className="min-h-11 rounded-xl border border-rose-300 bg-rose-100 px-3 text-xs font-black uppercase text-rose-900 disabled:bg-slate-200"
+                        >
+                          {saving === `NOT_ATTENDING:${rider.id}` ? 'Memproses...' : 'Tandai Tidak Hadir'}
+                        </button>
+                      )}
+                      {rider.venue_status === 'CHECKED_IN' && !rider.goodie_bag_collected_at && (
+                        <button
+                          type="button"
+                          disabled={saving !== null || registration.status !== 'APPROVED'}
+                          onClick={() => void processAction('GOODIE_BAG_COLLECTED', rider.id)}
+                          className="min-h-11 rounded-xl bg-amber-400 px-3 text-xs font-black uppercase text-slate-950 disabled:bg-slate-300"
+                        >
+                          {saving === `GOODIE_BAG_COLLECTED:${rider.id}` ? 'Memproses...' : 'Goodie Bag Diambil'}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <button
-                type="button"
-                disabled={saving !== null || registration.status !== 'APPROVED' || Boolean(registration.checked_in_at)}
-                onClick={() => void processAction('CHECK_IN')}
-                className="min-h-14 rounded-2xl bg-emerald-600 px-5 text-sm font-black uppercase text-white disabled:cursor-not-allowed disabled:bg-slate-300"
-              >
-                {saving === 'CHECK_IN'
-                  ? 'Memproses...'
-                  : registration.checked_in_at
-                    ? 'Sudah Check-in'
-                    : needsNotAttendingOverride
-                      ? 'Tetap Check-in Venue'
-                      : 'Check-in Venue'}
-              </button>
-              <button
-                type="button"
-                disabled={
-                  saving !== null ||
-                  registration.status !== 'APPROVED' ||
-                  !registration.checked_in_at ||
-                  Boolean(registration.goodie_bag_collected_at)
-                }
-                onClick={() => void processAction('GOODIE_BAG_COLLECTED')}
-                className="min-h-14 rounded-2xl bg-amber-400 px-5 text-sm font-black uppercase text-slate-950 disabled:cursor-not-allowed disabled:bg-slate-300"
-              >
-                {saving === 'GOODIE_BAG_COLLECTED'
-                  ? 'Memproses...'
-                  : registration.goodie_bag_collected_at
-                    ? 'Goodie Bag Sudah Diambil'
-                    : 'Tandai Goodie Bag Diambil'}
-              </button>
-            </div>
           </section>
         )}
       </main>

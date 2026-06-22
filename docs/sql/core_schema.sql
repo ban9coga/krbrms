@@ -320,10 +320,18 @@ create table if not exists registration_items (
   photo_url text,
   price int not null default 0,
   status registration_item_status not null default 'PENDING',
+  venue_status text not null default 'UNMARKED',
+  checked_in_at timestamptz,
+  checked_in_by uuid,
+  goodie_bag_collected_at timestamptz,
+  goodie_bag_collected_by uuid,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint ck_registration_items_gender check (gender in ('BOY','GIRL')),
   constraint ck_registration_items_price check (price >= 0),
+  constraint ck_registration_items_venue_status check (
+    venue_status in ('UNMARKED','CHECKED_IN','NOT_ATTENDING')
+  ),
   constraint ck_registration_items_requested_plate_number check (
     requested_plate_number is null or requested_plate_number ~ '^[0-9]+$'
   ),
@@ -339,6 +347,7 @@ create index if not exists idx_registration_items_registration on registration_i
 create index if not exists idx_registration_items_status on registration_items(registration_id, status);
 create index if not exists idx_registration_items_primary_category on registration_items(primary_category_id);
 create index if not exists idx_registration_items_extra_category on registration_items(extra_category_id);
+create index if not exists idx_registration_items_venue_status on registration_items(registration_id, venue_status);
 
 drop trigger if exists trg_registration_items_updated_at on registration_items;
 create trigger trg_registration_items_updated_at
@@ -383,18 +392,21 @@ for each row execute function set_updated_at();
 create table if not exists registration_checkin_logs (
   id uuid primary key default uuid_generate_v4(),
   registration_id uuid not null references registrations(id) on delete cascade,
+  registration_item_id uuid references registration_items(id) on delete cascade,
   event_id uuid not null references events(id) on delete cascade,
   action text not null,
   performed_by uuid,
   performed_at timestamptz not null default now(),
   constraint ck_registration_checkin_logs_action
-    check (action in ('CHECK_IN', 'GOODIE_BAG_COLLECTED'))
+    check (action in ('CHECK_IN', 'NOT_ATTENDING', 'GOODIE_BAG_COLLECTED'))
 );
 
 create index if not exists idx_registration_checkin_logs_registration
   on registration_checkin_logs (registration_id, performed_at desc);
 create index if not exists idx_registration_checkin_logs_event
   on registration_checkin_logs (event_id, performed_at desc);
+create index if not exists idx_registration_checkin_logs_item
+  on registration_checkin_logs (registration_item_id, performed_at desc);
 
 -- OPTIONAL MODULES
 

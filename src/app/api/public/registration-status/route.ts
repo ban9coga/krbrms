@@ -41,6 +41,9 @@ type PublicRegistrationRow = {
     requested_plate_number: string | null
     requested_plate_suffix: string | null
     status: string
+    venue_status?: 'UNMARKED' | 'CHECKED_IN' | 'NOT_ATTENDING' | null
+    checked_in_at?: string | null
+    goodie_bag_collected_at?: string | null
     categories: { label: string | null } | Array<{ label: string | null }> | null
   }>
   registration_payments: Array<{ status: string }>
@@ -50,12 +53,12 @@ const BASE_REGISTRATION_SELECT =
   'event_id, registration_code, contact_name, contact_phone, community_name, total_amount, status, created_at, events(name, event_date, status), registration_items(rider_name, rider_nickname, requested_plate_number, requested_plate_suffix, status, categories!registration_items_primary_category_id_fkey(label)), registration_payments(status)'
 
 const FULL_REGISTRATION_SELECT =
-  'event_id, registration_code, contact_name, contact_phone, community_name, total_amount, status, created_at, attendance_status, attendance_confirmed_at, checked_in_at, goodie_bag_collected_at, events(name, event_date, status), registration_items(rider_name, rider_nickname, requested_plate_number, requested_plate_suffix, status, categories!registration_items_primary_category_id_fkey(label)), registration_payments(status)'
+  'event_id, registration_code, contact_name, contact_phone, community_name, total_amount, status, created_at, attendance_status, attendance_confirmed_at, checked_in_at, goodie_bag_collected_at, events(name, event_date, status), registration_items(rider_name, rider_nickname, requested_plate_number, requested_plate_suffix, status, venue_status, checked_in_at, goodie_bag_collected_at, categories!registration_items_primary_category_id_fkey(label)), registration_payments(status)'
 
 const isMissingRegistrationCodeError = (message: string) => /registration_code/i.test(message)
 
 const isMissingAttendanceFeatureError = (message: string) =>
-  /(attendance_status|attendance_confirmed_at|checked_in_at|goodie_bag_collected_at)/i.test(message)
+  /(attendance_status|attendance_confirmed_at|checked_in_at|goodie_bag_collected_at|venue_status)/i.test(message)
 
 const findRegistration = async (registrationCode: string, contactPhone: string) => {
   const fullResult = await adminClient
@@ -208,6 +211,9 @@ export async function POST(req: Request) {
         plate: `${item.requested_plate_number ?? ''}${item.requested_plate_suffix ?? ''}` || '-',
         status: item.status,
         category: Array.isArray(item.categories) ? item.categories[0]?.label ?? '-' : item.categories?.label ?? '-',
+        venue_status: item.venue_status ?? 'UNMARKED',
+        checked_in_at: item.checked_in_at ?? null,
+        goodie_bag_collected_at: item.goodie_bag_collected_at ?? null,
       })),
     },
   })
