@@ -28,10 +28,10 @@ type PublicRegistrationRow = {
   status: 'PENDING' | 'APPROVED' | 'REJECTED'
   notes: string | null
   created_at: string
-  attendance_status: 'UNCONFIRMED' | 'ATTENDING' | 'NOT_ATTENDING'
-  attendance_confirmed_at: string | null
-  checked_in_at: string | null
-  goodie_bag_collected_at: string | null
+  attendance_status?: 'UNCONFIRMED' | 'ATTENDING' | 'NOT_ATTENDING' | null
+  attendance_confirmed_at?: string | null
+  checked_in_at?: string | null
+  goodie_bag_collected_at?: string | null
   events:
     | { name: string | null; event_date: string; status: string }
     | Array<{ name: string | null; event_date: string; status: string }>
@@ -45,6 +45,40 @@ type PublicRegistrationRow = {
     categories: { label: string | null } | Array<{ label: string | null }> | null
   }>
   registration_payments: Array<{ status: string }>
+}
+
+const BASE_REGISTRATION_SELECT =
+  'event_id, registration_code, contact_name, contact_phone, community_name, total_amount, status, notes, created_at, events(name, event_date, status), registration_items(rider_name, rider_nickname, requested_plate_number, requested_plate_suffix, status, categories!registration_items_primary_category_id_fkey(label)), registration_payments(status)'
+
+const FULL_REGISTRATION_SELECT =
+  'event_id, registration_code, contact_name, contact_phone, community_name, total_amount, status, notes, created_at, attendance_status, attendance_confirmed_at, checked_in_at, goodie_bag_collected_at, events(name, event_date, status), registration_items(rider_name, rider_nickname, requested_plate_number, requested_plate_suffix, status, categories!registration_items_primary_category_id_fkey(label)), registration_payments(status)'
+
+const isMissingRegistrationCodeError = (message: string) => /registration_code/i.test(message)
+
+const isMissingAttendanceFeatureError = (message: string) =>
+  /(attendance_status|attendance_confirmed_at|checked_in_at|goodie_bag_collected_at)/i.test(message)
+
+const findRegistration = async (registrationCode: string, contactPhone: string) => {
+  const fullResult = await adminClient
+    .from('registrations')
+    .select(FULL_REGISTRATION_SELECT)
+    .eq('registration_code', registrationCode)
+    .eq('contact_phone', contactPhone)
+    .maybeSingle()
+
+  if (!fullResult.error || !isMissingAttendanceFeatureError(fullResult.error.message)) {
+    return { ...fullResult, attendanceFeaturesAvailable: true }
+  }
+
+  console.warn('[registration-status] attendance columns unavailable, using base status fallback:', fullResult.error.message)
+  const baseResult = await adminClient
+    .from('registrations')
+    .select(BASE_REGISTRATION_SELECT)
+    .eq('registration_code', registrationCode)
+    .eq('contact_phone', contactPhone)
+    .maybeSingle()
+
+  return { ...baseResult, attendanceFeaturesAvailable: false }
 }
 
 const jakartaDate = () =>
@@ -103,20 +137,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Nomor WhatsApp tidak valid.' }, { status: 400 })
   }
 
-  const { data, error } = await adminClient
-    .from('registrations')
-    .select(
-      'event_id, registration_code, contact_name, contact_phone, community_name, total_amount, status, notes, created_at, attendance_status, attendance_confirmed_at, checked_in_at, goodie_bag_collected_at, events(name, event_date, status), registration_items(rider_name, rider_nickname, requested_plate_number, requested_plate_suffix, status, categories!registration_items_primary_category_id_fkey(label)), registration_payments(status)'
-    )
-    .eq('registration_code', registrationCode)
-    .eq('contact_phone', contactPhone)
-    .maybeSingle()
+  const { data, error, attendanceFeaturesAvailable } = await findRegistration(registrationCode, contactPhone)
 
   if (error) {
-    const missingColumn = /registration_code/i.test(error.message)
+    console.warn('[registration-status] failed loading registration:', error.message)
     return NextResponse.json(
       {
-        error: missingColumn
+        error: isMissingRegistrationCodeError(error.message)
           ? 'Fitur kode registrasi belum diaktifkan di database.'
           : 'Status pendaftaran gagal dimuat.',
       },
@@ -131,7 +158,13 @@ export async function POST(req: Request) {
   }
 
   const registration = data as unknown as PublicRegistrationRow
-  const attendanceAvailability = await getAttendanceAvailability(registration)
+  const attendanceAvailability = attendanceFeaturesAvailable
+    ? await getAttendanceAvailability(registration)
+    : {
+        can_confirm_attendance: false,
+        attendance_message:
+          'Status dasar tersedia. Fitur konfirmasi kehadiran belum diaktifkan oleh panitia.',
+      }
   const event = getEventRow(registration)
   const payments = Array.isArray(registration.registration_payments) ? registration.registration_payments : []
   const paymentStatus = payments.some((payment) => payment.status === 'APPROVED')
@@ -151,11 +184,11 @@ export async function POST(req: Request) {
       status: registration.status,
       notes: registration.notes,
       created_at: registration.created_at,
-      attendance_status: registration.attendance_status,
-      attendance_confirmed_at: registration.attendance_confirmed_at,
+      attendance_status: registration.attendance_status ?? 'UNCONFIRMED',
+      attendance_confirmed_at: registration.attendance_confirmed_at ?? null,
       ...attendanceAvailability,
-      checked_in_at: registration.checked_in_at,
-      goodie_bag_collected_at: registration.goodie_bag_collected_at,
+      checked_in_at: registration.checked_in_at ?? null,
+      goodie_bag_collected_at: registration.goodie_bag_collected_at ?? null,
       event_name: event?.name ?? 'Event',
       event_date: event?.event_date ?? null,
       payment_status: paymentStatus,
@@ -195,7 +228,17 @@ export async function PATCH(req: Request) {
     .eq('contact_phone', contactPhone)
     .maybeSingle()
 
-  if (error) return NextResponse.json({ error: 'Konfirmasi kehadiran gagal dimuat.' }, { status: 400 })
+  if (error) {
+    console.warn('[registration-status] failed loading attendance confirmation:', error.message)
+    return NextResponse.json(
+      {
+        error: isMissingAttendanceFeatureError(error.message)
+          ? 'Fitur konfirmasi kehadiran belum diaktifkan di database.'
+          : 'Konfirmasi kehadiran gagal dimuat.',
+      },
+      { status: 400 }
+    )
+  }
   if (!data) return NextResponse.json({ error: 'Pendaftaran tidak ditemukan.' }, { status: 404 })
 
   const registration = data as unknown as PublicRegistrationRow & { id: string }
