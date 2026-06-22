@@ -2,8 +2,8 @@
 
 .theme-switch-placeholder {
   display: inline-block;
-  width: 64px;
-  height: 32px;
+  width: 54px;
+  height: 27px;
   flex: 0 0 auto;
 }
 
@@ -14,7 +14,7 @@
   --transDur: 0.3s;
   display: flex;
   align-items: center;
-  font-size: 10px;
+  font-size: 9px;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -1843,6 +1843,15 @@ html[data-theme='dark'] .setting-toggle-control:has(input:checked) .setting-togg
 }
 
 @media (max-width: 640px) {
+  .theme-switch-placeholder {
+    width: 48px;
+    height: 24px;
+  }
+
+  .theme {
+    font-size: 8px;
+  }
+
   .homepage-editorial-topbar > div {
     padding-inline: 12px;
   }
@@ -1890,11 +1899,19 @@ html[data-theme='dark'] .setting-toggle-control:has(input:checked) .setting-togg
     width: 78vw;
     height: 145px;
     opacity: 0.13;
+    transform: rotate(-5deg);
   }
 
   .homepage-race-checkered-flag span {
     background-position: 0 0, 0 18px, 18px -18px, -18px 0;
     background-size: 36px 36px;
+    filter: none;
+    transform: none;
+    animation: none;
+  }
+
+  .homepage-race-checkered-flag::after {
+    display: none;
   }
 
   .homepage-race-speed-lines {
