@@ -3,9 +3,9 @@ import Image from 'next/image'
 import type { LiveEventItem } from '../lib/liveEvent'
 
 const heroStats = [
-  { value: '01', label: 'Integrated Platform' },
-  { value: 'Multi', label: 'Stage Race Engine' },
-  { value: 'Live', label: 'Public Results' },
+  { value: 'End-to-End', label: 'Registration to Results' },
+  { value: 'Real-Time', label: 'Live Scoring & Race Control' },
+  { value: 'Connected', label: 'Organizer, Jury & Parents' },
 ]
 
 export default function HeroRace({ liveEvent }: { liveEvent: LiveEventItem | null }) {
@@ -24,6 +24,25 @@ export default function HeroRace({ liveEvent }: { liveEvent: LiveEventItem | nul
           aria-hidden="true"
         />
         <div className="homepage-editorial-hero-shade" aria-hidden="true" />
+        <div className="homepage-race-speed-lines homepage-race-speed-lines-left" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+          <span />
+        </div>
+        <div className="homepage-race-speed-lines homepage-race-speed-lines-right" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </div>
+        <div className="homepage-race-track-mark" aria-hidden="true">
+          <span>RACE</span>
+          <strong>01</strong>
+        </div>
+        <div className="homepage-race-checkered-flag" aria-hidden="true">
+          <span />
+        </div>
+        <div className="homepage-race-motion-orbit" aria-hidden="true" />
 
         <div className="homepage-editorial-hero-content">
           <div className="homepage-editorial-kicker">
