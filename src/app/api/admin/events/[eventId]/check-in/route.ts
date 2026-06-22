@@ -13,7 +13,7 @@ const normalizeRegistrationCode = (value: unknown) => {
 }
 
 const registrationSelect =
-  'id, registration_code, contact_name, contact_phone, community_name, total_amount, status, checked_in_at, checked_in_by, goodie_bag_collected_at, goodie_bag_collected_by, registration_items(rider_name, rider_nickname, requested_plate_number, requested_plate_suffix, categories!registration_items_primary_category_id_fkey(label)), registration_payments(status)'
+  'id, registration_code, contact_name, contact_phone, community_name, total_amount, status, attendance_status, attendance_confirmed_at, checked_in_at, checked_in_by, goodie_bag_collected_at, goodie_bag_collected_by, registration_items(rider_name, rider_nickname, requested_plate_number, requested_plate_suffix, categories!registration_items_primary_category_id_fkey(label)), registration_payments(status)'
 
 export async function GET(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params

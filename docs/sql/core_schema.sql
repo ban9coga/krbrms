@@ -277,6 +277,8 @@ create table if not exists registrations (
   total_amount int not null default 0,
   status registration_status not null default 'PENDING',
   notes text,
+  attendance_status text not null default 'UNCONFIRMED',
+  attendance_confirmed_at timestamptz,
   checked_in_at timestamptz,
   checked_in_by uuid,
   goodie_bag_collected_at timestamptz,
@@ -285,13 +287,16 @@ create table if not exists registrations (
   upload_token_created_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  constraint ck_registrations_total_amount check (total_amount >= 0)
+  constraint ck_registrations_total_amount check (total_amount >= 0),
+  constraint ck_registrations_attendance_status
+    check (attendance_status in ('UNCONFIRMED', 'ATTENDING', 'NOT_ATTENDING'))
 );
 
 create index if not exists idx_registrations_event on registrations(event_id);
 create index if not exists idx_registrations_status on registrations(event_id, status);
 create unique index if not exists registrations_registration_code_unique on registrations(registration_code);
 create index if not exists idx_registrations_public_lookup on registrations(registration_code, contact_phone);
+create index if not exists idx_registrations_event_attendance on registrations(event_id, attendance_status);
 create unique index if not exists registrations_upload_token_unique on registrations(upload_token) where upload_token is not null;
 
 drop trigger if exists trg_registrations_updated_at on registrations;

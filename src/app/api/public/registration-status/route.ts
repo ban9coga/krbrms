@@ -20,6 +20,7 @@ const normalizeWhatsappDigits = (value: unknown) => {
 }
 
 type PublicRegistrationRow = {
+  event_id: string
   registration_code: string
   contact_name: string
   community_name: string | null
@@ -27,9 +28,14 @@ type PublicRegistrationRow = {
   status: 'PENDING' | 'APPROVED' | 'REJECTED'
   notes: string | null
   created_at: string
+  attendance_status: 'UNCONFIRMED' | 'ATTENDING' | 'NOT_ATTENDING'
+  attendance_confirmed_at: string | null
   checked_in_at: string | null
   goodie_bag_collected_at: string | null
-  events: { name: string | null } | Array<{ name: string | null }> | null
+  events:
+    | { name: string | null; event_date: string; status: string }
+    | Array<{ name: string | null; event_date: string; status: string }>
+    | null
   registration_items: Array<{
     rider_name: string
     rider_nickname: string | null
@@ -39,6 +45,50 @@ type PublicRegistrationRow = {
     categories: { label: string | null } | Array<{ label: string | null }> | null
   }>
   registration_payments: Array<{ status: string }>
+}
+
+const jakartaDate = () =>
+  new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date())
+
+const getEventRow = (registration: PublicRegistrationRow) =>
+  Array.isArray(registration.events) ? registration.events[0] ?? null : registration.events
+
+const getAttendanceAvailability = async (registration: PublicRegistrationRow) => {
+  const event = getEventRow(registration)
+  const { data: settings } = await adminClient
+    .from('event_settings')
+    .select('registration_open')
+    .eq('event_id', registration.event_id)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const registrationClosed = settings?.registration_open === false
+  const eventNotPassed = Boolean(event?.event_date && event.event_date >= jakartaDate())
+  const eventNotStarted = event?.status === 'UPCOMING'
+  return {
+    can_confirm_attendance:
+      registration.status === 'APPROVED' &&
+      registrationClosed &&
+      eventNotPassed &&
+      eventNotStarted &&
+      !registration.checked_in_at,
+    attendance_message:
+      registration.status !== 'APPROVED'
+        ? 'Konfirmasi kehadiran tersedia setelah pendaftaran disetujui.'
+        : !registrationClosed
+          ? 'Konfirmasi kehadiran dibuka setelah pendaftaran event ditutup.'
+          : !eventNotPassed || !eventNotStarted
+            ? 'Periode konfirmasi kehadiran sudah berakhir.'
+            : registration.checked_in_at
+              ? 'Kehadiran sudah dikonfirmasi melalui check-in venue.'
+              : 'Konfirmasikan kehadiran sebelum event dimulai.',
+  }
 }
 
 export async function POST(req: Request) {
@@ -56,7 +106,7 @@ export async function POST(req: Request) {
   const { data, error } = await adminClient
     .from('registrations')
     .select(
-      'registration_code, contact_name, contact_phone, community_name, total_amount, status, notes, created_at, checked_in_at, goodie_bag_collected_at, events(name), registration_items(rider_name, rider_nickname, requested_plate_number, requested_plate_suffix, status, categories!registration_items_primary_category_id_fkey(label)), registration_payments(status)'
+      'event_id, registration_code, contact_name, contact_phone, community_name, total_amount, status, notes, created_at, attendance_status, attendance_confirmed_at, checked_in_at, goodie_bag_collected_at, events(name, event_date, status), registration_items(rider_name, rider_nickname, requested_plate_number, requested_plate_suffix, status, categories!registration_items_primary_category_id_fkey(label)), registration_payments(status)'
     )
     .eq('registration_code', registrationCode)
     .eq('contact_phone', contactPhone)
@@ -81,6 +131,8 @@ export async function POST(req: Request) {
   }
 
   const registration = data as unknown as PublicRegistrationRow
+  const attendanceAvailability = await getAttendanceAvailability(registration)
+  const event = getEventRow(registration)
   const payments = Array.isArray(registration.registration_payments) ? registration.registration_payments : []
   const paymentStatus = payments.some((payment) => payment.status === 'APPROVED')
     ? 'APPROVED'
@@ -99,11 +151,13 @@ export async function POST(req: Request) {
       status: registration.status,
       notes: registration.notes,
       created_at: registration.created_at,
+      attendance_status: registration.attendance_status,
+      attendance_confirmed_at: registration.attendance_confirmed_at,
+      ...attendanceAvailability,
       checked_in_at: registration.checked_in_at,
       goodie_bag_collected_at: registration.goodie_bag_collected_at,
-      event_name: Array.isArray(registration.events)
-        ? registration.events[0]?.name ?? 'Event'
-        : registration.events?.name ?? 'Event',
+      event_name: event?.name ?? 'Event',
+      event_date: event?.event_date ?? null,
       payment_status: paymentStatus,
       riders: (registration.registration_items ?? []).map((item) => ({
         name: item.rider_name,
@@ -114,4 +168,56 @@ export async function POST(req: Request) {
       })),
     },
   })
+}
+
+export async function PATCH(req: Request) {
+  const body = await req.json().catch(() => null)
+  const registrationCode = normalizeCode(body?.registration_code)
+  const contactPhone = normalizeWhatsappDigits(body?.contact_phone)
+  const attendanceStatus = String(body?.attendance_status ?? '').trim().toUpperCase()
+
+  if (!/^RPB-\d{6}-[A-Z0-9]{8}$/.test(registrationCode)) {
+    return NextResponse.json({ error: 'Format kode registrasi tidak valid.' }, { status: 400 })
+  }
+  if (contactPhone.length < 10) {
+    return NextResponse.json({ error: 'Nomor WhatsApp tidak valid.' }, { status: 400 })
+  }
+  if (attendanceStatus !== 'ATTENDING' && attendanceStatus !== 'NOT_ATTENDING') {
+    return NextResponse.json({ error: 'Pilihan konfirmasi kehadiran tidak valid.' }, { status: 400 })
+  }
+
+  const { data, error } = await adminClient
+    .from('registrations')
+    .select(
+      'id, event_id, registration_code, contact_name, contact_phone, community_name, total_amount, status, notes, created_at, attendance_status, attendance_confirmed_at, checked_in_at, goodie_bag_collected_at, events(name, event_date, status), registration_items(rider_name, rider_nickname, requested_plate_number, requested_plate_suffix, status, categories!registration_items_primary_category_id_fkey(label)), registration_payments(status)'
+    )
+    .eq('registration_code', registrationCode)
+    .eq('contact_phone', contactPhone)
+    .maybeSingle()
+
+  if (error) return NextResponse.json({ error: 'Konfirmasi kehadiran gagal dimuat.' }, { status: 400 })
+  if (!data) return NextResponse.json({ error: 'Pendaftaran tidak ditemukan.' }, { status: 404 })
+
+  const registration = data as unknown as PublicRegistrationRow & { id: string }
+  const availability = await getAttendanceAvailability(registration)
+  if (!availability.can_confirm_attendance) {
+    return NextResponse.json({ error: availability.attendance_message }, { status: 409 })
+  }
+
+  const { error: updateError } = await adminClient
+    .from('registrations')
+    .update({
+      attendance_status: attendanceStatus,
+      attendance_confirmed_at: new Date().toISOString(),
+    })
+    .eq('id', registration.id)
+  if (updateError) return NextResponse.json({ error: updateError.message }, { status: 400 })
+
+  return POST(
+    new Request(req.url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ registration_code: registrationCode, contact_phone: contactPhone }),
+    })
+  )
 }

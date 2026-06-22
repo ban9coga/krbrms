@@ -103,12 +103,58 @@ const paymentRegistrationIds = async (eventId: string, paymentFilter: (typeof PA
   return registrationIds.filter((id) => !paidIds.has(id))
 }
 
+const countApprovedRegistrations = async (
+  eventId: string,
+  options: { attendanceStatus?: string; notNullColumn?: 'checked_in_at' | 'goodie_bag_collected_at' } = {}
+) => {
+  let query = adminClient
+    .from('registrations')
+    .select('id', { count: 'exact', head: true })
+    .eq('event_id', eventId)
+    .eq('status', 'APPROVED')
+
+  if (options.attendanceStatus) query = query.eq('attendance_status', options.attendanceStatus)
+  if (options.notNullColumn) query = query.not(options.notNullColumn, 'is', null)
+
+  const { count, error } = await query
+  if (error) throw new Error(error.message)
+  return count ?? 0
+}
+
+const getAttendanceSummary = async (eventId: string) => {
+  const [
+    approved,
+    confirmedAttending,
+    confirmedNotAttending,
+    unconfirmed,
+    checkedIn,
+    goodieBagCollected,
+  ] = await Promise.all([
+    countApprovedRegistrations(eventId),
+    countApprovedRegistrations(eventId, { attendanceStatus: 'ATTENDING' }),
+    countApprovedRegistrations(eventId, { attendanceStatus: 'NOT_ATTENDING' }),
+    countApprovedRegistrations(eventId, { attendanceStatus: 'UNCONFIRMED' }),
+    countApprovedRegistrations(eventId, { notNullColumn: 'checked_in_at' }),
+    countApprovedRegistrations(eventId, { notNullColumn: 'goodie_bag_collected_at' }),
+  ])
+
+  return {
+    approved,
+    confirmed_attending: confirmedAttending,
+    confirmed_not_attending: confirmedNotAttending,
+    unconfirmed,
+    checked_in: checkedIn,
+    goodie_bag_collected: goodieBagCollected,
+  }
+}
+
 export async function GET(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params
   const auth = await requireBackoffice(req.headers.get('authorization'), eventId)
   if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { searchParams } = new URL(req.url)
+  const summary = String(searchParams.get('summary') ?? '').trim().toLowerCase()
   const status = normalizeRegistrationStatus(searchParams.get('status'))
   const paymentFilter = normalizePaymentFilter(searchParams.get('payment_status'))
   const q = String(searchParams.get('q') ?? '').trim()
@@ -116,6 +162,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const pageSize = Math.min(50, Math.max(5, parsePositiveInt(searchParams.get('page_size'), 10)))
 
   try {
+    if (summary === 'attendance') {
+      return NextResponse.json({ data: await getAttendanceSummary(eventId) })
+    }
+
     const [searchIds, paymentIds] = await Promise.all([
       searchRegistrationIds(eventId, q),
       paymentRegistrationIds(eventId, paymentFilter),

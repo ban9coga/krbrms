@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react'
 import Link from 'next/link'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { isRegistrationApproverRole, normalizeAppRole } from '../../../../../lib/roles'
 import { supabase } from '../../../../../lib/supabaseClient'
 
@@ -82,6 +82,19 @@ type RegistrationListResponse = {
     total: number
     total_pages: number
   }
+}
+
+type AttendanceSummary = {
+  approved: number
+  confirmed_attending: number
+  confirmed_not_attending: number
+  unconfirmed: number
+  checked_in: number
+  goodie_bag_collected: number
+}
+
+type AttendanceSummaryResponse = {
+  data?: AttendanceSummary
 }
 
 type EventSettingsResponse = {
@@ -421,6 +434,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
   const [categories, setCategories] = useState<CategoryItem[]>([])
   const [registrations, setRegistrations] = useState<RegistrationRow[]>([])
   const [meta, setMeta] = useState({ page: 1, pageSize: 10, total: 0, totalPages: 1 })
+  const [attendanceSummary, setAttendanceSummary] = useState<AttendanceSummary | null>(null)
   const [feedback, setFeedback] = useState<FeedbackState>(null)
   const [paymentFeedback, setPaymentFeedback] = useState<Record<string, InlineFeedbackState>>({})
   const [savingKey, setSavingKey] = useState<string | null>(null)
@@ -532,10 +546,10 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
     }
   }
 
-  const getPlateDraft = (item: RegistrationItem) => ({
+  const getPlateDraft = useCallback((item: RegistrationItem) => ({
     number: (plateInputs[item.id]?.number ?? item.requested_plate_number ?? '').replace(/[^\d]/g, ''),
     suffix: (plateInputs[item.id]?.suffix ?? item.requested_plate_suffix ?? '').trim().toUpperCase().slice(0, 1),
-  })
+  }), [plateInputs])
 
   const handlePlateChange = (itemId: string, field: 'number' | 'suffix', value: string) => {
     setPlateInputs((prev) => ({
@@ -651,6 +665,28 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
           })
           setFeedback({ type: 'error', message: 'Gagal memuat kategori event.' })
         }
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [eventId, refreshTick])
+
+  useEffect(() => {
+    if (!eventId) return
+    let cancelled = false
+
+    ;(async () => {
+      try {
+        const res = await apiFetch<AttendanceSummaryResponse>(
+          `/api/admin/events/${eventId}/registrations?summary=attendance`
+        )
+        if (!cancelled) {
+          setAttendanceSummary(res.data ?? null)
+        }
+      } catch {
+        if (!cancelled) setAttendanceSummary(null)
       }
     })()
 
@@ -806,7 +842,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
       cancelled = true
       for (const timer of timers) clearTimeout(timer)
     }
-  }, [eventId, registrations, plateInputs])
+  }, [eventId, registrations, getPlateDraft])
 
   const openApproveModal = (registration: RegistrationRow) => {
     setModal({ type: 'approve', registration })
@@ -2025,6 +2061,63 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
             </div>
           </div>
         </form>
+      </section>
+
+      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="grid gap-2">
+            <div className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Rekap Kehadiran Venue</div>
+            <h2 className="text-xl font-black tracking-tight text-slate-950">Pantau Konfirmasi, Check-in, dan Goodie Bag</h2>
+            <p className="max-w-3xl text-sm font-medium text-slate-600">
+              Angka ini dihitung dari registrasi yang sudah APPROVED, jadi panitia bisa membandingkan rencana hadir dengan kehadiran aktual di venue.
+            </p>
+          </div>
+          <Link
+            href={`/admin/events/${eventId}/check-in`}
+            className="w-fit rounded-2xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm font-black uppercase text-emerald-900 transition hover:border-emerald-500 hover:bg-emerald-100"
+          >
+            Buka Check-in
+          </Link>
+        </div>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Approved</div>
+            <div className="mt-2 text-3xl font-black text-slate-950">{attendanceSummary?.approved ?? '-'}</div>
+            <div className="mt-1 text-xs font-semibold text-slate-500">Registrasi valid</div>
+          </div>
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-emerald-700">Akan Hadir</div>
+            <div className="mt-2 text-3xl font-black text-emerald-900">
+              {attendanceSummary?.confirmed_attending ?? '-'}
+            </div>
+            <div className="mt-1 text-xs font-semibold text-emerald-700">Konfirmasi wali</div>
+          </div>
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4">
+            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-rose-700">Tidak Hadir</div>
+            <div className="mt-2 text-3xl font-black text-rose-900">
+              {attendanceSummary?.confirmed_not_attending ?? '-'}
+            </div>
+            <div className="mt-1 text-xs font-semibold text-rose-700">Konfirmasi wali</div>
+          </div>
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-amber-700">Belum Konfirmasi</div>
+            <div className="mt-2 text-3xl font-black text-amber-900">{attendanceSummary?.unconfirmed ?? '-'}</div>
+            <div className="mt-1 text-xs font-semibold text-amber-700">Perlu follow-up</div>
+          </div>
+          <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4">
+            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-sky-700">Check-in</div>
+            <div className="mt-2 text-3xl font-black text-sky-900">{attendanceSummary?.checked_in ?? '-'}</div>
+            <div className="mt-1 text-xs font-semibold text-sky-700">Hadir aktual</div>
+          </div>
+          <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4">
+            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-700">Goodie Bag</div>
+            <div className="mt-2 text-3xl font-black text-violet-900">
+              {attendanceSummary?.goodie_bag_collected ?? '-'}
+            </div>
+            <div className="mt-1 text-xs font-semibold text-violet-700">Sudah diambil</div>
+          </div>
+        </div>
       </section>
 
       {categoryKpis.length > 0 && (

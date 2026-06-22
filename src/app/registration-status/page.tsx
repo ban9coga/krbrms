@@ -12,9 +12,14 @@ type RegistrationStatusData = {
   status: 'PENDING' | 'APPROVED' | 'REJECTED'
   notes: string | null
   created_at: string
+  attendance_status: 'UNCONFIRMED' | 'ATTENDING' | 'NOT_ATTENDING'
+  attendance_confirmed_at: string | null
+  can_confirm_attendance: boolean
+  attendance_message: string
   checked_in_at: string | null
   goodie_bag_collected_at: string | null
   event_name: string
+  event_date: string | null
   payment_status: 'NO_PAYMENT' | 'PENDING' | 'APPROVED' | 'REJECTED'
   riders: Array<{
     name: string
@@ -44,9 +49,21 @@ const paymentStatusLabel = {
   REJECTED: 'Pembayaran perlu diperbaiki',
 } as const
 
+const attendanceStatusLabel = {
+  UNCONFIRMED: 'Belum Konfirmasi',
+  ATTENDING: 'Hadir',
+  NOT_ATTENDING: 'Tidak Hadir',
+} as const
+
 const statusClass = (status: string) => {
   if (status === 'APPROVED') return 'border-[#9bc9ae] bg-[#e3f3e6] text-[#087443]'
   if (status === 'REJECTED') return 'border-[#ef9a9a] bg-[#ffe1e1] text-[#a61919]'
+  return 'border-[#efd289] bg-[#fff2c9] text-[#8a5700]'
+}
+
+const attendanceClass = (status: RegistrationStatusData['attendance_status']) => {
+  if (status === 'ATTENDING') return 'border-[#9bc9ae] bg-[#e3f3e6] text-[#087443]'
+  if (status === 'NOT_ATTENDING') return 'border-[#ef9a9a] bg-[#ffe1e1] text-[#a61919]'
   return 'border-[#efd289] bg-[#fff2c9] text-[#8a5700]'
 }
 
@@ -65,6 +82,7 @@ export default function RegistrationStatusPage() {
   const [result, setResult] = useState<RegistrationStatusData | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [attendanceSaving, setAttendanceSaving] = useState<'ATTENDING' | 'NOT_ATTENDING' | null>(null)
 
   useEffect(() => {
     const code = new URLSearchParams(window.location.search).get('code')?.trim().toUpperCase()
@@ -91,6 +109,30 @@ export default function RegistrationStatusPage() {
       setError(caught instanceof Error ? caught.message : 'Status pendaftaran gagal dimuat.')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const confirmAttendance = async (attendanceStatus: 'ATTENDING' | 'NOT_ATTENDING') => {
+    if (!result) return
+    setError('')
+    setAttendanceSaving(attendanceStatus)
+    try {
+      const response = await fetch('/api/public/registration-status', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          registration_code: result.registration_code,
+          contact_phone: contactPhone,
+          attendance_status: attendanceStatus,
+        }),
+      })
+      const json = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(json?.error || 'Konfirmasi kehadiran gagal disimpan.')
+      setResult(json.data as RegistrationStatusData)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Konfirmasi kehadiran gagal disimpan.')
+    } finally {
+      setAttendanceSaving(null)
     }
   }
 
@@ -166,6 +208,45 @@ export default function RegistrationStatusPage() {
               <div>
                 <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[#796657]">Total</div>
                 <div className="mt-1 font-black text-[#087443]">{formatRupiah(result.total_amount)}</div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-[#d9c9ae] bg-white p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[#796657]">
+                    Konfirmasi Kehadiran
+                  </div>
+                  <div className={`mt-2 w-fit rounded-full border px-3 py-1 text-xs font-black uppercase ${attendanceClass(result.attendance_status)}`}>
+                    {attendanceStatusLabel[result.attendance_status]}
+                  </div>
+                  {result.attendance_confirmed_at && (
+                    <p className="mt-2 text-xs font-semibold text-[#796657]">
+                      Dikonfirmasi pada {formatDateTime(result.attendance_confirmed_at)}
+                    </p>
+                  )}
+                  <p className="mt-2 text-sm font-semibold leading-6 text-[#58493d]">{result.attendance_message}</p>
+                </div>
+                {result.can_confirm_attendance && (
+                  <div className="grid gap-2 sm:min-w-[260px]">
+                    <button
+                      type="button"
+                      disabled={attendanceSaving !== null}
+                      onClick={() => void confirmAttendance('ATTENDING')}
+                      className="rounded-full bg-[#087443] px-5 py-3 text-sm font-black uppercase text-white disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {attendanceSaving === 'ATTENDING' ? 'Menyimpan...' : 'Saya Akan Hadir'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={attendanceSaving !== null}
+                      onClick={() => void confirmAttendance('NOT_ATTENDING')}
+                      className="rounded-full border border-[#ef9a9a] bg-[#ffe1e1] px-5 py-3 text-sm font-black uppercase text-[#a61919] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {attendanceSaving === 'NOT_ATTENDING' ? 'Menyimpan...' : 'Tidak Hadir'}
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 

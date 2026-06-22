@@ -12,6 +12,8 @@ type CheckInRegistration = {
   community_name: string | null
   total_amount: number
   status: 'PENDING' | 'APPROVED' | 'REJECTED'
+  attendance_status: 'UNCONFIRMED' | 'ATTENDING' | 'NOT_ATTENDING'
+  attendance_confirmed_at: string | null
   checked_in_at: string | null
   goodie_bag_collected_at: string | null
   registration_items: Array<{
@@ -50,6 +52,18 @@ const extractRegistrationCode = (value: string) => {
 
 const getCategoryLabel = (value: CheckInRegistration['registration_items'][number]['categories']) =>
   Array.isArray(value) ? value[0]?.label ?? '-' : value?.label ?? '-'
+
+const attendanceStatusLabel = {
+  UNCONFIRMED: 'Belum Konfirmasi',
+  ATTENDING: 'Hadir',
+  NOT_ATTENDING: 'Tidak Hadir',
+} as const
+
+const attendanceClass = (status: CheckInRegistration['attendance_status']) => {
+  if (status === 'ATTENDING') return 'border-emerald-300 bg-emerald-100 text-emerald-900'
+  if (status === 'NOT_ATTENDING') return 'border-rose-300 bg-rose-100 text-rose-900'
+  return 'border-amber-300 bg-amber-100 text-amber-900'
+}
 
 export default function CheckInClient({ eventId }: { eventId: string }) {
   const [eventName, setEventName] = useState('Event')
@@ -192,6 +206,7 @@ export default function CheckInClient({ eventId }: { eventId: string }) {
   }
 
   const paymentApproved = registration?.registration_payments?.some((payment) => payment.status === 'APPROVED')
+  const needsNotAttendingOverride = registration?.attendance_status === 'NOT_ATTENDING' && !registration.checked_in_at
 
   return (
     <div className="min-h-screen bg-slate-100 p-4 text-slate-950 md:p-6">
@@ -294,7 +309,23 @@ export default function CheckInClient({ eventId }: { eventId: string }) {
               </div>
             )}
 
+            {needsNotAttendingOverride && (
+              <div className="rounded-2xl border border-rose-300 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-900">
+                Wali sebelumnya memilih Tidak Hadir. Jika rider tetap datang di venue, panitia boleh lanjut
+                check-in setelah memastikan data rider dan pembayaran sudah sesuai.
+              </div>
+            )}
+
             <div className="grid gap-3 sm:grid-cols-2">
+              <div className={`rounded-2xl border p-4 ${attendanceClass(registration.attendance_status)}`}>
+                <div className="text-xs font-black uppercase opacity-75">Konfirmasi Kehadiran</div>
+                <div className="mt-2 font-black">{attendanceStatusLabel[registration.attendance_status]}</div>
+                {registration.attendance_confirmed_at && (
+                  <div className="mt-1 text-xs font-semibold">
+                    {formatDateTime(registration.attendance_confirmed_at)}
+                  </div>
+                )}
+              </div>
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <div className="text-xs font-black uppercase text-slate-500">Check-in Venue</div>
                 <div className="mt-2 font-black">
@@ -336,7 +367,13 @@ export default function CheckInClient({ eventId }: { eventId: string }) {
                 onClick={() => void processAction('CHECK_IN')}
                 className="min-h-14 rounded-2xl bg-emerald-600 px-5 text-sm font-black uppercase text-white disabled:cursor-not-allowed disabled:bg-slate-300"
               >
-                {saving === 'CHECK_IN' ? 'Memproses...' : registration.checked_in_at ? 'Sudah Check-in' : 'Check-in Venue'}
+                {saving === 'CHECK_IN'
+                  ? 'Memproses...'
+                  : registration.checked_in_at
+                    ? 'Sudah Check-in'
+                    : needsNotAttendingOverride
+                      ? 'Tetap Check-in Venue'
+                      : 'Check-in Venue'}
               </button>
               <button
                 type="button"
