@@ -41,7 +41,7 @@ export default function EventCard({
       }
     : { backgroundImage: fallback }
 
-  const dayLabel = new Date(event.event_date).toLocaleDateString('id-ID', { weekday: 'short' }).toUpperCase()
+  const dayLabel = new Date(event.event_date).toLocaleDateString('id-ID', { weekday: 'long' }).toUpperCase()
   const dateLabel = new Date(event.event_date).toLocaleDateString('id-ID', {
     day: '2-digit',
     month: 'short',

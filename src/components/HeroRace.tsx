@@ -8,6 +8,15 @@ const heroStats = [
   { value: 'Connected', label: 'Organizer, Jury & Parents' },
 ]
 
+const tickerItems = [
+  { label: 'LIVE SCORING REAL-TIME', accent: false },
+  { label: 'PENDAFTARAN ONLINE', accent: true },
+  { label: 'HASIL RACE TRANSPARAN', accent: false },
+  { label: 'MULTI KATEGORI USIA', accent: true },
+  { label: 'JURY & MARSHAL DASHBOARD', accent: false },
+  { label: 'KOMUNITAS PUSHBIKE & BALANCE BIKE INDONESIA', accent: true },
+]
+
 export default function HeroRace({ liveEvent }: { liveEvent: LiveEventItem | null }) {
   return (
     <section className="homepage-editorial-hero-shell">
@@ -83,12 +92,23 @@ export default function HeroRace({ liveEvent }: { liveEvent: LiveEventItem | nul
         </div>
 
         <div className="homepage-editorial-ticker" aria-label="Platform features">
-          <span>LIVE SCORING REAL-TIME</span>
-          <strong>PENDAFTARAN ONLINE</strong>
-          <span>HASIL RACE TRANSPARAN</span>
-          <strong>MULTI KATEGORI USIA</strong>
-          <span>JURY &amp; MARSHAL DASHBOARD</span>
-          <strong>KOMUNITAS PUSHBIKE &amp; BALANCE BIKE INDONESIA</strong>
+          <div className="homepage-editorial-ticker-track">
+            {[0, 1].map((groupIndex) => (
+              <div
+                key={groupIndex}
+                className="homepage-editorial-ticker-group"
+                aria-hidden={groupIndex === 1 ? 'true' : undefined}
+              >
+                {tickerItems.map((item) =>
+                  item.accent ? (
+                    <strong key={item.label}>{item.label}</strong>
+                  ) : (
+                    <span key={item.label}>{item.label}</span>
+                  )
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </section>
