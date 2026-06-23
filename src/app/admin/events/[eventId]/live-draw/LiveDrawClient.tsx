@@ -36,7 +36,7 @@ type ExternalTargetField = {
   moto: 1 | 2
 }
 
-type BatchMode = 'AUTO_BY_GATE' | 'MANUAL_BATCH_COUNT'
+type BatchMode = 'AUTO_BY_GATE' | 'MANUAL_BATCH_COUNT' | 'CUSTOM_BATCH_SIZES'
 
 type GateMoto = {
   id: string
@@ -143,6 +143,24 @@ const buildBatchesByCount = (riders: RiderItem[], batchCount: number) => {
   return batches
 }
 
+const parseCustomBatchSizePattern = (value: string) =>
+  value
+    .split(/[,\s]+/)
+    .map((item) => Number(item.trim()))
+    .filter((item) => Number.isFinite(item) && item > 0)
+    .map((item) => Math.floor(item))
+
+const buildBatchesBySizes = (riders: RiderItem[], sizes: number[]) => {
+  const batches: BatchItem[] = []
+  let cursor = 0
+  sizes.forEach((size, index) => {
+    if (size <= 0) return
+    batches.push({ index: index + 1, riders: riders.slice(cursor, cursor + size) })
+    cursor += size
+  })
+  return batches
+}
+
 const parseMotoBatch = (motoName: string) => {
   const match = motoName.match(/moto\s*(\d+)\s*-\s*batch\s*(\d+)/i)
   if (!match) return { motoNo: 0, batchNo: 0 }
@@ -209,6 +227,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
   const [batchSize, setBatchSize] = useState(8)
   const [batchMode, setBatchMode] = useState<BatchMode>('AUTO_BY_GATE')
   const [manualBatchCount, setManualBatchCount] = useState(1)
+  const [customBatchPattern, setCustomBatchPattern] = useState('')
   const [gatePositions, setGatePositions] = useState(8)
   const [drawMode, setDrawMode] = useState<DrawMode>('internal_live_draw')
   const [rollingName, setRollingName] = useState<string>('Ready')
@@ -252,12 +271,38 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     return Math.max(minimumManualBatchCount, Math.min(maxCount, manualBatchCount))
   }, [batchMode, manualBatchCount, minimumManualBatchCount, riders.length])
 
+  const customBatchSizes = useMemo(() => parseCustomBatchSizePattern(customBatchPattern), [customBatchPattern])
+  const customBatchTotal = useMemo(
+    () => customBatchSizes.reduce((sum, size) => sum + size, 0),
+    [customBatchSizes]
+  )
+  const customBatchOverCapacity = useMemo(
+    () => customBatchSizes
+      .map((size, index) => (size > maxBatchRiders ? index + 1 : null))
+      .filter((value): value is number => value !== null),
+    [customBatchSizes, maxBatchRiders]
+  )
+  const customBatchError = useMemo(() => {
+    if (batchMode !== 'CUSTOM_BATCH_SIZES') return null
+    if (customBatchSizes.length === 0) return 'Isi pola batch dulu, contoh: 7,6,6.'
+    if (customBatchTotal !== riders.length) {
+      return `Total pola batch harus ${riders.length} rider. Saat ini ${customBatchTotal}.`
+    }
+    if (customBatchOverCapacity.length > 0) {
+      return `Batch ${customBatchOverCapacity.join(', ')} melebihi kapasitas gate maksimal ${maxBatchRiders} rider.`
+    }
+    return null
+  }, [batchMode, customBatchOverCapacity, customBatchSizes.length, customBatchTotal, maxBatchRiders, riders.length])
+
   const batches = useMemo(() => {
+    if (batchMode === 'CUSTOM_BATCH_SIZES' && customBatchSizes.length > 0) {
+      return buildBatchesBySizes(drawnOrder, customBatchSizes)
+    }
     if (batchMode === 'MANUAL_BATCH_COUNT' && effectiveBatchCount) {
       return buildBatchesByCount(drawnOrder, effectiveBatchCount)
     }
     return buildBatches(drawnOrder, batchSize)
-  }, [batchMode, drawnOrder, batchSize, effectiveBatchCount])
+  }, [batchMode, customBatchSizes, drawnOrder, batchSize, effectiveBatchCount])
   const batchLayouts = useMemo(() => {
     let cursor = 0
     return batches.map((batch) => {
@@ -436,7 +481,10 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
   }, [externalMoto2OrderText, riders, drawnOrder, externalValidation.orderedRiders, batchSize])
 
   const externalPerBatchValidation = useMemo(() => {
-    const count = effectiveBatchCount ?? Math.max(1, Math.ceil(riders.length / maxBatchRiders))
+    const count =
+      batchMode === 'CUSTOM_BATCH_SIZES' && customBatchSizes.length > 0
+        ? customBatchSizes.length
+        : effectiveBatchCount ?? Math.max(1, Math.ceil(riders.length / maxBatchRiders))
 
     const seenRiderIds = new Set<string>()
     const duplicateTokens: string[] = []
@@ -541,7 +589,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       moto2BatchMismatch,
       isValidMoto2,
     }
-  }, [effectiveBatchCount, riders, externalBatchTexts, externalMoto2BatchTexts, maxBatchRiders])
+  }, [batchMode, customBatchSizes.length, effectiveBatchCount, riders, externalBatchTexts, externalMoto2BatchTexts, maxBatchRiders])
 
   const externalBatchLayouts = useMemo(() => {
     let cursor = 0
@@ -767,6 +815,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       setExternalBatchTexts([])
       setExternalMoto2BatchTexts([])
       setExternalUndoStack([])
+      setCustomBatchPattern('')
       setWheelRiders([])
       setWheelRotation(0)
       setResultModal(null)
@@ -806,6 +855,10 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     }
     if (hasDrawn) {
       alert('Kategori ini sudah pernah didraw. Silakan pilih kategori lain.')
+      return
+    }
+    if (batchMode === 'CUSTOM_BATCH_SIZES' && customBatchError) {
+      alert(customBatchError)
       return
     }
     setDrawing(true)
@@ -1097,6 +1150,10 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
         return
       }
     }
+    if (batchMode === 'CUSTOM_BATCH_SIZES' && customBatchError) {
+      alert(customBatchError)
+      return
+    }
     setSaveState('saving')
     try {
       const riderBatches =
@@ -1118,7 +1175,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       const payload = {
         category_id: selectedCategory,
         rider_ids: riderIdsForMoto1,
-        batch_size: batchSize,
+        batch_size: batchMode === 'CUSTOM_BATCH_SIZES' ? maxBatchRiders : batchSize,
         ...(batchMode === 'MANUAL_BATCH_COUNT' ? { batch_count: effectiveBatchCount } : {}),
         ...(riderBatches.length > 0 ? { rider_batches: riderBatches } : {}),
         ...(manualMoto2Ids.length > 0 ? { rider_ids_moto2: manualMoto2Ids } : {}),
@@ -1329,6 +1386,14 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
               />
               Manual batch count
             </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800 }}>
+              <input
+                type="radio"
+                checked={batchMode === 'CUSTOM_BATCH_SIZES'}
+                onChange={() => setBatchMode('CUSTOM_BATCH_SIZES')}
+              />
+              Custom rider per batch
+            </label>
           </div>
           {batchMode === 'AUTO_BY_GATE' ? (
             <>
@@ -1347,6 +1412,26 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                 }}
                 style={{ padding: 12, borderRadius: 12, border: '2px solid #111', maxWidth: 160 }}
               />
+            </>
+          ) : batchMode === 'CUSTOM_BATCH_SIZES' ? (
+            <>
+              <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                Pola Jumlah Rider per Batch
+              </div>
+              <input
+                type="text"
+                value={customBatchPattern}
+                onChange={(e) => setCustomBatchPattern(e.target.value)}
+                placeholder="Contoh: 7,6,6"
+                style={{ padding: 12, borderRadius: 12, border: '2px solid #111', maxWidth: 260 }}
+              />
+              <div style={{ color: customBatchError ? '#b91c1c' : '#047857', fontWeight: 800 }}>
+                {customBatchError ??
+                  `Valid: ${customBatchSizes.length} batch, total ${customBatchTotal} rider. Maksimal ${maxBatchRiders} rider per batch.`}
+              </div>
+              <div style={{ color: '#475569', fontWeight: 800 }}>
+                Pisahkan angka dengan koma atau spasi. Contoh 19 rider: 7,6,6.
+              </div>
             </>
           ) : (
             <>
@@ -1602,14 +1687,14 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                 <button
                   type="button"
                   onClick={startDraw}
-                  disabled={loading || drawing || riders.length === 0 || hasDrawn}
+                  disabled={loading || drawing || riders.length === 0 || hasDrawn || (batchMode === 'CUSTOM_BATCH_SIZES' && Boolean(customBatchError))}
                   style={{
                     padding: '12px 16px',
                     borderRadius: 12,
                     border: '2px solid #111',
-                    background: drawing || hasDrawn ? '#ddd' : '#2ecc71',
+                    background: drawing || hasDrawn || (batchMode === 'CUSTOM_BATCH_SIZES' && Boolean(customBatchError)) ? '#ddd' : '#2ecc71',
                     fontWeight: 900,
-                    cursor: drawing || hasDrawn ? 'not-allowed' : 'pointer',
+                    cursor: drawing || hasDrawn || (batchMode === 'CUSTOM_BATCH_SIZES' && Boolean(customBatchError)) ? 'not-allowed' : 'pointer',
                   }}
                 >
                   {hasDrawn ? 'Draw Terkunci' : 'Start Draw'}
@@ -2258,7 +2343,9 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                 <div style={{ color: '#334155', fontWeight: 700 }}>
                   {resultModal === 'saved'
                     ? 'Daftar moto yang sudah tersimpan untuk kategori ini.'
-                    : `Total rider ${drawnOrder.length} | ${batches.length} batch | gate max ${batchSize}`}
+                    : `Total rider ${drawnOrder.length} | ${batches.length} batch | gate max ${
+                        batchMode === 'CUSTOM_BATCH_SIZES' ? maxBatchRiders : batchSize
+                      }`}
                 </div>
               </div>
               <button
