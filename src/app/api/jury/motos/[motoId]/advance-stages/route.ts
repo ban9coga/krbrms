@@ -4,8 +4,6 @@ import { assertMotoEditable, assertMotoNotUnderProtest } from '../../../../../..
 import { requireJury } from '../../../../../../services/juryAuth'
 import { syncAdvancedRaceProgress } from '../../../../../../services/advancedRaceAuto'
 
-const isMoto2Batch = (name: string) => /moto\s*2\s*-\s*batch\s*\d+/i.test(name)
-
 export async function POST(req: Request, { params }: { params: Promise<{ motoId: string }> }) {
   const { motoId } = await params
   const { data: moto, error } = await adminClient
@@ -25,7 +23,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Moto locked.' }, { status: 409 })
   }
 
-  if (!moto.category_id || !isMoto2Batch(moto.moto_name)) {
+  if (!moto.category_id) {
     return NextResponse.json({ ok: true, skipped: true })
   }
 

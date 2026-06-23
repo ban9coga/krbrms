@@ -31,6 +31,7 @@ const pickNextMotoToPromote = (rows: MotoQueueRow[], currentMoto: MotoQueueRow) 
   const nextMoto =
     afterCurrent.find((row) => sameCategory(row) && isNextCandidateMoto(row)) ??
     rows.find((row) => sameCategory(row) && isNextCandidateMoto(row)) ??
+    afterCurrent.find((row) => isNextCandidateMoto(row)) ??
     null
 
   return { nextMoto, warning: null }
@@ -200,8 +201,11 @@ export async function promoteReadyMotoAfterPreviousProvisional(eventId: string, 
 
   const readyIndex = rows.findIndex((row) => row.id === readyMotoId)
   const beforeReady = readyIndex >= 0 ? rows.slice(0, readyIndex).reverse() : []
+  const sameCategory = (row: MotoQueueRow) => row.category_id === readyMoto.category_id
   const previousProvisional =
-    beforeReady.find((row) => row.category_id === readyMoto.category_id && isProvisionalMoto(row)) ?? null
+    beforeReady.find((row) => sameCategory(row) && isProvisionalMoto(row)) ??
+    beforeReady.find((row) => isProvisionalMoto(row)) ??
+    null
 
   if (!previousProvisional) {
     return { ok: true as const, skipped: true as const, warning: 'No previous PROVISIONAL moto waiting.' }
