@@ -8,6 +8,7 @@ import { formatAppRoleLabel, normalizeAppRole } from '../lib/roles'
 import { supabase } from '../lib/supabaseClient'
 import PublicBottomBar from './PublicBottomBar'
 import LiveEntryButton from './LiveEntryButton'
+import { ThemeToggleSwitch } from './ThemeProvider'
 
 const navItems = [
   { href: '/', label: 'Home' },
@@ -182,6 +183,7 @@ export default function PublicTopbar({}: PublicTopbarProps) {
             </nav>
 
             <div className="flex items-center gap-2">
+              <ThemeToggleSwitch />
               {isLoggedIn ? (
                 <>
                   <Link
