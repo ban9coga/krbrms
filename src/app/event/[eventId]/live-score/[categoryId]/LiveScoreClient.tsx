@@ -209,13 +209,14 @@ export default function LiveScoreClient({
   const [sortMode, setSortMode] = useState<'GATE' | 'RANK'>('RANK')
   const [refreshing, setRefreshing] = useState(false)
   const business = event?.business_settings ?? null
+  const isLiveEvent = event?.status === 'LIVE'
   const showRiderPhotos =
     typeof business?.show_rider_photos_public === 'boolean' ? business.show_rider_photos_public : false
 
   const loadLiveScore = async () => {
     const params = new URLSearchParams({
       category_id: categoryId,
-      include_upcoming: '1',
+      include_upcoming: isLiveEvent ? '1' : '0',
       include_photos: showRiderPhotos ? '1' : '0',
     })
     const res = await fetch(
@@ -252,12 +253,13 @@ export default function LiveScoreClient({
   }
 
   useEffect(() => {
+    if (!isLiveEvent) return
     const interval = setInterval(() => {
       refresh()
     }, PUBLIC_LIVE_SCORE_REFRESH_INTERVAL_MS)
     return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [eventId, categoryId])
+  }, [eventId, categoryId, isLiveEvent])
 
   const publicEventTitle = business?.public_event_title?.trim() || event?.name || 'Live Score'
   const publicBrandName = business?.public_brand_name?.trim() || ''

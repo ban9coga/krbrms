@@ -62,10 +62,15 @@ const loadInitialCategories = async (eventId: string): Promise<RiderCategory[]> 
   return (data ?? []) as RiderCategory[]
 }
 
-const loadInitialLiveScore = async (eventId: string, categoryId: string, includePhotos: boolean) => {
+const loadInitialLiveScore = async (
+  eventId: string,
+  categoryId: string,
+  includePhotos: boolean,
+  includeUpcoming: boolean
+) => {
   const params = new URLSearchParams({
     category_id: categoryId,
-    include_upcoming: '1',
+    include_upcoming: includeUpcoming ? '1' : '0',
     include_photos: includePhotos ? '1' : '0',
   })
   const response = await getLiveScore(new Request(`https://racepushbike.local/api/public/events/${eventId}/live-score?${params.toString()}`), {
@@ -87,7 +92,7 @@ export default async function LiveScorePage({
     loadInitialCategories(eventId),
   ])
   const includePhotos = event?.business_settings?.show_rider_photos_public === true
-  const initialLiveScore = await loadInitialLiveScore(eventId, categoryId, includePhotos)
+  const initialLiveScore = await loadInitialLiveScore(eventId, categoryId, includePhotos, event?.status === 'LIVE')
 
   return (
     <LiveScoreClient
