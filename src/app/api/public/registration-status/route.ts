@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../lib/auth'
+import { rateLimit } from '../../../../lib/rateLimit'
 
 export const runtime = 'nodejs'
 
@@ -139,7 +140,24 @@ const getAttendanceAvailability = async (registration: PublicRegistrationRow) =>
   }
 }
 
-export async function POST(req: Request) {
+const CHECK_STATUS_LIMIT = {
+  key: 'public-registration-status:check',
+  limit: 10,
+  windowMs: 60 * 1000,
+}
+
+const CONFIRM_ATTENDANCE_LIMIT = {
+  key: 'public-registration-status:confirm-attendance',
+  limit: 6,
+  windowMs: 60 * 1000,
+}
+
+async function handlePost(req: Request, skipRateLimit = false) {
+  if (!skipRateLimit) {
+    const limited = rateLimit(req, CHECK_STATUS_LIMIT)
+    if (!limited.ok) return limited.response
+  }
+
   const body = await req.json().catch(() => null)
   const registrationCode = normalizeCode(body?.registration_code)
   const contactPhone = normalizeWhatsappDigits(body?.contact_phone)
@@ -219,7 +237,14 @@ export async function POST(req: Request) {
   })
 }
 
+export async function POST(req: Request) {
+  return handlePost(req)
+}
+
 export async function PATCH(req: Request) {
+  const limited = rateLimit(req, CONFIRM_ATTENDANCE_LIMIT)
+  if (!limited.ok) return limited.response
+
   const body = await req.json().catch(() => null)
   const registrationCode = normalizeCode(body?.registration_code)
   const contactPhone = normalizeWhatsappDigits(body?.contact_phone)
@@ -276,11 +301,12 @@ export async function PATCH(req: Request) {
     .eq('id', registration.id)
   if (updateError) return NextResponse.json({ error: updateError.message }, { status: 400 })
 
-  return POST(
+  return handlePost(
     new Request(req.url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ registration_code: registrationCode, contact_phone: contactPhone }),
-    })
+    }),
+    true
   )
 }

@@ -1,5 +1,12 @@
 import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../../lib/auth'
+import { rateLimit } from '../../../../../../lib/rateLimit'
+
+const PLATE_CHECK_LIMIT = {
+  key: 'public-plate-check',
+  limit: 60,
+  windowMs: 60 * 1000,
+}
 
 const suggestSuffix = (used: Array<string | null>) => {
   const existing = new Set(used.filter(Boolean) as string[])
@@ -27,6 +34,9 @@ const normalizePlateSuffix = (value: unknown) => {
 }
 
 export async function GET(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  const limited = rateLimit(req, PLATE_CHECK_LIMIT)
+  if (!limited.ok) return limited.response
+
   const { eventId } = await params
   const { searchParams } = new URL(req.url)
   const plateNumber = normalizePlateNumber(searchParams.get('plate_number'))

@@ -2,18 +2,32 @@ import { randomUUID } from 'crypto'
 import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../../lib/auth'
 import { isPdfFile, prepareImageUpload, preparePassthroughUpload } from '../../../../../../lib/imageUpload'
+import { rateLimit } from '../../../../../../lib/rateLimit'
 
 const BUCKET = process.env.NEXT_PUBLIC_REGISTRATION_BUCKET || 'registration-docs'
 const RIDER_PHOTO_MAX_BYTES = Math.round(1.5 * 1024 * 1024)
 const SUPPORTING_IMAGE_MAX_BYTES = 2 * 1024 * 1024
 const SUPPORTING_PDF_MAX_BYTES = 3 * 1024 * 1024
 const ALLOWED_KINDS = new Set(['rider-photo', 'document', 'payment'])
+const PENDING_UPLOAD_LIMIT = {
+  key: 'public-registration-upload',
+  limit: 20,
+  windowMs: 5 * 60 * 1000,
+}
+const PENDING_UPLOAD_DELETE_LIMIT = {
+  key: 'public-registration-upload-delete',
+  limit: 30,
+  windowMs: 5 * 60 * 1000,
+}
 
 export const runtime = 'nodejs'
 
 const getPendingPrefix = (eventId: string) => `events/${eventId}/pending/`
 
 export async function POST(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  const limited = rateLimit(req, PENDING_UPLOAD_LIMIT)
+  if (!limited.ok) return limited.response
+
   const { eventId } = await params
   const form = await req.formData()
   const file = form.get('file')
@@ -93,6 +107,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
 }
 
 export async function DELETE(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  const limited = rateLimit(req, PENDING_UPLOAD_DELETE_LIMIT)
+  if (!limited.ok) return limited.response
+
   const { eventId } = await params
   const body = await req.json().catch(() => null)
   const path = typeof body?.path === 'string' ? body.path.trim() : ''

@@ -8,6 +8,7 @@ import {
 } from '../../../../../../lib/categoryAssignment'
 import { buildCategoryOccupancyMap } from '../../../../../../services/categoryOccupancy'
 import { isPdfFile, prepareImageUpload, preparePassthroughUpload, type PreparedUpload } from '../../../../../../lib/imageUpload'
+import { rateLimit } from '../../../../../../lib/rateLimit'
 
 type RegistrationItemInput = {
   rider_name: string
@@ -83,6 +84,11 @@ const STANDARD_JERSEY_SIZES = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'] as const
 const DEFAULT_JERSEY_SIZES = [...STANDARD_JERSEY_SIZES]
 const DOCUMENT_TYPE = 'KK'
 const getPendingUploadPrefix = (eventId: string) => `events/${eventId}/pending/`
+const SUBMIT_REGISTRATION_LIMIT = {
+  key: 'public-registration-submit',
+  limit: 3,
+  windowMs: 60 * 1000,
+}
 
 const normalizePendingUploadPath = (value: unknown, eventId: string, kind: 'rider-photo' | 'document' | 'payment') => {
   if (typeof value !== 'string') return null
@@ -611,6 +617,9 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
 export const runtime = 'nodejs'
 
 export async function POST(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  const limited = rateLimit(req, SUBMIT_REGISTRATION_LIMIT)
+  if (!limited.ok) return limited.response
+
   const { eventId } = await params
   const { payload, formData, isMultipart } = await parseRequest(req)
   if (!payload) return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
