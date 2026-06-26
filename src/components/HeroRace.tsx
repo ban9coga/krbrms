@@ -11,6 +11,7 @@ const heroStats = [
 const tickerItems = [
   { label: 'LIVE SCORING REAL-TIME', accent: false },
   { label: 'PENDAFTARAN ONLINE', accent: true },
+  { label: 'JADWAL RACE PUSHBIKE INDONESIA', accent: false },
   { label: 'HASIL RACE TRANSPARAN', accent: false },
   { label: 'MULTI KATEGORI USIA', accent: true },
   { label: 'JURY & MARSHAL DASHBOARD', accent: false },
@@ -56,23 +57,23 @@ export default function HeroRace({ liveEvent }: { liveEvent: LiveEventItem | nul
         <div className="homepage-editorial-hero-content">
           <div className="homepage-editorial-kicker">
             <span className={liveEvent ? 'homepage-editorial-live-dot' : 'homepage-editorial-idle-dot'} />
-            RACEPUSHBIKE.COM - PLATFORM RACE PUSHBIKE &amp; BALANCE BIKE · INDONESIA
+            RACEPUSHBIKE.COM - JADWAL, PENDAFTARAN &amp; LIVE SKOR RACE PUSHBIKE INDONESIA
           </div>
 
           <h1 className="homepage-editorial-title">
-            <span>Platform Race Pushbike</span>
+            <span>Race Pushbike Indonesia</span>
             <span className="homepage-editorial-title-line">
-              <mark>Terpercaya</mark> untuk Komunitas se-Indonesia
+              <mark>Jadwal</mark>, Pendaftaran &amp; Live Skor
             </span>
           </h1>
 
           <p className="homepage-editorial-copy">
-            Daftarkan si kecil ke race pushbike terdekat, atau kelola event komunitasmu sendiri dengan sistem
-            live scoring real-time yang sudah dipercaya komunitas di berbagai kota.
+            Cari event race pushbike terdekat, daftarkan rider, atau kelola event komunitasmu sendiri dengan sistem
+            live scoring real-time yang dipercaya komunitas pushbike di berbagai kota.
           </p>
 
           <div className="homepage-editorial-actions">
-            <Link href="/dashboard" className="homepage-editorial-action homepage-editorial-action-primary">
+            <Link href="/jadwal-race-pushbike" className="homepage-editorial-action homepage-editorial-action-primary">
               Cari Race &amp; Daftar
             </Link>
             <Link href="/live-results" className="homepage-editorial-action homepage-editorial-action-secondary">

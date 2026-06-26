@@ -12,7 +12,7 @@ import LiveEntryButton from './LiveEntryButton'
 
 const navItems = [
   { href: '/', label: 'Home' },
-  { href: '/dashboard', label: 'Events' },
+  { href: '/jadwal-race-pushbike', label: 'Events' },
 ]
 
 type MarketingTopbarProps = {

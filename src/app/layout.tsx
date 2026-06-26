@@ -9,13 +9,22 @@ export const revalidate = 30
 
 export const metadata: Metadata = {
   title: {
-    default: 'RacePushbike — Live Skor & Pendaftaran Race Pushbike Indonesia',
-    template: '%s | Pushbike Race Management Platform',
+    default: 'Race Pushbike Indonesia — Jadwal, Pendaftaran & Live Skor | RacePushbike',
+    template: '%s | RacePushbike',
   },
   manifest: '/manifest.webmanifest',
   description:
-    'Cek live skor race pushbike, daftarkan rider, dan pantau hasil race real-time. Platform terpercaya untuk komunitas pushbike di Indonesia.',
-  keywords: ['pushbike', 'runbike', 'race management', 'live results', 'scoring', 'Padang', 'Indonesia'],
+    'Cari jadwal race pushbike Indonesia, daftar rider, cek live skor, dan pantau hasil race real-time dari komunitas pushbike di berbagai kota.',
+  keywords: [
+    'race pushbike',
+    'race pushbike indonesia',
+    'jadwal race pushbike',
+    'pendaftaran race pushbike',
+    'live skor pushbike',
+    'hasil race pushbike',
+    'balance bike indonesia',
+    'pushbike indonesia',
+  ],
   authors: [{ name: 'FernTech Studio' }],
   creator: 'FernTech Studio',
   metadataBase: new URL('https://racepushbike.com'),
@@ -23,19 +32,19 @@ export const metadata: Metadata = {
     google: '5hpTlLiEQ5f3Qldh9rkNfgpdnsHzMExsT9IAEeCR9XA', // tambah ini
   },
   openGraph: {
-    title: 'RacePushbike — Live Skor & Pendaftaran Race Pushbike Indonesia',
+    title: 'Race Pushbike Indonesia — Jadwal, Pendaftaran & Live Skor | RacePushbike',
     description:
-      'Cek live skor race pushbike, daftarkan rider, dan pantau hasil race real-time. Platform terpercaya untuk komunitas pushbike di Indonesia.',
+      'Cari jadwal race pushbike Indonesia, daftar rider, cek live skor, dan pantau hasil race real-time dari komunitas pushbike di berbagai kota.',
     url: 'https://racepushbike.com',
-    siteName: 'Pushbike Race Management Platform',
+    siteName: 'RacePushbike',
     locale: 'id_ID',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'RacePushbike — Live Skor & Pendaftaran Race Pushbike Indonesia',
+    title: 'Race Pushbike Indonesia — Jadwal, Pendaftaran & Live Skor | RacePushbike',
     description:
-      'Cek live skor race pushbike, daftarkan rider, dan pantau hasil race real-time. Platform terpercaya untuk komunitas pushbike di Indonesia.',
+      'Cari jadwal race pushbike Indonesia, daftar rider, cek live skor, dan pantau hasil race real-time dari komunitas pushbike di berbagai kota.',
   },
   robots: {
     index: true,

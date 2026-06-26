@@ -3,6 +3,7 @@ import MarketingTopbar from '../components/MarketingTopbar'
 import EventCard from '../components/EventCard'
 import Link from 'next/link'
 import Image from 'next/image'
+import type { Metadata } from 'next'
 import { adminClient } from '../lib/auth'
 import type { EventItem, EventStatus } from '../lib/eventService'
 import { toPublicMediaUrl } from '../lib/publicMedia'
@@ -10,6 +11,22 @@ import { getCommunityShowcaseLogos, type CommunityShowcaseLogo } from '../lib/co
 import { getLiveEvent } from '../lib/liveEvent'
 
 export const revalidate = 30
+
+export const metadata: Metadata = {
+  title: 'Race Pushbike Indonesia — Jadwal, Pendaftaran & Live Skor | RacePushbike',
+  description:
+    'Cari jadwal race pushbike Indonesia, daftar rider, cek live skor, dan pantau hasil race real-time dari komunitas pushbike di berbagai kota.',
+  openGraph: {
+    title: 'Race Pushbike Indonesia — Jadwal, Pendaftaran & Live Skor | RacePushbike',
+    description:
+      'Cari jadwal race pushbike Indonesia, daftar rider, cek live skor, dan pantau hasil race real-time dari komunitas pushbike di berbagai kota.',
+  },
+  twitter: {
+    title: 'Race Pushbike Indonesia — Jadwal, Pendaftaran & Live Skor | RacePushbike',
+    description:
+      'Cari jadwal race pushbike Indonesia, daftar rider, cek live skor, dan pantau hasil race real-time dari komunitas pushbike di berbagai kota.',
+  },
+}
 
 type LandingEventSettings = {
   logo?: string | null
@@ -222,9 +239,9 @@ export default async function LandingPage() {
       <main>
         <HeroRace liveEvent={liveEvent} />
         <LandingEventSection
-          eyebrow="Upcoming Event"
-          title="Event yang Akan Datang"
-          description="Lihat jadwal event berikutnya, cek detail race, dan daftar selama registrasi masih dibuka."
+          eyebrow="Jadwal Race Pushbike Indonesia"
+          title="Event Race Pushbike yang Akan Datang"
+          description="Lihat jadwal race pushbike berikutnya, cek detail event, dan daftar rider selama registrasi masih dibuka."
           events={upcomingEvents}
           settingsMap={settingsMap}
           registrationAvailability={registrationAvailability}
