@@ -484,7 +484,7 @@ export default function LiveScoreClient({
                         <td>{row.gate_moto2 ?? '-'}</td>
                         {showMoto3 && <td>{row.gate_moto3 ?? '-'}</td>}
                         {showRiderPhotos && <td>{riderPhotoCell(row.name, row.no_plate, row.photo_thumbnail_url)}</td>}
-                        <td className="whitespace-nowrap font-extrabold text-slate-900">{row.name}</td>
+                        <td className="live-score-rider-name whitespace-nowrap font-extrabold">{row.name}</td>
                         <td>{row.no_plate}</td>
                         <td className="whitespace-nowrap">{row.club || '-'}</td>
                         <td>{renderMotoResultCell(row.point_moto1, row.moto1_status)}</td>
@@ -551,7 +551,7 @@ export default function LiveScoreClient({
                         <tr key={row.rider_id}>
                           <td>{row.gate ?? '-'}</td>
                           {showRiderPhotos && <td>{riderPhotoCell(row.name, row.no_plate, row.photo_thumbnail_url)}</td>}
-                          <td className="whitespace-nowrap font-extrabold text-slate-900">{row.name}</td>
+                          <td className="live-score-rider-name whitespace-nowrap font-extrabold">{row.name}</td>
                           <td>{row.no_plate}</td>
                           <td className="whitespace-nowrap">{row.club || '-'}</td>
                           <td className="font-extrabold text-sky-700">{renderStagePointCell(row.point, row.status)}</td>

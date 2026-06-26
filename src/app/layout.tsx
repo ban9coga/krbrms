@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { Anton, Plus_Jakarta_Sans } from 'next/font/google'
 import FloatingLiveScoreButton from '../components/FloatingLiveScoreButton'
 import { PwaRegister } from '../components/PwaRegister'
 import { ThemeProvider } from '../components/ThemeProvider'
@@ -6,6 +7,19 @@ import { getLiveEvent } from '../lib/liveEvent'
 import './globals.css'
 
 export const revalidate = 30
+
+const plusJakartaSans = Plus_Jakarta_Sans({
+  subsets: ['latin'],
+  variable: '--font-body',
+  display: 'swap',
+})
+
+const anton = Anton({
+  subsets: ['latin'],
+  weight: '400',
+  variable: '--font-display',
+  display: 'swap',
+})
 
 export const metadata: Metadata = {
   title: {
@@ -62,7 +76,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   return (
     <html lang="id">
-      <body style={{ margin: 0, fontFamily: 'sans-serif' }}>
+      <body className={`${plusJakartaSans.variable} ${anton.variable}`} style={{ margin: 0 }}>
         <PwaRegister />
         <ThemeProvider>
           {children}

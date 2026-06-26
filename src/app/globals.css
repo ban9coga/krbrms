@@ -634,6 +634,7 @@ html[data-theme='dark'] .login-editorial-password-toggle {
     min-height: 100%;
     background: var(--app-bg);
     color: var(--app-text);
+    font-family: var(--font-body), sans-serif;
     transition: background-color 180ms ease, color 180ms ease;
   }
 
@@ -2063,7 +2064,7 @@ html[data-theme='dark'] .setting-toggle-control:has(input:checked) .setting-togg
 .homepage-editorial-page input,
 .homepage-editorial-page select,
 .homepage-editorial-page textarea {
-  font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
+  font-family: var(--font-body), Arial, "Helvetica Neue", Helvetica, sans-serif;
 }
 
 .homepage-editorial-page *,
@@ -2076,7 +2077,7 @@ html[data-theme='dark'] .setting-toggle-control:has(input:checked) .setting-togg
 .homepage-editorial-page h2,
 .homepage-editorial-page h3,
 .homepage-editorial-page .editorial-event-card-title {
-  font-family: "Arial Black", Arial, "Helvetica Neue", Helvetica, sans-serif;
+  font-family: var(--font-display), var(--font-body), Arial, "Helvetica Neue", Helvetica, sans-serif;
 }
 
 .homepage-editorial-kicker,
@@ -2337,12 +2338,12 @@ html[data-theme='dark'] .setting-toggle-control:has(input:checked) .setting-togg
   z-index: -2;
   place-items: center;
   color: #e84b16;
-  font-family: "Arial Black", Arial, sans-serif;
+  font-family: var(--font-display), var(--font-body), Arial, sans-serif;
   font-size: 82px;
 }
 
 .editorial-upcoming-card-poster strong {
-  font-family: "Arial Black", Arial, sans-serif;
+  font-family: var(--font-display), var(--font-body), Arial, sans-serif;
   font-size: 24px;
   line-height: 1.05;
 }
@@ -2465,7 +2466,7 @@ html[data-theme='dark'] .setting-toggle-control:has(input:checked) .setting-togg
   display: grid;
   place-items: center;
   color: rgba(255, 248, 232, 0.28);
-  font-family: "Arial Black", Arial, sans-serif;
+  font-family: var(--font-display), var(--font-body), Arial, sans-serif;
   font-size: 96px;
   font-weight: 950;
 }
@@ -2680,20 +2681,20 @@ html[data-theme='dark'] .setting-toggle-control:has(input:checked) .setting-togg
 }
 
 .homepage-editorial-bottom-bar {
-  font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
+  font-family: var(--font-body), Arial, "Helvetica Neue", Helvetica, sans-serif;
 }
 
 .public-editorial-page,
 .public-editorial-topbar,
 .public-editorial-bottom-bar {
-  font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
+  font-family: var(--font-body), Arial, "Helvetica Neue", Helvetica, sans-serif;
 }
 
 .public-editorial-page h1,
 .public-editorial-page h2,
 .public-editorial-page h3,
 .public-editorial-topbar .font-black {
-  font-family: "Arial Black", Arial, "Helvetica Neue", Helvetica, sans-serif;
+  font-family: var(--font-display), var(--font-body), Arial, "Helvetica Neue", Helvetica, sans-serif;
   letter-spacing: 0;
 }
 
@@ -3001,6 +3002,10 @@ html[data-theme='dark'] .setting-toggle-control:has(input:checked) .setting-togg
   color: #1d0d07 !important;
 }
 
+.live-score-editorial-page .public-table .live-score-rider-name {
+  color: #1d0d07 !important;
+}
+
 .live-score-editorial-page .public-table td.text-amber-600 {
   color: #bf4a13 !important;
 }
@@ -3129,18 +3134,63 @@ html[data-theme='dark'] .homepage-editorial-topbar {
   color: #fff8e8;
 }
 
+html[data-theme='dark'] .public-editorial-topbar {
+  border-color: #4f372b !important;
+  background: rgba(20, 12, 9, 0.96) !important;
+  color: #fff8e8 !important;
+}
+
 html[data-theme='dark'] .homepage-editorial-topbar a {
   color: inherit;
 }
 
-html[data-theme='dark'] .homepage-editorial-topbar a > span span:first-child {
+html[data-theme='dark'] .public-editorial-topbar a,
+html[data-theme='dark'] .public-editorial-topbar button {
+  color: inherit;
+}
+
+html[data-theme='dark'] .homepage-editorial-topbar a > span span:first-child,
+html[data-theme='dark'] .public-editorial-topbar a > span span:first-child {
   color: #fff8e8;
+}
+
+html[data-theme='dark'] .public-editorial-topbar a > span span:last-child {
+  color: #c9b7a5 !important;
 }
 
 html[data-theme='dark'] .homepage-editorial-desktop-nav {
   border-color: #5f4639 !important;
   background: #21140f !important;
   color: #eadcca !important;
+}
+
+html[data-theme='dark'] .public-editorial-topbar nav {
+  border-color: #5f4639 !important;
+  background: #21140f !important;
+  color: #eadcca !important;
+}
+
+html[data-theme='dark'] .public-editorial-topbar nav a:hover,
+html[data-theme='dark'] .public-editorial-topbar nav button:hover {
+  background: #3a251b !important;
+  color: #f3c63d !important;
+}
+
+html[data-theme='dark'] .public-editorial-topbar nav a[class*='bg-[#1d0d07]'],
+html[data-theme='dark'] .public-editorial-topbar nav button[class*='bg-[#1d0d07]'] {
+  background: #f3c63d !important;
+  color: #1d0d07 !important;
+}
+
+html[data-theme='dark'] .public-editorial-topbar .bg-\[\#fff8e8\] {
+  border-color: #5f4639 !important;
+  background: #21140f !important;
+  color: #eadcca !important;
+}
+
+html[data-theme='dark'] .public-editorial-topbar .bg-\[\#1d0d07\] {
+  background: #f3c63d !important;
+  color: #1d0d07 !important;
 }
 
 html[data-theme='dark'] .homepage-editorial-desktop-nav a:hover,
@@ -3279,6 +3329,19 @@ html[data-theme='dark'] .dashboard-editorial-section-head > span {
   color: #c9b7a5;
 }
 
+html[data-theme='dark'] .live-score-editorial-page {
+  background: #090706;
+  color: #f8eadb;
+}
+
+html[data-theme='dark'] .live-score-editorial-page .public-table td.text-slate-900 {
+  color: #1d0d07 !important;
+}
+
+html[data-theme='dark'] .live-score-editorial-page .public-table .live-score-rider-name {
+  color: #1d0d07 !important;
+}
+
 .homepage-editorial-performance-shell {
   width: 100%;
   background: #f5ecd7;
@@ -3340,7 +3403,7 @@ html[data-theme='dark'] .dashboard-editorial-section-head > span {
 }
 
 .homepage-editorial-allocation-head strong {
-  font-family: "Arial Black", Arial, sans-serif;
+  font-family: var(--font-display), var(--font-body), Arial, sans-serif;
   font-size: 22px;
 }
 
