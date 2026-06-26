@@ -192,6 +192,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const includeUpcoming = ['1', 'true', 'yes'].includes(
     (searchParams.get('include_upcoming') ?? '').toLowerCase()
   )
+  const cacheHeaders = includeUpcoming
+    ? { 'Cache-Control': 'no-store' }
+    : { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300' }
   if (!categoryId) return NextResponse.json({ error: 'category_id required' }, { status: 400 })
 
   const { data: category, error: catError } = await adminClient
@@ -202,24 +205,25 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   if (catError || !category || category.event_id !== eventId) {
     return NextResponse.json({ error: 'Category not found in event' }, { status: 404 })
   }
-  const { data: settingsRow } = await adminClient
-    .from('event_settings')
-    .select('business_settings')
-    .eq('event_id', eventId)
-    .order('updated_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-  const businessSettings =
-    settingsRow?.business_settings && typeof settingsRow.business_settings === 'object' && !Array.isArray(settingsRow.business_settings)
-      ? (settingsRow.business_settings as Record<string, unknown>)
-      : {}
   const includePhotosParam = searchParams.get('include_photos')
-  const includePhotos =
-    includePhotosParam === '0' || includePhotosParam === 'false'
-      ? false
-      : typeof businessSettings.show_rider_photos_public === 'boolean'
-      ? businessSettings.show_rider_photos_public
-      : false
+  let includePhotos = includePhotosParam === '1' || includePhotosParam === 'true'
+  if (includePhotosParam !== '0' && includePhotosParam !== 'false' && !includePhotos) {
+    const { data: settingsRow } = await adminClient
+      .from('event_settings')
+      .select('business_settings')
+      .eq('event_id', eventId)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    const businessSettings =
+      settingsRow?.business_settings && typeof settingsRow.business_settings === 'object' && !Array.isArray(settingsRow.business_settings)
+        ? (settingsRow.business_settings as Record<string, unknown>)
+        : {}
+    includePhotos =
+      typeof businessSettings.show_rider_photos_public === 'boolean'
+        ? businessSettings.show_rider_photos_public
+        : false
+  }
   const { data: pointOverrideConfig } = await adminClient
     .from('race_stage_config')
     .select('dnf_point_override, dns_point_override')
@@ -241,7 +245,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   })
 
   const motoIds = motoRows.map((m) => m.id)
-  if (motoIds.length === 0) return NextResponse.json({ data: { batches: [], category: category.label } })
+  if (motoIds.length === 0) {
+    return NextResponse.json({ data: { batches: [], category: category.label } }, { headers: cacheHeaders })
+  }
 
   const { data: gates, error: gateError } = await adminClient
     .from('moto_gate_positions')
@@ -249,6 +255,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     .in('moto_id', motoIds)
   if (gateError) return NextResponse.json({ error: gateError.message }, { status: 400 })
   const gateRows = (gates ?? []) as GateRow[]
+
+  const { data: assignedMotoRiders, error: assignedMotoRiderError } = await adminClient
+    .from('moto_riders')
+    .select('moto_id, rider_id, created_at')
+    .in('moto_id', motoIds)
+    .order('created_at', { ascending: true })
+  if (assignedMotoRiderError) return NextResponse.json({ error: assignedMotoRiderError.message }, { status: 400 })
+  const motoRiderRows = (assignedMotoRiders ?? []) as MotoRiderRow[]
 
   const gateCountByMoto = new Map<string, number>()
   for (const row of gateRows) {
@@ -259,15 +273,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const missingGateMotoIds = motoIds.filter((id) => !gateCountByMoto.get(id))
 
   if (missingGateMotoIds.length > 0) {
-    const { data: motoRiders, error: mrError } = await adminClient
-      .from('moto_riders')
-      .select('moto_id, rider_id, created_at')
-      .in('moto_id', missingGateMotoIds)
-      .order('created_at', { ascending: true })
-    if (mrError) return NextResponse.json({ error: mrError.message }, { status: 400 })
-
     const grouped = new Map<string, string[]>()
-    for (const row of motoRiders ?? []) {
+    for (const row of motoRiderRows) {
+      if (!missingGateMotoIds.includes(row.moto_id)) continue
       const list = grouped.get(row.moto_id) ?? []
       list.push(row.rider_id)
       grouped.set(row.moto_id, list)
@@ -285,11 +293,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       })
     }
 
-    if (insertRows.length > 0) {
-      const { error: insertError } = await adminClient.from('moto_gate_positions').insert(insertRows)
-      if (insertError) return NextResponse.json({ error: insertError.message }, { status: 400 })
-      gateRows.push(...insertRows)
-    }
+    gateRows.push(...insertRows)
   }
 
   const { data: results, error: resultError } = await adminClient
@@ -298,14 +302,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     .in('moto_id', motoIds)
   if (resultError) return NextResponse.json({ error: resultError.message }, { status: 400 })
   const resultRows = (results ?? []) as ResultRow[]
-
-  const { data: assignedMotoRiders, error: assignedMotoRiderError } = await adminClient
-    .from('moto_riders')
-    .select('moto_id, rider_id, created_at')
-    .in('moto_id', motoIds)
-    .order('created_at', { ascending: true })
-  if (assignedMotoRiderError) return NextResponse.json({ error: assignedMotoRiderError.message }, { status: 400 })
-  const motoRiderRows = (assignedMotoRiders ?? []) as MotoRiderRow[]
 
   const riderIds = Array.from(new Set([
     ...gateRows.map((g) => g.rider_id),
@@ -382,14 +378,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   }
 
   const batchEntries = Array.from(batchMap.entries()).filter(([, entry]) => entry.moto1)
-  const qualificationSeedMap = new Map<string, { points: number; position: number; batchOrder: number }>()
   const stageBatchOrderById = new Map<string, number>()
-  const { data: qualificationSeeds, error: qualificationSeedError } = await adminClient
-    .from('race_stage_result')
-    .select('rider_id, batch_id, position, points')
-    .eq('category_id', categoryId)
-    .eq('stage', 'QUALIFICATION')
-  if (qualificationSeedError) return NextResponse.json({ error: qualificationSeedError.message }, { status: 400 })
   for (const moto of motoRows) {
     const parsed = parseBatchKey(moto.moto_name)
     if (parsed && parsed.motoIndex === 1) {
@@ -400,13 +389,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     if (stageBatchIndex !== null) {
       stageBatchOrderById.set(moto.id, stageBatchIndex)
     }
-  }
-  for (const row of qualificationSeeds ?? []) {
-    qualificationSeedMap.set(row.rider_id, {
-      points: row.points ?? Number.MAX_SAFE_INTEGER,
-      position: row.position ?? Number.MAX_SAFE_INTEGER,
-      batchOrder: row.batch_id ? stageBatchOrderById.get(row.batch_id) ?? Number.MAX_SAFE_INTEGER : Number.MAX_SAFE_INTEGER,
-    })
   }
 
   const { data: stageSeedData, error: stageSeedError } = await adminClient
@@ -734,11 +716,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     }]
   })
 
-  return NextResponse.json({
-    data: {
-      category: category.label,
-      batches,
-      stages: stageGroups,
+  return NextResponse.json(
+    {
+      data: {
+        category: category.label,
+        batches,
+        stages: stageGroups,
+      },
     },
-  })
+    { headers: cacheHeaders }
+  )
 }
