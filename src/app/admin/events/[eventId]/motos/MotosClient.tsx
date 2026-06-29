@@ -45,6 +45,30 @@ type StatusChip = {
   tone: 'green' | 'blue' | 'amber' | 'slate'
 }
 
+function MotoListSkeleton() {
+  return (
+    <div className="grid gap-4">
+      {Array.from({ length: 3 }).map((_, index) => (
+        <section key={index} className="admin-card grid gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="grid gap-2">
+              <div className="admin-skeleton h-7 w-48" />
+              <div className="admin-skeleton h-4 w-32" />
+            </div>
+            <div className="admin-skeleton h-9 w-36 rounded-full" />
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="admin-skeleton h-24" />
+            <div className="admin-skeleton h-24" />
+            <div className="admin-skeleton h-24" />
+            <div className="admin-skeleton h-24" />
+          </div>
+        </section>
+      ))}
+    </div>
+  )
+}
+
 type MotoItem = {
   id: string
   category_id: string
@@ -908,8 +932,8 @@ export default function MotosClient({ eventId }: { eventId: string }) {
 
       <div style={{ marginTop: 16, display: 'grid', gap: 16 }}>
         {loading && motos.length === 0 && (
-          <div className="no-print" style={{ padding: 14, borderRadius: 16, border: '2px dashed #111', background: '#fff', fontWeight: 900 }}>
-            Loading...
+          <div className="no-print">
+            <MotoListSkeleton />
           </div>
         )}
 

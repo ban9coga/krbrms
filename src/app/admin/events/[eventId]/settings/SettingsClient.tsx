@@ -111,6 +111,29 @@ type CommunityLogoDraft = {
   is_active: boolean
 }
 
+function SettingsSectionSkeleton({ label = 'Memuat konfigurasi...' }: { label?: string }) {
+  return (
+    <div className="admin-card grid gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className="admin-kicker">{label}</div>
+          <div className="admin-skeleton mt-3 h-7 w-56" />
+        </div>
+        <div className="admin-skeleton h-9 w-28 rounded-full" />
+      </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        <div className="admin-skeleton h-16" />
+        <div className="admin-skeleton h-16" />
+      </div>
+      <div className="grid gap-3 md:grid-cols-3">
+        <div className="admin-skeleton h-24" />
+        <div className="admin-skeleton h-24" />
+        <div className="admin-skeleton h-24" />
+      </div>
+    </div>
+  )
+}
+
 const sponsorTierOptions: EventSponsorTier[] = ['TITLE', 'MAIN', 'SUPPORT', 'MEDIA', 'COMMUNITY', 'PARTNER']
 const advancedFinalClassOrder = ['BEGINNER', 'AMATEUR', 'ACADEMY', 'ADVANCED', 'ROOKIE', 'PRO', 'NOVICE', 'ELITE'] as const
 const legacyAdvancedFinalClasses: string[] = []
@@ -1614,9 +1637,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
         }}
       >
         {loading && (
-          <div style={{ padding: 14, borderRadius: 16, border: '2px dashed #111', background: '#fff', fontWeight: 900 }}>
-            Loading...
-          </div>
+          <SettingsSectionSkeleton label="Memuat pengaturan event..." />
         )}
 
         {!loading && (
@@ -2787,9 +2808,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                     </button>
                   </div>
                   {staffLoading && (
-                    <div style={{ padding: 12, borderRadius: 12, border: '2px dashed #111', fontWeight: 800 }}>
-                      Loading staff assignments...
-                    </div>
+                    <SettingsSectionSkeleton label="Memuat staff assignments..." />
                   )}
                   {!staffLoading && staffAssignments.length === 0 && (
                     <div style={{ padding: 12, borderRadius: 12, border: '2px dashed #111', fontWeight: 800 }}>
@@ -2998,9 +3017,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
         </div>
 
         {advancedLoading && (
-          <div style={{ padding: 12, borderRadius: 12, border: '2px dashed #111', background: '#fff', fontWeight: 900 }}>
-            Loading advanced config...
-          </div>
+          <SettingsSectionSkeleton label="Memuat advanced config..." />
         )}
 
         {!advancedLoading && advancedItems.length === 0 && (
@@ -3412,7 +3429,11 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                       <div style={{ marginTop: 12, display: 'grid', gap: 8 }}>
                         <div style={{ fontWeight: 900 }}>Stage Results Preview</div>
                         {previewLoading[item.category.id] ? (
-                          <div style={{ fontWeight: 800 }}>Loading...</div>
+                          <div className="admin-card-muted grid gap-2">
+                            <div className="admin-skeleton h-5 w-44" />
+                            <div className="admin-skeleton h-4 w-full" />
+                            <div className="admin-skeleton h-4 w-2/3" />
+                          </div>
                         ) : (stagePreview[item.category.id] ?? []).length === 0 ? (
                           <div style={{ fontWeight: 800 }}>Belum ada hasil stage.</div>
                         ) : (

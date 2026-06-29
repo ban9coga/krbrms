@@ -29,6 +29,7 @@ type FeedbackState = {
 
 type StatusFilter = 'ALL' | EventItem['status']
 type ScopeFilter = 'ALL' | 'PUBLIC' | 'INTERNAL'
+type EventTone = 'danger' | 'accent' | 'success' | 'info' | 'neutral'
 
 const fieldClass =
   'w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-amber-300 focus:ring-2 focus:ring-amber-300/30'
@@ -39,35 +40,43 @@ const subtleButtonClass =
 const primaryButtonClass =
   'inline-flex items-center justify-center rounded-2xl bg-slate-950 px-4 py-2.5 text-sm font-black uppercase tracking-[0.12em] text-white transition-colors hover:bg-slate-800'
 
-const STATUS_META: Record<EventItem['status'], { label: string; className: string; weight: number }> = {
+const toneClass: Record<EventTone, string> = {
+  danger: 'admin-tone-danger',
+  accent: 'admin-tone-accent',
+  success: 'admin-tone-success',
+  info: 'admin-tone-info',
+  neutral: 'admin-tone-neutral',
+}
+
+const STATUS_META: Record<EventItem['status'], { label: string; tone: EventTone; weight: number }> = {
   LIVE: {
     label: 'Live',
-    className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    tone: 'success',
     weight: 0,
   },
   UPCOMING: {
     label: 'Upcoming',
-    className: 'border-amber-200 bg-amber-50 text-amber-700',
+    tone: 'accent',
     weight: 1,
   },
   FINISHED: {
     label: 'Finished',
-    className: 'border-slate-200 bg-slate-100 text-slate-700',
+    tone: 'neutral',
     weight: 2,
   },
   PROVISIONAL: {
     label: 'Provisional',
-    className: 'border-sky-200 bg-sky-50 text-sky-700',
+    tone: 'info',
     weight: 3,
   },
   PROTEST_REVIEW: {
     label: 'Protest Review',
-    className: 'border-rose-200 bg-rose-50 text-rose-700',
+    tone: 'danger',
     weight: 4,
   },
   LOCKED: {
     label: 'Locked',
-    className: 'border-violet-200 bg-violet-50 text-violet-700',
+    tone: 'neutral',
     weight: 5,
   },
 }
@@ -81,11 +90,15 @@ const formatDate = (value: string) =>
 
 function SummaryCard({ label, value }: { label: string; value: number }) {
   return (
-    <article className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
-      <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">{label}</div>
-      <div className="mt-3 text-2xl font-black tracking-tight text-slate-950">{value}</div>
+    <article className="admin-card">
+      <div className="admin-kicker">{label}</div>
+      <div className="admin-heading mt-3 text-2xl">{value}</div>
     </article>
   )
+}
+
+function EventBadge({ label, tone }: { label: string; tone: EventTone }) {
+  return <span className={`admin-tone-badge ${toneClass[tone]}`}>{label}</span>
 }
 
 export default function AdminEventsView({ showCreate = true }: AdminEventsViewProps) {
@@ -426,10 +439,8 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
 
       {feedback && (
         <div
-          className={`rounded-[1.5rem] border px-5 py-4 text-sm font-semibold shadow-sm ${
-            feedback.type === 'success'
-              ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-              : 'border-rose-200 bg-rose-50 text-rose-800'
+          className={`admin-card text-sm font-semibold ${
+            feedback.type === 'success' ? 'admin-card-tone-success' : 'admin-card-tone-danger'
           }`}
         >
           {feedback.message}
@@ -544,7 +555,7 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
             <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Event Directory</div>
             <h2 className="text-2xl font-black tracking-tight text-slate-950">Event Directory</h2>
           </div>
-          <div className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-500">
+          <div className="admin-tone-badge admin-tone-neutral w-fit">
             {loading ? 'Memuat daftar event…' : `${filteredEvents.length} event tampil`}
           </div>
         </div>
@@ -584,46 +595,20 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
             return (
               <article
                 key={event.id}
-                className="grid gap-5 rounded-[1.7rem] border border-slate-200 bg-[linear-gradient(135deg,#ffffff_0%,#ffffff_72%,#f8fafc_100%)] p-5 shadow-[0_14px_34px_rgba(15,23,42,0.05)]"
+                className="admin-card grid gap-4"
               >
-                <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-                  <div className="grid gap-3">
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                  <div className="grid min-w-0 gap-3">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] ${statusMeta.className}`}>
-                        {statusMeta.label}
-                      </span>
-                      <span
-                        className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] ${
-                          eventScope === 'INTERNAL'
-                            ? 'border-rose-200 bg-rose-50 text-rose-700'
-                            : 'border-sky-200 bg-sky-50 text-sky-700'
-                        }`}
-                      >
-                        {eventScope === 'INTERNAL' ? 'Internal Event' : 'Public Event'}
-                      </span>
-                      <span
-                        className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] ${
-                          isPublic
-                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                            : 'border-slate-200 bg-slate-100 text-slate-600'
-                        }`}
-                      >
-                        {isPublic ? 'Shown on Public' : 'Hidden from Public'}
-                      </span>
-                      <span
-                        className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] ${
-                          registrationOpen
-                            ? 'border-amber-200 bg-amber-50 text-amber-700'
-                            : 'border-rose-200 bg-rose-50 text-rose-700'
-                        }`}
-                      >
-                        {registrationOpen ? 'Registration Open' : 'Registration Closed'}
-                      </span>
+                      <EventBadge label={statusMeta.label} tone={statusMeta.tone} />
+                      <EventBadge label={eventScope === 'INTERNAL' ? 'Internal Event' : 'Public Event'} tone={eventScope === 'INTERNAL' ? 'danger' : 'info'} />
+                      <EventBadge label={isPublic ? 'Shown on Public' : 'Hidden from Public'} tone={isPublic ? 'success' : 'neutral'} />
+                      <EventBadge label={registrationOpen ? 'Registration Open' : 'Registration Closed'} tone={registrationOpen ? 'accent' : 'danger'} />
                     </div>
 
                     <div className="grid gap-1">
-                      <h3 className="text-2xl font-black tracking-tight text-slate-950">{event.name}</h3>
-                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm font-semibold text-slate-500">
+                      <h3 className="admin-heading text-2xl">{event.name}</h3>
+                      <div className="admin-muted flex flex-wrap gap-x-4 gap-y-1 text-sm font-semibold">
                         <span>{event.location || 'Lokasi belum diisi'}</span>
                         <span>{formatDate(event.event_date)}</span>
                         <span>{drawMode}</span>
@@ -662,7 +647,8 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
                       </div>
                     </div>
 
-                  {!isRegistrationApprover && <div className="grid gap-3 xl:min-w-[260px]">
+                  {!isRegistrationApprover && <div className="admin-card-muted grid gap-3 xl:min-w-[280px]">
+                    <div className="admin-kicker">Quick Settings</div>
                     <label className="grid gap-2">
                       <span className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Status</span>
                       <select
@@ -708,58 +694,75 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
                   </div>}
                 </div>
 
-                {!isRegistrationApprover && <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-4">
-                  <ToggleSwitch
-                    checked={registrationOpen}
-                    onChange={(checked) => void handleRegistrationOpen(event, checked)}
-                    disabled={busy}
-                    label="Registrasi dibuka"
-                  />
-                  <ToggleSwitch
-                    checked={isPublic}
-                    onChange={(checked) => void handleVisibility(event, checked)}
-                    disabled={busy}
-                    label="Tampilkan di publik"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => void handleEdit(event)}
-                    className="event-card-ghost-button"
-                    disabled={busy}
-                  >
-                    Edit Basics
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleDuplicate(event)}
-                    className="event-card-ghost-button"
-                    disabled={busy}
-                  >
-                    Duplicate Event
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleDelete(event)}
-                    className="event-card-delete-button"
-                    disabled={busy}
-                  >
-                    <span className="event-card-delete-shadow" />
-                    <span className="event-card-delete-edge" />
-                    <span className="event-card-delete-front">Delete Event</span>
-                  </button>
-                  {busy && (
-                    <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-black uppercase tracking-[0.14em] text-amber-700">
-                      Saving…
-                    </span>
-                  )}
-                </div>}
+                {!isRegistrationApprover && (
+                  <div className="grid gap-3 border-t border-slate-100 pt-4">
+                    <div className="admin-card-muted flex flex-wrap items-center gap-2">
+                      <div className="admin-kicker mr-2">Publishing</div>
+                      <ToggleSwitch
+                        checked={registrationOpen}
+                        onChange={(checked) => void handleRegistrationOpen(event, checked)}
+                        disabled={busy}
+                        label="Registrasi dibuka"
+                      />
+                      <ToggleSwitch
+                        checked={isPublic}
+                        onChange={(checked) => void handleVisibility(event, checked)}
+                        disabled={busy}
+                        label="Tampilkan di publik"
+                      />
+                      {busy && <EventBadge label="Saving…" tone="accent" />}
+                    </div>
+
+                    <details className="admin-card-muted group">
+                      <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+                        <span>
+                          <span className="admin-kicker block">Advanced actions</span>
+                          <span className="admin-muted mt-1 block text-xs font-semibold">
+                            Edit, duplicate, atau hapus event. Dibuka hanya saat dibutuhkan.
+                          </span>
+                        </span>
+                        <span className="admin-outline-button pointer-events-none px-3 py-2 text-xs">
+                          Open
+                        </span>
+                      </summary>
+                      <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4">
+                        <button
+                          type="button"
+                          onClick={() => void handleEdit(event)}
+                          className="event-card-ghost-button"
+                          disabled={busy}
+                        >
+                          Edit Basics
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleDuplicate(event)}
+                          className="event-card-ghost-button"
+                          disabled={busy}
+                        >
+                          Duplicate Event
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleDelete(event)}
+                          className="event-card-delete-button"
+                          disabled={busy}
+                        >
+                          <span className="event-card-delete-shadow" />
+                          <span className="event-card-delete-edge" />
+                          <span className="event-card-delete-front">Delete Event</span>
+                        </button>
+                      </div>
+                    </details>
+                  </div>
+                )}
               </article>
             )
           })}
 
           {!loading && filteredEvents.length === 0 && (
-            <div className="rounded-[1.7rem] border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center">
-              <div className="text-lg font-black tracking-tight text-slate-900">Belum ada event yang cocok.</div>
+            <div className="admin-card-muted py-10 text-center">
+              <div className="admin-heading text-lg">Belum ada event yang cocok.</div>
             </div>
           )}
         </div>

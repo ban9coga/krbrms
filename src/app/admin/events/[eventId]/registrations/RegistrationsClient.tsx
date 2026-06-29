@@ -486,6 +486,31 @@ function WhatsAppAction({
   )
 }
 
+function RegistrationListSkeleton() {
+  return (
+    <div className="grid gap-4">
+      {Array.from({ length: 3 }).map((_, index) => (
+        <section key={index} className="admin-card grid gap-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="admin-skeleton h-7 w-44" />
+            <div className="admin-skeleton h-7 w-24 rounded-full" />
+            <div className="admin-skeleton h-7 w-28 rounded-full" />
+          </div>
+          <div className="grid gap-2">
+            <div className="admin-skeleton h-4 w-3/4" />
+            <div className="admin-skeleton h-4 w-1/2" />
+          </div>
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="admin-skeleton h-16" />
+            <div className="admin-skeleton h-16" />
+            <div className="admin-skeleton h-16" />
+          </div>
+        </section>
+      ))}
+    </div>
+  )
+}
+
 export default function RegistrationsClient({ eventId }: { eventId: string }) {
   const [loading, setLoading] = useState(false)
   const [exportingRegistrationExcel, setExportingRegistrationExcel] = useState(false)
@@ -2466,9 +2491,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
       )}
 
       {loading && registrations.length === 0 ? (
-        <div className="rounded-3xl border border-slate-200 bg-white p-8 text-center text-sm font-semibold text-slate-500 shadow-sm">
-          Memuat data pendaftaran...
-        </div>
+        <RegistrationListSkeleton />
       ) : registrations.length === 0 ? (
         <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
           <div className="text-lg font-black text-slate-950">Belum ada hasil</div>
