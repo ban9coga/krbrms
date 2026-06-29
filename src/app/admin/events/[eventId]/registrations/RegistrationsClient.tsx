@@ -2529,93 +2529,62 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                           {registration.registration_items.length} Rider
                         </span>
                       </div>
-                      <div className="grid gap-1 text-sm font-medium text-slate-600">
+                      <div className="grid gap-2 text-sm font-medium text-slate-600">
                         <div className="flex flex-wrap gap-x-4 gap-y-1">
                           <span>WA: {registration.contact_phone}</span>
-                          {registration.contact_email && <span>Email: {registration.contact_email}</span>}
-                          {registration.community_name && <span>Komunitas: {registration.community_name}</span>}
-                        </div>
-                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
                           <span>Dikirim {formatDateTime(registration.created_at)}</span>
-                          {registration.registration_code && (
-                            <span className="rounded-full border border-amber-300 bg-amber-100 px-2.5 py-1 font-black text-amber-900">
-                              {registration.registration_code}
-                            </span>
-                          )}
                           <span>Total {formatRupiah(registration.total_amount)}</span>
-                          <span>{readiness.allItemsHaveDocs ? 'Dokumen lengkap' : 'Dokumen belum lengkap'}</span>
-                          <span>
-                            {!riderPhotoUploadEnabled
-                              ? 'Foto tidak diwajibkan'
-                              : readiness.allItemsHavePhotos
-                              ? 'Foto lengkap'
-                              : 'Foto belum lengkap'}
-                          </span>
                         </div>
+                        <details className="admin-card-muted px-4 py-3">
+                          <summary className="cursor-pointer list-none text-xs font-black uppercase tracking-[0.14em] text-slate-500">
+                            Kontak & kesiapan data
+                          </summary>
+                          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+                            {registration.contact_email && <span>Email: {registration.contact_email}</span>}
+                            {registration.community_name && <span>Komunitas: {registration.community_name}</span>}
+                            {registration.registration_code && (
+                              <span className="rounded-full border border-amber-300 bg-amber-100 px-2.5 py-1 font-black text-amber-900">
+                                {registration.registration_code}
+                              </span>
+                            )}
+                            <span>{readiness.allItemsHaveDocs ? 'Dokumen lengkap' : 'Dokumen belum lengkap'}</span>
+                            <span>
+                              {!riderPhotoUploadEnabled
+                                ? 'Foto tidak diwajibkan'
+                                : readiness.allItemsHavePhotos
+                                ? 'Foto lengkap'
+                                : 'Foto belum lengkap'}
+                            </span>
+                          </div>
+                        </details>
                       </div>
                     </div>
 
-                    <div className="grid gap-2 sm:grid-cols-2 xl:flex xl:flex-wrap xl:items-center xl:justify-end">
-                      {registration.registration_code && (
-                        <WhatsAppAction
-                          registration={registration}
-                          kind="STATUS_ACCESS"
-                          className="w-full border-sky-300 bg-sky-600 hover:bg-sky-700 xl:w-auto"
-                          label="Kirim QR & Status"
-                        />
-                      )}
-                      <button
-                        type="button"
-                        disabled={
-                          savingKey === `email:${registration.id}` ||
-                          !registration.registration_code?.trim() ||
-                          !registration.contact_email?.trim()
-                        }
-                        onClick={() => void resendStatusEmail(registration)}
-                        title={
-                          !registration.contact_email?.trim()
-                            ? 'Email wali rider belum diisi'
-                            : !registration.registration_code?.trim()
-                            ? 'Kode registrasi belum tersedia'
-                            : 'Kirim ulang email berisi kode, QR, dan link status'
-                        }
-                        className="min-h-11 rounded-2xl border border-indigo-300 bg-indigo-50 px-4 py-2 text-sm font-black text-indigo-900 transition hover:border-indigo-500 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
-                      >
-                        {savingKey === `email:${registration.id}` ? 'Mengirim Email...' : 'Kirim Email QR & Status'}
-                      </button>
-                      {registration.status !== 'PENDING' && (
-                        <WhatsAppAction
-                          registration={registration}
-                          kind={registration.status === 'REJECTED' ? 'REJECTED' : 'APPROVED'}
-                          className="w-full xl:w-auto"
-                          label={registration.status === 'REJECTED' ? 'Kirim WA Penolakan' : 'Kirim WA Konfirmasi'}
-                          whatsappGroupInviteUrl={registration.status === 'APPROVED' ? whatsappGroupInviteUrl : null}
-                          categoryMap={registration.status === 'APPROVED' ? categoryMap : undefined}
-                        />
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => setExpanded((prev) => ({ ...prev, [registration.id]: !isExpanded }))}
-                        className="admin-outline-button min-h-11"
-                      >
-                        {isExpanded ? 'Sembunyikan Detail' : 'Lihat Detail'}
-                      </button>
-                      <button
-                        type="button"
-                        disabled={savingKey === `registration:${registration.id}` || !readiness.canApprove}
-                        onClick={() => openApproveModal(registration)}
-                        className="admin-primary-button min-h-11"
-                      >
-                        Approve & Create Riders
-                      </button>
-                      <button
-                        type="button"
-                        disabled={savingKey === `registration:${registration.id}` || registration.status !== 'PENDING'}
-                        onClick={() => openRejectModal(registration)}
-                        className="admin-danger-button min-h-11"
-                      >
-                        Reject
-                      </button>
+                    <div className="grid gap-3 xl:min-w-[380px]">
+                      <div className="grid gap-2 sm:grid-cols-2 xl:flex xl:flex-wrap xl:items-center xl:justify-end">
+                        <button
+                          type="button"
+                          onClick={() => setExpanded((prev) => ({ ...prev, [registration.id]: !isExpanded }))}
+                          className="admin-outline-button min-h-11"
+                        >
+                          {isExpanded ? 'Sembunyikan Detail' : 'Lihat Detail'}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={savingKey === `registration:${registration.id}` || !readiness.canApprove}
+                          onClick={() => openApproveModal(registration)}
+                          className="admin-primary-button min-h-11"
+                        >
+                          Approve & Create Riders
+                        </button>
+                        <button
+                          type="button"
+                          disabled={savingKey === `registration:${registration.id}` || registration.status !== 'PENDING'}
+                          onClick={() => openRejectModal(registration)}
+                          className="admin-danger-button min-h-11"
+                        >
+                          Reject
+                        </button>
                         {!isRegistrationApprover && (
                           <button
                             type="button"
@@ -2629,6 +2598,52 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                             {isCentralAdmin ? 'Delete' : 'Delete Rejected'}
                           </button>
                         )}
+                      </div>
+
+                      <details className="admin-card-muted">
+                        <summary className="cursor-pointer list-none text-xs font-black uppercase tracking-[0.14em] text-slate-500">
+                          Notifikasi wali
+                        </summary>
+                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                          {registration.registration_code && (
+                            <WhatsAppAction
+                              registration={registration}
+                              kind="STATUS_ACCESS"
+                              className="w-full border-sky-300 bg-sky-600 hover:bg-sky-700"
+                              label="Kirim QR & Status"
+                            />
+                          )}
+                          <button
+                            type="button"
+                            disabled={
+                              savingKey === `email:${registration.id}` ||
+                              !registration.registration_code?.trim() ||
+                              !registration.contact_email?.trim()
+                            }
+                            onClick={() => void resendStatusEmail(registration)}
+                            title={
+                              !registration.contact_email?.trim()
+                                ? 'Email wali rider belum diisi'
+                                : !registration.registration_code?.trim()
+                                ? 'Kode registrasi belum tersedia'
+                                : 'Kirim ulang email berisi kode, QR, dan link status'
+                            }
+                            className="min-h-11 rounded-2xl border border-indigo-300 bg-indigo-50 px-4 py-2 text-sm font-black text-indigo-900 transition hover:border-indigo-500 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                          >
+                            {savingKey === `email:${registration.id}` ? 'Mengirim Email...' : 'Kirim Email QR & Status'}
+                          </button>
+                          {registration.status !== 'PENDING' && (
+                            <WhatsAppAction
+                              registration={registration}
+                              kind={registration.status === 'REJECTED' ? 'REJECTED' : 'APPROVED'}
+                              className="w-full"
+                              label={registration.status === 'REJECTED' ? 'Kirim WA Penolakan' : 'Kirim WA Konfirmasi'}
+                              whatsappGroupInviteUrl={registration.status === 'APPROVED' ? whatsappGroupInviteUrl : null}
+                              categoryMap={registration.status === 'APPROVED' ? categoryMap : undefined}
+                            />
+                          )}
+                        </div>
+                      </details>
                     </div>
                   </div>
 
