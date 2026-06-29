@@ -248,16 +248,18 @@ function NavGroup({
   items,
   pathname,
   collapsed,
+  tone = 'global',
   onClick,
 }: {
   title: string
   items: NavItem[]
   pathname: string
   collapsed: boolean
+  tone?: 'global' | 'event'
   onClick?: () => void
 }) {
   return (
-    <section className="grid gap-2">
+    <section className={`admin-nav-section grid gap-2 ${tone === 'event' ? 'admin-nav-section-event' : 'admin-nav-section-global'}`}>
       {!collapsed && (
         <div className="px-2 text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">{title}</div>
       )}
@@ -310,6 +312,25 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
     return GLOBAL_NAV
   }, [userRole])
+  const topbarQuickActions = useMemo(() => {
+    if (eventId) {
+      const actions = [
+        { label: 'Registrations', href: `/admin/events/${eventId}/registrations` },
+        { label: 'Motos', href: `/admin/events/${eventId}/motos` },
+        { label: 'Results', href: `/admin/events/${eventId}/results` },
+      ]
+      if (!isRegistrationApproverRole(userRole)) {
+        actions.push({ label: 'Settings', href: `/admin/events/${eventId}/settings` })
+      }
+      return actions
+    }
+
+    const actions = [{ label: 'Events', href: '/admin/events' }]
+    if ((userRole ?? '').toLowerCase() === 'super_admin') {
+      actions.push({ label: 'Users', href: '/admin/users' })
+    }
+    return actions
+  }, [eventId, userRole])
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(max-width: 1023px)')
@@ -502,14 +523,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       )}
 
       <div className="grid gap-4">
-        <NavGroup title="Workspace" items={globalNav} pathname={pathname} collapsed={collapsed} onClick={() => setSidebarOpen(false)} />
+        <NavGroup title="Global Admin" items={globalNav} pathname={pathname} collapsed={collapsed} tone="global" onClick={() => setSidebarOpen(false)} />
 
         {eventId && (
           <section className="grid gap-2.5">
             <button
               type="button"
               onClick={() => setEventMenuOpen((value) => !value)}
-              className={`admin-secondary-button ${collapsed ? 'justify-center px-0' : ''}`}
+              className={`admin-outline-button ${collapsed ? 'justify-center px-0' : 'w-full justify-start'}`}
               title={collapsed ? (eventMenuOpen ? 'Hide event menu' : 'Show event menu') : undefined}
             >
               <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500">
@@ -519,13 +540,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               </span>
               {!collapsed && (
                 <span className="min-w-0 flex-1 text-left">
+                  <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-amber-600">Active Event</span>
                   <span className="block truncate text-sm font-extrabold text-slate-800">{eventMenuLabel}</span>
                 </span>
               )}
             </button>
 
             {eventMenuOpen && (
-              <NavGroup title="Event Control" items={eventNav} pathname={pathname} collapsed={collapsed} onClick={() => setSidebarOpen(false)} />
+              <NavGroup title="Event Control" items={eventNav} pathname={pathname} collapsed={collapsed} tone="event" onClick={() => setSidebarOpen(false)} />
             )}
           </section>
         )}
@@ -595,6 +617,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
+            <div className="hidden items-center gap-2 xl:flex">
+              {topbarQuickActions.map((action) => (
+                <Link
+                  key={action.href}
+                  href={action.href}
+                  className={`rounded-full border px-3 py-2 text-xs font-black uppercase tracking-[0.08em] transition-colors ${
+                    isActivePath(pathname, action.href)
+                      ? 'border-amber-300 bg-amber-100 text-amber-900'
+                      : isDark
+                        ? 'border-slate-700 bg-slate-900/80 text-slate-300 hover:bg-slate-800'
+                        : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-white'
+                  }`}
+                >
+                  {action.label}
+                </Link>
+              ))}
+            </div>
             <ThemeToggleSwitch />
             {!isMobile && (
               <div className={`hidden max-w-[320px] rounded-full border px-4 py-2 text-right sm:block ${isDark ? 'border-slate-700 bg-slate-900/80' : 'border-slate-200 bg-slate-50'}`}>
@@ -604,7 +643,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 </div>
               </div>
             )}
-            <button type="button" onClick={handleLogout} className="admin-primary-button bg-slate-950 text-white hover:bg-slate-800">
+            <button type="button" onClick={handleLogout} className="admin-outline-button">
               Logout
             </button>
           </div>

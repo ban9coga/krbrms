@@ -35,15 +35,19 @@ function KpiCard({
 }) {
   const toneClass =
     tone === 'accent'
-      ? 'border-amber-200 bg-amber-50'
+      ? 'border-amber-200 bg-amber-50/90'
       : tone === 'success'
-      ? 'border-emerald-200 bg-emerald-50'
-      : 'border-slate-200 bg-white'
+      ? 'border-emerald-200 bg-emerald-50/90'
+      : ''
 
   return (
-    <article className={`rounded-[1.6rem] border p-5 shadow-[0_14px_34px_rgba(15,23,42,0.05)] ${toneClass}`}>
-      <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">{label}</div>
-      <div className="mt-3 text-3xl font-black tracking-tight text-slate-950">{loading ? '...' : value}</div>
+    <article className={`admin-card ${toneClass}`}>
+      <div className="admin-kicker">{label}</div>
+      {loading ? (
+        <div className="admin-skeleton mt-4 h-9 w-28" />
+      ) : (
+        <div className="admin-heading mt-3 text-3xl">{value}</div>
+      )}
     </article>
   )
 }
@@ -106,18 +110,34 @@ export default function AdminDashboardPage() {
       {
         label: 'Kelola Events',
         href: '/admin/events',
+        description: 'Buka daftar event, buat event baru, dan masuk ke event workspace.',
       },
       {
         label: 'Lihat Public Landing',
         href: '/',
+        description: 'Cek tampilan public yang dilihat wali rider dan komunitas.',
       },
     ]
 
-    if (String(role ?? '').trim().toUpperCase() === 'SUPER_ADMIN') {
+    const normalizedRole = normalizeAppRole(role)
+
+    if (normalizedRole === 'SUPER_ADMIN') {
       actions.unshift({
         label: 'Kelola Users',
         href: '/admin/users',
+        description: 'Atur akun admin, role panitia, dan akses field operator.',
       })
+    }
+
+    if (normalizedRole === 'REGISTRATION_APPROVER') {
+      return [
+        {
+          label: 'Review Registrasi',
+          href: '/admin/events',
+          description: 'Masuk ke event dan validasi pembayaran serta data rider.',
+        },
+        actions[1],
+      ]
     }
 
     return actions
@@ -132,9 +152,12 @@ export default function AdminDashboardPage() {
               Admin Console
             </div>
             <div className="grid gap-3">
-              <h1 className="text-3xl font-black tracking-tight text-slate-950 sm:text-[2.5rem]">
+              <h1 className="admin-heading text-3xl sm:text-[2.5rem]">
                 Admin Dashboard
               </h1>
+              <p className="admin-muted max-w-3xl text-sm font-semibold leading-6">
+                Ringkasan operasional untuk memantau event, registrasi, rider, dan status race-day dari satu tempat.
+              </p>
             </div>
             <div className="flex flex-wrap gap-2">
               <div className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-black uppercase tracking-[0.14em] text-slate-600">
@@ -146,12 +169,12 @@ export default function AdminDashboardPage() {
             </div>
           </div>
 
-          <div className="rounded-[1.8rem] border border-slate-200 bg-[linear-gradient(135deg,#ffffff_0%,#f8fafc_68%,#fef3c7_100%)] p-5 shadow-[0_18px_40px_rgba(15,23,42,0.06)]">
-            <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">System heartbeat</div>
-            <div className="mt-3 text-2xl font-black tracking-tight text-slate-950">
+          <div className="admin-card bg-[linear-gradient(135deg,rgba(255,255,255,0.92)_0%,rgba(248,250,252,0.88)_68%,rgba(254,243,199,0.92)_100%)]">
+            <div className="admin-kicker">System heartbeat</div>
+            <div className="admin-heading mt-3 text-2xl">
               {metricsLoading ? 'Memuat…' : metricsError ? 'Perlu cek koneksi' : 'Semua panel siap dipakai'}
             </div>
-            <div className="mt-2 text-sm font-semibold leading-6 text-slate-500">
+            <div className="admin-muted mt-2 text-sm font-semibold leading-6">
               {metricsError
                 ? `KPI belum bisa dimuat: ${metricsError}`
                 : `Update terakhir dashboard: ${formatDateTime(metrics?.last_updated ?? null)}.`}
@@ -161,9 +184,10 @@ export default function AdminDashboardPage() {
                 <Link
                   key={action.href}
                   href={action.href}
-                  className="rounded-[1.3rem] border border-slate-200 bg-white px-4 py-4 transition-colors hover:border-slate-300 hover:bg-slate-50"
+                  className="admin-card-muted transition-transform hover:-translate-y-0.5"
                 >
-                  <div className="text-sm font-black tracking-tight text-slate-900">{action.label}</div>
+                  <div className="admin-heading text-sm">{action.label}</div>
+                  <div className="admin-muted mt-1 text-xs font-semibold leading-5">{action.description}</div>
                 </Link>
               ))}
             </div>
@@ -199,10 +223,10 @@ export default function AdminDashboardPage() {
       <section className="admin-surface overflow-hidden px-6 py-6 lg:px-8">
         <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div className="grid gap-1">
-            <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Event Snapshot</div>
-            <h2 className="text-2xl font-black tracking-tight text-slate-950">Ringkasan event terbaru</h2>
+            <div className="admin-kicker">Event Snapshot</div>
+            <h2 className="admin-heading text-2xl">Ringkasan event terbaru</h2>
           </div>
-          <Link href="/admin/events" className="admin-primary-button bg-slate-950 text-white hover:bg-slate-800">
+          <Link href="/admin/events" className="admin-primary-button">
             Buka Event Workspace
           </Link>
         </div>
@@ -212,3 +236,4 @@ export default function AdminDashboardPage() {
     </div>
   )
 }
+

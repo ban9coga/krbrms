@@ -1518,7 +1518,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
   }, [availableUsers, staffSearch])
 
   return (
-    <div style={{ maxWidth: 980, color: '#0f172a' }}>
+    <div className="admin-compact-page admin-settings-page" style={{ maxWidth: 980, color: '#0f172a' }}>
       <h1 style={{ fontSize: 26, fontWeight: 950, margin: 0, color: '#f8fafc' }}>{advancedOnly ? 'Advanced Multi-Stage' : 'Event Settings'}</h1>
       <div style={{ marginTop: 8, color: '#475569', fontWeight: 700 }}>
         {advancedOnly ? 'Kelola workflow AMS per kategori dari halaman khusus ini.' : 'Logo/sponsor & konfigurasi display/scoring per event.'}
@@ -3508,12 +3508,8 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
             type="button"
             onClick={handleSave}
             disabled={saving}
+            className="admin-primary-button"
             style={{
-              padding: '10px 16px',
-              borderRadius: 12,
-              border: '2px solid #111',
-              background: '#2ecc71',
-              fontWeight: 950,
               cursor: 'pointer',
             }}
           >

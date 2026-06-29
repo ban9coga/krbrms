@@ -2066,7 +2066,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
   }
 
   return (
-    <div className="grid gap-4 p-3 sm:gap-5 sm:p-4 md:p-6">
+    <div className="admin-compact-page grid gap-4 p-3 sm:gap-5 sm:p-4 md:p-6">
       <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="grid gap-2">
@@ -2079,7 +2079,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
           <div className="flex flex-wrap items-center gap-3">
             <Link
               href={`/admin/events/${eventId}/check-in`}
-              className="rounded-2xl border border-amber-400 bg-amber-100 px-4 py-3 text-sm font-black uppercase text-amber-900 hover:bg-amber-200"
+              className="admin-primary-button"
             >
               Check-in & Goodie Bag
             </Link>
@@ -2162,7 +2162,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
             </select>
             <button
               type="submit"
-              className="rounded-2xl border border-slate-950 bg-slate-950 px-4 py-3 text-sm font-black text-white transition hover:bg-slate-800"
+              className="admin-primary-button"
             >
               Cari
             </button>
@@ -2178,7 +2178,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                 setPageSize(10)
                 setFeedback(null)
               }}
-              className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-black text-slate-700 transition hover:border-slate-950 hover:text-slate-950"
+              className="admin-outline-button"
             >
               Reset
             </button>
@@ -2199,7 +2199,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                   exportingRiderExcel ||
                   exportingRiderPdf
                 }
-                className="rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-black text-emerald-900 transition hover:border-emerald-500 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                className="admin-export-button border-emerald-300 bg-emerald-50 text-emerald-900 hover:border-emerald-500 hover:bg-emerald-100"
               >
                 {exportingRegistrationExcel ? 'Menyiapkan XLSX...' : 'Export Registrasi XLSX'}
               </button>
@@ -2213,7 +2213,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                   exportingRiderExcel ||
                   exportingRiderPdf
                 }
-                className="rounded-full border border-sky-300 bg-sky-50 px-3 py-1.5 text-xs font-black text-sky-900 transition hover:border-sky-500 hover:bg-sky-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                className="admin-export-button border-sky-300 bg-sky-50 text-sky-900 hover:border-sky-500 hover:bg-sky-100"
               >
                 {exportingRegistrationPdf ? 'Menyiapkan PDF...' : 'Export Registrasi PDF'}
               </button>
@@ -2227,7 +2227,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                   exportingRegistrationExcel ||
                   exportingRegistrationPdf
                 }
-                className="rounded-full border border-violet-300 bg-violet-50 px-3 py-1.5 text-xs font-black text-violet-900 transition hover:border-violet-500 hover:bg-violet-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                className="admin-export-button border-violet-300 bg-violet-50 text-violet-900 hover:border-violet-500 hover:bg-violet-100"
               >
                 {exportingRiderExcel ? 'Menyiapkan XLSX...' : 'Export Rider XLSX'}
               </button>
@@ -2241,14 +2241,14 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                   exportingRegistrationExcel ||
                   exportingRegistrationPdf
                 }
-                className="rounded-full border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-xs font-black text-indigo-900 transition hover:border-indigo-500 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                className="admin-export-button border-indigo-300 bg-indigo-50 text-indigo-900 hover:border-indigo-500 hover:bg-indigo-100"
               >
                 {exportingRiderPdf ? 'Menyiapkan PDF...' : 'Export Rider PDF'}
               </button>
               <button
                 type="button"
                 onClick={() => setRefreshTick((prev) => prev + 1)}
-                className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-black text-slate-700 transition hover:border-slate-950 hover:text-slate-950"
+                className="admin-export-button"
               >
                 Refresh Data
               </button>
@@ -2268,7 +2268,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
           </div>
           <Link
             href={`/admin/events/${eventId}/check-in`}
-            className="w-fit rounded-2xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm font-black uppercase text-emerald-900 transition hover:border-emerald-500 hover:bg-emerald-100"
+            className="admin-outline-button w-fit"
           >
             Buka Check-in
           </Link>
@@ -2573,7 +2573,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                       <button
                         type="button"
                         onClick={() => setExpanded((prev) => ({ ...prev, [registration.id]: !isExpanded }))}
-                        className="min-h-11 rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-black text-slate-700 transition hover:border-slate-950 hover:text-slate-950"
+                        className="admin-outline-button min-h-11"
                       >
                         {isExpanded ? 'Sembunyikan Detail' : 'Lihat Detail'}
                       </button>
@@ -2581,7 +2581,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                         type="button"
                         disabled={savingKey === `registration:${registration.id}` || !readiness.canApprove}
                         onClick={() => openApproveModal(registration)}
-                        className="min-h-11 rounded-2xl border border-emerald-300 bg-emerald-100 px-4 py-2 text-sm font-black text-emerald-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                        className="admin-primary-button min-h-11"
                       >
                         Approve & Create Riders
                       </button>
@@ -2589,7 +2589,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                         type="button"
                         disabled={savingKey === `registration:${registration.id}` || registration.status !== 'PENDING'}
                         onClick={() => openRejectModal(registration)}
-                        className="min-h-11 rounded-2xl border border-rose-300 bg-rose-100 px-4 py-2 text-sm font-black text-rose-950 transition hover:bg-rose-200 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                        className="admin-danger-button min-h-11"
                       >
                         Reject
                       </button>
@@ -2601,7 +2601,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                               (!isCentralAdmin && registration.status !== 'REJECTED')
                             }
                             onClick={() => openDeleteModal(registration)}
-                            className="min-h-11 rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-black text-slate-700 transition hover:border-slate-950 hover:text-slate-950 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                            className="admin-danger-button min-h-11"
                           >
                             {isCentralAdmin ? 'Delete' : 'Delete Rejected'}
                           </button>
@@ -2916,7 +2916,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
               <button
                 type="button"
                 onClick={closeModal}
-                className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-black text-slate-700 transition hover:border-slate-950 hover:text-slate-950"
+                className="admin-outline-button"
               >
                 Batal
               </button>
@@ -2924,13 +2924,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                 type="button"
                 disabled={Boolean(savingKey)}
                 onClick={handleModalConfirm}
-                className={`rounded-2xl px-4 py-3 text-sm font-black transition disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 ${
-                  modal.type === 'approve'
-                    ? 'border border-emerald-300 bg-emerald-100 text-emerald-950 hover:bg-emerald-200'
-                    : modal.type === 'reject'
-                      ? 'border border-rose-300 bg-rose-100 text-rose-950 hover:bg-rose-200'
-                      : 'border border-slate-950 bg-slate-950 text-white hover:bg-slate-800'
-                }`}
+                className={modal.type === 'approve' ? 'admin-primary-button' : 'admin-danger-button'}
               >
                 {modal.type === 'approve' ? 'Approve Sekarang' : modal.type === 'reject' ? 'Reject Sekarang' : 'Delete Permanen'}
               </button>

@@ -830,7 +830,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
   }
 
   return (
-    <div style={{ maxWidth: 980, width: '100%' }} className="motos-print-root">
+    <div style={{ maxWidth: 980, width: '100%' }} className="admin-compact-page motos-print-root">
       <div className="no-print motos-topbar" style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
         <div style={{ display: 'grid', gap: 2, minWidth: 0 }}>
           <h1 style={{ fontSize: 26, fontWeight: 950, margin: 0 }}>Motos</h1>
@@ -841,12 +841,8 @@ export default function MotosClient({ eventId }: { eventId: string }) {
             type="button"
             onClick={() => load('refresh', { includeAdvancedSummary: true })}
             disabled={loading || refreshing}
+            className="admin-primary-button"
             style={{
-              padding: '10px 12px',
-              borderRadius: 12,
-              border: '2px solid #111',
-              background: '#dcfce7',
-              fontWeight: 900,
               cursor: loading || refreshing ? 'not-allowed' : 'pointer',
               whiteSpace: 'nowrap',
               opacity: loading || refreshing ? 0.6 : 1,
@@ -857,12 +853,8 @@ export default function MotosClient({ eventId }: { eventId: string }) {
           <button
             type="button"
             onClick={handlePrintMotoRiders}
+            className="admin-outline-button"
             style={{
-              padding: '10px 12px',
-              borderRadius: 12,
-              border: '2px solid #111',
-              background: '#fde68a',
-              fontWeight: 900,
               cursor: 'pointer',
               whiteSpace: 'nowrap',
             }}

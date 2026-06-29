@@ -808,6 +808,56 @@ html[data-theme='dark'] .login-editorial-password-toggle {
   html[data-theme='dark'] .admin-theme-scope [style*='border:2px dashed #111'] {
     border-color: #334155 !important;
   }
+
+  html[data-theme='dark'] .admin-secondary-button,
+  html[data-theme='dark'] .admin-outline-button,
+  html[data-theme='dark'] .admin-export-button {
+    border-color: #334155 !important;
+    background: #0f172a !important;
+    color: #e2e8f0 !important;
+  }
+
+  html[data-theme='dark'] .admin-secondary-button:hover,
+  html[data-theme='dark'] .admin-outline-button:hover,
+  html[data-theme='dark'] .admin-export-button:hover {
+    border-color: #64748b !important;
+    background: #1e293b !important;
+  }
+
+  html[data-theme='dark'] .admin-primary-button {
+    border-color: #fbbf24 !important;
+    background: #fbbf24 !important;
+    color: #111827 !important;
+  }
+
+  html[data-theme='dark'] .admin-primary-button:hover {
+    background: #fde68a !important;
+  }
+
+  html[data-theme='dark'] .admin-danger-button {
+    border-color: #7f1d1d !important;
+    background: #450a0a !important;
+    color: #fecaca !important;
+  }
+
+  html[data-theme='dark'] .admin-danger-button:hover {
+    background: #7f1d1d !important;
+  }
+
+  html[data-theme='dark'] .admin-nav-section-event {
+    border-color: #92400e;
+    background: color-mix(in srgb, #451a03 26%, var(--panel-bg));
+  }
+
+  html[data-theme='dark'] .admin-nav-link:hover {
+    border-color: #334155 !important;
+    background: #111827 !important;
+  }
+
+  html[data-theme='dark'] .admin-nav-link-active {
+    border-color: #fbbf24 !important;
+    background: linear-gradient(135deg, rgba(251, 191, 36, 0.24), rgba(15, 23, 42, 0.96)) !important;
+  }
 }
 
 @layer components {
@@ -818,12 +868,96 @@ html[data-theme='dark'] .login-editorial-password-toggle {
     box-shadow: var(--surface-shadow);
   }
 
+  .admin-card {
+    @apply rounded-[1.6rem] border p-5 shadow-[0_14px_34px_rgba(15,23,42,0.05)] transition-colors;
+    border-color: var(--panel-border);
+    background: var(--panel-bg);
+  }
+
+  .admin-card-muted {
+    @apply rounded-[1.5rem] border p-4 transition-colors;
+    border-color: var(--panel-border);
+    background: color-mix(in srgb, var(--panel-bg) 78%, var(--app-bg));
+  }
+
+  .admin-kicker {
+    @apply text-[11px] font-black uppercase tracking-[0.18em];
+    color: var(--chip-text);
+  }
+
+  .admin-heading {
+    @apply font-black tracking-tight;
+    color: var(--app-text);
+  }
+
+  .admin-muted {
+    color: var(--chip-text);
+  }
+
   .admin-primary-button {
-    @apply inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-black uppercase tracking-[0.12em] transition-colors;
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-black uppercase tracking-[0.12em] transition-colors disabled:cursor-not-allowed disabled:opacity-60;
+    border-color: #020617;
+    background: #020617;
+    color: #ffffff;
+  }
+
+  .admin-primary-button:hover {
+    background: #1e293b;
   }
 
   .admin-secondary-button {
     @apply inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950;
+  }
+
+  .admin-outline-button {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-black uppercase tracking-[0.12em] transition-colors disabled:cursor-not-allowed disabled:opacity-60;
+    border-color: var(--panel-border);
+    background: var(--panel-bg);
+    color: var(--app-text);
+  }
+
+  .admin-outline-button:hover {
+    border-color: #94a3b8;
+  }
+
+  .admin-danger-button {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-black uppercase tracking-[0.12em] transition-colors disabled:cursor-not-allowed disabled:opacity-60;
+    border-color: #fecaca;
+    background: #fee2e2;
+    color: #991b1b;
+  }
+
+  .admin-danger-button:hover {
+    border-color: #f87171;
+    background: #fecaca;
+  }
+
+  .admin-export-button {
+    @apply inline-flex items-center justify-center gap-2 rounded-full border px-3 py-1.5 text-xs font-black transition-colors disabled:cursor-not-allowed disabled:opacity-60;
+    border-color: var(--panel-border);
+    background: var(--panel-bg);
+    color: var(--app-text);
+  }
+
+  .admin-skeleton {
+    @apply animate-pulse rounded-xl;
+    background: linear-gradient(90deg, var(--chip-bg), var(--panel-bg), var(--chip-bg));
+    background-size: 200% 100%;
+  }
+
+  .admin-nav-section {
+    @apply rounded-[1.4rem] border p-2.5;
+    border-color: var(--panel-border);
+    background: color-mix(in srgb, var(--panel-bg) 70%, transparent);
+  }
+
+  .admin-nav-section-global {
+    border-color: color-mix(in srgb, #94a3b8 55%, var(--panel-border));
+  }
+
+  .admin-nav-section-event {
+    border-color: color-mix(in srgb, #f59e0b 62%, var(--panel-border));
+    background: color-mix(in srgb, #fef3c7 24%, var(--panel-bg));
   }
 
   .admin-nav-link {
@@ -832,6 +966,22 @@ html[data-theme='dark'] .login-editorial-password-toggle {
 
   .admin-nav-link-active {
     @apply border-amber-200 bg-[linear-gradient(135deg,rgba(251,191,36,0.2),rgba(255,255,255,0.96))] shadow-[0_12px_30px_rgba(251,191,36,0.18)];
+  }
+
+  .admin-compact-page {
+    @apply text-[0.95rem];
+  }
+
+  .admin-compact-page p,
+  .admin-compact-page label,
+  .admin-compact-page input,
+  .admin-compact-page select,
+  .admin-compact-page textarea {
+    line-height: 1.45;
+  }
+
+  .admin-compact-page .rounded-3xl {
+    @apply shadow-[0_14px_34px_rgba(15,23,42,0.05)];
   }
 
   .public-page {
