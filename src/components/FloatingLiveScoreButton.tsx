@@ -6,6 +6,10 @@ import { usePathname } from 'next/navigation'
 export default function FloatingLiveScoreButton({ hasLiveEvent }: { hasLiveEvent: boolean }) {
   const pathname = usePathname()
 
+  if (!hasLiveEvent) {
+    return null
+  }
+
   if (pathname === '/live-results' || pathname.startsWith('/live-results/')) {
     return null
   }
@@ -13,10 +17,10 @@ export default function FloatingLiveScoreButton({ hasLiveEvent }: { hasLiveEvent
   return (
     <Link
       href="/live-results"
-      className={`floating-live-score-button ${hasLiveEvent ? 'floating-live-score-button-live' : ''}`.trim()}
-      aria-label={hasLiveEvent ? 'Live Sekarang' : 'Live Skor'}
+      className="floating-live-score-button floating-live-score-button-live"
+      aria-label="Live Sekarang"
     >
-      {hasLiveEvent && <span className="floating-live-score-pulse" aria-hidden="true" />}
+      <span className="floating-live-score-pulse" aria-hidden="true" />
       <svg
         viewBox="0 0 24 24"
         fill="none"
@@ -31,7 +35,7 @@ export default function FloatingLiveScoreButton({ hasLiveEvent }: { hasLiveEvent
         <path d="M16 20v-7" />
         <path d="M22 20H2" />
       </svg>
-      <span>{hasLiveEvent ? '🔴 Live Sekarang' : 'Live Skor'}</span>
+      <span>Live Sekarang</span>
     </Link>
   )
 }

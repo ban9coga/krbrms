@@ -4,7 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
-import { useTheme } from '../../components/ThemeProvider'
+import { ThemeToggleSwitch, useTheme } from '../../components/ThemeProvider'
 import { canAccessAdminWorkspace, formatAppRoleLabel, isRegistrationApproverRole, normalizeAppRole } from '../../lib/roles'
 import { supabase } from '../../lib/supabaseClient'
 
@@ -595,6 +595,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
+            <ThemeToggleSwitch />
             {!isMobile && (
               <div className={`hidden max-w-[320px] rounded-full border px-4 py-2 text-right sm:block ${isDark ? 'border-slate-700 bg-slate-900/80' : 'border-slate-200 bg-slate-50'}`}>
                 <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">{formatAppRoleLabel(userRole)}</div>

@@ -54,6 +54,7 @@ export default function LiveEntryButton({
   const router = useRouter()
   const pathname = usePathname()
   const [prefetchedHref, setPrefetchedHref] = useState<string | null>(null)
+  const [hasCheckedLiveEvent, setHasCheckedLiveEvent] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
@@ -64,10 +65,12 @@ export default function LiveEntryButton({
         const href = await getLiveEventHref(mode)
         if (isMounted) {
           setPrefetchedHref(href)
+          setHasCheckedLiveEvent(true)
         }
       } catch {
         if (isMounted) {
           setPrefetchedHref(null)
+          setHasCheckedLiveEvent(true)
         }
       }
     }
@@ -102,6 +105,14 @@ export default function LiveEntryButton({
       ? pathname.includes('/live-score/')
       : pathname.includes('/display')
   )
+
+  if (hasCheckedLiveEvent && !prefetchedHref) {
+    return null
+  }
+
+  if (!hasCheckedLiveEvent) {
+    return null
+  }
 
   return (
     <button
