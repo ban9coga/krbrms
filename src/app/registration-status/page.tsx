@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useEffect, useState } from 'react'
 import PublicTopbar from '../../components/PublicTopbar'
 import { buildQrCodeUrl } from '../../lib/publicLinks'
@@ -272,8 +273,7 @@ export default function RegistrationStatusPage() {
             <div className="rounded-2xl border border-[#d9c9ae] bg-[#f8eedb] p-4 text-center">
               <div className="text-[10px] font-black uppercase tracking-[0.14em] text-[#796657]">QR Pendaftaran</div>
               <div className="mx-auto mt-3 w-fit rounded-2xl border border-[#d9c9ae] bg-white p-3 shadow-sm">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
+                <Image
                   src={buildQrCodeUrl(buildRegistrationStatusUrl(result.registration_code), 220)}
                   alt={`QR status pendaftaran ${result.registration_code}`}
                   width={220}

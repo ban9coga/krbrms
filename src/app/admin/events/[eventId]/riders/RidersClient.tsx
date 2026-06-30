@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useEffect, useMemo, useState, type ClipboardEvent, type DragEvent } from 'react'
 import { buildBrandedPrintHtml } from '../../../../../lib/printTheme'
 import { isRegistrationApproverRole, normalizeAppRole } from '../../../../../lib/roles'
@@ -1357,13 +1358,14 @@ export default function RidersClient({ eventId }: { eventId: string }) {
                 key={rider.id}
                 className="grid gap-4 rounded-[1.6rem] border border-slate-200 bg-[linear-gradient(135deg,#ffffff_0%,#ffffff_72%,#f8fafc_100%)] p-4 shadow-[0_12px_30px_rgba(15,23,42,0.05)] lg:grid-cols-[72px_minmax(0,1fr)_auto]"
               >
-                <div className="flex h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-[1.4rem] border border-slate-200 bg-slate-50 text-sm font-black text-slate-500">
+                <div className="relative flex h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-[1.4rem] border border-slate-200 bg-slate-50 text-sm font-black text-slate-500">
                   {rider.photo_thumbnail_url ? (
-                    <img
+                    <Image
                       src={rider.photo_thumbnail_url}
                       alt={rider.name}
+                      fill
+                      sizes="72px"
                       className="h-full w-full object-cover"
-                      loading="lazy"
                     />
                   ) : (
                     'NO'
@@ -1557,11 +1559,18 @@ export default function RidersClient({ eventId }: { eventId: string }) {
                   <input type="file" accept="image/*" onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)} style={{ display: 'none' }} />
                 </label>
                 {photoPreview && (
-                  <img
-                    src={photoPreview}
-                    alt="Preview"
-                    style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 16, border: '2px solid #111' }}
-                    loading="lazy"
+                  <div
+                    aria-label="Preview"
+                    role="img"
+                    style={{
+                      width: 120,
+                      height: 120,
+                      backgroundImage: `url("${photoPreview}")`,
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                      borderRadius: 16,
+                      border: '2px solid #111',
+                    }}
                   />
                 )}
               </div>

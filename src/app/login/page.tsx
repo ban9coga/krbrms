@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import { useState } from 'react'
 import MarketingTopbar from '../../components/MarketingTopbar'
@@ -126,7 +127,13 @@ export default function LoginPage() {
           <div className="login-editorial-card">
             <div className="login-editorial-card-head">
               <div className="flex items-center gap-3">
-                <img src="/platform-logo.png" alt="Platform Logo" className="h-12 w-12 object-contain" />
+                <Image
+                  src="/platform-logo.png"
+                  alt="Platform Logo"
+                  width={48}
+                  height={48}
+                  className="h-12 w-12 object-contain"
+                />
                 <div>
                   <p className="login-editorial-card-kicker">Staff access</p>
                   <h2>Login Dashboard</h2>

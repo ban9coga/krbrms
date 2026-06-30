@@ -34,7 +34,7 @@ const normalizePlateSuffix = (value: unknown) => {
 }
 
 export async function GET(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
-  const limited = rateLimit(req, PLATE_CHECK_LIMIT)
+  const limited = await rateLimit(req, PLATE_CHECK_LIMIT)
   if (!limited.ok) return limited.response
 
   const { eventId } = await params

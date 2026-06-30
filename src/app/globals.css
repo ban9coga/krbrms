@@ -716,6 +716,67 @@ html[data-theme='dark'] .login-editorial-password-toggle {
     box-shadow: 0 20px 44px rgba(2, 6, 23, 0.35) !important;
   }
 
+  html[data-theme='dark'] .admin-theme-scope [class*='bg-[linear-gradient'],
+  html[data-theme='dark'] .admin-theme-scope [style*='background: linear-gradient'],
+  html[data-theme='dark'] .admin-theme-scope [style*='background:linear-gradient'] {
+    background: linear-gradient(135deg, #0f172a 0%, #111827 70%, #0b1220 100%) !important;
+  }
+
+  html[data-theme='dark'] .admin-theme-scope .bg-amber-50,
+  html[data-theme='dark'] .admin-theme-scope .bg-yellow-50,
+  html[data-theme='dark'] .admin-theme-scope .bg-orange-50 {
+    border-color: #92400e !important;
+    background-color: #451a03 !important;
+    color: #fde68a !important;
+  }
+
+  html[data-theme='dark'] .admin-theme-scope .bg-emerald-50,
+  html[data-theme='dark'] .admin-theme-scope .bg-green-50 {
+    border-color: #065f46 !important;
+    background-color: #022c22 !important;
+    color: #a7f3d0 !important;
+  }
+
+  html[data-theme='dark'] .admin-theme-scope .bg-blue-50,
+  html[data-theme='dark'] .admin-theme-scope .bg-sky-50 {
+    border-color: #075985 !important;
+    background-color: #082f49 !important;
+    color: #bae6fd !important;
+  }
+
+  html[data-theme='dark'] .admin-theme-scope .bg-red-50,
+  html[data-theme='dark'] .admin-theme-scope .bg-red-100,
+  html[data-theme='dark'] .admin-theme-scope .bg-rose-50 {
+    border-color: #7f1d1d !important;
+    background-color: #450a0a !important;
+    color: #fecaca !important;
+  }
+
+  html[data-theme='dark'] .admin-theme-scope .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+  html[data-theme='dark'] .admin-theme-scope .divide-slate-200 > :not([hidden]) ~ :not([hidden]),
+  html[data-theme='dark'] .admin-theme-scope .border-b,
+  html[data-theme='dark'] .admin-theme-scope .border-t {
+    border-color: #334155 !important;
+  }
+
+  html[data-theme='dark'] .admin-theme-scope table {
+    color: #e2e8f0;
+  }
+
+  html[data-theme='dark'] .admin-theme-scope thead,
+  html[data-theme='dark'] .admin-theme-scope th {
+    background-color: #0f172a !important;
+    color: #cbd5e1 !important;
+  }
+
+  html[data-theme='dark'] .admin-theme-scope tbody tr {
+    border-color: #334155 !important;
+  }
+
+  html[data-theme='dark'] .admin-theme-scope tbody tr:hover {
+    background-color: #1e293b !important;
+  }
+
   html[data-theme='dark'] .admin-events-theme > section:first-child {
     border-color: #334155 !important;
     background: linear-gradient(135deg, #0f172a 0%, #111827 68%, #3f2f0c 100%) !important;

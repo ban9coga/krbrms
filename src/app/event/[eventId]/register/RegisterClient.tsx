@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent, type DragEvent } from 'react'
 import PublicTopbar from '../../../../components/PublicTopbar'
 import {
@@ -1423,10 +1424,12 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
             </div>
             {eventLogoUrl && (
               <div className="mx-auto w-full max-w-[210px] rounded-[1.5rem] border border-white/15 bg-white/5 p-3 shadow-[0_22px_55px_rgba(2,6,23,0.18)] ring-1 ring-white/5 backdrop-blur md:max-w-none">
-                <div className="flex aspect-[4/5] items-center justify-center overflow-hidden rounded-[1rem] bg-transparent">
-                  <img
+                <div className="relative flex aspect-[4/5] items-center justify-center overflow-hidden rounded-[1rem] bg-transparent">
+                  <Image
                     src={eventLogoUrl}
                     alt={`${publicEventTitle} logo`}
+                    fill
+                    sizes="(min-width: 768px) 210px, 70vw"
                     className="block h-full w-full object-contain"
                   />
                 </div>
@@ -1657,9 +1660,12 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                             Memuat size chart...
                           </div>
                         ) : jerseySizeChartImageUrl && !jerseySizeChartFailed ? (
-                          <img
+                          <Image
                             src={jerseySizeChartImageUrl}
                             alt="Jersey size chart"
+                            width={900}
+                            height={600}
+                            sizes="(min-width: 768px) 50vw, 100vw"
                             className="block w-full h-auto"
                             onError={() => setJerseySizeChartFailed(true)}
                           />
@@ -2010,9 +2016,12 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                       </div>
                       <div className="mt-1 text-[11px] font-semibold text-slate-500">Scan untuk pembayaran</div>
                     </div>
-                    <img
+                    <Image
                       src={paymentQrisImageUrl}
                       alt="QRIS pembayaran"
+                      width={240}
+                      height={320}
+                      sizes="240px"
                       className="mx-auto mt-3 block aspect-[3/4] w-full max-w-[240px] rounded-xl object-contain"
                     />
                   </div>
@@ -2284,8 +2293,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                 Simpan kode ini untuk mengecek status pendaftaran.
               </p>
               <div className="mx-auto mt-4 w-fit rounded-2xl border border-[#d9c9ae] bg-white p-3 shadow-sm">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
+                <Image
                   src={buildQrCodeUrl(buildRegistrationStatusUrl(success.registrationCode), 180)}
                   alt={`QR status pendaftaran ${success.registrationCode}`}
                   width={180}

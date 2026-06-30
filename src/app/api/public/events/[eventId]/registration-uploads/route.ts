@@ -25,7 +25,7 @@ export const runtime = 'nodejs'
 const getPendingPrefix = (eventId: string) => `events/${eventId}/pending/`
 
 export async function POST(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
-  const limited = rateLimit(req, PENDING_UPLOAD_LIMIT)
+  const limited = await rateLimit(req, PENDING_UPLOAD_LIMIT)
   if (!limited.ok) return limited.response
 
   const { eventId } = await params
@@ -107,7 +107,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
 }
 
 export async function DELETE(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
-  const limited = rateLimit(req, PENDING_UPLOAD_DELETE_LIMIT)
+  const limited = await rateLimit(req, PENDING_UPLOAD_DELETE_LIMIT)
   if (!limited.ok) return limited.response
 
   const { eventId } = await params

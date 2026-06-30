@@ -617,7 +617,7 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
 export const runtime = 'nodejs'
 
 export async function POST(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
-  const limited = rateLimit(req, SUBMIT_REGISTRATION_LIMIT)
+  const limited = await rateLimit(req, SUBMIT_REGISTRATION_LIMIT)
   if (!limited.ok) return limited.response
 
   const { eventId } = await params

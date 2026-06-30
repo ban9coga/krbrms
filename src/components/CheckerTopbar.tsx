@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -68,9 +69,11 @@ export default function CheckerTopbar({ title = 'Checker Control' }: CheckerTopb
       <div className="w-full px-4 py-3 md:px-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <Link href={roleHomeHref(roleKey)} className="flex min-w-0 items-center gap-3">
-            <img
+            <Image
               src="/platform-logo.png"
               alt="Platform Logo"
+              width={40}
+              height={40}
               className="h-9 w-9 flex-shrink-0 object-contain sm:h-10 sm:w-10"
             />
             <div className="min-w-0">

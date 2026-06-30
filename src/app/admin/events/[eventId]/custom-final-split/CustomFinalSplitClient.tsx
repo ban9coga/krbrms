@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../../../../lib/supabaseClient'
 
@@ -1188,7 +1189,13 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
                       padding: 8,
                     }}
                   >
-                    <img src={themeLogoUrl} alt={eventMeta?.name ?? 'Event Logo'} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                    <Image
+                      src={themeLogoUrl}
+                      alt={eventMeta?.name ?? 'Event Logo'}
+                      width={66}
+                      height={66}
+                      style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                    />
                   </div>
                 )}
                 <div style={{ display: 'grid', gap: 6 }}>

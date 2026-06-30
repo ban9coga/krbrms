@@ -154,7 +154,7 @@ const CONFIRM_ATTENDANCE_LIMIT = {
 
 async function handlePost(req: Request, skipRateLimit = false) {
   if (!skipRateLimit) {
-    const limited = rateLimit(req, CHECK_STATUS_LIMIT)
+    const limited = await rateLimit(req, CHECK_STATUS_LIMIT)
     if (!limited.ok) return limited.response
   }
 
@@ -242,7 +242,7 @@ export async function POST(req: Request) {
 }
 
 export async function PATCH(req: Request) {
-  const limited = rateLimit(req, CONFIRM_ATTENDANCE_LIMIT)
+  const limited = await rateLimit(req, CONFIRM_ATTENDANCE_LIMIT)
   if (!limited.ok) return limited.response
 
   const body = await req.json().catch(() => null)

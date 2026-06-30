@@ -1,5 +1,6 @@
 ﻿'use client'
 
+import Image from 'next/image'
 import type { BusinessSettings, EventSponsor } from '../lib/eventService'
 
 type SponsorPlacement = 'event_page' | 'live_display'
@@ -100,7 +101,7 @@ const normalizeSponsors = (
   }
 
   return (sponsorLogoUrls ?? [])
-    .map((url, index) => (typeof url === 'string' ? url.trim() : ''))
+    .map((url) => (typeof url === 'string' ? url.trim() : ''))
     .filter(Boolean)
     .map((logoUrl, index) => ({
       id: `legacy-sponsor-${index + 1}`,
@@ -145,20 +146,21 @@ export default function SponsorMarquee({
   const animate = marqueeSponsors.length > 0
   const duration = Math.max(20, marqueeSponsors.length * (compact ? 2.8 : 3.6))
   const renderItems = (items: ResolvedSponsor[], suffix: string) =>
-    items.map((sponsor, index) => {
+    items.map((sponsor) => {
       const image = (
-        <img
-          key={`${sponsor.id}-${suffix}-${index}`}
+        <Image
           src={sponsor.logoUrl}
           alt={sponsor.name}
-          loading="lazy"
+          width={180}
+          height={72}
+          sizes={compact ? '96px' : '160px'}
           className={`w-auto object-contain ${compact ? 'h-8 sm:h-10' : 'h-10 sm:h-12 md:h-14'}`}
         />
       )
 
       return sponsor.href ? (
         <a
-          key={`${sponsor.id}-${suffix}-${index}`}
+          key={`${sponsor.id}-${suffix}`}
           href={sponsor.href}
           target="_blank"
           rel="noopener noreferrer"
@@ -169,7 +171,7 @@ export default function SponsorMarquee({
         </a>
       ) : (
         <div
-          key={`${sponsor.id}-${suffix}-${index}`}
+          key={`${sponsor.id}-${suffix}`}
           className="inline-flex shrink-0 items-center rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm"
           title={sponsor.name}
         >

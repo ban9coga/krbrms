@@ -194,7 +194,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   )
   const cacheHeaders = includeUpcoming
     ? { 'Cache-Control': 'no-store' }
-    : { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300' }
+    : { 'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=300' }
   if (!categoryId) return NextResponse.json({ error: 'category_id required' }, { status: 400 })
 
   const { data: category, error: catError } = await adminClient

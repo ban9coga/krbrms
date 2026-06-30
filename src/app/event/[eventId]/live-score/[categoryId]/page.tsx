@@ -3,8 +3,10 @@ import { GET as getLiveScore } from '../../../../api/public/events/[eventId]/liv
 import { adminClient } from '../../../../../lib/auth'
 import { proxyBusinessSettingsMedia, toPublicMediaUrl, toPublicMediaUrls } from '../../../../../lib/publicMedia'
 import type { BusinessSettings, EventItem, RiderCategory } from '../../../../../lib/eventService'
+import { unstable_cache } from 'next/cache'
 
 export const dynamic = 'force-dynamic'
+const FINISHED_LIVE_SCORE_CACHE_SECONDS = 120
 
 const parseBusinessSettings = (value: unknown): BusinessSettings => {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
@@ -81,6 +83,16 @@ const loadInitialLiveScore = async (
   return json?.data ?? null
 }
 
+const loadCachedFinishedLiveScore = unstable_cache(
+  async (eventId: string, categoryId: string, includePhotos: boolean) =>
+    loadInitialLiveScore(eventId, categoryId, includePhotos, false),
+  ['public-finished-live-score'],
+  {
+    revalidate: FINISHED_LIVE_SCORE_CACHE_SECONDS,
+    tags: ['public-finished-live-score'],
+  }
+)
+
 export default async function LiveScorePage({
   params,
 }: {
@@ -92,7 +104,10 @@ export default async function LiveScorePage({
     loadInitialCategories(eventId),
   ])
   const includePhotos = event?.business_settings?.show_rider_photos_public === true
-  const initialLiveScore = await loadInitialLiveScore(eventId, categoryId, includePhotos, event?.status === 'LIVE')
+  const initialLiveScore =
+    event?.status === 'LIVE'
+      ? await loadInitialLiveScore(eventId, categoryId, includePhotos, true)
+      : await loadCachedFinishedLiveScore(eventId, categoryId, includePhotos)
 
   return (
     <LiveScoreClient

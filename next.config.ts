@@ -35,7 +35,7 @@ const securityHeaders = [
       "form-action 'self'",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob: https:",
+      "img-src 'self' data: blob: https://*.supabase.co https://api.qrserver.com https://res.cloudinary.com",
       "font-src 'self' data:",
       "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
       "media-src 'self' https://*.supabase.co",
@@ -62,7 +62,11 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: "https",
-        hostname: "**",
+        hostname: "api.qrserver.com",
+      },
+      {
+        protocol: "https",
+        hostname: "res.cloudinary.com",
       },
     ],
   },
