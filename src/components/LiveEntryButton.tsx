@@ -87,13 +87,11 @@ export default function LiveEntryButton({
     try {
       const href = prefetchedHref ?? (await getLiveEventHref(mode))
       if (!href) {
-        alert('Belum ada event yang LIVE. Lihat event lainnya.')
         router.push(fallbackHref)
         return
       }
       router.push(href)
     } catch {
-      alert('Belum ada event yang LIVE. Lihat event lainnya.')
       router.push(fallbackHref)
     } finally {
       setIsLoading(false)
@@ -106,21 +104,13 @@ export default function LiveEntryButton({
       : pathname.includes('/display')
   )
 
-  if (hasCheckedLiveEvent && !prefetchedHref) {
-    return null
-  }
-
-  if (!hasCheckedLiveEvent) {
-    return null
-  }
-
   return (
     <button
       type="button"
       onClick={handleClick}
       className={`${className} ${isActive ? activeClassName : ''}`.trim()}
       title={title}
-      aria-busy={isLoading}
+      aria-busy={isLoading || !hasCheckedLiveEvent}
     >
       {label}
     </button>
