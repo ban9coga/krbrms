@@ -479,7 +479,7 @@ function WhatsAppAction({
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className={`inline-flex min-h-11 items-center justify-center rounded-2xl border border-emerald-300 bg-emerald-600 px-4 py-2 text-sm font-black text-white transition hover:bg-emerald-700 ${className}`}
+      className={`admin-success-button min-h-11 ${className}`}
     >
       {label ?? 'Kirim WA'}
     </a>
@@ -2505,8 +2505,8 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
             const isExpanded = expanded[registration.id] ?? false
 
             return (
-              <section key={registration.id} className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-                <div className="border-b border-slate-200 bg-slate-50/80 px-5 py-4">
+              <section key={registration.id} className="admin-card overflow-hidden p-0">
+                <div className="border-b border-slate-200 px-5 py-4">
                   <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                     <div className="grid gap-3">
                       <div className="flex flex-wrap items-center gap-2">
@@ -2525,7 +2525,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                         >
                           {paymentSummary === 'NO_PAYMENT' ? 'Belum Bayar' : `Payment ${paymentSummary}`}
                         </span>
-                        <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] text-slate-600">
+                        <span className="admin-tone-badge admin-tone-neutral">
                           {registration.registration_items.length} Rider
                         </span>
                       </div>
@@ -2561,7 +2561,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                     </div>
 
                     <div className="grid gap-3 xl:min-w-[380px]">
-                      <div className="grid gap-2 sm:grid-cols-2 xl:flex xl:flex-wrap xl:items-center xl:justify-end">
+                      <div className="admin-action-row xl:justify-end">
                         <button
                           type="button"
                           onClick={() => setExpanded((prev) => ({ ...prev, [registration.id]: !isExpanded }))}
@@ -2604,12 +2604,12 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                         <summary className="cursor-pointer list-none text-xs font-black uppercase tracking-[0.14em] text-slate-500">
                           Notifikasi wali
                         </summary>
-                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        <div className="admin-action-row mt-3">
                           {registration.registration_code && (
                             <WhatsAppAction
                               registration={registration}
                               kind="STATUS_ACCESS"
-                              className="w-full border-sky-300 bg-sky-600 hover:bg-sky-700"
+                              className="w-full"
                               label="Kirim QR & Status"
                             />
                           )}
@@ -2628,7 +2628,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                                 ? 'Kode registrasi belum tersedia'
                                 : 'Kirim ulang email berisi kode, QR, dan link status'
                             }
-                            className="min-h-11 rounded-2xl border border-indigo-300 bg-indigo-50 px-4 py-2 text-sm font-black text-indigo-900 transition hover:border-indigo-500 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                            className="admin-outline-button min-h-11"
                           >
                             {savingKey === `email:${registration.id}` ? 'Mengirim Email...' : 'Kirim Email QR & Status'}
                           </button>
@@ -2648,9 +2648,9 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                   </div>
 
                   {!readiness.canApprove && registration.status === 'PENDING' && (
-                    <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
-                      <div className="text-xs font-black uppercase tracking-[0.14em] text-amber-900">Checklist Approval</div>
-                      <ul className="mt-2 grid gap-1 text-sm font-semibold text-amber-950">
+                    <div className="admin-card-tone-accent mt-4 rounded-2xl border px-4 py-3">
+                      <div className="admin-kicker">Checklist Approval</div>
+                      <ul className="admin-muted mt-2 grid gap-1 text-sm font-semibold">
                         {readiness.blockingReasons.map((reason) => (
                           <li key={reason}>- {reason}</li>
                         ))}
@@ -2659,16 +2659,16 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                   )}
 
                   {registration.notes && (
-                    <div className="mt-4 rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                      <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Catatan Admin</div>
-                      <div className="mt-2 text-sm font-medium text-slate-700">{registration.notes}</div>
+                    <div className="admin-card-muted mt-4 px-4 py-3">
+                      <div className="admin-kicker">Catatan Admin</div>
+                      <div className="admin-muted mt-2 text-sm font-medium">{registration.notes}</div>
                     </div>
                   )}
                 </div>
 
                 {isExpanded && (
                   <div className="grid gap-5 px-5 py-5">
-                    <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <section className="admin-card-muted p-4">
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
                           <div className="text-sm font-black uppercase tracking-[0.14em] text-slate-500">Review Pembayaran</div>
@@ -2680,14 +2680,14 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
 
                       <div className="mt-4 grid gap-3">
                         {registration.registration_payments.length === 0 ? (
-                          <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-4 text-sm font-semibold text-slate-500">
+                          <div className="admin-card-muted border-dashed px-4 py-4 text-sm font-semibold">
                             Belum ada bukti pembayaran yang diupload.
                           </div>
                         ) : (
                           registration.registration_payments.map((payment) => (
                             <div
                               key={payment.id}
-                              className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 lg:grid-cols-[minmax(0,1fr)_auto]"
+                              className="admin-card grid gap-3 p-4 lg:grid-cols-[minmax(0,1fr)_auto]"
                             >
                               <div className="grid gap-1 text-sm text-slate-700">
                                 <div className="flex flex-wrap items-center gap-2">
@@ -2705,11 +2705,11 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                                 </div>
                               </div>
 
-                              <div className="grid gap-2 sm:grid-cols-3 lg:flex lg:flex-wrap lg:items-center">
+                              <div className="admin-action-row lg:justify-end">
                                 <button
                                   type="button"
                                   onClick={() => openFile(payment.proof_url)}
-                                  className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 transition hover:border-slate-950 hover:text-slate-950"
+                                  className="admin-outline-button min-h-11"
                                 >
                                   Lihat Bukti
                                 </button>
@@ -2717,7 +2717,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                                   type="button"
                                   disabled={savingKey === `payment:${payment.id}` || payment.status === 'APPROVED'}
                                   onClick={() => updatePaymentStatus(registration, payment, 'APPROVED')}
-                                  className="min-h-11 rounded-xl border border-emerald-300 bg-emerald-100 px-3 py-2 text-sm font-bold text-emerald-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                                  className="admin-success-button min-h-11"
                                 >
                                   {savingKey === `payment:${payment.id}` ? 'Menyimpan...' : 'Approve Payment'}
                                 </button>
@@ -2725,7 +2725,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                                   type="button"
                                   disabled={savingKey === `payment:${payment.id}` || payment.status === 'REJECTED'}
                                   onClick={() => updatePaymentStatus(registration, payment, 'REJECTED')}
-                                  className="min-h-11 rounded-xl border border-rose-300 bg-rose-100 px-3 py-2 text-sm font-bold text-rose-950 transition hover:bg-rose-200 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                                  className="admin-danger-button min-h-11"
                                 >
                                   {savingKey === `payment:${payment.id}` ? 'Menyimpan...' : 'Reject Payment'}
                                 </button>
@@ -2735,8 +2735,8 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                                 <div
                                   className={`rounded-xl border px-3 py-2 text-sm font-semibold ${
                                     paymentFeedback[payment.id].type === 'success'
-                                      ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
-                                      : 'border-rose-200 bg-rose-50 text-rose-900'
+                                      ? 'admin-card-tone-success'
+                                      : 'admin-card-tone-danger'
                                   }`}
                                 >
                                   {paymentFeedback[payment.id].message}
@@ -2757,7 +2757,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                         const plateCheck = plateChecks[item.id]
 
                         return (
-                          <article key={item.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                          <article key={item.id} className="admin-card p-4">
                             <div className="flex flex-wrap items-start justify-between gap-3">
                               <div className="grid gap-1">
                                 <div className="text-lg font-black text-slate-950">{item.rider_name}</div>
@@ -2768,7 +2768,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                                   {item.gender} | {item.date_of_birth} | {item.club || 'Tanpa club'}
                                 </div>
                               </div>
-                              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-black text-slate-950">
+                              <div className="admin-card-muted px-3 py-2 text-sm font-black">
                                 {formatRupiah(item.price)}
                               </div>
                             </div>
@@ -2788,12 +2788,12 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                                 type="button"
                                 disabled={!item.photo_url}
                                 onClick={() => item.photo_url && openFile(item.photo_url)}
-                                className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 transition hover:border-slate-950 hover:text-slate-950 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                                className="admin-outline-button"
                               >
                                 Lihat Foto
                               </button>
                               {docs.length === 0 ? (
-                                <div className="rounded-xl border border-dashed border-rose-200 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-800">
+                                <div className="admin-card-tone-danger rounded-xl border border-dashed px-3 py-2 text-sm font-bold">
                                   Dokumen belum ada
                                 </div>
                               ) : (
@@ -2802,7 +2802,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                                     key={doc.id}
                                     type="button"
                                     onClick={() => openFile(doc.file_url)}
-                                    className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 transition hover:border-slate-950 hover:text-slate-950"
+                                    className="admin-outline-button"
                                   >
                                     Lihat {doc.document_type}
                                   </button>
@@ -2810,7 +2810,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                               )}
                             </div>
 
-                            <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                            <div className="admin-card-muted mt-4 p-4">
                               <div className="flex flex-wrap items-center justify-between gap-2">
                                 <div>
                                   <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Final Plate</div>

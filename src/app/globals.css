@@ -844,6 +844,16 @@ html[data-theme='dark'] .login-editorial-password-toggle {
     background: #7f1d1d !important;
   }
 
+  html[data-theme='dark'] .admin-success-button {
+    border-color: #065f46 !important;
+    background: #064e3b !important;
+    color: #d1fae5 !important;
+  }
+
+  html[data-theme='dark'] .admin-success-button:hover {
+    background: #065f46 !important;
+  }
+
   html[data-theme='dark'] .admin-tone-danger {
     border-color: #7f1d1d !important;
     background: #450a0a !important;
@@ -1055,6 +1065,39 @@ html[data-theme='dark'] .login-editorial-password-toggle {
   .admin-danger-button:hover {
     border-color: #f87171;
     background: #fecaca;
+  }
+
+  .admin-success-button {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-black uppercase tracking-[0.12em] transition-colors disabled:cursor-not-allowed disabled:opacity-60;
+    border-color: #a7f3d0;
+    background: #d1fae5;
+    color: #047857;
+  }
+
+  .admin-success-button:hover {
+    border-color: #34d399;
+    background: #a7f3d0;
+  }
+
+  .admin-action-row {
+    @apply grid gap-2 sm:flex sm:flex-wrap sm:items-center;
+  }
+
+  @media (max-width: 640px) {
+    .admin-action-row > * {
+      width: 100%;
+    }
+
+    .admin-theme-scope main {
+      padding-left: 0.75rem;
+      padding-right: 0.75rem;
+    }
+
+    .admin-card,
+    .admin-card-muted,
+    .admin-surface {
+      border-radius: 1.15rem;
+    }
   }
 
   .admin-export-button {

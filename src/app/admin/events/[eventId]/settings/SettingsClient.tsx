@@ -1,7 +1,8 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
-import { useEffect, useMemo, useState, type DragEvent } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties, type DragEvent } from 'react'
 import SponsorMarquee from '../../../../../components/SponsorMarquee'
 import ToggleSwitch from '../../../../../components/ToggleSwitch'
 import {
@@ -131,6 +132,31 @@ function SettingsSectionSkeleton({ label = 'Memuat konfigurasi...' }: { label?: 
         <div className="admin-skeleton h-24" />
       </div>
     </div>
+  )
+}
+
+function AdminPreviewImage({
+  src,
+  alt,
+  width = 360,
+  height = 220,
+  style,
+}: {
+  src: string
+  alt: string
+  width?: number
+  height?: number
+  style?: CSSProperties
+}) {
+  return (
+    <Image
+      src={src}
+      alt={alt}
+      width={width}
+      height={height}
+      sizes="(max-width: 640px) 100vw, 360px"
+      style={{ display: 'block', width: '100%', height: 'auto', objectFit: 'contain', ...style }}
+    />
   )
 }
 
@@ -1548,13 +1574,13 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
       </div>
 
       {!advancedOnly && (
-        <div
-          style={{
-            marginTop: 16,
-            display: 'grid',
-            gap: 10,
-          }}
-        >
+        <div className="admin-card mt-4 grid gap-3">
+          <div>
+            <div className="admin-kicker">Settings Sections</div>
+            <div className="admin-muted mt-1 text-sm font-semibold">
+              Buka hanya bagian yang sedang dikerjakan agar halaman settings tidak terlalu padat.
+            </div>
+          </div>
             {[
               { key: 'sponsors', label: 'Sponsors' },
               { key: 'communityShowcase', label: 'Community Showcase' },
@@ -1579,48 +1605,31 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                 key={section.key}
                 type="button"
                 onClick={() => setSections((prev) => ({ ...prev, [section.key]: !prev[section.key as keyof typeof prev] }))}
-                style={{
-                  padding: '10px 14px',
-                  borderRadius: 12,
-                  border: '2px solid #111',
-                  background: isOpen ? '#bfead2' : '#fff',
-                  fontWeight: 900,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  cursor: 'pointer',
-                }}
+                className={`admin-card-muted flex items-center justify-between gap-3 text-left transition hover:-translate-y-0.5 ${
+                  isOpen ? 'admin-card-tone-success' : ''
+                }`}
               >
-                <span style={{ display: 'grid', gap: 2, textAlign: 'left' }}>
-                  <span>{section.label}</span>
-                  <span style={{ fontSize: 11, fontWeight: 800, color: '#333' }}>{summary}</span>
+                <span className="grid gap-1">
+                  <span className="admin-heading text-sm">{section.label}</span>
+                  <span className="admin-muted text-xs font-bold">{summary}</span>
                 </span>
-                <span style={{ fontSize: 12 }}>{isOpen ? 'Hide' : 'Show'}</span>
+                <span className={`admin-tone-badge ${isOpen ? 'admin-tone-success' : 'admin-tone-neutral'}`}>
+                  {isOpen ? 'Hide' : 'Show'}
+                </span>
               </button>
             )
           })}
           <Link
             href={`/admin/events/${eventId}/advanced-race`}
-            style={{
-              padding: '12px 14px',
-              borderRadius: 12,
-              border: '2px solid #111',
-              background: '#eef6ff',
-              color: '#0f172a',
-              fontWeight: 900,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              textDecoration: 'none',
-            }}
+            className="admin-card-muted flex items-center justify-between gap-3 text-left transition hover:-translate-y-0.5"
           >
-            <span style={{ display: 'grid', gap: 2 }}>
-              <span>Advanced Multi-Stage</span>
-              <span style={{ fontSize: 11, fontWeight: 800, color: '#1d4ed8' }}>
+            <span className="grid gap-1">
+              <span className="admin-heading text-sm">Advanced Multi-Stage</span>
+              <span className="admin-muted text-xs font-bold">
                 Stage, qualification, QF/SF/Final rules sekarang dikelola di menu khusus.
               </span>
             </span>
-            <span style={{ fontSize: 12 }}>Open</span>
+            <span className="admin-tone-badge admin-tone-info">Open</span>
           </Link>
         </div>
       )}
@@ -1916,10 +1925,12 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
 
                           {item.logo_url.trim() && (
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                              <img
+                              <AdminPreviewImage
                                 src={item.logo_url}
                                 alt={item.name || `Sponsor ${index + 1}`}
-                                style={{ height: 48, width: 'auto', maxWidth: 160, objectFit: 'contain', borderRadius: 8, background: '#fff', border: '1px solid #cbd5e1', padding: 6 }}
+                                width={160}
+                                height={64}
+                                style={{ height: 48, width: 'auto', maxWidth: 160, borderRadius: 8, background: '#fff', border: '1px solid #cbd5e1', padding: 6 }}
                               />
                               <div style={{ fontSize: 12, color: '#475569', fontWeight: 700 }}>
                                 Preview logo sponsor
@@ -2049,10 +2060,9 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                         maxWidth: 360,
                       }}
                     >
-                      <img
+                      <AdminPreviewImage
                         src={form.business_registration_jersey_size_chart_url}
                         alt="Preview size chart jersey"
-                        style={{ display: 'block', width: '100%', height: 'auto' }}
                       />
                     </div>
                   )}
@@ -2230,10 +2240,12 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
 
                         {item.logo_url.trim() && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <img
+                            <AdminPreviewImage
                               src={item.logo_url}
                               alt={item.name || `Community Logo ${index + 1}`}
-                              style={{ height: 56, width: 'auto', maxWidth: 180, objectFit: 'contain', borderRadius: 8, background: '#fff', border: '1px solid #cbd5e1', padding: 6 }}
+                              width={180}
+                              height={72}
+                              style={{ height: 56, width: 'auto', maxWidth: 180, borderRadius: 8, background: '#fff', border: '1px solid #cbd5e1', padding: 6 }}
                             />
                             <div style={{ fontSize: 12, color: '#475569', fontWeight: 700 }}>
                               Preview logo komunitas homepage
@@ -2551,10 +2563,11 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                         maxWidth: 280,
                       }}
                     >
-                      <img
+                      <AdminPreviewImage
                         src={form.business_registration_qris_image_url}
                         alt="Preview QRIS"
-                        style={{ display: 'block', width: '100%', height: 'auto' }}
+                        width={280}
+                        height={280}
                       />
                     </div>
                   )}
@@ -2623,10 +2636,9 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                           Buka gambar size chart
                         </a>
                         <div style={{ overflow: 'hidden', borderRadius: 14, border: '2px solid #111', background: '#fff' }}>
-                          <img
+                          <AdminPreviewImage
                             src={form.business_registration_jersey_size_chart_url}
                             alt="Preview size chart jersey"
-                            style={{ display: 'block', width: '100%', height: 'auto' }}
                           />
                         </div>
                       </div>
@@ -2938,9 +2950,11 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                   {logoUploading && <div style={{ fontWeight: 800 }}>Uploading...</div>}
                   {logoError && <div style={{ fontWeight: 800, color: '#b91c1c' }}>{logoError}</div>}
                   {(form.display_logo_url || form.event_logo_url) && (
-                    <img
-                      src={form.display_logo_url || form.event_logo_url}
+                    <AdminPreviewImage
+                      src={(form.display_logo_url || form.event_logo_url) ?? ''}
                       alt="Event logo preview"
+                      width={64}
+                      height={64}
                       style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 12, border: '2px solid #111' }}
                     />
                   )}
