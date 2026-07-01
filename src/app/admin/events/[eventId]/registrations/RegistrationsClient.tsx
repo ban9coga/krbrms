@@ -2600,7 +2600,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                         )}
                       </div>
 
-                      <details className="admin-card-muted">
+                      <details className="admin-card-muted" open>
                         <summary className="cursor-pointer list-none text-xs font-black uppercase tracking-[0.14em] text-slate-500">
                           Notifikasi wali
                         </summary>
