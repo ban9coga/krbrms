@@ -89,6 +89,8 @@ const EXTRA_PRICE = 150000
 const STANDARD_JERSEY_SIZES = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'] as const
 const DEFAULT_JERSEY_SIZES = [...STANDARD_JERSEY_SIZES]
 const DOCUMENT_TYPE = 'KK'
+const REGISTRATION_PAYMENT_RETURN_SELECT =
+  'id, registration_id, amount, bank_name, account_name, account_number, proof_url, status, payment_method, created_at'
 const SUBMIT_REGISTRATION_LIMIT = {
   key: 'public-registration-submit',
   limit: 3,
@@ -695,7 +697,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
           status: 'PENDING',
           payment_method: 'MANUAL_TRANSFER',
         })
-        .select('*')
+        .select(REGISTRATION_PAYMENT_RETURN_SELECT)
         .single()
       if (paymentError) throw new Error(paymentError.message)
 
@@ -819,7 +821,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
         status: 'PENDING',
         payment_method: 'MANUAL_TRANSFER',
       })
-      .select('*')
+      .select(REGISTRATION_PAYMENT_RETURN_SELECT)
       .single()
     if (paymentError) throw new Error(paymentError.message)
 

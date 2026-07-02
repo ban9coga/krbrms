@@ -4,6 +4,9 @@ import { applyBestTeamSettingsNormalization } from '../../../../../lib/bestTeam'
 import type { BusinessSettings } from '../../../../../lib/eventService'
 import { proxyBusinessSettingsMedia, toPublicMediaUrl, toPublicMediaUrls } from '../../../../../lib/publicMedia'
 
+const EVENT_SETTINGS_RETURN_SELECT =
+  'event_id, event_logo_url, sponsor_logo_urls, base_price, extra_price, registration_open, require_jersey_size, scoring_rules, display_theme, race_format_settings, business_settings, created_at, updated_at'
+
 const JERSEY_SIZE_ALIAS_MAP: Record<string, string> = {
   XXL: '2XL',
 }
@@ -122,7 +125,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ eventI
       ],
       { onConflict: 'event_id' }
     )
-    .select('*')
+    .select(EVENT_SETTINGS_RETURN_SELECT)
     .limit(1)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })

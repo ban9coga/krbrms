@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../../lib/auth'
 
+const SCHEDULE_RETURN_SELECT = 'id, event_id, moto_id, schedule_time, end_time, track_number'
+
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ eventId: string; scheduleId: string }> }
@@ -27,7 +29,7 @@ export async function PATCH(
     .from('race_schedules')
     .update({ schedule_time, end_time, track_number })
     .eq('id', scheduleId)
-    .select('*')
+    .select(SCHEDULE_RETURN_SELECT)
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })

@@ -6,7 +6,7 @@ import type { BusinessSettings, EventItem, RiderCategory } from '../../../../../
 import { unstable_cache } from 'next/cache'
 
 export const dynamic = 'force-dynamic'
-const FINISHED_LIVE_SCORE_CACHE_SECONDS = 120
+const FINISHED_LIVE_SCORE_CACHE_SECONDS = 600
 
 const parseBusinessSettings = (value: unknown): BusinessSettings => {
   if (value && typeof value === 'object' && !Array.isArray(value)) {

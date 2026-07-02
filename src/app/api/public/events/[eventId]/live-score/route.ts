@@ -197,24 +197,47 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     : { 'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=300' }
   if (!categoryId) return NextResponse.json({ error: 'category_id required' }, { status: 400 })
 
-  const { data: category, error: catError } = await adminClient
-    .from('categories')
-    .select('id, event_id, label')
-    .eq('id', categoryId)
-    .maybeSingle()
+  const includePhotosParam = searchParams.get('include_photos')
+  let includePhotos = includePhotosParam === '1' || includePhotosParam === 'true'
+  const shouldLoadPhotoSettings = includePhotosParam !== '0' && includePhotosParam !== 'false' && !includePhotos
+
+  const [categoryResult, settingsResult, pointOverrideResult, motoResult] = await Promise.all([
+    adminClient
+      .from('categories')
+      .select('id, event_id, label')
+      .eq('id', categoryId)
+      .maybeSingle(),
+    shouldLoadPhotoSettings
+      ? adminClient
+          .from('event_settings')
+          .select('business_settings')
+          .eq('event_id', eventId)
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+    adminClient
+      .from('race_stage_config')
+      .select('dnf_point_override, dns_point_override')
+      .eq('event_id', eventId)
+      .eq('category_id', categoryId)
+      .maybeSingle(),
+    adminClient
+      .from('motos')
+      .select('id, moto_name, moto_order, status, is_published')
+      .eq('event_id', eventId)
+      .eq('category_id', categoryId)
+      .order('moto_order', { ascending: true }),
+  ])
+
+  const { data: category, error: catError } = categoryResult
   if (catError || !category || category.event_id !== eventId) {
     return NextResponse.json({ error: 'Category not found in event' }, { status: 404 })
   }
-  const includePhotosParam = searchParams.get('include_photos')
-  let includePhotos = includePhotosParam === '1' || includePhotosParam === 'true'
-  if (includePhotosParam !== '0' && includePhotosParam !== 'false' && !includePhotos) {
-    const { data: settingsRow } = await adminClient
-      .from('event_settings')
-      .select('business_settings')
-      .eq('event_id', eventId)
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
+
+  if (settingsResult.error) return NextResponse.json({ error: settingsResult.error.message }, { status: 400 })
+  if (shouldLoadPhotoSettings) {
+    const settingsRow = settingsResult.data
     const businessSettings =
       settingsRow?.business_settings && typeof settingsRow.business_settings === 'object' && !Array.isArray(settingsRow.business_settings)
         ? (settingsRow.business_settings as Record<string, unknown>)
@@ -224,19 +247,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         ? businessSettings.show_rider_photos_public
         : false
   }
-  const { data: pointOverrideConfig } = await adminClient
-    .from('race_stage_config')
-    .select('dnf_point_override, dns_point_override')
-    .eq('event_id', eventId)
-    .eq('category_id', categoryId)
-    .maybeSingle()
 
-  const { data: motos, error: motoError } = await adminClient
-    .from('motos')
-    .select('id, moto_name, moto_order, status, is_published')
-    .eq('event_id', eventId)
-    .eq('category_id', categoryId)
-    .order('moto_order', { ascending: true })
+  const { data: pointOverrideConfig } = pointOverrideResult
+  const { data: motos, error: motoError } = motoResult
   if (motoError) return NextResponse.json({ error: motoError.message }, { status: 400 })
   const motoRows = ((motos ?? []) as MotoRow[]).filter((m) => {
     if (isMotoPublicVisible(m.status, m.is_published)) return true
@@ -249,20 +262,81 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     return NextResponse.json({ data: { batches: [], category: category.label } }, { headers: cacheHeaders })
   }
 
-  const { data: gates, error: gateError } = await adminClient
-    .from('moto_gate_positions')
-    .select('moto_id, rider_id, gate_position')
-    .in('moto_id', motoIds)
+  const [
+    gateResult,
+    assignedMotoRiderResult,
+    resultResult,
+    stageSeedResult,
+    qualificationCustomRulesResult,
+    stageCustomRulesResult,
+  ] = await Promise.all([
+    adminClient
+      .from('moto_gate_positions')
+      .select('moto_id, rider_id, gate_position')
+      .in('moto_id', motoIds),
+    adminClient
+      .from('moto_riders')
+      .select('moto_id, rider_id, created_at')
+      .in('moto_id', motoIds)
+      .order('created_at', { ascending: true }),
+    adminClient
+      .from('results')
+      .select('moto_id, rider_id, finish_order, result_status')
+      .in('moto_id', motoIds),
+    adminClient
+      .from('race_stage_result')
+      .select('rider_id, stage, final_class, batch_id, position, points')
+      .eq('category_id', categoryId),
+    adminClient
+      .from('race_category_custom_split_rule')
+      .select('source_stage, rank_from, rank_to, target_stage, target_final_class, split_basis, batch_no')
+      .eq('category_id', categoryId)
+      .eq('source_stage', 'QUALIFICATION')
+      .order('sort_order', { ascending: true })
+      .order('rank_from', { ascending: true }),
+    adminClient
+      .from('race_category_custom_split_rule')
+      .select('source_stage, rank_from, rank_to, target_stage, target_final_class, split_basis, batch_no')
+      .eq('category_id', categoryId)
+      .in('source_stage', ['QUARTER_FINAL', 'REPECHAGE', 'SEMI_FINAL'])
+      .order('sort_order', { ascending: true })
+      .order('rank_from', { ascending: true }),
+  ])
+
+  const { data: gates, error: gateError } = gateResult
   if (gateError) return NextResponse.json({ error: gateError.message }, { status: 400 })
   const gateRows = (gates ?? []) as GateRow[]
 
-  const { data: assignedMotoRiders, error: assignedMotoRiderError } = await adminClient
-    .from('moto_riders')
-    .select('moto_id, rider_id, created_at')
-    .in('moto_id', motoIds)
-    .order('created_at', { ascending: true })
+  const { data: assignedMotoRiders, error: assignedMotoRiderError } = assignedMotoRiderResult
   if (assignedMotoRiderError) return NextResponse.json({ error: assignedMotoRiderError.message }, { status: 400 })
   const motoRiderRows = (assignedMotoRiders ?? []) as MotoRiderRow[]
+
+  const { data: results, error: resultError } = resultResult
+  if (resultError) return NextResponse.json({ error: resultError.message }, { status: 400 })
+  const resultRows = (results ?? []) as ResultRow[]
+
+  const { data: stageSeedData, error: stageSeedError } = stageSeedResult
+  if (stageSeedError) return NextResponse.json({ error: stageSeedError.message }, { status: 400 })
+  const stageSeedRows = (stageSeedData ?? []) as StageSeedRow[]
+
+  const { data: qualificationCustomRules, error: qualificationCustomRulesError } = qualificationCustomRulesResult
+  if (qualificationCustomRulesError) {
+    return NextResponse.json({ error: qualificationCustomRulesError.message }, { status: 400 })
+  }
+  const qualificationRules = (qualificationCustomRules ?? []) as QualificationCustomRuleRow[]
+  const qualificationSplitBasis = qualificationRules[0]?.split_basis ?? null
+
+  const { data: stageCustomRules, error: stageCustomRulesError } = stageCustomRulesResult
+  if (stageCustomRulesError) {
+    return NextResponse.json({ error: stageCustomRulesError.message }, { status: 400 })
+  }
+  const stageRulesBySource = new Map<string, StageCustomRuleRow[]>()
+  for (const rule of (stageCustomRules ?? []) as StageCustomRuleRow[]) {
+    const key = rule.source_stage
+    const list = stageRulesBySource.get(key) ?? []
+    list.push(rule)
+    stageRulesBySource.set(key, list)
+  }
 
   const gateCountByMoto = new Map<string, number>()
   for (const row of gateRows) {
@@ -296,72 +370,76 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     gateRows.push(...insertRows)
   }
 
-  const { data: results, error: resultError } = await adminClient
-    .from('results')
-    .select('moto_id, rider_id, finish_order, result_status')
-    .in('moto_id', motoIds)
-  if (resultError) return NextResponse.json({ error: resultError.message }, { status: 400 })
-  const resultRows = (results ?? []) as ResultRow[]
-
   const riderIds = Array.from(new Set([
     ...gateRows.map((g) => g.rider_id),
     ...motoRiderRows.map((row) => row.rider_id),
   ]))
+
+  const riderSelect = includePhotos
+    ? 'id, name, rider_nickname, no_plate_display, club, photo_thumbnail_url'
+    : 'id, name, rider_nickname, no_plate_display, club'
+
+  const [statusResult, penaltyResult, riderResult] =
+    riderIds.length > 0
+      ? await Promise.all([
+          adminClient
+            .from('rider_participation_status')
+            .select('moto_id, rider_id, participation_status')
+            .eq('event_id', eventId)
+            .in('rider_id', riderIds),
+          adminClient
+            .from('rider_penalties')
+            .select('rider_id, moto_id, penalty_point, stage, rider_penalty_approvals!inner(approval_status)')
+            .eq('event_id', eventId)
+            .eq('rider_penalty_approvals.approval_status', 'APPROVED')
+            .in('rider_id', riderIds),
+          adminClient
+            .from('riders')
+            .select(riderSelect)
+            .in('id', riderIds),
+        ])
+      : [
+          { data: [], error: null },
+          { data: [], error: null },
+          { data: [], error: null },
+        ]
+
   const statusMap = new Map<string, 'ACTIVE' | 'DNS' | 'DNF' | 'ABSENT'>()
-  if (riderIds.length > 0) {
-    const { data: statuses, error: statusError } = await adminClient
-      .from('rider_participation_status')
-      .select('moto_id, rider_id, participation_status')
-      .eq('event_id', eventId)
-      .in('rider_id', riderIds)
-    if (statusError) return NextResponse.json({ error: statusError.message }, { status: 400 })
-    for (const row of statuses ?? []) {
-      statusMap.set(`${row.moto_id}:${row.rider_id}`, row.participation_status)
-    }
+  const { data: statuses, error: statusError } = statusResult
+  if (statusError) return NextResponse.json({ error: statusError.message }, { status: 400 })
+  for (const row of statuses ?? []) {
+    statusMap.set(`${row.moto_id}:${row.rider_id}`, row.participation_status)
   }
 
   const qualificationPenaltyMap = new Map<string, number>()
   const stagePenaltyMap = new Map<string, number>()
   const motoPenaltyMap = new Map<string, number>()
-  if (riderIds.length > 0) {
-    const { data: penalties, error: penaltyError } = await adminClient
-      .from('rider_penalties')
-      .select('rider_id, moto_id, penalty_point, stage, rider_penalty_approvals!inner(approval_status)')
-      .eq('event_id', eventId)
-      .eq('rider_penalty_approvals.approval_status', 'APPROVED')
-      .in('rider_id', riderIds)
-    if (penaltyError) return NextResponse.json({ error: penaltyError.message }, { status: 400 })
-    for (const row of penalties ?? []) {
-      const amount = Number(row.penalty_point ?? 0)
-      if (row.moto_id) {
-        const key = `${row.moto_id}:${row.rider_id}`
-        const current = motoPenaltyMap.get(key) ?? 0
-        motoPenaltyMap.set(key, current + amount)
-      }
-      if (row.stage === 'MOTO') {
-        const current = qualificationPenaltyMap.get(row.rider_id) ?? 0
-        qualificationPenaltyMap.set(row.rider_id, current + amount)
-      }
-      if (row.stage === 'ALL') {
-        const key = `${row.rider_id}:ALL`
-        const current = stagePenaltyMap.get(key) ?? 0
-        stagePenaltyMap.set(key, current + amount)
-      }
-      if (row.stage === 'QUARTER' || row.stage === 'REPECHAGE' || row.stage === 'SEMI' || row.stage === 'FINAL') {
-        const key = `${row.rider_id}:${row.stage}`
-        const current = stagePenaltyMap.get(key) ?? 0
-        stagePenaltyMap.set(key, current + amount)
-      }
+  const { data: penalties, error: penaltyError } = penaltyResult
+  if (penaltyError) return NextResponse.json({ error: penaltyError.message }, { status: 400 })
+  for (const row of penalties ?? []) {
+    const amount = Number(row.penalty_point ?? 0)
+    if (row.moto_id) {
+      const key = `${row.moto_id}:${row.rider_id}`
+      const current = motoPenaltyMap.get(key) ?? 0
+      motoPenaltyMap.set(key, current + amount)
+    }
+    if (row.stage === 'MOTO') {
+      const current = qualificationPenaltyMap.get(row.rider_id) ?? 0
+      qualificationPenaltyMap.set(row.rider_id, current + amount)
+    }
+    if (row.stage === 'ALL') {
+      const key = `${row.rider_id}:ALL`
+      const current = stagePenaltyMap.get(key) ?? 0
+      stagePenaltyMap.set(key, current + amount)
+    }
+    if (row.stage === 'QUARTER' || row.stage === 'REPECHAGE' || row.stage === 'SEMI' || row.stage === 'FINAL') {
+      const key = `${row.rider_id}:${row.stage}`
+      const current = stagePenaltyMap.get(key) ?? 0
+      stagePenaltyMap.set(key, current + amount)
     }
   }
 
-  const riderSelect = includePhotos
-    ? 'id, name, rider_nickname, no_plate_display, club, photo_thumbnail_url'
-    : 'id, name, rider_nickname, no_plate_display, club'
-  const { data: riders, error: riderError } = await adminClient
-    .from('riders')
-    .select(riderSelect)
-    .in('id', riderIds)
+  const { data: riders, error: riderError } = riderResult
   if (riderError) return NextResponse.json({ error: riderError.message }, { status: 400 })
   const riderRows = (riders ?? []) as unknown as RiderRow[]
   const riderMap = new Map(riderRows.map((r) => [r.id, r]))
@@ -391,12 +469,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     }
   }
 
-  const { data: stageSeedData, error: stageSeedError } = await adminClient
-    .from('race_stage_result')
-    .select('rider_id, stage, final_class, batch_id, position, points')
-    .eq('category_id', categoryId)
-  if (stageSeedError) return NextResponse.json({ error: stageSeedError.message }, { status: 400 })
-  const stageSeedRows = (stageSeedData ?? []) as StageSeedRow[]
   const qualificationStageSeedRows = stageSeedRows.filter((row) => row.stage === 'QUALIFICATION')
   const quarterStageResultRows = stageSeedRows.filter((row) => row.stage === 'QUARTER_FINAL' && row.position !== null)
   const repechageStageResultRows = stageSeedRows.filter((row) => row.stage === 'REPECHAGE' && row.position !== null)
@@ -404,37 +476,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const quarterStageRiderIds = new Set(stageSeedRows.filter((row) => row.stage === 'QUARTER_FINAL').map((row) => row.rider_id))
   const repechageStageRiderIds = new Set(stageSeedRows.filter((row) => row.stage === 'REPECHAGE').map((row) => row.rider_id))
   const semiStageRiderIds = new Set(stageSeedRows.filter((row) => row.stage === 'SEMI_FINAL').map((row) => row.rider_id))
-
-  const { data: qualificationCustomRules, error: qualificationCustomRulesError } = await adminClient
-    .from('race_category_custom_split_rule')
-    .select('source_stage, rank_from, rank_to, target_stage, target_final_class, split_basis, batch_no')
-    .eq('category_id', categoryId)
-    .eq('source_stage', 'QUALIFICATION')
-    .order('sort_order', { ascending: true })
-    .order('rank_from', { ascending: true })
-  if (qualificationCustomRulesError) {
-    return NextResponse.json({ error: qualificationCustomRulesError.message }, { status: 400 })
-  }
-  const qualificationRules = (qualificationCustomRules ?? []) as QualificationCustomRuleRow[]
-  const qualificationSplitBasis = qualificationRules[0]?.split_basis ?? null
-
-  const { data: stageCustomRules, error: stageCustomRulesError } = await adminClient
-    .from('race_category_custom_split_rule')
-    .select('source_stage, rank_from, rank_to, target_stage, target_final_class, split_basis, batch_no')
-    .eq('category_id', categoryId)
-    .in('source_stage', ['QUARTER_FINAL', 'REPECHAGE', 'SEMI_FINAL'])
-    .order('sort_order', { ascending: true })
-    .order('rank_from', { ascending: true })
-  if (stageCustomRulesError) {
-    return NextResponse.json({ error: stageCustomRulesError.message }, { status: 400 })
-  }
-  const stageRulesBySource = new Map<string, StageCustomRuleRow[]>()
-  for (const rule of (stageCustomRules ?? []) as StageCustomRuleRow[]) {
-    const key = rule.source_stage
-    const list = stageRulesBySource.get(key) ?? []
-    list.push(rule)
-    stageRulesBySource.set(key, list)
-  }
 
   const batches = batchEntries
     .map(([batchIndex, entry]) => {

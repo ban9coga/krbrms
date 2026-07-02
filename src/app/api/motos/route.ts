@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../lib/auth'
 
 export const dynamic = 'force-dynamic'
+const MOTO_RETURN_SELECT =
+  'id, event_id, category_id, moto_name, moto_order, status, is_published, published_at, provisional_at, checker_prep_ready_at'
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
@@ -55,7 +57,7 @@ export async function POST(req: Request) {
   const { data, error } = await adminClient
     .from('motos')
     .insert([{ event_id, category_id, moto_name, moto_order }])
-    .select('*')
+    .select(MOTO_RETURN_SELECT)
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json({ data })

@@ -15,6 +15,8 @@ import { normalizePlateNumber, normalizePlateSuffix } from '../../../../../../..
 const REGISTRATION_BUCKET = process.env.NEXT_PUBLIC_REGISTRATION_BUCKET || 'registration-docs'
 const RIDER_PHOTO_BUCKET = 'rider-photos'
 const RIDER_PHOTO_CACHE_CONTROL_SECONDS = '31536000'
+const APPROVAL_ITEM_SELECT =
+  'id, rider_name, rider_nickname, jersey_size, date_of_birth, gender, club, primary_category_id, extra_category_id, requested_plate_number, requested_plate_suffix, photo_url'
 
 const ensureRiderPhotoBucket = async () => {
   const { data, error } = await adminClient.storage.getBucket(RIDER_PHOTO_BUCKET)
@@ -157,7 +159,7 @@ export async function PATCH(
 
   const { error: regError } = await adminClient
     .from('registrations')
-    .select('*')
+    .select('id, status')
     .eq('id', registrationId)
     .eq('event_id', eventId)
     .single()
@@ -165,7 +167,7 @@ export async function PATCH(
 
   const { data: itemRows, error: itemError } = await adminClient
     .from('registration_items')
-    .select('*')
+    .select(APPROVAL_ITEM_SELECT)
     .eq('registration_id', registrationId)
   if (itemError) return NextResponse.json({ error: itemError.message }, { status: 400 })
 

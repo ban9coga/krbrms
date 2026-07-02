@@ -9,6 +9,9 @@ import {
 
 export const runtime = 'nodejs'
 
+const REGISTRATION_PAYMENT_RETURN_SELECT =
+  'id, registration_id, amount, bank_name, account_name, account_number, proof_url, status, payment_method, created_at'
+
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ eventId: string; registrationId: string }> }
@@ -81,7 +84,7 @@ export async function POST(
       status: 'PENDING',
       payment_method: 'MANUAL_TRANSFER',
     })
-    .select('*')
+    .select(REGISTRATION_PAYMENT_RETURN_SELECT)
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })

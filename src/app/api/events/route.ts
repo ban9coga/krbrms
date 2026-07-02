@@ -4,6 +4,8 @@ import { adminClient, getAccessibleEventIds, requireAdmin, requireBackoffice } f
 type DrawMode = 'internal_live_draw' | 'external_draw'
 type EventScope = 'PUBLIC' | 'INTERNAL'
 
+const EVENT_RETURN_SELECT = 'id, name, location, event_date, status, is_public, created_at, updated_at'
+
 const normalizeDrawMode = (value: unknown): DrawMode =>
   value === 'external_draw' ? 'external_draw' : 'internal_live_draw'
 
@@ -96,7 +98,7 @@ export async function POST(req: Request) {
   const { data, error } = await adminClient
     .from('events')
     .insert([{ name, location, event_date, status, is_public: normalizedIsPublic }])
-    .select('*')
+    .select(EVENT_RETURN_SELECT)
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 

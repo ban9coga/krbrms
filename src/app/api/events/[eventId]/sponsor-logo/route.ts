@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../lib/auth'
+import { prepareImageUpload } from '../../../../../lib/imageUpload'
 import { toPublicMediaUrl } from '../../../../../lib/publicMedia'
 
 const BUCKET = 'event-logos'
+const SPONSOR_LOGO_MAX_BYTES = 2 * 1024 * 1024
 
 const ensureBucket = async () => {
   const { data } = await adminClient.storage.getBucket(BUCKET)
@@ -20,13 +22,25 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   if (!(file instanceof File)) {
     return NextResponse.json({ error: 'file required' }, { status: 400 })
   }
+  let upload
+  try {
+    upload = await prepareImageUpload(file, {
+      maxBytes: SPONSOR_LOGO_MAX_BYTES,
+      maxDimension: 1200,
+      quality: 82,
+      label: 'Logo sponsor',
+    })
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Logo sponsor gagal diproses.' }, { status: 400 })
+  }
 
   await ensureBucket()
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '-')
-  const path = `events/${eventId}/sponsors/sponsor-${Date.now()}-${safeName}`
+  const baseName = safeName.replace(/\.[^.]+$/, '') || 'sponsor'
+  const path = `events/${eventId}/sponsors/sponsor-${Date.now()}-${baseName}.${upload.extension}`
   const { error: uploadError } = await adminClient.storage
     .from(BUCKET)
-    .upload(path, file, { contentType: file.type, upsert: true })
+    .upload(path, upload.buffer, { contentType: upload.contentType, upsert: true, cacheControl: '31536000' })
   if (uploadError) return NextResponse.json({ error: uploadError.message }, { status: 400 })
 
   const publicUrl = adminClient.storage.from(BUCKET).getPublicUrl(path).data.publicUrl

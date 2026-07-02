@@ -7,6 +7,8 @@ import { proxyBusinessSettingsMedia, toPublicMediaUrl, toPublicMediaUrls } from 
 type DrawMode = 'internal_live_draw' | 'external_draw'
 type EventScope = 'PUBLIC' | 'INTERNAL'
 
+const EVENT_RETURN_SELECT = 'id, name, location, event_date, status, is_public, created_at, updated_at'
+
 const normalizeDrawMode = (value: unknown): DrawMode =>
   value === 'external_draw' ? 'external_draw' : 'internal_live_draw'
 
@@ -140,12 +142,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ eventI
       .from('events')
       .update(eventUpdatePayload)
       .eq('id', eventId)
-      .select('*')
+      .select(EVENT_RETURN_SELECT)
       .limit(1)
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
     updatedEvent = ((data ?? [])[0] as Record<string, unknown> | undefined) ?? null
   } else {
-    const { data, error } = await adminClient.from('events').select('*').eq('id', eventId).limit(1)
+    const { data, error } = await adminClient.from('events').select(EVENT_RETURN_SELECT).eq('id', eventId).limit(1)
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
     updatedEvent = ((data ?? [])[0] as Record<string, unknown> | undefined) ?? null
   }

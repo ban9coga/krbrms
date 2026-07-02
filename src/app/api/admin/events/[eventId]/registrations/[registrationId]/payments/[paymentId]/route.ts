@@ -6,6 +6,8 @@ import {
 } from '../../../../../../../../../lib/registrationEmail'
 
 const PAYMENT_STATUSES = ['APPROVED', 'REJECTED'] as const
+const PAYMENT_RETURN_SELECT =
+  'id, registration_id, amount, bank_name, account_name, account_number, proof_url, status, payment_method, created_at'
 
 export async function PATCH(
   req: Request,
@@ -36,7 +38,7 @@ export async function PATCH(
     .update({ status })
     .eq('id', paymentId)
     .eq('registration_id', registrationId)
-    .select('*')
+    .select(PAYMENT_RETURN_SELECT)
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../lib/auth'
 
+const CATEGORY_RETURN_SELECT = 'id, event_id, year, year_min, year_max, capacity, gender, label, enabled, sequence_order'
+
 export async function PATCH(req: Request, { params }: { params: Promise<{ categoryId: string }> }) {
   const auth = await requireAdmin(req.headers.get('authorization'))
   if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -27,7 +29,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ catego
       gender: gender != null ? gender : undefined,
     })
     .eq('id', categoryId)
-    .select('*')
+    .select(CATEGORY_RETURN_SELECT)
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json({ data })

@@ -18,6 +18,9 @@ const isDocumentTypeConstraintError = (message: string) =>
 
 export const runtime = 'nodejs'
 
+const REGISTRATION_DOCUMENT_RETURN_SELECT =
+  'id, registration_id, registration_item_id, document_type, file_url, created_at'
+
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ eventId: string; registrationId: string }> }
@@ -82,7 +85,7 @@ export async function POST(
         document_type: type,
         file_url: storagePath,
       })
-      .select('*')
+      .select(REGISTRATION_DOCUMENT_RETURN_SELECT)
       .single()
 
   let result = await insertDocument(documentType)

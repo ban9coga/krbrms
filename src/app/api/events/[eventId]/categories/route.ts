@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../lib/auth'
 import { buildCategoryOccupancyBreakdown, type CategoryOccupancyBreakdown } from '../../../../../services/categoryOccupancy'
 
+const CATEGORY_RETURN_SELECT = 'id, event_id, year, year_min, year_max, capacity, gender, label, enabled, sequence_order'
+
 export async function GET(_: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params
   const { data: categories, error } = await adminClient
@@ -108,7 +110,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       enabled: enabled !== false,
       sequence_order: (Number(lastCategory?.sequence_order ?? 0) || 0) + 1,
     })
-    .select('*')
+    .select(CATEGORY_RETURN_SELECT)
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json({ data })

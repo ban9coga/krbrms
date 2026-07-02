@@ -8,6 +8,8 @@ import { normalizePlateNumber, normalizePlateSuffix, suggestPlateSuffix } from '
 
 const MIN_BIRTH_YEAR = 2016
 const MAX_BIRTH_YEAR = 2025
+const RIDER_RETURN_SELECT =
+  'id, event_id, name, rider_nickname, jersey_size, date_of_birth, birth_year, primary_category_id, gender, plate_number, plate_suffix, no_plate_display, club, photo_url, photo_thumbnail_url'
 
 const resolveCategory = async (
   eventId: string,
@@ -210,7 +212,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ riderI
       photo_thumbnail_url,
     })
     .eq('id', riderId)
-    .select('*')
+    .select(RIDER_RETURN_SELECT)
     .single()
 
   if (error && isMissingPrimaryCategoryColumnError(error.message)) {

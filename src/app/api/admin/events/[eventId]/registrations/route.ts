@@ -14,6 +14,54 @@ const ATTENDANCE_FILTERS = [
   'GOODIE_BAG_NOT_COLLECTED',
 ] as const
 
+const REGISTRATION_LIST_SELECT = `
+  id,
+  registration_code,
+  community_name,
+  contact_name,
+  contact_phone,
+  contact_email,
+  status,
+  total_amount,
+  notes,
+  created_at,
+  attendance_status,
+  attendance_confirmed_at,
+  checked_in_at,
+  goodie_bag_collected_at,
+  registration_items(
+    id,
+    rider_name,
+    rider_nickname,
+    jersey_size,
+    date_of_birth,
+    gender,
+    club,
+    primary_category_id,
+    extra_category_id,
+    requested_plate_number,
+    requested_plate_suffix,
+    photo_url,
+    price,
+    status
+  ),
+  registration_documents(
+    id,
+    registration_item_id,
+    document_type,
+    file_url
+  ),
+  registration_payments(
+    id,
+    proof_url,
+    amount,
+    bank_name,
+    account_name,
+    account_number,
+    status
+  )
+`
+
 const sanitizeSearchTerm = (value: string) => value.replace(/[%(),]/g, ' ').trim()
 
 const parsePositiveInt = (value: string | null, fallback: number) => {
@@ -87,32 +135,40 @@ const searchRegistrationIds = async (eventId: string, rawQuery: string) => {
 const paymentRegistrationIds = async (eventId: string, paymentFilter: (typeof PAYMENT_FILTERS)[number]) => {
   if (paymentFilter === 'ALL') return null
 
-  const paymentRes = await adminClient
-    .from('registration_payments')
-    .select('registration_id, status, registrations!inner(event_id)')
-    .eq('registrations.event_id', eventId)
+  if (paymentFilter !== 'NO_PAYMENT') {
+    const paymentRes = await adminClient
+      .from('registration_payments')
+      .select('registration_id, registrations!inner(event_id)')
+      .eq('registrations.event_id', eventId)
+      .eq('status', paymentFilter)
 
+    if (paymentRes.error) throw new Error(paymentRes.error.message)
+
+    return Array.from(
+      new Set(
+        (paymentRes.data ?? [])
+          .map((row) => (typeof row.registration_id === 'string' ? row.registration_id : null))
+          .filter((id): id is string => id !== null)
+      )
+    )
+  }
+
+  const [allRegsRes, paymentRes] = await Promise.all([
+    adminClient.from('registrations').select('id').eq('event_id', eventId),
+    adminClient
+      .from('registration_payments')
+      .select('registration_id, registrations!inner(event_id)')
+      .eq('registrations.event_id', eventId),
+  ])
+
+  if (allRegsRes.error) throw new Error(allRegsRes.error.message)
   if (paymentRes.error) throw new Error(paymentRes.error.message)
 
-  const paidIds = new Set<string>()
-  const matchingIds = new Set<string>()
-  for (const row of paymentRes.data ?? []) {
-    const registrationId = typeof row.registration_id === 'string' ? row.registration_id : null
-    if (!registrationId) continue
-    paidIds.add(registrationId)
-    const status = typeof (row as { status?: string }).status === 'string' ? String((row as { status?: string }).status) : ''
-    if (paymentFilter !== 'NO_PAYMENT' && status === paymentFilter) {
-      matchingIds.add(registrationId)
-    }
-  }
-
-  if (paymentFilter !== 'NO_PAYMENT') {
-    return Array.from(matchingIds)
-  }
-
-  const allRegsRes = await adminClient.from('registrations').select('id').eq('event_id', eventId)
-  if (allRegsRes.error) throw new Error(allRegsRes.error.message)
-
+  const paidIds = new Set(
+    (paymentRes.data ?? [])
+      .map((row) => (typeof row.registration_id === 'string' ? row.registration_id : null))
+      .filter((id): id is string => id !== null)
+  )
   const registrationIds = (allRegsRes.data ?? [])
     .map((row) => (typeof row.id === 'string' ? row.id : null))
     .filter((id): id is string => id !== null)
@@ -198,7 +254,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
 
     let query = adminClient
       .from('registrations')
-      .select('*, registration_items(*), registration_documents(*), registration_payments(*)', { count: 'exact' })
+      .select(REGISTRATION_LIST_SELECT, { count: 'exact' })
       .eq('event_id', eventId)
       .order('created_at', { ascending: false })
 

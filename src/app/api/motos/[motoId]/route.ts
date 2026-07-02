@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../lib/auth'
 import { autoLockPreviousProvisionalForLiveMoto } from '../../../../services/motoProgression'
 
+const MOTO_RETURN_SELECT =
+  'id, event_id, category_id, moto_name, moto_order, status, is_published, published_at, provisional_at, checker_prep_ready_at'
+
 const getAllowedNextStatuses = (current?: string | null) => {
   const normalized = (current ?? '').toUpperCase()
   switch (normalized) {
@@ -32,7 +35,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ motoId
   const { moto_name, moto_order, status } = body ?? {}
   const { data: existingMoto, error: existingError } = await adminClient
     .from('motos')
-    .select('*')
+    .select(MOTO_RETURN_SELECT)
     .eq('id', motoId)
     .single()
   if (existingError) return NextResponse.json({ error: existingError.message }, { status: 400 })
@@ -72,7 +75,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ motoId
     .from('motos')
     .update(payload)
     .eq('id', motoId)
-    .select('*')
+    .select(MOTO_RETURN_SELECT)
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   if (status !== undefined && String(status).toUpperCase() === 'LIVE') {
