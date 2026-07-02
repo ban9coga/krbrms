@@ -4,6 +4,7 @@ import FloatingLiveScoreButton from '../components/FloatingLiveScoreButton'
 import { PwaRegister } from '../components/PwaRegister'
 import { ThemeProvider } from '../components/ThemeProvider'
 import { getLiveEvent } from '../lib/liveEvent'
+import { serializeJsonLd, siteStructuredData } from '../lib/structuredData'
 import './globals.css'
 
 export const revalidate = 30
@@ -77,6 +78,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="id">
       <body className={`${plusJakartaSans.variable} ${anton.variable}`} style={{ margin: 0 }}>
+        <script
+          id="racepushbike-site-structured-data"
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(siteStructuredData) }}
+        />
         <PwaRegister />
         <ThemeProvider>
           {children}
