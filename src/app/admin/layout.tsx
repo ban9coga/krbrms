@@ -608,11 +608,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <span className={`truncate text-lg font-black tracking-tight ${isDark ? 'text-slate-100' : 'text-slate-950'}`}>
                 {eventId ? eventMenuLabel : 'Control Dashboard'}
               </span>
-              {eventId && (
-                <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-amber-700">
-                  Event Context
-                </span>
-              )}
             </div>
           </div>
 

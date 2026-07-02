@@ -537,7 +537,10 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
   const [refreshTick, setRefreshTick] = useState(0)
   const [modal, setModal] = useState<ModalState>(null)
   const [modalNotes, setModalNotes] = useState('')
+  const [showAttendanceSummary, setShowAttendanceSummary] = useState(false)
   const [showCategoryKpis, setShowCategoryKpis] = useState(false)
+  const [exportMenuOpen, setExportMenuOpen] = useState(false)
+  const [actionMenuOpen, setActionMenuOpen] = useState<string | null>(null)
   const [roleKey, setRoleKey] = useState<string | null>(null)
   const [riderPhotoUploadEnabled, setRiderPhotoUploadEnabled] = useState(true)
   const [whatsappGroupInviteUrl, setWhatsappGroupInviteUrl] = useState<string | null>(null)
@@ -592,6 +595,21 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
     () => categoryKpis.reduce((sum, category) => sum + (category.pendingFilled ?? 0), 0),
     [categoryKpis]
   )
+  const exportBusy =
+    loading ||
+    exportingRegistrationExcel ||
+    exportingRegistrationPdf ||
+    exportingRiderExcel ||
+    exportingRiderPdf
+  const exportButtonLabel = exportingRegistrationExcel
+    ? 'Menyiapkan Registrasi XLSX...'
+    : exportingRegistrationPdf
+    ? 'Menyiapkan Registrasi PDF...'
+    : exportingRiderExcel
+    ? 'Menyiapkan Rider XLSX...'
+    : exportingRiderPdf
+    ? 'Menyiapkan Rider PDF...'
+    : 'Export Data'
 
   const applyAttendanceFilter = (value: AttendanceFilter) => {
     setAttendanceFilter(value)
@@ -2214,62 +2232,71 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
               <span className="font-black text-slate-900">{meta.totalPages}</span>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={handleExportRegistrationExcel}
-                disabled={
-                  loading ||
-                  exportingRegistrationExcel ||
-                  exportingRegistrationPdf ||
-                  exportingRiderExcel ||
-                  exportingRiderPdf
-                }
-                className="admin-export-button border-emerald-300 bg-emerald-50 text-emerald-900 hover:border-emerald-500 hover:bg-emerald-100"
-              >
-                {exportingRegistrationExcel ? 'Menyiapkan XLSX...' : 'Export Registrasi XLSX'}
-              </button>
-              <button
-                type="button"
-                onClick={handleExportRegistrationPdf}
-                disabled={
-                  loading ||
-                  exportingRegistrationPdf ||
-                  exportingRegistrationExcel ||
-                  exportingRiderExcel ||
-                  exportingRiderPdf
-                }
-                className="admin-export-button border-sky-300 bg-sky-50 text-sky-900 hover:border-sky-500 hover:bg-sky-100"
-              >
-                {exportingRegistrationPdf ? 'Menyiapkan PDF...' : 'Export Registrasi PDF'}
-              </button>
-              <button
-                type="button"
-                onClick={handleExportRiderExcel}
-                disabled={
-                  loading ||
-                  exportingRiderExcel ||
-                  exportingRiderPdf ||
-                  exportingRegistrationExcel ||
-                  exportingRegistrationPdf
-                }
-                className="admin-export-button border-violet-300 bg-violet-50 text-violet-900 hover:border-violet-500 hover:bg-violet-100"
-              >
-                {exportingRiderExcel ? 'Menyiapkan XLSX...' : 'Export Rider XLSX'}
-              </button>
-              <button
-                type="button"
-                onClick={handleExportRiderPdf}
-                disabled={
-                  loading ||
-                  exportingRiderPdf ||
-                  exportingRiderExcel ||
-                  exportingRegistrationExcel ||
-                  exportingRegistrationPdf
-                }
-                className="admin-export-button border-indigo-300 bg-indigo-50 text-indigo-900 hover:border-indigo-500 hover:bg-indigo-100"
-              >
-                {exportingRiderPdf ? 'Menyiapkan PDF...' : 'Export Rider PDF'}
-              </button>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setExportMenuOpen((prev) => !prev)}
+                  className="admin-export-button min-w-[140px] justify-between"
+                  aria-expanded={exportMenuOpen}
+                >
+                  <span>{exportButtonLabel}</span>
+                  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
+                    <path d="m5 8 5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+                {exportMenuOpen && (
+                  <div className="absolute right-0 top-[calc(100%+0.5rem)] z-30 grid w-[260px] gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setExportMenuOpen(false)
+                        void handleExportRegistrationExcel()
+                      }}
+                      disabled={exportBusy}
+                      className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-left text-xs font-black text-emerald-900 transition hover:border-emerald-500 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Registrasi XLSX
+                      <span className="mt-0.5 block text-[11px] font-semibold text-emerald-700">Data pendaftaran lengkap</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setExportMenuOpen(false)
+                        void handleExportRegistrationPdf()
+                      }}
+                      disabled={exportBusy}
+                      className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-left text-xs font-black text-sky-900 transition hover:border-sky-500 hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Registrasi PDF
+                      <span className="mt-0.5 block text-[11px] font-semibold text-sky-700">Preview cetak pendaftaran</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setExportMenuOpen(false)
+                        void handleExportRiderExcel()
+                      }}
+                      disabled={exportBusy}
+                      className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-left text-xs font-black text-violet-900 transition hover:border-violet-500 hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Rider XLSX
+                      <span className="mt-0.5 block text-[11px] font-semibold text-violet-700">Data rider per kategori</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setExportMenuOpen(false)
+                        void handleExportRiderPdf()
+                      }}
+                      disabled={exportBusy}
+                      className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-left text-xs font-black text-indigo-900 transition hover:border-indigo-500 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Rider PDF
+                      <span className="mt-0.5 block text-[11px] font-semibold text-indigo-700">Preview cetak data rider</span>
+                    </button>
+                  </div>
+                )}
+              </div>
               <button
                 type="button"
                 onClick={() => setRefreshTick((prev) => prev + 1)}
@@ -2291,15 +2318,45 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
               Angka ini dihitung dari registrasi yang sudah APPROVED, jadi panitia bisa membandingkan rencana hadir dengan kehadiran aktual di venue.
             </p>
           </div>
-          <Link
-            href={`/admin/events/${eventId}/check-in`}
-            className="admin-outline-button w-fit"
-          >
-            Buka Check-in
-          </Link>
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => setShowAttendanceSummary((prev) => !prev)}
+              className="admin-outline-button w-fit"
+            >
+              {showAttendanceSummary ? 'Sembunyikan Rekap' : 'Tampilkan Rekap'}
+            </button>
+            <Link
+              href={`/admin/events/${eventId}/check-in`}
+              className="admin-outline-button w-fit"
+            >
+              Buka Check-in
+            </Link>
+          </div>
         </div>
 
-        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+        <div className="mt-4 flex flex-wrap gap-2 text-xs font-black">
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-slate-700">
+            Approved {attendanceSummary?.approved ?? '-'}
+          </span>
+          <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-emerald-800">
+            Hadir {attendanceSummary?.confirmed_attending ?? '-'}
+          </span>
+          <span className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-rose-800">
+            Tidak Hadir {attendanceSummary?.confirmed_not_attending ?? '-'}
+          </span>
+          <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-amber-800">
+            Belum Konfirmasi {attendanceSummary?.unconfirmed ?? '-'}
+          </span>
+          <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-sky-800">
+            Check-in {attendanceSummary?.checked_in ?? '-'}
+          </span>
+          <span className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-violet-800">
+            Goodie Bag {attendanceSummary?.goodie_bag_collected ?? '-'}
+          </span>
+        </div>
+
+        {showAttendanceSummary && <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
           <button
             type="button"
             onClick={() => {
@@ -2384,7 +2441,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
             </div>
             <div className="mt-1 text-xs font-semibold text-violet-700">Sudah diambil</div>
           </button>
-        </div>
+        </div>}
       </section>
 
       {categoryKpis.length > 0 && (
@@ -2406,21 +2463,33 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                 {showCategoryKpis ? 'Sembunyikan KPI' : 'Tampilkan KPI'}
               </button>
               <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
-                Approved Riders <span className="font-black text-slate-950">{totalApprovedAcrossCategories}</span>
-              </div>
-              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
-                Pending Registrasi <span className="font-black">{totalPendingAcrossCategories}</span>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
-                Total Slot Terpakai <span className="font-black text-slate-950">{totalFilledAcrossCategories}</span>
-              </div>
-              <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-900">
-                Kategori Full <span className="font-black">{fullCategoryCount}</span>
+                Approved <span className="font-black text-slate-950">{totalApprovedAcrossCategories}</span>
+                <span className="mx-2 text-slate-300">•</span>
+                Pending <span className="font-black text-amber-900">{totalPendingAcrossCategories}</span>
+                <span className="mx-2 text-slate-300">•</span>
+                Full <span className="font-black text-rose-900">{fullCategoryCount}</span>
               </div>
             </div>
           </div>
 
-          {showCategoryKpis && <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {showCategoryKpis && (
+            <>
+              <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+                  Approved Riders <span className="font-black text-slate-950">{totalApprovedAcrossCategories}</span>
+                </div>
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
+                  Pending Registrasi <span className="font-black">{totalPendingAcrossCategories}</span>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+                  Total Slot Terpakai <span className="font-black text-slate-950">{totalFilledAcrossCategories}</span>
+                </div>
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-900">
+                  Kategori Full <span className="font-black">{fullCategoryCount}</span>
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {categoryKpis.map((category) => (
               <article
                 key={category.id}
@@ -2474,7 +2543,9 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                 </div>
               </article>
             ))}
-          </div>}
+              </div>
+            </>
+          )}
         </section>
       )}
 
@@ -2503,9 +2574,23 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
             const paymentSummary = aggregatePaymentStatus(registration.registration_payments ?? [])
             const readiness = getApprovalReadiness(registration)
             const isExpanded = expanded[registration.id] ?? false
+            const isActionMenuOpen = actionMenuOpen === registration.id
+            const statusAccessWhatsAppUrl = buildWhatsAppUrl(registration, 'STATUS_ACCESS')
+            const decisionWhatsAppUrl =
+              registration.status !== 'PENDING'
+                ? buildWhatsAppUrl(
+                    registration,
+                    registration.status === 'REJECTED' ? 'REJECTED' : 'APPROVED',
+                    registration.status === 'APPROVED' ? whatsappGroupInviteUrl : null,
+                    registration.status === 'APPROVED' ? categoryMap : undefined
+                  )
+                : ''
+            const deleteDisabled =
+              savingKey === `registration:${registration.id}` ||
+              (!isCentralAdmin && registration.status !== 'REJECTED')
 
             return (
-              <section key={registration.id} className="admin-card overflow-hidden p-0">
+              <section key={registration.id} className="admin-card overflow-visible p-0">
                 <div className="border-b border-slate-200 px-5 py-4">
                   <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                     <div className="grid gap-3">
@@ -2577,73 +2662,104 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                         >
                           Approve & Create Riders
                         </button>
-                        <button
-                          type="button"
-                          disabled={savingKey === `registration:${registration.id}` || registration.status !== 'PENDING'}
-                          onClick={() => openRejectModal(registration)}
-                          className="admin-danger-button min-h-11"
-                        >
-                          Reject
-                        </button>
-                        {!isRegistrationApprover && (
-                          <button
-                            type="button"
-                            disabled={
-                              savingKey === `registration:${registration.id}` ||
-                              (!isCentralAdmin && registration.status !== 'REJECTED')
-                            }
-                            onClick={() => openDeleteModal(registration)}
-                            className="admin-danger-button min-h-11"
-                          >
-                            {isCentralAdmin ? 'Delete' : 'Delete Rejected'}
-                          </button>
-                        )}
-                      </div>
 
-                      <details className="admin-card-muted" open>
-                        <summary className="cursor-pointer list-none text-xs font-black uppercase tracking-[0.14em] text-slate-500">
-                          Notifikasi wali
-                        </summary>
-                        <div className="admin-action-row mt-3">
-                          {registration.registration_code && (
-                            <WhatsAppAction
-                              registration={registration}
-                              kind="STATUS_ACCESS"
-                              className="w-full"
-                              label="Kirim QR & Status"
-                            />
-                          )}
+                        <div className="relative">
                           <button
                             type="button"
-                            disabled={
-                              savingKey === `email:${registration.id}` ||
-                              !registration.registration_code?.trim() ||
-                              !registration.contact_email?.trim()
+                            onClick={() =>
+                              setActionMenuOpen((prev) => (prev === registration.id ? null : registration.id))
                             }
-                            onClick={() => void resendStatusEmail(registration)}
-                            title={
-                              !registration.contact_email?.trim()
-                                ? 'Email wali rider belum diisi'
-                                : !registration.registration_code?.trim()
-                                ? 'Kode registrasi belum tersedia'
-                                : 'Kirim ulang email berisi kode, QR, dan link status'
-                            }
-                            className="admin-outline-button min-h-11"
+                            className="admin-outline-button min-h-11 justify-between"
+                            aria-expanded={isActionMenuOpen}
                           >
-                            {savingKey === `email:${registration.id}` ? 'Mengirim Email...' : 'Kirim Email QR & Status'}
+                            <span>More</span>
+                            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
+                              <path d="m5 8 5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
                           </button>
-                          {registration.status !== 'PENDING' && (
-                            <WhatsAppAction
-                              registration={registration}
-                              kind={registration.status === 'REJECTED' ? 'REJECTED' : 'APPROVED'}
-                              className="w-full"
-                              label={registration.status === 'REJECTED' ? 'Kirim WA Penolakan' : 'Kirim WA Konfirmasi'}
-                              whatsappGroupInviteUrl={registration.status === 'APPROVED' ? whatsappGroupInviteUrl : null}
-                              categoryMap={registration.status === 'APPROVED' ? categoryMap : undefined}
-                            />
+
+                          {isActionMenuOpen && (
+                            <div className="absolute right-0 top-[calc(100%+0.5rem)] z-40 grid w-[280px] gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
+                              <div className="px-2 pb-1 pt-1 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
+                                Notifikasi wali
+                              </div>
+                              {statusAccessWhatsAppUrl && (
+                                <a
+                                  href={statusAccessWhatsAppUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={() => setActionMenuOpen(null)}
+                                  className="admin-success-button min-h-11 justify-start"
+                                >
+                                  Kirim QR & Status
+                                </a>
+                              )}
+                              <button
+                                type="button"
+                                disabled={
+                                  savingKey === `email:${registration.id}` ||
+                                  !registration.registration_code?.trim() ||
+                                  !registration.contact_email?.trim()
+                                }
+                                onClick={() => {
+                                  setActionMenuOpen(null)
+                                  void resendStatusEmail(registration)
+                                }}
+                                title={
+                                  !registration.contact_email?.trim()
+                                    ? 'Email wali rider belum diisi'
+                                    : !registration.registration_code?.trim()
+                                    ? 'Kode registrasi belum tersedia'
+                                    : 'Kirim ulang email berisi kode, QR, dan link status'
+                                }
+                                className="admin-outline-button min-h-11 justify-start"
+                              >
+                                {savingKey === `email:${registration.id}` ? 'Mengirim Email...' : 'Kirim Email QR & Status'}
+                              </button>
+                              {decisionWhatsAppUrl && (
+                                <a
+                                  href={decisionWhatsAppUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={() => setActionMenuOpen(null)}
+                                  className="admin-success-button min-h-11 justify-start"
+                                >
+                                  {registration.status === 'REJECTED' ? 'Kirim WA Penolakan' : 'Kirim WA Konfirmasi'}
+                                </a>
+                              )}
+
+                              <div className="my-1 h-px bg-slate-200" />
+                              <div className="px-2 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
+                                Aksi pendaftaran
+                              </div>
+                              <button
+                                type="button"
+                                disabled={savingKey === `registration:${registration.id}` || registration.status !== 'PENDING'}
+                                onClick={() => {
+                                  setActionMenuOpen(null)
+                                  openRejectModal(registration)
+                                }}
+                                className="admin-danger-button min-h-11 justify-start"
+                              >
+                                Reject
+                              </button>
+                              {!isRegistrationApprover && (
+                                <button
+                                  type="button"
+                                  disabled={deleteDisabled}
+                                  onClick={() => {
+                                    setActionMenuOpen(null)
+                                    openDeleteModal(registration)
+                                  }}
+                                  className="admin-danger-button min-h-11 justify-start"
+                                >
+                                  {isCentralAdmin ? 'Delete' : 'Delete Rejected'}
+                                </button>
+                              )}
+                            </div>
                           )}
                         </div>
-                      </details>
+                      </div>
                     </div>
                   </div>
 
