@@ -638,6 +638,18 @@ html[data-theme='dark'] .login-editorial-password-toggle {
     transition: background-color 180ms ease, color 180ms ease;
   }
 
+  @supports selector(body:has(.public-bottom-bar)) {
+    body:has(.public-bottom-bar) {
+      padding-bottom: calc(7rem + env(safe-area-inset-bottom, 0px));
+    }
+
+    @media (min-width: 768px) {
+      body:has(.public-bottom-bar) {
+        padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+      }
+    }
+  }
+
   html[data-theme='dark'] .bg-white,
   html[data-theme='dark'] .bg-white\/90,
   html[data-theme='dark'] .bg-white\/95,
