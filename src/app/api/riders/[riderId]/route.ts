@@ -4,35 +4,10 @@ import {
   isMissingPrimaryCategoryColumnError,
   missingPrimaryCategoryMigrationMessage,
 } from '../../../../lib/categoryAssignment'
+import { normalizePlateNumber, normalizePlateSuffix, suggestPlateSuffix } from '../../../../lib/plate'
 
 const MIN_BIRTH_YEAR = 2016
 const MAX_BIRTH_YEAR = 2025
-
-const suggestSuffix = (used: (string | null)[]) => {
-  const existing = new Set((used.filter(Boolean) as string[]).map((s) => s.toUpperCase()))
-  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')
-  for (const letter of alphabet) {
-    if (!existing.has(letter)) return letter
-  }
-  return null
-}
-
-const normalizePlateNumber = (value: unknown) => {
-  if (value === undefined || value === null) return null
-  const raw = String(value).trim()
-  if (!raw) return null
-  if (!/^\d+$/.test(raw)) return null
-  return raw
-}
-
-const normalizePlateSuffix = (value: unknown) => {
-  if (typeof value !== 'string') return null
-  const raw = value.trim().toUpperCase()
-  if (!raw) return null
-  const suffix = raw[0]
-  if (!/^[A-Z]$/.test(suffix)) return null
-  return suffix
-}
 
 const resolveCategory = async (
   eventId: string,
@@ -169,7 +144,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ riderI
       if (!nextPlateSuffix) {
         const noSuffixTaken = (used ?? []).some((suffix) => !suffix)
         if (noSuffixTaken) {
-          const suggestion = suggestSuffix(used)
+          const suggestion = suggestPlateSuffix(used)
           return NextResponse.json(
             { error: 'plate_number already exists', suggested_suffix: suggestion },
             { status: 409 }
@@ -180,7 +155,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ riderI
         nextPlateSuffix &&
         (used ?? []).map((s) => (s ?? '').toUpperCase()).includes(nextPlateSuffix.toUpperCase())
       ) {
-        const suggestion = suggestSuffix(used)
+        const suggestion = suggestPlateSuffix(used)
         return NextResponse.json(
           { error: 'plate_suffix already exists', suggested_suffix: suggestion },
           { status: 409 }

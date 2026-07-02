@@ -6,9 +6,16 @@ import {
   getFallbackPrimaryCategoryCandidates,
   getCategoryMaxYear,
 } from '../../../../../../lib/categoryAssignment'
+import { normalizePlateNumber, normalizePlateSuffix } from '../../../../../../lib/plate'
 import { buildCategoryOccupancyMap } from '../../../../../../services/categoryOccupancy'
-import { isPdfFile, prepareImageUpload, preparePassthroughUpload, type PreparedUpload } from '../../../../../../lib/imageUpload'
 import { rateLimit } from '../../../../../../lib/rateLimit'
+import {
+  getPendingRegistrationUploadPrefix,
+  getRegistrationFileKind,
+  prepareRegistrationUploadFile,
+  removeRegistrationStorageObjects,
+  uploadRegistrationStorageObject,
+} from '../../../../../../lib/registrationUploads'
 
 type RegistrationItemInput = {
   rider_name: string
@@ -79,11 +86,9 @@ type EventCategory = {
 
 const BASE_PRICE = 250000
 const EXTRA_PRICE = 150000
-const BUCKET = process.env.NEXT_PUBLIC_REGISTRATION_BUCKET || 'registration-docs'
 const STANDARD_JERSEY_SIZES = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'] as const
 const DEFAULT_JERSEY_SIZES = [...STANDARD_JERSEY_SIZES]
 const DOCUMENT_TYPE = 'KK'
-const getPendingUploadPrefix = (eventId: string) => `events/${eventId}/pending/`
 const SUBMIT_REGISTRATION_LIMIT = {
   key: 'public-registration-submit',
   limit: 3,
@@ -93,7 +98,7 @@ const SUBMIT_REGISTRATION_LIMIT = {
 const normalizePendingUploadPath = (value: unknown, eventId: string, kind: 'rider-photo' | 'document' | 'payment') => {
   if (typeof value !== 'string') return null
   const path = value.trim()
-  const prefix = `${getPendingUploadPrefix(eventId)}${kind}-`
+  const prefix = `${getPendingRegistrationUploadPrefix(eventId)}${kind}-`
   return path.startsWith(prefix) ? path : null
 }
 
@@ -124,14 +129,6 @@ const toYear = (dateString: string) => {
   const d = new Date(dateString)
   if (Number.isNaN(d.getTime())) return null
   return d.getUTCFullYear()
-}
-
-const normalizePlateNumber = (value: unknown) => {
-  if (value === undefined || value === null) return null
-  const raw = String(value).trim()
-  if (!raw) return null
-  if (!/^\d{1,3}$/.test(raw)) return null
-  return raw
 }
 
 const normalizePhoneDigits = (value: unknown) => {
@@ -231,18 +228,9 @@ const parseRequest = async (req: Request) => {
   return { payload, formData: null, isMultipart: false as const }
 }
 
-const uploadPreparedFile = async (path: string, upload: PreparedUpload) => {
-  const { error } = await adminClient.storage.from(BUCKET).upload(path, upload.buffer, {
-    contentType: upload.contentType,
-    cacheControl: '31536000',
-    upsert: true,
-  })
-  if (error) throw new Error(error.message)
-}
-
 const rollbackRegistration = async (registrationId: string, uploadedPaths: string[]) => {
   if (uploadedPaths.length > 0) {
-    const { error: removeError } = await adminClient.storage.from(BUCKET).remove(uploadedPaths)
+    const { error: removeError } = (await removeRegistrationStorageObjects(uploadedPaths)) ?? {}
     if (removeError) {
       console.error('[registration] failed removing uploaded files during rollback:', removeError.message)
     }
@@ -400,15 +388,14 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
       continue
     }
 
-    const requestedPlateNumber = normalizePlateNumber(item.requested_plate_number)
+    const requestedPlateNumber = normalizePlateNumber(item.requested_plate_number, { maxDigits: 3 })
     if (item.requested_plate_number != null && !requestedPlateNumber) {
       preparedItems.push({ error: 'Invalid requested plate number' })
       continue
     }
 
-    const suffixRaw = item.requested_plate_suffix?.trim().toUpperCase() ?? null
-    const requestedPlateSuffix = suffixRaw && suffixRaw.length > 0 ? suffixRaw[0] : null
-    if (requestedPlateSuffix && !/^[A-Z]$/.test(requestedPlateSuffix)) {
+    const requestedPlateSuffix = normalizePlateSuffix(item.requested_plate_suffix)
+    if (item.requested_plate_suffix?.trim() && !requestedPlateSuffix) {
       preparedItems.push({ error: 'Invalid requested plate suffix' })
       continue
     }
@@ -762,23 +749,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
           throw new Error(`Dokumen KK/Akte wajib untuk rider #${idx + 1}`)
         }
 
-        const docIsPdf = isPdfFile(docFile)
-        if (!docFile.type.startsWith('image/') && !docIsPdf) {
+        const docKind = getRegistrationFileKind(docFile)
+        if (!docKind.isImage && !docKind.isPdf) {
           throw new Error(`Dokumen KK/Akte rider #${idx + 1} harus berupa gambar atau PDF.`)
         }
-        const docUpload = docIsPdf
-          ? await preparePassthroughUpload(docFile, {
-              maxBytes: 3 * 1024 * 1024,
-              contentType: 'application/pdf',
-              extension: 'pdf',
-              label: `Dokumen KK/Akte rider #${idx + 1}`,
-            })
-          : await prepareImageUpload(docFile, {
-              maxBytes: 2 * 1024 * 1024,
-              maxDimension: 1200,
-              quality: 78,
-              label: `Dokumen KK/Akte rider #${idx + 1}`,
-            })
+        const docUpload = await prepareRegistrationUploadFile(docFile, {
+          kind: 'document',
+          label: `Dokumen KK/Akte rider #${idx + 1}`,
+        })
         const photoPath =
           riderPhotoUploadEnabled && photoFile instanceof File
             ? `events/${eventId}/${registration.id}/${itemRow.id}-photo-${Date.now()}-${idx}.webp`
@@ -786,13 +764,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
         const docPath = `events/${eventId}/${registration.id}/${itemRow.id}-${DOCUMENT_TYPE}-${Date.now()}-${idx}.${docUpload.extension}`
 
         if (photoPath && photoFile instanceof File) {
-          const photoUpload = await prepareImageUpload(photoFile, {
-            maxBytes: 1.5 * 1024 * 1024,
-            maxDimension: 500,
-            quality: 78,
+          const photoUpload = await prepareRegistrationUploadFile(photoFile, {
+            kind: 'rider-photo',
             label: `Foto rider #${idx + 1}`,
           })
-          await uploadPreparedFile(photoPath, photoUpload)
+          await uploadRegistrationStorageObject(photoPath, photoUpload)
           uploadedPaths.push(photoPath)
 
           const { error: updatePhotoError } = await adminClient
@@ -804,7 +780,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
           if (updatePhotoError) throw new Error(updatePhotoError.message)
         }
 
-        await uploadPreparedFile(docPath, docUpload)
+        await uploadRegistrationStorageObject(docPath, docUpload)
         uploadedPaths.push(docPath)
 
         return {
@@ -819,25 +795,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     const { error: docsError } = await adminClient.from('registration_documents').insert(docsToInsert)
     if (docsError) throw new Error(docsError.message)
 
-    const paymentIsPdf = isPdfFile(paymentProof)
-    if (!paymentProof.type.startsWith('image/') && !paymentIsPdf) {
+    const paymentKind = getRegistrationFileKind(paymentProof)
+    if (!paymentKind.isImage && !paymentKind.isPdf) {
       throw new Error('Bukti pembayaran harus berupa gambar atau PDF.')
     }
-    const paymentUpload = paymentIsPdf
-      ? await preparePassthroughUpload(paymentProof, {
-          maxBytes: 3 * 1024 * 1024,
-          contentType: 'application/pdf',
-          extension: 'pdf',
-          label: 'Bukti pembayaran',
-        })
-      : await prepareImageUpload(paymentProof, {
-          maxBytes: 2 * 1024 * 1024,
-          maxDimension: 1200,
-          quality: 78,
-          label: 'Bukti pembayaran',
-        })
+    const paymentUpload = await prepareRegistrationUploadFile(paymentProof, {
+      kind: 'payment',
+      label: 'Bukti pembayaran',
+    })
     const paymentPath = `events/${eventId}/${registration.id}/payment-${Date.now()}.${paymentUpload.extension}`
-    await uploadPreparedFile(paymentPath, paymentUpload)
+    await uploadRegistrationStorageObject(paymentPath, paymentUpload)
     uploadedPaths.push(paymentPath)
 
     const { data: payment, error: paymentError } = await adminClient

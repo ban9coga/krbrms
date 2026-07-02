@@ -9,6 +9,11 @@ import {
 } from '../../../../lib/categoryAssignment'
 import type { BusinessSettings } from '../../../../lib/eventService'
 import { buildQrCodeUrl } from '../../../../lib/publicLinks'
+import {
+  RIDER_PHOTO_MAX_BYTES,
+  SUPPORTING_IMAGE_MAX_BYTES,
+  SUPPORTING_PDF_MAX_BYTES,
+} from '../../../../lib/registrationUploadConfig'
 
 type CategoryItem = {
   id: string
@@ -65,9 +70,6 @@ const REGISTRATION_STEPS = ['Kontak', 'Rider', 'Pembayaran', 'Review & Kirim'] a
 
 const DEFAULT_BASE_PRICE = 250000
 const DEFAULT_EXTRA_PRICE = 150000
-const RIDER_PHOTO_MAX_BYTES = Math.round(1.5 * 1024 * 1024)
-const SUPPORTING_IMAGE_MAX_BYTES = 2 * 1024 * 1024
-const SUPPORTING_PDF_MAX_BYTES = 3 * 1024 * 1024
 const JERSEY_SIZE_GUIDE_ROWS = [
   ['XS', '37-38', '25-26'],
   ['S', '39-40', '27-28'],

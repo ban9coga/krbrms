@@ -1,6 +1,12 @@
 import { randomUUID } from 'crypto'
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../lib/auth'
+import {
+  NO_PLATE_SUFFIX_KEY,
+  nextAvailablePlateSuffix,
+  normalizePlateNumber,
+  normalizePlateSuffix,
+} from '../../../../../lib/plate'
 import { normalizeEventMotoSequence } from '../../../../../services/motoSequenceNormalizer'
 
 const buildInsertRows = <T,>(
@@ -16,25 +22,6 @@ const toRecordArray = (value: unknown): Record<string, unknown>[] => {
 const toRecord = (value: unknown): Record<string, unknown> | null => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
   return value as Record<string, unknown>
-}
-
-const normalizePlateNumber = (value: unknown) => {
-  const text = typeof value === 'string' ? value.trim() : value == null ? '' : String(value).trim()
-  return text || null
-}
-
-const normalizePlateSuffix = (value: unknown) => {
-  if (typeof value !== 'string') return null
-  const text = value.trim().toUpperCase()
-  return text ? text.slice(0, 1) : null
-}
-
-const nextAvailablePlateSuffix = (used: Set<string>) => {
-  for (let code = 65; code <= 90; code += 1) {
-    const suffix = String.fromCharCode(code)
-    if (!used.has(suffix)) return suffix
-  }
-  return null
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
@@ -112,13 +99,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     const riderInserts = buildInsertRows(riderRows, (row) => {
       const newId = randomUUID()
       riderIdMap.set(row.id, newId)
-      const plateNumber = normalizePlateNumber(row.plate_number)
-      const requestedSuffix = normalizePlateSuffix(row.plate_suffix)
+      const plateNumber = normalizePlateNumber(row.plate_number, { digitsOnly: false })
+      const requestedSuffix = normalizePlateSuffix(row.plate_suffix, { lettersOnly: false })
       let plateSuffix = requestedSuffix
 
       if (plateNumber) {
         const used = usedPlatesByNumber.get(plateNumber) ?? new Set<string>()
-        const suffixKey = plateSuffix ?? '__NO_SUFFIX__'
+        const suffixKey = plateSuffix ?? NO_PLATE_SUFFIX_KEY
         if (used.has(suffixKey)) {
           const replacement = nextAvailablePlateSuffix(used)
           if (!replacement) {
@@ -126,7 +113,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
           }
           plateSuffix = replacement
         }
-        used.add((plateSuffix ?? '__NO_SUFFIX__'))
+        used.add((plateSuffix ?? NO_PLATE_SUFFIX_KEY))
         usedPlatesByNumber.set(plateNumber, used)
       }
 

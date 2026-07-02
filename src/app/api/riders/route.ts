@@ -4,27 +4,11 @@ import {
   isMissingPrimaryCategoryColumnError,
   missingPrimaryCategoryMigrationMessage,
 } from '../../../lib/categoryAssignment'
+import { normalizePlateNumber, normalizePlateSuffix, suggestPlateSuffix } from '../../../lib/plate'
 import { saveRiderExtraCategory } from '../../../lib/riderExtraCategory'
 
 const MIN_BIRTH_YEAR = 2016
 const MAX_BIRTH_YEAR = 2025
-
-const suggestSuffix = (used: (string | null)[]) => {
-  const existing = new Set(used.filter(Boolean) as string[])
-  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')
-  for (const letter of alphabet) {
-    if (!existing.has(letter)) return letter
-  }
-  return null
-}
-
-const normalizePlateNumber = (value: unknown) => {
-  if (value === undefined || value === null) return null
-  const raw = String(value).trim()
-  if (!raw) return null
-  if (!/^\d+$/.test(raw)) return null
-  return raw
-}
 
 const resolveCategory = async (
   eventId: string,
@@ -262,9 +246,8 @@ export async function POST(req: Request) {
     )
   }
 
-  const suffixRaw = typeof plate_suffix === 'string' ? plate_suffix.trim().toUpperCase() : ''
-  const normalizedSuffix = suffixRaw ? suffixRaw[0] : null
-  if (normalizedSuffix && !/^[A-Z]$/.test(normalizedSuffix)) {
+  const normalizedSuffix = normalizePlateSuffix(plate_suffix)
+  if (typeof plate_suffix === 'string' && plate_suffix.trim().length > 0 && !normalizedSuffix) {
     return NextResponse.json({ error: 'plate_suffix must be A-Z' }, { status: 400 })
   }
 
@@ -277,14 +260,14 @@ export async function POST(req: Request) {
   if ((existingPlates ?? []).length > 0) {
     const used = existingPlates?.map((row) => row.plate_suffix) ?? []
     if (!normalizedSuffix) {
-      const suggestion = suggestSuffix(used)
+      const suggestion = suggestPlateSuffix(used)
       return NextResponse.json(
         { error: 'plate_number already exists', suggested_suffix: suggestion },
         { status: 409 }
       )
     }
     if (used.includes(normalizedSuffix)) {
-      const suggestion = suggestSuffix(used)
+      const suggestion = suggestPlateSuffix(used)
       return NextResponse.json(
         { error: 'plate_suffix already exists', suggested_suffix: suggestion },
         { status: 409 }

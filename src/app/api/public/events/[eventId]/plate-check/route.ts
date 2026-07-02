@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../../lib/auth'
+import { normalizePlateNumber, normalizePlateSuffix, suggestPlateSuffix } from '../../../../../../lib/plate'
 import { rateLimit } from '../../../../../../lib/rateLimit'
 
 const PLATE_CHECK_LIMIT = {
@@ -8,38 +9,13 @@ const PLATE_CHECK_LIMIT = {
   windowMs: 60 * 1000,
 }
 
-const suggestSuffix = (used: Array<string | null>) => {
-  const existing = new Set(used.filter(Boolean) as string[])
-  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')
-  for (const letter of alphabet) {
-    if (!existing.has(letter)) return letter
-  }
-  return null
-}
-
-const normalizePlateNumber = (value: unknown) => {
-  if (value === undefined || value === null) return null
-  const raw = String(value).trim()
-  if (!raw) return null
-  if (!/^\d{1,3}$/.test(raw)) return null
-  return raw
-}
-
-const normalizePlateSuffix = (value: unknown) => {
-  if (value === undefined || value === null) return null
-  const raw = String(value).trim().toUpperCase()
-  if (!raw) return null
-  const normalized = raw[0]
-  return /^[A-Z]$/.test(normalized) ? normalized : null
-}
-
 export async function GET(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const limited = await rateLimit(req, PLATE_CHECK_LIMIT)
   if (!limited.ok) return limited.response
 
   const { eventId } = await params
   const { searchParams } = new URL(req.url)
-  const plateNumber = normalizePlateNumber(searchParams.get('plate_number'))
+  const plateNumber = normalizePlateNumber(searchParams.get('plate_number'), { maxDigits: 3 })
   const plateSuffix = normalizePlateSuffix(searchParams.get('plate_suffix'))
 
   if (!plateNumber) {
@@ -100,7 +76,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     })
   }
 
-  const suggestion = suggestSuffix(usedSuffixes)
+  const suggestion = suggestPlateSuffix(usedSuffixes)
 
   if (!plateSuffix) {
     return NextResponse.json({

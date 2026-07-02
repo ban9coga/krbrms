@@ -10,6 +10,7 @@ import {
   sendRegistrationRejectionEmail,
   type RegistrationEmailResult,
 } from '../../../../../../../lib/registrationEmail'
+import { normalizePlateNumber, normalizePlateSuffix } from '../../../../../../../lib/plate'
 
 const REGISTRATION_BUCKET = process.env.NEXT_PUBLIC_REGISTRATION_BUCKET || 'registration-docs'
 const RIDER_PHOTO_BUCKET = 'rider-photos'
@@ -139,22 +140,6 @@ type ApprovalItem = {
   plate_suffix?: string | null
 }
 
-const normalizePlateNumber = (value: unknown) => {
-  if (value === undefined || value === null) return null
-  const raw = String(value).trim()
-  if (!raw) return null
-  if (!/^\d{1,3}$/.test(raw)) return null
-  return raw
-}
-
-const normalizeSuffix = (value?: string | null) => {
-  if (!value) return null
-  const trimmed = value.trim().toUpperCase()
-  if (!trimmed.length) return null
-  const suffix = trimmed[0]
-  return /^[A-Z]$/.test(suffix) ? suffix : null
-}
-
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ eventId: string; registrationId: string }> }
@@ -278,8 +263,8 @@ export async function PATCH(
 
   for (const item of itemRows ?? []) {
     const input = itemMap.get(item.id)
-    const plateNumber = normalizePlateNumber(input?.plate_number ?? item.requested_plate_number)
-    const plateSuffix = normalizeSuffix(input?.plate_suffix ?? item.requested_plate_suffix)
+    const plateNumber = normalizePlateNumber(input?.plate_number ?? item.requested_plate_number, { maxDigits: 3 })
+    const plateSuffix = normalizePlateSuffix(input?.plate_suffix ?? item.requested_plate_suffix)
     if (!plateNumber) {
       return NextResponse.json({ error: `Plate number invalid untuk ${item.rider_name}` }, { status: 400 })
     }
@@ -307,8 +292,8 @@ export async function PATCH(
   const createdRiders: Array<{ rider_id: string; extra_category_id?: string | null }> = []
   for (const item of itemRows ?? []) {
     const input = itemMap.get(item.id)
-    const plateNumber = normalizePlateNumber(input?.plate_number ?? item.requested_plate_number)
-    const plateSuffix = normalizeSuffix(input?.plate_suffix ?? item.requested_plate_suffix)
+    const plateNumber = normalizePlateNumber(input?.plate_number ?? item.requested_plate_number, { maxDigits: 3 })
+    const plateSuffix = normalizePlateSuffix(input?.plate_suffix ?? item.requested_plate_suffix)
     if (!plateNumber) {
       return NextResponse.json({ error: `Plate number invalid untuk ${item.rider_name}` }, { status: 400 })
     }
