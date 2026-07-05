@@ -21,6 +21,53 @@ const RIDER_PHOTO_BUCKET = 'rider-photos'
 const RIDER_PHOTO_CACHE_CONTROL_SECONDS = '31536000'
 const APPROVAL_ITEM_SELECT =
   'id, rider_name, rider_nickname, jersey_size, date_of_birth, gender, club, primary_category_id, extra_category_id, requested_plate_number, requested_plate_suffix, photo_url'
+const REGISTRATION_DETAIL_SELECT = `
+  id,
+  registration_code,
+  community_name,
+  contact_name,
+  contact_phone,
+  contact_email,
+  status,
+  total_amount,
+  notes,
+  created_at,
+  attendance_status,
+  attendance_confirmed_at,
+  checked_in_at,
+  goodie_bag_collected_at,
+  registration_items(
+    id,
+    rider_name,
+    rider_nickname,
+    jersey_size,
+    date_of_birth,
+    gender,
+    club,
+    primary_category_id,
+    extra_category_id,
+    requested_plate_number,
+    requested_plate_suffix,
+    photo_url,
+    price,
+    status
+  ),
+  registration_documents(
+    id,
+    registration_item_id,
+    document_type,
+    file_url
+  ),
+  registration_payments(
+    id,
+    proof_url,
+    amount,
+    bank_name,
+    account_name,
+    account_number,
+    status
+  )
+`
 
 const ensureRiderPhotoBucket = async () => {
   const { data, error } = await adminClient.storage.getBucket(RIDER_PHOTO_BUCKET)
@@ -144,6 +191,26 @@ type ApprovalItem = {
   id: string
   plate_number?: string | null
   plate_suffix?: string | null
+}
+
+export async function GET(
+  req: Request,
+  { params }: { params: Promise<{ eventId: string; registrationId: string }> }
+) {
+  const { eventId, registrationId } = await params
+  const auth = await requireBackoffice(req.headers.get('authorization'), eventId)
+  if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { data, error } = await adminClient
+    .from('registrations')
+    .select(REGISTRATION_DETAIL_SELECT)
+    .eq('id', registrationId)
+    .eq('event_id', eventId)
+    .maybeSingle()
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  if (!data) return NextResponse.json({ error: 'Pendaftaran tidak ditemukan.' }, { status: 404 })
+  return NextResponse.json({ data })
 }
 
 const logRegistrationEmailNotification = async ({

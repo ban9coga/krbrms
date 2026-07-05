@@ -98,6 +98,10 @@ type RegistrationListResponse = {
   }
 }
 
+type RegistrationDetailResponse = {
+  data: RegistrationRow
+}
+
 type AttendanceSummary = {
   approved: number
   confirmed_attending: number
@@ -490,11 +494,11 @@ function WhatsAppAction({
   const href = buildWhatsAppUrl(registration, kind, whatsappGroupInviteUrl, categoryMap)
   if (!href) return null
   const notificationLabel = getRegistrationNotificationLabel(kind)
-  const openWhatsApp = (popup: Window | null) => {
+  const openWhatsApp = (popup: Window | null, targetHref: string) => {
     if (popup) {
-      popup.location.href = href
+      popup.location.href = targetHref
     } else {
-      window.open(href, '_blank', 'noopener,noreferrer')
+      window.open(targetHref, '_blank', 'noopener,noreferrer')
     }
     onOpen?.()
   }
@@ -524,6 +528,16 @@ function WhatsAppAction({
         event.preventDefault()
         const popup = window.open('', '_blank', 'noopener,noreferrer')
         try {
+          const latestResponse = await apiFetch<RegistrationDetailResponse>(
+            `/api/admin/events/${eventId}/registrations/${registration.id}`
+          )
+          const latestRegistration = latestResponse.data
+          const latestHref = buildWhatsAppUrl(latestRegistration, kind, whatsappGroupInviteUrl, categoryMap)
+          if (!latestHref) {
+            popup?.close()
+            window.alert('Data WhatsApp/kode registrasi belum lengkap untuk membuat pesan.')
+            return
+          }
           const response = await logNotification()
           if (response.alreadySent) {
             const resend = window.confirm(
@@ -535,7 +549,7 @@ function WhatsAppAction({
             }
             await logNotification(true)
           }
-          openWhatsApp(popup)
+          openWhatsApp(popup, latestHref)
         } catch (err) {
           popup?.close()
           window.alert(
