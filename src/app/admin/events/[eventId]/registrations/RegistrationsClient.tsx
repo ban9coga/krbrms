@@ -98,10 +98,6 @@ type RegistrationListResponse = {
   }
 }
 
-type RegistrationDetailResponse = {
-  data: RegistrationRow
-}
-
 type AttendanceSummary = {
   approved: number
   confirmed_attending: number
@@ -200,15 +196,6 @@ type ModalState =
 
 type FeedbackState = { type: 'success' | 'error' | 'info'; message: ReactNode } | null
 type InlineFeedbackState = { type: 'success' | 'error'; message: string }
-
-const getRegistrationNotificationLabel = (
-  kind: 'APPROVED' | 'REJECTED' | 'PAYMENT_REJECTED' | 'STATUS_ACCESS' | 'EMAIL_STATUS_ACCESS'
-) => {
-  if (kind === 'STATUS_ACCESS' || kind === 'EMAIL_STATUS_ACCESS') return 'QR dan status pendaftaran'
-  if (kind === 'APPROVED') return 'konfirmasi pendaftaran'
-  if (kind === 'PAYMENT_REJECTED') return 'konfirmasi pembayaran'
-  return 'penolakan pendaftaran'
-}
 
 const STATUS_OPTIONS: Array<{ value: 'ALL' | RegistrationStatus; label: string }> = [
   { value: 'ALL', label: 'Semua Status' },
@@ -473,7 +460,6 @@ const buildWhatsAppUrl = (
 }
 
 function WhatsAppAction({
-  eventId,
   registration,
   kind,
   className = '',
@@ -493,70 +479,13 @@ function WhatsAppAction({
 }) {
   const href = buildWhatsAppUrl(registration, kind, whatsappGroupInviteUrl, categoryMap)
   if (!href) return null
-  const notificationLabel = getRegistrationNotificationLabel(kind)
-  const openWhatsApp = (popup: Window | null, targetHref: string) => {
-    if (popup) {
-      popup.location.href = targetHref
-    } else {
-      window.open(targetHref, '_blank', 'noopener,noreferrer')
-    }
-    onOpen?.()
-  }
-  const logNotification = (forceResend = false) =>
-    apiFetch<{ ok?: boolean; alreadySent?: boolean; message?: string }>(
-      `/api/admin/events/${eventId}/registrations/${registration.id}/notifications`,
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          kind,
-          channel: 'WHATSAPP',
-          force_resend: forceResend,
-          metadata: {
-            source: 'admin_registrations',
-            label: label ?? 'Kirim WA',
-          },
-        }),
-      }
-    )
 
   return (
     <a
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      onClick={async (event) => {
-        event.preventDefault()
-        const popup = window.open('', '_blank', 'noopener,noreferrer')
-        try {
-          const latestResponse = await apiFetch<RegistrationDetailResponse>(
-            `/api/admin/events/${eventId}/registrations/${registration.id}`
-          )
-          const latestRegistration = latestResponse.data
-          const latestHref = buildWhatsAppUrl(latestRegistration, kind, whatsappGroupInviteUrl, categoryMap)
-          if (!latestHref) {
-            popup?.close()
-            window.alert('Data WhatsApp/kode registrasi belum lengkap untuk membuat pesan.')
-            return
-          }
-          const response = await logNotification()
-          if (response.alreadySent) {
-            const resend = window.confirm(
-              response.message ?? `Pendaftaran ini sudah pernah dikirim ${notificationLabel}. Kirim ulang?`
-            )
-            if (!resend) {
-              popup?.close()
-              return
-            }
-            await logNotification(true)
-          }
-          openWhatsApp(popup, latestHref)
-        } catch (err) {
-          popup?.close()
-          window.alert(
-            err instanceof Error ? err.message : `Pendaftaran ini sudah pernah dikirim ${notificationLabel}.`
-          )
-        }
-      }}
+      onClick={onOpen}
       className={`admin-success-button min-h-11 ${className}`}
     >
       {label ?? 'Kirim WA'}
