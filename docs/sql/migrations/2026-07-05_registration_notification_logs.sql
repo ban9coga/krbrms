@@ -26,8 +26,8 @@ create table if not exists registration_notification_logs (
 
 drop index if exists registration_notification_logs_once;
 
-create unique index if not exists registration_notification_logs_once
-  on registration_notification_logs (registration_id, notification_kind, channel);
+create index if not exists idx_registration_notification_logs_lookup
+  on registration_notification_logs (registration_id, notification_kind, channel, performed_at desc);
 
 create index if not exists idx_registration_notification_logs_event
   on registration_notification_logs (event_id, performed_at desc);

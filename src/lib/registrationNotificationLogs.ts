@@ -9,22 +9,12 @@ export type RegistrationNotificationKind =
 
 export type RegistrationNotificationChannel = 'WHATSAPP' | 'EMAIL'
 
-export class DuplicateRegistrationNotificationError extends Error {
-  constructor(public readonly kind: RegistrationNotificationKind) {
-    super(`Pendaftaran ini sudah pernah dikirim ${getRegistrationNotificationLabel(kind)}.`)
-    this.name = 'DuplicateRegistrationNotificationError'
-  }
-}
-
 export const getRegistrationNotificationLabel = (kind: RegistrationNotificationKind) => {
   if (kind === 'STATUS_ACCESS' || kind === 'EMAIL_STATUS_ACCESS') return 'QR dan status pendaftaran'
   if (kind === 'APPROVED') return 'konfirmasi pendaftaran'
   if (kind === 'PAYMENT_REJECTED') return 'konfirmasi pembayaran'
   return 'penolakan pendaftaran'
 }
-
-const isDuplicateNotificationError = (message: string) =>
-  /duplicate key value|registration_notification_logs_once|23505/i.test(message)
 
 export const createRegistrationNotificationLog = async ({
   eventId,
@@ -58,9 +48,6 @@ export const createRegistrationNotificationLog = async ({
     .single()
 
   if (error) {
-    if (isDuplicateNotificationError(error.message)) {
-      throw new DuplicateRegistrationNotificationError(kind)
-    }
     throw new Error(error.message)
   }
 
@@ -69,15 +56,23 @@ export const createRegistrationNotificationLog = async ({
 
 export const hasRegistrationNotificationLog = async (
   registrationId: string,
-  kind: RegistrationNotificationKind
+  kind: RegistrationNotificationKind,
+  channel?: RegistrationNotificationChannel
 ) => {
-  const { data, error } = await adminClient
+  let query = adminClient
     .from('registration_notification_logs')
     .select('id')
     .eq('registration_id', registrationId)
     .eq('notification_kind', kind)
-    .maybeSingle()
+    .order('performed_at', { ascending: false })
+    .limit(1)
+
+  if (channel) {
+    query = query.eq('channel', channel)
+  }
+
+  const { data, error } = await query
 
   if (error) throw new Error(error.message)
-  return Boolean(data?.id)
+  return (data ?? []).length > 0
 }

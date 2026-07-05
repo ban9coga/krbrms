@@ -173,6 +173,8 @@ type PlateCheckResponse = {
 
 type ApprovalResponse = {
   ok?: boolean
+  alreadySent?: boolean
+  message?: string
   email?: {
     status: 'sent' | 'skipped' | 'failed'
     id?: string
@@ -192,7 +194,7 @@ type ModalState =
   | { type: 'delete'; registration: RegistrationRow }
   | null
 
-type FeedbackState = { type: 'success' | 'error'; message: ReactNode } | null
+type FeedbackState = { type: 'success' | 'error' | 'info'; message: ReactNode } | null
 type InlineFeedbackState = { type: 'success' | 'error'; message: string }
 
 const getRegistrationNotificationLabel = (
@@ -488,6 +490,31 @@ function WhatsAppAction({
   const href = buildWhatsAppUrl(registration, kind, whatsappGroupInviteUrl, categoryMap)
   if (!href) return null
   const notificationLabel = getRegistrationNotificationLabel(kind)
+  const openWhatsApp = (popup: Window | null) => {
+    if (popup) {
+      popup.location.href = href
+    } else {
+      window.open(href, '_blank', 'noopener,noreferrer')
+    }
+    onOpen?.()
+  }
+  const logNotification = (forceResend = false) =>
+    apiFetch<{ ok?: boolean; alreadySent?: boolean; message?: string }>(
+      `/api/admin/events/${eventId}/registrations/${registration.id}/notifications`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          kind,
+          channel: 'WHATSAPP',
+          force_resend: forceResend,
+          metadata: {
+            source: 'admin_registrations',
+            label: label ?? 'Kirim WA',
+          },
+        }),
+      }
+    )
+
   return (
     <a
       href={href}
@@ -497,26 +524,20 @@ function WhatsAppAction({
         event.preventDefault()
         const popup = window.open('', '_blank', 'noopener,noreferrer')
         try {
-          await apiFetch(`/api/admin/events/${eventId}/registrations/${registration.id}/notifications`, {
-            method: 'POST',
-            body: JSON.stringify({
-              kind,
-              channel: 'WHATSAPP',
-              metadata: {
-                source: 'admin_registrations',
-                label: label ?? 'Kirim WA',
-              },
-            }),
-          })
-          if (popup) {
-            popup.location.href = href
-          } else {
-            window.open(href, '_blank', 'noopener,noreferrer')
+          const response = await logNotification()
+          if (response.alreadySent) {
+            const resend = window.confirm(
+              response.message ?? `Pendaftaran ini sudah pernah dikirim ${notificationLabel}. Kirim ulang?`
+            )
+            if (!resend) {
+              popup?.close()
+              return
+            }
+            await logNotification(true)
           }
-          onOpen?.()
+          openWhatsApp(popup)
         } catch (err) {
           popup?.close()
-          event.preventDefault()
           window.alert(
             err instanceof Error ? err.message : `Pendaftaran ini sudah pernah dikirim ${notificationLabel}.`
           )
@@ -1265,7 +1286,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
     return exportRows
   }
 
-  const resendStatusEmail = async (registration: RegistrationRow) => {
+  const resendStatusEmail = async (registration: RegistrationRow, forceResend = false) => {
     if (!registration.contact_email?.trim()) {
       setFeedback({ type: 'error', message: 'Email wali rider belum diisi.' })
       return
@@ -1279,8 +1300,22 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
     try {
       const response = await apiFetch<ApprovalResponse>(
         `/api/admin/events/${eventId}/registrations/${registration.id}/email`,
-        { method: 'POST' }
+        {
+          method: 'POST',
+          body: JSON.stringify({ force_resend: forceResend }),
+        }
       )
+      if (response.alreadySent) {
+        const resend = window.confirm(
+          response.message ?? 'Pendaftaran ini sudah pernah dikirim QR dan status pendaftaran via email. Kirim ulang?'
+        )
+        if (resend) {
+          await resendStatusEmail(registration, true)
+        } else {
+          setFeedback({ type: 'info', message: 'Kirim ulang email dibatalkan.' })
+        }
+        return
+      }
       const email = response.email
       const message =
         email?.status === 'sent'
@@ -2599,6 +2634,8 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
           className={`rounded-2xl border px-4 py-3 text-sm font-semibold ${
             feedback.type === 'success'
               ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+              : feedback.type === 'info'
+              ? 'border-sky-200 bg-sky-50 text-sky-900'
               : 'border-rose-200 bg-rose-50 text-rose-900'
           }`}
         >

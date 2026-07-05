@@ -6,7 +6,6 @@ import {
 } from '../../../../../../../../lib/registrationEmail'
 import {
   createRegistrationNotificationLog,
-  DuplicateRegistrationNotificationError,
   hasRegistrationNotificationLog,
 } from '../../../../../../../../lib/registrationNotificationLogs'
 
@@ -17,6 +16,8 @@ export async function POST(
   const { eventId, registrationId } = await params
   const auth = await requireBackoffice(req.headers.get('authorization'), eventId)
   if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const body = await req.json().catch(() => null)
+  const forceResend = body?.force_resend === true
 
   const { data: registration, error } = await adminClient
     .from('registrations')
@@ -35,11 +36,14 @@ export async function POST(
   }
 
   try {
-    const alreadySent = await hasRegistrationNotificationLog(registrationId, 'EMAIL_STATUS_ACCESS')
-    if (alreadySent) {
+    const alreadySent = await hasRegistrationNotificationLog(registrationId, 'EMAIL_STATUS_ACCESS', 'EMAIL')
+    if (alreadySent && !forceResend) {
       return NextResponse.json(
-        { error: 'Pendaftaran ini sudah pernah dikirim QR dan status pendaftaran via email.' },
-        { status: 409 }
+        {
+          ok: false,
+          alreadySent: true,
+          message: 'Pendaftaran ini sudah pernah dikirim QR dan status pendaftaran via email. Kirim ulang?',
+        }
       )
     }
   } catch (logError) {
@@ -70,12 +74,9 @@ export async function POST(
       channel: 'EMAIL',
       recipient: registration.contact_email,
       performedBy: auth.user.id,
-      metadata: { source: 'admin_resend_status_email' },
+      metadata: { source: 'admin_resend_status_email', resend: forceResend },
     })
   } catch (logError) {
-    if (logError instanceof DuplicateRegistrationNotificationError) {
-      return NextResponse.json({ error: logError.message, email }, { status: 409 })
-    }
     return NextResponse.json(
       { error: logError instanceof Error ? logError.message : 'Gagal mencatat log email.', email },
       { status: 400 }

@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import { adminClient, requireBackoffice } from '../../../../../../../../lib/auth'
 import {
   createRegistrationNotificationLog,
-  DuplicateRegistrationNotificationError,
+  getRegistrationNotificationLabel,
+  hasRegistrationNotificationLog,
   type RegistrationNotificationChannel,
   type RegistrationNotificationKind,
 } from '../../../../../../../../lib/registrationNotificationLogs'
@@ -42,6 +43,7 @@ export async function POST(
   const body = await req.json().catch(() => null)
   const kind = normalizeKind(body?.kind)
   const channel = normalizeChannel(body?.channel)
+  const forceResend = body?.force_resend === true
   if (!kind || !channel) {
     return NextResponse.json({ error: 'Invalid notification kind/channel' }, { status: 400 })
   }
@@ -62,6 +64,22 @@ export async function POST(
       : String(registration.contact_email ?? '').trim()
 
   try {
+    if (!forceResend) {
+      const alreadySent = await hasRegistrationNotificationLog(registrationId, kind, channel)
+      if (alreadySent) {
+        return NextResponse.json({
+          ok: false,
+          alreadySent: true,
+          message: `Pendaftaran ini sudah pernah dikirim ${getRegistrationNotificationLabel(kind)} via ${channel === 'WHATSAPP' ? 'WhatsApp' : 'email'}. Kirim ulang?`,
+        })
+      }
+    }
+
+    const metadata =
+      body?.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)
+        ? (body.metadata as Record<string, unknown>)
+        : {}
+
     const log = await createRegistrationNotificationLog({
       eventId,
       registrationId,
@@ -69,17 +87,13 @@ export async function POST(
       channel,
       recipient,
       performedBy: auth.user.id,
-      metadata:
-        body?.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)
-          ? (body.metadata as Record<string, unknown>)
-          : {},
+      metadata: {
+        ...metadata,
+        resend: forceResend,
+      },
     })
     return NextResponse.json({ ok: true, data: log })
   } catch (err) {
-    if (err instanceof DuplicateRegistrationNotificationError) {
-      return NextResponse.json({ error: err.message }, { status: 409 })
-    }
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Gagal mencatat notifikasi.' }, { status: 400 })
   }
 }
-
