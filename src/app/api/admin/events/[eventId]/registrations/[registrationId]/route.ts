@@ -193,6 +193,84 @@ type ApprovalItem = {
   plate_suffix?: string | null
 }
 
+const buildPlateKey = (plateNumber?: string | null, plateSuffix?: string | null) => {
+  const number = String(plateNumber ?? '').trim()
+  if (!number) return ''
+  return `${number}:${String(plateSuffix ?? '').trim().toUpperCase()}`
+}
+
+const withOfficialRiderData = async <T extends { status?: string | null; registration_items?: unknown[] }>(
+  eventId: string,
+  registration: T
+) => {
+  if (registration.status !== 'APPROVED' || !Array.isArray(registration.registration_items)) return registration
+
+  const items = registration.registration_items as Array<Record<string, unknown>>
+  const plateNumbers = Array.from(
+    new Set(
+      items
+        .map((item) => String(item.requested_plate_number ?? '').trim())
+        .filter((plateNumber) => plateNumber.length > 0)
+    )
+  )
+  if (plateNumbers.length === 0) return registration
+
+  const { data: riders, error: ridersError } = await adminClient
+    .from('riders')
+    .select(
+      'id, name, rider_nickname, jersey_size, date_of_birth, gender, club, primary_category_id, plate_number, plate_suffix'
+    )
+    .eq('event_id', eventId)
+    .in('plate_number', plateNumbers)
+
+  if (ridersError) throw new Error(ridersError.message)
+  if (!riders || riders.length === 0) return registration
+
+  const riderIds = riders.map((rider) => rider.id).filter((id): id is string => typeof id === 'string')
+  const { data: extraRows, error: extraError } =
+    riderIds.length > 0
+      ? await adminClient
+          .from('rider_extra_categories')
+          .select('rider_id, category_id')
+          .in('rider_id', riderIds)
+          .order('created_at', { ascending: false })
+      : { data: [], error: null }
+
+  if (extraError) throw new Error(extraError.message)
+
+  const extraCategoryByRider = new Map<string, string | null>()
+  for (const row of extraRows ?? []) {
+    if (typeof row.rider_id === 'string' && !extraCategoryByRider.has(row.rider_id)) {
+      extraCategoryByRider.set(row.rider_id, typeof row.category_id === 'string' ? row.category_id : null)
+    }
+  }
+
+  const riderByPlate = new Map(
+    riders.map((rider) => [buildPlateKey(rider.plate_number, rider.plate_suffix), rider])
+  )
+
+  return {
+    ...registration,
+    registration_items: items.map((item) => {
+      const rider = riderByPlate.get(buildPlateKey(item.requested_plate_number as string, item.requested_plate_suffix as string))
+      if (!rider) return item
+      return {
+        ...item,
+        rider_name: rider.name,
+        rider_nickname: rider.rider_nickname,
+        jersey_size: rider.jersey_size,
+        date_of_birth: rider.date_of_birth,
+        gender: rider.gender,
+        club: rider.club,
+        primary_category_id: rider.primary_category_id,
+        extra_category_id: extraCategoryByRider.get(rider.id) ?? null,
+        requested_plate_number: rider.plate_number,
+        requested_plate_suffix: rider.plate_suffix,
+      }
+    }),
+  }
+}
+
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ eventId: string; registrationId: string }> }
@@ -210,7 +288,15 @@ export async function GET(
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   if (!data) return NextResponse.json({ error: 'Pendaftaran tidak ditemukan.' }, { status: 404 })
-  return NextResponse.json({ data })
+  try {
+    const officialData = await withOfficialRiderData(eventId, data)
+    return NextResponse.json({ data: officialData })
+  } catch (officialError) {
+    return NextResponse.json(
+      { error: officialError instanceof Error ? officialError.message : 'Gagal memuat data rider resmi.' },
+      { status: 400 }
+    )
+  }
 }
 
 const logRegistrationEmailNotification = async ({

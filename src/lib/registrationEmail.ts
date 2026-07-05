@@ -9,6 +9,7 @@ type RegistrationRow = {
   contact_name: string | null
   contact_phone: string | null
   contact_email: string | null
+  status: string | null
   total_amount: number | null
 }
 
@@ -27,6 +28,19 @@ type RegistrationItemRow = {
 type CategoryRow = {
   id: string
   label: string | null
+}
+
+type OfficialRiderRow = {
+  id: string
+  name: string | null
+  rider_nickname: string | null
+  jersey_size: string | null
+  date_of_birth: string | null
+  gender: string | null
+  club: string | null
+  primary_category_id: string | null
+  plate_number: string | null
+  plate_suffix: string | null
 }
 
 type EventRow = {
@@ -63,6 +77,80 @@ const normalizeExternalUrl = (value?: string | null) => {
   if (!raw) return ''
   if (/^https?:\/\//i.test(raw)) return raw
   return `https://${raw}`
+}
+
+const buildPlateKey = (plateNumber?: string | null, plateSuffix?: string | null) => {
+  const number = String(plateNumber ?? '').trim()
+  if (!number) return ''
+  return `${number}:${String(plateSuffix ?? '').trim().toUpperCase()}`
+}
+
+const withOfficialRiderItems = async (
+  eventId: string,
+  registration: RegistrationRow,
+  items: RegistrationItemRow[]
+) => {
+  if (registration.status !== 'APPROVED' || items.length === 0) return items
+
+  const plateNumbers = Array.from(
+    new Set(
+      items
+        .map((item) => String(item.requested_plate_number ?? '').trim())
+        .filter((plateNumber) => plateNumber.length > 0)
+    )
+  )
+  if (plateNumbers.length === 0) return items
+
+  const { data: riders, error: ridersError } = await adminClient
+    .from('riders')
+    .select(
+      'id, name, rider_nickname, jersey_size, date_of_birth, gender, club, primary_category_id, plate_number, plate_suffix'
+    )
+    .eq('event_id', eventId)
+    .in('plate_number', plateNumbers)
+
+  if (ridersError) throw new Error(ridersError.message)
+  const officialRiders = (riders ?? []) as OfficialRiderRow[]
+  if (officialRiders.length === 0) return items
+
+  const riderIds = officialRiders.map((rider) => rider.id)
+  const { data: extraRows, error: extraError } =
+    riderIds.length > 0
+      ? await adminClient
+          .from('rider_extra_categories')
+          .select('rider_id, category_id')
+          .in('rider_id', riderIds)
+          .order('created_at', { ascending: false })
+      : { data: [], error: null }
+
+  if (extraError) throw new Error(extraError.message)
+
+  const extraCategoryByRider = new Map<string, string | null>()
+  for (const row of extraRows ?? []) {
+    if (typeof row.rider_id === 'string' && !extraCategoryByRider.has(row.rider_id)) {
+      extraCategoryByRider.set(row.rider_id, typeof row.category_id === 'string' ? row.category_id : null)
+    }
+  }
+
+  const riderByPlate = new Map(
+    officialRiders.map((rider) => [buildPlateKey(rider.plate_number, rider.plate_suffix), rider])
+  )
+
+  return items.map((item) => {
+    const rider = riderByPlate.get(buildPlateKey(item.requested_plate_number, item.requested_plate_suffix))
+    if (!rider) return item
+    return {
+      ...item,
+      rider_name: rider.name,
+      rider_nickname: rider.rider_nickname,
+      club: rider.club,
+      primary_category_id: rider.primary_category_id,
+      extra_category_id: extraCategoryByRider.get(rider.id) ?? null,
+      jersey_size: rider.jersey_size,
+      requested_plate_number: rider.plate_number,
+      requested_plate_suffix: rider.plate_suffix,
+    }
+  })
 }
 
 const getBusinessSettings = (value: unknown): BusinessSettings => {
@@ -105,7 +193,7 @@ export const sendRegistrationStatusEmail = async (
 
   const { data: registration, error: registrationError } = await adminClient
     .from('registrations')
-    .select('id, registration_code, community_name, contact_name, contact_phone, contact_email, total_amount')
+    .select('id, registration_code, community_name, contact_name, contact_phone, contact_email, status, total_amount')
     .eq('id', registrationId)
     .eq('event_id', eventId)
     .maybeSingle()
@@ -143,7 +231,7 @@ export const sendRegistrationStatusEmail = async (
   const brandName = business.public_brand_name?.trim() || eventTitle
   const whatsappUrl = normalizeExternalUrl(business.whatsapp_group_invite_url)
   const committeeContact = resolveCommitteeContact(business)
-  const items = (itemRows ?? []) as RegistrationItemRow[]
+  const items = await withOfficialRiderItems(eventId, reg, (itemRows ?? []) as RegistrationItemRow[])
   const categoryIds = Array.from(
     new Set(
       items
