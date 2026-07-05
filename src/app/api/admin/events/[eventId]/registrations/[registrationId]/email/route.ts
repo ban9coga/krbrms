@@ -4,6 +4,11 @@ import {
   sendRegistrationStatusAccessEmail,
   type RegistrationEmailResult,
 } from '../../../../../../../../lib/registrationEmail'
+import {
+  createRegistrationNotificationLog,
+  DuplicateRegistrationNotificationError,
+  hasRegistrationNotificationLog,
+} from '../../../../../../../../lib/registrationNotificationLogs'
 
 export async function POST(
   req: Request,
@@ -29,6 +34,21 @@ export async function POST(
     return NextResponse.json({ error: 'Email wali rider belum diisi.' }, { status: 400 })
   }
 
+  try {
+    const alreadySent = await hasRegistrationNotificationLog(registrationId, 'EMAIL_STATUS_ACCESS')
+    if (alreadySent) {
+      return NextResponse.json(
+        { error: 'Pendaftaran ini sudah pernah dikirim QR dan status pendaftaran via email.' },
+        { status: 409 }
+      )
+    }
+  } catch (logError) {
+    return NextResponse.json(
+      { error: logError instanceof Error ? logError.message : 'Gagal mengecek log notifikasi email.' },
+      { status: 400 }
+    )
+  }
+
   let email: RegistrationEmailResult | { status: 'failed'; reason: string }
   try {
     email = await sendRegistrationStatusAccessEmail(eventId, registrationId)
@@ -40,6 +60,26 @@ export async function POST(
 
   if (email.status === 'failed') {
     return NextResponse.json({ error: email.reason, email }, { status: 502 })
+  }
+
+  try {
+    await createRegistrationNotificationLog({
+      eventId,
+      registrationId,
+      kind: 'EMAIL_STATUS_ACCESS',
+      channel: 'EMAIL',
+      recipient: registration.contact_email,
+      performedBy: auth.user.id,
+      metadata: { source: 'admin_resend_status_email' },
+    })
+  } catch (logError) {
+    if (logError instanceof DuplicateRegistrationNotificationError) {
+      return NextResponse.json({ error: logError.message, email }, { status: 409 })
+    }
+    return NextResponse.json(
+      { error: logError instanceof Error ? logError.message : 'Gagal mencatat log email.', email },
+      { status: 400 }
+    )
   }
 
   return NextResponse.json({ ok: true, email })

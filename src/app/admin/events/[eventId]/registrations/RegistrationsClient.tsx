@@ -195,6 +195,15 @@ type ModalState =
 type FeedbackState = { type: 'success' | 'error'; message: ReactNode } | null
 type InlineFeedbackState = { type: 'success' | 'error'; message: string }
 
+const getRegistrationNotificationLabel = (
+  kind: 'APPROVED' | 'REJECTED' | 'PAYMENT_REJECTED' | 'STATUS_ACCESS' | 'EMAIL_STATUS_ACCESS'
+) => {
+  if (kind === 'STATUS_ACCESS' || kind === 'EMAIL_STATUS_ACCESS') return 'QR dan status pendaftaran'
+  if (kind === 'APPROVED') return 'konfirmasi pendaftaran'
+  if (kind === 'PAYMENT_REJECTED') return 'konfirmasi pembayaran'
+  return 'penolakan pendaftaran'
+}
+
 const STATUS_OPTIONS: Array<{ value: 'ALL' | RegistrationStatus; label: string }> = [
   { value: 'ALL', label: 'Semua Status' },
   { value: 'PENDING', label: 'Pending' },
@@ -458,27 +467,61 @@ const buildWhatsAppUrl = (
 }
 
 function WhatsAppAction({
+  eventId,
   registration,
   kind,
   className = '',
   label,
   whatsappGroupInviteUrl,
   categoryMap,
+  onOpen,
 }: {
+  eventId: string
   registration: RegistrationRow
   kind: 'APPROVED' | 'REJECTED' | 'PAYMENT_REJECTED' | 'STATUS_ACCESS'
   className?: string
   label?: string
   whatsappGroupInviteUrl?: string | null
   categoryMap?: Map<string, string>
+  onOpen?: () => void
 }) {
   const href = buildWhatsAppUrl(registration, kind, whatsappGroupInviteUrl, categoryMap)
   if (!href) return null
+  const notificationLabel = getRegistrationNotificationLabel(kind)
   return (
     <a
       href={href}
       target="_blank"
       rel="noopener noreferrer"
+      onClick={async (event) => {
+        event.preventDefault()
+        const popup = window.open('', '_blank', 'noopener,noreferrer')
+        try {
+          await apiFetch(`/api/admin/events/${eventId}/registrations/${registration.id}/notifications`, {
+            method: 'POST',
+            body: JSON.stringify({
+              kind,
+              channel: 'WHATSAPP',
+              metadata: {
+                source: 'admin_registrations',
+                label: label ?? 'Kirim WA',
+              },
+            }),
+          })
+          if (popup) {
+            popup.location.href = href
+          } else {
+            window.open(href, '_blank', 'noopener,noreferrer')
+          }
+          onOpen?.()
+        } catch (err) {
+          popup?.close()
+          event.preventDefault()
+          window.alert(
+            err instanceof Error ? err.message : `Pendaftaran ini sudah pernah dikirim ${notificationLabel}.`
+          )
+        }
+      }}
       className={`admin-success-button min-h-11 ${className}`}
     >
       {label ?? 'Kirim WA'}
@@ -1022,6 +1065,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <span>{`Pendaftaran ${registration.contact_name} berhasil di-approve. ${emailMessage}`}</span>
             <WhatsAppAction
+              eventId={eventId}
               registration={registration}
               kind="APPROVED"
               className="w-full sm:w-auto"
@@ -1068,7 +1112,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
         message: (
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <span>{`Pendaftaran ${registration.contact_name} berhasil ditolak. ${buildEmailFeedback(email)}`}</span>
-            <WhatsAppAction registration={registration} kind="REJECTED" className="w-full sm:w-auto" label="Kirim WA Penolakan" />
+            <WhatsAppAction eventId={eventId} registration={registration} kind="REJECTED" className="w-full sm:w-auto" label="Kirim WA Penolakan" />
           </div>
         ),
       })
@@ -1139,6 +1183,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <span>{`Pembayaran ${registration.contact_name} berhasil diubah ke ${nextStatus}.${emailMessage}`}</span>
               <WhatsAppAction
+                eventId={eventId}
                 registration={registration}
                 kind="PAYMENT_REJECTED"
                 className="w-full sm:w-auto"
@@ -2575,16 +2620,10 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
             const readiness = getApprovalReadiness(registration)
             const isExpanded = expanded[registration.id] ?? false
             const isActionMenuOpen = actionMenuOpen === registration.id
-            const statusAccessWhatsAppUrl = buildWhatsAppUrl(registration, 'STATUS_ACCESS')
-            const decisionWhatsAppUrl =
-              registration.status !== 'PENDING'
-                ? buildWhatsAppUrl(
-                    registration,
-                    registration.status === 'REJECTED' ? 'REJECTED' : 'APPROVED',
-                    registration.status === 'APPROVED' ? whatsappGroupInviteUrl : null,
-                    registration.status === 'APPROVED' ? categoryMap : undefined
-                  )
-                : ''
+            const approveDisabled =
+              savingKey === `registration:${registration.id}` ||
+              registration.status !== 'PENDING' ||
+              !readiness.canApprove
             const deleteDisabled =
               savingKey === `registration:${registration.id}` ||
               (!isCentralAdmin && registration.status !== 'REJECTED')
@@ -2656,11 +2695,20 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                         </button>
                         <button
                           type="button"
-                          disabled={savingKey === `registration:${registration.id}` || !readiness.canApprove}
+                          disabled={approveDisabled}
                           onClick={() => openApproveModal(registration)}
-                          className="admin-primary-button min-h-11"
+                          title={
+                            registration.status !== 'PENDING'
+                              ? 'Pendaftaran ini sudah diproses.'
+                              : readiness.blockingReasons[0] ?? 'Approve dan buat rider permanen'
+                          }
+                          className={
+                            approveDisabled
+                              ? 'inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-100 px-4 py-2.5 text-sm font-black uppercase tracking-[0.12em] text-slate-400 disabled:cursor-not-allowed'
+                              : 'admin-success-button min-h-11'
+                          }
                         >
-                          Approve & Create Riders
+                          {registration.status === 'APPROVED' ? 'Riders Created' : 'Approve & Create Riders'}
                         </button>
 
                         <div className="relative">
@@ -2683,17 +2731,14 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                               <div className="px-2 pb-1 pt-1 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
                                 Notifikasi wali
                               </div>
-                              {statusAccessWhatsAppUrl && (
-                                <a
-                                  href={statusAccessWhatsAppUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  onClick={() => setActionMenuOpen(null)}
-                                  className="admin-success-button min-h-11 justify-start"
-                                >
-                                  Kirim QR & Status
-                                </a>
-                              )}
+                              <WhatsAppAction
+                                eventId={eventId}
+                                registration={registration}
+                                kind="STATUS_ACCESS"
+                                className="justify-start"
+                                label="Kirim QR & Status"
+                                onOpen={() => setActionMenuOpen(null)}
+                              />
                               <button
                                 type="button"
                                 disabled={
@@ -2716,16 +2761,17 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                               >
                                 {savingKey === `email:${registration.id}` ? 'Mengirim Email...' : 'Kirim Email QR & Status'}
                               </button>
-                              {decisionWhatsAppUrl && (
-                                <a
-                                  href={decisionWhatsAppUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  onClick={() => setActionMenuOpen(null)}
-                                  className="admin-success-button min-h-11 justify-start"
-                                >
-                                  {registration.status === 'REJECTED' ? 'Kirim WA Penolakan' : 'Kirim WA Konfirmasi'}
-                                </a>
+                              {registration.status !== 'PENDING' && (
+                                <WhatsAppAction
+                                  eventId={eventId}
+                                  registration={registration}
+                                  kind={registration.status === 'REJECTED' ? 'REJECTED' : 'APPROVED'}
+                                  className="justify-start"
+                                  label={registration.status === 'REJECTED' ? 'Kirim WA Penolakan' : 'Kirim WA Konfirmasi'}
+                                  whatsappGroupInviteUrl={registration.status === 'APPROVED' ? whatsappGroupInviteUrl : null}
+                                  categoryMap={registration.status === 'APPROVED' ? categoryMap : undefined}
+                                  onOpen={() => setActionMenuOpen(null)}
+                                />
                               )}
 
                               <div className="my-1 h-px bg-slate-200" />
@@ -3078,7 +3124,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                 type="button"
                 disabled={Boolean(savingKey)}
                 onClick={handleModalConfirm}
-                className={modal.type === 'approve' ? 'admin-primary-button' : 'admin-danger-button'}
+                className={modal.type === 'approve' ? 'admin-success-button' : 'admin-danger-button'}
               >
                 {modal.type === 'approve' ? 'Approve Sekarang' : modal.type === 'reject' ? 'Reject Sekarang' : 'Delete Permanen'}
               </button>

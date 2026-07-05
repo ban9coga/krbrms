@@ -10,6 +10,10 @@ import {
   sendRegistrationRejectionEmail,
   type RegistrationEmailResult,
 } from '../../../../../../../lib/registrationEmail'
+import {
+  createRegistrationNotificationLog,
+  type RegistrationNotificationKind,
+} from '../../../../../../../lib/registrationNotificationLogs'
 import { normalizePlateNumber, normalizePlateSuffix } from '../../../../../../../lib/plate'
 
 const REGISTRATION_BUCKET = process.env.NEXT_PUBLIC_REGISTRATION_BUCKET || 'registration-docs'
@@ -142,6 +146,37 @@ type ApprovalItem = {
   plate_suffix?: string | null
 }
 
+const logRegistrationEmailNotification = async ({
+  eventId,
+  registrationId,
+  kind,
+  recipient,
+  performedBy,
+  source,
+}: {
+  eventId: string
+  registrationId: string
+  kind: RegistrationNotificationKind
+  recipient?: string | null
+  performedBy?: string | null
+  source: string
+}) => {
+  try {
+    await createRegistrationNotificationLog({
+      eventId,
+      registrationId,
+      kind,
+      channel: 'EMAIL',
+      recipient,
+      performedBy,
+      metadata: { source },
+    })
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : 'Unknown error'
+    console.warn(`[registration-notification-log] failed logging ${kind}:`, reason)
+  }
+}
+
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ eventId: string; registrationId: string }> }
@@ -157,9 +192,9 @@ export async function PATCH(
     return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
   }
 
-  const { error: regError } = await adminClient
+  const { data: registration, error: regError } = await adminClient
     .from('registrations')
-    .select('id, status')
+    .select('id, status, contact_email')
     .eq('id', registrationId)
     .eq('event_id', eventId)
     .single()
@@ -180,6 +215,16 @@ export async function PATCH(
     let email: RegistrationEmailResult | { status: 'failed'; reason: string } | null = null
     try {
       email = await sendRegistrationRejectionEmail(eventId, registrationId, notes)
+      if (email.status === 'sent') {
+        await logRegistrationEmailNotification({
+          eventId,
+          registrationId,
+          kind: 'REJECTED',
+          recipient: registration.contact_email,
+          performedBy: auth.user.id,
+          source: 'registration_rejection',
+        })
+      }
     } catch (emailError) {
       const reason = emailError instanceof Error ? emailError.message : 'Gagal mengirim email penolakan.'
       console.warn('[registration-email] failed sending rejection notification:', reason)
@@ -355,6 +400,26 @@ export async function PATCH(
   if (status === 'APPROVED') {
     try {
       email = await sendRegistrationConfirmationEmail(eventId, registrationId)
+      if (email.status === 'sent') {
+        await Promise.all([
+          logRegistrationEmailNotification({
+            eventId,
+            registrationId,
+            kind: 'APPROVED',
+            recipient: registration.contact_email,
+            performedBy: auth.user.id,
+            source: 'registration_approval',
+          }),
+          logRegistrationEmailNotification({
+            eventId,
+            registrationId,
+            kind: 'EMAIL_STATUS_ACCESS',
+            recipient: registration.contact_email,
+            performedBy: auth.user.id,
+            source: 'registration_approval',
+          }),
+        ])
+      }
     } catch (emailError) {
       const reason = emailError instanceof Error ? emailError.message : 'Gagal mengirim email konfirmasi.'
       console.warn('[registration-email] failed sending approval confirmation:', reason)
@@ -363,6 +428,16 @@ export async function PATCH(
   } else if (status === 'REJECTED') {
     try {
       email = await sendRegistrationRejectionEmail(eventId, registrationId, notes)
+      if (email.status === 'sent') {
+        await logRegistrationEmailNotification({
+          eventId,
+          registrationId,
+          kind: 'REJECTED',
+          recipient: registration.contact_email,
+          performedBy: auth.user.id,
+          source: 'registration_rejection',
+        })
+      }
     } catch (emailError) {
       const reason = emailError instanceof Error ? emailError.message : 'Gagal mengirim email penolakan.'
       console.warn('[registration-email] failed sending rejection notification:', reason)

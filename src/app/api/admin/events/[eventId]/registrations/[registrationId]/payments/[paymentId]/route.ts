@@ -4,6 +4,7 @@ import {
   sendRegistrationPaymentRejectionEmail,
   type RegistrationEmailResult,
 } from '../../../../../../../../../lib/registrationEmail'
+import { createRegistrationNotificationLog } from '../../../../../../../../../lib/registrationNotificationLogs'
 
 const PAYMENT_STATUSES = ['APPROVED', 'REJECTED'] as const
 const PAYMENT_RETURN_SELECT =
@@ -25,7 +26,7 @@ export async function PATCH(
 
   const { data: registration, error: regError } = await adminClient
     .from('registrations')
-    .select('id, status')
+    .select('id, status, contact_email')
     .eq('id', registrationId)
     .eq('event_id', eventId)
     .maybeSingle()
@@ -51,6 +52,22 @@ export async function PATCH(
         : 'Bukti pembayaran belum dapat dikonfirmasi. Silakan cek kembali bukti pembayaran atau hubungi panitia.'
     try {
       email = await sendRegistrationPaymentRejectionEmail(eventId, registrationId, reason)
+      if (email.status === 'sent') {
+        try {
+          await createRegistrationNotificationLog({
+            eventId,
+            registrationId,
+            kind: 'PAYMENT_REJECTED',
+            channel: 'EMAIL',
+            recipient: registration.contact_email,
+            performedBy: auth.user.id,
+            metadata: { source: 'payment_rejection' },
+          })
+        } catch (logError) {
+          const message = logError instanceof Error ? logError.message : 'Unknown error'
+          console.warn('[registration-notification-log] failed logging payment rejection:', message)
+        }
+      }
     } catch (emailError) {
       const message = emailError instanceof Error ? emailError.message : 'Gagal mengirim email penolakan pembayaran.'
       console.warn('[registration-email] failed sending payment rejection notification:', message)
