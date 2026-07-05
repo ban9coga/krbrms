@@ -113,6 +113,20 @@ export default function CheckInClient({ eventId }: { eventId: string }) {
 
   useEffect(() => stopScanner, [stopScanner])
 
+  const requestCameraStream = async () => {
+    try {
+      return await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' } },
+        audio: false,
+      })
+    } catch {
+      return navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: false,
+      })
+    }
+  }
+
   const lookup = useCallback(
     async (rawCode: string) => {
       const normalizedCode = extractRegistrationCode(rawCode)
@@ -146,10 +160,7 @@ export default function CheckInClient({ eventId }: { eventId: string }) {
     }
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'environment' } },
-        audio: false,
-      })
+      const stream = await requestCameraStream()
       streamRef.current = stream
       const video = videoRef.current
       if (!video) {
@@ -157,8 +168,9 @@ export default function CheckInClient({ eventId }: { eventId: string }) {
         return
       }
       video.srcObject = stream
-      await video.play()
       setScannerActive(true)
+      await new Promise((resolve) => requestAnimationFrame(resolve))
+      await video.play()
       const detector = new Detector({ formats: ['qr_code'] })
 
       const scan = async () => {
@@ -175,9 +187,18 @@ export default function CheckInClient({ eventId }: { eventId: string }) {
         scanFrameRef.current = requestAnimationFrame(scan)
       }
       scanFrameRef.current = requestAnimationFrame(scan)
-    } catch {
+    } catch (error) {
       stopScanner()
-      setMessage({ type: 'error', text: 'Kamera tidak dapat dibuka. Periksa izin kamera atau gunakan input manual.' })
+      const errorName = error instanceof DOMException ? error.name : ''
+      const helpText =
+        errorName === 'NotAllowedError'
+          ? 'Izin kamera ditolak. Buka pengaturan browser lalu izinkan kamera untuk situs ini.'
+          : errorName === 'NotFoundError'
+            ? 'Kamera tidak ditemukan di perangkat ini.'
+            : window.isSecureContext
+              ? 'Kamera tidak dapat dibuka. Coba tutup aplikasi lain yang memakai kamera atau gunakan input manual.'
+              : 'Kamera hanya bisa dibuka dari HTTPS atau localhost. Gunakan domain HTTPS atau input manual.'
+      setMessage({ type: 'error', text: helpText })
     }
   }
 
