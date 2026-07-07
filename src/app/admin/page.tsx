@@ -305,6 +305,108 @@ function AttentionPanel({
   )
 }
 
+function VenueOperationsPanel({
+  metrics,
+  loading,
+}: {
+  metrics: DashboardMetrics | null
+  loading: boolean
+}) {
+  const primaryEvent = metrics?.primary_event ?? null
+  const eventBase = primaryEvent ? `/admin/events/${primaryEvent.id}` : '/admin/events'
+  const pendingReview = metrics?.pending_registrations ?? 0
+  const pendingPayment = metrics?.pending_payments ?? 0
+  const approvedRiders = metrics?.approved_riders ?? 0
+  const checkedIn = metrics?.checked_in_riders ?? 0
+  const goodiePending = metrics?.goodie_bag_pending ?? 0
+  const venueReady = Boolean(primaryEvent) && pendingReview === 0 && pendingPayment === 0 && approvedRiders > 0
+  const progress = approvedRiders > 0 ? Math.min(100, Math.round((checkedIn / approvedRiders) * 100)) : 0
+
+  const statusLabel = !primaryEvent
+    ? 'Pilih event'
+    : venueReady
+    ? 'Venue ready'
+    : pendingReview > 0 || pendingPayment > 0
+    ? 'Finalisasi registrasi dulu'
+    : approvedRiders > 0
+    ? 'Siap disiapkan'
+    : 'Belum ada rider approved'
+
+  return (
+    <section className="admin-surface overflow-hidden px-6 py-6 lg:px-8">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)] lg:items-stretch">
+        <div className="admin-card admin-card-tone-info grid gap-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <div className="admin-kicker">Venue Operations</div>
+              <h2 className="admin-heading mt-2 text-2xl">Check-in & Goodie Bag</h2>
+              <p className="admin-muted mt-2 max-w-2xl text-sm font-semibold leading-6">
+                Gunakan panel ini setelah registrasi ditutup atau data rider sudah final. Shortcut ini dibuat untuk race day:
+                scan QR, tandai hadir/tidak hadir, dan catat pengambilan goodie bag.
+              </p>
+            </div>
+            <span className={`admin-tone-badge ${venueReady ? 'admin-tone-success' : 'admin-tone-accent'} w-fit`}>
+              {loading ? 'Memuat' : statusLabel}
+            </span>
+          </div>
+
+          {loading ? (
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="admin-skeleton h-20" />
+              <div className="admin-skeleton h-20" />
+              <div className="admin-skeleton h-20" />
+            </div>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border border-sky-200 bg-white/70 p-4">
+                <div className="text-[11px] font-black uppercase tracking-[0.14em] text-sky-700">Approved Rider</div>
+                <div className="admin-heading mt-2 text-2xl">{approvedRiders}</div>
+              </div>
+              <div className="rounded-2xl border border-sky-200 bg-white/70 p-4">
+                <div className="text-[11px] font-black uppercase tracking-[0.14em] text-sky-700">Sudah Check-in</div>
+                <div className="admin-heading mt-2 text-2xl">{checkedIn}</div>
+              </div>
+              <div className="rounded-2xl border border-sky-200 bg-white/70 p-4">
+                <div className="text-[11px] font-black uppercase tracking-[0.14em] text-sky-700">Goodie Pending</div>
+                <div className="admin-heading mt-2 text-2xl">{goodiePending}</div>
+              </div>
+            </div>
+          )}
+
+          <div className="grid gap-2">
+            <div className="flex items-center justify-between text-xs font-black uppercase tracking-[0.12em] text-slate-600">
+              <span>Check-in progress</span>
+              <span>{loading ? '-' : `${progress}%`}</span>
+            </div>
+            <div className="h-3 overflow-hidden rounded-full bg-white/80 ring-1 ring-sky-200">
+              <div className="h-full rounded-full bg-sky-500 transition-all" style={{ width: `${loading ? 0 : progress}%` }} />
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-3">
+          <Link
+            href={primaryEvent ? `${eventBase}/check-in` : '/admin/events'}
+            className={venueReady ? 'admin-primary-button min-h-14 justify-center' : 'admin-outline-button min-h-14 justify-center'}
+          >
+            Buka Check-in & Goodie Bag
+          </Link>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+            <Link href={primaryEvent ? `${eventBase}/registrations` : '/admin/events'} className="admin-card-muted transition-transform hover:-translate-y-0.5">
+              <div className="admin-heading text-sm">Finalisasi Registrasi</div>
+              <div className="admin-muted mt-1 text-xs font-semibold leading-5">Review pending, payment, kontak wali, dan data rider.</div>
+            </Link>
+            <Link href={primaryEvent ? `${eventBase}/riders` : '/admin/events'} className="admin-card-muted transition-transform hover:-translate-y-0.5">
+              <div className="admin-heading text-sm">Rider Final</div>
+              <div className="admin-muted mt-1 text-xs font-semibold leading-5">Cek plate, upclass, kategori, dan data resmi race.</div>
+            </Link>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 export default function AdminDashboardPage() {
   const router = useRouter()
   const [email, setEmail] = useState<string | null>(null)
@@ -464,6 +566,8 @@ export default function AdminDashboardPage() {
           />
         </div>
       </section>
+
+      <VenueOperationsPanel metrics={metrics} loading={metricsLoading} />
 
       <AttentionPanel items={attentionItems} loading={metricsLoading} error={metricsError} />
 
