@@ -192,10 +192,17 @@ type ModalState =
   | { type: 'approve'; registration: RegistrationRow }
   | { type: 'reject'; registration: RegistrationRow }
   | { type: 'delete'; registration: RegistrationRow }
+  | { type: 'contact'; registration: RegistrationRow }
   | null
 
 type FeedbackState = { type: 'success' | 'error' | 'info'; message: ReactNode } | null
 type InlineFeedbackState = { type: 'success' | 'error'; message: string }
+type ContactFormState = {
+  contact_name: string
+  contact_phone: string
+  contact_email: string
+  community_name: string
+}
 
 const STATUS_OPTIONS: Array<{ value: 'ALL' | RegistrationStatus; label: string }> = [
   { value: 'ALL', label: 'Semua Status' },
@@ -544,6 +551,12 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
   const [refreshTick, setRefreshTick] = useState(0)
   const [modal, setModal] = useState<ModalState>(null)
   const [modalNotes, setModalNotes] = useState('')
+  const [contactForm, setContactForm] = useState<ContactFormState>({
+    contact_name: '',
+    contact_phone: '',
+    contact_email: '',
+    community_name: '',
+  })
   const [showAttendanceSummary, setShowAttendanceSummary] = useState(false)
   const [showCategoryKpis, setShowCategoryKpis] = useState(false)
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
@@ -981,10 +994,28 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
     setFeedback(null)
   }
 
+  const openContactModal = (registration: RegistrationRow) => {
+    setModal({ type: 'contact', registration })
+    setModalNotes('')
+    setContactForm({
+      contact_name: registration.contact_name ?? '',
+      contact_phone: registration.contact_phone ?? '',
+      contact_email: registration.contact_email ?? '',
+      community_name: registration.community_name ?? '',
+    })
+    setFeedback(null)
+  }
+
   const closeModal = () => {
     if (savingKey) return
     setModal(null)
     setModalNotes('')
+    setContactForm({
+      contact_name: '',
+      contact_phone: '',
+      contact_email: '',
+      community_name: '',
+    })
   }
 
   const approveRegistration = async (registration: RegistrationRow, notes: string) => {
@@ -1107,6 +1138,47 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
     }
   }
 
+  const updateRegistrationContact = async (registration: RegistrationRow) => {
+    const payload = {
+      contact_name: contactForm.contact_name.trim(),
+      contact_phone: contactForm.contact_phone.trim(),
+      contact_email: contactForm.contact_email.trim() || null,
+      community_name: contactForm.community_name.trim() || null,
+    }
+    if (!payload.contact_name) {
+      setFeedback({ type: 'error', message: 'Nama wali/penanggung jawab wajib diisi.' })
+      return
+    }
+    if (!payload.contact_phone) {
+      setFeedback({ type: 'error', message: 'Nomor WhatsApp wali wajib diisi.' })
+      return
+    }
+
+    setSavingKey(`contact:${registration.id}`)
+    try {
+      const response = await apiFetch<{ changed?: boolean }>(
+        `/api/admin/events/${eventId}/registrations/${registration.id}/contact`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify(payload),
+        }
+      )
+      setFeedback({
+        type: response.changed === false ? 'info' : 'success',
+        message:
+          response.changed === false
+            ? 'Kontak wali tidak berubah.'
+            : `Kontak wali untuk ${payload.contact_name} berhasil diperbarui.`,
+      })
+      setModal(null)
+      setRefreshTick((prev) => prev + 1)
+    } catch (err: unknown) {
+      setFeedback({ type: 'error', message: err instanceof Error ? err.message : 'Gagal memperbarui kontak wali.' })
+    } finally {
+      setSavingKey(null)
+    }
+  }
+
   const updatePaymentStatus = async (
     registration: RegistrationRow,
     payment: RegistrationPayment,
@@ -1188,6 +1260,10 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
     }
     if (modal.type === 'reject') {
       await rejectRegistration(modal.registration, modalNotes)
+      return
+    }
+    if (modal.type === 'contact') {
+      await updateRegistrationContact(modal.registration)
       return
     }
     await deleteRegistration(modal.registration)
@@ -2760,6 +2836,17 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                               </div>
                               <button
                                 type="button"
+                                disabled={savingKey === `contact:${registration.id}`}
+                                onClick={() => {
+                                  setActionMenuOpen(null)
+                                  openContactModal(registration)
+                                }}
+                                className="admin-outline-button min-h-11 justify-start"
+                              >
+                                Edit Kontak Wali
+                              </button>
+                              <button
+                                type="button"
                                 disabled={savingKey === `registration:${registration.id}` || registration.status !== 'PENDING'}
                                 onClick={() => {
                                   setActionMenuOpen(null)
@@ -3034,7 +3121,13 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
             <div className="flex items-start justify-between gap-3">
               <div className="grid gap-1">
                 <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">
-                  {modal.type === 'approve' ? 'Approve Registration' : modal.type === 'reject' ? 'Reject Registration' : 'Delete Registration'}
+                  {modal.type === 'approve'
+                    ? 'Approve Registration'
+                    : modal.type === 'reject'
+                    ? 'Reject Registration'
+                    : modal.type === 'contact'
+                    ? 'Edit Kontak Wali'
+                    : 'Delete Registration'}
                 </div>
                 <h2 className="text-xl font-black text-slate-950">{modal.registration.contact_name}</h2>
                 <div className="text-sm font-medium text-slate-600">
@@ -3092,6 +3185,52 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
               </div>
             )}
 
+            {modal.type === 'contact' && (
+              <div className="mt-5 grid gap-4">
+                <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm font-medium text-sky-900">
+                  Perubahan kontak dipakai untuk cek status, QR, email, dan WhatsApp wali. Sistem akan mencatat audit log perubahan ini.
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="grid gap-2">
+                    <span className="text-sm font-black text-slate-900">Nama Penanggung Jawab *</span>
+                    <input
+                      value={contactForm.contact_name}
+                      onChange={(event) => setContactForm((prev) => ({ ...prev, contact_name: event.target.value }))}
+                      className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none focus:border-slate-950"
+                    />
+                  </label>
+                  <label className="grid gap-2">
+                    <span className="text-sm font-black text-slate-900">Nomor WhatsApp *</span>
+                    <input
+                      value={contactForm.contact_phone}
+                      onChange={(event) => setContactForm((prev) => ({ ...prev, contact_phone: event.target.value }))}
+                      placeholder="08... / +62..."
+                      className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none focus:border-slate-950"
+                    />
+                  </label>
+                  <label className="grid gap-2">
+                    <span className="text-sm font-black text-slate-900">Email Konfirmasi</span>
+                    <input
+                      type="email"
+                      value={contactForm.contact_email}
+                      onChange={(event) => setContactForm((prev) => ({ ...prev, contact_email: event.target.value }))}
+                      placeholder="email@domain.com"
+                      className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none focus:border-slate-950"
+                    />
+                  </label>
+                  <label className="grid gap-2">
+                    <span className="text-sm font-black text-slate-900">Komunitas / Club</span>
+                    <input
+                      value={contactForm.community_name}
+                      onChange={(event) => setContactForm((prev) => ({ ...prev, community_name: event.target.value }))}
+                      placeholder="Nama komunitas"
+                      className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none focus:border-slate-950"
+                    />
+                  </label>
+                </div>
+              </div>
+            )}
+
             <div className="mt-6 flex flex-wrap justify-end gap-2">
               <button
                 type="button"
@@ -3104,9 +3243,15 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                 type="button"
                 disabled={Boolean(savingKey)}
                 onClick={handleModalConfirm}
-                className={modal.type === 'approve' ? 'admin-success-button' : 'admin-danger-button'}
+                className={modal.type === 'approve' || modal.type === 'contact' ? 'admin-success-button' : 'admin-danger-button'}
               >
-                {modal.type === 'approve' ? 'Approve Sekarang' : modal.type === 'reject' ? 'Reject Sekarang' : 'Delete Permanen'}
+                {modal.type === 'approve'
+                  ? 'Approve Sekarang'
+                  : modal.type === 'reject'
+                  ? 'Reject Sekarang'
+                  : modal.type === 'contact'
+                  ? 'Simpan Kontak'
+                  : 'Delete Permanen'}
               </button>
             </div>
           </div>
