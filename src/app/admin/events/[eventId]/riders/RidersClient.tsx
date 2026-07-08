@@ -61,6 +61,17 @@ type ExportCategoryGroup = {
   rows: RiderItem[]
 }
 
+type EventPdfMeta = {
+  name: string
+  eventDate: string | null
+  location: string | null
+  logoUrl: string | null
+  primaryColor: string
+  secondaryColor: string
+  headerBg: string
+  cardBg: string
+}
+
 const inputClass =
   'w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-amber-300 focus:ring-2 focus:ring-amber-300/30'
 
@@ -140,6 +151,16 @@ export default function RidersClient({ eventId }: { eventId: string }) {
   const [upclassRiders, setUpclassRiders] = useState<UpclassRiderItem[]>([])
   const [upclassQuery, setUpclassQuery] = useState('')
   const [upclassError, setUpclassError] = useState('')
+  const [eventPdfMeta, setEventPdfMeta] = useState<EventPdfMeta>({
+    name: 'RacePushbike Event',
+    eventDate: null,
+    location: null,
+    logoUrl: null,
+    primaryColor: '#2ecc71',
+    secondaryColor: '#111111',
+    headerBg: '#eaf7ee',
+    cardBg: '#ffffff',
+  })
 
   const [categories, setCategories] = useState<CategoryItem[]>([])
   const [selectedCategory, setSelectedCategory] = useState('')
@@ -278,6 +299,41 @@ export default function RidersClient({ eventId }: { eventId: string }) {
     return { res, json }
   }
 
+  const readThemeColor = (theme: Record<string, unknown>, key: string, fallback: string) => {
+    const value = theme[key]
+    return typeof value === 'string' && value.trim() ? value.trim() : fallback
+  }
+
+  const loadEventPdfMeta = async () => {
+    if (!eventId) return
+    const [{ json: eventJson }, settingsRes] = await Promise.all([
+      apiFetch(`/api/events/${eventId}`),
+      fetch(`/api/events/${eventId}/settings`).then((res) => res.json().catch(() => ({}))),
+    ])
+    const eventData = (eventJson?.data ?? {}) as Record<string, unknown>
+    const settingsData = (settingsRes?.data ?? {}) as Record<string, unknown>
+    const theme =
+      settingsData.display_theme && typeof settingsData.display_theme === 'object' && !Array.isArray(settingsData.display_theme)
+        ? (settingsData.display_theme as Record<string, unknown>)
+        : {}
+    const eventLogoUrl =
+      (typeof theme.logo_url === 'string' && theme.logo_url.trim()) ||
+      (typeof eventData.event_logo_url === 'string' && eventData.event_logo_url.trim()) ||
+      (typeof settingsData.event_logo_url === 'string' && settingsData.event_logo_url.trim()) ||
+      null
+
+    setEventPdfMeta({
+      name: typeof eventData.name === 'string' && eventData.name.trim() ? eventData.name.trim() : 'RacePushbike Event',
+      eventDate: typeof eventData.event_date === 'string' ? eventData.event_date : null,
+      location: typeof eventData.location === 'string' && eventData.location.trim() ? eventData.location.trim() : null,
+      logoUrl: eventLogoUrl,
+      primaryColor: readThemeColor(theme, 'primary_color', '#2ecc71'),
+      secondaryColor: readThemeColor(theme, 'secondary_color', '#111111'),
+      headerBg: readThemeColor(theme, 'header_bg', '#eaf7ee'),
+      cardBg: readThemeColor(theme, 'card_bg', '#ffffff'),
+    })
+  }
+
   const loadCategories = async () => {
     if (!eventId) return
     const res = await fetch(`/api/events/${eventId}/categories`)
@@ -330,6 +386,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
 
   useEffect(() => {
     loadCategories()
+    void loadEventPdfMeta()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
 
@@ -632,6 +689,276 @@ export default function RidersClient({ eventId }: { eventId: string }) {
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#39;')
+  }
+
+  const escapeCssString = (value: string | null | undefined) =>
+    (value ?? '').replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n|\r/g, '')
+
+  const formatEventDate = (value: string | null) => {
+    if (!value) return '-'
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return value
+    return date.toLocaleDateString('id-ID', {
+      weekday: 'long',
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+    })
+  }
+
+  const withHexAlpha = (value: string, alpha: string, fallback: string) =>
+    /^#[0-9a-fA-F]{6}$/.test(value) ? `${value}${alpha}` : fallback
+
+  const buildAllRiderPrintHtml = ({
+    totalRegistered,
+    upClassCount,
+    generatedAt,
+    sections,
+  }: {
+    totalRegistered: number
+    upClassCount: number
+    generatedAt: string
+    sections: string
+  }) => {
+    const eventName = eventPdfMeta.name || 'RacePushbike Event'
+    const eventDate = formatEventDate(eventPdfMeta.eventDate)
+    const logoUrl = eventPdfMeta.logoUrl?.trim() || ''
+    const primaryColor = eventPdfMeta.primaryColor || '#2ecc71'
+    const secondaryColor = eventPdfMeta.secondaryColor || '#111111'
+    const headerBg = eventPdfMeta.headerBg || '#eaf7ee'
+    const cardBg = eventPdfMeta.cardBg || '#ffffff'
+    const primarySoft = withHexAlpha(primaryColor, '2e', 'rgba(46, 204, 113, 0.18)')
+    const primaryLine = withHexAlpha(primaryColor, '33', 'rgba(46, 204, 113, 0.20)')
+    const primaryBorder = withHexAlpha(primaryColor, '80', 'rgba(46, 204, 113, 0.50)')
+    const primaryBadge = withHexAlpha(primaryColor, '18', 'rgba(46, 204, 113, 0.10)')
+    const watermarkCss = logoUrl ? `url("${escapeCssString(logoUrl)}")` : 'none'
+    const logoMarkup = logoUrl
+      ? `<div class="event-logo"><img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(eventName)} logo" /></div>`
+      : ''
+    const locationMarkup = eventPdfMeta.location
+      ? `<span>${escapeHtml(eventPdfMeta.location)}</span>`
+      : ''
+
+    return `
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>${escapeHtml(`Data Rider ${eventName}`)}</title>
+    <style>
+      @page { size: A4 landscape; margin: 10mm; }
+      html, body {
+        margin: 0;
+        padding: 0;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      body {
+        font-family: Arial, sans-serif;
+        color: #111827;
+        background:
+          radial-gradient(circle at 8% 4%, ${headerBg} 0, transparent 30%),
+          radial-gradient(circle at 92% 0%, ${primarySoft} 0, transparent 26%),
+          #f8fafc;
+        padding: 16px;
+      }
+      .sheet {
+        position: relative;
+        display: grid;
+        gap: 14px;
+        isolation: isolate;
+      }
+      .sheet::before {
+        content: "";
+        position: fixed;
+        inset: 8%;
+        background-image: ${watermarkCss};
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: min(56vw, 560px) auto;
+        opacity: ${logoUrl ? '0.055' : '0'};
+        z-index: -1;
+        pointer-events: none;
+      }
+      .hero {
+        position: relative;
+        overflow: hidden;
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 18px;
+        align-items: center;
+        border: 2px solid ${secondaryColor};
+        border-radius: 24px;
+        padding: 18px 22px;
+        background:
+          linear-gradient(135deg, ${secondaryColor} 0%, #1f2937 54%, ${primaryColor} 145%);
+        color: #ffffff;
+        box-shadow: 0 18px 40px rgba(15, 23, 42, 0.14);
+      }
+      .hero::after {
+        content: "";
+        position: absolute;
+        inset: auto -10% -60% 44%;
+        height: 180px;
+        background: ${headerBg};
+        opacity: 0.18;
+        transform: rotate(-12deg);
+      }
+      .eyebrow {
+        display: inline-flex;
+        width: max-content;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.12);
+        border: 1px solid rgba(255,255,255,0.24);
+        font-size: 10px;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.16em;
+      }
+      h1 {
+        margin: 10px 0 8px;
+        font-size: 30px;
+        line-height: 1.04;
+      }
+      .event-meta, .summary-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+      }
+      .event-meta span, .summary-row span {
+        display: inline-flex;
+        border-radius: 999px;
+        border: 1px solid rgba(255,255,255,0.22);
+        background: rgba(255,255,255,0.10);
+        padding: 5px 9px;
+        font-size: 11px;
+        font-weight: 850;
+        color: rgba(255,255,255,0.88);
+      }
+      .summary-row {
+        margin-top: 10px;
+      }
+      .summary-row span {
+        border-color: rgba(255,255,255,0.28);
+        background: rgba(255,255,255,0.16);
+        color: #ffffff;
+      }
+      .event-logo {
+        position: relative;
+        z-index: 1;
+        width: 92px;
+        height: 92px;
+        border-radius: 22px;
+        border: 1px solid rgba(255,255,255,0.35);
+        background: rgba(255,255,255,0.96);
+        display: grid;
+        place-items: center;
+        padding: 10px;
+      }
+      .event-logo img {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+      }
+      .category-section {
+        border: 1px solid rgba(15, 23, 42, 0.18);
+        border-radius: 18px;
+        padding: 12px;
+        background: ${cardBg};
+        box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+      .category-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: end;
+        margin-bottom: 9px;
+        border-bottom: 2px solid ${primaryLine};
+        padding-bottom: 8px;
+      }
+      .category-header h2 {
+        margin: 0;
+        font-size: 17px;
+        line-height: 1.1;
+        font-weight: 950;
+        color: #0f172a;
+      }
+      .category-count {
+        border-radius: 999px;
+        border: 1px solid ${primaryBorder};
+        background: ${primaryBadge};
+        color: #0f172a;
+        padding: 5px 9px;
+        font-size: 10px;
+        font-weight: 900;
+        white-space: nowrap;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+      table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        overflow: hidden;
+        border: 1px solid #d1d5db;
+        border-radius: 12px;
+        background: #ffffff;
+        font-size: 11px;
+      }
+      th, td {
+        padding: 6px 8px;
+        border-bottom: 1px solid #e5e7eb;
+        text-align: left;
+      }
+      th {
+        background: #f3f4f6;
+        color: #111827;
+        font-size: 10px;
+        font-weight: 950;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+      tbody tr:nth-child(even) td {
+        background: #f9fafb;
+      }
+      tbody tr:last-child td {
+        border-bottom: 0;
+      }
+      .empty {
+        color: #64748b;
+        font-style: italic;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="sheet">
+      <header class="hero">
+        <div>
+          <div class="eyebrow">Data Rider Event</div>
+          <h1>${escapeHtml(`Data Rider ${eventName}`)}</h1>
+          <div class="event-meta">
+            <span>${escapeHtml(eventName)}</span>
+            <span>${escapeHtml(eventDate)}</span>
+            ${locationMarkup}
+          </div>
+          <div class="summary-row">
+            <span>Total rider: ${escapeHtml(totalRegistered)}</span>
+            <span>Rider upclass: ${escapeHtml(upClassCount)}</span>
+            <span>Dicetak: ${escapeHtml(generatedAt)}</span>
+          </div>
+        </div>
+        ${logoMarkup}
+      </header>
+      ${sections}
+    </div>
+  </body>
+</html>
+`
   }
 
   const fetchExportRows = async (categoryId?: string | null, searchText = query) => {
@@ -1122,12 +1449,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
             <section class="category-section">
               <div class="category-header">
                 <h2>${escapeHtml(summary.label)}</h2>
-                <div class="meta-row">
-                  <span>Kapasitas: ${escapeHtml(summary.capacity == null ? 'Tanpa batas' : summary.capacity)}</span>
-                  <span>Terisi: ${escapeHtml(summary.filled)}</span>
-                  <span>Sisa Slot: ${escapeHtml(summary.remaining == null ? 'Tanpa batas' : summary.remaining)}</span>
-                  <span>Status: ${escapeHtml(summary.status)}</span>
-                </div>
+                <div class="category-count">${escapeHtml(rows.length)} rider</div>
               </div>
               <table>
                 <thead>
@@ -1149,16 +1471,11 @@ export default function RidersClient({ eventId }: { eventId: string }) {
         })
         .join('')
 
-      const html = buildBrandedPrintHtml({
-        title: 'All Riders by Category',
-        eyebrow: 'Rider Export',
-        heading: 'All Riders by Category',
-        subtitle: `Generated: ${escapeHtml(generatedAt)} | Jumlah Rider Terdaftar: ${escapeHtml(totalRegistered)} | Jumlah Rider Ambil Up Class: ${escapeHtml(upClassCount)}`,
-        pageSize: 'A4 landscape',
-        body: sections
-          .replace(/class="category-section"/g, 'class="section-card"')
-          .replace(/class="category-header"/g, 'class="section-title"')
-          .replace(/class="meta-row"/g, 'class="meta-row"'),
+      const html = buildAllRiderPrintHtml({
+        totalRegistered,
+        upClassCount,
+        generatedAt,
+        sections,
       })
 
       openPrintPreview(html)
