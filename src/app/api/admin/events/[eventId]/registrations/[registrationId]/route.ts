@@ -15,6 +15,7 @@ import {
   type RegistrationNotificationKind,
 } from '../../../../../../../lib/registrationNotificationLogs'
 import { normalizePlateNumber, normalizePlateSuffix } from '../../../../../../../lib/plate'
+import { getLatestRiderExtraCategory, saveRiderExtraCategory } from '../../../../../../../lib/riderExtraCategory'
 
 const REGISTRATION_BUCKET = process.env.NEXT_PUBLIC_REGISTRATION_BUCKET || 'registration-docs'
 const RIDER_PHOTO_BUCKET = 'rider-photos'
@@ -264,11 +265,178 @@ const withOfficialRiderData = async <T extends { status?: string | null; registr
         club: rider.club,
         primary_category_id: rider.primary_category_id,
         extra_category_id: extraCategoryByRider.get(rider.id) ?? null,
+        official_rider_id: rider.id,
         requested_plate_number: rider.plate_number,
         requested_plate_suffix: rider.plate_suffix,
       }
     }),
   }
+}
+
+const writeUpclassChangeLog = async ({
+  eventId,
+  registrationId,
+  registrationItemId,
+  riderId,
+  changedBy,
+  oldCategoryId,
+  newCategoryId,
+  notes,
+}: {
+  eventId: string
+  registrationId: string
+  registrationItemId: string
+  riderId: string
+  changedBy?: string | null
+  oldCategoryId?: string | null
+  newCategoryId?: string | null
+  notes?: string | null
+}) => {
+  const { error } = await adminClient.from('registration_upclass_change_logs').insert({
+    event_id: eventId,
+    registration_id: registrationId,
+    registration_item_id: registrationItemId,
+    rider_id: riderId,
+    changed_by: changedBy || null,
+    old_category_id: oldCategoryId || null,
+    new_category_id: newCategoryId || null,
+    notes: notes?.trim() || null,
+  })
+  if (error) console.warn('[registration-upclass] failed writing audit log:', error.message)
+}
+
+const updateApprovedRegistrationUpclass = async ({
+  eventId,
+  registrationId,
+  userId,
+  body,
+}: {
+  eventId: string
+  registrationId: string
+  userId?: string | null
+  body: Record<string, unknown>
+}) => {
+  const itemId = typeof body.item_id === 'string' ? body.item_id.trim() : ''
+  const riderIdFromBody = typeof body.rider_id === 'string' && body.rider_id.trim() ? body.rider_id.trim() : null
+  const nextCategoryId =
+    typeof body.category_id === 'string' && body.category_id.trim() ? body.category_id.trim() : null
+  const notes = typeof body.notes === 'string' ? body.notes.trim() || null : null
+
+  if (!itemId) return NextResponse.json({ error: 'Rider pendaftaran wajib dipilih.' }, { status: 400 })
+
+  const { data: registration, error: registrationError } = await adminClient
+    .from('registrations')
+    .select('id, status')
+    .eq('id', registrationId)
+    .eq('event_id', eventId)
+    .maybeSingle()
+
+  if (registrationError) return NextResponse.json({ error: registrationError.message }, { status: 400 })
+  if (!registration) return NextResponse.json({ error: 'Pendaftaran tidak ditemukan.' }, { status: 404 })
+  if (registration.status !== 'APPROVED') {
+    return NextResponse.json({ error: 'Edit upclass official hanya untuk pendaftaran approved.' }, { status: 400 })
+  }
+
+  const { data: item, error: itemError } = await adminClient
+    .from('registration_items')
+    .select('id, requested_plate_number, requested_plate_suffix')
+    .eq('id', itemId)
+    .eq('registration_id', registrationId)
+    .maybeSingle()
+
+  if (itemError) return NextResponse.json({ error: itemError.message }, { status: 400 })
+  if (!item) return NextResponse.json({ error: 'Data rider pendaftaran tidak ditemukan.' }, { status: 404 })
+
+  let riderQuery = adminClient
+    .from('riders')
+    .select('id, event_id, name, date_of_birth, gender, primary_category_id, plate_number, plate_suffix')
+    .eq('event_id', eventId)
+
+  if (riderIdFromBody) {
+    riderQuery = riderQuery.eq('id', riderIdFromBody)
+  } else if (item.requested_plate_number) {
+    riderQuery = riderQuery.eq('plate_number', item.requested_plate_number)
+    if (item.requested_plate_suffix) {
+      riderQuery = riderQuery.eq('plate_suffix', item.requested_plate_suffix)
+    } else {
+      riderQuery = riderQuery.is('plate_suffix', null)
+    }
+  } else {
+    return NextResponse.json({ error: 'Rider resmi belum bisa dipetakan dari pendaftaran ini.' }, { status: 400 })
+  }
+
+  const { data: rider, error: riderError } = await riderQuery.maybeSingle()
+  if (riderError) return NextResponse.json({ error: riderError.message }, { status: 400 })
+  if (!rider) return NextResponse.json({ error: 'Rider resmi tidak ditemukan.' }, { status: 404 })
+
+  const currentExtra = await getLatestRiderExtraCategory(rider.id)
+  if (currentExtra.error) return NextResponse.json({ error: currentExtra.error.message }, { status: 400 })
+  const oldCategoryId = currentExtra.data?.category_id ?? null
+
+  if (nextCategoryId) {
+    const { data: category, error: categoryError } = await adminClient
+      .from('categories')
+      .select('id, event_id, year, year_min, year_max, gender, enabled')
+      .eq('id', nextCategoryId)
+      .maybeSingle()
+
+    if (categoryError) return NextResponse.json({ error: categoryError.message }, { status: 400 })
+    if (!category || category.event_id !== eventId || category.enabled === false) {
+      return NextResponse.json({ error: 'Kategori upclass tidak valid untuk event ini.' }, { status: 400 })
+    }
+
+    const birthYear = Number(String(rider.date_of_birth).slice(0, 4))
+    const maxYear = (category.year_max ?? category.year) as number
+    if (!Number.isFinite(birthYear) || maxYear >= birthYear) {
+      return NextResponse.json({ error: 'Kategori upclass harus berada di atas tahun lahir rider.' }, { status: 400 })
+    }
+    if (category.gender !== 'MIX' && category.gender !== rider.gender) {
+      return NextResponse.json({ error: 'Gender kategori upclass tidak sesuai rider.' }, { status: 400 })
+    }
+    if (category.id === rider.primary_category_id) {
+      return NextResponse.json({ error: 'Kategori upclass tidak boleh sama dengan kategori utama.' }, { status: 400 })
+    }
+  }
+
+  if (oldCategoryId === nextCategoryId) {
+    return NextResponse.json({ ok: true, changed: false, data: { category_id: oldCategoryId, rider_id: rider.id } })
+  }
+
+  if (nextCategoryId) {
+    const { data, error } = await saveRiderExtraCategory({
+      riderId: rider.id,
+      eventId,
+      categoryId: nextCategoryId,
+    })
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+    await writeUpclassChangeLog({
+      eventId,
+      registrationId,
+      registrationItemId: itemId,
+      riderId: rider.id,
+      changedBy: userId,
+      oldCategoryId,
+      newCategoryId: nextCategoryId,
+      notes,
+    })
+    return NextResponse.json({ ok: true, changed: true, data: { ...data, rider_id: rider.id } })
+  }
+
+  const { error: deleteError } = await adminClient.from('rider_extra_categories').delete().eq('rider_id', rider.id)
+  if (deleteError) return NextResponse.json({ error: deleteError.message }, { status: 400 })
+
+  await writeUpclassChangeLog({
+    eventId,
+    registrationId,
+    registrationItemId: itemId,
+    riderId: rider.id,
+    changedBy: userId,
+    oldCategoryId,
+    newCategoryId: null,
+    notes,
+  })
+
+  return NextResponse.json({ ok: true, changed: true, data: { category_id: null, rider_id: rider.id } })
 }
 
 export async function GET(
@@ -339,6 +507,15 @@ export async function PATCH(
   if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const body = await req.json().catch(() => null)
   if (!body) return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
+
+  if (typeof body === 'object' && !Array.isArray(body) && body.action === 'UPDATE_APPROVED_UPCLASS') {
+    return updateApprovedRegistrationUpclass({
+      eventId,
+      registrationId,
+      userId: auth.user.id,
+      body: body as Record<string, unknown>,
+    })
+  }
 
   const { status, notes, items }: { status?: string; notes?: string; items?: ApprovalItem[] } = body
   if (status !== 'APPROVED' && status !== 'REJECTED') {

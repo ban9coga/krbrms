@@ -10,6 +10,8 @@ type CategoryItem = {
   id: string
   label: string
   year: number
+  year_min?: number | null
+  year_max?: number | null
   gender: 'BOY' | 'GIRL' | 'MIX'
   capacity?: number | null
   approved_filled?: number
@@ -36,6 +38,7 @@ type AttendanceFilter =
 
 type RegistrationItem = {
   id: string
+  official_rider_id?: string | null
   rider_name: string
   rider_nickname?: string | null
   jersey_size?: string | null
@@ -193,6 +196,7 @@ type ModalState =
   | { type: 'reject'; registration: RegistrationRow }
   | { type: 'delete'; registration: RegistrationRow }
   | { type: 'contact'; registration: RegistrationRow }
+  | { type: 'upclass'; registration: RegistrationRow; item: RegistrationItem }
   | null
 
 type FeedbackState = { type: 'success' | 'error' | 'info'; message: ReactNode } | null
@@ -202,6 +206,10 @@ type ContactFormState = {
   contact_phone: string
   contact_email: string
   community_name: string
+}
+type UpclassFormState = {
+  category_id: string
+  notes: string
 }
 
 const STATUS_OPTIONS: Array<{ value: 'ALL' | RegistrationStatus; label: string }> = [
@@ -557,6 +565,10 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
     contact_email: '',
     community_name: '',
   })
+  const [upclassForm, setUpclassForm] = useState<UpclassFormState>({
+    category_id: '',
+    notes: '',
+  })
   const [showAttendanceSummary, setShowAttendanceSummary] = useState(false)
   const [showCategoryKpis, setShowCategoryKpis] = useState(false)
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
@@ -576,6 +588,22 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
   const categoryMap = useMemo(() => new Map(categories.map((category) => [category.id, category.label])), [categories])
   const isRegistrationApprover = isRegistrationApproverRole(roleKey)
   const isCentralAdmin = roleKey === 'SUPER_ADMIN'
+  const getValidUpclassCategories = useCallback(
+    (item: RegistrationItem) => {
+      const birthYear = Number(String(item.date_of_birth).slice(0, 4))
+      if (!Number.isFinite(birthYear)) return []
+
+      return categories
+        .filter((category) => category.enabled !== false)
+        .filter((category) => category.id !== item.primary_category_id)
+        .filter((category) => category.gender === 'MIX' || category.gender === item.gender)
+        .filter((category) => {
+          const maxYear = category.year_max ?? category.year
+          return typeof maxYear === 'number' && maxYear < birthYear
+        })
+    },
+    [categories]
+  )
   const categoryKpis = useMemo(
     () =>
       [...categories]
@@ -1006,6 +1034,16 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
     setFeedback(null)
   }
 
+  const openUpclassModal = (registration: RegistrationRow, item: RegistrationItem) => {
+    setModal({ type: 'upclass', registration, item })
+    setModalNotes('')
+    setUpclassForm({
+      category_id: item.extra_category_id ?? '',
+      notes: '',
+    })
+    setFeedback(null)
+  }
+
   const closeModal = () => {
     if (savingKey) return
     setModal(null)
@@ -1015,6 +1053,10 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
       contact_phone: '',
       contact_email: '',
       community_name: '',
+    })
+    setUpclassForm({
+      category_id: '',
+      notes: '',
     })
   }
 
@@ -1179,6 +1221,38 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
     }
   }
 
+  const updateApprovedUpclass = async (registration: RegistrationRow, item: RegistrationItem) => {
+    const savingId = `upclass:${item.id}`
+    setSavingKey(savingId)
+    try {
+      const response = await apiFetch<{ changed?: boolean }>(`/api/admin/events/${eventId}/registrations/${registration.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          action: 'UPDATE_APPROVED_UPCLASS',
+          item_id: item.id,
+          rider_id: item.official_rider_id ?? null,
+          category_id: upclassForm.category_id || null,
+          notes: upclassForm.notes.trim() || null,
+        }),
+      })
+
+      setFeedback({
+        type: response.changed === false ? 'info' : 'success',
+        message:
+          response.changed === false
+            ? `Upclass ${item.rider_name} tidak berubah.`
+            : `Upclass ${item.rider_name} berhasil diperbarui.`,
+      })
+      setModal(null)
+      setUpclassForm({ category_id: '', notes: '' })
+      setRefreshTick((prev) => prev + 1)
+    } catch (err: unknown) {
+      setFeedback({ type: 'error', message: err instanceof Error ? err.message : 'Gagal memperbarui upclass rider.' })
+    } finally {
+      setSavingKey(null)
+    }
+  }
+
   const updatePaymentStatus = async (
     registration: RegistrationRow,
     payment: RegistrationPayment,
@@ -1264,6 +1338,10 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
     }
     if (modal.type === 'contact') {
       await updateRegistrationContact(modal.registration)
+      return
+    }
+    if (modal.type === 'upclass') {
+      await updateApprovedUpclass(modal.registration, modal.item)
       return
     }
     await deleteRegistration(modal.registration)
@@ -3007,12 +3085,22 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                               <div>
                                 Kategori Utama: {item.primary_category_id ? categoryMap.get(item.primary_category_id) ?? '-' : '-'}
                               </div>
-                              {item.extra_category_id && (
-                                <div>Kategori Upclass: {categoryMap.get(item.extra_category_id) ?? '-'}</div>
-                              )}
+                              <div>
+                                Kategori Upclass: {item.extra_category_id ? categoryMap.get(item.extra_category_id) ?? '-' : '-'}
+                              </div>
                             </div>
 
                             <div className="mt-4 flex flex-wrap gap-2">
+                              {registration.status === 'APPROVED' && (
+                                <button
+                                  type="button"
+                                  disabled={savingKey === `upclass:${item.id}`}
+                                  onClick={() => openUpclassModal(registration, item)}
+                                  className="admin-success-button"
+                                >
+                                  {savingKey === `upclass:${item.id}` ? 'Menyimpan...' : 'Edit Upclass'}
+                                </button>
+                              )}
                               <button
                                 type="button"
                                 disabled={!item.photo_url}
@@ -3127,6 +3215,8 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                     ? 'Reject Registration'
                     : modal.type === 'contact'
                     ? 'Edit Kontak Wali'
+                    : modal.type === 'upclass'
+                    ? 'Edit Upclass Rider'
                     : 'Delete Registration'}
                 </div>
                 <h2 className="text-xl font-black text-slate-950">{modal.registration.contact_name}</h2>
@@ -3231,6 +3321,53 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
               </div>
             )}
 
+            {modal.type === 'upclass' && (
+              <div className="mt-5 grid gap-4">
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-950">
+                  Edit upclass approved rider akan mengubah data resmi race. Kalau ada tambahan biaya, pastikan pembayaran tambahan sudah diterima sebelum kirim ulang konfirmasi WA/QR.
+                </div>
+                <div className="admin-card-muted p-4">
+                  <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Rider</div>
+                  <div className="mt-1 text-lg font-black text-slate-950">{modal.item.rider_name}</div>
+                  <div className="mt-1 text-sm font-semibold text-slate-600">
+                    Kategori utama: {modal.item.primary_category_id ? categoryMap.get(modal.item.primary_category_id) ?? '-' : '-'}
+                  </div>
+                  <div className="mt-1 text-sm font-semibold text-slate-600">
+                    Upclass saat ini: {modal.item.extra_category_id ? categoryMap.get(modal.item.extra_category_id) ?? '-' : '-'}
+                  </div>
+                </div>
+                <label className="grid gap-2">
+                  <span className="text-sm font-black text-slate-900">Kategori Upclass</span>
+                  <select
+                    value={upclassForm.category_id}
+                    onChange={(event) => setUpclassForm((prev) => ({ ...prev, category_id: event.target.value }))}
+                    className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-black text-slate-900 outline-none focus:border-slate-950"
+                  >
+                    <option value="">Tidak ikut upclass</option>
+                    {getValidUpclassCategories(modal.item).map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.label}
+                        {typeof category.remaining === 'number' ? ` · sisa ${category.remaining}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-xs font-semibold text-slate-500">
+                    Sistem hanya menampilkan kategori upclass yang sesuai tahun lahir dan gender rider.
+                  </span>
+                </label>
+                <label className="grid gap-2">
+                  <span className="text-sm font-black text-slate-900">Catatan Perubahan (opsional)</span>
+                  <textarea
+                    rows={3}
+                    value={upclassForm.notes}
+                    onChange={(event) => setUpclassForm((prev) => ({ ...prev, notes: event.target.value }))}
+                    placeholder="Contoh: wali menambah upclass dan sudah transfer tambahan"
+                    className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none focus:border-slate-950"
+                  />
+                </label>
+              </div>
+            )}
+
             <div className="mt-6 flex flex-wrap justify-end gap-2">
               <button
                 type="button"
@@ -3243,7 +3380,11 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                 type="button"
                 disabled={Boolean(savingKey)}
                 onClick={handleModalConfirm}
-                className={modal.type === 'approve' || modal.type === 'contact' ? 'admin-success-button' : 'admin-danger-button'}
+                className={
+                  modal.type === 'approve' || modal.type === 'contact' || modal.type === 'upclass'
+                    ? 'admin-success-button'
+                    : 'admin-danger-button'
+                }
               >
                 {modal.type === 'approve'
                   ? 'Approve Sekarang'
@@ -3251,6 +3392,8 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                   ? 'Reject Sekarang'
                   : modal.type === 'contact'
                   ? 'Simpan Kontak'
+                  : modal.type === 'upclass'
+                  ? 'Simpan Upclass'
                   : 'Delete Permanen'}
               </button>
             </div>

@@ -298,6 +298,7 @@ const withOfficialRiderData = async (eventId: string, rows: unknown[]) => {
           club: rider.club,
           primary_category_id: rider.primary_category_id,
           extra_category_id: extraCategoryByRider.get(rider.id) ?? null,
+          official_rider_id: rider.id,
           requested_plate_number: rider.plate_number,
           requested_plate_suffix: rider.plate_suffix,
         }
