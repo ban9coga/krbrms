@@ -709,17 +709,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
   const withHexAlpha = (value: string, alpha: string, fallback: string) =>
     /^#[0-9a-fA-F]{6}$/.test(value) ? `${value}${alpha}` : fallback
 
-  const buildAllRiderPrintHtml = ({
-    totalRegistered,
-    upClassCount,
-    generatedAt,
-    sections,
-  }: {
-    totalRegistered: number
-    upClassCount: number
-    generatedAt: string
-    sections: string
-  }) => {
+  const buildAllRiderPrintHtml = ({ sections }: { sections: string }) => {
     const eventName = eventPdfMeta.name || 'RacePushbike Event'
     const eventDate = formatEventDate(eventPdfMeta.eventDate)
     const logoUrl = eventPdfMeta.logoUrl?.trim() || ''
@@ -821,13 +811,13 @@ export default function RidersClient({ eventId }: { eventId: string }) {
         font-size: 30px;
         line-height: 1.04;
       }
-      .event-meta, .summary-row {
+      .event-meta {
         display: flex;
         flex-wrap: wrap;
         gap: 8px;
         align-items: center;
       }
-      .event-meta span, .summary-row span {
+      .event-meta span {
         display: inline-flex;
         border-radius: 999px;
         border: 1px solid rgba(255,255,255,0.22);
@@ -836,14 +826,6 @@ export default function RidersClient({ eventId }: { eventId: string }) {
         font-size: 11px;
         font-weight: 850;
         color: rgba(255,255,255,0.88);
-      }
-      .summary-row {
-        margin-top: 10px;
-      }
-      .summary-row span {
-        border-color: rgba(255,255,255,0.28);
-        background: rgba(255,255,255,0.16);
-        color: #ffffff;
       }
       .event-logo {
         position: relative;
@@ -868,8 +850,8 @@ export default function RidersClient({ eventId }: { eventId: string }) {
         padding: 12px;
         background: ${cardBg};
         box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
-        page-break-inside: avoid;
-        break-inside: avoid;
+        page-break-inside: auto;
+        break-inside: auto;
       }
       .category-header {
         display: flex;
@@ -909,6 +891,16 @@ export default function RidersClient({ eventId }: { eventId: string }) {
         background: #ffffff;
         font-size: 11px;
       }
+      thead {
+        display: table-header-group;
+      }
+      tfoot {
+        display: table-footer-group;
+      }
+      tr {
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
       th, td {
         padding: 6px 8px;
         border-bottom: 1px solid #e5e7eb;
@@ -945,11 +937,6 @@ export default function RidersClient({ eventId }: { eventId: string }) {
             <span>${escapeHtml(eventName)}</span>
             <span>${escapeHtml(eventDate)}</span>
             ${locationMarkup}
-          </div>
-          <div class="summary-row">
-            <span>Total rider: ${escapeHtml(totalRegistered)}</span>
-            <span>Rider upclass: ${escapeHtml(upClassCount)}</span>
-            <span>Dicetak: ${escapeHtml(generatedAt)}</span>
           </div>
         </div>
         ${logoMarkup}
@@ -1421,8 +1408,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
 
     setExportingAllPdf(true)
     try {
-      const { totalRegistered, upClassCount, categoryGroups } = await buildAllCategoryExportData()
-      const generatedAt = new Date().toLocaleString('id-ID')
+      const { categoryGroups } = await buildAllCategoryExportData()
       const sections = categoryGroups
         .map(({ summary, rows }) => {
           const tableBody =
@@ -1472,9 +1458,6 @@ export default function RidersClient({ eventId }: { eventId: string }) {
         .join('')
 
       const html = buildAllRiderPrintHtml({
-        totalRegistered,
-        upClassCount,
-        generatedAt,
         sections,
       })
 
