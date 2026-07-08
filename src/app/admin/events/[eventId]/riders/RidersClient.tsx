@@ -850,8 +850,8 @@ export default function RidersClient({ eventId }: { eventId: string }) {
         padding: 12px;
         background: ${cardBg};
         box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
-        page-break-inside: auto;
-        break-inside: auto;
+        page-break-inside: avoid;
+        break-inside: avoid;
       }
       .category-header {
         display: flex;
@@ -1410,15 +1410,32 @@ export default function RidersClient({ eventId }: { eventId: string }) {
     try {
       const { categoryGroups } = await buildAllCategoryExportData()
       const sections = categoryGroups
-        .map(({ summary, rows }) => {
-          const tableBody =
+        .flatMap(({ summary, rows }) => {
+          const rowsPerSection = 16
+          const chunks =
             rows.length === 0
+              ? [[] as RiderItem[]]
+              : Array.from({ length: Math.ceil(rows.length / rowsPerSection) }, (_, index) =>
+                  rows.slice(index * rowsPerSection, (index + 1) * rowsPerSection)
+                )
+          const totalChunks = chunks.length
+
+          return chunks.map((chunkRows, chunkIndex) => {
+            const startNumber = chunkIndex * rowsPerSection
+            const isContinuation = chunkIndex > 0
+            const title = `${summary.label}${isContinuation ? ` · Lanjutan ${chunkIndex + 1}` : ''}`
+            const countLabel =
+              totalChunks > 1
+                ? `${escapeHtml(startNumber + 1)}-${escapeHtml(startNumber + chunkRows.length)} dari ${escapeHtml(rows.length)} rider`
+                : `${escapeHtml(rows.length)} rider`
+          const tableBody =
+            chunkRows.length === 0
               ? '<tr><td colspan="8" class="empty">Tidak ada rider terdaftar di kategori ini</td></tr>'
-              : rows
+              : chunkRows
                   .map(
                     (row, idx) => `
                       <tr>
-                        <td>${idx + 1}</td>
+                        <td>${startNumber + idx + 1}</td>
                         <td>${escapeHtml(row.no_plate_display)}</td>
                         <td>${escapeHtml(row.name)}</td>
                         <td>${escapeHtml(row.rider_nickname ?? '-')}</td>
@@ -1434,8 +1451,8 @@ export default function RidersClient({ eventId }: { eventId: string }) {
           return `
             <section class="category-section">
               <div class="category-header">
-                <h2>${escapeHtml(summary.label)}</h2>
-                <div class="category-count">${escapeHtml(rows.length)} rider</div>
+                <h2>${escapeHtml(title)}</h2>
+                <div class="category-count">${countLabel}</div>
               </div>
               <table>
                 <thead>
@@ -1454,6 +1471,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
               </table>
             </section>
           `
+        })
         })
         .join('')
 
