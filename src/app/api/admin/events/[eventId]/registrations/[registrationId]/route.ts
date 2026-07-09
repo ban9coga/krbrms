@@ -15,7 +15,10 @@ import {
   type RegistrationNotificationKind,
 } from '../../../../../../../lib/registrationNotificationLogs'
 import { normalizePlateNumber, normalizePlateSuffix } from '../../../../../../../lib/plate'
-import { getLatestRiderExtraCategory, saveRiderExtraCategory } from '../../../../../../../lib/riderExtraCategory'
+import {
+  getRiderExtraCategories,
+  replaceRiderExtraCategories,
+} from '../../../../../../../lib/riderExtraCategory'
 
 const REGISTRATION_BUCKET = process.env.NEXT_PUBLIC_REGISTRATION_BUCKET || 'registration-docs'
 const RIDER_PHOTO_BUCKET = 'rider-photos'
@@ -239,10 +242,11 @@ const withOfficialRiderData = async <T extends { status?: string | null; registr
 
   if (extraError) throw new Error(extraError.message)
 
-  const extraCategoryByRider = new Map<string, string | null>()
+  const extraCategoryIdsByRider = new Map<string, string[]>()
   for (const row of extraRows ?? []) {
-    if (typeof row.rider_id === 'string' && !extraCategoryByRider.has(row.rider_id)) {
-      extraCategoryByRider.set(row.rider_id, typeof row.category_id === 'string' ? row.category_id : null)
+    if (typeof row.rider_id === 'string' && typeof row.category_id === 'string') {
+      const existing = extraCategoryIdsByRider.get(row.rider_id) ?? []
+      if (!existing.includes(row.category_id)) extraCategoryIdsByRider.set(row.rider_id, [...existing, row.category_id])
     }
   }
 
@@ -255,6 +259,7 @@ const withOfficialRiderData = async <T extends { status?: string | null; registr
     registration_items: items.map((item) => {
       const rider = riderByPlate.get(buildPlateKey(item.requested_plate_number as string, item.requested_plate_suffix as string))
       if (!rider) return item
+      const extraCategoryIds = extraCategoryIdsByRider.get(rider.id) ?? []
       return {
         ...item,
         rider_name: rider.name,
@@ -264,7 +269,8 @@ const withOfficialRiderData = async <T extends { status?: string | null; registr
         gender: rider.gender,
         club: rider.club,
         primary_category_id: rider.primary_category_id,
-        extra_category_id: extraCategoryByRider.get(rider.id) ?? null,
+        extra_category_id: extraCategoryIds[0] ?? null,
+        extra_category_ids: extraCategoryIds,
         official_rider_id: rider.id,
         requested_plate_number: rider.plate_number,
         requested_plate_suffix: rider.plate_suffix,
@@ -318,8 +324,14 @@ const updateApprovedRegistrationUpclass = async ({
 }) => {
   const itemId = typeof body.item_id === 'string' ? body.item_id.trim() : ''
   const riderIdFromBody = typeof body.rider_id === 'string' && body.rider_id.trim() ? body.rider_id.trim() : null
-  const nextCategoryId =
-    typeof body.category_id === 'string' && body.category_id.trim() ? body.category_id.trim() : null
+  const rawCategoryIds = Array.isArray(body.category_ids)
+    ? body.category_ids
+    : typeof body.category_id === 'string' && body.category_id.trim()
+    ? [body.category_id]
+    : []
+  const nextCategoryIds = Array.from(
+    new Set(rawCategoryIds.map((id) => (typeof id === 'string' ? id.trim() : '')).filter(Boolean))
+  )
   const notes = typeof body.notes === 'string' ? body.notes.trim() || null : null
 
   if (!itemId) return NextResponse.json({ error: 'Rider pendaftaran wajib dipilih.' }, { status: 400 })
@@ -369,74 +381,88 @@ const updateApprovedRegistrationUpclass = async ({
   if (riderError) return NextResponse.json({ error: riderError.message }, { status: 400 })
   if (!rider) return NextResponse.json({ error: 'Rider resmi tidak ditemukan.' }, { status: 404 })
 
-  const currentExtra = await getLatestRiderExtraCategory(rider.id)
+  const currentExtra = await getRiderExtraCategories(rider.id)
   if (currentExtra.error) return NextResponse.json({ error: currentExtra.error.message }, { status: 400 })
-  const oldCategoryId = currentExtra.data?.category_id ?? null
+  const oldCategoryIds = (currentExtra.data ?? []).map((row) => row.category_id).filter(Boolean)
 
-  if (nextCategoryId) {
-    const { data: category, error: categoryError } = await adminClient
+  if (nextCategoryIds.length > 0) {
+    const { data: categories, error: categoryError } = await adminClient
       .from('categories')
       .select('id, event_id, year, year_min, year_max, gender, enabled')
-      .eq('id', nextCategoryId)
-      .maybeSingle()
+      .in('id', nextCategoryIds)
 
     if (categoryError) return NextResponse.json({ error: categoryError.message }, { status: 400 })
-    if (!category || category.event_id !== eventId || category.enabled === false) {
+    if (!categories || categories.length !== nextCategoryIds.length) {
       return NextResponse.json({ error: 'Kategori upclass tidak valid untuk event ini.' }, { status: 400 })
     }
 
     const birthYear = Number(String(rider.date_of_birth).slice(0, 4))
-    const maxYear = (category.year_max ?? category.year) as number
-    if (!Number.isFinite(birthYear) || maxYear >= birthYear) {
-      return NextResponse.json({ error: 'Kategori upclass harus berada di atas tahun lahir rider.' }, { status: 400 })
-    }
-    if (category.gender !== 'MIX' && category.gender !== rider.gender) {
-      return NextResponse.json({ error: 'Gender kategori upclass tidak sesuai rider.' }, { status: 400 })
-    }
-    if (category.id === rider.primary_category_id) {
-      return NextResponse.json({ error: 'Kategori upclass tidak boleh sama dengan kategori utama.' }, { status: 400 })
+    for (const category of categories) {
+      if (category.event_id !== eventId || category.enabled === false) {
+        return NextResponse.json({ error: 'Kategori upclass tidak valid untuk event ini.' }, { status: 400 })
+      }
+      const maxYear = (category.year_max ?? category.year) as number
+      if (!Number.isFinite(birthYear) || maxYear >= birthYear) {
+        return NextResponse.json({ error: 'Kategori upclass harus berada di atas tahun lahir rider.' }, { status: 400 })
+      }
+      if (category.gender !== 'MIX' && category.gender !== rider.gender) {
+        return NextResponse.json({ error: 'Gender kategori upclass tidak sesuai rider.' }, { status: 400 })
+      }
+      if (category.id === rider.primary_category_id) {
+        return NextResponse.json({ error: 'Kategori upclass tidak boleh sama dengan kategori utama.' }, { status: 400 })
+      }
     }
   }
 
-  if (oldCategoryId === nextCategoryId) {
-    return NextResponse.json({ ok: true, changed: false, data: { category_id: oldCategoryId, rider_id: rider.id } })
-  }
-
-  if (nextCategoryId) {
-    const { data, error } = await saveRiderExtraCategory({
-      riderId: rider.id,
-      eventId,
-      categoryId: nextCategoryId,
+  const oldKey = [...oldCategoryIds].sort().join('|')
+  const nextKey = [...nextCategoryIds].sort().join('|')
+  if (oldKey === nextKey) {
+    return NextResponse.json({
+      ok: true,
+      changed: false,
+      data: { category_id: oldCategoryIds[0] ?? null, category_ids: oldCategoryIds, rider_id: rider.id },
     })
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  }
+
+  const { data, error } = await replaceRiderExtraCategories({
+    riderId: rider.id,
+    eventId,
+    categoryIds: nextCategoryIds,
+  })
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+
+  const removedCategoryIds = oldCategoryIds.filter((id) => !nextCategoryIds.includes(id))
+  const addedCategoryIds = nextCategoryIds.filter((id) => !oldCategoryIds.includes(id))
+  for (const categoryId of removedCategoryIds) {
     await writeUpclassChangeLog({
       eventId,
       registrationId,
       registrationItemId: itemId,
       riderId: rider.id,
       changedBy: userId,
-      oldCategoryId,
-      newCategoryId: nextCategoryId,
+      oldCategoryId: categoryId,
+      newCategoryId: null,
       notes,
     })
-    return NextResponse.json({ ok: true, changed: true, data: { ...data, rider_id: rider.id } })
+  }
+  for (const categoryId of addedCategoryIds) {
+    await writeUpclassChangeLog({
+      eventId,
+      registrationId,
+      registrationItemId: itemId,
+      riderId: rider.id,
+      changedBy: userId,
+      oldCategoryId: null,
+      newCategoryId: categoryId,
+      notes,
+    })
   }
 
-  const { error: deleteError } = await adminClient.from('rider_extra_categories').delete().eq('rider_id', rider.id)
-  if (deleteError) return NextResponse.json({ error: deleteError.message }, { status: 400 })
-
-  await writeUpclassChangeLog({
-    eventId,
-    registrationId,
-    registrationItemId: itemId,
-    riderId: rider.id,
-    changedBy: userId,
-    oldCategoryId,
-    newCategoryId: null,
-    notes,
+  return NextResponse.json({
+    ok: true,
+    changed: true,
+    data: { category_id: nextCategoryIds[0] ?? null, category_ids: nextCategoryIds, rows: data, rider_id: rider.id },
   })
-
-  return NextResponse.json({ ok: true, changed: true, data: { category_id: null, rider_id: rider.id } })
 }
 
 export async function GET(

@@ -47,6 +47,7 @@ type RegistrationItem = {
   club: string | null
   primary_category_id: string | null
   extra_category_id: string | null
+  extra_category_ids?: string[] | null
   requested_plate_number: string | null
   requested_plate_suffix: string | null
   photo_url?: string | null
@@ -208,7 +209,7 @@ type ContactFormState = {
   community_name: string
 }
 type UpclassFormState = {
-  category_id: string
+  category_ids: string[]
   notes: string
 }
 
@@ -350,6 +351,18 @@ const getAttendanceLabel = (registration: RegistrationRow) =>
 const getVenueStatusLabel = (value: string | null | undefined, completeLabel: string, pendingLabel: string) =>
   value ? `${completeLabel} - ${formatDateTime(value)}` : pendingLabel
 
+const getItemUpclassCategoryIds = (item: RegistrationItem) => {
+  const ids = Array.isArray(item.extra_category_ids) ? item.extra_category_ids : []
+  const normalized = ids.filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+  if (normalized.length > 0) return Array.from(new Set(normalized))
+  return item.extra_category_id ? [item.extra_category_id] : []
+}
+
+const formatUpclassCategories = (item: RegistrationItem, categoryMap?: Map<string, string>) => {
+  const labels = getItemUpclassCategoryIds(item).map((id) => categoryMap?.get(id) ?? id)
+  return labels.length > 0 ? labels.join(', ') : '-'
+}
+
 const safeCssColor = (value: unknown, fallback: string) => {
   if (typeof value !== 'string') return fallback
   const trimmed = value.trim()
@@ -365,7 +378,7 @@ const buildWhatsAppRiderLines = (registration: RegistrationRow, categoryMap?: Ma
     const primaryCategory = item.primary_category_id
       ? categoryMap?.get(item.primary_category_id) ?? item.primary_category_id
       : '-'
-    const extraCategory = item.extra_category_id ? categoryMap?.get(item.extra_category_id) ?? item.extra_category_id : '-'
+    const extraCategory = formatUpclassCategories(item, categoryMap)
     const plate = buildPlateDisplay(item.requested_plate_number, item.requested_plate_suffix) || '-'
     return [
       `${index + 1}. ${item.rider_name || '-'}`,
@@ -566,7 +579,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
     community_name: '',
   })
   const [upclassForm, setUpclassForm] = useState<UpclassFormState>({
-    category_id: '',
+    category_ids: [],
     notes: '',
   })
   const [showAttendanceSummary, setShowAttendanceSummary] = useState(false)
@@ -1038,7 +1051,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
     setModal({ type: 'upclass', registration, item })
     setModalNotes('')
     setUpclassForm({
-      category_id: item.extra_category_id ?? '',
+      category_ids: getItemUpclassCategoryIds(item),
       notes: '',
     })
     setFeedback(null)
@@ -1055,7 +1068,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
       community_name: '',
     })
     setUpclassForm({
-      category_id: '',
+      category_ids: [],
       notes: '',
     })
   }
@@ -1231,7 +1244,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
           action: 'UPDATE_APPROVED_UPCLASS',
           item_id: item.id,
           rider_id: item.official_rider_id ?? null,
-          category_id: upclassForm.category_id || null,
+          category_ids: upclassForm.category_ids,
           notes: upclassForm.notes.trim() || null,
         }),
       })
@@ -1244,7 +1257,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
             : `Upclass ${item.rider_name} berhasil diperbarui.`,
       })
       setModal(null)
-      setUpclassForm({ category_id: '', notes: '' })
+      setUpclassForm({ category_ids: [], notes: '' })
       setRefreshTick((prev) => prev + 1)
     } catch (err: unknown) {
       setFeedback({ type: 'error', message: err instanceof Error ? err.message : 'Gagal memperbarui upclass rider.' })
@@ -1766,7 +1779,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
       const tableRows = riderRows
         .map(({ registration, item, paymentAggregate, documentCount }, index) => {
           const primaryCategory = item.primary_category_id ? categoryMap.get(item.primary_category_id) ?? item.primary_category_id : '-'
-          const extraCategory = item.extra_category_id ? categoryMap.get(item.extra_category_id) ?? item.extra_category_id : '-'
+          const extraCategory = formatUpclassCategories(item, categoryMap)
           const plate = buildPlateDisplay(item.requested_plate_number, item.requested_plate_suffix) || '-'
           const registrationCode = registration.registration_code?.trim() || '-'
           const statusUrl = getRegistrationStatusUrl(registration.registration_code) || '-'
@@ -1977,7 +1990,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
             item.gender,
             item.club ?? '-',
             item.primary_category_id ? categoryMap.get(item.primary_category_id) ?? item.primary_category_id : '-',
-            item.extra_category_id ? categoryMap.get(item.extra_category_id) ?? item.extra_category_id : '-',
+            formatUpclassCategories(item, categoryMap),
             item.jersey_size ?? '-',
             buildPlateDisplay(item.requested_plate_number, item.requested_plate_suffix) || '-',
             item.price,
@@ -3086,7 +3099,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                                 Kategori Utama: {item.primary_category_id ? categoryMap.get(item.primary_category_id) ?? '-' : '-'}
                               </div>
                               <div>
-                                Kategori Upclass: {item.extra_category_id ? categoryMap.get(item.extra_category_id) ?? '-' : '-'}
+                                Kategori Upclass: {formatUpclassCategories(item, categoryMap)}
                               </div>
                             </div>
 
@@ -3333,28 +3346,56 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                     Kategori utama: {modal.item.primary_category_id ? categoryMap.get(modal.item.primary_category_id) ?? '-' : '-'}
                   </div>
                   <div className="mt-1 text-sm font-semibold text-slate-600">
-                    Upclass saat ini: {modal.item.extra_category_id ? categoryMap.get(modal.item.extra_category_id) ?? '-' : '-'}
+                    Upclass saat ini: {formatUpclassCategories(modal.item, categoryMap)}
                   </div>
                 </div>
-                <label className="grid gap-2">
-                  <span className="text-sm font-black text-slate-900">Kategori Upclass</span>
-                  <select
-                    value={upclassForm.category_id}
-                    onChange={(event) => setUpclassForm((prev) => ({ ...prev, category_id: event.target.value }))}
-                    className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-black text-slate-900 outline-none focus:border-slate-950"
-                  >
-                    <option value="">Tidak ikut upclass</option>
-                    {getValidUpclassCategories(modal.item).map((category) => (
-                      <option key={category.id} value={category.id}>
-                        {category.label}
-                        {typeof category.remaining === 'number' ? ` · sisa ${category.remaining}` : ''}
-                      </option>
-                    ))}
-                  </select>
+                <div className="grid gap-2">
+                  <div className="text-sm font-black text-slate-900">Kategori Upclass</div>
+                  <div className="grid max-h-72 gap-2 overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                    {getValidUpclassCategories(modal.item).length === 0 ? (
+                      <div className="rounded-xl border border-dashed border-slate-300 bg-white px-3 py-4 text-sm font-bold text-slate-500">
+                        Tidak ada kategori upclass yang cocok.
+                      </div>
+                    ) : (
+                      getValidUpclassCategories(modal.item).map((category) => {
+                        const checked = upclassForm.category_ids.includes(category.id)
+                        return (
+                          <label
+                            key={category.id}
+                            className={`flex cursor-pointer items-center justify-between gap-3 rounded-xl border px-3 py-2 text-sm font-black transition ${
+                              checked
+                                ? 'border-emerald-300 bg-emerald-50 text-emerald-950'
+                                : 'border-slate-200 bg-white text-slate-800 hover:border-slate-300'
+                            }`}
+                          >
+                            <span>
+                              {category.label}
+                              {typeof category.remaining === 'number' ? (
+                                <span className="ml-2 text-xs font-bold text-slate-500">sisa {category.remaining}</span>
+                              ) : null}
+                            </span>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(event) =>
+                                setUpclassForm((prev) => ({
+                                  ...prev,
+                                  category_ids: event.target.checked
+                                    ? Array.from(new Set([...prev.category_ids, category.id]))
+                                    : prev.category_ids.filter((id) => id !== category.id),
+                                }))
+                              }
+                              className="h-5 w-5 accent-emerald-500"
+                            />
+                          </label>
+                        )
+                      })
+                    )}
+                  </div>
                   <span className="text-xs font-semibold text-slate-500">
-                    Sistem hanya menampilkan kategori upclass yang sesuai tahun lahir dan gender rider.
+                    Bisa pilih lebih dari satu upclass. Sistem hanya menampilkan kategori yang sesuai tahun lahir dan gender rider.
                   </span>
-                </label>
+                </div>
                 <label className="grid gap-2">
                   <span className="text-sm font-black text-slate-900">Catatan Perubahan (opsional)</span>
                   <textarea

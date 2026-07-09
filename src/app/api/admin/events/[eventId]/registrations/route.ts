@@ -267,10 +267,11 @@ const withOfficialRiderData = async (eventId: string, rows: unknown[]) => {
 
   if (extraError) throw new Error(extraError.message)
 
-  const extraCategoryByRider = new Map<string, string | null>()
+  const extraCategoryIdsByRider = new Map<string, string[]>()
   for (const row of extraRows ?? []) {
-    if (typeof row.rider_id === 'string' && !extraCategoryByRider.has(row.rider_id)) {
-      extraCategoryByRider.set(row.rider_id, typeof row.category_id === 'string' ? row.category_id : null)
+    if (typeof row.rider_id === 'string' && typeof row.category_id === 'string') {
+      const existing = extraCategoryIdsByRider.get(row.rider_id) ?? []
+      if (!existing.includes(row.category_id)) extraCategoryIdsByRider.set(row.rider_id, [...existing, row.category_id])
     }
   }
 
@@ -288,6 +289,7 @@ const withOfficialRiderData = async (eventId: string, rows: unknown[]) => {
           buildPlateKey(item.requested_plate_number as string, item.requested_plate_suffix as string)
         )
         if (!rider) return item
+        const extraCategoryIds = extraCategoryIdsByRider.get(rider.id) ?? []
         return {
           ...item,
           rider_name: rider.name,
@@ -297,7 +299,8 @@ const withOfficialRiderData = async (eventId: string, rows: unknown[]) => {
           gender: rider.gender,
           club: rider.club,
           primary_category_id: rider.primary_category_id,
-          extra_category_id: extraCategoryByRider.get(rider.id) ?? null,
+          extra_category_id: extraCategoryIds[0] ?? null,
+          extra_category_ids: extraCategoryIds,
           official_rider_id: rider.id,
           requested_plate_number: rider.plate_number,
           requested_plate_suffix: rider.plate_suffix,

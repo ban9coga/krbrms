@@ -20,6 +20,48 @@ export async function getLatestRiderExtraCategory(riderId: string) {
   }
 }
 
+export async function getRiderExtraCategories(riderId: string) {
+  const { data, error } = await adminClient
+    .from('rider_extra_categories')
+    .select('id, category_id')
+    .eq('rider_id', riderId)
+    .order('created_at', { ascending: true })
+    .order('id', { ascending: true })
+
+  return {
+    data: (data ?? []) as RiderExtraCategoryRow[],
+    error,
+  }
+}
+
+export async function replaceRiderExtraCategories(input: { riderId: string; eventId: string; categoryIds: string[] }) {
+  const { riderId, eventId } = input
+  const categoryIds = Array.from(new Set(input.categoryIds.map((id) => id.trim()).filter(Boolean)))
+
+  const { error: deleteError } = await adminClient.from('rider_extra_categories').delete().eq('rider_id', riderId)
+  if (deleteError) return { data: null, error: deleteError }
+
+  if (categoryIds.length === 0) {
+    return { data: [] as RiderExtraCategoryRow[], error: null }
+  }
+
+  const { data, error } = await adminClient
+    .from('rider_extra_categories')
+    .insert(
+      categoryIds.map((categoryId) => ({
+        rider_id: riderId,
+        event_id: eventId,
+        category_id: categoryId,
+      }))
+    )
+    .select('id, category_id')
+
+  return {
+    data: (data ?? []) as RiderExtraCategoryRow[],
+    error,
+  }
+}
+
 export async function saveRiderExtraCategory(input: { riderId: string; eventId: string; categoryId: string }) {
   const { riderId, eventId, categoryId } = input
 

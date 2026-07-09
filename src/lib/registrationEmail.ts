@@ -19,6 +19,7 @@ type RegistrationItemRow = {
   club: string | null
   primary_category_id: string | null
   extra_category_id: string | null
+  extra_category_ids?: string[] | null
   jersey_size: string | null
   requested_plate_number: string | null
   requested_plate_suffix: string | null
@@ -125,10 +126,11 @@ const withOfficialRiderItems = async (
 
   if (extraError) throw new Error(extraError.message)
 
-  const extraCategoryByRider = new Map<string, string | null>()
+  const extraCategoryIdsByRider = new Map<string, string[]>()
   for (const row of extraRows ?? []) {
-    if (typeof row.rider_id === 'string' && !extraCategoryByRider.has(row.rider_id)) {
-      extraCategoryByRider.set(row.rider_id, typeof row.category_id === 'string' ? row.category_id : null)
+    if (typeof row.rider_id === 'string' && typeof row.category_id === 'string') {
+      const existing = extraCategoryIdsByRider.get(row.rider_id) ?? []
+      if (!existing.includes(row.category_id)) extraCategoryIdsByRider.set(row.rider_id, [...existing, row.category_id])
     }
   }
 
@@ -139,13 +141,15 @@ const withOfficialRiderItems = async (
   return items.map((item) => {
     const rider = riderByPlate.get(buildPlateKey(item.requested_plate_number, item.requested_plate_suffix))
     if (!rider) return item
+    const extraCategoryIds = extraCategoryIdsByRider.get(rider.id) ?? []
     return {
       ...item,
       rider_name: rider.name,
       rider_nickname: rider.rider_nickname,
       club: rider.club,
       primary_category_id: rider.primary_category_id,
-      extra_category_id: extraCategoryByRider.get(rider.id) ?? null,
+      extra_category_id: extraCategoryIds[0] ?? null,
+      extra_category_ids: extraCategoryIds,
       jersey_size: rider.jersey_size,
       requested_plate_number: rider.plate_number,
       requested_plate_suffix: rider.plate_suffix,
@@ -235,7 +239,7 @@ export const sendRegistrationStatusEmail = async (
   const categoryIds = Array.from(
     new Set(
       items
-        .flatMap((item) => [item.primary_category_id, item.extra_category_id])
+        .flatMap((item) => [item.primary_category_id, item.extra_category_id, ...(item.extra_category_ids ?? [])])
         .filter((id): id is string => Boolean(id))
     )
   )
@@ -266,7 +270,14 @@ export const sendRegistrationStatusEmail = async (
     .map((item, index) => {
       const plate = `${item.requested_plate_number ?? '-'}${item.requested_plate_suffix ?? ''}`
       const primaryCategory = item.primary_category_id ? categoryMap.get(item.primary_category_id) ?? '-' : '-'
-      const extraCategory = item.extra_category_id ? categoryMap.get(item.extra_category_id) ?? '-' : '-'
+      const extraCategoryIds =
+        item.extra_category_ids && item.extra_category_ids.length > 0
+          ? item.extra_category_ids
+          : item.extra_category_id
+          ? [item.extra_category_id]
+          : []
+      const extraCategory =
+        extraCategoryIds.length > 0 ? extraCategoryIds.map((id) => categoryMap.get(id) ?? id).join(', ') : '-'
       return `
         <tr>
           <td style="padding:8px;border:1px solid #dbe3ef;">${index + 1}</td>
