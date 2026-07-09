@@ -65,14 +65,15 @@ export type LiveScoreData = {
 }
 
 const finalStageDisplayOrder: Record<string, number> = {
-  AMATEUR: 0,
-  ACADEMY: 1,
-  ROOKIE: 2,
-  PRO: 3,
-  NOVICE: 4,
-  ELITE: 5,
-  ADVANCED: 6,
-  BEGINNER: 7,
+  BEGINNER: 0,
+  AMATEUR: 1,
+  ACADEMY: 2,
+  INTERMEDIATE: 3,
+  ADVANCED: 4,
+  ROOKIE: 5,
+  PRO: 6,
+  NOVICE: 7,
+  ELITE: 8,
 }
 
 const getStageGroupSortKey = (title: string) => {

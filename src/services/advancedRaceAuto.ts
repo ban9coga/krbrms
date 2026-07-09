@@ -799,9 +799,7 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
       ? computeHybridQualificationAdvances(
           Object.entries(batchRanks).map(([batchId, ranked]) => ({ batchId, ranked })),
           resolved.stages,
-          resolved.finalClasses as Array<
-            'BEGINNER' | 'AMATEUR' | 'ACADEMY' | 'ADVANCED' | 'PRO' | 'ROOKIE' | 'NOVICE' | 'ELITE'
-          >
+          resolved.finalClasses
         )
     : batches.flatMap((batch) =>
         computeQualificationAdvancesFromRanks(
@@ -1504,9 +1502,7 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
             })),
           })),
           resolved.stages,
-          resolved.finalClasses as Array<
-            'BEGINNER' | 'AMATEUR' | 'ACADEMY' | 'ADVANCED' | 'PRO' | 'ROOKIE' | 'NOVICE' | 'ELITE'
-          >
+          resolved.finalClasses
         )
     : Object.entries(qualificationRanksByBatch).flatMap(([batchId, rankedRows]) => {
         const batchIndex = qualificationBatchIndexById[batchId] ?? null

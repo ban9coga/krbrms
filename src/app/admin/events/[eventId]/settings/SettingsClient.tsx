@@ -161,7 +161,7 @@ function AdminPreviewImage({
 }
 
 const sponsorTierOptions: EventSponsorTier[] = ['TITLE', 'MAIN', 'SUPPORT', 'MEDIA', 'COMMUNITY', 'PARTNER']
-const advancedFinalClassOrder = ['BEGINNER', 'AMATEUR', 'ACADEMY', 'ADVANCED', 'ROOKIE', 'PRO', 'NOVICE', 'ELITE'] as const
+const advancedFinalClassOrder = ['BEGINNER', 'AMATEUR', 'ACADEMY', 'INTERMEDIATE', 'ADVANCED', 'ROOKIE', 'PRO', 'NOVICE', 'ELITE'] as const
 const legacyAdvancedFinalClasses: string[] = []
 
 const parseStageCapacityValue = (value: string) => {
@@ -618,7 +618,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     race_gate_positions: '8',
     race_qualification_enabled: true,
     race_auto_advance: true,
-    race_final_classes: 'ELITE,NOVICE,PRO,ROOKIE,ADVANCED,ACADEMY,AMATEUR,BEGINNER',
+    race_final_classes: 'ELITE,NOVICE,PRO,ROOKIE,ADVANCED,INTERMEDIATE,ACADEMY,AMATEUR,BEGINNER',
     scoring_rules: '{\n}\n',
     display_theme: '{\n}\n',
     race_format_settings: '{\n}\n',
@@ -843,7 +843,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
           race_final_classes:
             Array.isArray(format.final_classes)
               ? format.final_classes.join(',')
-              : 'ELITE,NOVICE,PRO,ROOKIE,ADVANCED,ACADEMY,AMATEUR,BEGINNER',
+              : 'ELITE,NOVICE,PRO,ROOKIE,ADVANCED,INTERMEDIATE,ACADEMY,AMATEUR,BEGINNER',
           scoring_rules: JSON.stringify(data.scoring_rules ?? {}, null, 2),
           display_theme: JSON.stringify(data.display_theme ?? {}, null, 2),
           race_format_settings: JSON.stringify(data.race_format_settings ?? {}, null, 2),

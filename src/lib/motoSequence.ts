@@ -22,11 +22,12 @@ const FINAL_CLASS_ORDER_MAP: Record<string, number> = {
   BEGINNER: 1,
   AMATEUR: 2,
   ACADEMY: 3,
-  ADVANCED: 4,
-  ROOKIE: 5,
-  PRO: 6,
-  NOVICE: 7,
-  ELITE: 8,
+  INTERMEDIATE: 4,
+  ADVANCED: 5,
+  ROOKIE: 6,
+  PRO: 7,
+  NOVICE: 8,
+  ELITE: 9,
 }
 
 export const parseMotoSequence = (name?: string | null): ParsedMoto | null => {
