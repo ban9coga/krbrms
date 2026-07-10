@@ -43,6 +43,17 @@ type StageConfigRow = {
 type EventSettingsRow = {
   event_logo_url?: string | null
   display_theme?: Record<string, unknown> | null
+  race_format_settings?: Record<string, unknown> | null
+}
+
+const DEFAULT_FINAL_CLASS_OPTIONS = ['ELITE', 'NOVICE', 'PRO', 'ROOKIE', 'ADVANCED', 'INTERMEDIATE', 'ACADEMY', 'AMATEUR', 'BEGINNER']
+
+const normalizeFinalClassOptions = (value: unknown) => {
+  if (!Array.isArray(value)) return DEFAULT_FINAL_CLASS_OPTIONS
+  const items = value
+    .map((item) => (typeof item === 'string' ? item.trim().toUpperCase() : ''))
+    .filter(Boolean)
+  return items.length > 0 ? Array.from(new Set(items)) : DEFAULT_FINAL_CLASS_OPTIONS
 }
 
 const targetKeyForRule = (rule: {
@@ -70,7 +81,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ eventId: s
 
   const { data: settingsRow, error: settingsError } = await adminClient
     .from('event_settings')
-    .select('event_logo_url, display_theme')
+    .select('event_logo_url, display_theme, race_format_settings')
     .eq('event_id', eventId)
     .maybeSingle()
 
@@ -125,6 +136,12 @@ export async function GET(_: Request, { params }: { params: Promise<{ eventId: s
   const stageConfigByCategory = new Map<string, StageConfigRow>(
     ((stageConfigs ?? []) as StageConfigRow[]).map((row) => [row.category_id, row])
   )
+  const settings = (settingsRow as EventSettingsRow | null) ?? null
+  const raceFormatSettings =
+    settings?.race_format_settings && typeof settings.race_format_settings === 'object' && !Array.isArray(settings.race_format_settings)
+      ? settings.race_format_settings
+      : {}
+  const finalClassOptions = normalizeFinalClassOptions(raceFormatSettings.final_classes)
 
   const enrichedCategories = (categories ?? []).map((category) => ({
     ...category,
@@ -151,8 +168,9 @@ export async function GET(_: Request, { params }: { params: Promise<{ eventId: s
         id: eventRow?.id ?? eventId,
         name: eventRow?.name ?? 'Race System Guide',
         community_name: eventRow?.community_name ?? null,
-        event_logo_url: ((settingsRow as EventSettingsRow | null)?.event_logo_url ?? null) as string | null,
-        display_theme: (((settingsRow as EventSettingsRow | null)?.display_theme ?? {}) as Record<string, unknown>) ?? {},
+        event_logo_url: (settings?.event_logo_url ?? null) as string | null,
+        display_theme: ((settings?.display_theme ?? {}) as Record<string, unknown>) ?? {},
+        final_class_options: finalClassOptions,
       },
       categories: enrichedCategories,
       rules: rules ?? [],

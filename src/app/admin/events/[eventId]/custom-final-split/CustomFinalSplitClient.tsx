@@ -30,6 +30,7 @@ type EventGuideMeta = {
   community_name?: string | null
   event_logo_url?: string | null
   display_theme?: Record<string, unknown> | null
+  final_class_options?: string[] | null
 }
 
 type CustomSplitRule = {
@@ -45,7 +46,7 @@ type CustomSplitRule = {
   batch_no: number | null
 }
 
-const FINAL_CLASS_OPTIONS = ['ELITE', 'NOVICE', 'PRO', 'ROOKIE', 'ADVANCED', 'INTERMEDIATE', 'ACADEMY', 'AMATEUR', 'BEGINNER']
+const DEFAULT_FINAL_CLASS_OPTIONS = ['ELITE', 'NOVICE', 'PRO', 'ROOKIE', 'ADVANCED', 'INTERMEDIATE', 'ACADEMY', 'AMATEUR', 'BEGINNER']
 const SOURCE_STAGE_OPTIONS: Array<CustomSplitRule['source_stage']> = ['QUALIFICATION', 'QUARTER_FINAL', 'SEMI_FINAL', 'REPECHAGE']
 const TARGET_STAGE_OPTIONS: Array<CustomSplitRule['target_stage']> = ['FINAL', 'SEMI_FINAL', 'REPECHAGE', 'QUARTER_FINAL']
 const SPLIT_BASIS_OPTIONS: Array<CustomSplitRule['split_basis']> = ['COMBINED', 'PER_BATCH', 'CUSTOM_PER_BATCH']
@@ -62,14 +63,15 @@ const formatStageLabel = (value: CustomSplitRule['source_stage'] | CustomSplitRu
 const createEmptyRule = (
   categoryId: string,
   sortOrder: number,
-  splitBasis: CustomSplitRule['split_basis'] = 'COMBINED'
+  splitBasis: CustomSplitRule['split_basis'] = 'COMBINED',
+  targetFinalClass = 'ELITE'
 ): CustomSplitRule => ({
   category_id: categoryId,
   source_stage: 'QUALIFICATION',
   rank_from: Math.max(1, sortOrder + 1),
   rank_to: Math.max(1, sortOrder + 1),
   target_stage: 'FINAL',
-  target_final_class: 'ELITE',
+  target_final_class: targetFinalClass,
   sort_order: sortOrder,
   split_basis: splitBasis,
   batch_no: splitBasis === 'CUSTOM_PER_BATCH' ? 1 : null,
@@ -426,6 +428,20 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
 
+  const finalClassOptions = useMemo(() => {
+    const configured =
+      Array.isArray(eventMeta?.final_class_options) && eventMeta.final_class_options.length > 0
+        ? eventMeta.final_class_options
+        : DEFAULT_FINAL_CLASS_OPTIONS
+    const existingRuleClasses = Object.values(rulesByCategory)
+      .flat()
+      .map((rule) => rule.target_final_class)
+      .filter((value): value is string => Boolean(value?.trim()))
+    return Array.from(new Set([...configured, ...existingRuleClasses].map((value) => value.trim().toUpperCase()).filter(Boolean)))
+  }, [eventMeta?.final_class_options, rulesByCategory])
+
+  const defaultFinalClass = finalClassOptions.includes('ELITE') ? 'ELITE' : finalClassOptions[0] ?? 'ELITE'
+
   const categorySummary = useMemo(() => {
     const summary: Record<string, string> = {}
     for (const category of categories) {
@@ -715,7 +731,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
     setRulesByCategory((prev) => {
       const current = [...(prev[categoryId] ?? [])]
       const splitBasis = getStageSplitBasis(current, 'QUALIFICATION')
-      current.push(createEmptyRule(categoryId, current.length, splitBasis))
+      current.push(createEmptyRule(categoryId, current.length, splitBasis, defaultFinalClass))
       return { ...prev, [categoryId]: current }
     })
   }
@@ -728,7 +744,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
     setRulesByCategory((prev) => {
       const current = [...(prev[categoryId] ?? [])]
       if (current.length === 0 && sourceStage === 'QUALIFICATION') {
-        return { ...prev, [categoryId]: [createEmptyRule(categoryId, 0, splitBasis)] }
+        return { ...prev, [categoryId]: [createEmptyRule(categoryId, 0, splitBasis, defaultFinalClass)] }
       }
       return {
         ...prev,
@@ -762,7 +778,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
       sort_order: index,
       rank_from: Number(rule.rank_from),
       rank_to: Number(rule.rank_to),
-      target_final_class: rule.target_stage === 'FINAL' ? rule.target_final_class ?? 'ELITE' : null,
+      target_final_class: rule.target_stage === 'FINAL' ? rule.target_final_class ?? defaultFinalClass : null,
       split_basis:
         rule.split_basis === 'CUSTOM_PER_BATCH'
           ? 'CUSTOM_PER_BATCH'
@@ -819,6 +835,10 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
                 <div style={{ fontSize: 26, fontWeight: 950 }}>Final Class Rules</div>
                 <div style={{ color: '#334155', fontWeight: 700 }}>
           Override split standar AMS per kategori. Dipakai kalau kamu butuh pola khusus seperti 9 rider: top 3 ke Final Elite, 3 berikutnya ke Final Novice.
+        </div>
+        <div style={{ color: '#64748b', fontSize: 13, fontWeight: 800 }}>
+          Pilihan Final Class mengikuti <b>Event Settings → Display & Race Format → Final classes</b>:{' '}
+          {finalClassOptions.join(', ') || '-'}
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button
@@ -993,7 +1013,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
                       onChange={(e) =>
                         updateRule(category.id, index, {
                           target_stage: e.target.value as CustomSplitRule['target_stage'],
-                          target_final_class: e.target.value === 'FINAL' ? rule.target_final_class ?? 'ELITE' : null,
+                          target_final_class: e.target.value === 'FINAL' ? rule.target_final_class ?? defaultFinalClass : null,
                         })
                       }
                       style={{ padding: '10px 12px', borderRadius: 10, border: '2px solid #111', background: '#fff' }}
@@ -1009,7 +1029,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
                   <label style={{ display: 'grid', gap: 6, fontWeight: 800 }}>
                     <span>Final Class</span>
                     <select
-                      value={rule.target_final_class ?? 'ELITE'}
+                      value={rule.target_final_class ?? defaultFinalClass}
                       onChange={(e) => updateRule(category.id, index, { target_final_class: e.target.value })}
                       disabled={rule.target_stage !== 'FINAL'}
                       style={{
@@ -1019,7 +1039,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
                         background: rule.target_stage === 'FINAL' ? '#fff' : '#e2e8f0',
                       }}
                     >
-                      {FINAL_CLASS_OPTIONS.map((option) => (
+                      {finalClassOptions.map((option) => (
                         <option key={option} value={option}>
                           {option}
                         </option>
