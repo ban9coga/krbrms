@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../lib/auth'
 import { applyBestTeamSettingsNormalization } from '../../../../../lib/bestTeam'
 import type { BusinessSettings } from '../../../../../lib/eventService'
+import { normalizeFinalClassList } from '../../../../../lib/advancedRaceDefaults'
 import { proxyBusinessSettingsMedia, toPublicMediaUrl, toPublicMediaUrls } from '../../../../../lib/publicMedia'
 
 const EVENT_SETTINGS_RETURN_SELECT =
@@ -41,6 +42,16 @@ const normalizeBusinessSettings = (value: unknown): BusinessSettings => {
     }
   }
   return {}
+}
+
+const normalizeRaceFormatSettings = (value: unknown): Record<string, unknown> => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+
+  const settings = value as Record<string, unknown>
+  return {
+    ...settings,
+    final_classes: normalizeFinalClassList(settings.final_classes),
+  }
 }
 
 export async function GET(_: Request, { params }: { params: Promise<{ eventId: string }> }) {
@@ -88,6 +99,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ eventI
     race_format_settings,
     business_settings,
   } = body ?? {}
+  const normalizedRaceFormatSettings = normalizeRaceFormatSettings(race_format_settings)
 
   const { data: existingRows, error: existingError } = await adminClient
     .from('event_settings')
@@ -119,7 +131,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ eventI
           require_jersey_size,
           scoring_rules,
           display_theme,
-          race_format_settings,
+          race_format_settings: normalizedRaceFormatSettings,
           business_settings: applyBestTeamSettingsNormalization(normalizeBusinessSettings(business_settings)),
         },
       ],

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../../lib/auth'
-import { resolveDefaultAdvancedRaceConfig } from '../../../../../../lib/advancedRaceDefaults'
+import { normalizeFinalClassList, resolveDefaultAdvancedRaceConfig } from '../../../../../../lib/advancedRaceDefaults'
 
 type RuleInput = {
   min_riders: number
@@ -18,7 +18,7 @@ const normalizeRuleForGateSize = (rule: RuleInput, gateSize: number): RuleInput 
     enable_qualification: defaults.stages.enableQualification,
     enable_quarter_final: defaults.stages.enableQuarterFinal,
     enable_semi_final: defaults.stages.enableSemiFinal,
-    enabled_final_classes: defaults.finalClasses,
+    enabled_final_classes: normalizeFinalClassList(defaults.finalClasses),
   }
 }
 
@@ -87,7 +87,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     enable_qualification: Boolean(rule.enable_qualification),
     enable_quarter_final: Boolean(rule.enable_quarter_final),
     enable_semi_final: Boolean(rule.enable_semi_final),
-    enabled_final_classes: Array.isArray(rule.enabled_final_classes) ? rule.enabled_final_classes : [],
+    enabled_final_classes: normalizeFinalClassList(rule.enabled_final_classes),
     }
   })
 

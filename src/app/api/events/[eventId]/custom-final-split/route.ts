@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../lib/auth'
+import { normalizeFinalClassList, normalizeFinalClassValue } from '../../../../../lib/advancedRaceDefaults'
 import {
   syncAdvancedRaceProgress,
 } from '../../../../../services/advancedRaceAuto'
@@ -46,15 +47,7 @@ type EventSettingsRow = {
   race_format_settings?: Record<string, unknown> | null
 }
 
-const DEFAULT_FINAL_CLASS_OPTIONS = ['ELITE', 'NOVICE', 'PRO', 'ROOKIE', 'ADVANCED', 'INTERMEDIATE', 'ACADEMY', 'AMATEUR', 'BEGINNER']
-
-const normalizeFinalClassOptions = (value: unknown) => {
-  if (!Array.isArray(value)) return DEFAULT_FINAL_CLASS_OPTIONS
-  const items = value
-    .map((item) => (typeof item === 'string' ? item.trim().toUpperCase() : ''))
-    .filter(Boolean)
-  return items.length > 0 ? Array.from(new Set(items)) : DEFAULT_FINAL_CLASS_OPTIONS
-}
+const normalizeFinalClassOptions = (value: unknown) => normalizeFinalClassList(value)
 
 const targetKeyForRule = (rule: {
   source_stage?: 'QUALIFICATION' | 'QUARTER_FINAL' | 'SEMI_FINAL' | 'REPECHAGE'
@@ -207,7 +200,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       rank_from: Math.max(1, Number(rule.rank_from) || 1),
       rank_to: Math.max(1, Number(rule.rank_to) || 1),
       target_stage: rule.target_stage,
-      target_final_class: rule.target_stage === 'FINAL' ? rule.target_final_class ?? null : null,
+      target_final_class: rule.target_stage === 'FINAL' ? normalizeFinalClassValue(rule.target_final_class) ?? null : null,
       sort_order: Number(rule.sort_order ?? index),
       split_basis:
         rule.split_basis === 'CUSTOM_PER_BATCH'
@@ -231,7 +224,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   }
 
   if (normalizedRules.some((rule) => rule.target_stage === 'FINAL' && !rule.target_final_class)) {
-    return NextResponse.json({ error: 'Final rules must have a final class.' }, { status: 400 })
+    return NextResponse.json({ error: 'Final rules must have a valid final class.' }, { status: 400 })
   }
 
   const splitBasisByStage = new Map<NormalizedRule['source_stage'], NormalizedRule['split_basis']>()

@@ -1,7 +1,7 @@
 'use server'
 
 import { adminClient } from '../lib/auth'
-import { resolveDefaultAdvancedRaceConfig } from '../lib/advancedRaceDefaults'
+import { normalizeFinalClassList, resolveDefaultAdvancedRaceConfig } from '../lib/advancedRaceDefaults'
 import { isMissingPrimaryCategoryColumnError, riderBelongsToPrimaryCategory } from '../lib/categoryAssignment'
 
 export type StageFlags = {
@@ -166,7 +166,7 @@ export async function resolveCategoryConfig(categoryId: string, override?: Resol
           enableQuarterFinal: override.enableQuarterFinal ?? false,
           enableSemiFinal: override.enableSemiFinal ?? false,
         },
-        finalClasses: override.enabledFinalClasses ?? [],
+        finalClasses: normalizeFinalClassList(override.enabledFinalClasses),
         source: 'override',
       }
     }
@@ -204,7 +204,7 @@ export async function resolveCategoryConfig(categoryId: string, override?: Resol
         enableQuarterFinal: Boolean(rule.enable_quarter_final),
         enableSemiFinal: Boolean(rule.enable_semi_final),
       },
-      finalClasses: Array.isArray(rule.enabled_final_classes) ? rule.enabled_final_classes : [],
+      finalClasses: normalizeFinalClassList(rule.enabled_final_classes),
       source: 'rule',
     }
   } catch (err) {

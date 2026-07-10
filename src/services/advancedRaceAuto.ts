@@ -1,6 +1,7 @@
 'use server'
 
 import { adminClient } from '../lib/auth'
+import { normalizeFinalClassValue } from '../lib/advancedRaceDefaults'
 import { resolveCategoryConfig } from './categoryResolver'
 import { assertMotoNotUnderProtest } from '../lib/motoLock'
 import { resolveTotalPointForRaceResult, type NonFinishPenaltyConfig } from '../lib/nonFinishScoring'
@@ -99,7 +100,7 @@ async function loadCustomSplitRules(categoryId: string, sourceStage?: StageName)
     rankFrom: Number(row.rank_from),
     rankTo: Number(row.rank_to),
     targetStage: row.target_stage,
-    targetFinalClass: row.target_final_class as CustomSplitRule['targetFinalClass'],
+    targetFinalClass: normalizeFinalClassValue(row.target_final_class) as CustomSplitRule['targetFinalClass'],
     sortOrder: Number(row.sort_order ?? 0),
     splitBasis: row.split_basis === 'CUSTOM_PER_BATCH' ? 'CUSTOM_PER_BATCH' : row.split_basis === 'PER_BATCH' ? 'PER_BATCH' : 'COMBINED',
     batchNo: row.batch_no != null ? Number(row.batch_no) : null,
@@ -1003,7 +1004,8 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
   const finals = stageSeedRows
     .filter((r) => r.stage === 'FINAL' && r.final_class)
     .reduce<Record<string, string[]>>((acc, r) => {
-      const key = r.final_class as string
+      const key = normalizeFinalClassValue(r.final_class)
+      if (!key) return acc
       if (!acc[key]) acc[key] = []
       acc[key].push(r.rider_id)
       return acc
@@ -1431,8 +1433,9 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
   const finalRows: typeof quarterRows = []
 
   const addFinalAssignment = (target: Map<string, string>, riderId: string, finalClass: string | null | undefined) => {
-    if (!finalClass) return
-    target.set(riderId, finalClass)
+    const normalizedFinalClass = normalizeFinalClassValue(finalClass)
+    if (!normalizedFinalClass) return
+    target.set(riderId, normalizedFinalClass)
   }
 
   const qualificationRanksByBatch = ((qualificationStageRows ?? []) as Array<{
@@ -1729,7 +1732,8 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
   for (const moto of finalMotos) {
     if (!isMotoComplete(moto.id, motoRiderRows, resultRows)) continue
 
-    const finalClass = moto.moto_name.replace(/^Final\s+/i, '').trim().toUpperCase()
+    const finalClass = normalizeFinalClassValue(moto.moto_name.replace(/^Final\s+/i, '').trim().toUpperCase())
+    if (!finalClass) continue
     const riders = motoRiderRows.filter((r) => r.moto_id === moto.id).map((r) => r.rider_id)
     const riderCount = riders.length
     riders.forEach((id) => {
@@ -1756,12 +1760,13 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
   semiDerivedFinalAssignments.forEach((finalClass, riderId) => addFinalAssignment(finalAssignments, riderId, finalClass))
 
   finalAssignments.forEach((finalClass, riderId) => {
-    if (completedFinalRiders.has(riderId)) return
+    const normalizedFinalClass = normalizeFinalClassValue(finalClass)
+    if (!normalizedFinalClass || completedFinalRiders.has(riderId)) return
     finalRows.push({
       rider_id: riderId,
       category_id: categoryId,
       stage: 'FINAL',
-      final_class: finalClass,
+      final_class: normalizedFinalClass,
       position: null,
       points: null,
     })

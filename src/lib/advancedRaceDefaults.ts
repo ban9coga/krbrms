@@ -19,6 +19,26 @@ export const ADVANCED_RACE_FINAL_CLASS_ORDER = [
   'ELITE',
 ] as const
 
+export const FINAL_CLASS_ALLOWLIST = [...ADVANCED_RACE_FINAL_CLASS_ORDER] as const
+
+export type FinalClassOption = (typeof FINAL_CLASS_ALLOWLIST)[number]
+
+export const normalizeFinalClassValue = (value: unknown): FinalClassOption | null => {
+  if (typeof value !== 'string') return null
+  const normalized = value.trim().toUpperCase()
+  if (!FINAL_CLASS_ALLOWLIST.includes(normalized as FinalClassOption)) return null
+  return normalized as FinalClassOption
+}
+
+export const normalizeFinalClassList = (value: unknown, fallback: string[] = [...FINAL_CLASS_ALLOWLIST]): string[] => {
+  const source = typeof value === 'string' ? value.split(',') : Array.isArray(value) ? value : []
+  const normalized = source
+    .map((item) => normalizeFinalClassValue(item))
+    .filter((item): item is FinalClassOption => item !== null)
+
+  return normalized.length > 0 ? Array.from(new Set(normalized)) : [...fallback]
+}
+
 export const QUALIFICATION_QUARTER_LOWER_CLASS_STRENGTH_ORDER = [
   'ADVANCED',
   'INTERMEDIATE',

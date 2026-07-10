@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto'
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../lib/auth'
+import { normalizeFinalClassValue } from '../../../../../lib/advancedRaceDefaults'
 import {
   NO_PLATE_SUFFIX_KEY,
   nextAvailablePlateSuffix,
@@ -625,7 +626,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
         category_id: mappedCategoryId,
         stage: row.stage,
         batch_id: typeof row.batch_id === 'string' ? (motoIdMap.get(row.batch_id) ?? row.batch_id) : null,
-        final_class: row.final_class,
+        final_class: normalizeFinalClassValue(row.final_class),
         position: row.position,
         points: row.points,
       }
