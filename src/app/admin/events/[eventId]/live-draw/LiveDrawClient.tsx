@@ -56,6 +56,13 @@ type DrawMode = 'internal_live_draw' | 'external_draw'
 const normalizeDrawMode = (value: unknown): DrawMode =>
   value === 'external_draw' ? 'external_draw' : 'internal_live_draw'
 
+const sanitizeFileName = (value: string) =>
+  value
+    .trim()
+    .replace(/[^a-z0-9]+/gi, '-')
+    .replace(/^-+|-+$/g, '')
+    .toLowerCase() || 'draw-output'
+
 const normalizePlateToken = (value: string) => value.toUpperCase().replace(/[^0-9A-Z]/g, '')
 const isRiderIdToken = (value: string) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value.trim())
@@ -229,6 +236,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
   const [manualBatchCount, setManualBatchCount] = useState(1)
   const [customBatchPattern, setCustomBatchPattern] = useState('')
   const [gatePositions, setGatePositions] = useState(8)
+  const [eventLogoUrl, setEventLogoUrl] = useState<string | null>(null)
   const [drawMode, setDrawMode] = useState<DrawMode>('internal_live_draw')
   const [rollingName, setRollingName] = useState<string>('Ready')
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
@@ -783,6 +791,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       if (!res.ok) return
       const format = (json?.data?.race_format_settings ?? {}) as Record<string, unknown>
       setDrawMode(normalizeDrawMode(format.draw_mode))
+      setEventLogoUrl(typeof json?.data?.event_logo_url === 'string' ? json.data.event_logo_url : null)
       const nextGate = typeof format.gate_positions === 'number' ? format.gate_positions : 8
       setGatePositions(nextGate)
       setBatchSize((prev) => {
@@ -1119,6 +1128,325 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       alert(err instanceof Error ? err.message : 'Gagal reset draw')
       setSaveState('idle')
     }
+  }
+
+  const shareTextOutput = async (title: string, text: string) => {
+    try {
+      if (navigator.share) {
+        await navigator.share({ title, text })
+        return
+      }
+      await navigator.clipboard.writeText(text)
+      alert('Output share berhasil disalin.')
+    } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === 'AbortError') return
+      try {
+        await navigator.clipboard.writeText(text)
+        alert('Output share berhasil disalin.')
+      } catch {
+        alert('Gagal share/copy output. Coba copy manual dari browser.')
+      }
+    }
+  }
+
+  const buildDraftBatchShareText = (batch: (typeof batchLayouts)[number]) => {
+    const moto2Manual =
+      drawMode === 'external_draw' &&
+      externalBatchInputMode === 'PER_BATCH' &&
+      externalPerBatchValidation.moto2Provided
+        ? externalPerBatchValidation.orderedMoto2Batches[batch.index - 1] ?? []
+        : []
+    const moto2Riders = moto2Manual.length > 0 ? moto2Manual : [...batch.riders].reverse()
+    const lines = [
+      `🏁 DRAW RESULT`,
+      eventName,
+      `Kategori: ${selectedCategoryLabel}`,
+      `Batch ${batch.index}`,
+      '',
+      `MOTO 1 - BATCH ${batch.index}`,
+      ...batch.riders.map((rider, index) => `G${index + 1} - ${rider.no_plate_display} - ${rider.name}`),
+      '',
+      `MOTO 2 - BATCH ${batch.index}`,
+      ...moto2Riders.map((rider, index) => `G${index + 1} - ${rider.no_plate_display} - ${rider.name}`),
+      '',
+      'Mohon wali rider cek nomor plate dan gate masing-masing.',
+    ]
+    return lines.join('\n')
+  }
+
+  const buildSavedBatchShareText = (batch: (typeof savedMotoBatches)[number]) => {
+    const lines = [
+      `🏁 DRAW RESULT`,
+      eventName,
+      `Kategori: ${selectedCategoryLabel}`,
+      `Batch ${batch.batchNo}`,
+    ]
+
+    batch.motos.forEach((moto) => {
+      lines.push('', moto.moto_name.toUpperCase())
+      moto.gates.forEach((gate) => {
+        lines.push(`G${gate.gate_position} - ${gate.no_plate_display} - ${gate.name}`)
+      })
+    })
+
+    lines.push('', 'Mohon wali rider cek nomor plate dan gate masing-masing.')
+    return lines.join('\n')
+  }
+
+  const loadCanvasImage = async (src: string) => {
+    const image = new Image()
+    image.crossOrigin = 'anonymous'
+    await new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve()
+      image.onerror = () => reject(new Error('Gagal memuat logo event.'))
+      image.src = src
+    })
+    return image
+  }
+
+  const wrapCanvasText = (
+    ctx: CanvasRenderingContext2D,
+    text: string,
+    x: number,
+    y: number,
+    maxWidth: number,
+    lineHeight: number,
+    maxLines = 2
+  ) => {
+    const words = text.split(/\s+/).filter(Boolean)
+    const lines: string[] = []
+    let line = ''
+    for (const word of words) {
+      const testLine = line ? `${line} ${word}` : word
+      if (ctx.measureText(testLine).width > maxWidth && line) {
+        lines.push(line)
+        line = word
+        if (lines.length >= maxLines) break
+      } else {
+        line = testLine
+      }
+    }
+    if (line && lines.length < maxLines) lines.push(line)
+    lines.forEach((lineText, index) => ctx.fillText(lineText, x, y + index * lineHeight))
+    return y + Math.max(1, lines.length) * lineHeight
+  }
+
+  const drawRoundRect = (
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    radius: number
+  ) => {
+    ctx.beginPath()
+    ctx.moveTo(x + radius, y)
+    ctx.arcTo(x + width, y, x + width, y + height, radius)
+    ctx.arcTo(x + width, y + height, x, y + height, radius)
+    ctx.arcTo(x, y + height, x, y, radius)
+    ctx.arcTo(x, y, x + width, y, radius)
+    ctx.closePath()
+  }
+
+  const drawLogo = async (ctx: CanvasRenderingContext2D, logoUrl: string | null) => {
+    ctx.save()
+    drawRoundRect(ctx, 72, 74, 132, 132, 34)
+    ctx.fillStyle = '#fff7ed'
+    ctx.fill()
+    ctx.strokeStyle = 'rgba(255,255,255,0.38)'
+    ctx.lineWidth = 2
+    ctx.stroke()
+    if (logoUrl) {
+      try {
+        const logo = await loadCanvasImage(logoUrl)
+        const size = 102
+        ctx.save()
+        drawRoundRect(ctx, 87, 89, size, size, 26)
+        ctx.clip()
+        ctx.drawImage(logo, 87, 89, size, size)
+        ctx.restore()
+      } catch {
+        ctx.fillStyle = '#facc15'
+        ctx.beginPath()
+        ctx.arc(138, 140, 42, 0, Math.PI * 2)
+        ctx.fill()
+      }
+    } else {
+      ctx.fillStyle = '#facc15'
+      ctx.beginPath()
+      ctx.arc(138, 140, 42, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    ctx.restore()
+  }
+
+  const buildDrawBatchPngBlob = async ({
+    batchLabel,
+    motos,
+  }: {
+    batchLabel: string
+    motos: Array<{
+      title: string
+      rows: Array<{ gate: number; plate: string; name: string }>
+    }>
+  }) => {
+    const canvas = document.createElement('canvas')
+    canvas.width = 1080
+    canvas.height = 1920
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new Error('Canvas tidak tersedia.')
+
+    const gradient = ctx.createLinearGradient(0, 0, 1080, 1920)
+    gradient.addColorStop(0, '#1f0b04')
+    gradient.addColorStop(0.48, '#c2410c')
+    gradient.addColorStop(1, '#fde68a')
+    ctx.fillStyle = gradient
+    ctx.fillRect(0, 0, 1080, 1920)
+
+    ctx.fillStyle = 'rgba(255,255,255,0.08)'
+    for (let i = -220; i < 1180; i += 120) {
+      ctx.save()
+      ctx.translate(i, 0)
+      ctx.rotate(-0.35)
+      ctx.fillRect(0, 0, 54, 2100)
+      ctx.restore()
+    }
+
+    await drawLogo(ctx, eventLogoUrl)
+
+    ctx.fillStyle = '#fef3c7'
+    ctx.font = '900 30px Arial, Helvetica, sans-serif'
+    ctx.fillText('DRAW RESULT', 234, 116)
+    ctx.fillStyle = '#ffffff'
+    ctx.font = '900 42px Arial, Helvetica, sans-serif'
+    wrapCanvasText(ctx, eventName, 234, 166, 760, 48, 2)
+
+    ctx.fillStyle = '#facc15'
+    ctx.font = '900 34px Arial, Helvetica, sans-serif'
+    ctx.fillText(selectedCategoryLabel.toUpperCase(), 74, 294)
+    ctx.fillStyle = '#ffffff'
+    ctx.font = '900 78px Arial, Helvetica, sans-serif'
+    ctx.fillText(batchLabel.toUpperCase(), 72, 380)
+
+    let y = 470
+    motos.forEach((moto, motoIndex) => {
+      drawRoundRect(ctx, 64, y, 952, 86, 28)
+      ctx.fillStyle = motoIndex === 0 ? '#111827' : '#facc15'
+      ctx.fill()
+      ctx.fillStyle = motoIndex === 0 ? '#ffffff' : '#1f0b04'
+      ctx.font = '900 34px Arial, Helvetica, sans-serif'
+      ctx.fillText(moto.title.toUpperCase(), 100, y + 55)
+      y += 112
+
+      moto.rows.slice(0, 14).forEach((row, rowIndex) => {
+        const rowHeight = 78
+        drawRoundRect(ctx, 74, y, 932, rowHeight, 24)
+        ctx.fillStyle = rowIndex % 2 === 0 ? 'rgba(255,255,255,0.94)' : 'rgba(255,247,237,0.94)'
+        ctx.fill()
+        ctx.fillStyle = '#111827'
+        ctx.font = '900 26px Arial, Helvetica, sans-serif'
+        ctx.fillText(`G${row.gate}`, 104, y + 49)
+        ctx.fillStyle = '#b45309'
+        ctx.fillText(row.plate, 190, y + 49)
+        ctx.fillStyle = '#111827'
+        ctx.font = '800 25px Arial, Helvetica, sans-serif'
+        wrapCanvasText(ctx, row.name, 310, y + 33, 650, 30, 1)
+        y += rowHeight + 12
+      })
+
+      if (moto.rows.length > 14) {
+        ctx.fillStyle = '#fff7ed'
+        ctx.font = '900 24px Arial, Helvetica, sans-serif'
+        ctx.fillText(`+ ${moto.rows.length - 14} rider lainnya`, 96, y + 20)
+        y += 54
+      }
+
+      y += 34
+    })
+
+    ctx.fillStyle = 'rgba(17,24,39,0.86)'
+    drawRoundRect(ctx, 72, 1762, 936, 86, 32)
+    ctx.fill()
+    ctx.fillStyle = '#fde68a'
+    ctx.font = '900 27px Arial, Helvetica, sans-serif'
+    ctx.fillText('Cek nomor plate dan gate masing-masing sebelum race.', 108, 1816)
+
+    const pngBlob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png', 1))
+    if (!pngBlob) throw new Error('Gagal membuat PNG.')
+    return pngBlob
+  }
+
+  const shareOrDownloadPng = async (blob: Blob, filename: string, title: string) => {
+    const file = new File([blob], filename, { type: 'image/png' })
+    const canShareFile =
+      typeof navigator.canShare === 'function' &&
+      navigator.canShare({ files: [file] })
+    if (navigator.share && canShareFile) {
+      try {
+        await navigator.share({ title, files: [file] })
+        return
+      } catch (err: unknown) {
+        if (err instanceof DOMException && err.name === 'AbortError') return
+      }
+    }
+
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+  }
+
+  const downloadDraftBatchPng = async (batch: (typeof batchLayouts)[number]) => {
+    const moto2Manual =
+      drawMode === 'external_draw' &&
+      externalBatchInputMode === 'PER_BATCH' &&
+      externalPerBatchValidation.moto2Provided
+        ? externalPerBatchValidation.orderedMoto2Batches[batch.index - 1] ?? []
+        : []
+    const moto2Riders = moto2Manual.length > 0 ? moto2Manual : [...batch.riders].reverse()
+    const blob = await buildDrawBatchPngBlob({
+      batchLabel: `Batch ${batch.index}`,
+      motos: [
+        {
+          title: `Moto 1 - Batch ${batch.index}`,
+          rows: batch.riders.map((rider, index) => ({
+            gate: index + 1,
+            plate: rider.no_plate_display,
+            name: rider.name,
+          })),
+        },
+        {
+          title: `Moto 2 - Batch ${batch.index}`,
+          rows: moto2Riders.map((rider, index) => ({
+            gate: index + 1,
+            plate: rider.no_plate_display,
+            name: rider.name,
+          })),
+        },
+      ],
+    })
+    const filename = `${sanitizeFileName(eventName)}-${sanitizeFileName(selectedCategoryLabel)}-batch-${batch.index}.png`
+    await shareOrDownloadPng(blob, filename, `Draw ${selectedCategoryLabel} Batch ${batch.index}`)
+  }
+
+  const downloadSavedBatchPng = async (batch: (typeof savedMotoBatches)[number]) => {
+    const blob = await buildDrawBatchPngBlob({
+      batchLabel: `Batch ${batch.batchNo}`,
+      motos: batch.motos.map((moto) => ({
+        title: moto.moto_name,
+        rows: moto.gates.map((gate) => ({
+          gate: gate.gate_position,
+          plate: gate.no_plate_display,
+          name: gate.name,
+        })),
+      })),
+    })
+    const filename = `${sanitizeFileName(eventName)}-${sanitizeFileName(selectedCategoryLabel)}-batch-${batch.batchNo}.png`
+    await shareOrDownloadPng(blob, filename, `Draw ${selectedCategoryLabel} Batch ${batch.batchNo}`)
   }
 
   const saveAsMoto = async () => {
@@ -2455,19 +2783,60 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                         boxShadow: '0 14px 30px rgba(15, 23, 42, 0.06)',
                       }}
                     >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 12 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
                         <div style={{ fontWeight: 950, fontSize: 18, color: '#0f172a' }}>Batch {batch.index}</div>
-                        <div
-                          style={{
-                            padding: '6px 10px',
-                            borderRadius: 999,
-                            background: '#dbeafe',
-                            color: '#1d4ed8',
-                            fontWeight: 900,
-                            fontSize: 12,
-                          }}
-                        >
-                          {batch.riders.length} rider
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                          <div
+                            style={{
+                              padding: '6px 10px',
+                              borderRadius: 999,
+                              background: '#dbeafe',
+                              color: '#1d4ed8',
+                              fontWeight: 900,
+                              fontSize: 12,
+                            }}
+                          >
+                            {batch.riders.length} rider
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              shareTextOutput(
+                                `Draw ${selectedCategoryLabel} Batch ${batch.index}`,
+                                buildDraftBatchShareText(batch)
+                              )
+                            }
+                            style={{
+                              padding: '8px 12px',
+                              borderRadius: 999,
+                              border: '1px solid #16a34a',
+                              background: '#dcfce7',
+                              color: '#166534',
+                              fontWeight: 950,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Share Output
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              downloadDraftBatchPng(batch).catch((err: unknown) => {
+                                alert(err instanceof Error ? err.message : 'Gagal membuat PNG.')
+                              })
+                            }}
+                            style={{
+                              padding: '8px 12px',
+                              borderRadius: 999,
+                              border: '1px solid #d97706',
+                              background: '#fef3c7',
+                              color: '#92400e',
+                              fontWeight: 950,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            PNG Story
+                          </button>
                         </div>
                       </div>
                       <div style={{ display: 'grid', gap: 8 }}>
@@ -2670,7 +3039,48 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                         gap: 10,
                       }}
                     >
-                      <div style={{ fontWeight: 950, fontSize: 18, color: '#0f172a' }}>Batch {batch.batchNo}</div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <div style={{ fontWeight: 950, fontSize: 18, color: '#0f172a' }}>Batch {batch.batchNo}</div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            shareTextOutput(
+                              `Draw ${selectedCategoryLabel} Batch ${batch.batchNo}`,
+                              buildSavedBatchShareText(batch)
+                            )
+                          }
+                          style={{
+                            padding: '8px 12px',
+                            borderRadius: 999,
+                            border: '1px solid #16a34a',
+                            background: '#dcfce7',
+                            color: '#166534',
+                            fontWeight: 950,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Share Output
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            downloadSavedBatchPng(batch).catch((err: unknown) => {
+                              alert(err instanceof Error ? err.message : 'Gagal membuat PNG.')
+                            })
+                          }}
+                          style={{
+                            padding: '8px 12px',
+                            borderRadius: 999,
+                            border: '1px solid #d97706',
+                            background: '#fef3c7',
+                            color: '#92400e',
+                            fontWeight: 950,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          PNG Story
+                        </button>
+                      </div>
                       {batch.motos.map((moto) => (
                         <div
                           key={moto.id}
