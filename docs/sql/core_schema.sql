@@ -66,7 +66,7 @@ begin
   end if;
   if not exists (select 1 from pg_type where typname = 'final_class') then
     create type final_class as enum (
-      'BEGINNER','AMATEUR','ACADEMY','ROOKIE','PRO','NOVICE','ELITE','INTERMEDIATE','ADVANCED'
+      'EXPLORER','BEGINNER','AMATEUR','ACADEMY','ROOKIE','PRO','NOVICE','ELITE','INTERMEDIATE','ADVANCED'
     );
   end if;
   if not exists (select 1 from pg_type where typname = 'protest_decision') then

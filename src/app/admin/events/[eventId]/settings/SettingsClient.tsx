@@ -15,6 +15,7 @@ import {
 } from '../../../../../lib/bestTeam'
 import { formatAppRoleLabel } from '../../../../../lib/roles'
 import { supabase } from '../../../../../lib/supabaseClient'
+import { ADVANCED_RACE_FINAL_CLASS_ORDER } from '../../../../../lib/advancedRaceDefaults'
 import type { BusinessSettings, CommunityShowcaseItem, EventSponsor, EventSponsorTier } from '../../../../../lib/eventService'
 
 type SettingsRow = {
@@ -161,7 +162,7 @@ function AdminPreviewImage({
 }
 
 const sponsorTierOptions: EventSponsorTier[] = ['TITLE', 'MAIN', 'SUPPORT', 'MEDIA', 'COMMUNITY', 'PARTNER']
-const advancedFinalClassOrder = ['BEGINNER', 'AMATEUR', 'ACADEMY', 'INTERMEDIATE', 'ADVANCED', 'ROOKIE', 'PRO', 'NOVICE', 'ELITE'] as const
+const advancedFinalClassOrder = [...ADVANCED_RACE_FINAL_CLASS_ORDER] as const
 const legacyAdvancedFinalClasses: string[] = []
 
 const parseStageCapacityValue = (value: string) => {
