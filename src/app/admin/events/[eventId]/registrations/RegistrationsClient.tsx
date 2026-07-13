@@ -371,6 +371,11 @@ const safeCssColor = (value: unknown, fallback: string) => {
   return fallback
 }
 
+const withHexAlpha = (value: string, alpha: string, fallback: string) =>
+  /^#[0-9a-fA-F]{6}$/.test(value) ? `${value}${alpha}` : fallback
+
+const escapeCssString = (value: string) => value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+
 const buildWhatsAppRiderLines = (registration: RegistrationRow, categoryMap?: Map<string, string>) => {
   if (registration.registration_items.length === 0) return ['Rider: -']
 
@@ -1526,16 +1531,42 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
   }
 
   const openPrintPreview = (html: string) => {
-    const printWindow = window.open('', '_blank', 'noopener,noreferrer')
-    if (!printWindow) {
-      throw new Error('Popup print diblokir browser. Izinkan popup untuk export PDF.')
+    const iframe = document.createElement('iframe')
+    iframe.style.position = 'fixed'
+    iframe.style.right = '0'
+    iframe.style.bottom = '0'
+    iframe.style.width = '0'
+    iframe.style.height = '0'
+    iframe.style.border = '0'
+    iframe.style.visibility = 'hidden'
+    document.body.appendChild(iframe)
+
+    const printWindow = iframe.contentWindow
+    const printDoc = iframe.contentDocument || printWindow?.document
+    if (!printWindow || !printDoc) {
+      document.body.removeChild(iframe)
+      throw new Error('Gagal membuka preview PDF.')
     }
-    printWindow.document.open()
-    printWindow.document.write(html)
-    printWindow.document.close()
-    printWindow.focus()
+
+    printDoc.open()
+    printDoc.write(html)
+    printDoc.close()
+
+    const cleanup = () => {
+      setTimeout(() => {
+        try {
+          document.body.removeChild(iframe)
+        } catch {
+          // no-op
+        }
+      }, 600)
+    }
+
+    printWindow.onafterprint = cleanup
     setTimeout(() => {
+      printWindow.focus()
       printWindow.print()
+      cleanup()
     }, 350)
   }
 
@@ -1740,6 +1771,251 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
       </header>
       ${body}
       <div class="footer-note">Dokumen export otomatis dari dashboard registrasi Race Pushbike.</div>
+    </div>
+  </body>
+</html>
+`
+  }
+
+  const buildAllRiderPrintHtml = ({
+    eventName,
+    location,
+    eventDate,
+    sections,
+  }: {
+    eventName: string
+    location: string
+    eventDate: string
+    sections: string
+  }) => {
+    const primaryColor = safeCssColor(eventBranding.primaryColor, '#2ecc71')
+    const secondaryColor = safeCssColor(eventBranding.secondaryColor, '#111111')
+    const headerBg = safeCssColor(eventBranding.headerBg, '#eaf7ee')
+    const cardBg = safeCssColor(eventBranding.cardBg, '#ffffff')
+    const primarySoft = withHexAlpha(primaryColor, '2e', 'rgba(46, 204, 113, 0.18)')
+    const primaryLine = withHexAlpha(primaryColor, '33', 'rgba(46, 204, 113, 0.20)')
+    const primaryBorder = withHexAlpha(primaryColor, '80', 'rgba(46, 204, 113, 0.50)')
+    const primaryBadge = withHexAlpha(primaryColor, '18', 'rgba(46, 204, 113, 0.10)')
+    const logoUrl = eventBranding.logoUrl?.trim() || ''
+    const watermarkCss = logoUrl ? `url("${escapeCssString(logoUrl)}")` : 'none'
+    const logoMarkup = logoUrl
+      ? `<div class="event-logo"><img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(eventName)} logo" /></div>`
+      : ''
+    const locationMarkup = location && location !== '-' ? `<span>${escapeHtml(location)}</span>` : ''
+
+    return `
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>${escapeHtml(`Data Rider ${eventName}`)}</title>
+    <style>
+      @page { size: A4 landscape; margin: 10mm; }
+      html, body {
+        margin: 0;
+        padding: 0;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      body {
+        font-family: Arial, sans-serif;
+        color: #111827;
+        background:
+          radial-gradient(circle at 8% 4%, ${headerBg} 0, transparent 30%),
+          radial-gradient(circle at 92% 0%, ${primarySoft} 0, transparent 26%),
+          #f8fafc;
+        padding: 16px;
+      }
+      .sheet {
+        position: relative;
+        display: grid;
+        gap: 14px;
+        isolation: isolate;
+      }
+      .sheet::before {
+        content: "";
+        position: fixed;
+        inset: 8%;
+        background-image: ${watermarkCss};
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: min(56vw, 560px) auto;
+        opacity: ${logoUrl ? '0.055' : '0'};
+        z-index: -1;
+        pointer-events: none;
+      }
+      .hero {
+        position: relative;
+        overflow: hidden;
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 18px;
+        align-items: center;
+        border: 2px solid ${secondaryColor};
+        border-radius: 24px;
+        padding: 18px 22px;
+        background:
+          linear-gradient(135deg, ${secondaryColor} 0%, #1f2937 54%, ${primaryColor} 145%);
+        color: #ffffff;
+        box-shadow: 0 18px 40px rgba(15, 23, 42, 0.14);
+      }
+      .hero::after {
+        content: "";
+        position: absolute;
+        inset: auto -10% -60% 44%;
+        height: 180px;
+        background: ${headerBg};
+        opacity: 0.18;
+        transform: rotate(-12deg);
+      }
+      .eyebrow {
+        display: inline-flex;
+        width: max-content;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.12);
+        border: 1px solid rgba(255,255,255,0.24);
+        font-size: 10px;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.16em;
+      }
+      h1 {
+        margin: 10px 0 8px;
+        font-size: 30px;
+        line-height: 1.04;
+      }
+      .event-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+      }
+      .event-meta span {
+        display: inline-flex;
+        border-radius: 999px;
+        border: 1px solid rgba(255,255,255,0.22);
+        background: rgba(255,255,255,0.10);
+        padding: 5px 9px;
+        font-size: 11px;
+        font-weight: 850;
+        color: rgba(255,255,255,0.88);
+      }
+      .event-logo {
+        position: relative;
+        z-index: 1;
+        width: 92px;
+        height: 92px;
+        border-radius: 22px;
+        border: 1px solid rgba(255,255,255,0.35);
+        background: rgba(255,255,255,0.96);
+        display: grid;
+        place-items: center;
+        padding: 10px;
+      }
+      .event-logo img {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+      }
+      .category-section {
+        border: 1px solid rgba(15, 23, 42, 0.18);
+        border-radius: 18px;
+        padding: 12px;
+        background: ${cardBg};
+        box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+      .category-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: end;
+        margin-bottom: 9px;
+        border-bottom: 2px solid ${primaryLine};
+        padding-bottom: 8px;
+      }
+      .category-header h2 {
+        margin: 0;
+        font-size: 17px;
+        line-height: 1.1;
+        font-weight: 950;
+        color: #0f172a;
+      }
+      .category-count {
+        border-radius: 999px;
+        border: 1px solid ${primaryBorder};
+        background: ${primaryBadge};
+        color: #0f172a;
+        padding: 5px 9px;
+        font-size: 10px;
+        font-weight: 900;
+        white-space: nowrap;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+      table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        overflow: hidden;
+        border: 1px solid #d1d5db;
+        border-radius: 12px;
+        background: #ffffff;
+        font-size: 11px;
+      }
+      thead {
+        display: table-header-group;
+      }
+      tfoot {
+        display: table-footer-group;
+      }
+      tr {
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+      th, td {
+        padding: 6px 8px;
+        border-bottom: 1px solid #e5e7eb;
+        text-align: left;
+      }
+      th {
+        background: #f3f4f6;
+        color: #111827;
+        font-size: 10px;
+        font-weight: 950;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+      tbody tr:nth-child(even) td {
+        background: #f9fafb;
+      }
+      tbody tr:last-child td {
+        border-bottom: 0;
+      }
+      .empty {
+        color: #64748b;
+        font-style: italic;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="sheet">
+      <header class="hero">
+        <div>
+          <div class="eyebrow">Data Rider Event</div>
+          <h1>${escapeHtml(`Data Rider ${eventName}`)}</h1>
+          <div class="event-meta">
+            <span>${escapeHtml(eventName)}</span>
+            <span>${escapeHtml(eventDate)}</span>
+            ${locationMarkup}
+          </div>
+        </div>
+        ${logoMarkup}
+      </header>
+      ${sections}
     </div>
   </body>
 </html>
@@ -2224,70 +2500,78 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
       const eventName = eventRes.data?.name?.trim() || 'Event'
       const eventLocation = eventRes.data?.location?.trim() || '-'
       const eventDate = eventRes.data?.event_date ? formatDateTime(eventRes.data.event_date) : '-'
-      const generatedAt = new Date().toLocaleString('id-ID')
 
       const sections = riderExport.categoryGroups
-        .map(({ summary, rows }) => {
-          const tableRows =
+        .flatMap(({ summary, rows }) => {
+          const rowsPerSection = 16
+          const chunks =
             rows.length === 0
-              ? '<tr><td colspan="8" class="empty">Tidak ada rider terdaftar di kategori ini</td></tr>'
-              : rows
-                  .map(
-                    (row, index) => `
-                      <tr>
-                        <td>${index + 1}</td>
-                        <td>${escapeHtml(row.no_plate_display)}</td>
-                        <td>${escapeHtml(row.name)}</td>
-                        <td>${escapeHtml(row.rider_nickname ?? '-')}</td>
-                        <td>${escapeHtml(row.gender)}</td>
-                        <td>${escapeHtml(row.date_of_birth)}</td>
-                        <td>${escapeHtml(row.jersey_size ?? '-')}</td>
-                        <td>${escapeHtml(row.club ?? '-')}</td>
-                      </tr>
-                    `
-                  )
-                  .join('')
+              ? [[] as RiderExportItem[]]
+              : Array.from({ length: Math.ceil(rows.length / rowsPerSection) }, (_, index) =>
+                  rows.slice(index * rowsPerSection, (index + 1) * rowsPerSection)
+                )
+          const totalChunks = chunks.length
 
-          return `
-            <section class="section-card">
-              <h2 style="margin:0 0 8px;font-size:16px;font-weight:900;">${escapeHtml(summary.label)}</h2>
-              <div class="subtitle" style="margin:0 0 10px;">
-                <span class="pill" style="color:#0f172a;background:#f8fafc;border-color:#cbd5e1;">Kapasitas: ${escapeHtml(summary.capacity == null ? 'Tanpa batas' : summary.capacity)}</span>
-                <span class="pill" style="color:#0f172a;background:#f8fafc;border-color:#cbd5e1;">Terisi: ${escapeHtml(summary.filled)}</span>
-                <span class="pill" style="color:#0f172a;background:#f8fafc;border-color:#cbd5e1;">Sisa: ${escapeHtml(summary.remaining == null ? 'Tanpa batas' : summary.remaining)}</span>
-                <span class="pill" style="color:#0f172a;background:#f8fafc;border-color:#cbd5e1;">Status: ${escapeHtml(summary.status)}</span>
-              </div>
-              <table>
-                <thead>
-                  <tr>
-                    <th>No</th>
-                    <th>No Plate</th>
-                    <th>Nama Rider</th>
-                    <th>Panggilan</th>
-                    <th>Gender</th>
-                    <th>Tanggal Lahir</th>
-                    <th>Jersey</th>
-                    <th>Club</th>
-                  </tr>
-                </thead>
-                <tbody>${tableRows}</tbody>
-              </table>
-            </section>
-          `
+          return chunks.map((chunkRows, chunkIndex) => {
+            const startNumber = chunkIndex * rowsPerSection
+            const isContinuation = chunkIndex > 0
+            const title = `${summary.label}${isContinuation ? ` · Lanjutan ${chunkIndex + 1}` : ''}`
+            const countLabel =
+              totalChunks > 1
+                ? `${escapeHtml(startNumber + 1)}-${escapeHtml(startNumber + chunkRows.length)} dari ${escapeHtml(rows.length)} rider`
+                : `${escapeHtml(rows.length)} rider`
+            const tableRows =
+              chunkRows.length === 0
+                ? '<tr><td colspan="8" class="empty">Tidak ada rider terdaftar di kategori ini</td></tr>'
+                : chunkRows
+                    .map(
+                      (row, index) => `
+                        <tr>
+                          <td>${startNumber + index + 1}</td>
+                          <td>${escapeHtml(row.no_plate_display)}</td>
+                          <td>${escapeHtml(row.name)}</td>
+                          <td>${escapeHtml(row.rider_nickname ?? '-')}</td>
+                          <td>${escapeHtml(row.gender)}</td>
+                          <td>${escapeHtml(row.date_of_birth)}</td>
+                          <td>${escapeHtml(row.jersey_size ?? '-')}</td>
+                          <td>${escapeHtml(row.club ?? '-')}</td>
+                        </tr>
+                      `
+                    )
+                    .join('')
+
+            return `
+              <section class="category-section">
+                <div class="category-header">
+                  <h2>${escapeHtml(title)}</h2>
+                  <div class="category-count">${countLabel}</div>
+                </div>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>No</th>
+                      <th>No Plate</th>
+                      <th>Nama Rider</th>
+                      <th>Panggilan</th>
+                      <th>Gender</th>
+                      <th>Tanggal Lahir</th>
+                      <th>Jersey</th>
+                      <th>Club</th>
+                    </tr>
+                  </thead>
+                  <tbody>${tableRows}</tbody>
+                </table>
+              </section>
+            `
+          })
         })
         .join('')
 
-      const html = buildThemedRegistrationPrintHtml({
-        title: `Data Rider - ${eventName}`,
-        eyebrow: 'Data Rider',
+      const html = buildAllRiderPrintHtml({
         eventName,
         location: eventLocation,
         eventDate,
-        generatedAt,
-        totalLabel: 'Rider Terdaftar',
-        totalValue: riderExport.totalRegistered,
-        filterSummary: `Up Class: ${riderExport.upClassCount}`,
-        body: sections,
+        sections,
       })
 
       openPrintPreview(html)
