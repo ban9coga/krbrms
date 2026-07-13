@@ -17,6 +17,7 @@ type CategoryRow = {
     enableSemiFinal: boolean
   } | null
   final_classes?: string[] | null
+  qualification_batch_count?: number | null
   max_riders_per_race?: number | null
   qualification_moto_count?: number | null
   repechage_max_riders_per_race?: number | null
@@ -197,8 +198,11 @@ const estimateRaceCounts = (category: CategoryRow, rules: CustomSplitRule[]): Ra
   const quarterMaxRidersPerRace = Math.max(1, Number(category.quarter_final_max_riders_per_race ?? category.max_riders_per_race ?? 8))
   const semiMaxRidersPerRace = Math.max(1, Number(category.semi_final_max_riders_per_race ?? category.max_riders_per_race ?? 8))
   const qualificationRules = rules.filter((rule) => rule.source_stage === 'QUALIFICATION')
+  const actualQualificationBatchCount = Math.max(0, Number(category.qualification_batch_count ?? 0))
   const qualificationBucketSizes =
-    qualificationRules.length > 0 && getStageSplitBasis(rules, 'QUALIFICATION') === 'CUSTOM_PER_BATCH'
+    actualQualificationBatchCount > 0
+      ? distributeBucketSizes(totalRiders, actualQualificationBatchCount)
+      : qualificationRules.length > 0 && getStageSplitBasis(rules, 'QUALIFICATION') === 'CUSTOM_PER_BATCH'
       ? buildStageBucketSizes(rules, 'QUALIFICATION', totalRiders, 0, maxRidersPerRace)
       : distributeBucketSizes(
           totalRiders,
@@ -381,8 +385,11 @@ const calculateBatchCountPerStage = (category: CategoryRow, rules: CustomSplitRu
   const semiMaxRidersPerRace = Math.max(1, Number(category.semi_final_max_riders_per_race ?? category.max_riders_per_race ?? 8))
 
   const qualificationRules = rules.filter((rule) => rule.source_stage === 'QUALIFICATION')
+  const actualQualificationBatchCount = Math.max(0, Number(category.qualification_batch_count ?? 0))
   const qualificationBucketSizes =
-    qualificationRules.length > 0 && getStageSplitBasis(rules, 'QUALIFICATION') === 'CUSTOM_PER_BATCH'
+    actualQualificationBatchCount > 0
+      ? distributeBucketSizes(totalRiders, actualQualificationBatchCount)
+      : qualificationRules.length > 0 && getStageSplitBasis(rules, 'QUALIFICATION') === 'CUSTOM_PER_BATCH'
       ? buildStageBucketSizes(rules, 'QUALIFICATION', totalRiders, 0, maxRidersPerRace)
       : distributeBucketSizes(
           totalRiders,
@@ -544,13 +551,28 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
     return summary
   }, [categories, rulesByCategory])
 
+  const batchCountPerStage = useMemo(() => {
+    const result: Record<string, BatchCountPerStage> = {}
+    for (const category of categories) {
+      const rules = rulesByCategory[category.id] ?? []
+      result[category.id] = calculateBatchCountPerStage(category, rules)
+    }
+    return result
+  }, [categories, rulesByCategory])
+
   const guideEntries = useMemo(() => {
     return categories.map((category) => {
       const rules = rulesByCategory[category.id] ?? []
       const estimate = estimateRaceCounts(category, rules)
       const totalRiders = Math.max(0, Number(category.total_riders ?? 0))
       const maxRidersPerRace = Math.max(1, Number(category.max_riders_per_race ?? 8))
-      const batchCount = totalRiders > 0 ? Math.max(1, Math.ceil(totalRiders / maxRidersPerRace)) : 0
+      const actualQualificationBatchCount = Math.max(0, Number(category.qualification_batch_count ?? 0))
+      const batchCount =
+        actualQualificationBatchCount > 0
+          ? actualQualificationBatchCount
+          : totalRiders > 0
+            ? Math.max(1, Math.ceil(totalRiders / maxRidersPerRace))
+            : 0
       const usesSingleBatchFinal = batchCount === 1
       const qualificationMotoCount = usesSingleBatchFinal
         ? 3
@@ -620,6 +642,18 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
                 : usesSingleBatchFinal
                   ? 'Setelah Moto 3 selesai dan dikunci, total point akan menjadi hasil akhir kategori.'
                   : 'Kategori ini langsung memakai hasil final tanpa stage lanjutan.'
+      const batchCounts = batchCountPerStage[category.id]
+      const batchLine = batchCounts
+        ? [
+            batchCounts.qualification > 0 ? `Q ${batchCounts.qualification}` : '',
+            batchCounts.repechage > 0 ? `REP ${batchCounts.repechage}` : '',
+            batchCounts.quarterFinal > 0 ? `QF ${batchCounts.quarterFinal}` : '',
+            batchCounts.semiFinal > 0 ? `SF ${batchCounts.semiFinal}` : '',
+            batchCounts.final > 0 ? `F ${batchCounts.final}` : '',
+          ]
+            .filter(Boolean)
+            .join(' | ')
+        : ''
 
       return {
         category,
@@ -627,6 +661,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
         intro: `${introParts.join(', ')}.`,
         systemText,
         allocationText,
+        batchCountText: batchLine ? `Batch per stage: ${batchLine}.` : '',
         estimateText:
           estimate.totalRaceCount > 0
             ? `Perkiraan jumlah moto kategori ini: ${estimate.totalRaceCount}. Rinciannya: Qualification ${estimate.qualificationRaceCount}, Quarter Final ${estimate.quarterRaceCount}, Repechage ${estimate.repechageRaceCount}, Semi Final ${estimate.semiRaceCount}, Final ${estimate.finalRaceCount}.`
@@ -637,16 +672,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
         stageLine,
       }
     })
-  }, [categories, rulesByCategory])
-
-  const batchCountPerStage = useMemo(() => {
-    const result: Record<string, BatchCountPerStage> = {}
-    for (const category of categories) {
-      const rules = rulesByCategory[category.id] ?? []
-      result[category.id] = calculateBatchCountPerStage(category, rules)
-    }
-    return result
-  }, [categories, rulesByCategory])
+  }, [batchCountPerStage, categories, rulesByCategory])
 
   const guideText = useMemo(
     () =>
@@ -657,6 +683,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
             entry.intro,
             entry.systemText,
             entry.allocationText,
+            entry.batchCountText,
             entry.estimateText,
             entry.riderEstimateText,
             ...entry.estimateNotes,
@@ -701,6 +728,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
             <p>${entry.intro}</p>
             <p>${entry.systemText}</p>
             ${entry.allocationText ? `<p>${entry.allocationText}</p>` : ''}
+            ${entry.batchCountText ? `<p>${entry.batchCountText}</p>` : ''}
             <p>${entry.estimateText}</p>
             <p>${entry.riderEstimateText}</p>
             ${entry.estimateNotes.map((line) => `<p>${line}</p>`).join('')}
@@ -1397,14 +1425,17 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
                     boxShadow: '0 10px 30px rgba(15, 23, 42, 0.08)',
                   }}
                 >
-                  <div style={{ fontSize: 22, fontWeight: 950, color: themeSecondary }}>{entry.title}</div>
-                  <div style={{ color: '#0f172a', fontWeight: 700, lineHeight: 1.5 }}>{entry.intro}</div>
-                  <div style={{ color: '#334155', fontWeight: 700, lineHeight: 1.5 }}>{entry.systemText}</div>
-                  {entry.allocationText && (
-                    <div style={{ color: themePrimary, fontWeight: 900, lineHeight: 1.5 }}>{entry.allocationText}</div>
-                  )}
-                  <div style={{ color: '#0f172a', fontWeight: 900, lineHeight: 1.5 }}>{entry.estimateText}</div>
-                  <div style={{ color: themePrimary, fontWeight: 950, lineHeight: 1.5 }}>{entry.riderEstimateText}</div>
+                <div style={{ fontSize: 22, fontWeight: 950, color: themeSecondary }}>{entry.title}</div>
+                <div style={{ color: '#0f172a', fontWeight: 700, lineHeight: 1.5 }}>{entry.intro}</div>
+                <div style={{ color: '#334155', fontWeight: 700, lineHeight: 1.5 }}>{entry.systemText}</div>
+                {entry.allocationText && (
+                  <div style={{ color: themePrimary, fontWeight: 900, lineHeight: 1.5 }}>{entry.allocationText}</div>
+                )}
+                {entry.batchCountText && (
+                  <div style={{ color: '#475569', fontWeight: 800, lineHeight: 1.5 }}>{entry.batchCountText}</div>
+                )}
+                <div style={{ color: '#0f172a', fontWeight: 900, lineHeight: 1.5 }}>{entry.estimateText}</div>
+                <div style={{ color: themePrimary, fontWeight: 950, lineHeight: 1.5 }}>{entry.riderEstimateText}</div>
                   {entry.estimateNotes.length > 0 && (
                     <div style={{ display: 'grid', gap: 4 }}>
                       {entry.estimateNotes.map((line, index) => (

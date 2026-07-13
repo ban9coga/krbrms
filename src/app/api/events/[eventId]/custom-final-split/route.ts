@@ -41,6 +41,11 @@ type StageConfigRow = {
   dns_point_override: number | null
 }
 
+type MotoBatchRow = {
+  category_id: string
+  moto_name: string | null
+}
+
 type EventSettingsRow = {
   event_logo_url?: string | null
   display_theme?: Record<string, unknown> | null
@@ -48,6 +53,11 @@ type EventSettingsRow = {
 }
 
 const normalizeFinalClassOptions = (value: unknown) => normalizeFinalClassList(value)
+
+const parseQualificationBatchNo = (motoName: string | null | undefined) => {
+  const match = String(motoName ?? '').match(/moto\s*1\s*-\s*batch\s*(\d+)/i)
+  return match ? Number(match[1]) : null
+}
 
 const targetKeyForRule = (rule: {
   source_stage?: 'QUALIFICATION' | 'QUARTER_FINAL' | 'SEMI_FINAL' | 'REPECHAGE'
@@ -105,6 +115,19 @@ export async function GET(_: Request, { params }: { params: Promise<{ eventId: s
     return NextResponse.json({ error: stageConfigError.message }, { status: 400 })
   }
 
+  const { data: qualificationMotos, error: qualificationMotoError } = categoryIds.length
+    ? await adminClient
+        .from('motos')
+        .select('category_id, moto_name')
+        .eq('event_id', eventId)
+        .in('category_id', categoryIds)
+        .ilike('moto_name', 'Moto 1 - Batch%')
+    : { data: [], error: null }
+
+  if (qualificationMotoError) {
+    return NextResponse.json({ error: qualificationMotoError.message }, { status: 400 })
+  }
+
   const { data: rules, error: ruleError } = categoryIds.length
     ? await adminClient
       .from('race_category_custom_split_rule')
@@ -129,6 +152,15 @@ export async function GET(_: Request, { params }: { params: Promise<{ eventId: s
   const stageConfigByCategory = new Map<string, StageConfigRow>(
     ((stageConfigs ?? []) as StageConfigRow[]).map((row) => [row.category_id, row])
   )
+  const qualificationBatchCountByCategory = new Map<string, number>()
+  ;((qualificationMotos ?? []) as MotoBatchRow[]).forEach((row) => {
+    const batchNo = parseQualificationBatchNo(row.moto_name)
+    if (!batchNo || !Number.isFinite(batchNo)) return
+    qualificationBatchCountByCategory.set(
+      row.category_id,
+      Math.max(qualificationBatchCountByCategory.get(row.category_id) ?? 0, batchNo)
+    )
+  })
   const settings = (settingsRow as EventSettingsRow | null) ?? null
   const raceFormatSettings =
     settings?.race_format_settings && typeof settings.race_format_settings === 'object' && !Array.isArray(settings.race_format_settings)
@@ -146,6 +178,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ eventId: s
       enableSemiFinal: false,
     },
     final_classes: categoryTotals[category.id as string]?.finalClasses ?? [],
+    qualification_batch_count: qualificationBatchCountByCategory.get(category.id as string) ?? null,
     max_riders_per_race: stageConfigByCategory.get(category.id as string)?.max_riders_per_race ?? 8,
     qualification_moto_count: stageConfigByCategory.get(category.id as string)?.qualification_moto_count ?? 2,
     repechage_max_riders_per_race: stageConfigByCategory.get(category.id as string)?.repechage_max_riders_per_race ?? null,
