@@ -59,3 +59,51 @@ export async function PUT(req: Request, { params }: { params: Promise<{ riderId:
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   return NextResponse.json({ data })
 }
+
+export async function DELETE(req: Request, { params }: { params: Promise<{ riderId: string }> }) {
+  const auth = await requireAdmin(req.headers.get('authorization'))
+  if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { riderId } = await params
+  const body = await req.json().catch(() => ({}))
+  const categoryId = typeof body?.category_id === 'string' ? body.category_id.trim() : ''
+
+  if (!categoryId) {
+    return NextResponse.json({ error: 'category_id required' }, { status: 400 })
+  }
+
+  const { data: rider } = await adminClient
+    .from('riders')
+    .select('id, event_id, primary_category_id')
+    .eq('id', riderId)
+    .maybeSingle()
+
+  if (!rider) return NextResponse.json({ error: 'Rider not found' }, { status: 404 })
+
+  const { data: event } = await adminClient
+    .from('events')
+    .select('status')
+    .eq('id', rider.event_id)
+    .maybeSingle()
+
+  if (event?.status === 'LIVE') {
+    return NextResponse.json({ error: 'Cannot update rider extra category when event is LIVE' }, { status: 400 })
+  }
+
+  if (rider.primary_category_id === categoryId) {
+    return NextResponse.json(
+      { error: 'Kategori ini adalah kategori utama rider. Gunakan hapus rider permanen jika memang ingin menghapus rider dari event.' },
+      { status: 400 }
+    )
+  }
+
+  const { error } = await adminClient
+    .from('rider_extra_categories')
+    .delete()
+    .eq('rider_id', riderId)
+    .eq('event_id', rider.event_id)
+    .eq('category_id', categoryId)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  return NextResponse.json({ ok: true })
+}

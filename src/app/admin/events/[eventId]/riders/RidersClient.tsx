@@ -27,6 +27,7 @@ type RiderItem = {
   jersey_size?: string | null
   date_of_birth: string
   birth_year?: number
+  primary_category_id?: string | null
   gender: 'BOY' | 'GIRL'
   plate_number: string
   plate_suffix?: string | null
@@ -633,17 +634,54 @@ export default function RidersClient({ eventId }: { eventId: string }) {
     }
   }
 
-  const handleDelete = async (riderId: string) => {
+  const handleRemoveFromCurrentCategory = async (rider: RiderItem) => {
+    if (!canManageRiders || !selectedCategory) return
+    if (eventStatus === 'LIVE') {
+      alert('Event sudah LIVE. Rider tidak bisa diubah.')
+      return
+    }
+    const ok = window.confirm(
+      `Lepas ${rider.name} dari kategori upclass ${selectedCategoryLabel || 'ini'}?\n\n` +
+        'Rider tetap aman di kategori utama dan data pendaftaran tidak dihapus.'
+    )
+    if (!ok) return
+    setSaving(true)
+    try {
+      const { res, json } = await apiFetch(`/api/riders/${rider.id}/extra-category`, {
+        method: 'DELETE',
+        body: JSON.stringify({ category_id: selectedCategory }),
+      })
+      if (!res.ok) throw new Error(json?.error || 'Gagal melepas rider dari kategori upclass.')
+      await Promise.all([loadRiders(page, query), loadCategories()])
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Gagal melepas rider dari kategori upclass.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDelete = async (rider: RiderItem) => {
     if (!canManageRiders) return
     if (eventStatus === 'LIVE') {
       alert('Event sudah LIVE. Rider tidak bisa dihapus.')
       return
     }
-    const ok = window.confirm('Hapus rider ini? Data akan dihapus permanen.')
+    const isUpclassContext = Boolean(selectedCategory && rider.primary_category_id && rider.primary_category_id !== selectedCategory)
+    if (isUpclassContext) {
+      await handleRemoveFromCurrentCategory(rider)
+      return
+    }
+
+    const ok = window.confirm(
+      `HAPUS RIDER PERMANEN?\n\n` +
+        `${rider.no_plate_display} - ${rider.name}\n\n` +
+        'Aksi ini akan menghapus rider dari kategori utama, semua upclass, moto/gate, result, penalty/safety terkait rider.\n\n' +
+        'Data pendaftaran tetap ada, tapi data race resmi bisa hilang. Lanjutkan?'
+    )
     if (!ok) return
     setSaving(true)
     try {
-      const { res, json } = await apiFetch(`/api/riders/${riderId}`, { method: 'DELETE' })
+      const { res, json } = await apiFetch(`/api/riders/${rider.id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error(json?.error || 'Gagal hapus rider.')
       await Promise.all([loadRiders(page, query), loadCategories()])
     } catch (err: unknown) {
@@ -1720,10 +1758,17 @@ export default function RidersClient({ eventId }: { eventId: string }) {
                       <button
                         type="button"
                         disabled={eventStatus === 'LIVE' || saving}
-                        onClick={() => handleDelete(rider.id)}
+                        onClick={() => handleDelete(rider)}
                         className={buttonDangerClass}
+                        title={
+                          selectedCategory && rider.primary_category_id && rider.primary_category_id !== selectedCategory
+                            ? 'Lepas rider dari kategori upclass ini saja'
+                            : 'Hapus rider permanen dari event'
+                        }
                       >
-                        Delete
+                        {selectedCategory && rider.primary_category_id && rider.primary_category_id !== selectedCategory
+                          ? 'Lepas Upclass'
+                          : 'Delete'}
                       </button>
                     </div>
                   )}
