@@ -432,7 +432,9 @@ const calculateBatchCountPerStage = (category: CategoryRow, rules: CustomSplitRu
   const semiBatchCount = semiBucketSizes.length
 
   const finalCounts = new Map<string, number>()
-  ;[qualificationOutputs.finalCounts, repechageOutputs.finalCounts, quarterOutputs.finalCounts].forEach((map) => {
+  const semiOutputs = applyRulesToBuckets(rules, 'SEMI_FINAL', semiBucketSizes)
+
+  ;[qualificationOutputs.finalCounts, repechageOutputs.finalCounts, quarterOutputs.finalCounts, semiOutputs.finalCounts].forEach((map) => {
     map.forEach((count, key) => {
       finalCounts.set(key, (finalCounts.get(key) ?? 0) + count)
     })
@@ -446,6 +448,74 @@ const calculateBatchCountPerStage = (category: CategoryRow, rules: CustomSplitRu
     semiFinal: semiBatchCount,
     final: finalBatchCount,
   }
+}
+
+const buildStageBucketSizeMap = (category: CategoryRow, rules: CustomSplitRule[]) => {
+  const totalRiders = Math.max(0, Number(category.total_riders ?? 0))
+  const maxRidersPerRace = Math.max(1, Number(category.max_riders_per_race ?? 8))
+  const repechageMaxRidersPerRace = Math.max(1, Number(category.repechage_max_riders_per_race ?? category.max_riders_per_race ?? 8))
+  const quarterMaxRidersPerRace = Math.max(1, Number(category.quarter_final_max_riders_per_race ?? category.max_riders_per_race ?? 8))
+  const semiMaxRidersPerRace = Math.max(1, Number(category.semi_final_max_riders_per_race ?? category.max_riders_per_race ?? 8))
+  const actualQualificationBatchCount = Math.max(0, Number(category.qualification_batch_count ?? 0))
+  const qualificationRules = rules.filter((rule) => rule.source_stage === 'QUALIFICATION')
+  const qualificationBucketSizes =
+    actualQualificationBatchCount > 0
+      ? distributeBucketSizes(totalRiders, actualQualificationBatchCount)
+      : qualificationRules.length > 0 && getStageSplitBasis(rules, 'QUALIFICATION') === 'CUSTOM_PER_BATCH'
+        ? buildStageBucketSizes(rules, 'QUALIFICATION', totalRiders, 0, maxRidersPerRace)
+        : distributeBucketSizes(
+            totalRiders,
+            totalRiders <= maxRidersPerRace ? 1 : Math.max(1, Math.ceil(totalRiders / maxRidersPerRace))
+          )
+  const qualificationOutputs = applyRulesToBuckets(rules, 'QUALIFICATION', qualificationBucketSizes)
+  const repechageBucketSizes = buildStageBucketSizes(
+    rules,
+    'REPECHAGE',
+    qualificationOutputs.stageCounts.REPECHAGE,
+    Math.ceil(Math.max(qualificationOutputs.stageCounts.REPECHAGE, 0) / repechageMaxRidersPerRace),
+    repechageMaxRidersPerRace
+  )
+  const repechageOutputs = applyRulesToBuckets(rules, 'REPECHAGE', repechageBucketSizes)
+  const quarterIncoming = qualificationOutputs.stageCounts.QUARTER_FINAL + repechageOutputs.stageCounts.QUARTER_FINAL
+  const quarterBucketSizes = buildStageBucketSizes(
+    rules,
+    'QUARTER_FINAL',
+    quarterIncoming,
+    Math.ceil(Math.max(quarterIncoming, 0) / quarterMaxRidersPerRace),
+    quarterMaxRidersPerRace
+  )
+  const quarterOutputs = applyRulesToBuckets(rules, 'QUARTER_FINAL', quarterBucketSizes)
+  const semiIncoming =
+    qualificationOutputs.stageCounts.SEMI_FINAL + repechageOutputs.stageCounts.SEMI_FINAL + quarterOutputs.stageCounts.SEMI_FINAL
+  const semiBucketSizes = buildStageBucketSizes(
+    rules,
+    'SEMI_FINAL',
+    semiIncoming,
+    Math.ceil(Math.max(semiIncoming, 0) / semiMaxRidersPerRace),
+    semiMaxRidersPerRace
+  )
+
+  return {
+    QUALIFICATION: qualificationBucketSizes,
+    REPECHAGE: repechageBucketSizes,
+    QUARTER_FINAL: quarterBucketSizes,
+    SEMI_FINAL: semiBucketSizes,
+  } satisfies Record<CustomSplitRule['source_stage'], number[]>
+}
+
+const estimateRuleRiderCount = (
+  rule: CustomSplitRule,
+  stageBucketSizes: Record<CustomSplitRule['source_stage'], number[]>
+) => {
+  const bucketSizes = stageBucketSizes[rule.source_stage] ?? []
+  if (rule.split_basis === 'COMBINED') {
+    return countCoveredRanks(bucketSizes.reduce((sum, size) => sum + size, 0), rule.rank_from, rule.rank_to)
+  }
+  if (rule.split_basis === 'CUSTOM_PER_BATCH') {
+    const batchSize = bucketSizes[Math.max(1, Number(rule.batch_no ?? 1)) - 1] ?? 0
+    return countCoveredRanks(batchSize, rule.rank_from, rule.rank_to)
+  }
+  return bucketSizes.reduce((sum, size) => sum + countCoveredRanks(size, rule.rank_from, rule.rank_to), 0)
 }
 
 export default function CustomFinalSplitClient({ eventId }: { eventId: string }) {
@@ -611,6 +681,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
         systemText = 'Kategori ini langsung memakai hasil race tanpa pembagian stage tambahan.'
       }
 
+      const stageBucketSizes = buildStageBucketSizeMap(category, rules)
       const ruleLines =
         rules.length === 0
           ? [
@@ -620,13 +691,15 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
             ]
           : rules.map((rule) => {
               const targetLabel = rule.target_stage === 'FINAL' ? `Final ${rule.target_final_class}` : formatStageLabel(rule.target_stage)
+              const riderCount = estimateRuleRiderCount(rule, stageBucketSizes)
+              const countLabel = riderCount > 0 ? `, estimasi ${riderCount} rider` : ''
               if (rule.split_basis === 'CUSTOM_PER_BATCH') {
-                return `Di ${formatStageLabel(rule.source_stage)} Batch ${rule.batch_no ?? '?'}, posisi ${rule.rank_from}-${rule.rank_to} masuk ${targetLabel}.`
+                return `${formatStageLabel(rule.source_stage)} Batch ${rule.batch_no ?? '?'}: posisi ${rule.rank_from}-${rule.rank_to} masuk ${targetLabel}${countLabel}.`
               }
               if (rule.split_basis === 'PER_BATCH') {
-                return `Di ${formatStageLabel(rule.source_stage)}, posisi ${rule.rank_from}-${rule.rank_to} dari setiap batch masuk ${targetLabel}.`
+                return `${formatStageLabel(rule.source_stage)}: posisi ${rule.rank_from}-${rule.rank_to} dari setiap batch masuk ${targetLabel}${countLabel}.`
               }
-              return `Di ${formatStageLabel(rule.source_stage)}, posisi gabungan ${rule.rank_from}-${rule.rank_to} masuk ${targetLabel}.`
+              return `${formatStageLabel(rule.source_stage)}: posisi gabungan ${rule.rank_from}-${rule.rank_to} masuk ${targetLabel}${countLabel}.`
             })
 
       const customStageLines = rules.length > 0 ? buildCustomStageGuideLines(rules) : []
