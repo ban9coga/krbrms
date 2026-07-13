@@ -365,6 +365,82 @@ const buildCustomAutomationNotes = (rules: CustomSplitRule[]) => {
   return notes
 }
 
+type BatchCountPerStage = {
+  qualification: number
+  repechage: number
+  quarterFinal: number
+  semiFinal: number
+  final: number
+}
+
+const calculateBatchCountPerStage = (category: CategoryRow, rules: CustomSplitRule[]): BatchCountPerStage => {
+  const totalRiders = Math.max(0, Number(category.total_riders ?? 0))
+  const maxRidersPerRace = Math.max(1, Number(category.max_riders_per_race ?? 8))
+  const repechageMaxRidersPerRace = Math.max(1, Number(category.repechage_max_riders_per_race ?? category.max_riders_per_race ?? 8))
+  const quarterMaxRidersPerRace = Math.max(1, Number(category.quarter_final_max_riders_per_race ?? category.max_riders_per_race ?? 8))
+  const semiMaxRidersPerRace = Math.max(1, Number(category.semi_final_max_riders_per_race ?? category.max_riders_per_race ?? 8))
+
+  const qualificationRules = rules.filter((rule) => rule.source_stage === 'QUALIFICATION')
+  const qualificationBucketSizes =
+    qualificationRules.length > 0 && getStageSplitBasis(rules, 'QUALIFICATION') === 'CUSTOM_PER_BATCH'
+      ? buildStageBucketSizes(rules, 'QUALIFICATION', totalRiders, 0, maxRidersPerRace)
+      : distributeBucketSizes(
+          totalRiders,
+          totalRiders <= maxRidersPerRace ? 1 : Math.max(1, Math.ceil(totalRiders / maxRidersPerRace))
+        )
+
+  const qualificationOutputs = applyRulesToBuckets(rules, 'QUALIFICATION', qualificationBucketSizes)
+  const qualificationBatchCount = qualificationBucketSizes.length
+
+  const repechageBucketSizes = buildStageBucketSizes(
+    rules,
+    'REPECHAGE',
+    qualificationOutputs.stageCounts.REPECHAGE,
+    Math.ceil(Math.max(qualificationOutputs.stageCounts.REPECHAGE, 0) / repechageMaxRidersPerRace),
+    repechageMaxRidersPerRace
+  )
+  const repechageBatchCount = repechageBucketSizes.length
+  const repechageOutputs = applyRulesToBuckets(rules, 'REPECHAGE', repechageBucketSizes)
+
+  const quarterIncoming = qualificationOutputs.stageCounts.QUARTER_FINAL + repechageOutputs.stageCounts.QUARTER_FINAL
+  const quarterBucketSizes = buildStageBucketSizes(
+    rules,
+    'QUARTER_FINAL',
+    quarterIncoming,
+    Math.ceil(Math.max(quarterIncoming, 0) / quarterMaxRidersPerRace),
+    quarterMaxRidersPerRace
+  )
+  const quarterBatchCount = quarterBucketSizes.length
+  const quarterOutputs = applyRulesToBuckets(rules, 'QUARTER_FINAL', quarterBucketSizes)
+
+  const semiIncoming =
+    qualificationOutputs.stageCounts.SEMI_FINAL + repechageOutputs.stageCounts.SEMI_FINAL + quarterOutputs.stageCounts.SEMI_FINAL
+  const semiBucketSizes = buildStageBucketSizes(
+    rules,
+    'SEMI_FINAL',
+    semiIncoming,
+    Math.ceil(Math.max(semiIncoming, 0) / semiMaxRidersPerRace),
+    semiMaxRidersPerRace
+  )
+  const semiBatchCount = semiBucketSizes.length
+
+  const finalCounts = new Map<string, number>()
+  ;[qualificationOutputs.finalCounts, repechageOutputs.finalCounts, quarterOutputs.finalCounts].forEach((map) => {
+    map.forEach((count, key) => {
+      finalCounts.set(key, (finalCounts.get(key) ?? 0) + count)
+    })
+  })
+  const finalBatchCount = Array.from(finalCounts.values()).filter((count) => count > 0).length
+
+  return {
+    qualification: qualificationBatchCount,
+    repechage: repechageBatchCount,
+    quarterFinal: quarterBatchCount,
+    semiFinal: semiBatchCount,
+    final: finalBatchCount,
+  }
+}
+
 export default function CustomFinalSplitClient({ eventId }: { eventId: string }) {
   const [loading, setLoading] = useState(false)
   const [savingCategoryId, setSavingCategoryId] = useState<string | null>(null)
@@ -454,7 +530,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
       summary[category.id] =
         rules.length === 0
           ? 'Belum ada custom split.'
-          : `Estimasi race ${estimate.totalRaceCount} | ${stageBasisSummary} | ` +
+          : `Estimasi race ${estimate.totalRaceCount} | ${stageBasisSummary || 'Basis stage standar'} | ` +
             rules
               .map((rule) => {
                 const rankLabel = `${rule.rank_from}-${rule.rank_to}`
@@ -561,6 +637,15 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
         stageLine,
       }
     })
+  }, [categories, rulesByCategory])
+
+  const batchCountPerStage = useMemo(() => {
+    const result: Record<string, BatchCountPerStage> = {}
+    for (const category of categories) {
+      const rules = rulesByCategory[category.id] ?? []
+      result[category.id] = calculateBatchCountPerStage(category, rules)
+    }
+    return result
   }, [categories, rulesByCategory])
 
   const guideText = useMemo(
@@ -837,8 +922,29 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
           Override split standar AMS per kategori. Dipakai kalau kamu butuh pola khusus seperti 9 rider: top 3 ke Final Elite, 3 berikutnya ke Final Novice.
         </div>
         <div style={{ color: '#64748b', fontSize: 13, fontWeight: 800 }}>
-          Pilihan Final Class mengikuti <b>Event Settings → Display & Race Format → Final classes</b>:{' '}
-          {finalClassOptions.join(', ') || '-'}
+          Pilihan Final Class mengikuti <b>Event Settings - Display & Race Format - Final classes</b>.
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {finalClassOptions.length > 0 ? (
+            finalClassOptions.map((value) => (
+              <span
+                key={value}
+                style={{
+                  padding: '6px 10px',
+                  borderRadius: 999,
+                  border: '1px solid #cbd5e1',
+                  background: '#f8fafc',
+                  color: '#0f172a',
+                  fontSize: 12,
+                  fontWeight: 900,
+                }}
+              >
+                {value}
+              </span>
+            ))
+          ) : (
+            <span style={{ color: '#64748b', fontSize: 12, fontWeight: 800 }}>-</span>
+          )}
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button
@@ -868,8 +974,11 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
         >
           Custom split sekarang bisa dipakai untuk hasil <b>Qualification</b>, <b>Quarter Final</b>, <b>Repechage</b>, dan <b>Semi Final</b>.
           <br />
-          <b>Combined Rank</b> berarti rank gabungan seluruh batch. <b>Top N Per Batch</b> berarti range rank dibaca ulang di masing-masing batch.
-          <b>Custom Per Batch</b> berarti tiap batch boleh punya rule sendiri, misalnya Batch 1 ambil top 5, rank 6 ke Repechage, lalu posisi terakhir ke Final Academy.
+          <b>Combined Rank</b> = rank gabungan seluruh batch.
+          <br />
+          <b>Top N Per Batch</b> = range rank dihitung ulang di tiap batch.
+          <br />
+          <b>Custom Per Batch</b> = tiap batch boleh punya rule sendiri.
         </div>
       </div>
 
@@ -903,6 +1012,37 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
                   </div>
                   <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>
                     Estimasi Race: {estimate.totalRaceCount} (Q {estimate.qualificationRaceCount} | QF {estimate.quarterRaceCount} | REP {estimate.repechageRaceCount} | SF {estimate.semiRaceCount} | F {estimate.finalRaceCount})
+                  </div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#475569', display: 'grid', gap: 6 }}>
+                    <div>Batch per stage:</div>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      {(
+                        [
+                          { label: 'Q', value: batchCountPerStage[category.id]?.qualification ?? 0 },
+                          estimate.repechageRaceCount > 0 ? { label: 'REP', value: batchCountPerStage[category.id]?.repechage ?? 0 } : null,
+                          estimate.quarterRaceCount > 0 ? { label: 'QF', value: batchCountPerStage[category.id]?.quarterFinal ?? 0 } : null,
+                          estimate.semiRaceCount > 0 ? { label: 'SF', value: batchCountPerStage[category.id]?.semiFinal ?? 0 } : null,
+                          estimate.finalRaceCount > 0 ? { label: 'F', value: batchCountPerStage[category.id]?.final ?? 0 } : null,
+                        ] as Array<{ label: string; value: number } | null>
+                      )
+                        .filter((item): item is { label: string; value: number } => item !== null && item.value > 0)
+                        .map((item) => (
+                          <span
+                            key={`${category.id}-${item.label}`}
+                            style={{
+                              padding: '4px 10px',
+                              borderRadius: 999,
+                              border: '1px solid #cbd5e1',
+                              background: '#f8fafc',
+                              color: '#0f172a',
+                              fontSize: 11,
+                              fontWeight: 900,
+                            }}
+                          >
+                            {item.label}: {item.value}
+                          </span>
+                        ))}
+                    </div>
                   </div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#475569' }}>{categorySummary[category.id]}</div>
                 </div>
