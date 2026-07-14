@@ -1638,7 +1638,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
           <h1 style={{ fontSize: 26, fontWeight: 950, margin: 0 }}>
             {drawMode === 'external_draw' ? 'External Draw Setup' : 'Live Draw (Internal)'}
           </h1>
-          <div style={{ marginTop: 8, color: '#333', fontWeight: 700 }}>
+          <div style={{ marginTop: 8, color: '#ebbbb4', fontWeight: 700 }}>
             {drawMode === 'external_draw'
               ? 'Hasil draw dari luar sistem. Pilih target batch, klik rider dari preview, lalu generate moto.'
               : 'Draw manual dengan roulette, lalu simpan hasilnya sebagai Moto 1 & Moto 2 (gate Moto 2 otomatis dibalik).'}
@@ -1649,9 +1649,9 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       <div
         style={{
           marginTop: 16,
-          background: '#fff',
-          border: '2px solid #111',
-          borderRadius: 16,
+          background: '#1c1b1b',
+          border: '1px solid #353534',
+          borderRadius: 0,
           padding: 16,
           display: 'grid',
           gap: 12,
@@ -1664,12 +1664,12 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
           <div
             style={{
               width: 'fit-content',
-              borderRadius: 999,
-              border: '1px solid #cbd5e1',
+              borderRadius: 0,
+              border: '1px solid #353534',
               padding: '6px 10px',
               fontWeight: 900,
               background: drawMode === 'external_draw' ? '#fef3c7' : '#dcfce7',
-              color: '#111827',
+              color: '#e5e2e1',
             }}
           >
             {drawMode === 'external_draw' ? 'External Draw' : 'Internal Live Draw'}
@@ -1683,7 +1683,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
           <select
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value)}
-            style={{ padding: 12, borderRadius: 12, border: '2px solid #111' }}
+            style={{ padding: 12, borderRadius: 0, border: '1px solid #353534' }}
           >
             {categories.map((c) => (
               <option key={c.id} value={c.id}>
@@ -1738,7 +1738,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                   const maxGate = Math.max(4, gatePositions)
                   setBatchSize(Math.max(4, Math.min(maxGate, next)))
                 }}
-                style={{ padding: 12, borderRadius: 12, border: '2px solid #111', maxWidth: 160 }}
+                style={{ padding: 12, borderRadius: 0, border: '1px solid #353534', maxWidth: 160 }}
               />
             </>
           ) : batchMode === 'CUSTOM_BATCH_SIZES' ? (
@@ -1751,7 +1751,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                 value={customBatchPattern}
                 onChange={(e) => setCustomBatchPattern(e.target.value)}
                 placeholder="Contoh: 7,6,6"
-                style={{ padding: 12, borderRadius: 12, border: '2px solid #111', maxWidth: 260 }}
+                style={{ padding: 12, borderRadius: 0, border: '1px solid #353534', maxWidth: 260 }}
               />
               <div style={{ color: customBatchError ? '#b91c1c' : '#047857', fontWeight: 800 }}>
                 {customBatchError ??
@@ -1777,7 +1777,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                     Math.max(minimumManualBatchCount, Math.min(Math.max(1, riders.length), next))
                   )
                 }}
-                style={{ padding: 12, borderRadius: 12, border: '2px solid #111', maxWidth: 160 }}
+                style={{ padding: 12, borderRadius: 0, border: '1px solid #353534', maxWidth: 160 }}
               />
               <div style={{ color: '#475569', fontWeight: 800 }}>
                 Sistem akan membagi rider seimbang per batch. Maksimal {maxBatchRiders} rider per batch, jadi minimal perlu {minimumManualBatchCount} batch untuk {riders.length} rider.
@@ -1788,7 +1788,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
 
         <div
           style={{
-            border: '2px solid #111',
+            border: '1px solid #353534',
             borderRadius: 24,
             padding: 20,
             display: 'grid',
@@ -1804,16 +1804,16 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
             <div style={{ fontWeight: 900, fontSize: 18 }}>
               {drawMode === 'external_draw' ? 'External Order' : 'Wheel Spin'}
             </div>
-            <div style={{ fontSize: 22, fontWeight: 950, color: '#0f172a' }}>{rollingName}</div>
+            <div style={{ fontSize: 22, fontWeight: 950, color: '#e5e2e1' }}>{rollingName}</div>
             {drawing && (
               <div style={{ color: '#1d4ed8', fontWeight: 900 }}>
                 Sedang mengundi rider, tunggu sampai hasil preview muncul otomatis.
               </div>
             )}
-            <div style={{ color: '#444', fontWeight: 700 }}>
+            <div style={{ color: '#9a9693', fontWeight: 700 }}>
               Total rider: {riders.length} | Batch: {displayedBatchCount}
             </div>
-            <div style={{ color: '#444', fontWeight: 700 }}>
+            <div style={{ color: '#9a9693', fontWeight: 700 }}>
               Gate positions: {gatePositions}
             </div>
             {categoryLocked && (
@@ -1829,7 +1829,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                 <div
                   style={{
                     padding: '10px 12px',
-                    borderRadius: 12,
+                    borderRadius: 0,
                     border: categoryLocked ? '1px solid #cbd5e1' : '1px solid #bfdbfe',
                     background: categoryLocked ? '#f8fafc' : '#eff6ff',
                     color: categoryLocked ? '#475569' : '#1d4ed8',
@@ -1860,8 +1860,8 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                   style={{
                     width: '100%',
                     padding: '10px 12px',
-                    borderRadius: 12,
-                    border: '2px solid #111',
+                    borderRadius: 0,
+                    border: '1px solid #353534',
                     background: categoryLocked ? '#f1f5f9' : '#fff',
                     color: categoryLocked ? '#94a3b8' : '#0f172a',
                     fontWeight: 700,
@@ -1871,7 +1871,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
               </div>
             )}
             {(isExternalPerBatchMode ? filteredPreviewRidersForExternalBatch.length === 0 : riders.length === 0) ? (
-              <div style={{ fontWeight: 800, color: '#555' }}>
+              <div style={{ fontWeight: 800, color: '#9a9693' }}>
                 {isExternalPerBatchMode
                   ? externalBatchSearch.trim()
                     ? 'Tidak ada rider yang cocok dengan pencarian ini.'
@@ -1918,7 +1918,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                       gap: 10,
                       padding: '6px 8px',
                       borderRadius: 8,
-                      border: '1px solid #ddd',
+                      border: '1px solid #2a2a2a',
                       background: categoryLocked ? '#f8fafc' : '#fff',
                       fontWeight: 800,
                       cursor: categoryLocked ? 'not-allowed' : interactive ? (disabledForTarget ? 'default' : 'pointer') : 'default',
@@ -1990,7 +1990,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                     position: 'absolute',
                     inset: 8,
                     borderRadius: '50%',
-                    background: 'radial-gradient(circle at 30% 30%, rgba(255,255,255,0.85), rgba(255,255,255,0))',
+                    background: 'radial-gradient(circle at 30% 30%, rgba(28,27,27,0.85), rgba(28,27,27,0))',
                     pointerEvents: 'none',
                     zIndex: 2,
                   }}
@@ -2004,7 +2004,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                     height: 360,
                     borderRadius: '50%',
                     border: '6px solid #0f172a',
-                    background: '#fff',
+                    background: '#1c1b1b',
                     transform: `rotate(${wheelRotation}deg)`,
                     transition: drawing ? 'transform 7.2s cubic-bezier(0.08, 0.72, 0.12, 1)' : 'none',
                     boxShadow: '0 28px 48px rgba(15, 23, 42, 0.18)',
@@ -2018,8 +2018,8 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                   disabled={loading || drawing || riders.length === 0 || hasDrawn || (batchMode === 'CUSTOM_BATCH_SIZES' && Boolean(customBatchError))}
                   style={{
                     padding: '12px 16px',
-                    borderRadius: 12,
-                    border: '2px solid #111',
+                    borderRadius: 0,
+                    border: '1px solid #353534',
                     background: drawing || hasDrawn || (batchMode === 'CUSTOM_BATCH_SIZES' && Boolean(customBatchError)) ? '#ddd' : '#2ecc71',
                     fontWeight: 900,
                     cursor: drawing || hasDrawn || (batchMode === 'CUSTOM_BATCH_SIZES' && Boolean(customBatchError)) ? 'not-allowed' : 'pointer',
@@ -2033,9 +2033,9 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                     onClick={() => setResultModal('draft')}
                     style={{
                       padding: '12px 16px',
-                      borderRadius: 12,
-                      border: '2px solid #111',
-                      background: '#fff',
+                      borderRadius: 0,
+                      border: '1px solid #353534',
+                      background: '#1c1b1b',
                       fontWeight: 900,
                       cursor: 'pointer',
                     }}
@@ -2050,9 +2050,9 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                         style={{
                           width: '100%',
                           padding: '12px 14px',
-                          borderRadius: 12,
+                          borderRadius: 0,
                           border: '1px solid #f59e0b',
-                          background: '#fffbeb',
+                          background: '#1a1500',
                           color: '#92400e',
                           fontWeight: 800,
                         }}
@@ -2065,9 +2065,9 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                       onClick={() => setResultModal('saved')}
                       style={{
                         padding: '12px 16px',
-                        borderRadius: 12,
-                        border: '2px solid #111',
-                        background: '#fff',
+                        borderRadius: 0,
+                        border: '1px solid #353534',
+                        background: '#1c1b1b',
                         fontWeight: 900,
                         cursor: 'pointer',
                       }}
@@ -2080,8 +2080,8 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                       disabled={saveState === 'saving' || !deleteGuard.canDelete}
                       style={{
                         padding: '12px 16px',
-                        borderRadius: 12,
-                        border: '2px solid #111',
+                        borderRadius: 0,
+                        border: '1px solid #353534',
                         background: deleteGuard.canDelete ? '#ffd6d6' : '#e5e7eb',
                         fontWeight: 900,
                         cursor: saveState === 'saving' || !deleteGuard.canDelete ? 'not-allowed' : 'pointer',
@@ -2107,7 +2107,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                   padding: '12px 14px',
                   borderRadius: 14,
                   border: '1px solid #bfdbfe',
-                  background: '#eff6ff',
+                  background: '#141414',
                 }}
               >
                 <div style={{ fontWeight: 900, color: '#1d4ed8' }}>Target aktif</div>
@@ -2119,7 +2119,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                       onClick={() => setExternalTargetField((prev) => ({ ...prev, batchIndex: index }))}
                       style={{
                         padding: '8px 10px',
-                        borderRadius: 999,
+                        borderRadius: 0,
                         border: '1px solid #93c5fd',
                         background: externalTargetField.batchIndex === index ? '#dbeafe' : '#fff',
                         color: externalTargetField.batchIndex === index ? '#1d4ed8' : '#334155',
@@ -2139,7 +2139,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                       onClick={() => setExternalTargetField((prev) => ({ ...prev, moto: moto as 1 | 2 }))}
                       style={{
                         padding: '8px 10px',
-                        borderRadius: 999,
+                        borderRadius: 0,
                         border: '1px solid #93c5fd',
                         background: externalTargetField.moto === moto ? '#dbeafe' : '#fff',
                         color: externalTargetField.moto === moto ? '#1d4ed8' : '#334155',
@@ -2163,7 +2163,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                     borderRadius: 10,
                     border: '1px solid #94a3b8',
                     background: externalUndoStack.length === 0 ? '#e5e7eb' : '#fff',
-                    color: '#0f172a',
+                    color: '#e5e2e1',
                     fontWeight: 900,
                     cursor: externalUndoStack.length === 0 ? 'not-allowed' : 'pointer',
                   }}
@@ -2178,8 +2178,8 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                     key={`batch-status-${index}`}
                     style={{
                       padding: '8px 10px',
-                      borderRadius: 999,
-                      border: '1px solid #cbd5e1',
+                      borderRadius: 0,
+                      border: '1px solid #353534',
                       background:
                         batch.length > 0
                           ? externalTargetField.batchIndex === index
@@ -2245,9 +2245,9 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                 <div
                   style={{
                     padding: '14px 16px',
-                    borderRadius: 16,
+                    borderRadius: 0,
                     border: '1px solid #bfdbfe',
-                    background: '#f8fbff',
+                    background: '#141414',
                     color: '#1d4ed8',
                     fontWeight: 800,
                   }}
@@ -2261,9 +2261,9 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                   <div
                     style={{
                       padding: '14px 16px',
-                      borderRadius: 16,
+                      borderRadius: 0,
                       border: '1px solid #facc15',
-                      background: '#fffbeb',
+                      background: '#1a1500',
                       color: '#92400e',
                       fontWeight: 800,
                       display: 'flex',
@@ -2286,7 +2286,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                         padding: '8px 10px',
                         borderRadius: 10,
                         border: '1px solid #d97706',
-                        background: '#fff',
+                        background: '#1c1b1b',
                         color: '#92400e',
                         fontWeight: 900,
                         cursor: 'pointer',
@@ -2301,21 +2301,21 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                   <div
                     key={`external-editor-${batch.index}`}
                     style={{
-                      border: '1px solid #cbd5e1',
+                      border: '1px solid #353534',
                       borderRadius: 18,
                       padding: 14,
-                      background: '#fff',
+                      background: '#1c1b1b',
                       display: 'grid',
                       gap: 8,
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
-                      <div style={{ fontWeight: 950, fontSize: 18, color: '#0f172a' }}>Batch {batch.index}</div>
+                      <div style={{ fontWeight: 950, fontSize: 18, color: '#e5e2e1' }}>Batch {batch.index}</div>
                       <div
                         style={{
                           padding: '6px 10px',
-                          borderRadius: 999,
-                          background: '#dbeafe',
+                          borderRadius: 0,
+                          background: '#0a1628',
                           color: '#1d4ed8',
                           fontWeight: 900,
                           fontSize: 12,
@@ -2402,8 +2402,8 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                               placeItems: 'center',
                               borderRadius: 8,
                               border: '1px solid #94a3b8',
-                              background: '#fff',
-                              color: '#0f172a',
+                              background: '#1c1b1b',
+                              color: '#e5e2e1',
                               fontWeight: 900,
                               cursor: 'grab',
                               userSelect: 'none',
@@ -2416,8 +2416,8 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                               minWidth: 66,
                               textAlign: 'center',
                               padding: '6px 8px',
-                              borderRadius: 999,
-                              background: '#0f172a',
+                              borderRadius: 0,
+                              background: '#201f1f',
                               color: '#fff',
                               fontSize: 12,
                               fontWeight: 900,
@@ -2425,7 +2425,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                           >
                             Gate {riderIndex + 1}
                           </span>
-                          <span style={{ color: '#0f172a' }}>
+                          <span style={{ color: '#e5e2e1' }}>
                             {rider.name} <span style={{ color: '#475569' }}>({rider.no_plate_display})</span>
                           </span>
                           <button
@@ -2443,7 +2443,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                               borderRadius: 10,
                               border: '1px solid #94a3b8',
                               background: isSelected ? '#fef3c7' : '#fff',
-                              color: '#0f172a',
+                              color: '#e5e2e1',
                               fontWeight: 900,
                               cursor: 'pointer',
                             }}
@@ -2460,7 +2460,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                           padding: '14px 16px',
                           borderRadius: 14,
                           border: '1px dashed #cbd5e1',
-                          background: '#f8fafc',
+                          background: '#141414',
                           color: '#64748b',
                           fontWeight: 800,
                         }}
@@ -2479,8 +2479,8 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                   disabled={!applyButtonEnabled}
                   style={{
                     padding: '12px 16px',
-                    borderRadius: 12,
-                    border: '2px solid #111',
+                    borderRadius: 0,
+                    border: '1px solid #353534',
                     background: applyButtonReady ? '#2ecc71' : '#fef3c7',
                     fontWeight: 900,
                     cursor: applyButtonEnabled ? 'pointer' : 'not-allowed',
@@ -2494,9 +2494,9 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                     onClick={() => setResultModal('draft')}
                     style={{
                       padding: '12px 16px',
-                      borderRadius: 12,
-                      border: '2px solid #111',
-                      background: '#fff',
+                      borderRadius: 0,
+                      border: '1px solid #353534',
+                      background: '#1c1b1b',
                       fontWeight: 900,
                       cursor: 'pointer',
                     }}
@@ -2511,9 +2511,9 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                       onClick={() => setResultModal('saved')}
                       style={{
                         padding: '12px 16px',
-                        borderRadius: 12,
-                        border: '2px solid #111',
-                        background: '#fff',
+                        borderRadius: 0,
+                        border: '1px solid #353534',
+                        background: '#1c1b1b',
                         fontWeight: 900,
                         cursor: 'pointer',
                       }}
@@ -2526,9 +2526,9 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                       disabled={saveState === 'saving'}
                       style={{
                         padding: '12px 16px',
-                        borderRadius: 12,
-                        border: '2px solid #111',
-                        background: '#ffd6d6',
+                        borderRadius: 0,
+                        border: '1px solid #353534',
+                        background: '#1a0000',
                         fontWeight: 900,
                         cursor: 'pointer',
                       }}
@@ -2546,7 +2546,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       <div style={{ marginTop: 18 }}>
         {loading && <div style={{ fontWeight: 800 }}>Memuat data...</div>}
         {!loading && drawnOrder.length === 0 && !categoryLocked && (
-          <div style={{ color: '#555', fontWeight: 700 }}>
+          <div style={{ color: '#9a9693', fontWeight: 700 }}>
             {drawMode === 'external_draw'
               ? 'Belum ada hasil editor batch yang dipakai.'
               : 'Belum ada hasil draw.'}
@@ -2559,10 +2559,10 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
               <div
                 key={`saved-batch-${batch.batchNo}`}
                 style={{
-                  border: '2px solid #111',
-                  borderRadius: 16,
+                  border: '1px solid #353534',
+                  borderRadius: 0,
                   padding: 12,
-                  background: '#fff',
+                  background: '#1c1b1b',
                   display: 'grid',
                   gap: 10,
                 }}
@@ -2572,10 +2572,10 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                   <div
                     key={moto.id}
                     style={{
-                      border: '1px solid #cbd5e1',
+                      border: '1px solid #353534',
                       borderRadius: 14,
                       padding: 10,
-                      background: '#f8fafc',
+                      background: '#141414',
                     }}
                   >
                     <button
@@ -2585,9 +2585,9 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                         width: '100%',
                         textAlign: 'left',
                         padding: '10px 12px',
-                        borderRadius: 12,
-                        border: '2px solid #111',
-                        background: '#eaf7ee',
+                        borderRadius: 0,
+                        border: '1px solid #353534',
+                        background: '#001a00',
                         fontWeight: 900,
                         cursor: 'pointer',
                       }}
@@ -2605,8 +2605,8 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                               gap: 10,
                               padding: '8px 10px',
                               borderRadius: 10,
-                              border: '1px solid #ddd',
-                              background: '#fff',
+                              border: '1px solid #2a2a2a',
+                              background: '#1c1b1b',
                               fontWeight: 800,
                             }}
                           >
@@ -2636,7 +2636,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
             alignItems: 'center',
             justifyContent: 'center',
             padding: 20,
-            background: 'rgba(15, 23, 42, 0.52)',
+            background: 'rgba(0, 0, 0, 0.88)',
             backdropFilter: 'blur(10px)',
           }}
         >
@@ -2647,7 +2647,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
               overflow: 'hidden',
               borderRadius: 28,
               border: '2px solid #0f172a',
-              background: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)',
+              background: 'linear-gradient(180deg, #1c1b1b 0%, #141414 100%)',
               boxShadow: '0 32px 80px rgba(15, 23, 42, 0.22)',
               display: 'grid',
               gridTemplateRows: 'auto 1fr auto',
@@ -2667,7 +2667,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                 <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#64748b' }}>
                   {resultModal === 'saved' ? 'Moto Tersimpan' : 'Preview Hasil Draw'}
                 </div>
-                <div style={{ fontSize: 28, fontWeight: 950, color: '#0f172a' }}>{selectedCategoryLabel}</div>
+                <div style={{ fontSize: 28, fontWeight: 950, color: '#e5e2e1' }}>{selectedCategoryLabel}</div>
                 <div style={{ color: '#334155', fontWeight: 700 }}>
                   {resultModal === 'saved'
                     ? 'Daftar moto yang sudah tersimpan untuk kategori ini.'
@@ -2681,9 +2681,9 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                 onClick={() => setResultModal(null)}
                 style={{
                   padding: '10px 12px',
-                  borderRadius: 12,
-                  border: '2px solid #111',
-                  background: '#fff',
+                  borderRadius: 0,
+                  border: '1px solid #353534',
+                  background: '#1c1b1b',
                   fontWeight: 900,
                   cursor: 'pointer',
                 }}
@@ -2699,9 +2699,9 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                     <div
                       style={{
                         padding: '14px 16px',
-                        borderRadius: 16,
+                        borderRadius: 0,
                         border: '1px solid #93c5fd',
-                        background: '#eff6ff',
+                        background: '#141414',
                         color: '#1d4ed8',
                         fontWeight: 900,
                       }}
@@ -2713,9 +2713,9 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                     <div
                       style={{
                         padding: '14px 16px',
-                        borderRadius: 16,
+                        borderRadius: 0,
                         border: '1px solid #bfdbfe',
-                        background: '#f8fbff',
+                        background: '#141414',
                         color: '#1d4ed8',
                         fontWeight: 800,
                       }}
@@ -2727,9 +2727,9 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                     <div
                       style={{
                         padding: '14px 16px',
-                        borderRadius: 16,
+                        borderRadius: 0,
                         border: '1px solid #facc15',
-                        background: '#fffbeb',
+                        background: '#1a1500',
                         color: '#92400e',
                         fontWeight: 800,
                         display: 'flex',
@@ -2748,7 +2748,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                           padding: '8px 10px',
                           borderRadius: 10,
                           border: '1px solid #d97706',
-                          background: '#fff',
+                          background: '#1c1b1b',
                           color: '#92400e',
                           fontWeight: 900,
                           cursor: 'pointer',
@@ -2762,9 +2762,9 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                     <div
                       style={{
                         padding: '14px 16px',
-                        borderRadius: 16,
-                        border: '1px solid #cbd5e1',
-                        background: '#f8fafc',
+                        borderRadius: 0,
+                        border: '1px solid #353534',
+                        background: '#141414',
                         color: '#475569',
                         fontWeight: 800,
                       }}
@@ -2776,21 +2776,21 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                     <div
                       key={batch.index}
                       style={{
-                        border: '1px solid #cbd5e1',
+                        border: '1px solid #353534',
                         borderRadius: 22,
                         padding: 16,
-                        background: 'linear-gradient(135deg, #ffffff 0%, #ecfeff 100%)',
+                        background: 'linear-gradient(135deg, #1c1b1b 0%, #141414 100%)',
                         boxShadow: '0 14px 30px rgba(15, 23, 42, 0.06)',
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
-                        <div style={{ fontWeight: 950, fontSize: 18, color: '#0f172a' }}>Batch {batch.index}</div>
+                        <div style={{ fontWeight: 950, fontSize: 18, color: '#e5e2e1' }}>Batch {batch.index}</div>
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                           <div
                             style={{
                               padding: '6px 10px',
-                              borderRadius: 999,
-                              background: '#dbeafe',
+                              borderRadius: 0,
+                              background: '#0a1628',
                               color: '#1d4ed8',
                               fontWeight: 900,
                               fontSize: 12,
@@ -2808,9 +2808,9 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                             }
                             style={{
                               padding: '8px 12px',
-                              borderRadius: 999,
+                              borderRadius: 0,
                               border: '1px solid #16a34a',
-                              background: '#dcfce7',
+                              background: '#001a00',
                               color: '#166534',
                               fontWeight: 950,
                               cursor: 'pointer',
@@ -2827,9 +2827,9 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                             }}
                             style={{
                               padding: '8px 12px',
-                              borderRadius: 999,
+                              borderRadius: 0,
                               border: '1px solid #d97706',
-                              background: '#fef3c7',
+                              background: '#1a1500',
                               color: '#92400e',
                               fontWeight: 950,
                               cursor: 'pointer',
@@ -2919,8 +2919,8 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                                 placeItems: 'center',
                                 borderRadius: 8,
                                 border: '1px solid #94a3b8',
-                                background: '#fff',
-                                color: '#0f172a',
+                                background: '#1c1b1b',
+                                color: '#e5e2e1',
                                 fontWeight: 900,
                                 cursor: 'grab',
                                 userSelect: 'none',
@@ -2933,8 +2933,8 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                                 minWidth: 66,
                                 textAlign: 'center',
                                 padding: '6px 8px',
-                                borderRadius: 999,
-                                background: '#0f172a',
+                                borderRadius: 0,
+                                background: '#201f1f',
                                 color: '#fff',
                                 fontSize: 12,
                                 fontWeight: 900,
@@ -2942,7 +2942,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                             >
                               Gate {idx + 1}
                             </span>
-                            <span style={{ color: '#0f172a' }}>{rider.name}</span>
+                            <span style={{ color: '#e5e2e1' }}>{rider.name}</span>
                             <span style={{ color: '#475569' }}>{rider.no_plate_display}</span>
                             <div style={{ display: 'flex', gap: 6, justifySelf: 'end' }}>
                               <button
@@ -2959,7 +2959,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                                   borderRadius: 10,
                                   border: '1px solid #94a3b8',
                                   background: isSelected ? '#fef3c7' : '#fff',
-                                  color: '#0f172a',
+                                  color: '#e5e2e1',
                                   fontWeight: 900,
                                   cursor: 'pointer',
                                 }}
@@ -2980,7 +2980,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                                   borderRadius: 10,
                                   border: '1px solid #94a3b8',
                                   background: canMoveUp ? '#fff' : '#e2e8f0',
-                                  color: '#0f172a',
+                                  color: '#e5e2e1',
                                   fontWeight: 900,
                                   cursor: canMoveUp ? 'pointer' : 'not-allowed',
                                 }}
@@ -3001,7 +3001,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                                   borderRadius: 10,
                                   border: '1px solid #94a3b8',
                                   background: canMoveDown ? '#fff' : '#e2e8f0',
-                                  color: '#0f172a',
+                                  color: '#e5e2e1',
                                   fontWeight: 900,
                                   cursor: canMoveDown ? 'pointer' : 'not-allowed',
                                 }}
@@ -3031,16 +3031,16 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                     <div
                       key={`saved-modal-batch-${batch.batchNo}`}
                       style={{
-                        border: '1px solid #cbd5e1',
+                        border: '1px solid #353534',
                         borderRadius: 20,
                         padding: 14,
-                        background: '#fff',
+                        background: '#1c1b1b',
                         display: 'grid',
                         gap: 10,
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-                        <div style={{ fontWeight: 950, fontSize: 18, color: '#0f172a' }}>Batch {batch.batchNo}</div>
+                        <div style={{ fontWeight: 950, fontSize: 18, color: '#e5e2e1' }}>Batch {batch.batchNo}</div>
                         <button
                           type="button"
                           onClick={() =>
@@ -3051,9 +3051,9 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                           }
                           style={{
                             padding: '8px 12px',
-                            borderRadius: 999,
+                            borderRadius: 0,
                             border: '1px solid #16a34a',
-                            background: '#dcfce7',
+                            background: '#001a00',
                             color: '#166534',
                             fontWeight: 950,
                             cursor: 'pointer',
@@ -3070,9 +3070,9 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                           }}
                           style={{
                             padding: '8px 12px',
-                            borderRadius: 999,
+                            borderRadius: 0,
                             border: '1px solid #d97706',
-                            background: '#fef3c7',
+                            background: '#1a1500',
                             color: '#92400e',
                             fontWeight: 950,
                             cursor: 'pointer',
@@ -3085,10 +3085,10 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                         <div
                           key={moto.id}
                           style={{
-                            border: '1px solid #e2e8f0',
-                            borderRadius: 16,
+                            border: '1px solid #2a2a2a',
+                            borderRadius: 0,
                             padding: 12,
-                            background: '#f8fafc',
+                            background: '#141414',
                           }}
                         >
                           <button
@@ -3119,8 +3119,8 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                                     alignItems: 'center',
                                     padding: '10px 12px',
                                     borderRadius: 14,
-                                    border: '1px solid #e2e8f0',
-                                    background: '#fff',
+                                    border: '1px solid #2a2a2a',
+                                    background: '#1c1b1b',
                                     fontWeight: 800,
                                   }}
                                 >
@@ -3129,8 +3129,8 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                                       minWidth: 66,
                                       textAlign: 'center',
                                       padding: '6px 8px',
-                                      borderRadius: 999,
-                                      background: '#0f172a',
+                                      borderRadius: 0,
+                                      background: '#201f1f',
                                       color: '#fff',
                                       fontSize: 12,
                                       fontWeight: 900,
@@ -3160,7 +3160,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                 justifyContent: 'space-between',
                 gap: 12,
                 flexWrap: 'wrap',
-                background: '#fff',
+                background: '#1c1b1b',
               }}
             >
               <div style={{ color: '#475569', fontWeight: 700 }}>
@@ -3177,9 +3177,9 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                       disabled={categoryLocked || saveState === 'saving'}
                       style={{
                         padding: '12px 16px',
-                        borderRadius: 12,
-                        border: '2px solid #111',
-                        background: '#fff',
+                        borderRadius: 0,
+                        border: '1px solid #353534',
+                        background: '#1c1b1b',
                         fontWeight: 900,
                         cursor: categoryLocked || saveState === 'saving' ? 'not-allowed' : 'pointer',
                       }}
@@ -3192,8 +3192,8 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                       disabled={saveState === 'saving' || drawnOrder.length === 0}
                       style={{
                         padding: '12px 16px',
-                        borderRadius: 12,
-                        border: '2px solid #111',
+                        borderRadius: 0,
+                        border: '1px solid #353534',
                         background: saveState === 'saved' ? '#bfead2' : '#111827',
                         color: saveState === 'saved' ? '#0f172a' : '#fff',
                         fontWeight: 900,
@@ -3211,9 +3211,9 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                       onClick={handleDownloadLiveDrawPdf}
                       style={{
                         padding: '12px 16px',
-                        borderRadius: 12,
-                        border: '2px solid #111',
-                        background: '#dbeafe',
+                        borderRadius: 0,
+                        border: '1px solid #353534',
+                        background: '#0a1628',
                         fontWeight: 900,
                         cursor: 'pointer',
                       }}
@@ -3225,9 +3225,9 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                         style={{
                           width: '100%',
                           padding: '12px 14px',
-                          borderRadius: 12,
+                          borderRadius: 0,
                           border: '1px solid #f59e0b',
-                          background: '#fffbeb',
+                          background: '#1a1500',
                           color: '#92400e',
                           fontWeight: 800,
                         }}
@@ -3241,8 +3241,8 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                       disabled={saveState === 'saving' || !deleteGuard.canDelete}
                       style={{
                         padding: '12px 16px',
-                        borderRadius: 12,
-                        border: '2px solid #111',
+                        borderRadius: 0,
+                        border: '1px solid #353534',
                         background: deleteGuard.canDelete ? '#ffd6d6' : '#e5e7eb',
                         fontWeight: 900,
                         cursor: saveState === 'saving' || !deleteGuard.canDelete ? 'not-allowed' : 'pointer',

@@ -1,25 +1,45 @@
-@import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:ital,wght@0,100..900;1,100..900&family=Anybody:ital,wght@0,100..900;1,100..900&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:ital,wght@0,100..900;1,100..900&family=Anybody:ital,wght@0,100..900;1,100..900&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
 
 /* ================================================================
    LIVE DRAW — DARK CARBON RACING THEME
-   Applied via .ld-shell wrapper on the admin live-draw page only.
+   Applied via .ld-shell wrapper on the admin live-draw page.
+   Strategy: aggressive global overrides within scope.
    ================================================================ */
 
+/* ── Shell / Root ── */
 .ld-shell {
-  background: #0e0e0e;
-  color: #e5e2e1;
+  background: #0e0e0e !important;
+  color: #e5e2e1 !important;
   min-height: 100vh;
-  padding: 28px;
+  padding: 24px;
   font-family: 'Hanken Grotesk', 'Inter', system-ui, sans-serif;
-  /* Subtle carbon tile pattern */
   background-image:
     linear-gradient(45deg, #131313 25%, transparent 25%, transparent 75%, #131313 75%, #131313),
-    linear-gradient(45deg, #131313 25%, transparent 25%, transparent 75%, #131313 75%, #131313);
-  background-size: 8px 8px;
-  background-position: 0 0, 4px 4px;
+    linear-gradient(45deg, #131313 25%, transparent 25%, transparent 75%, #131313 75%, #131313) !important;
+  background-size: 8px 8px !important;
+  background-position: 0 0, 4px 4px !important;
 }
 
-/* ── Typography ── */
+.ld-shell *,
+.ld-shell *::before,
+.ld-shell *::after {
+  box-sizing: border-box;
+}
+
+/* ── Global color reset — force ALL descendant text to light ── */
+.ld-shell,
+.ld-shell div,
+.ld-shell span,
+.ld-shell p,
+.ld-shell label,
+.ld-shell td,
+.ld-shell th,
+.ld-shell li,
+.ld-shell a {
+  color: #e5e2e1 !important;
+}
+
+/* ── Headings ── */
 .ld-shell h1,
 .ld-shell h2,
 .ld-shell h3 {
@@ -30,108 +50,101 @@
   color: #e5e2e1 !important;
 }
 
-/* ── All text defaults ── */
-.ld-shell * {
-  color: inherit;
-  box-sizing: border-box;
+/* ── ALL backgrounds → dark ── */
+.ld-shell div,
+.ld-shell section,
+.ld-shell main,
+.ld-shell aside,
+.ld-shell article,
+.ld-shell form,
+.ld-shell fieldset {
+  background-color: transparent !important;
 }
 
-/* ── Override white/light backgrounds via inline style attribute ── */
-/* #fff, #ffffff */
+/* Panels — divs with explicit background inline style */
+.ld-shell [style*="background"] {
+  background-color: #1c1b1b !important;
+}
+
+/* Root container */
+.ld-shell > div {
+  background: transparent !important;
+}
+
+/* ── Borders → dark ── */
+.ld-shell [style*="border"] {
+  border-color: #2a2a2a !important;
+}
+
+/* ── Specific background overrides ── */
+/* White panels */
 .ld-shell [style*="background: #fff"],
 .ld-shell [style*="background:#fff"],
-.ld-shell [style*="background-color: #fff"],
 .ld-shell [style*="background: #ffffff"],
 .ld-shell [style*="background: white"] {
   background: #1c1b1b !important;
-  color: #e5e2e1 !important;
 }
 
-/* #f8fafc, #f8fbff */
+/* Light grays */
 .ld-shell [style*="background: #f8fafc"],
-.ld-shell [style*="background: #f8fbff"] {
+.ld-shell [style*="background: #f8fbff"],
+.ld-shell [style*="background: #eff6ff"] {
   background: #141414 !important;
-  color: #e5e2e1 !important;
 }
 
-/* #eff6ff, #eaf7ee, #dcfce7, #dbeafe */
-.ld-shell [style*="background: #eff6ff"],
-.ld-shell [style*="background: #eaf7ee"],
+/* Light colored badges/alerts */
 .ld-shell [style*="background: #dcfce7"],
+.ld-shell [style*="background: #eaf7ee"],
 .ld-shell [style*="background: #dbeafe"] {
-  background: #1c1b1b !important;
-  color: #e5e2e1 !important;
-  border-color: #353534 !important;
+  background: #001a00 !important;
+  color: #2ecc71 !important;
 }
 
-/* #fef3c7, #fffbeb — yellow/warning */
 .ld-shell [style*="background: #fef3c7"],
 .ld-shell [style*="background: #fffbeb"] {
   background: #1a1500 !important;
   color: #e9c400 !important;
 }
 
-/* #ffd6d6 — red/error light */
 .ld-shell [style*="background: #ffd6d6"] {
   background: #1a0000 !important;
   color: #ff6b6b !important;
 }
 
-/* gradients */
-.ld-shell [style*="linear-gradient(135deg, #ffffff"],
-.ld-shell [style*="linear-gradient(180deg, #ffffff"] {
+/* ── Gradients ── */
+.ld-shell [style*="linear-gradient"] {
   background: #1c1b1b !important;
 }
 
-/* ── Borders ── */
-.ld-shell [style*="border: 1px solid #e"],
-.ld-shell [style*="border: 2px solid #e"] {
-  border-color: #2a2a2a !important;
-}
-.ld-shell [style*="border: 1px solid #d"] {
-  border-color: #353534 !important;
-}
-
-/* ── Text color overrides (dark text → light) ── */
-.ld-shell [style*="color: #0f172a"],
-.ld-shell [style*="color: #1e293b"],
-.ld-shell [style*="color: #334155"],
-.ld-shell [style*="color: #1a1a1a"],
-.ld-shell [style*="color: #111"],
-.ld-shell [style*="color: #000"],
-.ld-shell [style*="color: black"] {
-  color: #e5e2e1 !important;
-}
-.ld-shell [style*="color: #475569"],
-.ld-shell [style*="color: #64748b"],
-.ld-shell [style*="color: #94a3b8"] {
-  color: #9a9693 !important;
-}
-
-/* ── Buttons ── */
+/* ── Buttons — all ── */
 .ld-shell button {
   border-radius: 0 !important;
   font-family: 'Hanken Grotesk', sans-serif !important;
   font-weight: 800 !important;
   letter-spacing: 0.05em !important;
   text-transform: uppercase !important;
-  transition: opacity 0.15s ease !important;
+  transition: opacity 0.15s ease, transform 0.1s ease !important;
+  border-color: #2a2a2a !important;
+  background: #2a2a2a !important;
+  color: #e5e2e1 !important;
 }
+
 .ld-shell button:not(:disabled):hover {
   opacity: 0.85 !important;
 }
+
 .ld-shell button:disabled {
   opacity: 0.35 !important;
   cursor: not-allowed !important;
 }
 
-/* Primary blue/indigo → red */
+/* Primary action buttons (green/blue tones) → red accent */
 .ld-shell button[style*="background: #2563eb"],
 .ld-shell button[style*="background: #3b82f6"],
+.ld-shell button[style*="background: #16a34a"],
+.ld-shell button[style*="background: #22c55e"],
 .ld-shell button[style*="background: #4f46e5"],
-.ld-shell button[style*="background: #6366f1"],
-.ld-shell button[style*="background: #1d4ed8"],
-.ld-shell button[style*="background: rgb(37"] {
+.ld-shell button[style*="background: #059669"] {
   background: #ff0000 !important;
   border-color: #ff0000 !important;
   color: #fff !important;
@@ -139,17 +152,20 @@
   box-shadow: 0 0 18px rgba(255, 0, 0, 0.35) !important;
 }
 
-/* Neutral/gray buttons */
-.ld-shell button[style*="background: #f1f5f9"],
-.ld-shell button[style*="background: #e2e8f0"],
-.ld-shell button[style*="background: #f8fafc"],
-.ld-shell button[style*="background: #fff"] {
-  background: #2a2a2a !important;
-  border-color: #353534 !important;
-  color: #e5e2e1 !important;
+/* The main SPIN / START DRAW button — biggest button on page */
+.ld-shell button[style*="fontSize: 20"],
+.ld-shell button[style*="font-size: 20"],
+.ld-shell button[style*="padding: 18"] {
+  background: #ff0000 !important;
+  border-color: #ff0000 !important;
+  color: #fff !important;
+  box-shadow: 0 0 24px rgba(255, 0, 0, 0.5) !important;
+  clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%) !important;
+  font-size: 18px !important;
+  padding: 14px 48px !important;
 }
 
-/* Red/danger buttons keep red but darker */
+/* Danger/red buttons */
 .ld-shell button[style*="background: #dc2626"],
 .ld-shell button[style*="background: #ef4444"],
 .ld-shell button[style*="background: #b91c1c"] {
@@ -166,21 +182,23 @@
 .ld-shell select,
 .ld-shell textarea {
   background: #0e0e0e !important;
-  border-color: #353534 !important;
+  border: 1px solid #353534 !important;
   color: #e5e2e1 !important;
   border-radius: 0 !important;
   font-family: 'JetBrains Mono', monospace !important;
   outline: none !important;
 }
+
 .ld-shell input:focus,
 .ld-shell select:focus,
 .ld-shell textarea:focus {
   border-color: #ff0000 !important;
   box-shadow: 0 0 0 2px rgba(255, 0, 0, 0.2) !important;
 }
+
 .ld-shell option {
-  background: #1c1b1b;
-  color: #e5e2e1;
+  background: #1c1b1b !important;
+  color: #e5e2e1 !important;
 }
 
 /* Radio / checkbox */
@@ -189,15 +207,22 @@
   accent-color: #ff0000 !important;
 }
 
-/* ── Canvas (wheel) ── */
+/* ── Canvas (roulette wheel) ── */
 .ld-shell canvas {
   box-shadow: 0 0 40px rgba(255, 0, 0, 0.3) !important;
+  border-color: #353534 !important;
 }
 
 /* ── Modal overlay ── */
 .ld-shell [style*="position: fixed"] {
   background: rgba(0, 0, 0, 0.88) !important;
   backdrop-filter: blur(6px) !important;
+}
+
+/* ── Modal box ── */
+.ld-shell [style*="position: fixed"] > div {
+  background: #1c1b1b !important;
+  border: 1px solid #2a2a2a !important;
 }
 
 /* ── Scrollbar ── */
@@ -209,5 +234,56 @@
 /* ── Dividers ── */
 .ld-shell hr { border-color: #2a2a2a !important; }
 
-/* ── Red accent pulse ── */
-@keyframes ld-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+/* ── Sub-label text ── */
+.ld-shell [style*="color: #333"],
+.ld-shell [style*="color: #555"],
+.ld-shell [style*="color: #666"],
+.ld-shell [style*="color: #475569"],
+.ld-shell [style*="color: #64748b"],
+.ld-shell [style*="color: #94a3b8"] {
+  color: #ebbbb4 !important;
+}
+
+/* ── Green status text ── */
+.ld-shell [style*="color: #16a34a"],
+.ld-shell [style*="color: #15803d"],
+.ld-shell [style*="color: #22c55e"],
+.ld-shell [style*="color: #059669"] {
+  color: #2ecc71 !important;
+}
+
+/* ── Red status text ── */
+.ld-shell [style*="color: #dc2626"],
+.ld-shell [style*="color: #ef4444"],
+.ld-shell [style*="color: #b91c1c"] {
+  color: #ff6b6b !important;
+}
+
+/* ── Yellow/amber ── */
+.ld-shell [style*="color: #d97706"],
+.ld-shell [style*="color: #b45309"],
+.ld-shell [style*="color: #f59e0b"] {
+  color: #e9c400 !important;
+}
+
+/* ── Inline border-radius kill (racing = sharp edges) ── */
+.ld-shell [style*="border-radius: 12"],
+.ld-shell [style*="border-radius: 16"],
+.ld-shell [style*="borderRadius: 12"],
+.ld-shell [style*="borderRadius: 16"],
+.ld-shell [style*="border-radius: 999"],
+.ld-shell [style*="borderRadius: 999"] {
+  border-radius: 0 !important;
+}
+
+/* ── Animations ── */
+@keyframes ld-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+@keyframes ld-scan {
+  0%   { transform: translateY(-100%); opacity: 0; }
+  50%  { opacity: 0.5; }
+  100% { transform: translateY(400%); opacity: 0; }
+}
