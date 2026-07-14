@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import PublicTopbar from '../../../components/PublicTopbar'
 import { useHighVisibility } from '../../../hooks/useHighVisibility'
@@ -253,6 +254,14 @@ export default function McLivePage() {
             <div className={`rounded-full border px-4 py-2 text-sm font-extrabold uppercase tracking-[0.12em] ${badge.className}`}>
               {badge.label}
             </div>
+          </div>
+          <div className="relative z-10 mt-4 flex flex-wrap gap-3">
+            <Link
+              href={`/mc/${eventId}/draw`}
+              className="inline-flex items-center gap-2 rounded-xl border border-amber-400/40 bg-amber-400/10 px-4 py-2 text-sm font-extrabold uppercase tracking-[0.12em] text-amber-300 transition-colors hover:bg-amber-400/20"
+            >
+              🎰 Live Draw
+            </Link>
           </div>
         </section>
 
