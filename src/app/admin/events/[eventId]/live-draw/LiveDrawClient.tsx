@@ -686,33 +686,36 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       ctx.moveTo(0, 0)
       ctx.arc(0, 0, radius - 2, start, end)
       ctx.closePath()
-      ctx.fillStyle = i % 3 === 0 ? '#111827' : i % 2 === 0 ? '#f8fafc' : '#fde68a'
+      ctx.fillStyle = i % 3 === 0 ? '#ff1010' : i % 2 === 0 ? '#303030' : '#141414'
       ctx.fill()
-      ctx.strokeStyle = '#0f172a'
-      ctx.lineWidth = 1.4
+      ctx.strokeStyle = '#0b0b0b'
+      ctx.lineWidth = 2
       ctx.stroke()
 
       if (list.length > 0 && i % labelEvery === 0) {
         const mid = start + step / 2
         ctx.save()
         ctx.rotate(mid)
-        ctx.translate(radius * 0.62, 0)
+        ctx.translate(radius * 0.58, 0)
         ctx.rotate(Math.PI / 2)
-        ctx.fillStyle = i % 3 === 0 ? '#f8fafc' : '#0f172a'
-        ctx.font = 'bold 10px sans-serif'
-        const name = list[i]?.name ?? ''
-        ctx.fillText(name.slice(0, 14), -20, 4)
+        ctx.fillStyle = '#ffffff'
+        ctx.font = '900 14px Arial, Helvetica, sans-serif'
+        const plate = list[i]?.no_plate_display ?? ''
+        ctx.fillText(plate.slice(0, 4), -12, 4)
         ctx.restore()
       }
     }
 
     ctx.beginPath()
-    ctx.arc(0, 0, radius * 0.2, 0, Math.PI * 2)
-    ctx.fillStyle = '#0f172a'
+    ctx.arc(0, 0, radius * 0.18, 0, Math.PI * 2)
+    ctx.fillStyle = '#151515'
     ctx.fill()
+    ctx.strokeStyle = '#2a2a2a'
+    ctx.lineWidth = 3
+    ctx.stroke()
     ctx.beginPath()
-    ctx.arc(0, 0, radius * 0.08, 0, Math.PI * 2)
-    ctx.fillStyle = '#fde68a'
+    ctx.arc(0, 0, radius * 0.07, 0, Math.PI * 2)
+    ctx.fillStyle = '#202020'
     ctx.fill()
     ctx.restore()
   }, [drawMode, visibleWheelRiders])
@@ -1687,20 +1690,16 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
         title="live-draw-print-frame"
         style={{ position: 'absolute', width: 0, height: 0, border: 0, visibility: 'hidden' }}
       />
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'end', gap: 12 }}>
+      <div className="ld-page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'end', gap: 12 }}>
         <div>
           <h1 style={{ fontSize: 26, fontWeight: 950, margin: 0 }}>
-            {drawMode === 'external_draw' ? 'External Draw Setup' : 'Live Draw (Internal)'}
+            {drawMode === 'external_draw' ? `External Draw (${eventName})` : `Live Draw (${eventName})`}
           </h1>
-          <div style={{ marginTop: 8, color: '#ebbbb4', fontWeight: 700 }}>
-            {drawMode === 'external_draw'
-              ? 'Hasil draw dari luar sistem. Pilih target batch, klik rider dari preview, lalu generate moto.'
-              : 'Draw manual dengan roulette, lalu simpan hasilnya sebagai Moto 1 & Moto 2 (gate Moto 2 otomatis dibalik).'}
-          </div>
         </div>
       </div>
 
       <div
+        className="ld-control-grid"
         style={{
           marginTop: 16,
           background: '#1c1b1b',
@@ -1711,7 +1710,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
           gap: 12,
         }}
       >
-        <div style={{ display: 'grid', gap: 8 }}>
+        <div className="ld-mode-field" style={{ display: 'grid', gap: 8 }}>
           <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
             Mode
           </div>
@@ -1730,7 +1729,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
           </div>
         </div>
 
-        <div style={{ display: 'grid', gap: 8 }}>
+        <div className="ld-category-field" style={{ display: 'grid', gap: 8 }}>
           <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
             Pilih Kategori
           </div>
@@ -1747,11 +1746,11 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
           </select>
         </div>
 
-        <div style={{ display: 'grid', gap: 8 }}>
+        <div className="ld-format-field" style={{ display: 'grid', gap: 8 }}>
           <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
             Format Batch
           </div>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <div className="ld-format-options" style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800 }}>
               <input
                 type="radio"
@@ -1856,7 +1855,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
           }}
         >
           <div style={{ display: 'grid', gap: 6 }}>
-            <div style={{ fontWeight: 900, fontSize: 18 }}>
+            <div className="ld-stage-title" style={{ fontWeight: 900, fontSize: 18 }}>
               {drawMode === 'external_draw' ? 'External Order' : 'Wheel Spin'}
             </div>
             <div style={{ fontSize: 22, fontWeight: 950, color: '#e5e2e1' }}>{rollingName}</div>
@@ -2080,7 +2079,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                     cursor: drawing || hasDrawn || (batchMode === 'CUSTOM_BATCH_SIZES' && Boolean(customBatchError)) ? 'not-allowed' : 'pointer',
                   }}
                 >
-                  {hasDrawn ? 'Draw Terkunci' : 'Start Draw'}
+                  {hasDrawn ? 'Draw Terkunci' : 'SPIN DRAW'}
                 </button>
                 {drawnOrder.length > 0 && !categoryLocked && (
                   <button
