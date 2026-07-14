@@ -167,26 +167,37 @@ export async function GET(_: Request, { params }: { params: Promise<{ eventId: s
       ? settings.race_format_settings
       : {}
   const finalClassOptions = normalizeFinalClassOptions(raceFormatSettings.final_classes)
+  const eventGatePositions =
+    typeof raceFormatSettings.gate_positions === 'number'
+      ? Number(raceFormatSettings.gate_positions)
+      : Number(raceFormatSettings.gate_positions ?? 8)
+  const eventMaxRidersPerRace = Math.max(1, Number.isFinite(eventGatePositions) ? eventGatePositions : 8)
 
-  const enrichedCategories = (categories ?? []).map((category) => ({
-    ...category,
-    total_riders: categoryTotals[category.id as string]?.totalRiders ?? 0,
-    resolver_source: categoryTotals[category.id as string]?.source ?? 'default',
-    stages: categoryTotals[category.id as string]?.stages ?? {
-      enableQualification: false,
-      enableQuarterFinal: false,
-      enableSemiFinal: false,
-    },
-    final_classes: categoryTotals[category.id as string]?.finalClasses ?? [],
-    qualification_batch_count: qualificationBatchCountByCategory.get(category.id as string) ?? null,
-    max_riders_per_race: stageConfigByCategory.get(category.id as string)?.max_riders_per_race ?? 8,
-    qualification_moto_count: stageConfigByCategory.get(category.id as string)?.qualification_moto_count ?? 2,
-    repechage_max_riders_per_race: stageConfigByCategory.get(category.id as string)?.repechage_max_riders_per_race ?? null,
-    quarter_final_max_riders_per_race: stageConfigByCategory.get(category.id as string)?.quarter_final_max_riders_per_race ?? null,
-    semi_final_max_riders_per_race: stageConfigByCategory.get(category.id as string)?.semi_final_max_riders_per_race ?? null,
-    dnf_point_override: stageConfigByCategory.get(category.id as string)?.dnf_point_override ?? null,
-    dns_point_override: stageConfigByCategory.get(category.id as string)?.dns_point_override ?? null,
-  }))
+  const enrichedCategories = (categories ?? []).map((category) => {
+    const stageConfig = stageConfigByCategory.get(category.id as string)
+    const configuredMaxRiders = Math.max(1, Number(stageConfig?.max_riders_per_race ?? eventMaxRidersPerRace))
+    const effectiveMaxRiders = Math.min(configuredMaxRiders, eventMaxRidersPerRace)
+
+    return {
+      ...category,
+      total_riders: categoryTotals[category.id as string]?.totalRiders ?? 0,
+      resolver_source: categoryTotals[category.id as string]?.source ?? 'default',
+      stages: categoryTotals[category.id as string]?.stages ?? {
+        enableQualification: false,
+        enableQuarterFinal: false,
+        enableSemiFinal: false,
+      },
+      final_classes: categoryTotals[category.id as string]?.finalClasses ?? [],
+      qualification_batch_count: qualificationBatchCountByCategory.get(category.id as string) ?? null,
+      max_riders_per_race: effectiveMaxRiders,
+      qualification_moto_count: stageConfig?.qualification_moto_count ?? 2,
+      repechage_max_riders_per_race: stageConfig?.repechage_max_riders_per_race ?? null,
+      quarter_final_max_riders_per_race: stageConfig?.quarter_final_max_riders_per_race ?? null,
+      semi_final_max_riders_per_race: stageConfig?.semi_final_max_riders_per_race ?? null,
+      dnf_point_override: stageConfig?.dnf_point_override ?? null,
+      dns_point_override: stageConfig?.dns_point_override ?? null,
+    }
+  })
 
   return NextResponse.json({
     data: {
