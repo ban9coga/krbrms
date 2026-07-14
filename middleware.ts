@@ -82,21 +82,11 @@ export function middleware(req: NextRequest) {
     ''
   const normalizedRole = String(rawRole).trim()
   const role =
-    normalizedRole === 'jury_start'
+    normalizedRole === 'jury_start' || normalizedRole === 'JURY_START'
       ? 'CHECKER'
-      : normalizedRole === 'JURY_START'
-      ? 'CHECKER'
-      : normalizedRole === 'jury_finish'
+      : normalizedRole === 'jury_finish' || normalizedRole === 'JURY_FINISH'
       ? 'FINISHER'
-      : normalizedRole === 'JURY_FINISH'
-      ? 'FINISHER'
-      : normalizedRole === 'ADMIN'
-      ? 'ADMIN'
-      : normalizedRole === 'SUPER_ADMIN'
-      ? 'SUPER_ADMIN'
-      : normalizedRole === 'RACE_CONTROL'
-      ? 'RACE_CONTROL'
-      : normalizedRole
+      : normalizedRole.toUpperCase()
 
   // Match the most specific guard first (longer path wins).
   const guardPath = Object.keys(ROLE_GUARDS)
