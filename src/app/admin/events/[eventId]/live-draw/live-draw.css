@@ -1,0 +1,213 @@
+@import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:ital,wght@0,100..900;1,100..900&family=Anybody:ital,wght@0,100..900;1,100..900&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap');
+
+/* ================================================================
+   LIVE DRAW — DARK CARBON RACING THEME
+   Applied via .ld-shell wrapper on the admin live-draw page only.
+   ================================================================ */
+
+.ld-shell {
+  background: #0e0e0e;
+  color: #e5e2e1;
+  min-height: 100vh;
+  padding: 28px;
+  font-family: 'Hanken Grotesk', 'Inter', system-ui, sans-serif;
+  /* Subtle carbon tile pattern */
+  background-image:
+    linear-gradient(45deg, #131313 25%, transparent 25%, transparent 75%, #131313 75%, #131313),
+    linear-gradient(45deg, #131313 25%, transparent 25%, transparent 75%, #131313 75%, #131313);
+  background-size: 8px 8px;
+  background-position: 0 0, 4px 4px;
+}
+
+/* ── Typography ── */
+.ld-shell h1,
+.ld-shell h2,
+.ld-shell h3 {
+  font-family: 'Anybody', sans-serif !important;
+  font-style: italic !important;
+  text-transform: uppercase !important;
+  letter-spacing: -0.02em !important;
+  color: #e5e2e1 !important;
+}
+
+/* ── All text defaults ── */
+.ld-shell * {
+  color: inherit;
+  box-sizing: border-box;
+}
+
+/* ── Override white/light backgrounds via inline style attribute ── */
+/* #fff, #ffffff */
+.ld-shell [style*="background: #fff"],
+.ld-shell [style*="background:#fff"],
+.ld-shell [style*="background-color: #fff"],
+.ld-shell [style*="background: #ffffff"],
+.ld-shell [style*="background: white"] {
+  background: #1c1b1b !important;
+  color: #e5e2e1 !important;
+}
+
+/* #f8fafc, #f8fbff */
+.ld-shell [style*="background: #f8fafc"],
+.ld-shell [style*="background: #f8fbff"] {
+  background: #141414 !important;
+  color: #e5e2e1 !important;
+}
+
+/* #eff6ff, #eaf7ee, #dcfce7, #dbeafe */
+.ld-shell [style*="background: #eff6ff"],
+.ld-shell [style*="background: #eaf7ee"],
+.ld-shell [style*="background: #dcfce7"],
+.ld-shell [style*="background: #dbeafe"] {
+  background: #1c1b1b !important;
+  color: #e5e2e1 !important;
+  border-color: #353534 !important;
+}
+
+/* #fef3c7, #fffbeb — yellow/warning */
+.ld-shell [style*="background: #fef3c7"],
+.ld-shell [style*="background: #fffbeb"] {
+  background: #1a1500 !important;
+  color: #e9c400 !important;
+}
+
+/* #ffd6d6 — red/error light */
+.ld-shell [style*="background: #ffd6d6"] {
+  background: #1a0000 !important;
+  color: #ff6b6b !important;
+}
+
+/* gradients */
+.ld-shell [style*="linear-gradient(135deg, #ffffff"],
+.ld-shell [style*="linear-gradient(180deg, #ffffff"] {
+  background: #1c1b1b !important;
+}
+
+/* ── Borders ── */
+.ld-shell [style*="border: 1px solid #e"],
+.ld-shell [style*="border: 2px solid #e"] {
+  border-color: #2a2a2a !important;
+}
+.ld-shell [style*="border: 1px solid #d"] {
+  border-color: #353534 !important;
+}
+
+/* ── Text color overrides (dark text → light) ── */
+.ld-shell [style*="color: #0f172a"],
+.ld-shell [style*="color: #1e293b"],
+.ld-shell [style*="color: #334155"],
+.ld-shell [style*="color: #1a1a1a"],
+.ld-shell [style*="color: #111"],
+.ld-shell [style*="color: #000"],
+.ld-shell [style*="color: black"] {
+  color: #e5e2e1 !important;
+}
+.ld-shell [style*="color: #475569"],
+.ld-shell [style*="color: #64748b"],
+.ld-shell [style*="color: #94a3b8"] {
+  color: #9a9693 !important;
+}
+
+/* ── Buttons ── */
+.ld-shell button {
+  border-radius: 0 !important;
+  font-family: 'Hanken Grotesk', sans-serif !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.05em !important;
+  text-transform: uppercase !important;
+  transition: opacity 0.15s ease !important;
+}
+.ld-shell button:not(:disabled):hover {
+  opacity: 0.85 !important;
+}
+.ld-shell button:disabled {
+  opacity: 0.35 !important;
+  cursor: not-allowed !important;
+}
+
+/* Primary blue/indigo → red */
+.ld-shell button[style*="background: #2563eb"],
+.ld-shell button[style*="background: #3b82f6"],
+.ld-shell button[style*="background: #4f46e5"],
+.ld-shell button[style*="background: #6366f1"],
+.ld-shell button[style*="background: #1d4ed8"],
+.ld-shell button[style*="background: rgb(37"] {
+  background: #ff0000 !important;
+  border-color: #ff0000 !important;
+  color: #fff !important;
+  clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%) !important;
+  box-shadow: 0 0 18px rgba(255, 0, 0, 0.35) !important;
+}
+
+/* Neutral/gray buttons */
+.ld-shell button[style*="background: #f1f5f9"],
+.ld-shell button[style*="background: #e2e8f0"],
+.ld-shell button[style*="background: #f8fafc"],
+.ld-shell button[style*="background: #fff"] {
+  background: #2a2a2a !important;
+  border-color: #353534 !important;
+  color: #e5e2e1 !important;
+}
+
+/* Red/danger buttons keep red but darker */
+.ld-shell button[style*="background: #dc2626"],
+.ld-shell button[style*="background: #ef4444"],
+.ld-shell button[style*="background: #b91c1c"] {
+  background: #7f1d1d !important;
+  border-color: #991b1b !important;
+  color: #fca5a5 !important;
+}
+
+/* ── Inputs / Selects ── */
+.ld-shell input[type="text"],
+.ld-shell input[type="number"],
+.ld-shell input[type="email"],
+.ld-shell input[type="search"],
+.ld-shell select,
+.ld-shell textarea {
+  background: #0e0e0e !important;
+  border-color: #353534 !important;
+  color: #e5e2e1 !important;
+  border-radius: 0 !important;
+  font-family: 'JetBrains Mono', monospace !important;
+  outline: none !important;
+}
+.ld-shell input:focus,
+.ld-shell select:focus,
+.ld-shell textarea:focus {
+  border-color: #ff0000 !important;
+  box-shadow: 0 0 0 2px rgba(255, 0, 0, 0.2) !important;
+}
+.ld-shell option {
+  background: #1c1b1b;
+  color: #e5e2e1;
+}
+
+/* Radio / checkbox */
+.ld-shell input[type="radio"],
+.ld-shell input[type="checkbox"] {
+  accent-color: #ff0000 !important;
+}
+
+/* ── Canvas (wheel) ── */
+.ld-shell canvas {
+  box-shadow: 0 0 40px rgba(255, 0, 0, 0.3) !important;
+}
+
+/* ── Modal overlay ── */
+.ld-shell [style*="position: fixed"] {
+  background: rgba(0, 0, 0, 0.88) !important;
+  backdrop-filter: blur(6px) !important;
+}
+
+/* ── Scrollbar ── */
+.ld-shell *::-webkit-scrollbar { width: 6px; height: 6px; }
+.ld-shell *::-webkit-scrollbar-track { background: #0e0e0e; }
+.ld-shell *::-webkit-scrollbar-thumb { background: #353534; }
+.ld-shell *::-webkit-scrollbar-thumb:hover { background: #ff0000; }
+
+/* ── Dividers ── */
+.ld-shell hr { border-color: #2a2a2a !important; }
+
+/* ── Red accent pulse ── */
+@keyframes ld-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
