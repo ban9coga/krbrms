@@ -512,7 +512,7 @@ export default function AdminDashboardPage() {
             <div className="mt-5 grid gap-3">
               {quickActions.map((action) => (
                 <Link
-                  key={action.href}
+                  key={`${action.label}:${action.href}`}
                   href={action.href}
                   className="admin-card-muted transition-transform hover:-translate-y-0.5"
                 >
