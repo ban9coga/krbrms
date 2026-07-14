@@ -287,3 +287,52 @@
   50%  { opacity: 0.5; }
   100% { transform: translateY(400%); opacity: 0; }
 }
+
+/* ── Exit Fullscreen Button ── */
+.ld-exit-btn {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: rgba(42, 42, 42, 0.8) !important;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 0, 0, 0.3) !important;
+  color: #e5e2e1 !important;
+  font-family: 'JetBrains Mono', monospace !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ld-exit-btn:hover {
+  background: #ff0000 !important;
+  border-color: #ff0000 !important;
+  color: #fff !important;
+}
+
+/* ── Racing utility classes ── */
+.ld-shell .racing-skew {
+  transform: skew(-10deg);
+}
+
+.ld-shell .neon-underglow {
+  box-shadow: 0 0 20px rgba(255, 0, 0, 0.4);
+}
+
+.ld-shell .checkered-border {
+  background-image:
+    linear-gradient(45deg, #353534 25%, transparent 25%),
+    linear-gradient(-45deg, #353534 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #353534 75%),
+    linear-gradient(-45deg, transparent 75%, #353534 75%);
+  background-size: 8px 8px;
+  background-position: 0 0, 0 4px, 4px 4px, 4px 0;
+}

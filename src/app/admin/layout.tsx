@@ -583,6 +583,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   if (!authorized) return null
 
+  const isLiveDrawFullscreen = /\/live-draw$/.test(pathname)
+
+  if (isLiveDrawFullscreen) {
+    return <div className="min-h-screen">{children}</div>
+  }
+
   return (
     <div
       className={`admin-theme-scope min-h-screen ${
