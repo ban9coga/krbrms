@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const PROTECTED_PATHS = ['/admin', '/scoring', '/race-control', '/super-admin', '/jury', '/race-director', '/jc']
+const PROTECTED_PATHS = ['/admin', '/scoring', '/race-control', '/super-admin', '/jury', '/race-director', '/jc', '/mc']
 
 const ROLE_GUARDS: Record<string, string[]> = {
   '/admin/users': ['super_admin'],
@@ -13,6 +13,7 @@ const ROLE_GUARDS: Record<string, string[]> = {
   '/race-director': ['RACE_DIRECTOR', 'super_admin'],
   '/race-control': ['race_control', 'super_admin'],
   '/super-admin': ['super_admin'],
+  '/mc': ['MC', 'RACE_DIRECTOR', 'super_admin'],
 }
 
 const tryParseJson = (value: string) => {
@@ -90,11 +91,11 @@ export function middleware(req: NextRequest) {
       : normalizedRole === 'JURY_FINISH'
       ? 'FINISHER'
       : normalizedRole === 'ADMIN'
-      ? 'admin'
+      ? 'ADMIN'
       : normalizedRole === 'SUPER_ADMIN'
-      ? 'super_admin'
+      ? 'SUPER_ADMIN'
       : normalizedRole === 'RACE_CONTROL'
-      ? 'race_control'
+      ? 'RACE_CONTROL'
       : normalizedRole
 
   // Match the most specific guard first (longer path wins).
@@ -109,6 +110,7 @@ export function middleware(req: NextRequest) {
     if (r === 'super_admin') return '/admin'
     if (r === 'admin') return '/admin'
     if (r === 'race_control') return '/race-control'
+    if (r === 'MC') return '/mc'
     return '/login'
   }
 
@@ -133,5 +135,6 @@ export const config = {
     '/jury/:path*',
     '/race-director/:path*',
     '/jc/:path*',
+    '/mc/:path*',
   ],
 }
