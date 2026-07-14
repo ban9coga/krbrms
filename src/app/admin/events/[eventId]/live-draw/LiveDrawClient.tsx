@@ -1193,6 +1193,60 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     return lines.join('\n')
   }
 
+  const buildDraftCategoryShareText = () => {
+    const lines = [
+      `🏁 DRAW RESULT`,
+      eventName,
+      `Kategori: ${selectedCategoryLabel}`,
+      '',
+    ]
+
+    batchLayouts.forEach((batch) => {
+      const moto2Manual =
+        drawMode === 'external_draw' &&
+        externalBatchInputMode === 'PER_BATCH' &&
+        externalPerBatchValidation.moto2Provided
+          ? externalPerBatchValidation.orderedMoto2Batches[batch.index - 1] ?? []
+          : []
+      const moto2Riders = moto2Manual.length > 0 ? moto2Manual : [...batch.riders].reverse()
+      lines.push(`BATCH ${batch.index}`, `MOTO 1 - BATCH ${batch.index}`)
+      batch.riders.forEach((rider, index) => {
+        lines.push(`G${index + 1} - ${rider.no_plate_display} - ${rider.name}`)
+      })
+      lines.push('', `MOTO 2 - BATCH ${batch.index}`)
+      moto2Riders.forEach((rider, index) => {
+        lines.push(`G${index + 1} - ${rider.no_plate_display} - ${rider.name}`)
+      })
+      lines.push('')
+    })
+
+    lines.push('Mohon wali rider cek nomor plate dan gate masing-masing.')
+    return lines.join('\n')
+  }
+
+  const buildSavedCategoryShareText = () => {
+    const lines = [
+      `🏁 DRAW RESULT`,
+      eventName,
+      `Kategori: ${selectedCategoryLabel}`,
+      '',
+    ]
+
+    savedMotoBatches.forEach((batch) => {
+      lines.push(`BATCH ${batch.batchNo}`)
+      batch.motos.forEach((moto) => {
+        lines.push('', moto.moto_name.toUpperCase())
+        moto.gates.forEach((gate) => {
+          lines.push(`G${gate.gate_position} - ${gate.no_plate_display} - ${gate.name}`)
+        })
+      })
+      lines.push('')
+    })
+
+    lines.push('Mohon wali rider cek nomor plate dan gate masing-masing.')
+    return lines.join('\n')
+  }
+
   const loadCanvasImage = async (src: string) => {
     const image = new Image()
     image.crossOrigin = 'anonymous'
@@ -1627,7 +1681,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
   }
 
   return (
-    <div style={{ maxWidth: 1020 }}>
+    <div className="ld-client" style={{ maxWidth: 1280 }}>
       <iframe
         ref={printFrameRef}
         title="live-draw-print-frame"
@@ -1787,6 +1841,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
         </div>
 
         <div
+          className="ld-draw-stage"
           style={{
             border: '1px solid #353534',
             borderRadius: 24,
@@ -2541,6 +2596,112 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
             </div>
           )}
         </div>
+
+        <aside className="ld-results-panel">
+          <div className="ld-results-panel__head">
+            <div>
+              <div className="ld-kicker">Live Results</div>
+              <div className="ld-results-panel__meta">
+                {categoryLocked
+                  ? `${savedMotoBatches.length} batch tersimpan`
+                  : drawnOrder.length > 0
+                    ? `${batchLayouts.length} batch draft`
+                    : 'Belum ada hasil draw.'}
+              </div>
+            </div>
+            <span className="ld-recording-dot">
+              <span />
+              Recording
+            </span>
+          </div>
+
+          <div className="ld-results-panel__body">
+            {!categoryLocked && drawnOrder.length === 0 && (
+              <div className="ld-empty-telemetry">
+                <div className="ld-spinner-mark">↻</div>
+                <div>Awaiting telemetry...</div>
+              </div>
+            )}
+
+            {!categoryLocked && batchLayouts.map((batch) => {
+              const moto2Manual =
+                drawMode === 'external_draw' &&
+                externalBatchInputMode === 'PER_BATCH' &&
+                externalPerBatchValidation.moto2Provided
+                  ? externalPerBatchValidation.orderedMoto2Batches[batch.index - 1] ?? []
+                  : []
+              const moto2Riders = moto2Manual.length > 0 ? moto2Manual : [...batch.riders].reverse()
+              return (
+                <div key={`inline-draft-${batch.index}`} className="ld-result-card">
+                  <div className="ld-result-card__title">Batch {batch.index}</div>
+                  <div className="ld-result-moto">
+                    <div className="ld-result-moto__label">Moto 1</div>
+                    {batch.riders.map((rider, index) => (
+                      <div key={`inline-draft-m1-${batch.index}-${rider.id}`} className="ld-result-row">
+                        <span>G{index + 1}</span>
+                        <strong>{rider.no_plate_display}</strong>
+                        <em>{rider.name}</em>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="ld-result-moto">
+                    <div className="ld-result-moto__label">Moto 2</div>
+                    {moto2Riders.map((rider, index) => (
+                      <div key={`inline-draft-m2-${batch.index}-${rider.id}`} className="ld-result-row">
+                        <span>G{index + 1}</span>
+                        <strong>{rider.no_plate_display}</strong>
+                        <em>{rider.name}</em>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+
+            {categoryLocked && savedMotoBatches.map((batch) => (
+              <div key={`inline-saved-${batch.batchNo}`} className="ld-result-card">
+                <div className="ld-result-card__title">Batch {batch.batchNo}</div>
+                {batch.motos.map((moto) => (
+                  <div key={`inline-saved-moto-${moto.id}`} className="ld-result-moto">
+                    <div className="ld-result-moto__label">{moto.moto_name}</div>
+                    {moto.gates.map((gate) => (
+                      <div key={`inline-saved-gate-${moto.id}-${gate.rider_id}`} className="ld-result-row">
+                        <span>G{gate.gate_position}</span>
+                        <strong>{gate.no_plate_display}</strong>
+                        <em>{gate.name}</em>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+
+          <div className="ld-results-panel__footer">
+            <button
+              type="button"
+              onClick={() =>
+                shareTextOutput(
+                  `Draw ${selectedCategoryLabel}`,
+                  categoryLocked ? buildSavedCategoryShareText() : buildDraftCategoryShareText()
+                )
+              }
+              disabled={!categoryLocked && drawnOrder.length === 0}
+            >
+              Share 1 Kategori
+            </button>
+            {categoryLocked && (
+              <button type="button" onClick={handleDownloadLiveDrawPdf}>
+                Download PDF
+              </button>
+            )}
+            {!categoryLocked && drawnOrder.length > 0 && (
+              <button type="button" onClick={saveAsMoto} disabled={saveState === 'saving'}>
+                {saveState === 'saving' ? 'Saving...' : 'Save as Moto'}
+              </button>
+            )}
+          </div>
+        </aside>
       </div>
 
       <div style={{ marginTop: 18 }}>
@@ -2626,7 +2787,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
         )}
       </div>
 
-      {resultModal && (
+      {false && resultModal && (
         <div
           style={{
             position: 'fixed',
@@ -2723,7 +2884,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                       Seret rider untuk pindah gate atau batch. Tombol panah tetap bisa dipakai untuk koreksi cepat satu langkah.
                     </div>
                   )}
-                  {selectedRiderIndex !== null && drawnOrder[selectedRiderIndex] && (
+                  {selectedRiderIndex !== null && drawnOrder[selectedRiderIndex!] && (
                     <div
                       style={{
                         padding: '14px 16px',
@@ -2739,7 +2900,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                       }}
                     >
                       <span>
-                        Mode pindah aktif: <strong>{drawnOrder[selectedRiderIndex]?.no_plate_display}</strong>. Tap row tujuan untuk memindahkan rider ini.
+                        Mode pindah aktif: <strong>{drawnOrder[selectedRiderIndex!]?.no_plate_display}</strong>. Tap row tujuan untuk memindahkan rider ini.
                       </span>
                       <button
                         type="button"
