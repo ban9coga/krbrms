@@ -3,17 +3,17 @@ import { NextRequest, NextResponse } from 'next/server'
 const PROTECTED_PATHS = ['/admin', '/scoring', '/race-control', '/super-admin', '/jury', '/race-director', '/jc', '/mc']
 
 const ROLE_GUARDS: Record<string, string[]> = {
-  '/admin/users': ['super_admin'],
-  '/admin': ['admin', 'super_admin', 'REGISTRATION_APPROVER'],
-  '/jc': ['CHECKER', 'RACE_DIRECTOR', 'super_admin'],
-  '/scoring': ['CHECKER', 'FINISHER', 'RACE_DIRECTOR', 'super_admin'],
-  '/jury/start': ['CHECKER', 'RACE_DIRECTOR', 'super_admin'],
-  '/jury/finish': ['FINISHER', 'RACE_DIRECTOR', 'super_admin'],
-  '/jury': ['CHECKER', 'FINISHER', 'RACE_DIRECTOR', 'super_admin'],
-  '/race-director': ['RACE_DIRECTOR', 'super_admin'],
-  '/race-control': ['race_control', 'super_admin'],
-  '/super-admin': ['super_admin'],
-  '/mc': ['MC', 'RACE_DIRECTOR', 'super_admin'],
+  '/admin/users': ['SUPER_ADMIN'],
+  '/admin': ['ADMIN', 'SUPER_ADMIN', 'REGISTRATION_APPROVER'],
+  '/jc': ['CHECKER', 'RACE_DIRECTOR', 'SUPER_ADMIN'],
+  '/scoring': ['CHECKER', 'FINISHER', 'RACE_DIRECTOR', 'SUPER_ADMIN'],
+  '/jury/start': ['CHECKER', 'RACE_DIRECTOR', 'SUPER_ADMIN'],
+  '/jury/finish': ['FINISHER', 'RACE_DIRECTOR', 'SUPER_ADMIN'],
+  '/jury': ['CHECKER', 'FINISHER', 'RACE_DIRECTOR', 'SUPER_ADMIN'],
+  '/race-director': ['RACE_DIRECTOR', 'SUPER_ADMIN'],
+  '/race-control': ['RACE_CONTROL', 'SUPER_ADMIN'],
+  '/super-admin': ['SUPER_ADMIN'],
+  '/mc': ['MC', 'RACE_DIRECTOR', 'SUPER_ADMIN'],
 }
 
 const tryParseJson = (value: string) => {
@@ -107,9 +107,9 @@ export function middleware(req: NextRequest) {
     if (r === 'FINISHER') return '/jury/finish'
     if (r === 'CHECKER') return '/jc'
     if (r === 'REGISTRATION_APPROVER') return '/admin/events'
-    if (r === 'super_admin') return '/admin'
-    if (r === 'admin') return '/admin'
-    if (r === 'race_control') return '/race-control'
+    if (r === 'SUPER_ADMIN') return '/admin'
+    if (r === 'ADMIN') return '/admin'
+    if (r === 'RACE_CONTROL') return '/race-control'
     if (r === 'MC') return '/mc'
     return '/login'
   }
