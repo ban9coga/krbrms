@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import confetti from 'canvas-confetti'
 import { buildBrandedPrintHtml } from '../../../../../lib/printTheme'
 import { supabase } from '../../../../../lib/supabaseClient'
 
@@ -106,7 +107,7 @@ const shuffle = <T,>(input: T[]) => {
   const arr = [...input]
   for (let i = arr.length - 1; i > 0; i -= 1) {
     const j = Math.floor(Math.random() * (i + 1))
-    ;[arr[i], arr[j]] = [arr[j], arr[i]]
+      ;[arr[i], arr[j]] = [arr[j], arr[i]]
   }
   return arr
 }
@@ -895,8 +896,20 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       setRollingName(rider?.name ?? 'Spinning...')
     }, 120)
 
+    // Play Drum Roll/Victory Sound at the START of the spin
+    try {
+      const audio = new Audio('/sounds/victory.mp3')
+      audio.volume = 0.5
+      audio.play().catch(() => { })
+    } catch (e) {
+      // Ignore
+    }
+
     setWheelRotation(targetAngle)
 
+    // DURASI SPIN ROULETTE (7200 ms = 7.2 detik)
+    // Jika drum roll di MP3 Anda lebih cepat atau lebih lambat dari 7.2 detik, 
+    // ubah angka 7200 di bawah ini agar pas meledak saat berhenti!
     spinTimeoutRef.current = window.setTimeout(() => {
       if (rollingIntervalRef.current) window.clearInterval(rollingIntervalRef.current)
       spinTimeoutRef.current = null
@@ -904,8 +917,36 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       setRollingName(shuffled[index].name)
       setDrawnOrder(shuffled)
       setDrawing(false)
+      triggerVictoryEffects()
       setResultModal('draft')
-    }, 7200)
+    }, 4500)
+  }
+
+  const triggerVictoryEffects = () => {
+    // Confetti Effect (Audio is now played at the start of the spin)
+    const duration = 3 * 1000;
+    const animationEnd = Date.now() + duration;
+    const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 10000 };
+
+    const randomInRange = (min: number, max: number) => Math.random() * (max - min) + min;
+
+    const interval: any = setInterval(function () {
+      const timeLeft = animationEnd - Date.now();
+
+      if (timeLeft <= 0) {
+        return clearInterval(interval);
+      }
+
+      const particleCount = 50 * (timeLeft / duration);
+      confetti({
+        ...defaults, particleCount,
+        origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 }
+      });
+      confetti({
+        ...defaults, particleCount,
+        origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 }
+      });
+    }, 250);
   }
 
   const applyExternalOrder = () => {
@@ -1155,8 +1196,8 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
   const buildDraftBatchShareText = (batch: (typeof batchLayouts)[number]) => {
     const moto2Manual =
       drawMode === 'external_draw' &&
-      externalBatchInputMode === 'PER_BATCH' &&
-      externalPerBatchValidation.moto2Provided
+        externalBatchInputMode === 'PER_BATCH' &&
+        externalPerBatchValidation.moto2Provided
         ? externalPerBatchValidation.orderedMoto2Batches[batch.index - 1] ?? []
         : []
     const moto2Riders = moto2Manual.length > 0 ? moto2Manual : [...batch.riders].reverse()
@@ -1207,8 +1248,8 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     batchLayouts.forEach((batch) => {
       const moto2Manual =
         drawMode === 'external_draw' &&
-        externalBatchInputMode === 'PER_BATCH' &&
-        externalPerBatchValidation.moto2Provided
+          externalBatchInputMode === 'PER_BATCH' &&
+          externalPerBatchValidation.moto2Provided
           ? externalPerBatchValidation.orderedMoto2Batches[batch.index - 1] ?? []
           : []
       const moto2Riders = moto2Manual.length > 0 ? moto2Manual : [...batch.riders].reverse()
@@ -1419,7 +1460,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
         ctx.lineWidth = 2
         ctx.strokeStyle = '#2a2a2a'
         ctx.stroke()
-        
+
         // Red accent line on left edge
         ctx.fillStyle = '#f8ce3d'
         ctx.beginPath()
@@ -1520,8 +1561,8 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
   const downloadDraftBatchPng = async (batch: (typeof batchLayouts)[number]) => {
     const moto2Manual =
       drawMode === 'external_draw' &&
-      externalBatchInputMode === 'PER_BATCH' &&
-      externalPerBatchValidation.moto2Provided
+        externalBatchInputMode === 'PER_BATCH' &&
+        externalPerBatchValidation.moto2Provided
         ? externalPerBatchValidation.orderedMoto2Batches[batch.index - 1] ?? []
         : []
     const moto2Riders = moto2Manual.length > 0 ? moto2Manual : [...batch.riders].reverse()
@@ -1708,7 +1749,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
           <section class="section-card">
             <h2 class="section-title">Batch ${batchNo}</h2>
             <div class="meta-row">${motoMeta
-              .replace(/<span>/g, '<span class="meta-pill">')}</div>
+            .replace(/<span>/g, '<span class="meta-pill">')}</div>
             <table>
               <thead>
                 <tr>${headerCells}<th>No Plate</th><th>Nama Rider</th></tr>
@@ -1995,7 +2036,14 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                   : 'Belum ada rider.'}
               </div>
             ) : (
-              <div style={{ display: 'grid', gap: 6, maxHeight: 180, overflowY: 'auto' }}>
+              <div style={{
+                display: 'grid',
+                gap: 12,
+                maxHeight: 280,
+                overflowY: 'auto',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))',
+                paddingRight: 8
+              }}>
                 {(isExternalPerBatchMode ? filteredPreviewRidersForExternalBatch : riders).map((rider) => {
                   const assignedInMoto1 = externalPerBatchValidation.orderedBatches.some((batch) =>
                     batch.some((item) => item.id === rider.id)
@@ -2011,65 +2059,60 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                       : !assignedInMoto1 || assignedInMoto2
                   const disabledForTarget = disabledForAssignment || (interactive && isActiveTargetBatchFull)
                   const statusLabel = isActiveTargetBatchFull
-                    ? `Batch target penuh (${activeTargetBatchRiders}/${maxBatchRiders})`
+                    ? `Penuh`
                     : assignedInMoto2
-                      ? 'Sudah di Moto 2'
+                      ? 'Di Moto 2'
                       : assignedInMoto1
-                        ? 'Sudah di Moto 1'
-                        : 'Siap dipilih'
+                        ? 'Di Moto 1'
+                        : 'Siap'
                   return (
-                  <button
-                    type="button"
-                    key={rider.id}
-                    onClick={() => {
-                      if (interactive && !disabledForTarget) assignPreviewRiderToExternalTarget(rider)
-                    }}
-                    title={interactive ? statusLabel : undefined}
-                    aria-disabled={interactive ? disabledForTarget : false}
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      gap: 10,
-                      padding: '6px 8px',
-                      borderRadius: 8,
-                      border: '1px solid #2a2a2a',
-                      background: categoryLocked ? '#f8fafc' : '#fff',
-                      fontWeight: 800,
-                      cursor: categoryLocked ? 'not-allowed' : interactive ? (disabledForTarget ? 'default' : 'pointer') : 'default',
-                      textAlign: 'left',
-                      opacity: categoryLocked ? 0.72 : 1,
-                    }}
-                  >
-                    <span style={{ display: 'grid', gap: 2 }}>
-                      <span>{rider.name}</span>
-                      <span style={{ color: '#64748b', fontSize: 12 }}>
-                        {categoryLocked
-                          ? 'Read only - kategori sudah didraw'
-                          : interactive
-                          ? isActiveTargetBatchFull
-                            ? `Batch target penuh (${activeTargetBatchRiders}/${maxBatchRiders})`
-                            : externalTargetField.moto === 1
-                              ? 'Belum masuk Moto 1'
-                              : 'Siap dipilih untuk Moto 2'
-                          : statusLabel}
+                    <button
+                      type="button"
+                      key={rider.id}
+                      onClick={() => {
+                        if (interactive && !disabledForTarget) assignPreviewRiderToExternalTarget(rider)
+                      }}
+                      title={interactive ? statusLabel : undefined}
+                      aria-disabled={interactive ? disabledForTarget : false}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: '12px 6px',
+                        borderRadius: 12,
+                        border: disabledForTarget || categoryLocked ? '1px solid #2a2a2a' : '1px solid #f8ce3d',
+                        background: categoryLocked || disabledForTarget ? '#1a1a1a' : '#111',
+                        cursor: categoryLocked ? 'not-allowed' : interactive ? (disabledForTarget ? 'default' : 'pointer') : 'default',
+                        textAlign: 'center',
+                        opacity: categoryLocked || disabledForTarget ? 0.5 : 1,
+                        boxShadow: disabledForTarget || categoryLocked ? 'none' : '0 4px 16px rgba(248, 206, 61, 0.15)',
+                        transition: 'all 0.2s ease',
+                      }}
+                    >
+                      <span style={{ fontSize: 24, fontWeight: 950, color: disabledForTarget || categoryLocked ? '#64748b' : '#f8ce3d', lineHeight: 1 }}>
+                        {rider.no_plate_display}
                       </span>
-                    </span>
-                    <span style={{ display: 'grid', gap: 2, justifyItems: 'end' }}>
-                      <span>{rider.no_plate_display}</span>
-                      {!categoryLocked && interactive && (
-                        <span
-                          style={{
-                            fontSize: 12,
-                            color: isActiveTargetBatchFull ? '#b45309' : '#f8ce3d',
-                            fontWeight: 900,
-                          }}
-                        >
-                          {isActiveTargetBatchFull ? 'Batch penuh' : 'Klik untuk masuk'}
+                      <span style={{ display: 'grid', gap: 2, width: '100%' }}>
+                        <span style={{ fontSize: 11, fontWeight: 800, color: '#e5e2e1', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', padding: '0 4px' }}>
+                          {rider.name}
                         </span>
-                      )}
-                    </span>
-                  </button>
-                )})}
+                        <span style={{ color: '#64748b', fontSize: 10, fontWeight: 700 }}>
+                          {categoryLocked
+                            ? 'Selesai'
+                            : interactive
+                              ? isActiveTargetBatchFull
+                                ? 'Penuh'
+                                : externalTargetField.moto === 1
+                                  ? 'Klik: Moto 1'
+                                  : 'Klik: Moto 2'
+                              : statusLabel}
+                        </span>
+                      </span>
+                    </button>
+                  )
+                })}
               </div>
             )}
           </div>
@@ -2084,21 +2127,6 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
               }}
             >
               <div style={{ position: 'relative', width: 360, height: 360 }}>
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: -10,
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    width: 0,
-                    height: 0,
-                    borderLeft: '16px solid transparent',
-                    borderRight: '16px solid transparent',
-                    borderBottom: '24px solid #ef4444',
-                    filter: 'drop-shadow(0 8px 14px rgba(239, 68, 68, 0.3))',
-                    zIndex: 3,
-                  }}
-                />
 
                 <canvas
                   ref={canvasRef}
@@ -2470,7 +2498,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                             opacity: isDragging ? 0.45 : 1,
                             cursor:
                               externalSelectedRider &&
-                              (externalSelectedRider.batchIndex !== batchIndex || externalSelectedRider.riderIndex !== riderIndex)
+                                (externalSelectedRider.batchIndex !== batchIndex || externalSelectedRider.riderIndex !== riderIndex)
                                 ? 'copy'
                                 : 'default',
                           }}
@@ -2650,8 +2678,8 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
             {!categoryLocked && batchLayouts.map((batch) => {
               const moto2Manual =
                 drawMode === 'external_draw' &&
-                externalBatchInputMode === 'PER_BATCH' &&
-                externalPerBatchValidation.moto2Provided
+                  externalBatchInputMode === 'PER_BATCH' &&
+                  externalPerBatchValidation.moto2Provided
                   ? externalPerBatchValidation.orderedMoto2Batches[batch.index - 1] ?? []
                   : []
               const moto2Riders = moto2Manual.length > 0 ? moto2Manual : [...batch.riders].reverse()
@@ -2708,7 +2736,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                 try {
                   const blobs: Blob[] = [];
                   const filenames: string[] = [];
-                  
+
                   if (categoryLocked) {
                     for (const batch of savedMotoBatches) {
                       const blob = await buildDrawBatchPngBlob({
@@ -2729,8 +2757,8 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                     for (const batch of batchLayouts) {
                       const moto2Manual =
                         drawMode === 'external_draw' &&
-                        externalBatchInputMode === 'PER_BATCH' &&
-                        externalPerBatchValidation.moto2Provided
+                          externalBatchInputMode === 'PER_BATCH' &&
+                          externalPerBatchValidation.moto2Provided
                           ? externalPerBatchValidation.orderedMoto2Batches[batch.index - 1] ?? []
                           : []
                       const moto2Riders = moto2Manual.length > 0 ? moto2Manual : [...batch.riders].reverse()
@@ -2759,7 +2787,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                       filenames.push(`${sanitizeFileName(eventName)}-${sanitizeFileName(selectedCategoryLabel)}-batch-${batch.index}.png`)
                     }
                   }
-                  
+
                   await shareOrDownloadPngs(blobs, filenames, `Hasil Draw - ${selectedCategoryLabel}`)
                 } catch (e) {
                   console.error(e)
@@ -2920,9 +2948,8 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                 <div style={{ color: '#334155', fontWeight: 700 }}>
                   {resultModal === 'saved'
                     ? 'Daftar moto yang sudah tersimpan untuk kategori ini.'
-                    : `Total rider ${drawnOrder.length} | ${batches.length} batch | gate max ${
-                        batchMode === 'CUSTOM_BATCH_SIZES' ? maxBatchRiders : batchSize
-                      }`}
+                    : `Total rider ${drawnOrder.length} | ${batches.length} batch | gate max ${batchMode === 'CUSTOM_BATCH_SIZES' ? maxBatchRiders : batchSize
+                    }`}
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -2932,12 +2959,12 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                     try {
                       const blobs: Blob[] = [];
                       const filenames: string[] = [];
-                      
+
                       for (const batch of batches) {
                         const moto2Manual =
                           drawMode === 'external_draw' &&
-                          externalBatchInputMode === 'PER_BATCH' &&
-                          externalPerBatchValidation.moto2Provided
+                            externalBatchInputMode === 'PER_BATCH' &&
+                            externalPerBatchValidation.moto2Provided
                             ? externalPerBatchValidation.orderedMoto2Batches[batch.index - 1] ?? []
                             : []
                         const moto2Riders = moto2Manual.length > 0 ? moto2Manual : [...batch.riders].reverse()
@@ -2965,7 +2992,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                         blobs.push(blob)
                         filenames.push(`${sanitizeFileName(eventName)}-${sanitizeFileName(selectedCategoryLabel)}-batch-${batch.index}.png`)
                       }
-                      
+
                       await shareOrDownloadPngs(blobs, filenames, `Hasil Draw - ${selectedCategoryLabel}`)
                     } catch (e) {
                       console.error(e)
@@ -3159,167 +3186,168 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                           const isDropTarget = dragTargetIndex === globalIndex && draggingRiderIndex !== globalIndex
                           const isSelected = selectedRiderIndex === globalIndex
                           return (
-                          <div
-                            key={rider.id}
-                            draggable
-                            onDragStart={(e) => {
-                              e.dataTransfer.setData('text/plain', String(globalIndex))
-                              e.dataTransfer.effectAllowed = 'move'
-                              setDraggingRiderIndex(globalIndex)
-                              setDragTargetIndex(globalIndex)
-                              setSelectedRiderIndex(null)
-                            }}
-                            onDragOver={(e) => {
-                              e.preventDefault()
-                              e.dataTransfer.dropEffect = 'move'
-                              if (dragTargetIndex !== globalIndex) setDragTargetIndex(globalIndex)
-                            }}
-                            onDrop={(e) => {
-                              e.preventDefault()
-                              const rawIndex = e.dataTransfer.getData('text/plain')
-                              const fromIndex =
-                                rawIndex !== '' && !Number.isNaN(Number(rawIndex))
-                                  ? Number(rawIndex)
-                                  : draggingRiderIndex
-                              if (fromIndex !== null) {
-                                moveRiderByDrag(fromIndex, globalIndex)
-                              }
-                              clearReorderState()
-                            }}
-                            onDragEnd={() => {
-                              clearReorderState()
-                            }}
-                            onClick={() => {
-                              if (selectedRiderIndex !== null && selectedRiderIndex !== globalIndex) {
-                                moveRiderByDrag(selectedRiderIndex, globalIndex)
-                                setSelectedRiderIndex(null)
-                              }
-                            }}
-                            style={{
-                              display: 'grid',
-                              gridTemplateColumns: 'auto auto minmax(0, 1fr) auto auto',
-                              alignItems: 'center',
-                              gap: 12,
-                              padding: '10px 12px',
-                              borderRadius: 14,
-                              border: isDropTarget ? '2px dashed #2563eb' : isSelected ? '2px solid #f59e0b' : '1px solid #dbeafe',
-                              background: isDropTarget ? '#dbeafe' : isSelected ? '#fffbeb' : idx % 2 === 0 ? '#eff6ff' : '#f8fafc',
-                              fontWeight: 800,
-                              opacity: isDragging ? 0.45 : 1,
-                              cursor: selectedRiderIndex !== null && selectedRiderIndex !== globalIndex ? 'copy' : 'grab',
-                              transform: isDropTarget ? 'scale(1.01)' : 'none',
-                            }}
-                          >
-                            <span
+                            <div
+                              key={rider.id}
                               draggable
                               onDragStart={(e) => {
-                                e.stopPropagation()
                                 e.dataTransfer.setData('text/plain', String(globalIndex))
                                 e.dataTransfer.effectAllowed = 'move'
                                 setDraggingRiderIndex(globalIndex)
                                 setDragTargetIndex(globalIndex)
                                 setSelectedRiderIndex(null)
                               }}
-                              title="Drag rider"
+                              onDragOver={(e) => {
+                                e.preventDefault()
+                                e.dataTransfer.dropEffect = 'move'
+                                if (dragTargetIndex !== globalIndex) setDragTargetIndex(globalIndex)
+                              }}
+                              onDrop={(e) => {
+                                e.preventDefault()
+                                const rawIndex = e.dataTransfer.getData('text/plain')
+                                const fromIndex =
+                                  rawIndex !== '' && !Number.isNaN(Number(rawIndex))
+                                    ? Number(rawIndex)
+                                    : draggingRiderIndex
+                                if (fromIndex !== null) {
+                                  moveRiderByDrag(fromIndex, globalIndex)
+                                }
+                                clearReorderState()
+                              }}
+                              onDragEnd={() => {
+                                clearReorderState()
+                              }}
+                              onClick={() => {
+                                if (selectedRiderIndex !== null && selectedRiderIndex !== globalIndex) {
+                                  moveRiderByDrag(selectedRiderIndex, globalIndex)
+                                  setSelectedRiderIndex(null)
+                                }
+                              }}
                               style={{
-                                width: 28,
-                                height: 28,
                                 display: 'grid',
-                                placeItems: 'center',
-                                borderRadius: 8,
-                                border: '1px solid #94a3b8',
-                                background: '#1c1b1b',
-                                color: '#e5e2e1',
-                                fontWeight: 900,
-                                cursor: 'grab',
-                                userSelect: 'none',
+                                gridTemplateColumns: 'auto auto minmax(0, 1fr) auto auto',
+                                alignItems: 'center',
+                                gap: 12,
+                                padding: '10px 12px',
+                                borderRadius: 14,
+                                border: isDropTarget ? '2px dashed #2563eb' : isSelected ? '2px solid #f59e0b' : '1px solid #dbeafe',
+                                background: isDropTarget ? '#dbeafe' : isSelected ? '#fffbeb' : idx % 2 === 0 ? '#eff6ff' : '#f8fafc',
+                                fontWeight: 800,
+                                opacity: isDragging ? 0.45 : 1,
+                                cursor: selectedRiderIndex !== null && selectedRiderIndex !== globalIndex ? 'copy' : 'grab',
+                                transform: isDropTarget ? 'scale(1.01)' : 'none',
                               }}
                             >
-                              ::
-                            </span>
-                            <span
-                              style={{
-                                minWidth: 66,
-                                textAlign: 'center',
-                                padding: '6px 8px',
-                                borderRadius: 0,
-                                background: '#201f1f',
-                                color: '#fff',
-                                fontSize: 12,
-                                fontWeight: 900,
-                              }}
-                            >
-                              Gate {idx + 1}
-                            </span>
-                            <span style={{ color: '#e5e2e1' }}>{rider.name}</span>
-                            <span style={{ color: '#475569' }}>{rider.no_plate_display}</span>
-                            <div style={{ display: 'flex', gap: 6, justifySelf: 'end' }}>
-                              <button
-                                type="button"
-                                onClick={(e) => {
+                              <span
+                                draggable
+                                onDragStart={(e) => {
                                   e.stopPropagation()
-                                  setSelectedRiderIndex((prev) => (prev === globalIndex ? null : globalIndex))
+                                  e.dataTransfer.setData('text/plain', String(globalIndex))
+                                  e.dataTransfer.effectAllowed = 'move'
+                                  setDraggingRiderIndex(globalIndex)
+                                  setDragTargetIndex(globalIndex)
+                                  setSelectedRiderIndex(null)
                                 }}
-                                title={isSelected ? 'Batalkan mode pindah' : 'Pilih rider untuk dipindahkan'}
+                                title="Drag rider"
                                 style={{
-                                  minWidth: 54,
-                                  height: 34,
-                                  padding: '0 10px',
-                                  borderRadius: 10,
+                                  width: 28,
+                                  height: 28,
+                                  display: 'grid',
+                                  placeItems: 'center',
+                                  borderRadius: 8,
                                   border: '1px solid #94a3b8',
-                                  background: isSelected ? '#fef3c7' : '#fff',
+                                  background: '#1c1b1b',
                                   color: '#e5e2e1',
                                   fontWeight: 900,
-                                  cursor: 'pointer',
+                                  cursor: 'grab',
+                                  userSelect: 'none',
                                 }}
                               >
-                                {isSelected ? 'Batal' : 'Pilih'}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  moveRiderInPreview(globalIndex, -1)
-                                }}
-                                disabled={!canMoveUp}
-                                title={isBatchStart ? 'Geser ke batch/gate sebelumnya' : 'Naik satu gate'}
+                                ::
+                              </span>
+                              <span
                                 style={{
-                                  width: 34,
-                                  height: 34,
-                                  borderRadius: 10,
-                                  border: '1px solid #94a3b8',
-                                  background: canMoveUp ? '#fff' : '#e2e8f0',
-                                  color: '#e5e2e1',
+                                  minWidth: 66,
+                                  textAlign: 'center',
+                                  padding: '6px 8px',
+                                  borderRadius: 0,
+                                  background: '#201f1f',
+                                  color: '#fff',
+                                  fontSize: 12,
                                   fontWeight: 900,
-                                  cursor: canMoveUp ? 'pointer' : 'not-allowed',
                                 }}
                               >
-                                ^
-                              </button>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  moveRiderInPreview(globalIndex, 1)
-                                }}
-                                disabled={!canMoveDown}
-                                title={isBatchEnd ? 'Geser ke batch/gate berikutnya' : 'Turun satu gate'}
-                                style={{
-                                  width: 34,
-                                  height: 34,
-                                  borderRadius: 10,
-                                  border: '1px solid #94a3b8',
-                                  background: canMoveDown ? '#fff' : '#e2e8f0',
-                                  color: '#e5e2e1',
-                                  fontWeight: 900,
-                                  cursor: canMoveDown ? 'pointer' : 'not-allowed',
-                                }}
-                              >
-                                v
-                              </button>
+                                Gate {idx + 1}
+                              </span>
+                              <span style={{ color: '#e5e2e1' }}>{rider.name}</span>
+                              <span style={{ color: '#475569' }}>{rider.no_plate_display}</span>
+                              <div style={{ display: 'flex', gap: 6, justifySelf: 'end' }}>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setSelectedRiderIndex((prev) => (prev === globalIndex ? null : globalIndex))
+                                  }}
+                                  title={isSelected ? 'Batalkan mode pindah' : 'Pilih rider untuk dipindahkan'}
+                                  style={{
+                                    minWidth: 54,
+                                    height: 34,
+                                    padding: '0 10px',
+                                    borderRadius: 10,
+                                    border: '1px solid #94a3b8',
+                                    background: isSelected ? '#fef3c7' : '#fff',
+                                    color: '#e5e2e1',
+                                    fontWeight: 900,
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  {isSelected ? 'Batal' : 'Pilih'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    moveRiderInPreview(globalIndex, -1)
+                                  }}
+                                  disabled={!canMoveUp}
+                                  title={isBatchStart ? 'Geser ke batch/gate sebelumnya' : 'Naik satu gate'}
+                                  style={{
+                                    width: 34,
+                                    height: 34,
+                                    borderRadius: 10,
+                                    border: '1px solid #94a3b8',
+                                    background: canMoveUp ? '#fff' : '#e2e8f0',
+                                    color: '#e5e2e1',
+                                    fontWeight: 900,
+                                    cursor: canMoveUp ? 'pointer' : 'not-allowed',
+                                  }}
+                                >
+                                  ^
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    moveRiderInPreview(globalIndex, 1)
+                                  }}
+                                  disabled={!canMoveDown}
+                                  title={isBatchEnd ? 'Geser ke batch/gate berikutnya' : 'Turun satu gate'}
+                                  style={{
+                                    width: 34,
+                                    height: 34,
+                                    borderRadius: 10,
+                                    border: '1px solid #94a3b8',
+                                    background: canMoveDown ? '#fff' : '#e2e8f0',
+                                    color: '#e5e2e1',
+                                    fontWeight: 900,
+                                    cursor: canMoveDown ? 'pointer' : 'not-allowed',
+                                  }}
+                                >
+                                  v
+                                </button>
+                              </div>
                             </div>
-                          </div>
-                        )})}
+                          )
+                        })}
                       </div>
                       <div style={{ marginTop: 12, display: 'grid', gap: 6, color: '#475569', fontWeight: 700 }}>
                         <div>
