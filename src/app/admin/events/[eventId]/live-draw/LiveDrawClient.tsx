@@ -879,7 +879,6 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     setDrawnOrder([])
     const shuffled = shuffle(riders)
     setWheelRiders(shuffled)
-    setDrawnOrder(shuffled)
     setHasDrawn(true)
     setResultModal(null)
 
@@ -903,6 +902,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       spinTimeoutRef.current = null
       rollingIntervalRef.current = null
       setRollingName(shuffled[index].name)
+      setDrawnOrder(shuffled)
       setDrawing(false)
       setResultModal('draft')
     }, 7200)
@@ -1307,31 +1307,31 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
 
   const drawLogo = async (ctx: CanvasRenderingContext2D, logoUrl: string | null) => {
     ctx.save()
-    drawRoundRect(ctx, 72, 74, 132, 132, 34)
-    ctx.fillStyle = '#fff7ed'
+    drawRoundRect(ctx, 64, 48, 116, 116, 28)
+    ctx.fillStyle = '#111'
     ctx.fill()
-    ctx.strokeStyle = 'rgba(255,255,255,0.38)'
+    ctx.strokeStyle = '#333'
     ctx.lineWidth = 2
     ctx.stroke()
     if (logoUrl) {
       try {
         const logo = await loadCanvasImage(logoUrl)
-        const size = 102
+        const size = 92
         ctx.save()
-        drawRoundRect(ctx, 87, 89, size, size, 26)
+        drawRoundRect(ctx, 76, 60, size, size, 20)
         ctx.clip()
-        ctx.drawImage(logo, 87, 89, size, size)
+        ctx.drawImage(logo, 76, 60, size, size)
         ctx.restore()
       } catch {
-        ctx.fillStyle = '#facc15'
+        ctx.fillStyle = '#f8ce3d'
         ctx.beginPath()
-        ctx.arc(138, 140, 42, 0, Math.PI * 2)
+        ctx.arc(122, 106, 34, 0, Math.PI * 2)
         ctx.fill()
       }
     } else {
-      ctx.fillStyle = '#facc15'
+      ctx.fillStyle = '#f8ce3d'
       ctx.beginPath()
-      ctx.arc(138, 140, 42, 0, Math.PI * 2)
+      ctx.arc(122, 106, 34, 0, Math.PI * 2)
       ctx.fill()
     }
     ctx.restore()
@@ -1348,20 +1348,22 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     }>
   }) => {
     const canvas = document.createElement('canvas')
-    canvas.width = 1080
-    canvas.height = 1920
+    canvas.width = 1920
+    canvas.height = 1080
     const ctx = canvas.getContext('2d')
     if (!ctx) throw new Error('Canvas tidak tersedia.')
 
-    const gradient = ctx.createLinearGradient(0, 0, 1080, 1920)
-    gradient.addColorStop(0, '#1f0b04')
-    gradient.addColorStop(0.48, '#c2410c')
-    gradient.addColorStop(1, '#fde68a')
+    // Dark gradient background
+    const gradient = ctx.createLinearGradient(0, 0, 1920, 1080)
+    gradient.addColorStop(0, '#1a1a1a')
+    gradient.addColorStop(0.5, '#0e0e0e')
+    gradient.addColorStop(1, '#050505')
     ctx.fillStyle = gradient
-    ctx.fillRect(0, 0, 1080, 1920)
+    ctx.fillRect(0, 0, 1920, 1080)
 
-    ctx.fillStyle = 'rgba(255,255,255,0.08)'
-    for (let i = -220; i < 1180; i += 120) {
+    // Checkered pattern subtle overlay
+    ctx.fillStyle = 'rgba(255,255,255,0.02)'
+    for (let i = -220; i < 2200; i += 120) {
       ctx.save()
       ctx.translate(i, 0)
       ctx.rotate(-0.35)
@@ -1371,62 +1373,93 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
 
     await drawLogo(ctx, eventLogoUrl)
 
-    ctx.fillStyle = '#fef3c7'
-    ctx.font = '900 30px Arial, Helvetica, sans-serif'
-    ctx.fillText('DRAW RESULT', 234, 116)
+    // Header Left Text
+    ctx.textAlign = 'left'
+    ctx.fillStyle = '#f8ce3d'
+    ctx.font = 'italic 900 24px Arial, Helvetica, sans-serif'
+    ctx.fillText('DRAW RESULT', 204, 86)
     ctx.fillStyle = '#ffffff'
-    ctx.font = '900 42px Arial, Helvetica, sans-serif'
-    wrapCanvasText(ctx, eventName, 234, 166, 760, 48, 2)
+    ctx.font = 'italic 900 38px Arial, Helvetica, sans-serif'
+    wrapCanvasText(ctx, eventName, 204, 132, 800, 42, 1)
 
-    ctx.fillStyle = '#facc15'
-    ctx.font = '900 34px Arial, Helvetica, sans-serif'
-    ctx.fillText(selectedCategoryLabel.toUpperCase(), 74, 294)
+    // Header Right Text
+    ctx.textAlign = 'right'
+    ctx.fillStyle = '#e9c400'
+    ctx.font = 'italic 900 28px Arial, Helvetica, sans-serif'
+    ctx.fillText(selectedCategoryLabel.toUpperCase(), 1856, 86)
     ctx.fillStyle = '#ffffff'
-    ctx.font = '900 78px Arial, Helvetica, sans-serif'
-    ctx.fillText(batchLabel.toUpperCase(), 72, 380)
+    ctx.font = 'italic 900 64px Arial, Helvetica, sans-serif'
+    ctx.fillText(batchLabel.toUpperCase(), 1856, 150)
+    ctx.textAlign = 'left'
 
-    let y = 470
+    // Calculate dynamic columns based on number of motos
+    const numMotos = Math.max(1, motos.length)
+    const gap = 32
+    const totalWidth = 1792
+    const colWidth = (totalWidth - (gap * (numMotos - 1))) / numMotos
+
     motos.forEach((moto, motoIndex) => {
-      drawRoundRect(ctx, 64, y, 952, 86, 28)
-      ctx.fillStyle = motoIndex === 0 ? '#111827' : '#facc15'
-      ctx.fill()
-      ctx.fillStyle = motoIndex === 0 ? '#ffffff' : '#1f0b04'
-      ctx.font = '900 34px Arial, Helvetica, sans-serif'
-      ctx.fillText(moto.title.toUpperCase(), 100, y + 55)
-      y += 112
+      const x = 64 + (colWidth + gap) * motoIndex
+      let y = 210
 
-      moto.rows.slice(0, 14).forEach((row, rowIndex) => {
-        const rowHeight = 78
-        drawRoundRect(ctx, 74, y, 932, rowHeight, 24)
-        ctx.fillStyle = rowIndex % 2 === 0 ? 'rgba(255,255,255,0.94)' : 'rgba(255,247,237,0.94)'
+      // Moto Title BG
+      drawRoundRect(ctx, x, y, colWidth, 54, 12)
+      ctx.fillStyle = '#f8ce3d'
+      ctx.fill()
+      ctx.fillStyle = '#1c1b1b'
+      ctx.font = 'italic 900 24px Arial, Helvetica, sans-serif'
+      ctx.fillText(moto.title.toUpperCase(), x + 24, y + 36)
+      y += 74
+
+      moto.rows.slice(0, 14).forEach((row) => {
+        const rowHeight = 64
+        drawRoundRect(ctx, x, y, colWidth, rowHeight, 10)
+        ctx.fillStyle = '#151515'
         ctx.fill()
-        ctx.fillStyle = '#111827'
-        ctx.font = '900 26px Arial, Helvetica, sans-serif'
-        ctx.fillText(`G${row.gate}`, 104, y + 49)
-        ctx.fillStyle = '#b45309'
-        ctx.fillText(row.plate, 190, y + 49)
-        ctx.fillStyle = '#111827'
-        ctx.font = '800 25px Arial, Helvetica, sans-serif'
-        wrapCanvasText(ctx, row.name, 310, y + 33, 650, 30, 1)
-        y += rowHeight + 12
+        ctx.lineWidth = 2
+        ctx.strokeStyle = '#2a2a2a'
+        ctx.stroke()
+        
+        // Red accent line on left edge
+        ctx.fillStyle = '#f8ce3d'
+        ctx.beginPath()
+        ctx.moveTo(x + 10, y)
+        ctx.lineTo(x, y + 10)
+        ctx.lineTo(x, y + rowHeight - 10)
+        ctx.lineTo(x + 10, y + rowHeight)
+        ctx.lineTo(x + 6, y + rowHeight)
+        ctx.lineTo(x + 6, y)
+        ctx.fill()
+
+        ctx.fillStyle = '#ffffff'
+        ctx.font = '900 22px Arial, Helvetica, sans-serif'
+        ctx.fillText(`G${row.gate}`, x + 34, y + 40)
+        ctx.fillStyle = '#e9c400'
+        ctx.fillText(row.plate, x + 84, y + 40)
+        ctx.fillStyle = '#e5e2e1'
+        ctx.font = '800 21px Arial, Helvetica, sans-serif'
+        wrapCanvasText(ctx, row.name, x + 160, y + 27, colWidth - 170, 24, 1)
+        y += rowHeight + 10
       })
 
       if (moto.rows.length > 14) {
-        ctx.fillStyle = '#fff7ed'
-        ctx.font = '900 24px Arial, Helvetica, sans-serif'
-        ctx.fillText(`+ ${moto.rows.length - 14} rider lainnya`, 96, y + 20)
-        y += 54
+        ctx.fillStyle = '#888'
+        ctx.font = '900 20px Arial, Helvetica, sans-serif'
+        ctx.fillText(`+ ${moto.rows.length - 14} rider lainnya`, x + 24, y + 18)
+        y += 40
       }
-
-      y += 34
     })
 
-    ctx.fillStyle = 'rgba(17,24,39,0.86)'
-    drawRoundRect(ctx, 72, 1762, 936, 86, 32)
+    // Footer
+    ctx.fillStyle = '#151515'
+    drawRoundRect(ctx, 64, 960, 1792, 70, 14)
     ctx.fill()
-    ctx.fillStyle = '#fde68a'
-    ctx.font = '900 27px Arial, Helvetica, sans-serif'
-    ctx.fillText('Cek nomor plate dan gate masing-masing sebelum race.', 108, 1816)
+    ctx.lineWidth = 2
+    ctx.strokeStyle = '#2a2a2a'
+    ctx.stroke()
+    ctx.fillStyle = '#f8ce3d'
+    ctx.font = '900 22px Arial, Helvetica, sans-serif'
+    ctx.fillText('Cek nomor plate dan gate masing-masing sebelum race.', 96, 1004)
 
     const pngBlob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png', 1))
     if (!pngBlob) throw new Error('Gagal membuat PNG.')
@@ -1455,6 +1488,33 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
     link.click()
     link.remove()
     URL.revokeObjectURL(url)
+  }
+
+  const shareOrDownloadPngs = async (blobs: Blob[], filenames: string[], title: string) => {
+    const files = blobs.map((blob, i) => new File([blob], filenames[i], { type: 'image/png' }))
+    const canShareFiles =
+      typeof navigator.canShare === 'function' &&
+      navigator.canShare({ files })
+    if (navigator.share && canShareFiles) {
+      try {
+        await navigator.share({ title, files })
+        return
+      } catch (err: unknown) {
+        if (err instanceof DOMException && err.name === 'AbortError') return
+      }
+    }
+
+    // Fallback: download them sequentially
+    blobs.forEach((blob, i) => {
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = filenames[i]
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+    })
   }
 
   const downloadDraftBatchPng = async (batch: (typeof batchLayouts)[number]) => {
@@ -1860,7 +1920,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
             </div>
             <div style={{ fontSize: 22, fontWeight: 950, color: '#e5e2e1' }}>{rollingName}</div>
             {drawing && (
-              <div style={{ color: '#1d4ed8', fontWeight: 900 }}>
+              <div style={{ color: '#f8ce3d', fontWeight: 900 }}>
                 Sedang mengundi rider, tunggu sampai hasil preview muncul otomatis.
               </div>
             )}
@@ -1886,7 +1946,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                     borderRadius: 0,
                     border: categoryLocked ? '1px solid #cbd5e1' : '1px solid #bfdbfe',
                     background: categoryLocked ? '#f8fafc' : '#eff6ff',
-                    color: categoryLocked ? '#475569' : '#1d4ed8',
+                    color: categoryLocked ? '#475569' : '#f8ce3d',
                     fontWeight: 800,
                   }}
                 >
@@ -2000,7 +2060,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                         <span
                           style={{
                             fontSize: 12,
-                            color: isActiveTargetBatchFull ? '#b45309' : '#1d4ed8',
+                            color: isActiveTargetBatchFull ? '#b45309' : '#f8ce3d',
                             fontWeight: 900,
                           }}
                         >
@@ -2039,16 +2099,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                     zIndex: 3,
                   }}
                 />
-                <div
-                  style={{
-                    position: 'absolute',
-                    inset: 8,
-                    borderRadius: '50%',
-                    background: 'radial-gradient(circle at 30% 30%, rgba(28,27,27,0.85), rgba(28,27,27,0))',
-                    pointerEvents: 'none',
-                    zIndex: 2,
-                  }}
-                />
+
                 <canvas
                   ref={canvasRef}
                   width={360}
@@ -2074,7 +2125,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                     padding: '12px 16px',
                     borderRadius: 0,
                     border: '1px solid #353534',
-                    background: drawing || hasDrawn || (batchMode === 'CUSTOM_BATCH_SIZES' && Boolean(customBatchError)) ? '#ddd' : '#2ecc71',
+                    background: drawing || hasDrawn || (batchMode === 'CUSTOM_BATCH_SIZES' && Boolean(customBatchError)) ? '#ddd' : '#f8ce3d',
                     fontWeight: 900,
                     cursor: drawing || hasDrawn || (batchMode === 'CUSTOM_BATCH_SIZES' && Boolean(customBatchError)) ? 'not-allowed' : 'pointer',
                   }}
@@ -2084,7 +2135,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                 {drawnOrder.length > 0 && !categoryLocked && (
                   <button
                     type="button"
-                    onClick={() => setResultModal('draft')}
+                    onClick={resetDraw}
                     style={{
                       padding: '12px 16px',
                       borderRadius: 0,
@@ -2094,7 +2145,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                       cursor: 'pointer',
                     }}
                   >
-                    Lihat Hasil Draw
+                    Ulangi Draw
                   </button>
                 )}
                 {categoryLocked && (
@@ -2114,20 +2165,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                         {deleteGuard.reason}
                       </div>
                     )}
-                    <button
-                      type="button"
-                      onClick={() => setResultModal('saved')}
-                      style={{
-                        padding: '12px 16px',
-                        borderRadius: 0,
-                        border: '1px solid #353534',
-                        background: '#1c1b1b',
-                        fontWeight: 900,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Lihat Moto Tersimpan
-                    </button>
+
                     <button
                       type="button"
                       onClick={resetLockedDraw}
@@ -2164,7 +2202,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                   background: '#141414',
                 }}
               >
-                <div style={{ fontWeight: 900, color: '#1d4ed8' }}>Target aktif</div>
+                <div style={{ fontWeight: 900, color: '#f8ce3d' }}>Target aktif</div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   {Array.from({ length: externalPerBatchValidation.batchCount }, (_, index) => (
                     <button
@@ -2176,7 +2214,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                         borderRadius: 0,
                         border: '1px solid #93c5fd',
                         background: externalTargetField.batchIndex === index ? '#dbeafe' : '#fff',
-                        color: externalTargetField.batchIndex === index ? '#1d4ed8' : '#334155',
+                        color: externalTargetField.batchIndex === index ? '#f8ce3d' : '#334155',
                         fontWeight: 900,
                         cursor: 'pointer',
                       }}
@@ -2196,7 +2234,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                         borderRadius: 0,
                         border: '1px solid #93c5fd',
                         background: externalTargetField.moto === moto ? '#dbeafe' : '#fff',
-                        color: externalTargetField.moto === moto ? '#1d4ed8' : '#334155',
+                        color: externalTargetField.moto === moto ? '#f8ce3d' : '#334155',
                         fontWeight: 900,
                         cursor: 'pointer',
                       }}
@@ -2243,7 +2281,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                       color:
                         batch.length > 0
                           ? externalTargetField.batchIndex === index
-                            ? '#1d4ed8'
+                            ? '#f8ce3d'
                             : '#334155'
                           : '#b45309',
                       fontWeight: 900,
@@ -2302,7 +2340,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                     borderRadius: 0,
                     border: '1px solid #bfdbfe',
                     background: '#141414',
-                    color: '#1d4ed8',
+                    color: '#f8ce3d',
                     fontWeight: 800,
                   }}
                 >
@@ -2370,7 +2408,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                           padding: '6px 10px',
                           borderRadius: 0,
                           background: '#0a1628',
-                          color: '#1d4ed8',
+                          color: '#f8ce3d',
                           fontWeight: 900,
                           fontSize: 12,
                         }}
@@ -2535,7 +2573,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                     padding: '12px 16px',
                     borderRadius: 0,
                     border: '1px solid #353534',
-                    background: applyButtonReady ? '#2ecc71' : '#fef3c7',
+                    background: applyButtonReady ? '#f8ce3d' : '#fef3c7',
                     fontWeight: 900,
                     cursor: applyButtonEnabled ? 'pointer' : 'not-allowed',
                   }}
@@ -2545,7 +2583,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                 {drawnOrder.length > 0 && !categoryLocked && (
                   <button
                     type="button"
-                    onClick={() => setResultModal('draft')}
+                    onClick={resetDraw}
                     style={{
                       padding: '12px 16px',
                       borderRadius: 0,
@@ -2555,25 +2593,12 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                       cursor: 'pointer',
                     }}
                   >
-                    Lihat Hasil Draw
+                    Ulangi Draw
                   </button>
                 )}
                 {categoryLocked && (
                   <>
-                    <button
-                      type="button"
-                      onClick={() => setResultModal('saved')}
-                      style={{
-                        padding: '12px 16px',
-                        borderRadius: 0,
-                        border: '1px solid #353534',
-                        background: '#1c1b1b',
-                        fontWeight: 900,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Lihat Moto Tersimpan
-                    </button>
+
                     <button
                       type="button"
                       onClick={resetLockedDraw}
@@ -2599,7 +2624,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
         <aside className="ld-results-panel">
           <div className="ld-results-panel__head">
             <div>
-              <div className="ld-kicker">Live Results</div>
+              <div className="ld-kicker">Draw Result</div>
               <div className="ld-results-panel__meta">
                 {categoryLocked
                   ? `${savedMotoBatches.length} batch tersimpan`
@@ -2679,15 +2704,79 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
           <div className="ld-results-panel__footer">
             <button
               type="button"
-              onClick={() =>
-                shareTextOutput(
-                  `Draw ${selectedCategoryLabel}`,
-                  categoryLocked ? buildSavedCategoryShareText() : buildDraftCategoryShareText()
-                )
-              }
+              onClick={async () => {
+                try {
+                  const blobs: Blob[] = [];
+                  const filenames: string[] = [];
+                  
+                  if (categoryLocked) {
+                    for (const batch of savedMotoBatches) {
+                      const blob = await buildDrawBatchPngBlob({
+                        batchLabel: `Batch ${batch.batchNo}`,
+                        motos: batch.motos.map((moto) => ({
+                          title: moto.moto_name,
+                          rows: moto.gates.map((gate) => ({
+                            gate: gate.gate_position,
+                            plate: gate.no_plate_display,
+                            name: gate.name,
+                          })),
+                        })),
+                      })
+                      blobs.push(blob)
+                      filenames.push(`${sanitizeFileName(eventName)}-${sanitizeFileName(selectedCategoryLabel)}-batch-${batch.batchNo}.png`)
+                    }
+                  } else {
+                    for (const batch of batchLayouts) {
+                      const moto2Manual =
+                        drawMode === 'external_draw' &&
+                        externalBatchInputMode === 'PER_BATCH' &&
+                        externalPerBatchValidation.moto2Provided
+                          ? externalPerBatchValidation.orderedMoto2Batches[batch.index - 1] ?? []
+                          : []
+                      const moto2Riders = moto2Manual.length > 0 ? moto2Manual : [...batch.riders].reverse()
+                      const blob = await buildDrawBatchPngBlob({
+                        batchLabel: `Batch ${batch.index}`,
+                        motos: [
+                          {
+                            title: 'Moto 1',
+                            rows: batch.riders.map((rider, i) => ({
+                              gate: i + 1,
+                              plate: rider.no_plate_display,
+                              name: rider.name,
+                            })),
+                          },
+                          {
+                            title: 'Moto 2',
+                            rows: moto2Riders.map((rider, i) => ({
+                              gate: i + 1,
+                              plate: rider.no_plate_display,
+                              name: rider.name,
+                            })),
+                          },
+                        ],
+                      })
+                      blobs.push(blob)
+                      filenames.push(`${sanitizeFileName(eventName)}-${sanitizeFileName(selectedCategoryLabel)}-batch-${batch.index}.png`)
+                    }
+                  }
+                  
+                  await shareOrDownloadPngs(blobs, filenames, `Hasil Draw - ${selectedCategoryLabel}`)
+                } catch (e) {
+                  console.error(e)
+                  alert('Gagal membagikan draw')
+                }
+              }}
               disabled={!categoryLocked && drawnOrder.length === 0}
+              style={{
+                background: '#f8ce3d',
+                color: '#111',
+                fontWeight: 900,
+                border: 'none',
+                padding: '12px 16px',
+                cursor: 'pointer'
+              }}
             >
-              Share 1 Kategori
+              Bagikan Draw
             </button>
             {categoryLocked && (
               <button type="button" onClick={handleDownloadLiveDrawPdf}>
@@ -2836,20 +2925,80 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                       }`}
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setResultModal(null)}
-                style={{
-                  padding: '10px 12px',
-                  borderRadius: 0,
-                  border: '1px solid #353534',
-                  background: '#1c1b1b',
-                  fontWeight: 900,
-                  cursor: 'pointer',
-                }}
-              >
-                Tutup
-              </button>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const blobs: Blob[] = [];
+                      const filenames: string[] = [];
+                      
+                      for (const batch of batches) {
+                        const moto2Manual =
+                          drawMode === 'external_draw' &&
+                          externalBatchInputMode === 'PER_BATCH' &&
+                          externalPerBatchValidation.moto2Provided
+                            ? externalPerBatchValidation.orderedMoto2Batches[batch.index - 1] ?? []
+                            : []
+                        const moto2Riders = moto2Manual.length > 0 ? moto2Manual : [...batch.riders].reverse()
+                        const blob = await buildDrawBatchPngBlob({
+                          batchLabel: `Batch ${batch.index}`,
+                          motos: [
+                            {
+                              title: 'Moto 1',
+                              rows: batch.riders.map((rider, i) => ({
+                                gate: i + 1,
+                                plate: rider.no_plate_display,
+                                name: rider.name,
+                              })),
+                            },
+                            {
+                              title: 'Moto 2',
+                              rows: moto2Riders.map((rider, i) => ({
+                                gate: i + 1,
+                                plate: rider.no_plate_display,
+                                name: rider.name,
+                              })),
+                            },
+                          ],
+                        })
+                        blobs.push(blob)
+                        filenames.push(`${sanitizeFileName(eventName)}-${sanitizeFileName(selectedCategoryLabel)}-batch-${batch.index}.png`)
+                      }
+                      
+                      await shareOrDownloadPngs(blobs, filenames, `Hasil Draw - ${selectedCategoryLabel}`)
+                    } catch (e) {
+                      console.error(e)
+                      alert('Gagal membagikan draw')
+                    }
+                  }}
+                  style={{
+                    padding: '10px 12px',
+                    borderRadius: 0,
+                    border: '1px solid #353534',
+                    background: '#1a0000',
+                    color: '#f8ce3d',
+                    fontWeight: 900,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Bagikan Draw
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setResultModal(null)}
+                  style={{
+                    padding: '10px 12px',
+                    borderRadius: 0,
+                    border: '1px solid #353534',
+                    background: '#1c1b1b',
+                    fontWeight: 900,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Tutup
+                </button>
+              </div>
             </div>
 
             <div style={{ overflowY: 'auto', padding: 22, display: 'grid', gap: 16 }}>
@@ -2862,7 +3011,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                         borderRadius: 0,
                         border: '1px solid #93c5fd',
                         background: '#141414',
-                        color: '#1d4ed8',
+                        color: '#f8ce3d',
                         fontWeight: 900,
                       }}
                     >
@@ -2876,7 +3025,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                         borderRadius: 0,
                         border: '1px solid #bfdbfe',
                         background: '#141414',
-                        color: '#1d4ed8',
+                        color: '#f8ce3d',
                         fontWeight: 800,
                       }}
                     >
@@ -2951,7 +3100,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                               padding: '6px 10px',
                               borderRadius: 0,
                               background: '#0a1628',
-                              color: '#1d4ed8',
+                              color: '#f8ce3d',
                               fontWeight: 900,
                               fontSize: 12,
                             }}
@@ -2976,7 +3125,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                               cursor: 'pointer',
                             }}
                           >
-                            Share Output
+                            Salin Teks
                           </button>
                           <button
                             type="button"
@@ -2995,7 +3144,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                               cursor: 'pointer',
                             }}
                           >
-                            PNG Story
+                            Bagikan Draw
                           </button>
                         </div>
                       </div>
@@ -3219,7 +3368,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                             cursor: 'pointer',
                           }}
                         >
-                          Share Output
+                          Salin Teks
                         </button>
                         <button
                           type="button"
@@ -3238,7 +3387,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
                             cursor: 'pointer',
                           }}
                         >
-                          PNG Story
+                          Bagikan Draw
                         </button>
                       </div>
                       {batch.motos.map((moto) => (

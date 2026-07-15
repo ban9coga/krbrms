@@ -3,7 +3,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { ThemeToggleSwitch, useTheme } from '../../components/ThemeProvider'
 import { canAccessAdminWorkspace, formatAppRoleLabel, isRegistrationApproverRole, normalizeAppRole } from '../../lib/roles'
 import { supabase } from '../../lib/supabaseClient'
@@ -276,7 +276,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname()
   const router = useRouter()
   const { theme } = useTheme()
-  const isDark = theme === 'dark'
+  const mounted = useSyncExternalStore(
+    () => () => undefined,
+    () => true,
+    () => false
+  )
+  const isDark = mounted && theme === 'dark'
 
   const [isMobile, setIsMobile] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
