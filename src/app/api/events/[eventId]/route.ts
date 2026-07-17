@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin, requireBackoffice, verifyPasswordForAuthHeader } from '../../../../lib/auth'
 import { applyBestTeamSettingsNormalization } from '../../../../lib/bestTeam'
+import { cleanupEventMedia } from '../../../../lib/eventMediaCleanup'
 import { syncAdvancedRaceProgress } from '../../../../services/advancedRaceAuto'
 import type { BusinessSettings } from '../../../../lib/eventService'
 import { proxyBusinessSettingsMedia, toPublicMediaUrl, toPublicMediaUrls } from '../../../../lib/publicMedia'
@@ -235,8 +236,16 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ event
     return NextResponse.json({ error: 'Password Central Admin tidak valid.' }, { status: 403 })
   }
 
+  const mediaCleanup = await cleanupEventMedia(eventId)
+
   const { error } = await adminClient.from('events').delete().eq('id', eventId)
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({
+    ok: true,
+    media_cleanup: {
+      removed: mediaCleanup.removed,
+      warning: mediaCleanup.warning,
+    },
+  })
 }
 
