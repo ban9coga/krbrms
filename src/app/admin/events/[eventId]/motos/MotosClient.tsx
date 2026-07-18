@@ -95,6 +95,10 @@ type GateMotoItem = {
   }>
 }
 
+const shouldPollMotos = (eventStatus: string | null, autoRefreshEnabled: boolean) => {
+  return autoRefreshEnabled && eventStatus === 'LIVE'
+}
+
 const getAllowedMotoStatuses = (current: MotoItem['status']) => {
   switch (current) {
     case 'UPCOMING':
@@ -154,6 +158,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
   const [eventStatus, setEventStatus] = useState<'UPCOMING' | 'READY' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED' | null>(null)
   const [eventName, setEventName] = useState('Event')
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true)
   const [advancedEnabledByCategory, setAdvancedEnabledByCategory] = useState<Record<string, boolean>>({})
   const [advancedSummaryByCategory, setAdvancedSummaryByCategory] = useState<Record<string, AdvancedSummaryItem>>({})
   const [computingCategoryId, setComputingCategoryId] = useState<string | null>(null)
@@ -237,12 +242,14 @@ export default function MotosClient({ eventId }: { eventId: string }) {
 
   useEffect(() => {
     if (!eventId) return
+    if (!shouldPollMotos(eventStatus, autoRefreshEnabled)) return
     const interval = window.setInterval(() => {
+      if (document.visibilityState === 'hidden') return
       void load('refresh', { includeAdvancedSummary: false })
     }, 5000)
     return () => window.clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [eventId])
+  }, [eventId, eventStatus, autoRefreshEnabled])
 
   const categoryLabel = useMemo(() => {
     const map = new Map<string, string>()
@@ -853,6 +860,8 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     }, 350)
   }
 
+  const isAutoRefreshActive = shouldPollMotos(eventStatus, autoRefreshEnabled)
+
   return (
     <div style={{ maxWidth: 980, width: '100%' }} className="admin-compact-page motos-print-root">
       <div className="no-print motos-topbar" style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
@@ -861,6 +870,24 @@ export default function MotosClient({ eventId }: { eventId: string }) {
           <div style={{ fontSize: 12, fontWeight: 800, color: '#475569' }}>{eventName}</div>
         </div>
         <div className="motos-global-actions" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button
+            type="button"
+            onClick={() => setAutoRefreshEnabled((value) => !value)}
+            className={isAutoRefreshActive ? 'admin-primary-button' : 'admin-outline-button'}
+            style={{
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              background: isAutoRefreshActive ? '#16a34a' : undefined,
+              borderColor: isAutoRefreshActive ? '#14532d' : undefined,
+            }}
+            title={
+              eventStatus === 'LIVE'
+                ? 'Aktif/nonaktifkan polling otomatis halaman motos.'
+                : 'Auto refresh hanya berjalan saat event LIVE.'
+            }
+          >
+            {isAutoRefreshActive ? 'Auto Refresh ON' : 'Auto Refresh OFF'}
+          </button>
           <button
             type="button"
             onClick={() => load('refresh', { includeAdvancedSummary: true })}

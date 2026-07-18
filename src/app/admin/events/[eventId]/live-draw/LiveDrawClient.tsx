@@ -1815,19 +1815,39 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
           <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
             Mode
           </div>
-          <div
-            style={{
-              width: 'fit-content',
-              borderRadius: 0,
-              border: '1px solid #353534',
-              padding: '6px 10px',
-              fontWeight: 900,
-              background: drawMode === 'external_draw' ? '#fef3c7' : '#dcfce7',
-              color: '#e5e2e1',
-            }}
-          >
-            {drawMode === 'external_draw' ? 'External Draw' : 'Internal Live Draw'}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {[
+              { value: 'internal_live_draw' as const, label: 'Internal Live Draw' },
+              { value: 'external_draw' as const, label: 'External Draw / Restore' },
+            ].map((option) => {
+              const active = drawMode === option.value
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setDrawMode(option.value)}
+                  disabled={categoryLocked}
+                  style={{
+                    border: active ? '1px solid #f8ce3d' : '1px solid #353534',
+                    background: active ? '#f8ce3d' : '#111',
+                    color: active ? '#111' : '#e5e2e1',
+                    cursor: categoryLocked ? 'not-allowed' : 'pointer',
+                    fontWeight: 950,
+                    opacity: categoryLocked ? 0.55 : 1,
+                    padding: '10px 12px',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  {option.label}
+                </button>
+              )
+            })}
           </div>
+          {categoryLocked && (
+            <div style={{ color: '#f87171', fontSize: 12, fontWeight: 900 }}>
+              Mode tidak bisa diubah karena kategori ini sudah memiliki moto tersimpan.
+            </div>
+          )}
         </div>
 
         <div className="ld-category-field" style={{ display: 'grid', gap: 8 }}>
