@@ -23,6 +23,8 @@ type MotoItem = {
   is_published?: boolean | null
 }
 
+type EventStatus = 'UPCOMING' | 'READY' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED'
+
 type GateMotoItem = {
   id: string
   moto_name: string
@@ -81,6 +83,10 @@ const compareLockedLast = (a: MotoItem, b: MotoItem) => {
   return a.moto_order - b.moto_order
 }
 
+const shouldPollMotoSequence = (eventStatus: EventStatus | null, autoRefreshEnabled: boolean) => {
+  return autoRefreshEnabled && eventStatus === 'LIVE'
+}
+
 const buildContiguousMotoGroups = (sequence: MotoItem[]) => {
   const groups: Array<{
     categoryId: string
@@ -129,11 +135,15 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [savingSequence, setSavingSequence] = useState(false)
+  const [eventStatus, setEventStatus] = useState<EventStatus | null>(null)
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true)
   const [motoOrderDirty, setMotoOrderDirty] = useState(false)
   const [savedMotoOrderById, setSavedMotoOrderById] = useState<Record<string, number>>({})
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
   const [draggingMotoId, setDraggingMotoId] = useState<string | null>(null)
   const [dragOverMotoId, setDragOverMotoId] = useState<string | null>(null)
+  const [draggingBlockCategoryId, setDraggingBlockCategoryId] = useState<string | null>(null)
+  const [dragOverBlockCategoryId, setDragOverBlockCategoryId] = useState<string | null>(null)
   const motoOrderDirtyRef = useRef(false)
 
   const setMotoOrderDirtyValue = useCallback((dirty: boolean) => {
@@ -179,9 +189,10 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
 
       try {
         const nonce = Date.now()
-        const [categoryRes, motoRes] = await Promise.all([
+        const [categoryRes, motoRes, eventJson] = await Promise.all([
           fetch(`/api/events/${eventId}/categories?_=${nonce}`, { cache: 'no-store' }),
           fetch(`/api/motos?event_id=${eventId}&_=${nonce}`, { cache: 'no-store' }),
+          apiFetch(`/api/events/${eventId}`),
         ])
 
         const categoryJson = await categoryRes.json().catch(() => ({}))
@@ -189,6 +200,7 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
 
         const enabledCategories = ((categoryJson?.data ?? []) as CategoryItem[]).filter((category) => category.enabled)
         const motoRows = (motoJson?.data ?? []) as MotoItem[]
+        setEventStatus((eventJson?.data?.status ?? null) as EventStatus | null)
 
         setCategories(enabledCategories)
         if (!(mode === 'refresh' && motoOrderDirtyRef.current)) {
@@ -210,7 +222,7 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
         setHasLoadedOnce(true)
       }
     },
-    [eventId, hasLoadedOnce, loadGateOrders, setMotoOrderDirtyValue]
+    [apiFetch, eventId, hasLoadedOnce, loadGateOrders, setMotoOrderDirtyValue]
   )
 
   const saveCategorySequence = useCallback(
@@ -240,11 +252,13 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
 
   useEffect(() => {
     if (!eventId) return
+    if (!shouldPollMotoSequence(eventStatus, autoRefreshEnabled)) return
     const interval = window.setInterval(() => {
+      if (document.visibilityState === 'hidden') return
       void loadData('refresh')
     }, 5000)
     return () => window.clearInterval(interval)
-  }, [eventId, loadData])
+  }, [autoRefreshEnabled, eventId, eventStatus, loadData])
 
   const categoryLabel = useMemo(() => {
     const map = new Map<string, string>()
@@ -392,6 +406,50 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
     const [picked] = next.splice(sourceIndex, 1)
     next.splice(targetIndex, 0, picked)
     applyDraftMotoOrder(next)
+  }
+
+  const handleBlockDrop = (targetCategoryId: string) => {
+    if (!draggingBlockCategoryId || draggingBlockCategoryId === targetCategoryId) {
+      setDraggingBlockCategoryId(null)
+      setDragOverBlockCategoryId(null)
+      return
+    }
+
+    const orderedGroups = buildContiguousMotoGroups(activeMotoSequence)
+    const sourceIndex = orderedGroups.findIndex((group) => group.categoryId === draggingBlockCategoryId)
+    const targetIndex = orderedGroups.findIndex((group) => group.categoryId === targetCategoryId)
+
+    setDraggingBlockCategoryId(null)
+    setDragOverBlockCategoryId(null)
+
+    if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) return
+
+    const nextGroups = [...orderedGroups]
+    const [picked] = nextGroups.splice(sourceIndex, 1)
+    nextGroups.splice(targetIndex, 0, picked)
+    const nextActiveSequence = nextGroups.flatMap((group) => group.motos)
+    applyDraftMotoOrder([...nextActiveSequence, ...lockedMotoSequence])
+  }
+
+  const moveBlock = (categoryId: string, direction: -1 | 1 | 'top' | 'bottom') => {
+    const orderedGroups = buildContiguousMotoGroups(activeMotoSequence)
+    const sourceIndex = orderedGroups.findIndex((group) => group.categoryId === categoryId)
+    if (sourceIndex < 0) return
+
+    const targetIndex =
+      direction === 'top'
+        ? 0
+        : direction === 'bottom'
+          ? orderedGroups.length - 1
+          : sourceIndex + direction
+
+    if (targetIndex < 0 || targetIndex >= orderedGroups.length || targetIndex === sourceIndex) return
+
+    const nextGroups = [...orderedGroups]
+    const [picked] = nextGroups.splice(sourceIndex, 1)
+    nextGroups.splice(targetIndex, 0, picked)
+    const nextActiveSequence = nextGroups.flatMap((group) => group.motos)
+    applyDraftMotoOrder([...nextActiveSequence, ...lockedMotoSequence])
   }
 
   const handleNormalizeMotoOrder = () => {
@@ -678,12 +736,33 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
     )
   }
 
+  const isAutoRefreshActive = shouldPollMotoSequence(eventStatus, autoRefreshEnabled)
+
   return (
     <div style={{ padding: '20px', maxWidth: '1400px', margin: '0 auto' }}>
       <div style={{ marginBottom: '30px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
           <h1 style={{ margin: 0, fontSize: '28px', fontWeight: 900 }}>Global Moto Planner</h1>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end' }}>
+            <button
+              onClick={() => setAutoRefreshEnabled((value) => !value)}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '8px',
+                border: `1px solid ${isAutoRefreshActive ? '#14532d' : '#cbd5e1'}`,
+                background: isAutoRefreshActive ? '#16a34a' : '#fff',
+                color: isAutoRefreshActive ? '#fff' : '#334155',
+                cursor: 'pointer',
+                fontWeight: 900,
+              }}
+              title={
+                eventStatus === 'LIVE'
+                  ? 'Aktif/nonaktifkan polling otomatis halaman moto sequence.'
+                  : 'Auto refresh hanya berjalan saat event LIVE.'
+              }
+            >
+              {isAutoRefreshActive ? 'Auto Refresh ON' : 'Auto Refresh OFF'}
+            </button>
             <button
               onClick={handleNormalizeMotoOrder}
               disabled={loading || refreshing || savingSequence || globalMotoSequence.length === 0}
@@ -1002,8 +1081,38 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
       </div>
 
       <div style={{ display: 'grid', gap: '8px' }}>
-        {activeMotoGroups.map((group) => (
-          <div key={`active-group-${group.categoryId}-${group.startIndex}`} style={{ display: 'grid', gap: '6px' }}>
+        {activeMotoGroups.map((group, groupIndex) => (
+          <div
+            key={`active-group-${group.categoryId}-${group.startIndex}`}
+            draggable={!savingSequence}
+            onDragStart={(event) => {
+              event.dataTransfer.effectAllowed = 'move'
+              event.dataTransfer.setData('text/plain', group.categoryId)
+              setDraggingBlockCategoryId(group.categoryId)
+            }}
+            onDragOver={(event) => {
+              event.preventDefault()
+              event.dataTransfer.dropEffect = 'move'
+              if (dragOverBlockCategoryId !== group.categoryId) setDragOverBlockCategoryId(group.categoryId)
+            }}
+            onDragLeave={() => {
+              if (dragOverBlockCategoryId === group.categoryId) setDragOverBlockCategoryId(null)
+            }}
+            onDrop={(event) => {
+              event.preventDefault()
+              handleBlockDrop(group.categoryId)
+            }}
+            onDragEnd={() => {
+              setDraggingBlockCategoryId(null)
+              setDragOverBlockCategoryId(null)
+            }}
+            style={{
+              display: 'grid',
+              gap: '6px',
+              cursor: savingSequence ? 'wait' : 'grab',
+              opacity: draggingBlockCategoryId === group.categoryId ? 0.72 : 1,
+            }}
+          >
             <div
               style={{
                 display: 'flex',
@@ -1013,13 +1122,23 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
                 gap: '8px',
                 padding: '6px 10px',
                 borderRadius: '12px',
-                border: '1px solid #dbeafe',
-                background: '#f8fbff',
+                border:
+                  dragOverBlockCategoryId === group.categoryId && draggingBlockCategoryId !== group.categoryId
+                    ? '2px solid #2563eb'
+                    : '1px solid #dbeafe',
+                background:
+                  dragOverBlockCategoryId === group.categoryId && draggingBlockCategoryId !== group.categoryId
+                    ? '#dbeafe'
+                    : '#f8fbff',
+                boxShadow:
+                  dragOverBlockCategoryId === group.categoryId && draggingBlockCategoryId !== group.categoryId
+                    ? '0 12px 28px rgba(37, 99, 235, 0.18)'
+                    : 'none',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
                 <span style={{ fontSize: '10px', fontWeight: 950, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#2563eb' }}>
-                  Block
+                  Drag Block
                 </span>
                 <span style={{ fontSize: '16px', fontWeight: 950, color: '#0f172a' }}>
                   {categoryLabel.get(group.categoryId) || group.categoryId}
@@ -1030,6 +1149,7 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '6px',
+                  flexWrap: 'wrap',
                   padding: '5px 9px',
                   borderRadius: '999px',
                   background: '#dbeafe',
@@ -1045,6 +1165,82 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
                   Global #{group.startIndex + 1}
                   {group.motos.length > 1 ? `-${group.startIndex + group.motos.length}` : ''}
                 </span>
+                <button
+                  type="button"
+                  onClick={() => moveBlock(group.categoryId, -1)}
+                  disabled={savingSequence || groupIndex === 0}
+                  title="Naikkan block kategori"
+                  style={{
+                    border: '1px solid #93c5fd',
+                    borderRadius: '999px',
+                    background: '#fff',
+                    color: '#1d4ed8',
+                    cursor: savingSequence || groupIndex === 0 ? 'not-allowed' : 'pointer',
+                    fontSize: 10,
+                    fontWeight: 950,
+                    opacity: savingSequence || groupIndex === 0 ? 0.45 : 1,
+                    padding: '3px 7px',
+                  }}
+                >
+                  ↑
+                </button>
+                <button
+                  type="button"
+                  onClick={() => moveBlock(group.categoryId, 1)}
+                  disabled={savingSequence || groupIndex === activeMotoGroups.length - 1}
+                  title="Turunkan block kategori"
+                  style={{
+                    border: '1px solid #93c5fd',
+                    borderRadius: '999px',
+                    background: '#fff',
+                    color: '#1d4ed8',
+                    cursor: savingSequence || groupIndex === activeMotoGroups.length - 1 ? 'not-allowed' : 'pointer',
+                    fontSize: 10,
+                    fontWeight: 950,
+                    opacity: savingSequence || groupIndex === activeMotoGroups.length - 1 ? 0.45 : 1,
+                    padding: '3px 7px',
+                  }}
+                >
+                  ↓
+                </button>
+                <button
+                  type="button"
+                  onClick={() => moveBlock(group.categoryId, 'top')}
+                  disabled={savingSequence || groupIndex === 0}
+                  title="Pindahkan block ke paling atas"
+                  style={{
+                    border: '1px solid #93c5fd',
+                    borderRadius: '999px',
+                    background: '#fff',
+                    color: '#1d4ed8',
+                    cursor: savingSequence || groupIndex === 0 ? 'not-allowed' : 'pointer',
+                    fontSize: 10,
+                    fontWeight: 950,
+                    opacity: savingSequence || groupIndex === 0 ? 0.45 : 1,
+                    padding: '3px 7px',
+                  }}
+                >
+                  Top
+                </button>
+                <button
+                  type="button"
+                  onClick={() => moveBlock(group.categoryId, 'bottom')}
+                  disabled={savingSequence || groupIndex === activeMotoGroups.length - 1}
+                  title="Pindahkan block ke paling bawah"
+                  style={{
+                    border: '1px solid #93c5fd',
+                    borderRadius: '999px',
+                    background: '#fff',
+                    color: '#1d4ed8',
+                    cursor: savingSequence || groupIndex === activeMotoGroups.length - 1 ? 'not-allowed' : 'pointer',
+                    fontSize: 10,
+                    fontWeight: 950,
+                    opacity: savingSequence || groupIndex === activeMotoGroups.length - 1 ? 0.45 : 1,
+                    padding: '3px 7px',
+                  }}
+                >
+                  Bottom
+                </button>
               </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '6px' }}>
