@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { compareMotoDisplayOrder, formatMotoDisplayName } from '../../../../../lib/motoDisplayOrder'
-import { buildBrandedPrintHtml } from '../../../../../lib/printTheme'
 import { supabase } from '../../../../../lib/supabaseClient'
 
 type CategoryItem = {
@@ -99,14 +98,6 @@ const shouldPollMotos = (eventStatus: string | null, autoRefreshEnabled: boolean
   return autoRefreshEnabled && eventStatus === 'LIVE'
 }
 
-const escapeHtml = (value: unknown) =>
-  String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;')
-
 const safeFilename = (value: string) =>
   value
     .trim()
@@ -174,6 +165,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [exportingMotoExcel, setExportingMotoExcel] = useState(false)
+  const [exportingMotoWord, setExportingMotoWord] = useState(false)
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
   const [eventStatus, setEventStatus] = useState<'UPCOMING' | 'READY' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED' | null>(null)
   const [eventName, setEventName] = useState('Event')
@@ -757,128 +749,6 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     return chips
   }
 
-  const handlePrintMotoRiders = () => {
-    if (printGroups.length === 0) {
-      alert('Belum ada data rider per moto yang bisa dicetak.')
-      return
-    }
-
-    const sections = printGroups
-      .map((group) => {
-        const batchesHtml = group.batches
-          .map((batch) => {
-            const headers = batch.motoColumns
-              .map((col) => `<th>Gate ${escapeHtml(col.label)}</th>`)
-              .join('')
-            const motoMeta = batch.motoColumns
-              .map((col) => `${col.label}: ${formatMotoDisplayName(col.moto_name)} (${col.status})`)
-              .join(' | ')
-            const rows = batch.riderRows.length
-              ? batch.riderRows
-                  .map((row) => {
-                    const gates = batch.motoColumns
-                      .map((col) => `<td>${escapeHtml(row.gates[col.key] ?? '-')}</td>`)
-                      .join('')
-                    return `
-                      <tr>
-                        ${gates}
-                        <td>${escapeHtml(row.no_plate_display)}</td>
-                        <td>${escapeHtml(row.name)}</td>
-                        <td>${escapeHtml(row.club ?? '-')}</td>
-                      </tr>
-                    `
-                  })
-                  .join('')
-              : `
-                <tr>
-                  <td colspan="${batch.motoColumns.length + 3}">Belum ada rider pada batch ini.</td>
-                </tr>
-              `
-
-            return `
-              <section class="section-card" style="margin-top: 12px;">
-                <div class="section-title">Batch ${escapeHtml(batch.batchNo)}</div>
-                <div class="meta-row">
-                  ${motoMeta
-                    .split(' | ')
-                    .map((item) => `<span class="meta-pill">${escapeHtml(item)}</span>`)
-                    .join('')}
-                </div>
-                <table>
-                  <thead>
-                    <tr>
-                      ${headers}
-                      <th>No Plate</th>
-                      <th>Nama Rider</th>
-                      <th>Komunitas</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    ${rows}
-                  </tbody>
-                </table>
-              </section>
-            `
-          })
-          .join('')
-
-        return `
-          <section class="section-card">
-            <h2 class="section-title">${escapeHtml(group.categoryLabel)}</h2>
-            ${batchesHtml}
-          </section>
-        `
-      })
-      .join('')
-
-    const html = buildBrandedPrintHtml({
-      title: 'Cetak Moto Seluruh Kategori',
-      eyebrow: 'Moto Print',
-      heading: 'Data Rider Per Moto Seluruh Kategori',
-      subtitle: escapeHtml(eventName),
-      body: sections,
-    })
-
-    const iframe = document.createElement('iframe')
-    iframe.style.position = 'fixed'
-    iframe.style.right = '0'
-    iframe.style.bottom = '0'
-    iframe.style.width = '0'
-    iframe.style.height = '0'
-    iframe.style.border = '0'
-    iframe.style.visibility = 'hidden'
-    document.body.appendChild(iframe)
-
-    const printWindow = iframe.contentWindow
-    const printDoc = iframe.contentDocument || printWindow?.document
-    if (!printWindow || !printDoc) {
-      document.body.removeChild(iframe)
-      alert('Gagal membuka preview cetak. Refresh halaman lalu coba lagi.')
-      return
-    }
-
-    printDoc.open()
-    printDoc.write(html)
-    printDoc.close()
-
-    const cleanup = () => {
-      setTimeout(() => {
-        try {
-          document.body.removeChild(iframe)
-        } catch {
-          // no-op
-        }
-      }, 600)
-    }
-
-    printWindow.onafterprint = cleanup
-    setTimeout(() => {
-      printWindow.focus()
-      printWindow.print()
-      cleanup()
-    }, 350)
-  }
-
   const handleExportMotoRidersExcel = async () => {
     if (printGroups.length === 0) {
       alert('Belum ada data rider per moto yang bisa diexport.')
@@ -965,6 +835,154 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     }
   }
 
+  const handleExportMotoRidersWord = async () => {
+    if (printGroups.length === 0) {
+      alert('Belum ada data rider per moto yang bisa diexport.')
+      return
+    }
+
+    setExportingMotoWord(true)
+    try {
+      const {
+        AlignmentType,
+        BorderStyle,
+        Document,
+        HeadingLevel,
+        Packer,
+        Paragraph,
+        Table,
+        TableCell,
+        TableRow,
+        TextRun,
+        WidthType,
+      } = await import('docx')
+
+      const cell = (value: unknown, opts: { bold?: boolean; fill?: string; color?: string } = {}) =>
+        new TableCell({
+          shading: opts.fill ? { fill: opts.fill } : undefined,
+          borders: {
+            top: { style: BorderStyle.SINGLE, size: 1, color: 'D9E2EF' },
+            bottom: { style: BorderStyle.SINGLE, size: 1, color: 'D9E2EF' },
+            left: { style: BorderStyle.SINGLE, size: 1, color: 'D9E2EF' },
+            right: { style: BorderStyle.SINGLE, size: 1, color: 'D9E2EF' },
+          },
+          children: [
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: String(value ?? ''),
+                  bold: opts.bold,
+                  color: opts.color ?? '111827',
+                  size: 18,
+                }),
+              ],
+            }),
+          ],
+        })
+
+      const children: Array<InstanceType<typeof Paragraph> | InstanceType<typeof Table>> = [
+        new Paragraph({
+          heading: HeadingLevel.TITLE,
+          alignment: AlignmentType.CENTER,
+          children: [new TextRun({ text: `Data Rider Per Moto`, bold: true })],
+        }),
+        new Paragraph({
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 360 },
+          children: [new TextRun({ text: eventName, bold: true, color: '92400E' })],
+        }),
+      ]
+
+      for (const group of printGroups) {
+        children.push(
+          new Paragraph({
+            heading: HeadingLevel.HEADING_1,
+            spacing: { before: 280, after: 120 },
+            children: [new TextRun({ text: group.categoryLabel, bold: true, color: '111827' })],
+          })
+        )
+
+        for (const batch of group.batches) {
+          const headers = [
+            ...batch.motoColumns.map((motoColumn) => `Gate ${motoColumn.label}`),
+            'No Plate',
+            'Nama Rider',
+            'Komunitas',
+          ]
+          const rows = batch.riderRows.length
+            ? batch.riderRows.map((row) => [
+                ...batch.motoColumns.map((motoColumn) => row.gates[motoColumn.key] ?? ''),
+                row.no_plate_display,
+                row.name,
+                row.club ?? '',
+              ])
+            : [['Belum ada rider pada batch ini.', ...Array(Math.max(headers.length - 1, 0)).fill('')]]
+
+          children.push(
+            new Paragraph({
+              heading: HeadingLevel.HEADING_2,
+              spacing: { before: 180, after: 80 },
+              children: [new TextRun({ text: `Batch ${batch.batchNo}`, bold: true, color: '1D4ED8' })],
+            }),
+            new Paragraph({
+              spacing: { after: 120 },
+              children: [
+                new TextRun({
+                  text: batch.motoColumns
+                    .map((motoColumn) => `${motoColumn.label}: ${formatMotoDisplayName(motoColumn.moto_name)} (${motoColumn.status})`)
+                    .join('  |  '),
+                  italics: true,
+                  color: '475569',
+                  size: 18,
+                }),
+              ],
+            }),
+            new Table({
+              width: { size: 100, type: WidthType.PERCENTAGE },
+              rows: [
+                new TableRow({
+                  tableHeader: true,
+                  children: headers.map((header) => cell(header, { bold: true, fill: 'FEF3C7', color: '111827' })),
+                }),
+                ...rows.map((row) =>
+                  new TableRow({
+                    children: row.map((value) => cell(value)),
+                  })
+                ),
+              ],
+            })
+          )
+        }
+      }
+
+      const doc = new Document({
+        sections: [
+          {
+            properties: {
+              page: {
+                margin: { top: 720, right: 540, bottom: 720, left: 540 },
+              },
+            },
+            children,
+          },
+        ],
+      })
+      const blob = await Packer.toBlob(doc)
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = `rider-per-moto_${safeFilename(eventName)}_${timestampForFilename()}.docx`
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Gagal export Word rider per moto.')
+    } finally {
+      setExportingMotoWord(false)
+    }
+  }
+
   const isAutoRefreshActive = shouldPollMotos(eventStatus, autoRefreshEnabled)
 
   return (
@@ -1008,26 +1026,26 @@ export default function MotosClient({ eventId }: { eventId: string }) {
           </button>
           <button
             type="button"
-            onClick={handlePrintMotoRiders}
-            disabled={exportingMotoExcel}
+            onClick={() => void handleExportMotoRidersWord()}
+            disabled={exportingMotoExcel || exportingMotoWord}
             className="admin-outline-button"
             style={{
-              cursor: exportingMotoExcel ? 'not-allowed' : 'pointer',
+              cursor: exportingMotoExcel || exportingMotoWord ? 'not-allowed' : 'pointer',
               whiteSpace: 'nowrap',
-              opacity: exportingMotoExcel ? 0.6 : 1,
+              opacity: exportingMotoExcel || exportingMotoWord ? 0.6 : 1,
             }}
           >
-            Cetak / PDF Rider Per Moto
+            {exportingMotoWord ? 'Preparing DOCX...' : 'Word DOCX Rider Per Moto'}
           </button>
           <button
             type="button"
             onClick={() => void handleExportMotoRidersExcel()}
-            disabled={exportingMotoExcel}
+            disabled={exportingMotoExcel || exportingMotoWord}
             className="admin-outline-button"
             style={{
-              cursor: exportingMotoExcel ? 'not-allowed' : 'pointer',
+              cursor: exportingMotoExcel || exportingMotoWord ? 'not-allowed' : 'pointer',
               whiteSpace: 'nowrap',
-              opacity: exportingMotoExcel ? 0.6 : 1,
+              opacity: exportingMotoExcel || exportingMotoWord ? 0.6 : 1,
             }}
           >
             {exportingMotoExcel ? 'Preparing XLSX...' : 'Excel Rider Per Moto'}
