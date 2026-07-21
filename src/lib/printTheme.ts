@@ -19,9 +19,9 @@ export const buildBrandedPrintHtml = ({
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>\${title}</title>
+    <title>${title}</title>
     <style>
-      @page { size: \${pageSize}; margin: 12mm; }
+      @page { size: ${pageSize}; margin: 12mm; }
       html, body {
         margin: 0;
         padding: 0;
@@ -137,11 +137,11 @@ export const buildBrandedPrintHtml = ({
   <body>
     <div class="sheet">
       <header class="hero">
-        <div class="eyebrow">\${eyebrow}</div>
-        <h1>\${heading}</h1>
-        \${subtitle ? \`<div class="subtitle">\${subtitle}</div>\` : ''}
+        <div class="eyebrow">${eyebrow}</div>
+        <h1>${heading}</h1>
+        ${subtitle ? `<div class="subtitle">${subtitle}</div>` : ''}
       </header>
-      \${body}
+      ${body}
     </div>
   </body>
 </html>

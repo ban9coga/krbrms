@@ -899,7 +899,9 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       ]
 
       const detailRows: Array<Array<string | number>> = [
-        ['Kategori', 'Batch', 'Moto', 'Status Moto', 'Gate', 'No Plate', 'Nama Rider', 'Komunitas'],
+        ['Event', eventName],
+        ['Export', 'Data Rider Per Moto - Dibagi Per Batch'],
+        [],
       ]
 
       for (const group of printGroups) {
@@ -907,24 +909,30 @@ export default function MotosClient({ eventId }: { eventId: string }) {
         const motoCount = group.batches.reduce((total, batch) => total + batch.motoColumns.length, 0)
 
         for (const batch of group.batches) {
+          const motoMeta = batch.motoColumns.map((motoColumn) =>
+            `${motoColumn.label}: ${formatMotoDisplayName(motoColumn.moto_name)} (${motoColumn.status})`
+          )
+          detailRows.push([group.categoryLabel])
+          detailRows.push([`Batch ${batch.batchNo}`, ...motoMeta])
+          detailRows.push([
+            ...batch.motoColumns.map((motoColumn) => `Gate ${motoColumn.label}`),
+            'No Plate',
+            'Nama Rider',
+            'Komunitas',
+          ])
+
           for (const row of batch.riderRows) {
             uniqueRiderIds.add(row.rider_id)
+            detailRows.push([
+              ...batch.motoColumns.map((motoColumn) => row.gates[motoColumn.key] ?? ''),
+              row.no_plate_display,
+              row.name,
+              row.club ?? '',
+            ])
           }
 
-          for (const motoColumn of batch.motoColumns) {
-            for (const row of batch.riderRows) {
-              detailRows.push([
-                group.categoryLabel,
-                batch.batchNo,
-                formatMotoDisplayName(motoColumn.moto_name),
-                motoColumn.status,
-                row.gates[motoColumn.key] ?? '',
-                row.no_plate_display,
-                row.name,
-                row.club ?? '',
-              ])
-            }
-          }
+          if (batch.riderRows.length === 0) detailRows.push(['Belum ada rider pada batch ini.'])
+          detailRows.push([])
         }
 
         summaryRows.push([
@@ -939,10 +947,8 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       const detailSheet = XLSX.utils.aoa_to_sheet(detailRows)
       summarySheet['!cols'] = [{ wch: 28 }, { wch: 14 }, { wch: 14 }, { wch: 18 }]
       detailSheet['!cols'] = [
-        { wch: 22 },
         { wch: 8 },
-        { wch: 18 },
-        { wch: 14 },
+        { wch: 8 },
         { wch: 8 },
         { wch: 12 },
         { wch: 30 },
