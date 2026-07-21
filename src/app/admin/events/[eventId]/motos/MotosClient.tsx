@@ -99,6 +99,24 @@ const shouldPollMotos = (eventStatus: string | null, autoRefreshEnabled: boolean
   return autoRefreshEnabled && eventStatus === 'LIVE'
 }
 
+const escapeHtml = (value: unknown) =>
+  String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;')
+
+const safeFilename = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80) || 'event'
+
+const timestampForFilename = () => new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '')
+
 const getAllowedMotoStatuses = (current: MotoItem['status']) => {
   switch (current) {
     case 'UPCOMING':
@@ -155,6 +173,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
   const [showMotoRiderList, setShowMotoRiderList] = useState(false)
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+  const [exportingMotoExcel, setExportingMotoExcel] = useState(false)
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
   const [eventStatus, setEventStatus] = useState<'UPCOMING' | 'READY' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED' | null>(null)
   const [eventName, setEventName] = useState('Event')
@@ -749,7 +768,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
         const batchesHtml = group.batches
           .map((batch) => {
             const headers = batch.motoColumns
-              .map((col) => `<th>Gate ${col.label}</th>`)
+              .map((col) => `<th>Gate ${escapeHtml(col.label)}</th>`)
               .join('')
             const motoMeta = batch.motoColumns
               .map((col) => `${col.label}: ${formatMotoDisplayName(col.moto_name)} (${col.status})`)
@@ -758,14 +777,14 @@ export default function MotosClient({ eventId }: { eventId: string }) {
               ? batch.riderRows
                   .map((row) => {
                     const gates = batch.motoColumns
-                      .map((col) => `<td>${row.gates[col.key] ?? '-'}</td>`)
+                      .map((col) => `<td>${escapeHtml(row.gates[col.key] ?? '-')}</td>`)
                       .join('')
                     return `
                       <tr>
                         ${gates}
-                        <td>${row.no_plate_display}</td>
-                        <td>${row.name}</td>
-                        <td>${row.club ?? '-'}</td>
+                        <td>${escapeHtml(row.no_plate_display)}</td>
+                        <td>${escapeHtml(row.name)}</td>
+                        <td>${escapeHtml(row.club ?? '-')}</td>
                       </tr>
                     `
                   })
@@ -778,11 +797,11 @@ export default function MotosClient({ eventId }: { eventId: string }) {
 
             return `
               <section class="section-card" style="margin-top: 12px;">
-                <div class="section-title">Batch ${batch.batchNo}</div>
+                <div class="section-title">Batch ${escapeHtml(batch.batchNo)}</div>
                 <div class="meta-row">
                   ${motoMeta
                     .split(' | ')
-                    .map((item) => `<span class="meta-pill">${item}</span>`)
+                    .map((item) => `<span class="meta-pill">${escapeHtml(item)}</span>`)
                     .join('')}
                 </div>
                 <table>
@@ -805,7 +824,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
 
         return `
           <section class="section-card">
-            <h2 class="section-title">${group.categoryLabel}</h2>
+            <h2 class="section-title">${escapeHtml(group.categoryLabel)}</h2>
             ${batchesHtml}
           </section>
         `
@@ -816,7 +835,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       title: 'Cetak Moto Seluruh Kategori',
       eyebrow: 'Moto Print',
       heading: 'Data Rider Per Moto Seluruh Kategori',
-      subtitle: eventName,
+      subtitle: escapeHtml(eventName),
       body: sections,
     })
 
@@ -858,6 +877,86 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       printWindow.print()
       cleanup()
     }, 350)
+  }
+
+  const handleExportMotoRidersExcel = async () => {
+    if (printGroups.length === 0) {
+      alert('Belum ada data rider per moto yang bisa diexport.')
+      return
+    }
+
+    setExportingMotoExcel(true)
+    try {
+      const XLSX = await import('xlsx')
+      const workbook = XLSX.utils.book_new()
+
+      const summaryRows: Array<Array<string | number>> = [
+        ['Event', eventName],
+        ['Export', 'Data Rider Per Moto'],
+        ['Total Kategori', printGroups.length],
+        [],
+        ['Kategori', 'Jumlah Batch', 'Jumlah Moto', 'Jumlah Rider Unik'],
+      ]
+
+      const detailRows: Array<Array<string | number>> = [
+        ['Kategori', 'Batch', 'Moto', 'Status Moto', 'Gate', 'No Plate', 'Nama Rider', 'Komunitas'],
+      ]
+
+      for (const group of printGroups) {
+        const uniqueRiderIds = new Set<string>()
+        const motoCount = group.batches.reduce((total, batch) => total + batch.motoColumns.length, 0)
+
+        for (const batch of group.batches) {
+          for (const row of batch.riderRows) {
+            uniqueRiderIds.add(row.rider_id)
+          }
+
+          for (const motoColumn of batch.motoColumns) {
+            for (const row of batch.riderRows) {
+              detailRows.push([
+                group.categoryLabel,
+                batch.batchNo,
+                formatMotoDisplayName(motoColumn.moto_name),
+                motoColumn.status,
+                row.gates[motoColumn.key] ?? '',
+                row.no_plate_display,
+                row.name,
+                row.club ?? '',
+              ])
+            }
+          }
+        }
+
+        summaryRows.push([
+          group.categoryLabel,
+          group.batches.length,
+          motoCount,
+          uniqueRiderIds.size,
+        ])
+      }
+
+      const summarySheet = XLSX.utils.aoa_to_sheet(summaryRows)
+      const detailSheet = XLSX.utils.aoa_to_sheet(detailRows)
+      summarySheet['!cols'] = [{ wch: 28 }, { wch: 14 }, { wch: 14 }, { wch: 18 }]
+      detailSheet['!cols'] = [
+        { wch: 22 },
+        { wch: 8 },
+        { wch: 18 },
+        { wch: 14 },
+        { wch: 8 },
+        { wch: 12 },
+        { wch: 30 },
+        { wch: 28 },
+      ]
+
+      XLSX.utils.book_append_sheet(workbook, summarySheet, 'Ringkasan')
+      XLSX.utils.book_append_sheet(workbook, detailSheet, 'Rider Per Moto')
+      XLSX.writeFile(workbook, `rider-per-moto_${safeFilename(eventName)}_${timestampForFilename()}.xlsx`)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Gagal export Excel rider per moto.')
+    } finally {
+      setExportingMotoExcel(false)
+    }
   }
 
   const isAutoRefreshActive = shouldPollMotos(eventStatus, autoRefreshEnabled)
@@ -904,13 +1003,28 @@ export default function MotosClient({ eventId }: { eventId: string }) {
           <button
             type="button"
             onClick={handlePrintMotoRiders}
+            disabled={exportingMotoExcel}
             className="admin-outline-button"
             style={{
-              cursor: 'pointer',
+              cursor: exportingMotoExcel ? 'not-allowed' : 'pointer',
               whiteSpace: 'nowrap',
+              opacity: exportingMotoExcel ? 0.6 : 1,
             }}
           >
-            Cetak Rider Per Moto
+            Cetak / PDF Rider Per Moto
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleExportMotoRidersExcel()}
+            disabled={exportingMotoExcel}
+            className="admin-outline-button"
+            style={{
+              cursor: exportingMotoExcel ? 'not-allowed' : 'pointer',
+              whiteSpace: 'nowrap',
+              opacity: exportingMotoExcel ? 0.6 : 1,
+            }}
+          >
+            {exportingMotoExcel ? 'Preparing XLSX...' : 'Excel Rider Per Moto'}
           </button>
         </div>
       </div>
