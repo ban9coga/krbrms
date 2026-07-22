@@ -192,11 +192,11 @@ export default function MotosClient({ eventId }: { eventId: string }) {
   const loadGateOrders = async (categoryIds: string[], options: { force?: boolean } = {}) => {
     const uniqueCategoryIds = Array.from(new Set(categoryIds.filter(Boolean)))
     if (uniqueCategoryIds.length === 0) {
-      return
+      return gateOrdersByCategory
     }
     const loadedSet = new Set(loadedGateOrderCategoryIds)
     const idsToLoad = options.force ? uniqueCategoryIds : uniqueCategoryIds.filter((categoryId) => !loadedSet.has(categoryId))
-    if (idsToLoad.length === 0) return
+    if (idsToLoad.length === 0) return gateOrdersByCategory
 
     setLoadingGateOrders(true)
     try {
@@ -208,12 +208,15 @@ export default function MotosClient({ eventId }: { eventId: string }) {
           return [categoryId, [...rows].sort(compareMotoDisplayOrder)] as const
         })
       )
+      const nextMap = { ...gateOrdersByCategory }
+      for (const [categoryId, rows] of entries) nextMap[categoryId] = rows
       setGateOrdersByCategory((prev) => {
         const next = { ...prev }
         for (const [categoryId, rows] of entries) next[categoryId] = rows
         return next
       })
       setLoadedGateOrderCategoryIds((prev) => Array.from(new Set([...prev, ...idsToLoad])))
+      return nextMap
     } finally {
       setLoadingGateOrders(false)
     }
@@ -224,32 +227,35 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     options: { includeAdvancedSummary?: boolean } = {}
   ) => {
     if (!eventId) return
-    const includeAdvancedSummary = options.includeAdvancedSummary ?? mode === 'initial'
+    const includeAdvancedSummary = options.includeAdvancedSummary ?? false
     if (mode === 'initial' && !hasLoadedOnce) setLoading(true)
     else setRefreshing(true)
     try {
       const nonce = Date.now()
-      const catRes = await fetch(`/api/events/${eventId}/categories?_=${nonce}`, { cache: 'no-store' })
+      const [catRes, eventJson, advancedJson, motoRes, advancedSummaryJson] = await Promise.all([
+        fetch(`/api/events/${eventId}/categories?_=${nonce}`, { cache: 'no-store' }),
+        apiFetch(`/api/events/${eventId}`),
+        apiFetch(`/api/events/${eventId}/advanced-race`),
+        fetch(`/api/motos?event_id=${eventId}&_=${nonce}`, { cache: 'no-store' }),
+        includeAdvancedSummary ? apiFetch(`/api/events/${eventId}/advanced-race/summary`) : Promise.resolve(null),
+      ])
+
       const catJson = await catRes.json()
       const enabledCategories = (catJson.data ?? []).filter((c: CategoryItem) => c.enabled)
       setCategories(enabledCategories)
 
-      const eventJson = await apiFetch(`/api/events/${eventId}`)
       setEventStatus(eventJson?.data?.status ?? null)
       setEventName(eventJson?.data?.name ?? 'Event')
 
-      const advancedJson = await apiFetch(`/api/events/${eventId}/advanced-race`)
       const enabledMap: Record<string, boolean> = {}
       for (const row of (advancedJson?.data?.configs ?? []) as AdvancedConfigItem[]) {
         enabledMap[row.category_id] = Boolean(row.enabled)
       }
       setAdvancedEnabledByCategory(enabledMap)
-      if (includeAdvancedSummary) {
-        const advancedSummaryJson = await apiFetch(`/api/events/${eventId}/advanced-race/summary`)
+      if (advancedSummaryJson) {
         setAdvancedSummaryByCategory((advancedSummaryJson?.data ?? {}) as Record<string, AdvancedSummaryItem>)
       }
 
-      const motoRes = await fetch(`/api/motos?event_id=${eventId}&_=${nonce}`, { cache: 'no-store' })
       const motoJson = await motoRes.json()
       const motoRows = (motoJson.data ?? []) as MotoItem[]
       setMotos(motoRows)
@@ -364,10 +370,10 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     setHiddenCategoryIds((prev) => Array.from(new Set([...prev, ...completedCategoryIds])))
   }, [categories, isCategoryComplete])
 
-  const printGroups = useMemo(() => {
+  const buildPrintGroups = useCallback((gateMap: Record<string, GateMotoItem[]>) => {
     return categoriesSorted
       .map((category) => {
-        const rows = gateOrdersByCategory[category.id] ?? []
+        const rows = gateMap[category.id] ?? []
         if (rows.length === 0) return null
 
         const batchMap = new Map<number, GateMotoItem[]>()
@@ -462,7 +468,9 @@ export default function MotosClient({ eventId }: { eventId: string }) {
         riderRows: Array<{ rider_id: string; name: string; no_plate_display: string; club: string | null; gates: Record<number, number> }>
       }>
     }>
-  }, [categoriesSorted, gateOrdersByCategory])
+  }, [categoriesSorted])
+
+  const printGroups = useMemo(() => buildPrintGroups(gateOrdersByCategory), [buildPrintGroups, gateOrdersByCategory])
 
   const allGateOrdersLoaded = motoCategoryIds.length > 0 && motoCategoryIds.every((categoryId) =>
     loadedGateOrderCategoryIds.includes(categoryId)
@@ -478,8 +486,9 @@ export default function MotosClient({ eventId }: { eventId: string }) {
 
   const ensureGateOrdersLoaded = async () => {
     if (!allGateOrdersLoaded) {
-      await loadGateOrders(motoCategoryIds)
+      return loadGateOrders(motoCategoryIds)
     }
+    return gateOrdersByCategory
   }
 
   const handleUpdateMotoStatus = async (motoId: string, status: MotoItem['status']) => {
@@ -792,8 +801,9 @@ export default function MotosClient({ eventId }: { eventId: string }) {
   }
 
   const handleExportMotoRidersExcel = async () => {
-    await ensureGateOrdersLoaded()
-    if (printGroups.length === 0) {
+    const gateMap = await ensureGateOrdersLoaded()
+    const exportGroups = buildPrintGroups(gateMap)
+    if (exportGroups.length === 0) {
       alert('Belum ada data rider per moto yang bisa diexport.')
       return
     }
@@ -806,7 +816,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       const summaryRows: Array<Array<string | number>> = [
         ['Event', eventName],
         ['Export', 'Data Rider Per Moto'],
-        ['Total Kategori', printGroups.length],
+        ['Total Kategori', exportGroups.length],
         [],
         ['Kategori', 'Jumlah Batch', 'Jumlah Moto', 'Jumlah Rider Unik'],
       ]
@@ -817,7 +827,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
         [],
       ]
 
-      for (const group of printGroups) {
+      for (const group of exportGroups) {
         const uniqueRiderIds = new Set<string>()
         const motoCount = group.batches.reduce((total, batch) => total + batch.motoColumns.length, 0)
 
@@ -879,8 +889,9 @@ export default function MotosClient({ eventId }: { eventId: string }) {
   }
 
   const handleExportMotoRidersWord = async () => {
-    await ensureGateOrdersLoaded()
-    if (printGroups.length === 0) {
+    const gateMap = await ensureGateOrdersLoaded()
+    const exportGroups = buildPrintGroups(gateMap)
+    if (exportGroups.length === 0) {
       alert('Belum ada data rider per moto yang bisa diexport.')
       return
     }
@@ -937,7 +948,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
         }),
       ]
 
-      for (const group of printGroups) {
+      for (const group of exportGroups) {
         children.push(
           new Paragraph({
             heading: HeadingLevel.HEADING_1,
@@ -1071,30 +1082,30 @@ export default function MotosClient({ eventId }: { eventId: string }) {
           <button
             type="button"
             onClick={() => void handleExportMotoRidersWord()}
-            disabled={exportingMotoExcel || exportingMotoWord || loadingGateOrders || !allGateOrdersLoaded}
+            disabled={exportingMotoExcel || exportingMotoWord || loadingGateOrders}
             className="admin-outline-button"
             style={{
-              cursor: exportingMotoExcel || exportingMotoWord || loadingGateOrders || !allGateOrdersLoaded ? 'not-allowed' : 'pointer',
+              cursor: exportingMotoExcel || exportingMotoWord || loadingGateOrders ? 'not-allowed' : 'pointer',
               whiteSpace: 'nowrap',
-              opacity: exportingMotoExcel || exportingMotoWord || loadingGateOrders || !allGateOrdersLoaded ? 0.6 : 1,
+              opacity: exportingMotoExcel || exportingMotoWord || loadingGateOrders ? 0.6 : 1,
             }}
-            title={!allGateOrdersLoaded ? 'Tampilkan daftar rider dulu untuk memuat data gate.' : undefined}
+            title={!allGateOrdersLoaded ? 'Klik untuk memuat data gate lalu export.' : undefined}
           >
-            {exportingMotoWord ? 'Preparing DOCX...' : 'Word DOCX Rider Per Moto'}
+            {exportingMotoWord ? 'Preparing DOCX...' : !allGateOrdersLoaded ? 'Load & Export DOCX' : 'Word DOCX Rider Per Moto'}
           </button>
           <button
             type="button"
             onClick={() => void handleExportMotoRidersExcel()}
-            disabled={exportingMotoExcel || exportingMotoWord || loadingGateOrders || !allGateOrdersLoaded}
+            disabled={exportingMotoExcel || exportingMotoWord || loadingGateOrders}
             className="admin-outline-button"
             style={{
-              cursor: exportingMotoExcel || exportingMotoWord || loadingGateOrders || !allGateOrdersLoaded ? 'not-allowed' : 'pointer',
+              cursor: exportingMotoExcel || exportingMotoWord || loadingGateOrders ? 'not-allowed' : 'pointer',
               whiteSpace: 'nowrap',
-              opacity: exportingMotoExcel || exportingMotoWord || loadingGateOrders || !allGateOrdersLoaded ? 0.6 : 1,
+              opacity: exportingMotoExcel || exportingMotoWord || loadingGateOrders ? 0.6 : 1,
             }}
-            title={!allGateOrdersLoaded ? 'Tampilkan daftar rider dulu untuk memuat data gate.' : undefined}
+            title={!allGateOrdersLoaded ? 'Klik untuk memuat data gate lalu export.' : undefined}
           >
-            {exportingMotoExcel ? 'Preparing XLSX...' : 'Excel Rider Per Moto'}
+            {exportingMotoExcel ? 'Preparing XLSX...' : !allGateOrdersLoaded ? 'Load & Export XLSX' : 'Excel Rider Per Moto'}
           </button>
         </div>
       </div>
