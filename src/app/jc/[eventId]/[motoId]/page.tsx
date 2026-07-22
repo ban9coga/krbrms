@@ -46,6 +46,32 @@ type EventFlags = {
 
 const isLockedStatus = (status?: string | null) => String(status ?? '').toUpperCase() === 'LOCKED'
 const isPrepMotoStatus = (status?: string | null) => isMotoUpcoming(status) || isMotoReady(status)
+
+const isCategoryUnfinished = (list: MotoItem[], categoryId?: string | null) => {
+  if (!categoryId) return false
+  const categoryMotos = list.filter((m) => m.category_id === categoryId)
+  if (categoryMotos.length === 0) return false
+
+  const hasActiveOrProvisional = categoryMotos.some((m) => {
+    const s = String(m.status ?? '').toUpperCase()
+    return s === 'LIVE' || s === 'PROVISIONAL' || s === 'PROTEST_REVIEW'
+  })
+  if (hasActiveOrProvisional) return true
+
+  const hasCompletedFinal = categoryMotos.some((m) => {
+    const name = String(m.moto_name ?? '').toUpperCase()
+    const s = String(m.status ?? '').toUpperCase()
+    return name.includes('FINAL') && (s === 'FINISHED' || s === 'LOCKED')
+  })
+
+  const hasUnfinishedMotos = categoryMotos.some((m) => {
+    const s = String(m.status ?? '').toUpperCase()
+    return s !== 'LOCKED' && s !== 'FINISHED'
+  })
+
+  return !hasCompletedFinal && hasUnfinishedMotos
+}
+
 const pickUpcomingMoto = (list: MotoItem[], anchorMoto?: MotoItem | null) => {
   const selectableUpcoming = list.filter((m) => !isLockedStatus(m.status) && isPrepMotoStatus(m.status))
   if (!anchorMoto) return selectableUpcoming[0] ?? null
@@ -54,10 +80,18 @@ const pickUpcomingMoto = (list: MotoItem[], anchorMoto?: MotoItem | null) => {
   const afterAnchor = anchorIndex >= 0 ? list.slice(anchorIndex + 1) : list
   const sameCategory = (m: MotoItem) => Boolean(anchorMoto.category_id) && m.category_id === anchorMoto.category_id
 
-  return (
+  const sameCategoryNext =
     afterAnchor.find((m) => sameCategory(m) && !isLockedStatus(m.status) && isPrepMotoStatus(m.status)) ??
+    selectableUpcoming.find(sameCategory)
+
+  if (sameCategoryNext) return sameCategoryNext
+
+  if (isCategoryUnfinished(list, anchorMoto.category_id)) {
+    return null
+  }
+
+  return (
     afterAnchor.find((m) => !isLockedStatus(m.status) && isPrepMotoStatus(m.status)) ??
-    selectableUpcoming.find(sameCategory) ??
     selectableUpcoming[0] ??
     null
   )
@@ -73,12 +107,20 @@ const pickPrepMotoId = (
     const liveMoto = list.find((m) => m.id === liveMotoId)
     const nextAfterLive = pickUpcomingMoto(list, liveMoto)
     if (nextAfterLive) return nextAfterLive.id
+    if (liveMoto && isCategoryUnfinished(list, liveMoto.category_id)) {
+      return liveMoto.id
+    }
   }
 
   if (currentId) {
     const currentMoto = list.find((m) => m.id === currentId)
-    if (currentMoto && !isLockedStatus(currentMoto.status) && isPrepMotoStatus(currentMoto.status) && !currentPrepFinalized) {
-      return currentId
+    if (currentMoto) {
+      if (!isLockedStatus(currentMoto.status) && isPrepMotoStatus(currentMoto.status) && !currentPrepFinalized) {
+        return currentId
+      }
+      if (isCategoryUnfinished(list, currentMoto.category_id)) {
+        return currentId
+      }
     }
   }
 
@@ -498,6 +540,29 @@ export default function JCPage() {
     return [selectedMoto, ...selectableMotos]
   }, [selectableMotos, selectedMoto, selectedMotoPreppable])
   const bulkReadyApplied = bulkReadyState?.motoId === selectedMotoId
+  const activeCategoryWaitingQualification = useMemo(() => {
+    const activeCategoryId = selectedMoto?.category_id ?? incidentMoto?.category_id ?? null
+    if (!activeCategoryId) return null
+
+    const categoryMotos = motos.filter((m) => m.category_id === activeCategoryId)
+    if (categoryMotos.length === 0) return null
+
+    const hasProvisionalOrLive = categoryMotos.some((m) => {
+      const s = String(m.status ?? '').toUpperCase()
+      return s === 'PROVISIONAL' || s === 'LIVE' || s === 'PROTEST_REVIEW'
+    })
+
+    const hasPrepMotoInSameCategory = categoryMotos.some((m) => {
+      const s = String(m.status ?? '').toUpperCase()
+      return (s === 'UPCOMING' || s === 'READY') && !isLockedStatus(s)
+    })
+
+    if (hasProvisionalOrLive && !hasPrepMotoInSameCategory) {
+      return categoryLabel.get(activeCategoryId) ?? 'Kategori Terkait'
+    }
+
+    return null
+  }, [motos, selectedMoto, incidentMoto, categoryLabel])
   const incidentCategoryLabel = incidentMoto
     ? categoryLabel.get(incidentMoto.category_id ?? '') ?? 'Unknown Category'
     : 'Kategori'
@@ -1039,6 +1104,34 @@ export default function JCPage() {
               {highVisibility ? 'Mode Besar Aktif' : 'Mode Besar'}
             </button>
           </div>
+
+          {activeCategoryWaitingQualification && (
+            <div
+              style={{
+                padding: '12px 16px',
+                borderRadius: 14,
+                border: '2px solid #f59e0b',
+                background: '#fffbe8',
+                color: '#92400e',
+                fontWeight: 800,
+                fontSize: 14,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                boxShadow: '0 2px 8px rgba(245, 158, 11, 0.15)',
+              }}
+            >
+              <span style={{ fontSize: 22 }}>⏳</span>
+              <div>
+                <div style={{ fontWeight: 900, fontSize: 15 }}>
+                  Menunggu Hasil Kualifikasi ({activeCategoryWaitingQualification})
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 600, opacity: 0.9, marginTop: 2 }}>
+                  Kualifikasi kategori ini baru disubmit / provisional. Sistem sedang menghitung hasil kualifikasi & penyusunan stage berikutnya. Moto kategori selanjutnya ditahan hingga kualifikasi kategori ini selesai.
+                </div>
+              </div>
+            </div>
+          )}
 
           <div style={{ fontWeight: 700, color: '#333' }}>Safety checklist sebelum race start.</div>
           {!hasSafetyRequirements && (

@@ -1798,6 +1798,56 @@ const computeCustomStageAdvances = (
   )
 }
 
+export async function autoLockProvisionalMotosForCategory(eventId: string, categoryId: string) {
+  const { data: stageMotos } = await adminClient
+    .from('motos')
+    .select('id, moto_name, status')
+    .eq('event_id', eventId)
+    .eq('category_id', categoryId)
+    .in('status', ['UPCOMING', 'READY', 'LIVE'])
+
+  if (!stageMotos || stageMotos.length === 0) {
+    return { ok: true, lockedCount: 0 }
+  }
+
+  const { data: provisionalMotos } = await adminClient
+    .from('motos')
+    .select('id, moto_name')
+    .eq('event_id', eventId)
+    .eq('category_id', categoryId)
+    .eq('status', 'PROVISIONAL')
+
+  if (!provisionalMotos || provisionalMotos.length === 0) {
+    return { ok: true, lockedCount: 0 }
+  }
+
+  const lockedAt = new Date().toISOString()
+  const provisionalIds = provisionalMotos.map((m) => m.id)
+
+  const { error: updateError } = await adminClient
+    .from('motos')
+    .update({ status: 'LOCKED' })
+    .in('id', provisionalIds)
+    .eq('status', 'PROVISIONAL')
+
+  if (updateError) {
+    return { ok: false, warning: updateError.message }
+  }
+
+  const lockRecords = provisionalIds.map((id) => ({
+    moto_id: id,
+    event_id: eventId,
+    is_locked: true,
+    locked_by: 'SYSTEM',
+    locked_at: lockedAt,
+    reason: 'AUTO_LOCK_STAGE_MOTO_GENERATED',
+  }))
+
+  await adminClient.from('moto_locks').upsert(lockRecords, { onConflict: 'moto_id' })
+
+  return { ok: true, lockedCount: provisionalIds.length }
+}
+
 export async function syncAdvancedRaceProgress(eventId: string, categoryId: string) {
   const qualificationResult = await computeQualificationAndStore(eventId, categoryId)
   if (qualificationResult.ok && qualificationResult.warning === 'Qualification not required for single batch.') {
@@ -1812,5 +1862,13 @@ export async function syncAdvancedRaceProgress(eventId: string, categoryId: stri
     return stageAdvanceResult
   }
 
-  return generateStageMotos(eventId, categoryId)
+  const genResult = await generateStageMotos(eventId, categoryId)
+  if (!genResult.ok) {
+    return genResult
+  }
+
+  await autoLockProvisionalMotosForCategory(eventId, categoryId)
+
+  return genResult
 }
+
