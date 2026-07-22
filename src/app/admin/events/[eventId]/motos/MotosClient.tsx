@@ -227,7 +227,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     options: { includeAdvancedSummary?: boolean } = {}
   ) => {
     if (!eventId) return
-    const includeAdvancedSummary = options.includeAdvancedSummary ?? false
+    const includeAdvancedSummary = options.includeAdvancedSummary ?? true
     if (mode === 'initial' && !hasLoadedOnce) setLoading(true)
     else setRefreshing(true)
     try {
