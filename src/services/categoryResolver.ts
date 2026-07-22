@@ -131,7 +131,9 @@ export async function resolveCategoryConfig(categoryId: string, override?: Resol
 
     let qualificationMotoRiderCount = 0
 
-    let qualificationMotos = override?.preloaded?.qualificationMotos?.filter(m => m.category_id === categoryId)
+    let qualificationMotos = override?.preloaded?.qualificationMotos?.filter(m => 
+      m.category_id === categoryId && /moto\s*\d+\s*(?:-\s*)?batch\s*\d+/i.test(m.moto_name)
+    )
     if (!override?.preloaded?.qualificationMotos) {
       const { data, error } = await adminClient
         .from('motos')
