@@ -40,6 +40,20 @@ const canCheckerUndoStatus = (motoStatus?: string | null) => {
   return isMotoLive(motoStatus) || isMotoUpcoming(motoStatus) || isMotoReady(motoStatus)
 }
 
+type RiderStatusChangeInput = {
+  rider_id?: string
+  participation_status?: string
+  registration_order?: number
+  moto_id?: string
+}
+
+type RiderStatusChange = {
+  rider_id: string
+  participation_status: 'ACTIVE' | 'DNS' | 'ABSENT'
+  registration_order: number
+  moto_id: string
+}
+
 export async function GET(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params
   const auth = await requireJury(req, ['CHECKER', 'FINISHER', 'RACE_DIRECTOR', 'ADMIN', 'super_admin'], eventId)
@@ -121,19 +135,48 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   const auth = await requireJury(req, ['CHECKER', 'RACE_DIRECTOR', 'ADMIN', 'super_admin'], eventId)
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
   const body = await req.json()
-  const { rider_id, participation_status, registration_order = 0, moto_id } = body ?? {}
-  if (!rider_id || !participation_status || !moto_id) {
+  const rows: RiderStatusChangeInput[] = Array.isArray(body?.changes)
+    ? (body.changes as RiderStatusChangeInput[])
+    : body?.rider_id
+      ? [(body as RiderStatusChangeInput)]
+      : []
+  if (!rows.length) {
     return NextResponse.json({ error: 'rider_id, participation_status, and moto_id required' }, { status: 400 })
   }
-  if (!['ACTIVE', 'DNS', 'ABSENT'].includes(participation_status)) {
+
+  const normalizedRows = rows.map((row: {
+    rider_id?: string
+    participation_status?: string
+    registration_order?: number
+    moto_id?: string
+  }) => ({
+    rider_id: row.rider_id,
+    participation_status: row.participation_status,
+    registration_order: row.registration_order ?? 0,
+    moto_id: row.moto_id,
+  }))
+
+  if (normalizedRows.some((row) => !row.rider_id || !row.participation_status || !row.moto_id)) {
+    return NextResponse.json({ error: 'rider_id, participation_status, and moto_id required' }, { status: 400 })
+  }
+  if (normalizedRows.some((row) => !['ACTIVE', 'DNS', 'ABSENT'].includes(String(row.participation_status ?? '')))) {
     return NextResponse.json({ error: 'Invalid status for jury start' }, { status: 400 })
   }
+
+  const typedRows = normalizedRows.map((row) => ({
+    rider_id: row.rider_id as string,
+    participation_status: row.participation_status as RiderStatusChange['participation_status'],
+    registration_order: row.registration_order as number,
+    moto_id: row.moto_id as string,
+  })) satisfies RiderStatusChange[]
+
+  const motoId = typedRows[0]!.moto_id
 
   if (auth.role === 'RACE_DIRECTOR') {
     return NextResponse.json({ error: 'Read-only for RACE_DIRECTOR' }, { status: 403 })
   }
 
-  if (await isLockedMoto(moto_id)) {
+  if (await isLockedMoto(motoId)) {
     try {
       assertMotoEditable('locked')
     } catch (err: unknown) {
@@ -143,7 +186,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   const { data: moto, error: motoError } = await adminClient
     .from('motos')
     .select('id, event_id, category_id, moto_name, status')
-    .eq('id', moto_id)
+    .eq('id', motoId)
     .maybeSingle()
   if (motoError) return NextResponse.json({ error: motoError.message }, { status: 400 })
   if (!moto || moto.event_id !== eventId) {
@@ -154,8 +197,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   } catch (err: unknown) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Moto under protest review.' }, { status: 409 })
   }
-  if (!canCheckerSetStatus(moto.status, participation_status)) {
-    if (isMotoUpcoming(moto.status) && participation_status === 'DNS') {
+  if (normalizedRows.some((row) => !canCheckerSetStatus(moto.status, row.participation_status))) {
+    if (isMotoUpcoming(moto.status) && typedRows.some((row) => row.participation_status === 'DNS')) {
       return NextResponse.json({ error: 'DNS baru bisa dipakai saat moto sudah LIVE.' }, { status: 409 })
     }
     return NextResponse.json(
@@ -165,92 +208,74 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   }
 
   const approvalMode = await getApprovalMode(eventId)
-  const shouldAutoApply =
-    approvalMode === 'AUTO' ||
-    participation_status === 'ACTIVE' ||
-    participation_status === 'DNS' ||
-    participation_status === 'ABSENT'
+  const shouldAutoApply = (participation_status: string) =>
+    approvalMode === 'AUTO' || participation_status === 'ACTIVE' || participation_status === 'DNS' || participation_status === 'ABSENT'
+  const insertRows = typedRows.map((row) => ({
+    event_id: eventId,
+    moto_id: row.moto_id,
+    rider_id: row.rider_id,
+    proposed_status: row.participation_status,
+    created_by: auth.user.id,
+    approval_status: shouldAutoApply(row.participation_status) ? 'APPROVED' : 'PENDING',
+    approved_by: shouldAutoApply(row.participation_status) ? 'SYSTEM' : null,
+    approved_at: shouldAutoApply(row.participation_status) ? new Date().toISOString() : null,
+  }))
 
   const { data, error } = await adminClient
     .from('rider_status_updates')
-    .insert([
-      {
-        event_id: eventId,
-        moto_id,
-        rider_id,
-        proposed_status: participation_status,
-        created_by: auth.user.id,
-        approval_status: shouldAutoApply ? 'APPROVED' : 'PENDING',
-        approved_by: shouldAutoApply ? 'SYSTEM' : null,
-        approved_at: shouldAutoApply ? new Date().toISOString() : null,
-      },
-    ])
+    .insert(insertRows)
     .select('id, event_id, rider_id, proposed_status, approval_status')
-    .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
-  if (shouldAutoApply) {
-    const { error: participationError } = await upsertRiderParticipationStatuses([
-      {
-        event_id: eventId,
-        moto_id,
-        rider_id,
-        participation_status,
-        registration_order,
-      },
-    ])
+  const autoApplyRows = typedRows
+    .filter((row) => shouldAutoApply(row.participation_status))
+    .map((row) => ({
+      event_id: eventId,
+      moto_id: row.moto_id,
+      rider_id: row.rider_id,
+      participation_status: row.participation_status,
+      registration_order: row.registration_order,
+    }))
+
+  if (autoApplyRows.length > 0) {
+    const { error: participationError } = await upsertRiderParticipationStatuses(autoApplyRows)
     if (participationError) {
       return NextResponse.json({ error: participationError.message }, { status: 400 })
     }
 
-    if (participation_status === 'DNS' || participation_status === 'ABSENT') {
-      const { error: dnsResultError } = await adminClient
-        .from('results')
-        .upsert(
-          [
-            {
-              event_id: eventId,
-              moto_id,
-              rider_id,
-              finish_order: null,
-              result_status: 'DNS',
-            },
-          ],
-          { onConflict: 'moto_id,rider_id' }
-        )
-      if (dnsResultError) {
-        return NextResponse.json({ error: dnsResultError.message }, { status: 400 })
-      }
-    } else {
-      const { error: clearDnsResultError } = await adminClient
-        .from('results')
-        .delete()
-        .eq('moto_id', moto_id)
-        .eq('rider_id', rider_id)
-        .eq('result_status', 'DNS')
-      if (clearDnsResultError) {
-        return NextResponse.json({ error: clearDnsResultError.message }, { status: 400 })
-      }
+    const dnsRows = autoApplyRows.filter((row) => row.participation_status === 'DNS' || row.participation_status === 'ABSENT')
+    if (dnsRows.length > 0) {
+      const { error: dnsResultError } = await adminClient.from('results').upsert(
+        dnsRows.map((row) => ({
+          event_id: eventId,
+          moto_id: row.moto_id,
+          rider_id: row.rider_id,
+          finish_order: null,
+          result_status: 'DNS',
+        })),
+        { onConflict: 'moto_id,rider_id' }
+      )
+      if (dnsResultError) return NextResponse.json({ error: dnsResultError.message }, { status: 400 })
     }
   }
 
-  await adminClient.from('audit_log').insert([
-    {
+    await adminClient.from('audit_log').insert(
+    typedRows.map((row) => ({
       action_type: 'STATUS_APPROVAL',
-      performed_by: shouldAutoApply ? 'SYSTEM' : auth.user.id,
-      rider_id,
-      moto_id,
+      performed_by: shouldAutoApply(row.participation_status) ? 'SYSTEM' : auth.user.id,
+      rider_id: row.rider_id,
+      moto_id: row.moto_id,
       event_id: eventId,
-      reason: shouldAutoApply
-        ? participation_status === 'ACTIVE'
+      reason: shouldAutoApply(row.participation_status)
+        ? row.participation_status === 'ACTIVE'
           ? 'ACTIVE status auto-applied'
-          : participation_status === 'ABSENT'
+          : row.participation_status === 'ABSENT'
             ? 'ABSENT status applied with DNS scoring'
             : 'AUTO mode: status applied'
         : 'Status update submitted',
-    },
-  ])
+    }))
+  )
 
   return NextResponse.json({ data })
 }
