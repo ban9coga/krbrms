@@ -168,9 +168,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const typedResultRows = (resultRows ?? []) as ResultRow[]
   const resolvedByCategory = new Map<string, Awaited<ReturnType<typeof resolveCategoryConfig>>>()
 
-  for (const id of categoryIds) {
-    resolvedByCategory.set(id, await resolveCategoryConfig(id))
-  }
+  await Promise.all(
+    categoryIds.map(async (id) => {
+      resolvedByCategory.set(id, await resolveCategoryConfig(id))
+    })
+  )
 
   for (const id of categoryIds) {
     const categoryMotos = typedMotoRows.filter((row) => row.category_id === id)
