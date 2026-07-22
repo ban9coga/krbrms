@@ -162,6 +162,8 @@ export default function MotosClient({ eventId }: { eventId: string }) {
   const [gateOrdersByCategory, setGateOrdersByCategory] = useState<Record<string, GateMotoItem[]>>({})
   const [hiddenCategoryIds, setHiddenCategoryIds] = useState<string[]>([])
   const [showMotoRiderList, setShowMotoRiderList] = useState(false)
+  const [loadingGateOrders, setLoadingGateOrders] = useState(false)
+  const [loadedGateOrderCategoryIds, setLoadedGateOrderCategoryIds] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [exportingMotoExcel, setExportingMotoExcel] = useState(false)
@@ -187,19 +189,34 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     return json
   }
 
-  const loadGateOrders = async (categoryIds: string[]) => {
-    if (categoryIds.length === 0) {
-      setGateOrdersByCategory({})
+  const loadGateOrders = async (categoryIds: string[], options: { force?: boolean } = {}) => {
+    const uniqueCategoryIds = Array.from(new Set(categoryIds.filter(Boolean)))
+    if (uniqueCategoryIds.length === 0) {
       return
     }
-    const res = await fetch(`/api/events/${eventId}/gate-order`, { cache: 'no-store' })
-    const json = await res.json().catch(() => ({}))
-    const rowsByCategory = (res.ok ? json?.data ?? {} : {}) as Record<string, GateMotoItem[]>
-    const map: Record<string, GateMotoItem[]> = {}
-    for (const categoryId of categoryIds) {
-      map[categoryId] = [...(rowsByCategory[categoryId] ?? [])].sort(compareMotoDisplayOrder)
+    const loadedSet = new Set(loadedGateOrderCategoryIds)
+    const idsToLoad = options.force ? uniqueCategoryIds : uniqueCategoryIds.filter((categoryId) => !loadedSet.has(categoryId))
+    if (idsToLoad.length === 0) return
+
+    setLoadingGateOrders(true)
+    try {
+      const entries = await Promise.all(
+        idsToLoad.map(async (categoryId) => {
+          const res = await fetch(`/api/events/${eventId}/gate-order?categoryId=${categoryId}`, { cache: 'no-store' })
+          const json = await res.json().catch(() => ({}))
+          const rows = (res.ok ? json?.data ?? [] : []) as GateMotoItem[]
+          return [categoryId, [...rows].sort(compareMotoDisplayOrder)] as const
+        })
+      )
+      setGateOrdersByCategory((prev) => {
+        const next = { ...prev }
+        for (const [categoryId, rows] of entries) next[categoryId] = rows
+        return next
+      })
+      setLoadedGateOrderCategoryIds((prev) => Array.from(new Set([...prev, ...idsToLoad])))
+    } finally {
+      setLoadingGateOrders(false)
     }
-    setGateOrdersByCategory(map)
   }
 
   const load = async (
@@ -236,9 +253,11 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       const motoJson = await motoRes.json()
       const motoRows = (motoJson.data ?? []) as MotoItem[]
       setMotos(motoRows)
-      const categoryIds = Array.from(new Set(motoRows.map((m) => m.category_id))).filter(Boolean)
       setHiddenCategoryIds([])
-      await loadGateOrders(categoryIds)
+      if (showMotoRiderList) {
+        const categoryIds = Array.from(new Set(motoRows.map((m) => m.category_id))).filter(Boolean)
+        await loadGateOrders(categoryIds, { force: mode === 'refresh' })
+      }
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -314,6 +333,11 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     }
     return grouped
   }, [motos])
+
+  const motoCategoryIds = useMemo(
+    () => Array.from(new Set(motos.map((moto) => moto.category_id).filter(Boolean))),
+    [motos]
+  )
 
   const isCategoryComplete = useCallback(
     (categoryId: string) => {
@@ -439,6 +463,24 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       }>
     }>
   }, [categoriesSorted, gateOrdersByCategory])
+
+  const allGateOrdersLoaded = motoCategoryIds.length > 0 && motoCategoryIds.every((categoryId) =>
+    loadedGateOrderCategoryIds.includes(categoryId)
+  )
+
+  const handleToggleMotoRiderList = async () => {
+    const nextShow = !showMotoRiderList
+    setShowMotoRiderList(nextShow)
+    if (nextShow) {
+      await loadGateOrders(motoCategoryIds)
+    }
+  }
+
+  const ensureGateOrdersLoaded = async () => {
+    if (!allGateOrdersLoaded) {
+      await loadGateOrders(motoCategoryIds)
+    }
+  }
 
   const handleUpdateMotoStatus = async (motoId: string, status: MotoItem['status']) => {
     try {
@@ -750,6 +792,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
   }
 
   const handleExportMotoRidersExcel = async () => {
+    await ensureGateOrdersLoaded()
     if (printGroups.length === 0) {
       alert('Belum ada data rider per moto yang bisa diexport.')
       return
@@ -836,6 +879,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
   }
 
   const handleExportMotoRidersWord = async () => {
+    await ensureGateOrdersLoaded()
     if (printGroups.length === 0) {
       alert('Belum ada data rider per moto yang bisa diexport.')
       return
@@ -1027,26 +1071,28 @@ export default function MotosClient({ eventId }: { eventId: string }) {
           <button
             type="button"
             onClick={() => void handleExportMotoRidersWord()}
-            disabled={exportingMotoExcel || exportingMotoWord}
+            disabled={exportingMotoExcel || exportingMotoWord || loadingGateOrders || !allGateOrdersLoaded}
             className="admin-outline-button"
             style={{
-              cursor: exportingMotoExcel || exportingMotoWord ? 'not-allowed' : 'pointer',
+              cursor: exportingMotoExcel || exportingMotoWord || loadingGateOrders || !allGateOrdersLoaded ? 'not-allowed' : 'pointer',
               whiteSpace: 'nowrap',
-              opacity: exportingMotoExcel || exportingMotoWord ? 0.6 : 1,
+              opacity: exportingMotoExcel || exportingMotoWord || loadingGateOrders || !allGateOrdersLoaded ? 0.6 : 1,
             }}
+            title={!allGateOrdersLoaded ? 'Tampilkan daftar rider dulu untuk memuat data gate.' : undefined}
           >
             {exportingMotoWord ? 'Preparing DOCX...' : 'Word DOCX Rider Per Moto'}
           </button>
           <button
             type="button"
             onClick={() => void handleExportMotoRidersExcel()}
-            disabled={exportingMotoExcel || exportingMotoWord}
+            disabled={exportingMotoExcel || exportingMotoWord || loadingGateOrders || !allGateOrdersLoaded}
             className="admin-outline-button"
             style={{
-              cursor: exportingMotoExcel || exportingMotoWord ? 'not-allowed' : 'pointer',
+              cursor: exportingMotoExcel || exportingMotoWord || loadingGateOrders || !allGateOrdersLoaded ? 'not-allowed' : 'pointer',
               whiteSpace: 'nowrap',
-              opacity: exportingMotoExcel || exportingMotoWord ? 0.6 : 1,
+              opacity: exportingMotoExcel || exportingMotoWord || loadingGateOrders || !allGateOrdersLoaded ? 0.6 : 1,
             }}
+            title={!allGateOrdersLoaded ? 'Tampilkan daftar rider dulu untuk memuat data gate.' : undefined}
           >
             {exportingMotoExcel ? 'Preparing XLSX...' : 'Excel Rider Per Moto'}
           </button>
@@ -1455,26 +1501,45 @@ export default function MotosClient({ eventId }: { eventId: string }) {
           }}
         >
           <div style={{ fontWeight: 900, color: '#0f172a' }}>
-            Daftar rider moto disembunyikan dulu supaya halaman ini fokus ke kontrol status.
+            Daftar rider moto dimuat saat dibuka supaya halaman Motos lebih ringan.
           </div>
           <button
             type="button"
-            onClick={() => setShowMotoRiderList((prev) => !prev)}
+            onClick={() => void handleToggleMotoRiderList()}
+            disabled={loadingGateOrders}
             style={{
               padding: '8px 12px',
               borderRadius: 999,
               border: '2px solid #111',
               background: '#f8fafc',
               fontWeight: 900,
-              cursor: 'pointer',
+              cursor: loadingGateOrders ? 'not-allowed' : 'pointer',
               whiteSpace: 'nowrap',
+              opacity: loadingGateOrders ? 0.65 : 1,
             }}
           >
-            {showMotoRiderList ? 'Sembunyikan Daftar Rider' : 'Tampilkan Daftar Rider'}
+            {loadingGateOrders ? 'Memuat Rider...' : showMotoRiderList ? 'Sembunyikan Daftar Rider' : 'Tampilkan Daftar Rider'}
           </button>
         </div>
 
+        {showMotoRiderList && !loadingGateOrders && printGroups.length === 0 && (
+          <div
+            className="no-print"
+            style={{
+              padding: 14,
+              borderRadius: 14,
+              border: '1px dashed #94a3b8',
+              background: '#f8fafc',
+              color: '#475569',
+              fontWeight: 800,
+            }}
+          >
+            Belum ada data rider/gate yang bisa ditampilkan.
+          </div>
+        )}
+
         {showMotoRiderList &&
+          !loadingGateOrders &&
           printGroups.map((group) => (
           <section
             key={`print-${group.categoryId}`}
