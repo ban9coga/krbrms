@@ -816,9 +816,6 @@ export default function JCPage() {
       setBulkReadyState({ motoId: selectedMotoId, changedStatuses })
       setWarningMessage(`${targetRiders.length} rider di ${selectedMoto?.moto_name ?? 'moto ini'} ditandai READY. Kalau ada yang keliru, tekan Undo All Riders Ready.`)
       setLastUpdated(new Date().toLocaleTimeString())
-      setTimeout(() => {
-        void loadMoto(true, true)
-      }, 350)
     } catch (err: unknown) {
       const restoredStatuses = Object.entries(changedStatuses).reduce<Record<string, StatusRow>>((acc, [riderId, row]) => {
         if (row) acc[riderId] = row
@@ -890,9 +887,6 @@ export default function JCPage() {
       setBulkReadyState(null)
       setWarningMessage('All Riders Ready dibatalkan. Status rider dikembalikan ke kondisi sebelum mass ready.')
       setLastUpdated(new Date().toLocaleTimeString())
-      setTimeout(() => {
-        void loadMoto(true, true)
-      }, 350)
     } catch (err: unknown) {
       setErrorMessage(err instanceof Error ? err.message : 'Gagal undo All Riders Ready.')
       await loadMoto(true)
