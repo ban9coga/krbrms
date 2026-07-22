@@ -168,11 +168,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const typedResultRows = (resultRows ?? []) as ResultRow[]
   const resolvedByCategory = new Map<string, Awaited<ReturnType<typeof resolveCategoryConfig>>>()
 
-  await Promise.all(
-    categoryIds.map(async (id) => {
-      resolvedByCategory.set(id, await resolveCategoryConfig(id))
-    })
-  )
+  // Process in chunks to avoid connection pool exhaustion
+  const chunkSize = 3
+  for (let i = 0; i < categoryIds.length; i += chunkSize) {
+    const chunk = categoryIds.slice(i, i + chunkSize)
+    await Promise.all(
+      chunk.map(async (id) => {
+        resolvedByCategory.set(id, await resolveCategoryConfig(id))
+      })
+    )
+  }
 
   for (const id of categoryIds) {
     const categoryMotos = typedMotoRows.filter((row) => row.category_id === id)

@@ -730,6 +730,14 @@ export async function PATCH(
       return NextResponse.json({ error: riderError?.message ?? 'Failed creating rider' }, { status: 400 })
     }
 
+    await adminClient
+      .from('registration_items')
+      .update({
+        requested_plate_number: plateNumber,
+        requested_plate_suffix: plateSuffix,
+      })
+      .eq('id', item.id)
+
     await syncRegistrationPhotoToRider(eventId, riderRow.id, item.photo_url as string | null | undefined)
     createdRiders.push({ rider_id: riderRow.id, extra_category_id: item.extra_category_id })
   }
