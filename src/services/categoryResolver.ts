@@ -179,7 +179,14 @@ export async function resolveCategoryConfig(categoryId: string, override?: Resol
         ? Number(raceFormatSettings.gate_positions)
         : Number(raceFormatSettings.gate_positions ?? 8)
 
-    if (override) {
+    const hasStageOverride = override && (
+      'enableQualification' in override ||
+      'enableQuarterFinal' in override ||
+      'enableSemiFinal' in override ||
+      'enabledFinalClasses' in override
+    )
+
+    if (hasStageOverride) {
       return {
         categoryId,
         eventId,
