@@ -22,6 +22,12 @@ export type CategoryResolveResult = {
 
 export type ResolverOverride = Partial<StageFlags> & {
   enabledFinalClasses?: string[]
+  preloaded?: {
+    riders?: Array<{ id: string; primary_category_id?: string | null; birth_year?: number | null; date_of_birth?: string | null; gender: 'BOY' | 'GIRL' }>
+    extraCategories?: Array<{ rider_id: string; category_id: string }>
+    qualificationMotos?: Array<{ id: string; category_id: string; moto_name: string }>
+    qualificationMotoRiders?: Array<{ rider_id: string; moto_id: string }>
+  }
 }
 
 const DEFAULT_RESULT = (categoryId: string, eventId: string, totalRiders: number, warning?: string): CategoryResolveResult => ({
@@ -49,10 +55,9 @@ export async function resolveCategoryConfig(categoryId: string, override?: Resol
     }
 
     const eventId = category.event_id as string
-    let riders:
-      | Array<{ id: string; primary_category_id?: string | null; birth_year?: number | null; date_of_birth?: string | null; gender: 'BOY' | 'GIRL' }>
-      | null = null
-    {
+    let riders = override?.preloaded?.riders ?? null
+
+    if (!riders) {
       const withPrimary = await adminClient
         .from('riders')
         .select('id, primary_category_id, birth_year, date_of_birth, gender')
@@ -76,6 +81,7 @@ export async function resolveCategoryConfig(categoryId: string, override?: Resol
         }
         riders = (legacy.data ?? []) as Array<{
           id: string
+          primary_category_id?: string | null
           birth_year?: number | null
           date_of_birth?: string | null
           gender: 'BOY' | 'GIRL'
@@ -103,14 +109,19 @@ export async function resolveCategoryConfig(categoryId: string, override?: Resol
     )
 
     let upclassCategoryRiderIds = new Set<string>()
-    const { data: extraCategoryRows, error: extraCategoryError } = await adminClient
-      .from('rider_extra_categories')
-      .select('rider_id')
-      .eq('event_id', eventId)
-      .eq('category_id', categoryId)
+    if (override?.preloaded?.extraCategories) {
+      const filtered = override.preloaded.extraCategories.filter((row) => row.category_id === categoryId)
+      upclassCategoryRiderIds = new Set(filtered.map((row) => row.rider_id))
+    } else {
+      const { data: extraCategoryRows, error: extraCategoryError } = await adminClient
+        .from('rider_extra_categories')
+        .select('rider_id')
+        .eq('event_id', eventId)
+        .eq('category_id', categoryId)
 
-    if (!extraCategoryError) {
-      upclassCategoryRiderIds = new Set((extraCategoryRows ?? []).map((row) => row.rider_id as string))
+      if (!extraCategoryError) {
+        upclassCategoryRiderIds = new Set((extraCategoryRows ?? []).map((row) => row.rider_id as string))
+      }
     }
 
     const registeredCategoryRiderIds = new Set([
@@ -120,22 +131,32 @@ export async function resolveCategoryConfig(categoryId: string, override?: Resol
 
     let qualificationMotoRiderCount = 0
 
-    const { data: qualificationMotos, error: qualificationMotoError } = await adminClient
-      .from('motos')
-      .select('id, moto_name')
-      .eq('event_id', eventId)
-      .eq('category_id', categoryId)
-      .ilike('moto_name', 'Moto % - Batch %')
+    let qualificationMotos = override?.preloaded?.qualificationMotos?.filter(m => m.category_id === categoryId)
+    if (!override?.preloaded?.qualificationMotos) {
+      const { data, error } = await adminClient
+        .from('motos')
+        .select('id, category_id, moto_name')
+        .eq('event_id', eventId)
+        .eq('category_id', categoryId)
+        .ilike('moto_name', 'Moto % - Batch %')
+      if (!error) qualificationMotos = data ?? []
+    }
 
-    if (!qualificationMotoError && (qualificationMotos ?? []).length > 0) {
-      const qualificationMotoIds = (qualificationMotos ?? []).map((moto) => moto.id)
-      const { data: motoRiders, error: motoRiderError } = await adminClient
-        .from('moto_riders')
-        .select('rider_id')
-        .in('moto_id', qualificationMotoIds)
+    if (qualificationMotos && qualificationMotos.length > 0) {
+      const qualificationMotoIds = qualificationMotos.map((moto) => moto.id)
+      
+      if (override?.preloaded?.qualificationMotoRiders) {
+        const filtered = override.preloaded.qualificationMotoRiders.filter(row => qualificationMotoIds.includes(row.moto_id))
+        qualificationMotoRiderCount = new Set(filtered.map((row) => row.rider_id)).size
+      } else {
+        const { data: motoRiders, error: motoRiderError } = await adminClient
+          .from('moto_riders')
+          .select('rider_id')
+          .in('moto_id', qualificationMotoIds)
 
-      if (!motoRiderError) {
-        qualificationMotoRiderCount = new Set((motoRiders ?? []).map((row) => row.rider_id)).size
+        if (!motoRiderError) {
+          qualificationMotoRiderCount = new Set((motoRiders ?? []).map((row) => row.rider_id)).size
+        }
       }
     }
 

@@ -168,13 +168,25 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const typedResultRows = (resultRows ?? []) as ResultRow[]
   const resolvedByCategory = new Map<string, Awaited<ReturnType<typeof resolveCategoryConfig>>>()
 
+  const [{ data: allRiders }, { data: allExtraCategories }] = await Promise.all([
+    adminClient.from('riders').select('id, primary_category_id, birth_year, date_of_birth, gender').eq('event_id', eventId),
+    adminClient.from('rider_extra_categories').select('rider_id, category_id').eq('event_id', eventId),
+  ])
+
+  const preloaded = {
+    riders: (allRiders ?? []) as any[],
+    extraCategories: (allExtraCategories ?? []) as any[],
+    qualificationMotos: typedMotoRows,
+    qualificationMotoRiders: typedAssignedRows,
+  }
+
   // Process in chunks to avoid connection pool exhaustion
   const chunkSize = 3
   for (let i = 0; i < categoryIds.length; i += chunkSize) {
     const chunk = categoryIds.slice(i, i + chunkSize)
     await Promise.all(
       chunk.map(async (id) => {
-        resolvedByCategory.set(id, await resolveCategoryConfig(id))
+        resolvedByCategory.set(id, await resolveCategoryConfig(id, { preloaded }))
       })
     )
   }
