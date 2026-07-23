@@ -696,7 +696,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       const autoPenaltyTotal = resolveNonFinishAutoPenalty(status, pointOverrideConfig ?? undefined)
       return {
         rider_id: riderId,
-        gate: gateMap.get(riderId) ?? null,
+        gate: collapsedGateMap.get(riderId) ?? null,
         name: rider?.name ?? '-',
         no_plate: rider?.no_plate_display ?? '-',
         club: rider?.club ?? '-',
