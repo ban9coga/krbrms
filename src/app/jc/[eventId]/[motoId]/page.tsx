@@ -4,8 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import CheckerTopbar from '../../../../components/CheckerTopbar'
 import { useHighVisibility } from '../../../../hooks/useHighVisibility'
-import { buildCategoryBaseOrder, compareMotoSequence, compareMotoWorkflowSequence } from '../../../../lib/motoSequence'
-import { supabase } from '../../../../lib/supabaseClient'
+import { buildCategoryBaseOrder, compareMotoWorkflowSequence } from '../../../../lib/motoSequence'
+import { useApiFetch } from '../../../../hooks/useApiFetch'
 import { isMotoLive, isMotoReady, isMotoUpcoming } from '../../../../lib/motoStatus'
 import { usePageVisibility } from '../../../../lib/usePageVisibility'
 
@@ -208,6 +208,7 @@ const buildStatusMap = (
 
 export default function JCPage() {
   const isPageVisible = usePageVisibility()
+  const apiFetch = useApiFetch()
   const params = useParams()
   const eventId = String(params?.eventId ?? '')
   const initialMotoId = String(params?.motoId ?? '')
@@ -253,13 +254,6 @@ export default function JCPage() {
     return () => window.removeEventListener('resize', updateViewportWidth)
   }, [])
 
-  const getToken = useCallback(async () => {
-    const { data } = await supabase.auth.getSession()
-    if (data.session?.access_token) return data.session.access_token
-    const refreshed = await supabase.auth.refreshSession()
-    return refreshed.data.session?.access_token ?? null
-  }, [])
-
   const syncPrepMotoUrl = useCallback(
     (motoId: string) => {
       if (!motoId || typeof window === 'undefined') return
@@ -269,27 +263,6 @@ export default function JCPage() {
     },
     [eventId]
   )
-
-  const apiFetch = useCallback(async (url: string, options: RequestInit = {}, retryUnauthorized = true) => {
-    const token = await getToken()
-    const headers: Record<string, string> = {
-      ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
-      ...((options.headers ?? {}) as Record<string, string>),
-    }
-    if (token) headers.Authorization = `Bearer ${token}`
-    const res = await fetch(url, { ...options, headers })
-    const json = await res.json().catch(() => ({}))
-    if (!res.ok) {
-      if (res.status === 401 && retryUnauthorized) {
-        return apiFetch(url, options, false)
-      }
-      if (res.status === 401) {
-        throw new Error('Session login habis. Silakan login ulang.')
-      }
-      throw new Error(json?.error || 'Request failed')
-    }
-    return json
-  }, [getToken])
 
   const incidentMoto = useMemo(() => motos.find((m) => isMotoLive(m.status)) ?? null, [motos])
   const incidentMotoId = incidentMoto?.id ?? ''
@@ -387,16 +360,18 @@ export default function JCPage() {
     if (!silent) setLoading(true)
     if (!silent) setErrorMessage(null)
     try {
-      const [lockRes, riderRes, statusRes, safetyRes] = await Promise.all([
-        apiFetch(`/api/jury/motos/${targetMotoId}/lock-status`),
+      const targetMoto = motos.find((m) => m.id === targetMotoId)
+      const isMotoLocked = targetMoto ? targetMoto.status === 'LOCKED' : false
+      
+      const [riderRes, statusRes, safetyRes] = await Promise.all([
         apiFetch(`/api/jury/motos/${targetMotoId}/riders`),
         apiFetch(`/api/jury/events/${eventId}/rider-status?moto_id=${targetMotoId}`),
         apiFetch(`/api/jury/motos/${targetMotoId}/safety-checks`),
       ])
 
       if (selectedMotoIdRef.current !== targetMotoId) return
-      setLocked(!!lockRes.data)
-      if (lockRes.data) {
+      setLocked(isMotoLocked)
+      if (isMotoLocked) {
         setRiders([])
         setStatuses({})
         setLastUpdated(null)
@@ -486,7 +461,7 @@ export default function JCPage() {
         setErrorMessage(err instanceof Error ? err.message : 'Gagal memuat incident moto LIVE.')
       }
     }
-  }, [apiFetch, eventId, incidentMotoId, loadMotos])
+  }, [apiFetch, eventId, incidentMotoId, loadMotos, loadMoto])
 
   // Consolidated managed polling loop with page visibility awareness
   useEffect(() => {

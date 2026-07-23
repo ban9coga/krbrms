@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../../../lib/supabaseClient'
 import { useHighVisibility } from '../../../hooks/useHighVisibility'
-import { buildCategoryBaseOrder, compareMotoSequence, compareMotoWorkflowSequence } from '../../../lib/motoSequence'
+import { buildCategoryBaseOrder, compareMotoWorkflowSequence } from '../../../lib/motoSequence'
 import { isMotoLive } from '../../../lib/motoStatus'
 import CheckerTopbar from '../../../components/CheckerTopbar'
 import { usePageVisibility } from '../../../lib/usePageVisibility'
+import { useApiFetch } from '../../../hooks/useApiFetch'
 
 type EventItem = {
   id: string
@@ -78,6 +79,7 @@ const PenaltyBadges = ({ items }: { items?: PenaltyBadgeItem[] }) => {
 }
 
 export default function JuryFinishPage() {
+  const apiFetch = useApiFetch()
   const [events, setEvents] = useState<EventItem[]>([])
   const [eventId, setEventId] = useState('')
   const [categories, setCategories] = useState<CategoryItem[]>([])
@@ -149,18 +151,6 @@ export default function JuryFinishPage() {
     return selectableRows[0].id
   }, [])
 
-  const apiFetch = useCallback(async (url: string, options: RequestInit = {}) => {
-    const { data } = await supabase.auth.getSession()
-    const token = data.session?.access_token
-    const headers: Record<string, string> = {}
-    if (token) headers.Authorization = `Bearer ${token}`
-    if (!(options.body instanceof FormData)) headers['Content-Type'] = 'application/json'
-    const res = await fetch(url, { ...options, headers })
-    const json = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(json?.error || 'Request failed')
-    return json
-  }, [])
-
   useEffect(() => {
     const loadEvents = async () => {
       const res = await apiFetch('/api/jury/events?status=LIVE')
@@ -168,7 +158,7 @@ export default function JuryFinishPage() {
       if (!eventId && res.data?.length) setEventId(res.data[0].id)
     }
     void loadEvents()
-  }, [apiFetch, eventId])
+  }, [eventId])
 
   useEffect(() => {
     const loadRole = async () => {

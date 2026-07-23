@@ -31,6 +31,52 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
     return NextResponse.json({ error: 'Moto sedang PROTEST_REVIEW. Selesaikan review dulu sebelum reset.' }, { status: 409 })
   }
 
+  const currentMotoName = String(moto.moto_name).toUpperCase()
+  const isQuarter = currentMotoName.includes('QUARTER')
+  const isRepechage = currentMotoName.includes('REPECHAGE')
+  const isSemi = currentMotoName.includes('SEMI')
+  
+  let targetMotoPrefixes: string[] = []
+  let targetStageValues: string[] = []
+  
+  if (isQualificationMoto(moto.moto_name)) {
+    targetMotoPrefixes = ['QUARTER', 'REPECHAGE', 'SEMI', 'FINAL']
+    targetStageValues = ['QUARTER_FINAL', 'REPECHAGE', 'SEMI_FINAL', 'FINAL']
+  } else if (isQuarter) {
+    targetMotoPrefixes = ['REPECHAGE', 'SEMI', 'FINAL']
+    targetStageValues = ['REPECHAGE', 'SEMI_FINAL', 'FINAL']
+  } else if (isRepechage) {
+    targetMotoPrefixes = ['SEMI', 'FINAL']
+    targetStageValues = ['SEMI_FINAL', 'FINAL']
+  } else if (isSemi) {
+    targetMotoPrefixes = ['FINAL']
+    targetStageValues = ['FINAL']
+  }
+
+  let motoIdsToDelete: string[] = []
+  if (targetMotoPrefixes.length > 0) {
+    const { data: subsequentMotos } = await adminClient
+      .from('motos')
+      .select('id, moto_name, status')
+      .eq('category_id', moto.category_id)
+
+    const motosToDelete = (subsequentMotos ?? []).filter((m) => {
+      const upperName = String(m.moto_name).toUpperCase()
+      return targetMotoPrefixes.some((prefix) => upperName.startsWith(prefix))
+    })
+
+    const hasLocked = motosToDelete.some((m) => String(m.status).toUpperCase() === 'LOCKED')
+    if (hasLocked) {
+      return NextResponse.json({ error: 'Tidak bisa reset moto ini karena stage selanjutnya sudah ada yang di-LOCKED. Buka atau reset stage selanjutnya terlebih dahulu.' }, { status: 409 })
+    }
+    const hasProtest = motosToDelete.some((m) => String(m.status).toUpperCase() === 'PROTEST_REVIEW')
+    if (hasProtest) {
+      return NextResponse.json({ error: 'Tidak bisa reset moto ini karena stage selanjutnya sedang PROTEST_REVIEW.' }, { status: 409 })
+    }
+
+    motoIdsToDelete = motosToDelete.map((m) => m.id)
+  }
+
   const { data: riderAssignments, error: riderError } = await adminClient
     .from('moto_riders')
     .select('rider_id')
@@ -78,16 +124,28 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
       .eq('stage', 'MOTO')
       .in('rider_id', riderIds)
     if (penaltyDeleteError) return NextResponse.json({ error: penaltyDeleteError.message }, { status: 400 })
+  }
 
-    if (isQualificationMoto(moto.moto_name)) {
-      const { error: stageDeleteError } = await adminClient
-        .from('race_stage_result')
-        .delete()
-        .eq('category_id', moto.category_id)
-        .in('rider_id', riderIds)
-        .in('stage', ['QUARTER_FINAL', 'REPECHAGE', 'SEMI_FINAL', 'FINAL'])
-      if (stageDeleteError) return NextResponse.json({ error: stageDeleteError.message }, { status: 400 })
+  if (motoIdsToDelete.length > 0) {
+    await adminClient.from('moto_gate_positions').delete().in('moto_id', motoIdsToDelete)
+    await adminClient.from('moto_riders').delete().in('moto_id', motoIdsToDelete)
+    await adminClient.from('results').delete().in('moto_id', motoIdsToDelete)
+    await adminClient.from('rider_participation_status').delete().in('moto_id', motoIdsToDelete)
+    await adminClient.from('rider_status_updates').delete().in('moto_id', motoIdsToDelete)
+    await adminClient.from('rider_safety_checks').delete().in('moto_id', motoIdsToDelete)
+    
+    const { data: penaltiesToDelete } = await adminClient.from('rider_penalties').select('id').in('moto_id', motoIdsToDelete)
+    const penaltyIdsToDelete = (penaltiesToDelete ?? []).map((p) => p.id)
+    if (penaltyIdsToDelete.length > 0) {
+      await adminClient.from('rider_penalty_approvals').delete().in('penalty_id', penaltyIdsToDelete)
+      await adminClient.from('rider_penalties').delete().in('id', penaltyIdsToDelete)
     }
+    
+    await adminClient.from('motos').delete().in('id', motoIdsToDelete)
+  }
+
+  if (targetStageValues.length > 0) {
+    await adminClient.from('race_stage_result').delete().eq('category_id', moto.category_id).in('stage', targetStageValues)
   }
 
   const { error: motoUpdateError } = await adminClient

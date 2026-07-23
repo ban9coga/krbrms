@@ -1,12 +1,9 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { adminClient, authClient } from '../../../../../lib/auth'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-
-const authClient = createClient(supabaseUrl, supabaseAnonKey)
-const adminClient = createClient(supabaseUrl, supabaseServiceKey)
 
 const getRoleFromUser = (user: { user_metadata?: Record<string, unknown>; app_metadata?: Record<string, unknown> }) => {
   const meta = (user.user_metadata ?? {}) as Record<string, unknown>

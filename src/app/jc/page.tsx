@@ -4,8 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import CheckerTopbar from '../../components/CheckerTopbar'
 import { isMotoLive, isMotoReady, isMotoUpcoming } from '../../lib/motoStatus'
-import { buildCategoryBaseOrder, compareMotoSequence, compareMotoWorkflowSequence } from '../../lib/motoSequence'
-import { supabase } from '../../lib/supabaseClient'
+import { buildCategoryBaseOrder, compareMotoWorkflowSequence } from '../../lib/motoSequence'
+import { useApiFetch } from '../../hooks/useApiFetch'
 
 type EventItem = {
   id: string
@@ -51,33 +51,7 @@ export default function JCSelectorPage() {
     return (liveMotos[0] ?? prepMotos[0] ?? list[0]).id
   }, [])
 
-  const getToken = useCallback(async () => {
-    const { data } = await supabase.auth.getSession()
-    if (data.session?.access_token) return data.session.access_token
-    const refreshed = await supabase.auth.refreshSession()
-    return refreshed.data.session?.access_token ?? null
-  }, [])
-
-  const apiFetch = useCallback(async (url: string, options: RequestInit = {}, retryUnauthorized = true) => {
-    const token = await getToken()
-    const headers: Record<string, string> = {
-      ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
-      ...((options.headers ?? {}) as Record<string, string>),
-    }
-    if (token) headers.Authorization = `Bearer ${token}`
-    const res = await fetch(url, { ...options, headers })
-    const json = await res.json().catch(() => ({}))
-    if (!res.ok) {
-      if (res.status === 401 && retryUnauthorized) {
-        return apiFetch(url, options, false)
-      }
-      if (res.status === 401) {
-        throw new Error('Session login habis. Silakan login ulang.')
-      }
-      throw new Error(json?.error || 'Request failed')
-    }
-    return json
-  }, [getToken])
+  const apiFetch = useApiFetch()
 
   const loadEvents = useCallback(async () => {
     setLoading(true)

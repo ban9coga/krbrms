@@ -1,14 +1,11 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-
-const authClient = createClient(supabaseUrl, supabaseAnonKey)
-const adminClient = createClient(supabaseUrl, supabaseServiceKey)
+import { adminClient, authClient } from '../../../../lib/auth'
 
 export async function GET(req: Request) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+
   if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceKey) {
     return NextResponse.json({ error: 'Supabase environment variables belum lengkap.' }, { status: 500 })
   }

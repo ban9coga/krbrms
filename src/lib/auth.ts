@@ -6,7 +6,7 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 
 export const adminClient = createClient(supabaseUrl, supabaseServiceKey)
-const authClient = createClient(supabaseUrl, supabaseAnonKey)
+export const authClient = createClient(supabaseUrl, supabaseAnonKey)
 
 type AuthUser = NonNullable<Awaited<ReturnType<typeof authClient.auth.getUser>>['data']['user']>
 

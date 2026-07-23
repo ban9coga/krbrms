@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import PublicTopbar from '../../components/PublicTopbar'
-import { supabase } from '../../lib/supabaseClient'
+import { useApiFetch } from '../../hooks/useApiFetch'
 
 type EventItem = {
   id: string
@@ -19,17 +19,7 @@ export default function McHomePage() {
   const [events, setEvents] = useState<EventItem[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  const apiFetch = async (url: string, options: RequestInit = {}) => {
-    const { data: sessionData } = await supabase.auth.getSession()
-    const token = sessionData.session?.access_token
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-    if (token) headers.Authorization = `Bearer ${token}`
-    const res = await fetch(url, { ...options, headers })
-    const json = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(json?.error || 'Request failed')
-    return json
-  }
+  const apiFetch = useApiFetch()
 
   const load = async () => {
     setLoading(true)

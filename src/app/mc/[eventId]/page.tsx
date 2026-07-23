@@ -5,9 +5,8 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import PublicTopbar from '../../../components/PublicTopbar'
 import { useHighVisibility } from '../../../hooks/useHighVisibility'
-import { supabase } from '../../../lib/supabaseClient'
+import { useApiFetch } from '../../../hooks/useApiFetch'
 
-const MC_REFRESH_INTERVAL_MS = 10000
 
 type MotoInfo = {
   id: string
@@ -164,16 +163,7 @@ export default function McLivePage() {
   const refreshInFlightRef = useRef(false)
   const { highVisibility, toggleHighVisibility } = useHighVisibility('mc-high-visibility')
 
-  const apiFetch = async (url: string, options: RequestInit = {}) => {
-    const { data: sessionData } = await supabase.auth.getSession()
-    const token = sessionData.session?.access_token
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-    if (token) headers.Authorization = `Bearer ${token}`
-    const res = await fetch(url, { ...options, headers })
-    const json = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(json?.error || 'Request failed')
-    return json
-  }
+  const apiFetch = useApiFetch()
 
   const load = async (silent = false) => {
     if (!eventId) return

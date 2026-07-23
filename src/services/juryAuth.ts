@@ -1,13 +1,14 @@
 'use server'
 
-import { createClient } from '@supabase/supabase-js'
-import { adminClient } from '../lib/auth'
+import { adminClient, authClient } from '../lib/auth'
 import { normalizeAppRole } from '../lib/roles'
+import { LRUCache } from 'lru-cache'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 
-const authClient = createClient(supabaseUrl, supabaseAnonKey)
+const userCache = new LRUCache<string, any>({ max: 500, ttl: 60000 })
+const rolesCache = new LRUCache<string, string[]>({ max: 500, ttl: 60000 })
 
 const getRole = (user: { user_metadata?: Record<string, unknown>; app_metadata?: Record<string, unknown> }) => {
   const meta = (user.user_metadata ?? {}) as Record<string, unknown>
@@ -36,6 +37,10 @@ const normalizeAllowedRoles = (allowed: string[]) =>
   allowed.map((role) => normalizeAppRole(legacyMap(role) ?? '')).filter(Boolean)
 
 const getScopedRoles = async (userId: string, eventId: string) => {
+  const cacheKey = `${userId}:${eventId}`
+  const cached = rolesCache.get(cacheKey)
+  if (cached) return cached
+
   const { data, error } = await adminClient
     .from('user_event_roles')
     .select('role')
@@ -45,10 +50,13 @@ const getScopedRoles = async (userId: string, eventId: string) => {
 
   if (error || !data?.length) return []
 
-  return data
+  const roles = data
     .map((row) => normalizeAppRole(typeof row.role === 'string' ? row.role : ''))
     .filter(Boolean)
     .sort((a, b) => roleWeight(a) - roleWeight(b))
+    
+  rolesCache.set(cacheKey, roles)
+  return roles
 }
 
 export async function getAccessibleEventIds(userId: string, allowed: string[]) {
@@ -78,16 +86,21 @@ export async function requireJury(req: Request, allowed: string[], eventId?: str
   const token = authHeader?.replace('Bearer ', '')
   if (!token) return { ok: false as const, status: 401, error: 'Unauthorized' }
 
-  const { data, error } = await authClient.auth.getUser(token)
-  if (error || !data?.user) return { ok: false as const, status: 401, error: 'Unauthorized' }
+  let user = userCache.get(token)
+  if (!user) {
+    const { data, error } = await authClient.auth.getUser(token)
+    if (error || !data?.user) return { ok: false as const, status: 401, error: 'Unauthorized' }
+    user = data.user
+    userCache.set(token, user)
+  }
 
   const allowedRoles = normalizeAllowedRoles(allowed)
-  const globalRole = normalizeAppRole(legacyMap(getRole(data.user)) ?? '')
+  const globalRole = normalizeAppRole(legacyMap(getRole(user)) ?? '')
   let role = globalRole
   let eventRole: string | null = null
 
   if (eventId) {
-    const scopedRoles = await getScopedRoles(data.user.id, eventId)
+    const scopedRoles = await getScopedRoles(user.id, eventId)
     if (scopedRoles.length > 0) {
       eventRole = scopedRoles[0]
       role = eventRole
@@ -96,5 +109,5 @@ export async function requireJury(req: Request, allowed: string[], eventId?: str
 
   if (!role || !allowedRoles.includes(role)) return { ok: false as const, status: 403, error: 'Forbidden' }
 
-  return { ok: true as const, user: data.user, role, eventRole }
+  return { ok: true as const, user, role, eventRole }
 }

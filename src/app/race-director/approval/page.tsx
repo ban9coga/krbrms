@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import CheckerTopbar from '../../../components/CheckerTopbar'
 import { compareMotoSequence } from '../../../lib/motoSequence'
 import { supabase } from '../../../lib/supabaseClient'
+import { useApiFetch } from '../../../hooks/useApiFetch'
 
 type StatusUpdate = {
   id: string
@@ -167,17 +168,7 @@ export default function RaceDirectorApprovalPage() {
   const [voidReasons, setVoidReasons] = useState<Record<string, string>>({})
   const [voidingPenaltyId, setVoidingPenaltyId] = useState<string | null>(null)
 
-  const apiFetch = useCallback(async (url: string, options: RequestInit = {}) => {
-    const { data } = await supabase.auth.getSession()
-    const token = data.session?.access_token
-    const headers: Record<string, string> = {}
-    if (token) headers.Authorization = `Bearer ${token}`
-    if (!(options.body instanceof FormData)) headers['Content-Type'] = 'application/json'
-    const res = await fetch(url, { ...options, headers })
-    const json = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(json?.error || 'Request failed')
-    return json
-  }, [])
+  const apiFetch = useApiFetch()
 
   const showNotice = useCallback((type: 'success' | 'error', message: string) => {
     setActionNotice({ type, message })
@@ -324,7 +315,7 @@ export default function RaceDirectorApprovalPage() {
     if (!eventId) return
     const lightTimer = setInterval(() => {
       void loadEventData({ silent: true, includeHeavy: false })
-    }, 5000)
+    }, 15000)
     const heavyTimer = setInterval(() => {
       void loadEventData({ silent: true, includeHeavy: true })
     }, 20000)
