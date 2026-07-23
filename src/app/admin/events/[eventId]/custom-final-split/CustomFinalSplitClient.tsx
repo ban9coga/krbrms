@@ -2,8 +2,8 @@
 
 import Image from 'next/image'
 import { useEffect, useMemo, useState } from 'react'
-import { supabase } from '../../../../../lib/supabaseClient'
-import { useApiFetch } from '../../../../../hooks/useApiFetch'
+import { supabase } from '@/src/lib/supabaseClient'
+import { useApiFetch } from '@/src/hooks/useApiFetch'
 
 type CategoryRow = {
   id: string

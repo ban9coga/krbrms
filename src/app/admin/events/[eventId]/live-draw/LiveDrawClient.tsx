@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import confetti from 'canvas-confetti'
 import { buildBrandedPrintHtml } from '../../../../../lib/printTheme'
-import { supabase } from '../../../../../lib/supabaseClient'
+import { supabase } from '@/src/lib/supabaseClient'
 
 type CategoryItem = {
   id: string

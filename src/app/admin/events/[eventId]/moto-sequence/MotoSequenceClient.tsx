@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { compareMotoDisplayOrder, formatMotoDisplayName } from '../../../../../lib/motoDisplayOrder'
-import { supabase } from '../../../../../lib/supabaseClient'
+import { supabase } from '@/src/lib/supabaseClient'
 
 type CategoryItem = {
   id: string

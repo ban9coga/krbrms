@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import CheckerTopbar from '../../components/CheckerTopbar'
-import { supabase } from '../../lib/supabaseClient'
+import { supabase } from '@/src/lib/supabaseClient'
 
 type EventRow = {
   id: string

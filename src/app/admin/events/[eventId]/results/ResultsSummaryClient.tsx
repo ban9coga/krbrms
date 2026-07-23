@@ -8,7 +8,7 @@ import ResultStoryCard, {
   getResultStoryCardFilename,
   type ResultStoryCardData,
 } from '../../../../../components/ResultStoryCard'
-import { supabase } from '../../../../../lib/supabaseClient'
+import { supabase } from '@/src/lib/supabaseClient'
 import type { BusinessSettings } from '../../../../../lib/eventService'
 
 type CategoryItem = {

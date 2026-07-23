@@ -14,8 +14,8 @@ import {
   type BestTeamPointRule,
 } from '../../../../../lib/bestTeam'
 import { formatAppRoleLabel } from '../../../../../lib/roles'
-import { supabase } from '../../../../../lib/supabaseClient'
-import { useApiFetch } from '../../../../../hooks/useApiFetch'
+import { supabase } from '@/src/lib/supabaseClient'
+import { useApiFetch } from '@/src/hooks/useApiFetch'
 import { ADVANCED_RACE_FINAL_CLASS_ORDER } from '../../../../../lib/advancedRaceDefaults'
 import type { BusinessSettings, CommunityShowcaseItem, EventSponsor, EventSponsorTier } from '../../../../../lib/eventService'
 

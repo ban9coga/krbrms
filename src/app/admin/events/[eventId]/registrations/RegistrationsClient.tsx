@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { isRegistrationApproverRole, normalizeAppRole } from '../../../../../lib/roles'
-import { supabase } from '../../../../../lib/supabaseClient'
+import { supabase } from '@/src/lib/supabaseClient'
 
 type CategoryItem = {
   id: string

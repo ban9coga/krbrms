@@ -1,13 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { supabase } from '../../../lib/supabaseClient'
+import { supabase } from '@/src/lib/supabaseClient'
 import { useHighVisibility } from '../../../hooks/useHighVisibility'
 import { buildCategoryBaseOrder, compareMotoWorkflowSequence } from '../../../lib/motoSequence'
 import { isMotoLive } from '../../../lib/motoStatus'
 import CheckerTopbar from '../../../components/CheckerTopbar'
 import { usePageVisibility } from '../../../lib/usePageVisibility'
-import { useApiFetch } from '../../../hooks/useApiFetch'
+import { useApiFetch } from '@/src/hooks/useApiFetch'
 
 type EventItem = {
   id: string

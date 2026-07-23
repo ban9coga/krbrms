@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import PublicTopbar from '../../../components/PublicTopbar'
 import { useHighVisibility } from '../../../hooks/useHighVisibility'
-import { useApiFetch } from '../../../hooks/useApiFetch'
+import { useApiFetch } from '@/src/hooks/useApiFetch'
 
 
 type MotoInfo = {

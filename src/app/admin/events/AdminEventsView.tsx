@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import ToggleSwitch from '../../../components/ToggleSwitch'
 import { isRegistrationApproverRole, normalizeAppRole } from '../../../lib/roles'
-import { supabase } from '../../../lib/supabaseClient'
+import { supabase } from '@/src/lib/supabaseClient'
 
 type EventItem = {
   id: string

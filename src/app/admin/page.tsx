@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import AdminEventSnapshot from './events/AdminEventSnapshot'
 import { formatAppRoleLabel, normalizeAppRole } from '../../lib/roles'
-import { supabase } from '../../lib/supabaseClient'
+import { supabase } from '@/src/lib/supabaseClient'
 
 type DashboardMetrics = {
   total_riders: number

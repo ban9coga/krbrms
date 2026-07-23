@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import ToggleSwitch from '../../../../../components/ToggleSwitch'
 import { DEFAULT_NON_FINISH_AUTO_PENALTY } from '../../../../../lib/nonFinishScoring'
-import { supabase } from '../../../../../lib/supabaseClient'
+import { supabase } from '@/src/lib/supabaseClient'
 
 type FeatureFlags = {
   penalty_enabled: boolean

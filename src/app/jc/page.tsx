@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import CheckerTopbar from '../../components/CheckerTopbar'
 import { isMotoLive, isMotoReady, isMotoUpcoming } from '../../lib/motoStatus'
 import { buildCategoryBaseOrder, compareMotoWorkflowSequence } from '../../lib/motoSequence'
-import { useApiFetch } from '../../hooks/useApiFetch'
+import { useApiFetch } from '@/src/hooks/useApiFetch'
 
 type EventItem = {
   id: string

@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { supabase } from '../../../../lib/supabaseClient'
-import { useApiFetch } from '../../../../hooks/useApiFetch'
+import { supabase } from '@/src/lib/supabaseClient'
+import { useApiFetch } from '@/src/hooks/useApiFetch'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 

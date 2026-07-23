@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import CheckerTopbar from '../../../components/CheckerTopbar'
 import { compareMotoSequence } from '../../../lib/motoSequence'
-import { supabase } from '../../../lib/supabaseClient'
-import { useApiFetch } from '../../../hooks/useApiFetch'
+import { supabase } from '@/src/lib/supabaseClient'
+import { useApiFetch } from '@/src/hooks/useApiFetch'
 
 type StatusUpdate = {
   id: string

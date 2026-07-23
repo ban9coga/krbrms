@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { compareMotoDisplayOrder, formatMotoDisplayName } from '../../../../../lib/motoDisplayOrder'
-import { supabase } from '../../../../../lib/supabaseClient'
-import { useApiFetch } from '../../../../../hooks/useApiFetch'
+import { supabase } from '@/src/lib/supabaseClient'
+import { useApiFetch } from '@/src/hooks/useApiFetch'
 
 type CategoryItem = {
   id: string

@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import PublicTopbar from '../../components/PublicTopbar'
-import { useApiFetch } from '../../hooks/useApiFetch'
+import { useApiFetch } from '@/src/hooks/useApiFetch'
 
 type EventItem = {
   id: string

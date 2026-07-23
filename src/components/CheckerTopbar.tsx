@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { formatAppRoleLabel, normalizeAppRole } from '../lib/roles'
-import { supabase } from '../lib/supabaseClient'
+import { supabase } from '@/src/lib/supabaseClient'
 
 type CheckerTopbarProps = {
   title?: string

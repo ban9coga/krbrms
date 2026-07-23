@@ -1,5 +1,5 @@
 import { useCallback, useRef } from 'react'
-import { supabase } from '../lib/supabaseClient'
+import { supabase } from '@/src/lib/supabaseClient'
 
 export function useApiFetch() {
   const tokenRef = useRef<string | null>(null)

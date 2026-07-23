@@ -4,7 +4,7 @@ import Image from 'next/image'
 import { useEffect, useMemo, useState, type ClipboardEvent, type DragEvent } from 'react'
 import { buildBrandedPrintHtml } from '../../../../../lib/printTheme'
 import { isRegistrationApproverRole, normalizeAppRole } from '../../../../../lib/roles'
-import { supabase } from '../../../../../lib/supabaseClient'
+import { supabase } from '@/src/lib/supabaseClient'
 
 type CategoryItem = {
   id: string
