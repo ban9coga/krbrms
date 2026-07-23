@@ -1026,11 +1026,17 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
   const gateTableReady = await tableExists('moto_gate_positions')
   const repechageCustomRules = await loadCustomSplitRules(categoryId, 'REPECHAGE')
   const repechageFeedsQuarterFinal = repechageCustomRules.some((rule) => rule.targetStage === 'QUARTER_FINAL')
+  const repechageFeedsSemiFinal = repechageCustomRules.some((rule) => rule.targetStage === 'SEMI_FINAL')
+  
   const shouldDeferQuarterUntilRepechage =
     repechageFeedsQuarterFinal && repechageRiders.length > 0 && !readiness.repechageReady
+  const shouldDeferSemiUntilRepechage =
+    repechageFeedsSemiFinal && repechageRiders.length > 0 && !readiness.repechageReady
+    
   const shouldDeferFinalsUntilStageReady =
     (quarterRiders.length > 0 && !readiness.quarterReady) ||
-    (repechageRiders.length > 0 && !readiness.repechageReady)
+    (repechageRiders.length > 0 && !readiness.repechageReady) ||
+    (semiRiders.length > 0 && !readiness.semiReady)
 
   if (shouldDeferQuarterUntilRepechage && existingQuarterMotos.length > 0) {
     const staleQuarterMotoIds = existingQuarterMotos
@@ -1044,6 +1050,20 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
       await adminClient.from('motos').delete().in('id', staleQuarterMotoIds)
     }
   }
+
+  if (shouldDeferSemiUntilRepechage && existingSemiMotos.length > 0) {
+    const staleSemiMotoIds = existingSemiMotos
+      .filter((moto) => !hasMotoResults(moto.id, categoryResultRows))
+      .map((moto) => moto.id)
+
+    if (staleSemiMotoIds.length > 0) {
+      await adminClient.from('moto_gate_positions').delete().in('moto_id', staleSemiMotoIds)
+      await adminClient.from('moto_riders').delete().in('moto_id', staleSemiMotoIds)
+      await adminClient.from('results').delete().in('moto_id', staleSemiMotoIds)
+      await adminClient.from('motos').delete().in('id', staleSemiMotoIds)
+    }
+  }
+
 
   if (shouldDeferFinalsUntilStageReady && existingFinalMotos.length > 0) {
     const staleFinalMotoIds = existingFinalMotos
@@ -1160,7 +1180,7 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
 
   const semiSourceReady = resolved.stages.enableQuarterFinal ? readiness.quarterReady : readiness.qualificationReady
   const semiExists = await safeMotoNameExists(eventId, categoryId, 'Semi Final')
-  if (semiSourceReady && !semiExists && semiRiders.length > 0) {
+  if (semiSourceReady && !semiExists && semiRiders.length > 0 && !shouldDeferSemiUntilRepechage) {
     const groups =
       distributeCarryOverHeats(
         semiRiders,
