@@ -6,6 +6,7 @@ import { useHighVisibility } from '../../../hooks/useHighVisibility'
 import { buildCategoryBaseOrder, compareMotoSequence, compareMotoWorkflowSequence } from '../../../lib/motoSequence'
 import { isMotoLive } from '../../../lib/motoStatus'
 import CheckerTopbar from '../../../components/CheckerTopbar'
+import { usePageVisibility } from '../../../lib/usePageVisibility'
 
 type EventItem = {
   id: string
@@ -206,29 +207,6 @@ export default function JuryFinishPage() {
     return workflowMotos
   }, [apiFetch, eventId, pickNextSelectableMotoId])
 
-  useEffect(() => {
-    loadAll()
-  }, [loadAll])
-
-  useEffect(() => {
-    if (!eventId) return
-    const interval = window.setInterval(() => {
-      const currentSelectedMoto = motos.find((m) => m.id === selectedMotoId) ?? null
-      if (isMotoLive(currentSelectedMoto?.status) && !hasSubmitted) return
-      void loadAll()
-    }, 5000)
-    return () => window.clearInterval(interval)
-  }, [eventId, hasSubmitted, loadAll, motos, selectedMotoId])
-
-  useEffect(() => {
-    const loadLock = async () => {
-      if (!selectedMotoId) return
-      const res = await apiFetch(`/api/jury/motos/${selectedMotoId}/lock-status`)
-      setMotoLocked(!!res.data)
-    }
-    void loadLock()
-  }, [apiFetch, selectedMotoId])
-
   const categoryLabel = useMemo(() => {
     const map = new Map<string, string>()
     for (const c of categories) map.set(c.id, c.label)
@@ -245,17 +223,6 @@ export default function JuryFinishPage() {
     [motos]
   )
 
-  const applyBlockedParticipationStatuses = useCallback((statusMap: Record<string, string>) => {
-    const blockedRiderIds = new Set(
-      Object.entries(statusMap)
-        .filter(([, status]) => status === 'DNS' || status === 'ABSENT')
-        .map(([riderId]) => riderId)
-    )
-    if (blockedRiderIds.size === 0) return
-    setFinishOrder((prev) => prev.filter((riderId) => !blockedRiderIds.has(riderId)))
-    setDnfRiders((prev) => prev.filter((riderId) => !blockedRiderIds.has(riderId)))
-    setActions((prev) => prev.filter((action) => !blockedRiderIds.has(action.riderId)))
-  }, [])
 
   const loadRiders = useCallback(async (motoIdOverride?: string, force = false) => {
     if (!force && localEditingRef.current) return
@@ -339,33 +306,35 @@ export default function JuryFinishPage() {
   }, [loadRiders])
 
   useEffect(() => {
-    if (!eventId || !selectedMotoId) return
-    if (pressedId || actions.length > 0 || saving) return
-    const interval = window.setInterval(() => {
-      void loadRiders()
-    }, 2500)
-    return () => window.clearInterval(interval)
-  }, [actions.length, eventId, loadRiders, pressedId, saving, selectedMotoId])
+    const loadLock = async () => {
+      if (!selectedMotoId) return
+      const res = await apiFetch(`/api/jury/motos/${selectedMotoId}/lock-status`)
+      setMotoLocked(!!res.data)
+    }
+    void loadLock()
+  }, [apiFetch, selectedMotoId])
 
+  // Consolidated polling loop with page visibility awareness.
+  // Replaces the previous 3 separate intervals (loadAll every 5s, loadRiders every 2.5s,
+  // rider-status every 2.5s). Single 6-second loop that pauses when tab is not visible.
+  const isPageVisible = usePageVisibility()
   useEffect(() => {
-    if (!eventId || !selectedMotoId) return
-    const interval = window.setInterval(async () => {
-      try {
-        const statusRes = await apiFetch(`/api/jury/events/${eventId}/rider-status?moto_id=${selectedMotoId}`)
-        const statusMap: Record<string, string> = {}
-        for (const row of statusRes.data ?? []) {
-          if (row?.rider_id && row?.participation_status) {
-            statusMap[row.rider_id] = row.participation_status
-          }
-        }
-        setParticipationByRider((prev) => ({ ...prev, ...statusMap }))
-        applyBlockedParticipationStatuses(statusMap)
-      } catch {
-        // Full refresh handles visible errors; this lightweight sync should stay quiet.
+    if (!eventId) return
+    void loadAll()
+
+    if (!isPageVisible) return
+
+    const interval = window.setInterval(() => {
+      const currentSelectedMoto = motos.find((m) => m.id === selectedMotoId) ?? null
+      if (pressedId || actions.length > 0 || saving) return
+      if (isMotoLive(currentSelectedMoto?.status) && !hasSubmitted) {
+        void loadRiders()
+      } else {
+        void loadAll()
       }
-    }, 2500)
+    }, 6000)
     return () => window.clearInterval(interval)
-  }, [apiFetch, applyBlockedParticipationStatuses, eventId, selectedMotoId])
+  }, [eventId, selectedMotoId, isPageVisible, hasSubmitted, motos, pressedId, actions.length, saving, loadAll, loadRiders])
 
   const availableRiders = useMemo(() => {
     const finished = new Set(finishOrder)
