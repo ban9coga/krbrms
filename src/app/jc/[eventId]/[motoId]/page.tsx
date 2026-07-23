@@ -7,6 +7,8 @@ import { useHighVisibility } from '../../../../hooks/useHighVisibility'
 import { buildCategoryBaseOrder, compareMotoSequence, compareMotoWorkflowSequence } from '../../../../lib/motoSequence'
 import { supabase } from '../../../../lib/supabaseClient'
 import { isMotoLive, isMotoReady, isMotoUpcoming } from '../../../../lib/motoStatus'
+import { usePageVisibility } from '../../../../lib/usePageVisibility'
+
 
 type CategoryItem = {
   id: string
@@ -205,6 +207,7 @@ const buildStatusMap = (
 }
 
 export default function JCPage() {
+  const isPageVisible = usePageVisibility()
   const params = useParams()
   const eventId = String(params?.eventId ?? '')
   const initialMotoId = String(params?.motoId ?? '')
@@ -370,12 +373,7 @@ export default function JCPage() {
     void loadStaticConfig().catch((err: unknown) => {
       setErrorMessage(err instanceof Error ? err.message : 'Gagal memuat konfigurasi checker.')
     })
-    void loadMotos(false)
-    const interval = setInterval(() => {
-      void loadMotos(true)
-    }, 5000)
-    return () => clearInterval(interval)
-  }, [loadMotos, loadStaticConfig])
+  }, [loadStaticConfig])
 
   const loadMoto = async (silent = false, preserveAllReadyDone = silent) => {
     const targetMotoId = selectedMotoId
@@ -453,12 +451,7 @@ export default function JCPage() {
     }
   }
 
-  useEffect(() => {
-    loadMoto()
-    const interval = setInterval(() => loadMoto(true), 5000)
-    return () => clearInterval(interval)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedMotoId, eventId])
+
 
   const loadIncidentMoto = useCallback(async (silent = false) => {
     if (!incidentMotoId || !eventId) {
@@ -496,13 +489,23 @@ export default function JCPage() {
     }
   }, [apiFetch, eventId, incidentMotoId, loadMotos])
 
+  // Consolidated managed polling loop with page visibility awareness
   useEffect(() => {
-    void loadIncidentMoto()
+    if (!eventId) return
+    void loadMotos(false)
+    if (selectedMotoId) void loadMoto(false, true)
+    if (incidentMotoId) void loadIncidentMoto(true)
+
+    if (!isPageVisible) return
+
     const interval = setInterval(() => {
-      void loadIncidentMoto(true)
-    }, 5000)
+      void loadMotos(true)
+      if (selectedMotoIdRef.current) void loadMoto(true)
+      if (incidentMotoId) void loadIncidentMoto(true)
+    }, 8000)
+
     return () => clearInterval(interval)
-  }, [loadIncidentMoto])
+  }, [eventId, selectedMotoId, incidentMotoId, isPageVisible, loadMotos, loadIncidentMoto])
 
   useEffect(() => {
     setSafetyChecks((prev) => {
