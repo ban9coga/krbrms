@@ -257,9 +257,9 @@ export default function RaceDirectorApprovalPage() {
         const [approvalRes, modeRes, motoRes, lockRes, catRes, gateRes, auditRes, riderRes] = await Promise.all([
           apiFetch(`/api/race-director/approvals?event_id=${eventId}`),
           apiFetch(`/api/race-director/mode?event_id=${eventId}`),
-          fetch(`/api/motos?event_id=${eventId}`),
+          apiFetch(`/api/motos?event_id=${eventId}`),
           apiFetch(`/api/jury/events/${eventId}/locks`),
-          fetch(`/api/events/${eventId}/categories`),
+          apiFetch(`/api/events/${eventId}/categories`),
           apiFetch(`/api/race-director/events/${eventId}/gate-status`),
           includeHeavy ? apiFetch(`/api/race-director/audit?event_id=${eventId}`) : Promise.resolve(null),
           includeHeavy ? fetchAllRiders() : Promise.resolve(null),

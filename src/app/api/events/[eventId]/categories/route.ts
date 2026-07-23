@@ -6,6 +6,7 @@ const CATEGORY_RETURN_SELECT = 'id, event_id, year, year_min, year_max, capacity
 
 export async function GET(_: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params
+
   const { data: categories, error } = await adminClient
     .from('categories')
     .select('id, year, year_min, year_max, capacity, gender, label, enabled, sequence_order')
@@ -14,6 +15,16 @@ export async function GET(_: Request, { params }: { params: Promise<{ eventId: s
     .order('year_min', { ascending: true })
     .order('gender', { ascending: true })
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+
+  if (!categories || categories.length === 0) {
+    return NextResponse.json({ data: [] }, {
+      headers: {
+        'Cache-Control': 'public, max-age=60, stale-while-revalidate=120',
+        Pragma: 'cache',
+        Expires: '60',
+      },
+    })
+  }
 
   if (!categories || categories.length === 0) {
     return NextResponse.json({ data: [] })

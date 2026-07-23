@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../lib/auth'
 
-export const dynamic = 'force-dynamic'
 const MOTO_RETURN_SELECT =
   'id, event_id, category_id, moto_name, moto_order, status, is_published, published_at, provisional_at, checker_prep_ready_at'
 
@@ -9,20 +8,26 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
   const eventId = searchParams.get('event_id')
   const categoryId = searchParams.get('category_id')
+  const _ = searchParams.get('_') // Cache buster support
+
   if (!eventId && !categoryId) {
     return NextResponse.json({ error: 'event_id or category_id required' }, { status: 400 })
   }
-  let query = adminClient
+
+  const selectQuery = adminClient
     .from('motos')
-    .select('id, event_id, category_id, moto_name, moto_order, status, is_published, published_at, provisional_at, checker_prep_ready_at')
+    .select(MOTO_RETURN_SELECT)
     .order('moto_order', { ascending: true })
-  if (eventId) query = query.eq('event_id', eventId)
-  if (categoryId) query = query.eq('category_id', categoryId)
-  const { data, error } = await query
+
+  const finalQuery = eventId ? selectQuery.eq('event_id', eventId) : selectQuery.eq('category_id', categoryId)
+
+  const { data, error } = await finalQuery
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+
   const motoRows = data ?? []
   const motoIds = motoRows.map((row) => row.id)
   let lockMap = new Map<string, string | null>()
+
   if (motoIds.length > 0) {
     const { data: lockRows } = await adminClient
       .from('moto_locks')
@@ -30,17 +35,19 @@ export async function GET(req: Request) {
       .in('moto_id', motoIds)
     lockMap = new Map((lockRows ?? []).map((row) => [row.moto_id as string, (row.locked_at as string | null) ?? null]))
   }
+
   const enriched = motoRows.map((row) => ({
     ...row,
     locked_at: lockMap.get(row.id) ?? null,
   }))
+
   return NextResponse.json(
     { data: enriched },
     {
       headers: {
-        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-        Pragma: 'no-cache',
-        Expires: '0',
+        'Cache-Control': 'public, max-age=30, stale-while-revalidate=120',
+        Pragma: 'cache',
+        Expires: '30',
       },
     }
   )

@@ -176,12 +176,10 @@ export default function JuryFinishPage() {
   const loadAll = useCallback(async () => {
     if (!eventId) return
     const [motoRes, catRes, flagRes] = await Promise.all([
-      fetch(`/api/motos?event_id=${eventId}`),
-      fetch(`/api/events/${eventId}/categories`),
+      apiFetch(`/api/motos?event_id=${eventId}`),
+      apiFetch(`/api/events/${eventId}/categories`),
       apiFetch(`/api/jury/events/${eventId}/modules`),
     ])
-    const motoJson = await motoRes.json()
-    const catJson = await catRes.json()
     setFlags(
       (flagRes.data as EventFlags | null) ?? {
         penalty_enabled: true,
@@ -190,9 +188,9 @@ export default function JuryFinishPage() {
         dnf_enabled: true,
       }
     )
-    const catRows = (catJson.data ?? []) as CategoryItem[]
+    const catRows = (catRes.data ?? []) as CategoryItem[]
     setCategories(catRows)
-    const rawMotos = (motoJson.data ?? []) as MotoItem[]
+    const rawMotos = (motoRes.data ?? []) as MotoItem[]
     const categoryBaseOrder = buildCategoryBaseOrder(rawMotos)
     const workflowMotos = [...rawMotos].sort((a, b) => compareMotoWorkflowSequence(a, b, categoryBaseOrder))
     setMotos(workflowMotos)

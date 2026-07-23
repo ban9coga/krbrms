@@ -79,13 +79,11 @@ export default function JCSelectorPage() {
     setErrorMessage(null)
     try {
       const [motoRes, categoryRes] = await Promise.all([
-        fetch(`/api/motos?event_id=${eventId}`),
-        fetch(`/api/events/${eventId}/categories`),
+        apiFetch(`/api/motos?event_id=${eventId}`),
+        apiFetch(`/api/events/${eventId}/categories`),
       ])
-      const motoJson = await motoRes.json()
-      const categoryJson = await categoryRes.json()
-      const list = (motoJson.data ?? []) as MotoItem[]
-      setCategories((categoryJson.data ?? []) as CategoryItem[])
+      const list = (motoRes.data ?? []) as MotoItem[]
+      setCategories((categoryRes.data ?? []) as CategoryItem[])
       const categoryBaseOrder = buildCategoryBaseOrder(list)
       const workflowList = [...list].sort((a, b) => compareMotoWorkflowSequence(a, b, categoryBaseOrder))
       setMotos(workflowList)
