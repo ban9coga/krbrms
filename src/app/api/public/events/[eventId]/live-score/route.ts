@@ -677,6 +677,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       const ordered = validAssignedRiderIds.length > 0 ? [...validAssignedRiderIds] : [...validRiderIdsInMoto].sort((a, b) => a.localeCompare(b))
       ordered.forEach((riderId, index) => gateMap.set(riderId, index + 1))
     }
+    
+    const validRiderIdsWithGates = validRiderIdsInMoto.map((id) => ({ id, gate: gateMap.get(id) ?? 9999 }))
+    validRiderIdsWithGates.sort((a, b) => a.gate - b.gate)
+    const collapsedGateMap = new Map<string, number>()
+    validRiderIdsWithGates.forEach((r, idx) => collapsedGateMap.set(r.id, idx + 1))
+    
     const riderCount = validRiderIdsInMoto.length || null
 
     const stagePenaltyStages = resolvePenaltyStagesForMoto(moto.moto_name)

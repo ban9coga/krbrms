@@ -399,6 +399,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
 
   const riderIds = Array.from(new Set([...(results ?? []).map((r) => r.rider_id), ...((motoRiders ?? []).map((r) => r.rider_id))]))
   const gateMap = await buildDerivedGateMap(rankingMoto, riderIds, (gatePositions ?? []) as Array<{ rider_id: string; gate_position: number | null }>)
+
+  const validRiderIdsWithGates = riderIds.map((id) => ({ id, gate: gateMap.get(id) ?? 9999 }))
+  validRiderIdsWithGates.sort((a, b) => a.gate - b.gate)
+  const collapsedGateMap = new Map<string, number>()
+  validRiderIdsWithGates.forEach((r, idx) => collapsedGateMap.set(r.id, idx + 1))
+
   const penaltyStage = resolvePenaltyStage(rankingMoto.moto_name)
   const { data: riders } = await adminClient
     .from('riders')
@@ -467,7 +473,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       rider_nickname: rider?.rider_nickname ?? null,
       plate: rider?.no_plate_display ?? '-',
       club: rider?.club ?? null,
-      gate_position: gateMap.get(riderId) ?? null,
+      gate_position: collapsedGateMap.get(riderId) ?? null,
       status,
     }
   })
@@ -529,6 +535,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         nextRiderIds,
         (nextMotoGates ?? []) as Array<{ rider_id: string; gate_position: number | null }>
       )
+      const validNextRiderIdsWithGates = nextRiderIds.map((id) => ({ id, gate: nextGateMap.get(id) ?? 9999 }))
+      validNextRiderIdsWithGates.sort((a, b) => a.gate - b.gate)
+      const collapsedNextGateMap = new Map<string, number>()
+      validNextRiderIdsWithGates.forEach((r, idx) => collapsedNextGateMap.set(r.id, idx + 1))
       const { data: nextRiders } = await adminClient
         .from('riders')
         .select('id, name, rider_nickname, no_plate_display, club')
@@ -573,7 +583,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
             rider_nickname: rider?.rider_nickname ?? null,
             plate: rider?.no_plate_display ?? '-',
             club: rider?.club ?? null,
-            gate_position: nextGateMap.get(riderId) ?? null,
+            gate_position: collapsedNextGateMap.get(riderId) ?? null,
             penalty_total: nextPenaltyMap.get(riderId) ?? null,
             penalty_breakdown: nextPenaltyBreakdownMap.get(riderId) ?? [],
             status: status as NextMotoRiderRow['status'],

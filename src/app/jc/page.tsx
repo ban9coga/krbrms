@@ -142,7 +142,13 @@ export default function JCSelectorPage() {
     loadMotos()
   }, [loadMotos])
 
-  // Removed automatic polling per user request
+  useEffect(() => {
+    const timer = setInterval(() => {
+      loadEvents()
+      loadMotos()
+    }, 10000)
+    return () => clearInterval(timer)
+  }, [loadEvents, loadMotos])
 
   return (
     <div className="public-page">

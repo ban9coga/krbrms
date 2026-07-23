@@ -142,6 +142,10 @@ export default function JuryFinishPage() {
     }
     const liveMoto = selectableRows.find((m) => isMotoLive(m.status))
     if (liveMoto) return liveMoto.id
+    const nextMoto = selectableRows.find(
+      (m) => (m.status ?? '').toUpperCase() === 'READY' || (m.status ?? '').toUpperCase() === 'UPCOMING'
+    )
+    if (nextMoto) return nextMoto.id
     return selectableRows[0].id
   }, [])
 
