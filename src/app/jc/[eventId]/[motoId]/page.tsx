@@ -266,9 +266,6 @@ export default function JCPage() {
     [eventId]
   )
 
-  const incidentMoto = useMemo(() => motos.find((m) => isMotoLive(m.status)) ?? null, [motos])
-  const incidentMotoId = incidentMoto?.id ?? ''
-
   useEffect(() => {
     selectedMotoIdRef.current = selectedMotoId
     setRiders([])
@@ -355,6 +352,9 @@ export default function JCPage() {
       setErrorMessage(err instanceof Error ? err.message : 'Gagal memuat konfigurasi checker.')
     })
   }, [loadStaticConfig])
+
+  const incidentMoto = useMemo(() => motos.find((m) => isMotoLive(m.status)) ?? null, [motos])
+  const incidentMotoId = incidentMoto?.id ?? ''
 
   const loadMoto = useCallback(async (silent = false, preserveAllReadyDone = silent) => {
     const targetMotoId = selectedMotoIdRef.current
@@ -537,11 +537,19 @@ export default function JCPage() {
     return map
   }, [categories])
 
-  const selectableMotos = useMemo(
-    () => motos.filter((m) => !isLockedStatus(m.status) && isPrepMotoStatus(m.status)),
-    [motos]
-  )
   const selectedMoto = useMemo(() => motos.find((m) => m.id === selectedMotoId) ?? null, [motos, selectedMotoId])
+  const activeCategoryId = incidentMoto?.category_id ?? selectedMoto?.category_id ?? null
+  const selectableMotos = useMemo(
+    () =>
+      motos.filter(
+        (m) =>
+          !isLockedStatus(m.status) &&
+          isPrepMotoStatus(m.status) &&
+          // Only show motos from the category that is currently LIVE, or from the selected moto's category if no LIVE moto
+          (activeCategoryId ? m.category_id === activeCategoryId : true)
+      ),
+    [motos, activeCategoryId]
+  )
   const selectedMotoUpcoming = isMotoUpcoming(selectedMoto?.status)
   const selectedMotoReady = isMotoReady(selectedMoto?.status)
   const selectedMotoPreppable = !!selectedMoto && !isLockedStatus(selectedMoto.status) && (selectedMotoUpcoming || selectedMotoReady)
@@ -1058,7 +1066,15 @@ export default function JCPage() {
                 setBulkReadyState(null)
                 syncPrepMotoUrl(next)
                 // Immediately fetch rider data for the manually selected moto
-                setTimeout(() => {
+                setTimeout(async () => {
+                  // Refresh motos list first so allReadyDone syncs from fresh checker_prep_ready_at
+                  const refreshedMotos = await loadMotos(true)
+                  if (refreshedMotos && refreshedMotos.length > 0) {
+                    const targetMoto = refreshedMotos.find((m) => m.id === next)
+                    if (targetMoto) {
+                      setAllReadyDone(Boolean(targetMoto.checker_prep_ready_at))
+                    }
+                  }
                   void loadMoto(false, true)
                 }, 50)
               }}

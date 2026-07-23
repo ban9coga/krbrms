@@ -637,7 +637,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
             ? 'SEMI_FINAL'
             : null
     const validAssignedRiderIds = assignedRiderIds.filter((id) => riderMap.has(id))
-    const validRiderIdsInMoto = riderIdsInMoto.filter((id) => riderMap.has(id))
+    const validRiderIdsInMoto = riderIdsInMoto.filter((id) => riderMap.has(id)).slice(0, 8)
 
     if (gateMap.size === 0 && /^final /i.test(moto.moto_name)) {
       const qualificationDirect = validRiderIdsInMoto.filter(
@@ -755,12 +755,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       title: formatMotoDisplayName(moto.moto_name),
       moto_id: moto.id,
       rows: rows.sort((a, b) => {
-        const aRank = a.rank ?? Number.MAX_SAFE_INTEGER
-        const bRank = b.rank ?? Number.MAX_SAFE_INTEGER
-        if (aRank !== bRank) return aRank - bRank
+        // Sort by gate position first so display is 1,2,3,4,5,6,7,8
         const aGate = a.gate ?? Number.MAX_SAFE_INTEGER
         const bGate = b.gate ?? Number.MAX_SAFE_INTEGER
         if (aGate !== bGate) return aGate - bGate
+        const aRank = a.rank ?? Number.MAX_SAFE_INTEGER
+        const bRank = b.rank ?? Number.MAX_SAFE_INTEGER
+        if (aRank !== bRank) return aRank - bRank
         return a.name.localeCompare(b.name)
       }),
     }]
