@@ -228,6 +228,7 @@ export default function JCPage() {
     dnf_enabled: true,
   })
   const [loading, setLoading] = useState(false)
+  const initialLoadDone = useRef(false)
   const [saving, setSaving] = useState(false)
   const [locked, setLocked] = useState(false)
   const [incidentLocked, setIncidentLocked] = useState(false)
@@ -347,8 +348,8 @@ export default function JCPage() {
     })
   }, [loadStaticConfig])
 
-  const loadMoto = async (silent = false, preserveAllReadyDone = silent) => {
-    const targetMotoId = selectedMotoId
+  const loadMoto = useCallback(async (silent = false, preserveAllReadyDone = silent) => {
+    const targetMotoId = selectedMotoIdRef.current
     if (!targetMotoId || !eventId) {
       setLocked(false)
       setRiders([])
@@ -378,13 +379,28 @@ export default function JCPage() {
         await loadMotos(true)
         return
       }
-      setRiders((riderRes.data ?? []).slice(0, 8))
+      // Stable-reference update: only replace riders if data actually changed
+      const newRiders = (riderRes.data ?? []).slice(0, 8) as RiderItem[]
+      setRiders((prev) => {
+        if (prev.length === newRiders.length && prev.every((r, i) => r.id === newRiders[i]?.id)) return prev
+        return newRiders
+      })
 
       const statusList = (statusRes.data ?? []) as Array<{
         rider_id: string
         proposed_status?: string | null
       }>
-      setStatuses(buildStatusMap(statusList))
+      // Stable-reference update: only replace statuses if data actually changed
+      const newStatuses = buildStatusMap(statusList)
+      setStatuses((prev) => {
+        const prevKeys = Object.keys(prev)
+        const nextKeys = Object.keys(newStatuses)
+        if (prevKeys.length !== nextKeys.length) return newStatuses
+        for (const key of nextKeys) {
+          if (prev[key]?.participation_status !== newStatuses[key]?.participation_status) return newStatuses
+        }
+        return prev
+      })
 
       const rawRequirements = (safetyRes.data?.requirements ?? []) as SafetyRequirement[]
       const uniqueSafety = new Map<string, SafetyRequirement>()
@@ -423,7 +439,7 @@ export default function JCPage() {
     } finally {
       if (!silent) setLoading(false)
     }
-  }
+  }, [apiFetch, eventId, motos, loadMotos])
 
 
 
@@ -461,15 +477,23 @@ export default function JCPage() {
         setErrorMessage(err instanceof Error ? err.message : 'Gagal memuat incident moto LIVE.')
       }
     }
-  }, [apiFetch, eventId, incidentMotoId, loadMotos, loadMoto])
+  }, [apiFetch, eventId, incidentMotoId, loadMotos])
 
-  // Consolidated managed polling loop with page visibility awareness
+  // Initial load — only runs once per moto selection
   useEffect(() => {
     if (!eventId) return
-    void loadMotos(false)
-    if (selectedMotoId) void loadMoto(false, true)
-    if (incidentMotoId) void loadIncidentMoto(true)
-    if (!isPageVisible) return
+    initialLoadDone.current = false
+    void (async () => {
+      await loadMotos(false)
+      if (selectedMotoIdRef.current) await loadMoto(false, true)
+      if (incidentMotoId) await loadIncidentMoto(true)
+      initialLoadDone.current = true
+    })()
+  }, [eventId, selectedMotoId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Background polling — always silent, never shows Loading
+  useEffect(() => {
+    if (!eventId || !isPageVisible) return
 
     const interval = setInterval(() => {
       void loadMotos(true)
@@ -478,7 +502,7 @@ export default function JCPage() {
     }, 10000)
 
     return () => clearInterval(interval)
-  }, [eventId, selectedMotoId, incidentMotoId, isPageVisible, loadMotos, loadIncidentMoto])
+  }, [eventId, incidentMotoId, isPageVisible, loadMotos, loadMoto, loadIncidentMoto])
 
   useEffect(() => {
     setSafetyChecks((prev) => {
@@ -1599,7 +1623,7 @@ export default function JCPage() {
           </div>
         </div>
 
-        {loading && <div style={{ fontWeight: 900 }}>Loading...</div>}
+        {loading && !initialLoadDone.current && <div style={{ fontWeight: 900 }}>Loading...</div>}
 
         <div
           style={{
