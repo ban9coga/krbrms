@@ -195,8 +195,6 @@ export default function McLivePage() {
 
   useEffect(() => {
     load()
-    const interval = setInterval(() => load(true), MC_REFRESH_INTERVAL_MS)
-    return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
 
@@ -316,9 +314,6 @@ export default function McLivePage() {
                   Moto hasil: {data.category ?? '-'} | {data.batch ?? '-'} | {data.moto.moto_name}
                 </div>
               ) : null}
-              <div className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">
-                Auto refresh aktif tiap {MC_REFRESH_INTERVAL_MS / 1000} detik
-              </div>
             </div>
             <div className="flex flex-wrap items-center gap-2 sm:justify-end">
               <button

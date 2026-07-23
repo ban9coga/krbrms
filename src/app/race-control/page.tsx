@@ -136,12 +136,7 @@ export default function RaceControlPage() {
     void loadQueue(eventId)
   }, [eventId, loadQueue])
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      void refresh()
-    }, 10000)
-    return () => clearInterval(interval)
-  }, [refresh])
+  // Removed automatic polling per user request
 
   const toggleHighVisibility = useCallback(() => {
     setHighVisibility((current) => {
@@ -172,9 +167,6 @@ export default function RaceControlPage() {
                   Urutan race mengikuti moto per batch. Gunakan halaman ini untuk memanggil rider berikutnya
                   dengan cepat di tablet atau smartphone tanpa tabel pecah.
                 </p>
-              </div>
-              <div className="inline-flex w-fit items-center rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-extrabold uppercase tracking-[0.14em] text-slate-100">
-                Auto refresh 10s
               </div>
             </div>
           </div>

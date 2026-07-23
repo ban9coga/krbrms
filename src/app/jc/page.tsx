@@ -142,13 +142,7 @@ export default function JCSelectorPage() {
     loadMotos()
   }, [loadMotos])
 
-  useEffect(() => {
-    if (!eventId) return
-    const interval = window.setInterval(() => {
-      void loadMotos()
-    }, 5000)
-    return () => window.clearInterval(interval)
-  }, [eventId, loadMotos])
+  // Removed automatic polling per user request
 
   return (
     <div className="public-page">
@@ -195,14 +189,24 @@ export default function JCSelectorPage() {
               </select>
             </div>
 
-            <button
-              type="button"
-              disabled={!eventId || !motoId || loading}
-              onClick={() => router.push(`/jc/${eventId}/${motoId}`)}
-              className="inline-flex items-center justify-center rounded-xl bg-amber-400 px-4 py-3 text-sm font-extrabold uppercase tracking-[0.12em] text-white transition-colors hover:bg-amber-300 disabled:cursor-not-allowed disabled:bg-amber-200"
-            >
-              {loading ? 'Loading...' : 'Buka Gate Screen'}
-            </button>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => loadMotos()}
+                disabled={loading}
+                className="inline-flex items-center justify-center rounded-xl bg-slate-200 px-4 py-3 text-sm font-extrabold uppercase tracking-[0.12em] text-slate-700 transition-colors hover:bg-slate-300 disabled:opacity-50"
+              >
+                Refresh Data
+              </button>
+              <button
+                type="button"
+                disabled={!eventId || !motoId || loading}
+                onClick={() => router.push(`/jc/${eventId}/${motoId}`)}
+                className="inline-flex items-center justify-center rounded-xl bg-amber-400 px-4 py-3 text-sm font-extrabold uppercase tracking-[0.12em] text-white transition-colors hover:bg-amber-300 disabled:cursor-not-allowed disabled:bg-amber-200"
+              >
+                {loading ? 'Loading...' : 'Buka Gate Screen'}
+              </button>
+            </div>
           </div>
         </section>
       </main>
