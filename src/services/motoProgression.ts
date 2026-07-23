@@ -1,7 +1,7 @@
 'use server'
 
 import { adminClient } from '../lib/auth'
-import { compareMotoSequence } from '../lib/motoSequence'
+import { buildCategoryBaseOrder, compareMotoWorkflowSequence } from '../lib/motoSequence'
 
 type MotoQueueRow = {
   id: string
@@ -101,7 +101,8 @@ export async function promoteNextMotoToLive(eventId: string, currentMotoId: stri
   }
 
   const rows = (eventMotos ?? []) as MotoQueueRow[]
-  const sortedEventMotos = [...rows].sort(compareMotoSequence)
+  const categoryBaseOrder = buildCategoryBaseOrder(rows)
+  const sortedEventMotos = [...rows].sort((a, b) => compareMotoWorkflowSequence(a, b, categoryBaseOrder))
   const { nextMoto, warning } = pickNextMotoToPromote(sortedEventMotos, currentMoto)
 
   if (warning) {
@@ -164,7 +165,9 @@ export async function autoLockPreviousProvisionalForLiveMoto(eventId: string, li
     return { ok: false as const, warning: eventError.message }
   }
 
-  const rows = ((eventMotos ?? []) as MotoQueueRow[]).sort(compareMotoSequence)
+  const rowsUnsorted = (eventMotos ?? []) as MotoQueueRow[]
+  const categoryBaseOrder = buildCategoryBaseOrder(rowsUnsorted)
+  const rows = [...rowsUnsorted].sort((a, b) => compareMotoWorkflowSequence(a, b, categoryBaseOrder))
   const liveMoto = rows.find((row) => row.id === liveMotoId)
   if (!liveMoto || !isLiveMoto(liveMoto)) {
     return { ok: true as const, skipped: true as const, warning: 'Moto is not LIVE.' }
@@ -193,7 +196,9 @@ export async function promoteReadyMotoAfterPreviousProvisional(eventId: string, 
     return { ok: false as const, warning: eventError.message }
   }
 
-  const rows = ((eventMotos ?? []) as MotoQueueRow[]).sort(compareMotoSequence)
+  const rowsUnsorted = (eventMotos ?? []) as MotoQueueRow[]
+  const categoryBaseOrder = buildCategoryBaseOrder(rowsUnsorted)
+  const rows = [...rowsUnsorted].sort((a, b) => compareMotoWorkflowSequence(a, b, categoryBaseOrder))
   const readyMoto = rows.find((row) => row.id === readyMotoId)
   if (!readyMoto || !isPromotableMoto(readyMoto)) {
     return { ok: true as const, skipped: true as const, warning: 'Moto is not READY.' }
