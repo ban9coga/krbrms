@@ -214,16 +214,15 @@ export async function promoteReadyMotoAfterPreviousProvisional(eventId: string, 
 
   if (previousProvisional) {
     const { nextMoto } = pickNextMotoToPromote(rows, previousProvisional)
-    if (nextMoto?.id !== readyMoto.id) {
-      return { ok: true as const, skipped: true as const, warning: 'READY moto is not the next moto in sequence.' }
+    if (nextMoto?.id === readyMoto.id) {
+      return promoteNextMotoToLive(eventId, previousProvisional.id)
     }
-    return promoteNextMotoToLive(eventId, previousProvisional.id)
   }
 
-  // No PROVISIONAL moto found — stage moto after auto-locked qualification.
-  // Auto-promote to LIVE if:
+  // No exact sequence match found for auto-promotion, OR the previous provisional was from a different category.
+  // We can still auto-promote the READY moto to LIVE if:
   //   1. No other moto is currently LIVE in the event
-  //   2. Previous moto in the same category is LOCKED or FINISHED
+  //   2. Previous moto in the SAME category is LOCKED, FINISHED, or PROVISIONAL.
   const existingLive = rows.find((row) => row.id !== readyMotoId && isLiveMoto(row))
   if (existingLive) {
     return {
@@ -235,11 +234,12 @@ export async function promoteReadyMotoAfterPreviousProvisional(eventId: string, 
 
   const isCompletedMoto = (row: MotoQueueRow) => {
     const s = normalizeStatus(row.status)
-    return s === 'LOCKED' || s === 'FINISHED'
+    return s === 'LOCKED' || s === 'FINISHED' || s === 'PROVISIONAL'
   }
+  
   const previousSameCategory = beforeReady.find((row) => sameCategory(row))
-  if (!previousSameCategory || !isCompletedMoto(previousSameCategory)) {
-    return { ok: true as const, skipped: true as const, warning: 'No completed previous moto in same category.' }
+  if (previousSameCategory && !isCompletedMoto(previousSameCategory)) {
+    return { ok: true as const, skipped: true as const, warning: 'No completed/provisional previous moto in same category.' }
   }
 
   // Directly promote the READY moto to LIVE

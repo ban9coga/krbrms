@@ -162,6 +162,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ motoId: 
 
   const { data: gates, error: gateError } = await adminClient
     .from('moto_gate_positions')
+
+  const { data: gates, error: gateError } = await adminClient
+    .from('moto_gate_positions')
     .select('rider_id, gate_position')
     .eq('moto_id', motoId)
     .order('gate_position', { ascending: true })
@@ -184,9 +187,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ motoId: 
       .map((g) => {
         const rider = riderMap.get(g.rider_id)
         if (!rider) return null
-        return { ...rider, gate_position: g.gate_position }
+        return { rider, originalGate: g.gate_position }
       })
       .filter(Boolean)
+      .map(({ rider }, index) => ({ ...rider, gate_position: index + 1 }))
 
     return NextResponse.json({ data })
   }
@@ -215,15 +219,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ motoId: 
   const orderedRiderIds = moto?.event_id && moto?.category_id && moto?.moto_name
     ? await deriveAdvancedGateOrder(moto.event_id, moto.category_id, moto.moto_name, assignedRiderIds)
     : assignedRiderIds
-  const orderByRider = new Map(orderedRiderIds.map((riderId, index) => [riderId, index + 1]))
 
-  const data = orderedRiderIds
-    .map((riderId, idx) => {
-      const rider = riderMap.get(riderId)
-      if (!rider) return null
-      return { ...rider, gate_position: orderByRider.get(riderId) ?? idx + 1 }
-    })
-    .filter(Boolean)
+  const validRiderIds = orderedRiderIds.filter((id) => riderMap.has(id))
+  const data = validRiderIds.map((riderId, index) => {
+    const rider = riderMap.get(riderId)!
+    return { ...rider, gate_position: index + 1 }
+  })
 
   return NextResponse.json({ data })
 }

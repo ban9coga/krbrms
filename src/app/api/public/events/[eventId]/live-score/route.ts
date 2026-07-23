@@ -636,23 +636,26 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
           : /^semi final/i.test(moto.moto_name)
             ? 'SEMI_FINAL'
             : null
+    const validAssignedRiderIds = assignedRiderIds.filter((id) => riderMap.has(id))
+    const validRiderIdsInMoto = riderIdsInMoto.filter((id) => riderMap.has(id))
+
     if (gateMap.size === 0 && /^final /i.test(moto.moto_name)) {
-      const qualificationDirect = riderIdsInMoto.filter(
+      const qualificationDirect = validRiderIdsInMoto.filter(
         (riderId) =>
           !repechageStageRiderIds.has(riderId) &&
           !quarterStageRiderIds.has(riderId) &&
           !semiStageRiderIds.has(riderId)
       )
-      const repechageDerived = riderIdsInMoto.filter(
+      const repechageDerived = validRiderIdsInMoto.filter(
         (riderId) =>
           repechageStageRiderIds.has(riderId) &&
           !quarterStageRiderIds.has(riderId) &&
           !semiStageRiderIds.has(riderId)
       )
-      const quarterDerived = riderIdsInMoto.filter(
+      const quarterDerived = validRiderIdsInMoto.filter(
         (riderId) => quarterStageRiderIds.has(riderId) && !semiStageRiderIds.has(riderId)
       )
-      const semiDerived = riderIdsInMoto.filter((riderId) => semiStageRiderIds.has(riderId))
+      const semiDerived = validRiderIdsInMoto.filter((riderId) => semiStageRiderIds.has(riderId))
 
       const ordered = [
         ...orderRidersByStageSeeds(qualificationDirect, qualificationStageSeedRows, stageBatchOrderById),
@@ -661,23 +664,23 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         ...orderRidersByStageSeeds(semiDerived, semiStageResultRows, stageBatchOrderById),
       ]
       ordered.forEach((riderId, index) => gateMap.set(riderId, index + 1))
-    } else if (gateMap.size === 0 && stageSource && riderIdsInMoto.length > 0) {
+    } else if (gateMap.size === 0 && stageSource && validRiderIdsInMoto.length > 0) {
       const seedRows =
         stageSource === 'QUARTER_FINAL'
           ? qualificationStageSeedRows
           : stageSource === 'REPECHAGE'
             ? [...qualificationStageSeedRows, ...quarterStageResultRows, ...semiStageResultRows]
             : [...quarterStageResultRows, ...repechageStageResultRows, ...qualificationStageSeedRows]
-      const ordered = orderRidersByStageSeeds(assignedRiderIds.length > 0 ? assignedRiderIds : riderIdsInMoto, seedRows, stageBatchOrderById)
+      const ordered = orderRidersByStageSeeds(validAssignedRiderIds.length > 0 ? validAssignedRiderIds : validRiderIdsInMoto, seedRows, stageBatchOrderById)
       ordered.forEach((riderId, index) => gateMap.set(riderId, index + 1))
-    } else if (gateMap.size === 0 && riderIdsInMoto.length > 0) {
-      const ordered = assignedRiderIds.length > 0 ? [...assignedRiderIds] : [...riderIdsInMoto].sort((a, b) => a.localeCompare(b))
+    } else if (gateMap.size === 0 && validRiderIdsInMoto.length > 0) {
+      const ordered = validAssignedRiderIds.length > 0 ? [...validAssignedRiderIds] : [...validRiderIdsInMoto].sort((a, b) => a.localeCompare(b))
       ordered.forEach((riderId, index) => gateMap.set(riderId, index + 1))
     }
-    const riderCount = riderIdsInMoto.length || null
+    const riderCount = validRiderIdsInMoto.length || null
 
     const stagePenaltyStages = resolvePenaltyStagesForMoto(moto.moto_name)
-    const rows: StageRow[] = riderIdsInMoto.map((riderId) => {
+    const rows: StageRow[] = validRiderIdsInMoto.map((riderId) => {
       const rider = riderMap.get(riderId)
       const res = resultRows.find((r) => r.moto_id === moto.id && r.rider_id === riderId) ?? null
       const status = (res?.result_status ?? 'PENDING') as StageRow['status']
