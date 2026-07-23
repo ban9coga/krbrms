@@ -162,9 +162,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ motoId: 
 
   const { data: gates, error: gateError } = await adminClient
     .from('moto_gate_positions')
-
-  const { data: gates, error: gateError } = await adminClient
-    .from('moto_gate_positions')
     .select('rider_id, gate_position')
     .eq('moto_id', motoId)
     .order('gate_position', { ascending: true })
@@ -183,13 +180,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ motoId: 
     const riderMap = new Map<string, RiderRow>()
     for (const r of riders ?? []) riderMap.set(r.id, r)
 
-    const data = gates
+    const data = (gates
       .map((g) => {
         const rider = riderMap.get(g.rider_id)
         if (!rider) return null
         return { rider, originalGate: g.gate_position }
       })
-      .filter(Boolean)
+      .filter(Boolean) as { rider: RiderRow; originalGate: number | null }[])
       .map(({ rider }, index) => ({ ...rider, gate_position: index + 1 }))
 
     return NextResponse.json({ data })
