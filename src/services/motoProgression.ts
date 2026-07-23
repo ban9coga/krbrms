@@ -212,14 +212,51 @@ export async function promoteReadyMotoAfterPreviousProvisional(eventId: string, 
     beforeReady.find((row) => isProvisionalMoto(row)) ??
     null
 
-  if (!previousProvisional) {
-    return { ok: true as const, skipped: true as const, warning: 'No previous PROVISIONAL moto waiting.' }
+  if (previousProvisional) {
+    const { nextMoto } = pickNextMotoToPromote(rows, previousProvisional)
+    if (nextMoto?.id !== readyMoto.id) {
+      return { ok: true as const, skipped: true as const, warning: 'READY moto is not the next moto in sequence.' }
+    }
+    return promoteNextMotoToLive(eventId, previousProvisional.id)
   }
 
-  const { nextMoto } = pickNextMotoToPromote(rows, previousProvisional)
-  if (nextMoto?.id !== readyMoto.id) {
-    return { ok: true as const, skipped: true as const, warning: 'READY moto is not the next moto in sequence.' }
+  // No PROVISIONAL moto found — stage moto after auto-locked qualification.
+  // Auto-promote to LIVE if:
+  //   1. No other moto is currently LIVE in the event
+  //   2. Previous moto in the same category is LOCKED or FINISHED
+  const existingLive = rows.find((row) => row.id !== readyMotoId && isLiveMoto(row))
+  if (existingLive) {
+    return {
+      ok: true as const,
+      skipped: true as const,
+      warning: `Auto-live skipped because ${existingLive.moto_name ?? 'another moto'} is still LIVE.`,
+    }
   }
 
-  return promoteNextMotoToLive(eventId, previousProvisional.id)
+  const isCompletedMoto = (row: MotoQueueRow) => {
+    const s = normalizeStatus(row.status)
+    return s === 'LOCKED' || s === 'FINISHED'
+  }
+  const previousSameCategory = beforeReady.find((row) => sameCategory(row))
+  if (!previousSameCategory || !isCompletedMoto(previousSameCategory)) {
+    return { ok: true as const, skipped: true as const, warning: 'No completed previous moto in same category.' }
+  }
+
+  // Directly promote the READY moto to LIVE
+  const { data: promotedMoto, error: updateError } = await adminClient
+    .from('motos')
+    .update({ status: 'LIVE', provisional_at: null })
+    .eq('id', readyMotoId)
+    .in('status', ['READY', 'UPCOMING'])
+    .select('id')
+    .maybeSingle()
+
+  if (updateError) {
+    return { ok: false as const, warning: updateError.message }
+  }
+  if (!promotedMoto) {
+    return { ok: true as const, skipped: true as const, warning: 'Moto status changed before auto-live.' }
+  }
+
+  return { ok: true as const, nextMotoId: readyMotoId }
 }
