@@ -199,10 +199,9 @@ export default function JuryFinishPage() {
     const catRows = (catJson.data ?? []) as CategoryItem[]
     setCategories(catRows)
     const rawMotos = (motoJson.data ?? []) as MotoItem[]
-    const sortedMotos = [...rawMotos].sort(compareMotoSequence)
     const categoryBaseOrder = buildCategoryBaseOrder(rawMotos)
     const workflowMotos = [...rawMotos].sort((a, b) => compareMotoWorkflowSequence(a, b, categoryBaseOrder))
-    setMotos(sortedMotos)
+    setMotos(workflowMotos)
     setSelectedMotoId((prev) => pickNextSelectableMotoId(workflowMotos, prev))
     return workflowMotos
   }, [apiFetch, eventId, pickNextSelectableMotoId])

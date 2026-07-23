@@ -112,10 +112,9 @@ export default function JCSelectorPage() {
       const categoryJson = await categoryRes.json()
       const list = (motoJson.data ?? []) as MotoItem[]
       setCategories((categoryJson.data ?? []) as CategoryItem[])
-      list.sort(compareMotoSequence)
-      setMotos(list)
       const categoryBaseOrder = buildCategoryBaseOrder(list)
       const workflowList = [...list].sort((a, b) => compareMotoWorkflowSequence(a, b, categoryBaseOrder))
+      setMotos(workflowList)
       setMotoId((prev) => pickNextMotoId(workflowList, prev))
 
       const liveMotos = workflowList.filter((m) => isMotoLive(m.status))

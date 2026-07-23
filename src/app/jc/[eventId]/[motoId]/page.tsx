@@ -336,21 +336,20 @@ export default function JCPage() {
       const motoJson = await motoRes.json()
 
       const rawMotos = (motoJson.data ?? []) as MotoItem[]
-      const sortedMotos = [...rawMotos].sort(compareMotoSequence)
       const categoryBaseOrder = buildCategoryBaseOrder(rawMotos)
       const workflowMotos = [...rawMotos].sort((a, b) => compareMotoWorkflowSequence(a, b, categoryBaseOrder))
-      setMotos(sortedMotos)
+      setMotos(workflowMotos)
       const liveMoto = workflowMotos.find((m) => isMotoLive(m.status))
       const nextMotoId = pickPrepMotoId(workflowMotos, selectedMotoId, liveMoto?.id ?? null, allReadyDone)
       if (nextMotoId && nextMotoId !== selectedMotoId) {
-        const nextMoto = sortedMotos.find((m) => m.id === nextMotoId)
+        const nextMoto = workflowMotos.find((m) => m.id === nextMotoId)
         setSelectedMotoId(nextMotoId)
         setAllReadyDone(Boolean(nextMoto?.checker_prep_ready_at))
         setBulkReadyState(null)
         syncPrepMotoUrl(nextMotoId)
       }
       if (nextMotoId && nextMotoId === selectedMotoId) {
-        const currentMoto = sortedMotos.find((m) => m.id === nextMotoId)
+        const currentMoto = workflowMotos.find((m) => m.id === nextMotoId)
         setAllReadyDone(Boolean(currentMoto?.checker_prep_ready_at))
       }
       if (!nextMotoId && selectedMotoId) {
