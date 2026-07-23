@@ -486,8 +486,8 @@ export default function JuryFinishPage() {
       } else {
         setSubmitNotice({ type: 'success', message: 'Submit completed.' })
       }
-      await loadAll()
-      await loadRiders(undefined, true)
+      localEditingRef.current = false
+      await handleRefreshMotoSelector()
     } catch (error: unknown) {
       setSubmitNotice({
         type: 'error',
