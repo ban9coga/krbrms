@@ -329,10 +329,10 @@ export default function RaceDirectorApprovalPage() {
     return categories
       .filter((c) => c.enabled !== false)
       .sort((a, b) => {
-      const ay = typeof a.year === 'number' ? a.year : 0
-      const by = typeof b.year === 'number' ? b.year : 0
-      return by - ay
-    })
+        const ay = typeof a.year === 'number' ? a.year : 0
+        const by = typeof b.year === 'number' ? b.year : 0
+        return by - ay
+      })
   }, [categories])
 
   const enabledCategoryIds = useMemo(() => {
@@ -554,12 +554,11 @@ export default function RaceDirectorApprovalPage() {
       const refreshed = await loadEventData({ silent: true, includeHeavy: false })
       setDecisionModal(null)
       if (refreshed) {
-      showNotice(
-        'success',
-        `${decisionModal.type === 'status' ? 'Status' : 'Penalty'} ${
-          decisionModal.decision === 'APPROVE' ? 'disetujui' : 'ditolak'
-        }.`
-      )
+        showNotice(
+          'success',
+          `${decisionModal.type === 'status' ? 'Status' : 'Penalty'} ${decisionModal.decision === 'APPROVE' ? 'disetujui' : 'ditolak'
+          }.`
+        )
       } else {
         showNotice('error', 'Keputusan tersimpan, tapi refresh data gagal.')
       }
@@ -799,11 +798,10 @@ export default function RaceDirectorApprovalPage() {
                 {refreshing ? 'Memuat...' : 'Segarkan'}
               </button>
               <div
-                className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-extrabold uppercase tracking-[0.12em] ${
-                  approvalMode === 'AUTO'
+                className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-extrabold uppercase tracking-[0.12em] ${approvalMode === 'AUTO'
                     ? 'border-emerald-300 bg-emerald-100 text-emerald-800'
                     : 'border-amber-300 bg-amber-100 text-amber-800'
-                }`}
+                  }`}
               >
                 {approvalMode === 'AUTO' ? 'MODE AUTO APPROVAL' : 'MODE APPROVAL DIRECTOR'}
               </div>
@@ -816,11 +814,10 @@ export default function RaceDirectorApprovalPage() {
 
         {actionNotice && (
           <section
-            className={`rounded-xl border px-4 py-3 text-sm font-bold ${
-              actionNotice.type === 'error'
+            className={`rounded-xl border px-4 py-3 text-sm font-bold ${actionNotice.type === 'error'
                 ? 'border-amber-300 bg-amber-100 text-amber-800'
                 : 'border-emerald-300 bg-emerald-100 text-emerald-800'
-            }`}
+              }`}
           >
             <div className="flex items-center justify-between gap-3">
               <span>{actionNotice.message}</span>
@@ -895,8 +892,8 @@ export default function RaceDirectorApprovalPage() {
                       g.status === 'READY'
                         ? '#bfead2'
                         : g.status === 'CHECKING'
-                        ? '#ffe9a8'
-                        : '#fff',
+                          ? '#ffe9a8'
+                          : '#fff',
                     fontSize: 12,
                     fontWeight: 900,
                   }}
@@ -1242,71 +1239,72 @@ export default function RaceDirectorApprovalPage() {
                   u.proposed_status === 'ABSENT'
                     ? '#fee2e2'
                     : u.proposed_status === 'DNS'
-                    ? '#ffe9a8'
-                    : '#bfead2'
+                      ? '#ffe9a8'
+                      : '#bfead2'
                 return (
-                <div
-                  key={u.id}
-                  style={{
-                    border: '2px solid #111',
-                    borderRadius: 12,
-                    background: '#eaf7ee',
-                    padding: 12,
-                    display: 'grid',
-                    gap: 6,
-                  }}
-                >
-                  <div style={{ fontWeight: 900 }}>{riderLabel}</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span
-                      style={{
-                        padding: '4px 8px',
-                        borderRadius: 999,
-                        border: '2px solid #111',
-                        background: statusBadge,
-                        fontWeight: 900,
-                        fontSize: 12,
-                      }}
-                    >
-                      {u.proposed_status}
-                    </span>
-                    <span style={{ fontSize: 12, color: '#333' }}>{timeAgo(u.created_at)}</span>
-                  </div>
                   <div
-                    className="rd-action-grid"
-                    style={{ display: 'grid', gap: 8, marginTop: 6, gridTemplateColumns: '1fr 1fr' }}
+                    key={u.id}
+                    style={{
+                      border: '2px solid #111',
+                      borderRadius: 12,
+                      background: '#eaf7ee',
+                      padding: 12,
+                      display: 'grid',
+                      gap: 6,
+                    }}
                   >
-                    <button
-                      disabled={approvalMode === 'AUTO'}
-                      onClick={() => openDecisionModal('status', u.id, 'APPROVE')}
-                      style={{
-                        padding: '8px 12px',
-                        borderRadius: 10,
-                        border: '2px solid #111',
-                        background: '#bfead2',
-                        fontWeight: 900,
-                        cursor: approvalMode === 'AUTO' ? 'not-allowed' : 'pointer',
-                      }}
+                    <div style={{ fontWeight: 900 }}>{riderLabel}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span
+                        style={{
+                          padding: '4px 8px',
+                          borderRadius: 999,
+                          border: '2px solid #111',
+                          background: statusBadge,
+                          fontWeight: 900,
+                          fontSize: 12,
+                        }}
+                      >
+                        {u.proposed_status}
+                      </span>
+                      <span style={{ fontSize: 12, color: '#333' }}>{timeAgo(u.created_at)}</span>
+                    </div>
+                    <div
+                      className="rd-action-grid"
+                      style={{ display: 'grid', gap: 8, marginTop: 6, gridTemplateColumns: '1fr 1fr' }}
                     >
-                      Setujui
-                    </button>
-                    <button
-                      disabled={approvalMode === 'AUTO'}
-                      onClick={() => openDecisionModal('status', u.id, 'REJECT')}
-                      style={{
-                        padding: '8px 12px',
-                        borderRadius: 10,
-                        border: '2px solid #111',
-                        background: '#ffd7d7',
-                        fontWeight: 900,
-                        cursor: approvalMode === 'AUTO' ? 'not-allowed' : 'pointer',
-                      }}
-                    >
-                      Tolak
-                    </button>
+                      <button
+                        disabled={approvalMode === 'AUTO'}
+                        onClick={() => openDecisionModal('status', u.id, 'APPROVE')}
+                        style={{
+                          padding: '8px 12px',
+                          borderRadius: 10,
+                          border: '2px solid #111',
+                          background: '#bfead2',
+                          fontWeight: 900,
+                          cursor: approvalMode === 'AUTO' ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        Setujui
+                      </button>
+                      <button
+                        disabled={approvalMode === 'AUTO'}
+                        onClick={() => openDecisionModal('status', u.id, 'REJECT')}
+                        style={{
+                          padding: '8px 12px',
+                          borderRadius: 10,
+                          border: '2px solid #111',
+                          background: '#ffd7d7',
+                          fontWeight: 900,
+                          cursor: approvalMode === 'AUTO' ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        Tolak
+                      </button>
+                    </div>
                   </div>
-                </div>
-              )})}
+                )
+              })}
             </div>
           </section>
 
@@ -1318,58 +1316,59 @@ export default function RaceDirectorApprovalPage() {
                 const rider = riderMap[p.rider_id]
                 const riderLabel = rider ? `${rider.no_plate_display} - ${rider.name}` : p.rider_id
                 return (
-                <div
-                  key={p.id}
-                  style={{
-                    border: '2px solid #111',
-                    borderRadius: 12,
-                    background: '#eaf7ee',
-                    padding: 12,
-                    display: 'grid',
-                    gap: 6,
-                  }}
-                >
-                  <div style={{ fontWeight: 900 }}>{riderLabel}</div>
-                  <div>Rule: {p.rule_code} (+{p.penalty_point})</div>
-                  {p.note && <div style={{ fontSize: 12, color: '#333' }}>Note: {p.note}</div>}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 12, color: '#333' }}>{timeAgo(p.created_at)}</span>
-                  </div>
                   <div
-                    className="rd-action-grid"
-                    style={{ display: 'grid', gap: 8, marginTop: 6, gridTemplateColumns: '1fr 1fr' }}
+                    key={p.id}
+                    style={{
+                      border: '2px solid #111',
+                      borderRadius: 12,
+                      background: '#eaf7ee',
+                      padding: 12,
+                      display: 'grid',
+                      gap: 6,
+                    }}
                   >
-                    <button
-                      disabled={approvalMode === 'AUTO'}
-                      onClick={() => openDecisionModal('penalty', p.id, 'APPROVE')}
-                      style={{
-                        padding: '8px 12px',
-                        borderRadius: 10,
-                        border: '2px solid #111',
-                        background: '#bfead2',
-                        fontWeight: 900,
-                        cursor: approvalMode === 'AUTO' ? 'not-allowed' : 'pointer',
-                      }}
+                    <div style={{ fontWeight: 900 }}>{riderLabel}</div>
+                    <div>Rule: {p.rule_code} (+{p.penalty_point})</div>
+                    {p.note && <div style={{ fontSize: 12, color: '#333' }}>Note: {p.note}</div>}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 12, color: '#333' }}>{timeAgo(p.created_at)}</span>
+                    </div>
+                    <div
+                      className="rd-action-grid"
+                      style={{ display: 'grid', gap: 8, marginTop: 6, gridTemplateColumns: '1fr 1fr' }}
                     >
-                      Setujui
-                    </button>
-                    <button
-                      disabled={approvalMode === 'AUTO'}
-                      onClick={() => openDecisionModal('penalty', p.id, 'REJECT')}
-                      style={{
-                        padding: '8px 12px',
-                        borderRadius: 10,
-                        border: '2px solid #111',
-                        background: '#ffd7d7',
-                        fontWeight: 900,
-                        cursor: approvalMode === 'AUTO' ? 'not-allowed' : 'pointer',
-                      }}
-                    >
-                      Tolak
-                    </button>
+                      <button
+                        disabled={approvalMode === 'AUTO'}
+                        onClick={() => openDecisionModal('penalty', p.id, 'APPROVE')}
+                        style={{
+                          padding: '8px 12px',
+                          borderRadius: 10,
+                          border: '2px solid #111',
+                          background: '#bfead2',
+                          fontWeight: 900,
+                          cursor: approvalMode === 'AUTO' ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        Setujui
+                      </button>
+                      <button
+                        disabled={approvalMode === 'AUTO'}
+                        onClick={() => openDecisionModal('penalty', p.id, 'REJECT')}
+                        style={{
+                          padding: '8px 12px',
+                          borderRadius: 10,
+                          border: '2px solid #111',
+                          background: '#ffd7d7',
+                          fontWeight: 900,
+                          cursor: approvalMode === 'AUTO' ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        Tolak
+                      </button>
+                    </div>
                   </div>
-                </div>
-              )})}
+                )
+              })}
             </div>
           </section>
 
@@ -1443,10 +1442,10 @@ export default function RaceDirectorApprovalPage() {
                                     status === 'LOCKED'
                                       ? '#93c5fd'
                                       : status === 'PROVISIONAL'
-                                      ? '#ffe9a8'
-                                      : status === 'PROTEST_REVIEW'
-                                      ? '#ffd7d7'
-                                      : '#bfead2',
+                                        ? '#ffe9a8'
+                                        : status === 'PROTEST_REVIEW'
+                                          ? '#ffd7d7'
+                                          : '#bfead2',
                                   width: 'fit-content',
                                 }}
                               >
@@ -1617,11 +1616,10 @@ export default function RaceDirectorApprovalPage() {
                 type="button"
                 onClick={handleSubmitDecision}
                 disabled={decisionSubmitting}
-                className={`rounded-xl border px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.1em] transition-colors ${
-                  decisionModal.decision === 'APPROVE'
+                className={`rounded-xl border px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.1em] transition-colors ${decisionModal.decision === 'APPROVE'
                     ? 'border-emerald-300 bg-emerald-500 text-white hover:bg-emerald-400'
                     : 'border-amber-300 bg-amber-400 text-white hover:bg-amber-300'
-                }`}
+                  }`}
               >
                 {decisionSubmitting
                   ? 'Memproses...'

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { compareMotoDisplayOrder, formatMotoDisplayName } from '../../../../../lib/motoDisplayOrder'
 import { supabase } from '../../../../../lib/supabaseClient'
+import { useApiFetch } from '../../../../../hooks/useApiFetch'
 
 type CategoryItem = {
   id: string
@@ -178,16 +179,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
 
   const getErrorMessage = (err: unknown) => (err instanceof Error ? err.message : 'Request failed')
 
-  const apiFetch = async (url: string, options: RequestInit = {}) => {
-    const { data } = await supabase.auth.getSession()
-    const token = data.session?.access_token
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-    if (token) headers.Authorization = `Bearer ${token}`
-    const res = await fetch(url, { cache: 'no-store', ...options, headers })
-    const json = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(json?.error || 'Request failed')
-    return json
-  }
+  const apiFetch = useApiFetch()
 
   const loadGateOrders = async (categoryIds: string[], options: { force?: boolean } = {}) => {
     const uniqueCategoryIds = Array.from(new Set(categoryIds.filter(Boolean)))

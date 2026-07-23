@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '../../../../lib/supabaseClient'
+import { useApiFetch } from '../../../../hooks/useApiFetch'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -35,16 +36,7 @@ type DrawResult = {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const apiFetch = async (url: string, options: RequestInit = {}) => {
-  const { data: sessionData } = await supabase.auth.getSession()
-  const token = sessionData.session?.access_token
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  if (token) headers.Authorization = `Bearer ${token}`
-  const res = await fetch(url, { ...options, headers })
-  const json = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(json?.error || 'Request failed')
-  return json
-}
+
 
 const padTime = (n: number) => String(n).padStart(2, '0')
 const nowTimeStr = () => {
@@ -138,6 +130,7 @@ export default function McDrawPage() {
   const [error, setError] = useState<string | null>(null)
 
   const { playClick, startSpinSound, stopSpinSound, playVictory } = useDrawAudio()
+  const apiFetch = useApiFetch()
   const wheelRef = useRef<HTMLDivElement>(null)
   const confettiCounterRef = useRef(0)
 

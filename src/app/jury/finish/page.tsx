@@ -608,11 +608,10 @@ export default function JuryFinishPage() {
             <button
               type="button"
               onClick={toggleHighVisibility}
-              className={`rounded-xl border px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.08em] transition-colors ${
-                highVisibility
+              className={`rounded-xl border px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.08em] transition-colors ${highVisibility
                   ? 'border-amber-300 bg-amber-100 text-amber-900 hover:bg-amber-200'
                   : 'border-slate-300 bg-white text-slate-800 hover:bg-slate-100'
-              }`}
+                }`}
             >
               {highVisibility ? 'Mode Besar Aktif' : 'Mode Besar'}
             </button>
@@ -639,31 +638,28 @@ export default function JuryFinishPage() {
         )}
         {submitNotice && (
           <section
-            className={`rounded-xl px-4 py-3 text-sm font-bold ${
-              submitNotice.type === 'success'
+            className={`rounded-xl px-4 py-3 text-sm font-bold ${submitNotice.type === 'success'
                 ? 'border border-emerald-300 bg-emerald-50 text-emerald-800'
                 : 'border border-rose-300 bg-rose-50 text-rose-800'
-            }`}
+              }`}
           >
             {submitNotice.message}
           </section>
         )}
         <section className="flex flex-wrap gap-2">
           <span
-            className={`rounded-full border px-3 py-1 text-xs font-extrabold tracking-[0.12em] ${
-              flags.dns_enabled
+            className={`rounded-full border px-3 py-1 text-xs font-extrabold tracking-[0.12em] ${flags.dns_enabled
                 ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
                 : 'border-rose-300 bg-rose-50 text-rose-800'
-            }`}
+              }`}
           >
             DNS {flags.dns_enabled ? 'ON' : 'OFF'}
           </span>
           <span
-            className={`rounded-full border px-3 py-1 text-xs font-extrabold tracking-[0.12em] ${
-              flags.dnf_enabled
+            className={`rounded-full border px-3 py-1 text-xs font-extrabold tracking-[0.12em] ${flags.dnf_enabled
                 ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
                 : 'border-rose-300 bg-rose-50 text-rose-800'
-            }`}
+              }`}
           >
             DNF {flags.dnf_enabled ? 'ON' : 'OFF'}
           </span>
@@ -680,9 +676,8 @@ export default function JuryFinishPage() {
                   <button
                     key={r.id}
                     type="button"
-                    className={`finisher-rider-btn ${isReady ? 'is-ready' : ''} ${
-                      pressedId === r.id ? 'is-pressed' : ''
-                    } ${highVisibility ? 'is-large' : ''}`}
+                    className={`finisher-rider-btn ${isReady ? 'is-ready' : ''} ${pressedId === r.id ? 'is-pressed' : ''
+                      } ${highVisibility ? 'is-large' : ''}`}
                     onContextMenu={(event) => event.preventDefault()}
                     onPointerDown={(event) => onCardPointerDown(event, r.id)}
                     onPointerUp={(event) => onCardPointerUp(event, r.id)}
@@ -748,18 +743,18 @@ export default function JuryFinishPage() {
                   const status = finishOrder.includes(r.id)
                     ? 'FINISH'
                     : dnfRiders.includes(r.id)
-                    ? 'DNF'
-                    : startStatus === 'DNS'
-                    ? 'DNS'
-                    : startStatus === 'ABSENT'
-                    ? 'ABSENT'
-                    : 'READY'
+                      ? 'DNF'
+                      : startStatus === 'DNS'
+                        ? 'DNS'
+                        : startStatus === 'ABSENT'
+                          ? 'ABSENT'
+                          : 'READY'
                   const badgeClass =
                     status === 'READY'
                       ? 'border-slate-300 text-slate-700'
                       : status === 'FINISH'
-                      ? 'border-emerald-300 text-emerald-800'
-                      : 'border-amber-300 text-amber-800'
+                        ? 'border-emerald-300 text-emerald-800'
+                        : 'border-amber-300 text-amber-800'
                   return (
                     <div key={r.id} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
                       <div className="font-semibold text-slate-700">

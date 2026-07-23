@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { supabase } from '../../../../../lib/supabaseClient'
+import { supabase } from '../../../../lib/supabaseClient'
+import { useApiFetch } from '../../../../hooks/useApiFetch'
 
 type CategoryItem = {
   id: string
@@ -45,16 +46,7 @@ export default function ScheduleClient({ eventId }: { eventId: string }) {
 
   const getErrorMessage = (err: unknown) => (err instanceof Error ? err.message : 'Request failed')
 
-  const apiFetch = async (url: string, options: RequestInit = {}) => {
-    const { data } = await supabase.auth.getSession()
-    const token = data.session?.access_token
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-    if (token) headers.Authorization = `Bearer ${token}`
-    const res = await fetch(url, { ...options, headers })
-    const json = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(json?.error || 'Request failed')
-    return json
-  }
+  const apiFetch = useApiFetch()
 
   const load = async () => {
     if (!eventId) return

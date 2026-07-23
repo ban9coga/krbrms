@@ -3,6 +3,7 @@
 import Image from 'next/image'
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../../../../lib/supabaseClient'
+import { useApiFetch } from '../../../../../hooks/useApiFetch'
 
 type CategoryRow = {
   id: string
@@ -526,19 +527,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
   const [categories, setCategories] = useState<CategoryRow[]>([])
   const [rulesByCategory, setRulesByCategory] = useState<Record<string, CustomSplitRule[]>>({})
 
-  const apiFetch = async (url: string, options: RequestInit = {}) => {
-    const { data } = await supabase.auth.getSession()
-    const token = data.session?.access_token
-    const headers: Record<string, string> = {
-      ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
-      ...((options.headers ?? {}) as Record<string, string>),
-    }
-    if (token) headers.Authorization = `Bearer ${token}`
-    const res = await fetch(url, { ...options, headers })
-    const json = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(json?.error || 'Request failed')
-    return json
-  }
+  const apiFetch = useApiFetch()
 
   const load = async () => {
     if (!eventId) return

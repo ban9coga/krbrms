@@ -54,8 +54,8 @@ export default function MarketingTopbar({
 
   useEffect(() => {
     const syncUser = async () => {
-      const { data } = await supabase.auth.getUser()
-      const user = data.user
+      const { data } = await supabase.auth.getSession()
+      const user = data.session?.user
       const meta = (user?.user_metadata ?? {}) as Record<string, unknown>
       const appMeta = (user?.app_metadata ?? {}) as Record<string, unknown>
       const role =

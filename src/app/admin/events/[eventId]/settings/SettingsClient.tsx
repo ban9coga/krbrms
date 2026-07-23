@@ -15,6 +15,7 @@ import {
 } from '../../../../../lib/bestTeam'
 import { formatAppRoleLabel } from '../../../../../lib/roles'
 import { supabase } from '../../../../../lib/supabaseClient'
+import { useApiFetch } from '../../../../../hooks/useApiFetch'
 import { ADVANCED_RACE_FINAL_CLASS_ORDER } from '../../../../../lib/advancedRaceDefaults'
 import type { BusinessSettings, CommunityShowcaseItem, EventSponsor, EventSponsorTier } from '../../../../../lib/eventService'
 
@@ -625,16 +626,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     race_format_settings: '{\n}\n',
   })
 
-  const apiFetch = async (url: string, options: RequestInit = {}) => {
-    const { data } = await supabase.auth.getSession()
-    const token = data.session?.access_token
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-    if (token) headers.Authorization = `Bearer ${token}`
-    const res = await fetch(url, { ...options, headers })
-    const json = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(json?.error || 'Request failed')
-    return json
-  }
+  const apiFetch = useApiFetch()
 
   const uploadLogo = async (file: File) => {
     const { data } = await supabase.auth.getSession()
