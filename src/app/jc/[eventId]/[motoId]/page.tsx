@@ -1009,6 +1009,7 @@ export default function JCPage() {
   const absentDisabled = interactionDisabled || allReadyDone || !flags.absent_enabled
   const bulkReadyDisabled = interactionDisabled || allReadyDone || riderList.length === 0
   const canGateReady = riderList.length > 0 && allPrepReviewed
+  const motoReadyDisabled = interactionDisabled || !canGateReady || allReadyDone
   const incidentInteractionDisabled = saving || incidentLocked || !incidentMotoId
   const incidentDnsDisabled = incidentInteractionDisabled || !flags.dns_enabled
 
@@ -1449,7 +1450,7 @@ export default function JCPage() {
               className="jc-action-btn jc-primary"
               type="button"
               onClick={handleAllReady}
-              disabled={interactionDisabled || !canGateReady || allReadyDone}
+              disabled={motoReadyDisabled}
               style={{
                 padding: isCompactLayout ? '12px 16px' : '14px 18px',
                 borderRadius: 999,
