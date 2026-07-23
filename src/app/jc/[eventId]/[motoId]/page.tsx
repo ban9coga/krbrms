@@ -494,8 +494,15 @@ export default function JCPage() {
     void loadMotos(false)
     if (selectedMotoId) void loadMoto(false, true)
     if (incidentMotoId) void loadIncidentMoto(true)
-    
-    // Polling removed per user request
+    if (!isPageVisible) return
+
+    const interval = setInterval(() => {
+      void loadMotos(true)
+      if (selectedMotoIdRef.current) void loadMoto(true)
+      if (incidentMotoId) void loadIncidentMoto(true)
+    }, 10000)
+
+    return () => clearInterval(interval)
   }, [eventId, selectedMotoId, incidentMotoId, isPageVisible, loadMotos, loadIncidentMoto])
 
   useEffect(() => {
