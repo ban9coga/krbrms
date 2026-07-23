@@ -217,6 +217,7 @@ export default function JCPage() {
   const [categories, setCategories] = useState<CategoryItem[]>([])
   const [selectedMotoId, setSelectedMotoId] = useState(initialMotoId)
   const selectedMotoIdRef = useRef(initialMotoId)
+  const manualSelectRef = useRef(false)
   const [riders, setRiders] = useState<RiderItem[]>([])
   const [statuses, setStatuses] = useState<Record<string, StatusRow>>({})
   const [incidentRiders, setIncidentRiders] = useState<RiderItem[]>([])
@@ -313,6 +314,13 @@ export default function JCPage() {
       const categoryBaseOrder = buildCategoryBaseOrder(rawMotos)
       const workflowMotos = [...rawMotos].sort((a, b) => compareMotoWorkflowSequence(a, b, categoryBaseOrder))
       setMotos(workflowMotos)
+
+      // Skip auto-navigation if user just manually selected a moto from dropdown
+      if (manualSelectRef.current) {
+        manualSelectRef.current = false
+        return workflowMotos
+      }
+
       const liveMoto = workflowMotos.find((m) => isMotoLive(m.status))
       const nextMotoId = pickPrepMotoId(workflowMotos, selectedMotoId, liveMoto?.id ?? null, allReadyDone)
       if (nextMotoId && nextMotoId !== selectedMotoId) {
@@ -363,6 +371,10 @@ export default function JCPage() {
     try {
       const targetMoto = motos.find((m) => m.id === targetMotoId)
       const isMotoLocked = targetMoto ? targetMoto.status === 'LOCKED' : false
+      // Update allReadyDone based on the moto's actual checker_prep_ready_at state
+      if (targetMoto && !isMotoLocked) {
+        setAllReadyDone(Boolean(targetMoto.checker_prep_ready_at))
+      }
       
       const [riderRes, statusRes, safetyRes] = await Promise.all([
         apiFetch(`/api/jury/motos/${targetMotoId}/riders`),
@@ -1039,10 +1051,16 @@ export default function JCPage() {
               value={selectedMotoId}
               onChange={(e) => {
                 const next = e.target.value
+                manualSelectRef.current = true
+                selectedMotoIdRef.current = next
                 setSelectedMotoId(next)
                 setAllReadyDone(false)
                 setBulkReadyState(null)
                 syncPrepMotoUrl(next)
+                // Immediately fetch rider data for the manually selected moto
+                setTimeout(() => {
+                  void loadMoto(false, true)
+                }, 50)
               }}
               className="jc-moto-select"
               style={{
