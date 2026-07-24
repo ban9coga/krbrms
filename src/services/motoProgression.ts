@@ -2,6 +2,7 @@
 
 import { adminClient } from '../lib/auth'
 import { buildCategoryBaseOrder, compareMotoWorkflowSequence } from '../lib/motoSequence'
+import { syncAdvancedRaceProgressAfterLockedStage } from './advancedRaceAuto'
 
 type MotoQueueRow = {
   id: string
@@ -16,23 +17,25 @@ const normalizeStatus = (status?: string | null) => (status ?? '').toUpperCase()
 const isUpcomingMoto = (row: MotoQueueRow) => normalizeStatus(row.status) === 'UPCOMING'
 const isReadyMoto = (row: MotoQueueRow) => normalizeStatus(row.status) === 'READY'
 const isLiveMoto = (row: MotoQueueRow) => normalizeStatus(row.status) === 'LIVE'
+const isProvisionalMoto = (row: MotoQueueRow) => normalizeStatus(row.status) === 'PROVISIONAL'
 const isLegacyPreparedMoto = (row: MotoQueueRow) =>
   normalizeStatus(row.status) === 'UPCOMING' && Boolean(row.checker_prep_ready_at)
 const isPromotableMoto = (row: MotoQueueRow) => isReadyMoto(row) || isLegacyPreparedMoto(row)
 const isNextCandidateMoto = (row: MotoQueueRow) => isReadyMoto(row) || isUpcomingMoto(row)
-const isLockedMoto = (row: MotoQueueRow) => {
-  const status = normalizeStatus(row.status)
-  return status === 'LOCKED' || status === 'FINISHED'
-}
-
 const pickNextMotoToPromote = (rows: MotoQueueRow[], currentMoto: MotoQueueRow) => {
   const currentIndex = rows.findIndex((row) => row.id === currentMoto.id)
   if (currentIndex < 0) return { nextMoto: null, warning: 'Current moto not found in event sequence.' }
 
   const afterCurrent = rows.slice(currentIndex + 1)
-  // Progression must follow the global Moto Sequence. Category-first fallback here
-  // previously allowed a later moto in the same category to jump ahead of the queue.
-  const nextMoto = afterCurrent.find(isNextCandidateMoto) ?? null
+  const sameCategory = (row: MotoQueueRow) => row.category_id === currentMoto.category_id
+  // A category must finish its own newly generated stage before the queue moves
+  // to another category. Stage motos receive a high raw moto_order on creation,
+  // so raw global order alone would incorrectly skip them.
+  const nextMoto =
+    afterCurrent.find((row) => sameCategory(row) && isNextCandidateMoto(row)) ??
+    rows.find((row) => sameCategory(row) && isNextCandidateMoto(row)) ??
+    afterCurrent.find(isNextCandidateMoto) ??
+    null
 
   return { nextMoto, warning: null }
 }
@@ -86,53 +89,87 @@ const promoteReadyMoto = async (eventId: string, rows: MotoQueueRow[], moto: Mot
   return { ok: true as const, nextMotoId: moto.id }
 }
 
-// Used only after a moto is officially locked. A submitted result remains PROVISIONAL
-// until this transition is performed by the director/admin workflow.
-export async function promoteNextMotoToLive(eventId: string, lockedMotoId: string) {
+const autoLockProvisionalMoto = async (eventId: string, motoId: string) => {
+  const lockedAt = new Date().toISOString()
+  const { data: lockedMoto, error: updateError } = await adminClient
+    .from('motos')
+    .update({ status: 'LOCKED' })
+    .eq('id', motoId)
+    .eq('event_id', eventId)
+    .eq('status', 'PROVISIONAL')
+    .select('id, category_id, moto_name')
+    .maybeSingle()
+
+  if (updateError) return { ok: false as const, warning: updateError.message }
+  if (!lockedMoto) return { ok: true as const, skipped: true as const, warning: 'Moto is not PROVISIONAL anymore.' }
+
+  const { error: lockError } = await adminClient.from('moto_locks').upsert(
+    [
+      {
+        moto_id: motoId,
+        event_id: eventId,
+        is_locked: true,
+        locked_by: 'SYSTEM',
+        locked_at: lockedAt,
+        reason: 'AUTO_LOCK_AFTER_NEXT_LIVE',
+      },
+    ],
+    { onConflict: 'moto_id' }
+  )
+  if (lockError) return { ok: false as const, warning: lockError.message }
+
+  const stageProgress = lockedMoto.category_id
+    ? await syncAdvancedRaceProgressAfterLockedStage(eventId, lockedMoto.category_id, lockedMoto.moto_name)
+    : { ok: true, skipped: true }
+  return { ok: true as const, motoId, stage_progress: stageProgress }
+}
+
+// Finisher submission makes the current moto PROVISIONAL. When its next moto is
+// READY, promote it to LIVE immediately and lock the submitted moto as one atomic flow.
+export async function promoteNextMotoToLive(eventId: string, currentMotoId: string) {
   const loaded = await loadWorkflowMotos(eventId)
   if (!loaded.rows) return { ok: false as const, warning: loaded.warning ?? 'Gagal memuat urutan moto.' }
 
-  const lockedMoto = loaded.rows.find((row) => row.id === lockedMotoId)
-  if (!lockedMoto) return { ok: false as const, warning: 'Moto yang dikunci tidak ditemukan.' }
-  if (!isLockedMoto(lockedMoto)) {
-    return { ok: true as const, skipped: true as const, warning: 'Moto berikutnya menunggu moto sebelumnya LOCKED.' }
-  }
+  const currentMoto = loaded.rows.find((row) => row.id === currentMotoId)
+  if (!currentMoto) return { ok: false as const, warning: 'Moto saat ini tidak ditemukan.' }
 
-  const { nextMoto, warning } = pickNextMotoToPromote(loaded.rows, lockedMoto)
+  const { nextMoto, warning } = pickNextMotoToPromote(loaded.rows, currentMoto)
   if (warning) return { ok: false as const, warning }
   if (!nextMoto) return { ok: true as const, skipped: true as const, warning: 'Tidak ada moto berikutnya.' }
 
-  return promoteReadyMoto(eventId, loaded.rows, nextMoto)
+  const promotion = await promoteReadyMoto(eventId, loaded.rows, nextMoto)
+  if (!promotion.ok || promotion.skipped || !isProvisionalMoto(currentMoto)) return promotion
+
+  const autoLock = await autoLockProvisionalMoto(eventId, currentMotoId)
+  return { ...promotion, auto_lock: autoLock }
 }
 
-// A checker can start the opening moto, or a moto whose direct predecessor has
-// already been locked. Every other prepared moto stays READY until its predecessor locks.
-export async function promoteReadyMotoAfterPreviousLocked(eventId: string, readyMotoId: string) {
+// If Checker finishes preparation after the previous moto has become PROVISIONAL,
+// this completes the same auto-live then auto-lock transition.
+export async function promoteReadyMotoAfterPreviousProvisional(eventId: string, readyMotoId: string) {
   const loaded = await loadWorkflowMotos(eventId)
   if (!loaded.rows) return { ok: false as const, warning: loaded.warning ?? 'Gagal memuat urutan moto.' }
 
   const readyIndex = loaded.rows.findIndex((row) => row.id === readyMotoId)
   if (readyIndex < 0) return { ok: false as const, warning: 'Moto READY tidak ditemukan.' }
-
   const readyMoto = loaded.rows[readyIndex]
   if (!isPromotableMoto(readyMoto)) {
     return { ok: true as const, skipped: true as const, warning: 'Moto belum READY.' }
   }
 
-  if (readyIndex === 0) {
-    return promoteReadyMoto(eventId, loaded.rows, readyMoto)
+  const beforeReady = loaded.rows.slice(0, readyIndex).reverse()
+  const sameCategory = (row: MotoQueueRow) => row.category_id === readyMoto.category_id
+  const previousProvisional =
+    beforeReady.find((row) => sameCategory(row) && isProvisionalMoto(row)) ??
+    beforeReady.find(isProvisionalMoto) ??
+    null
+
+  if (previousProvisional) {
+    const { nextMoto } = pickNextMotoToPromote(loaded.rows, previousProvisional)
+    if (nextMoto?.id === readyMotoId) return promoteNextMotoToLive(eventId, previousProvisional.id)
   }
 
-  const previousMoto = loaded.rows[readyIndex - 1]
-  if (!isLockedMoto(previousMoto)) {
-    return { ok: true as const, skipped: true as const, warning: 'Moto ini menunggu moto sebelumnya LOCKED.' }
-  }
-
-  const { nextMoto, warning } = pickNextMotoToPromote(loaded.rows, previousMoto)
-  if (warning) return { ok: false as const, warning }
-  if (nextMoto?.id !== readyMotoId) {
-    return { ok: true as const, skipped: true as const, warning: 'Moto ini bukan urutan start berikutnya.' }
-  }
-
+  // The first prepared moto can still be opened by Checker. For subsequent motos,
+  // a LIVE moto elsewhere remains the guard against two motos running together.
   return promoteReadyMoto(eventId, loaded.rows, readyMoto)
 }

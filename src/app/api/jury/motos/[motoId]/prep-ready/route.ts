@@ -3,7 +3,7 @@ import { adminClient } from '../../../../../../lib/auth'
 import { assertMotoEditable, assertMotoNotUnderProtest } from '../../../../../../lib/motoLock'
 import { isMotoReady, isMotoUpcoming } from '../../../../../../lib/motoStatus'
 import { requireJury } from '../../../../../../services/juryAuth'
-import { promoteReadyMotoAfterPreviousLocked } from '../../../../../../services/motoProgression'
+import { promoteReadyMotoAfterPreviousProvisional } from '../../../../../../services/motoProgression'
 
 const getMoto = async (motoId: string) => {
   const { data, error } = await adminClient
@@ -48,7 +48,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-  const promotionResult = await promoteReadyMotoAfterPreviousLocked(moto.event_id, motoId)
+  const promotionResult = await promoteReadyMotoAfterPreviousProvisional(moto.event_id, motoId)
   return NextResponse.json({ ok: true, data, next_moto: promotionResult })
 }
 

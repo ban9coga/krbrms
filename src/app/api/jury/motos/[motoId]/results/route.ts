@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../../lib/auth'
 import { assertMotoEditable, assertMotoNotUnderProtest } from '../../../../../../lib/motoLock'
 import { reseedSingleBatchMoto3FromMoto } from '../../../../../../services/moto3Reseed'
+import { promoteNextMotoToLive } from '../../../../../../services/motoProgression'
 import { upsertRiderParticipationStatuses } from '../../../../../../services/riderParticipationStatus'
 import { requireJury } from '../../../../../../services/juryAuth'
 
@@ -141,10 +142,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
     .eq('id', motoId)
 
   const moto3Reseed = await reseedSingleBatchMoto3FromMoto(motoId)
+  const nextMoto = await promoteNextMotoToLive(moto.event_id, motoId)
 
   return NextResponse.json({
     ok: true,
-    next_moto: { pending_lock: true, warning: 'Moto berikutnya akan LIVE setelah moto ini di-LOCKED.' },
+    next_moto: nextMoto,
     warning: moto3Reseed.ok ? null : moto3Reseed.warning ?? 'Moto 3 gate reseed skipped.',
   })
 }
