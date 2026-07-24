@@ -138,6 +138,7 @@ export default function JuryFinishPage() {
 
   const pressTimers = useRef<Record<string, ReturnType<typeof setTimeout> | null>>({})
   const longPressFired = useRef<Record<string, boolean>>({})
+  const motosRef = useRef<MotoItem[]>([])
   const pressedIdRef = useRef<string | null>(null)
   const savingRef = useRef(false)
   const actionsCountRef = useRef(0)
@@ -154,6 +155,10 @@ export default function JuryFinishPage() {
   useEffect(() => {
     actionsCountRef.current = actions.length
   }, [actions.length])
+
+  useEffect(() => {
+    motosRef.current = motos
+  }, [motos])
 
   useEffect(() => {
     localEditingRef.current = Boolean(pressedId || saving || actions.length > 0)
@@ -321,7 +326,7 @@ export default function JuryFinishPage() {
       setMotoLocked(false)
       return
     }
-    const targetMoto = motos.find((m) => m.id === targetMotoId) ?? selectedMoto ?? null
+    const targetMoto = motosRef.current.find((m) => m.id === targetMotoId) ?? null
     const [res, pollRes] = await Promise.all([
       apiFetch(`/api/jury/motos/${targetMotoId}/riders`),
       apiFetch(`/api/jury/events/${eventId}/finisher-poll?moto_id=${targetMotoId}`),
@@ -329,7 +334,7 @@ export default function JuryFinishPage() {
     if (!force && localEditingRef.current) return
     setRiders((res.data ?? []) as RiderItem[])
     applyFinisherPollData((pollRes.data ?? {}) as FinisherPollData, targetMoto)
-  }, [apiFetch, applyFinisherPollData, eventId, motos, selectedMoto, selectedMotoId])
+  }, [apiFetch, applyFinisherPollData, eventId, selectedMotoId])
 
   useEffect(() => {
     void loadRiders()
@@ -359,9 +364,7 @@ export default function JuryFinishPage() {
 
           const currentSelectedMoto = state.motos.find((m) => m.id === state.selectedMotoId) ?? null
           const selectionChanged = state.selectedMotoId !== selectedMotoId
-          if (selectionChanged) {
-            await loadRiders(state.selectedMotoId, true)
-          } else if (isMotoLive(currentSelectedMoto?.status) && !hasSubmitted) {
+          if (!selectionChanged && isMotoLive(currentSelectedMoto?.status) && !hasSubmitted) {
             await refreshFinisherPollingState(state.selectedMotoId, currentSelectedMoto)
           }
         } catch {
@@ -535,17 +538,16 @@ export default function JuryFinishPage() {
     if (refreshingSelector) return
     setRefreshingSelector(true)
     try {
-      const refreshedMotos = (await loadAll()) ?? []
-      const liveMoto = refreshedMotos.find((m) => isMotoLive(m.status))
-      if (liveMoto) {
-        setSelectedMotoId(liveMoto.id)
-        await loadRiders(liveMoto.id, true)
-        return
-      }
-      const nextMotoId = pickNextSelectableMotoId(refreshedMotos, selectedMotoId)
-      setSelectedMotoId(nextMotoId)
-      if (nextMotoId) {
-        await loadRiders(nextMotoId, true)
+      const state = await refreshMotoState()
+      if (!state?.selectedMotoId) return
+
+      // A changed selector triggers the rider-grid effect exactly once. Do not
+      // await it here: Refresh is an immediate moto-state check, not a full reload.
+      if (state.selectedMotoId === selectedMotoId) {
+        const selectedMoto = state.motos.find((m) => m.id === state.selectedMotoId) ?? null
+        if (isMotoLive(selectedMoto?.status) && !hasSubmitted) {
+          await refreshFinisherPollingState(state.selectedMotoId, selectedMoto)
+        }
       }
     } finally {
       setRefreshingSelector(false)
