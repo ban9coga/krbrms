@@ -715,6 +715,9 @@ const computeHybridQualificationAdvances = (
 const areAllMotosComplete = (motos: MotoRow[], assignedRows: MotoRiderRow[], resultRows: ResultRow[]) =>
   motos.length > 0 && motos.every((moto) => isMotoComplete(moto.id, assignedRows, resultRows))
 
+const isAdvancedStageMotoName = (name?: string | null) =>
+  /^(?:repechage|quarter\s*final|semi\s*final|final\s+)/i.test(String(name ?? '').trim())
+
 export async function computeQualificationAndStore(eventId: string, categoryId: string) {
   const { data: config } = await adminClient
     .from('race_stage_config')
@@ -745,6 +748,12 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
     })
   } catch (err: unknown) {
     return { ok: false, warning: err instanceof Error ? err.message : 'Moto under protest review.' }
+  }
+
+  // Qualification determines the initial bracket only once. Rebuilding it after
+  // Repechage/QF/Semi/Final exists would overwrite the route already raced.
+  if (motoRows.some((moto) => isAdvancedStageMotoName(moto.moto_name))) {
+    return { ok: true, warning: 'Qualification bracket already frozen after advanced stage creation.' }
   }
 
   const motoIds = motoRows.map((m) => m.id)
@@ -1014,6 +1023,10 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
     repechageReady: areAllMotosComplete(existingRepechageMotos, categoryMotoRiderRows, categoryResultRows),
     semiReady: areAllMotosComplete(existingSemiMotos, categoryMotoRiderRows, categoryResultRows),
   }
+  const repechageAlreadyFinalized =
+    readiness.repechageReady ||
+    (existingRepechageMotos.length > 0 &&
+      existingRepechageMotos.every((moto) => ['LOCKED', 'FINISHED'].includes(String(moto.status ?? '').toUpperCase())))
 
   const { data: stageRows, error } = await adminClient
     .from('race_stage_result')
@@ -1195,7 +1208,9 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
     }
   }
 
-  if (repechageRiders.length > 0) {
+  // A completed/locked repechage is historical. Never append a late batch from
+  // a later compute run, even when an old stage seed is still present.
+  if (repechageRiders.length > 0 && !repechageAlreadyFinalized) {
     const existingRepechageMotos = await loadStageMotos(eventId, categoryId, 'Repechage')
     const existingRepechageIds = existingRepechageMotos.map((m) => m.id)
     const assignedRepechage = new Set<string>()
@@ -1554,6 +1569,7 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
   const pendingRepechageRiders = new Set<string>()
   const pendingSemiRiders = new Set<string>()
   const pendingFinalAssignments = new Map<string, string>()
+  const repechageAlreadyRun = repechageMotos.some((moto) => hasMotoResults(moto.id, resultRows))
   const customQualificationRules = await loadCustomSplitRules(categoryId, 'QUALIFICATION')
   const qualificationBatchCount = Object.keys(qualificationRanksByBatch).length
   const customSplitBasis = customQualificationRules[0]?.splitBasis ?? 'COMBINED'
@@ -1620,7 +1636,9 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
       return
     }
     if (advance.toStage === 'REPECHAGE') {
-      pendingRepechageRiders.add(advance.riderId)
+      // Once Repechage has raced, its qualification intake is frozen. A later
+      // stage compute must not send a rider backward into a new batch.
+      if (!repechageAlreadyRun) pendingRepechageRiders.add(advance.riderId)
       return
     }
     addFinalAssignment(pendingFinalAssignments, advance.riderId, advance.finalClass)
@@ -1675,7 +1693,6 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
     })
   }
 
-  const repechageAlreadyRun = repechageMotos.some((moto) => hasMotoResults(moto.id, resultRows))
   if (!repechageAlreadyRun) {
     Array.from(quarterDerivedRepechageRiders).forEach((riderId) => pendingRepechageRiders.add(riderId))
   }
