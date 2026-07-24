@@ -60,18 +60,17 @@ const isCategoryUnfinished = (list: MotoItem[], categoryId?: string | null) => {
   })
   if (hasActiveOrProvisional) return true
 
-  const hasCompletedFinal = categoryMotos.some((m) => {
-    const name = String(m.moto_name ?? '').toUpperCase()
-    const s = String(m.status ?? '').toUpperCase()
-    return name.includes('FINAL') && (s === 'FINISHED' || s === 'LOCKED')
-  })
-
-  const hasUnfinishedMotos = categoryMotos.some((m) => {
+  return categoryMotos.some((m) => {
     const s = String(m.status ?? '').toUpperCase()
     return s !== 'LOCKED' && s !== 'FINISHED'
   })
+}
 
-  return !hasCompletedFinal && hasUnfinishedMotos
+const pickActiveWorkflowCategoryId = (list: MotoItem[]) => {
+  for (const moto of list) {
+    if (moto.category_id && isCategoryUnfinished(list, moto.category_id)) return moto.category_id
+  }
+  return null
 }
 
 const pickUpcomingMoto = (list: MotoItem[], anchorMoto?: MotoItem | null) => {
@@ -112,6 +111,27 @@ const pickPrepMotoId = (
     if (liveMoto && isCategoryUnfinished(list, liveMoto.category_id)) {
       return liveMoto.id
     }
+  }
+
+  // Stage motos are created with a high raw moto_order after compute. Keep the
+  // checker on the earliest unfinished category instead of retaining a prep
+  // moto from the next category that happened to be selected beforehand.
+  const activeCategoryId = pickActiveWorkflowCategoryId(list)
+  if (activeCategoryId) {
+    const currentMoto = list.find((m) => m.id === currentId)
+    if (
+      currentMoto?.category_id === activeCategoryId &&
+      !isLockedStatus(currentMoto.status) &&
+      isPrepMotoStatus(currentMoto.status) &&
+      !currentPrepFinalized
+    ) {
+      return currentId
+    }
+
+    const activePrepMoto = list.find(
+      (m) => m.category_id === activeCategoryId && !isLockedStatus(m.status) && isPrepMotoStatus(m.status)
+    )
+    if (activePrepMoto) return activePrepMoto.id
   }
 
   if (currentId) {

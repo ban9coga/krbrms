@@ -116,6 +116,7 @@ export default function JuryFinishPage() {
   const [role, setRole] = useState<string | null>(null)
   const [motoLocked, setMotoLocked] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [refreshingSelector, setRefreshingSelector] = useState(false)
   const [hasSubmitted, setHasSubmitted] = useState(false)
   const [pressedId, setPressedId] = useState<string | null>(null)
   const [penaltiesByRider, setPenaltiesByRider] = useState<Record<string, number>>({})
@@ -367,7 +368,7 @@ export default function JuryFinishPage() {
           // Keep the finisher's current local state when a background poll fails.
         }
       })()
-    }, 6000)
+    }, 15000)
     return () => window.clearInterval(interval)
   }, [eventId, selectedMotoId, isPageVisible, hasSubmitted, pressedId, actions.length, saving, loadAll, loadRiders, refreshFinisherPollingState, refreshMotoState])
 
@@ -531,17 +532,23 @@ export default function JuryFinishPage() {
 
 
   const handleRefreshMotoSelector = async () => {
-    const refreshedMotos = (await loadAll()) ?? []
-    const liveMoto = refreshedMotos.find((m) => isMotoLive(m.status))
-    if (liveMoto) {
-      setSelectedMotoId(liveMoto.id)
-      await loadRiders(liveMoto.id, true)
-      return
-    }
-    const nextMotoId = pickNextSelectableMotoId(refreshedMotos, selectedMotoId)
-    setSelectedMotoId(nextMotoId)
-    if (nextMotoId) {
-      await loadRiders(nextMotoId, true)
+    if (refreshingSelector) return
+    setRefreshingSelector(true)
+    try {
+      const refreshedMotos = (await loadAll()) ?? []
+      const liveMoto = refreshedMotos.find((m) => isMotoLive(m.status))
+      if (liveMoto) {
+        setSelectedMotoId(liveMoto.id)
+        await loadRiders(liveMoto.id, true)
+        return
+      }
+      const nextMotoId = pickNextSelectableMotoId(refreshedMotos, selectedMotoId)
+      setSelectedMotoId(nextMotoId)
+      if (nextMotoId) {
+        await loadRiders(nextMotoId, true)
+      }
+    } finally {
+      setRefreshingSelector(false)
     }
   }
 
@@ -632,11 +639,19 @@ export default function JuryFinishPage() {
                 </select>
                 <button
                   type="button"
-                  onClick={handleRefreshMotoSelector}
-                  disabled={saving}
-                  className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-extrabold uppercase tracking-[0.08em] text-slate-800 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  onClick={() => void handleRefreshMotoSelector()}
+                  disabled={saving || refreshingSelector}
+                  aria-busy={refreshingSelector}
+                  className={`finisher-refresh-btn ${refreshingSelector ? 'is-loading is-pressed' : ''}`}
                 >
-                  Refresh
+                  <span className="finisher-refresh-shadow" />
+                  <span className="finisher-refresh-edge" />
+                  <span className="finisher-refresh-front">
+                    <span className={`finisher-refresh-icon ${refreshingSelector ? 'is-spinning' : ''}`} aria-hidden="true">
+                      ↻
+                    </span>
+                    {refreshingSelector ? 'Memuat' : 'Refresh'}
+                  </span>
                 </button>
               </div>
             </div>
@@ -922,6 +937,93 @@ export default function JuryFinishPage() {
           grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 18px 12px;
           padding-top: 8px;
+        }
+        .finisher-refresh-btn {
+          position: relative;
+          min-width: 118px;
+          min-height: 48px;
+          padding: 0;
+          border: 0;
+          background: transparent;
+          cursor: pointer;
+          outline-offset: 4px;
+          -webkit-tap-highlight-color: transparent;
+          touch-action: manipulation;
+        }
+        .finisher-refresh-shadow,
+        .finisher-refresh-edge {
+          position: absolute;
+          inset: 0;
+          border-radius: 12px;
+          pointer-events: none;
+        }
+        .finisher-refresh-shadow {
+          background: rgba(15, 23, 42, 0.2);
+          filter: blur(3px);
+          transform: translateY(4px);
+          transition: transform 120ms ease, filter 120ms ease;
+        }
+        .finisher-refresh-edge {
+          background: linear-gradient(to left, hsl(217, 33%, 34%), hsl(217, 33%, 48%), hsl(217, 33%, 34%));
+        }
+        .finisher-refresh-front {
+          position: relative;
+          display: inline-flex;
+          min-height: 48px;
+          width: 100%;
+          align-items: center;
+          justify-content: center;
+          gap: 7px;
+          padding: 0 14px;
+          border-radius: 12px;
+          background: hsl(217, 70%, 62%);
+          color: white;
+          font-size: 12px;
+          font-weight: 900;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          text-shadow: 0 1px 2px rgba(0, 0, 0, 0.24);
+          box-shadow: inset 0 2px 3px rgba(255, 255, 255, 0.42), inset 0 -2px 3px rgba(0, 0, 0, 0.16);
+          transform: translateY(-5px);
+          transition: transform 110ms cubic-bezier(0.3, 0.7, 0.4, 1), background-color 150ms ease;
+        }
+        .finisher-refresh-btn:hover:not(:disabled) .finisher-refresh-front {
+          transform: translateY(-7px);
+          background: hsl(217, 70%, 67%);
+        }
+        .finisher-refresh-btn:hover:not(:disabled) .finisher-refresh-shadow {
+          transform: translateY(6px);
+          filter: blur(5px);
+        }
+        .finisher-refresh-btn.is-pressed .finisher-refresh-front,
+        .finisher-refresh-btn:active:not(:disabled) .finisher-refresh-front {
+          transform: translateY(-1px);
+          transition-duration: 45ms;
+        }
+        .finisher-refresh-btn.is-pressed .finisher-refresh-shadow,
+        .finisher-refresh-btn:active:not(:disabled) .finisher-refresh-shadow {
+          transform: translateY(1px);
+          filter: blur(1px);
+          transition-duration: 45ms;
+        }
+        .finisher-refresh-btn:disabled {
+          cursor: wait;
+          opacity: 0.82;
+        }
+        .finisher-refresh-btn:focus-visible {
+          outline: 3px solid rgba(59, 130, 246, 0.45);
+          border-radius: 12px;
+        }
+        .finisher-refresh-icon {
+          display: inline-flex;
+          font-size: 18px;
+          line-height: 1;
+        }
+        .finisher-refresh-icon.is-spinning {
+          animation: finisher-refresh-spin 0.8s linear infinite;
+        }
+        @keyframes finisher-refresh-spin {
+          to { transform: rotate(360deg); }
         }
         .finisher-rider-btn {
           position: relative;
