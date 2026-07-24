@@ -1341,69 +1341,88 @@ export default function JCPage() {
             </div>
           ) : null}
           {incidentMoto ? (
-            <div style={{ display: 'grid', gap: 10 }}>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                gap: isCompactLayout ? 8 : 10,
+              }}
+            >
               {incidentRiderList.map((r) => {
                 const rawStatus = incidentStatuses[r.id]?.participation_status
                 const statusLabel = !rawStatus ? 'READY/UNKNOWN' : rawStatus === 'ACTIVE' ? 'READY' : rawStatus
                 const isDns = rawStatus === 'DNS'
                 return (
-                  <div
+                  <button
                     key={`incident-${r.id}`}
+                    className="jc-incident-rider-btn"
+                    type="button"
+                    onClick={() =>
+                      isDns
+                        ? handleUndoIncidentDns(r.id)
+                        : handleIncidentDns(r.id, r.gate_position ?? r.registration_order ?? 0)
+                    }
+                    disabled={incidentDnsDisabled}
+                    aria-label={`${isDns ? 'Undo DNS' : 'Set DNS'} ${r.no_plate_display} ${r.name}`}
                     style={{
-                      display: 'grid',
-                      gridTemplateColumns: isMobileLayout ? '1fr' : '1fr auto',
-                      gap: 12,
-                      alignItems: 'center',
-                      padding: isCompactLayout ? '10px 12px' : '12px 14px',
+                      minHeight: highVisibility ? (isCompactLayout ? 112 : 122) : isCompactLayout ? 92 : 104,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'flex-start',
+                      justifyContent: 'space-between',
+                      gap: 8,
+                      padding: isCompactLayout ? '10px' : '12px',
                       borderRadius: 14,
-                      border: '2px solid #7f1d1d',
-                      background: '#fff',
+                      border: `2px solid ${isDns ? '#1d4ed8' : '#c2410c'}`,
+                      background: isDns ? '#dbeafe' : '#fff',
+                      color: isDns ? '#1e3a8a' : '#7f1d1d',
+                      textAlign: 'left',
+                      cursor: incidentDnsDisabled ? 'not-allowed' : 'pointer',
+                      opacity: incidentDnsDisabled ? 0.55 : 1,
                     }}
                   >
-                    <div style={{ display: 'grid', gap: 4 }}>
-                      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: highVisibility ? (isCompactLayout ? 24 : 28) : isCompactLayout ? 20 : 24, fontWeight: 950 }}>{r.no_plate_display}</span>
-                        <span style={{ fontWeight: 900 }}>{r.name}</span>
-                        <span style={{ fontSize: 12, fontWeight: 800, color: '#7f1d1d' }}>Gate #{r.gate_position ?? '-'}</span>
+                    <div style={{ display: 'grid', gap: 3, minWidth: 0 }}>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', minWidth: 0 }}>
+                        <span style={{ fontSize: highVisibility ? (isCompactLayout ? 24 : 28) : isCompactLayout ? 20 : 24, fontWeight: 950, lineHeight: 1 }}>
+                          {r.no_plate_display}
+                        </span>
+                        <span style={{ fontSize: 11, fontWeight: 900, color: isDns ? '#1e3a8a' : '#9a3412' }}>
+                          GATE {r.gate_position ?? '-'}
+                        </span>
                       </div>
-                      <div
+                      <span
                         style={{
-                          width: 'fit-content',
-                          padding: '4px 10px',
-                          borderRadius: 999,
-                          border: '2px solid #111',
-                          background: isDns ? '#fee2e2' : '#ffe4e6',
+                          overflow: 'hidden',
+                          display: '-webkit-box',
+                          WebkitBoxOrient: 'vertical',
+                          WebkitLineClamp: 2,
+                          fontSize: highVisibility ? 14 : 12,
                           fontWeight: 900,
-                          fontSize: 12,
+                          lineHeight: 1.15,
                         }}
                       >
-                        {statusLabel}
-                      </div>
+                        {r.name}
+                      </span>
                     </div>
-                    <button
-                      className="jc-action-btn"
-                      type="button"
-                      onClick={() =>
-                        isDns
-                          ? handleUndoIncidentDns(r.id)
-                          : handleIncidentDns(r.id, r.gate_position ?? r.registration_order ?? 0)
-                      }
-                      disabled={incidentDnsDisabled}
+                    <span
                       style={{
-                        padding: highVisibility ? '14px 16px' : '12px 14px',
+                        width: '100%',
+                        padding: highVisibility ? '8px 10px' : '6px 8px',
                         borderRadius: 999,
                         border: `2px solid ${isDns ? '#1d4ed8' : '#c2410c'}`,
-                        background: isDns ? '#dbeafe' : '#ffedd5',
+                        background: isDns ? '#fff' : '#ffedd5',
                         color: isDns ? '#1e3a8a' : '#9a3412',
                         fontWeight: 900,
-                        fontSize: highVisibility ? 16 : undefined,
-                        whiteSpace: 'nowrap',
-                        width: isMobileLayout ? '100%' : undefined,
+                        fontSize: highVisibility ? 13 : 11,
+                        letterSpacing: '0.06em',
+                        textAlign: 'center',
+                        textTransform: 'uppercase',
                       }}
                     >
                       {isDns ? 'UNDO DNS' : 'SET DNS'}
-                    </button>
-                  </div>
+                    </span>
+                    <span className="sr-only">Status {statusLabel}</span>
+                  </button>
                 )
               })}
             </div>
