@@ -637,7 +637,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
             ? 'SEMI_FINAL'
             : null
     const validAssignedRiderIds = assignedRiderIds.filter((id) => riderMap.has(id))
-    const validRiderIdsInMoto = riderIdsInMoto.filter((id) => riderMap.has(id)).slice(0, 8)
+    const validRiderIdsInMoto = riderIdsInMoto.filter((id) => riderMap.has(id))
 
     if (gateMap.size === 0 && /^final /i.test(moto.moto_name)) {
       const qualificationDirect = validRiderIdsInMoto.filter(
