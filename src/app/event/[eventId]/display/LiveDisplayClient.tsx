@@ -103,7 +103,7 @@ const pickQueueMoto = (motos: MotoItem[], anchorMoto?: MotoItem | null) => {
   )
 }
 
-const PUBLIC_DISPLAY_REFRESH_INTERVAL_MS = 15000
+const PUBLIC_DISPLAY_REFRESH_INTERVAL_MS = 60000
 const PUBLIC_DISPLAY_SETTINGS_REFRESH_INTERVAL_MS = 5 * 60 * 1000
 
 const isSameStringList = (a: string[], b: string[]) => a.length === b.length && a.every((item, index) => item === b[index])
@@ -335,18 +335,32 @@ export default function LiveDisplayClient({
   }
 
   useEffect(() => {
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void refresh(true)
+    }
     const interval = setInterval(() => {
-      refresh(true)
+      if (document.visibilityState === 'visible') void refresh(true)
     }, PUBLIC_DISPLAY_REFRESH_INTERVAL_MS)
-    return () => clearInterval(interval)
+    document.addEventListener('visibilitychange', refreshWhenVisible)
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', refreshWhenVisible)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
 
   useEffect(() => {
+    const refreshSettingsWhenVisible = () => {
+      if (document.visibilityState === 'visible') void fetchEventSettings()
+    }
     const interval = setInterval(() => {
-      void fetchEventSettings()
+      if (document.visibilityState === 'visible') void fetchEventSettings()
     }, PUBLIC_DISPLAY_SETTINGS_REFRESH_INTERVAL_MS)
-    return () => clearInterval(interval)
+    document.addEventListener('visibilitychange', refreshSettingsWhenVisible)
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', refreshSettingsWhenVisible)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
 

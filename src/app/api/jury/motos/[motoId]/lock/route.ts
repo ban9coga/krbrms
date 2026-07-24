@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../../lib/auth'
 import { requireJury } from '../../../../../../services/juryAuth'
+import { syncAdvancedRaceProgressAfterLockedStage } from '../../../../../../services/advancedRaceAuto'
+import { promoteNextMotoToLive } from '../../../../../../services/motoProgression'
 
 export async function POST(req: Request, { params }: { params: Promise<{ motoId: string }> }) {
   const auth = await requireJury(req, ['RACE_DIRECTOR'])
@@ -10,7 +12,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
   const body = await req.json().catch(() => ({}))
   const { reason } = body ?? {}
 
-  const { data: moto } = await adminClient.from('motos').select('id, event_id, status').eq('id', motoId).maybeSingle()
+  const { data: moto } = await adminClient.from('motos').select('id, event_id, category_id, moto_name, status').eq('id', motoId).maybeSingle()
   if (!moto) return NextResponse.json({ error: 'Moto not found' }, { status: 404 })
 
   const current = (moto.status ?? '').toUpperCase()
@@ -49,5 +51,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
     },
   ])
 
-  return NextResponse.json({ ok: true })
+  const nextMoto = await promoteNextMotoToLive(moto.event_id, motoId)
+  const stageProgress = moto.category_id
+    ? await syncAdvancedRaceProgressAfterLockedStage(moto.event_id, moto.category_id, moto.moto_name)
+    : { ok: true, skipped: true }
+  return NextResponse.json({ ok: true, next_moto: nextMoto, stage_progress: stageProgress })
 }

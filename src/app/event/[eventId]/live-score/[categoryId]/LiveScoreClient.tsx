@@ -255,10 +255,17 @@ export default function LiveScoreClient({
 
   useEffect(() => {
     if (!isLiveEvent) return
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void refresh()
+    }
     const interval = setInterval(() => {
-      refresh()
+      if (document.visibilityState === 'visible') void refresh()
     }, PUBLIC_LIVE_SCORE_REFRESH_INTERVAL_MS)
-    return () => clearInterval(interval)
+    document.addEventListener('visibilitychange', refreshWhenVisible)
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', refreshWhenVisible)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId, categoryId, isLiveEvent])
 

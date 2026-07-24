@@ -54,6 +54,33 @@ type PenaltyBadgeItem = {
   points: number
 }
 
+type FinisherPollData = {
+  statuses: Array<{
+    rider_id: string
+    participation_status?: string | null
+  }>
+  results: Array<{
+    rider_id: string
+    finish_order?: number | null
+    result_status?: string | null
+  }>
+  penalties: Array<{
+    rider_id: string
+    rule_code?: string | null
+    penalty_point?: number | null
+    rider_penalty_approvals?:
+      | { approval_status?: string | null }
+      | Array<{ approval_status?: string | null }>
+      | null
+  }>
+  locked: boolean
+}
+
+type SubmittedMotoNotice = {
+  category: string
+  motoName: string
+}
+
 const VIBRATE_MS = 30
 const LONG_PRESS_MS = 800
 
@@ -105,6 +132,7 @@ export default function JuryFinishPage() {
   const [dnfRiders, setDnfRiders] = useState<string[]>([])
   const [actions, setActions] = useState<Action[]>([])
   const [submitNotice, setSubmitNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const [submittedMotoNotice, setSubmittedMotoNotice] = useState<SubmittedMotoNotice | null>(null)
   const { highVisibility, toggleHighVisibility } = useHighVisibility('jury-finish-high-visibility')
 
   const pressTimers = useRef<Record<string, ReturnType<typeof setTimeout> | null>>({})
@@ -158,7 +186,7 @@ export default function JuryFinishPage() {
       if (!eventId && res.data?.length) setEventId(res.data[0].id)
     }
     void loadEvents()
-  }, [eventId])
+  }, [apiFetch, eventId])
 
   useEffect(() => {
     const loadRole = async () => {
@@ -176,7 +204,7 @@ export default function JuryFinishPage() {
   const loadAll = useCallback(async () => {
     if (!eventId) return
     const [motoRes, catRes, flagRes] = await Promise.all([
-      apiFetch(`/api/motos?event_id=${eventId}`),
+      apiFetch(`/api/jury/events/${eventId}/moto-state`),
       apiFetch(`/api/events/${eventId}/categories`),
       apiFetch(`/api/jury/events/${eventId}/modules`),
     ])
@@ -198,6 +226,20 @@ export default function JuryFinishPage() {
     return workflowMotos
   }, [apiFetch, eventId, pickNextSelectableMotoId])
 
+  const refreshMotoState = useCallback(async () => {
+    if (!eventId) return null
+    const motoRes = await apiFetch(`/api/jury/events/${eventId}/moto-state`)
+    const rawMotos = (motoRes.data ?? []) as MotoItem[]
+    const categoryBaseOrder = buildCategoryBaseOrder(rawMotos)
+    const workflowMotos = [...rawMotos].sort((a, b) => compareMotoWorkflowSequence(a, b, categoryBaseOrder))
+    const nextSelectedMotoId = pickNextSelectableMotoId(workflowMotos, selectedMotoId)
+
+    setMotos(workflowMotos)
+    if (nextSelectedMotoId !== selectedMotoId) setSelectedMotoId(nextSelectedMotoId)
+
+    return { motos: workflowMotos, selectedMotoId: nextSelectedMotoId }
+  }, [apiFetch, eventId, pickNextSelectableMotoId, selectedMotoId])
+
   const categoryLabel = useMemo(() => {
     const map = new Map<string, string>()
     for (const c of categories) map.set(c.id, c.label)
@@ -214,6 +256,55 @@ export default function JuryFinishPage() {
     [motos]
   )
 
+  const applyFinisherPollData = useCallback((data: FinisherPollData, targetMoto: MotoItem | null) => {
+    const existingResults = data.results ?? []
+    const finishFromServer = [...existingResults]
+      .filter((r) => r.result_status === 'FINISH' && r.finish_order != null)
+      .sort((a, b) => Number(a.finish_order ?? 9999) - Number(b.finish_order ?? 9999))
+      .map((r) => r.rider_id)
+    const dnfFromServer = existingResults
+      .filter((r) => r.result_status === 'DNF')
+      .map((r) => r.rider_id)
+    const dnsFromServer = existingResults
+      .filter((r) => r.result_status === 'DNS')
+      .map((r) => r.rider_id)
+
+    const statusMap: Record<string, string> = {}
+    for (const row of data.statuses ?? []) {
+      if (row?.rider_id && row?.participation_status) {
+        statusMap[row.rider_id] = row.participation_status
+      }
+    }
+    for (const riderId of dnsFromServer) statusMap[riderId] = 'DNS'
+
+    const blockedRiderIds = new Set(
+      Object.entries(statusMap)
+        .filter(([, status]) => status === 'DNS' || status === 'ABSENT')
+        .map(([riderId]) => riderId)
+    )
+    const penaltyMap: Record<string, number> = {}
+    const badgeMap: Record<string, PenaltyBadgeItem[]> = {}
+    for (const row of data.penalties ?? []) {
+      const approval = Array.isArray(row.rider_penalty_approvals)
+        ? row.rider_penalty_approvals[0]?.approval_status
+        : row.rider_penalty_approvals?.approval_status
+      if (approval !== 'APPROVED') continue
+      const points = Number(row.penalty_point ?? 0)
+      penaltyMap[row.rider_id] = (penaltyMap[row.rider_id] ?? 0) + points
+      const items = badgeMap[row.rider_id] ?? []
+      items.push({ code: String(row.rule_code ?? 'PEN').toUpperCase(), points })
+      badgeMap[row.rider_id] = items
+    }
+
+    setActions([])
+    setHasSubmitted(!isMotoLive(targetMoto?.status) && existingResults.length > 0)
+    setFinishOrder(finishFromServer.filter((riderId) => !blockedRiderIds.has(riderId)))
+    setDnfRiders(dnfFromServer.filter((riderId) => !blockedRiderIds.has(riderId)))
+    setParticipationByRider(statusMap)
+    setPenaltiesByRider(penaltyMap)
+    setPenaltyBadgesByRider(badgeMap)
+    setMotoLocked(Boolean(data.locked))
+  }, [])
 
   const loadRiders = useCallback(async (motoIdOverride?: string, force = false) => {
     if (!force && localEditingRef.current) return
@@ -226,88 +317,31 @@ export default function JuryFinishPage() {
       setPenaltiesByRider({})
       setPenaltyBadgesByRider({})
       setParticipationByRider({})
+      setMotoLocked(false)
       return
     }
     const targetMoto = motos.find((m) => m.id === targetMotoId) ?? selectedMoto ?? null
-    const [res, statusRes, resultRes] = await Promise.all([
+    const [res, pollRes] = await Promise.all([
       apiFetch(`/api/jury/motos/${targetMotoId}/riders`),
-      apiFetch(`/api/jury/events/${eventId}/rider-status?moto_id=${targetMotoId}`),
-      apiFetch(`/api/jury/motos/${targetMotoId}/results`),
+      apiFetch(`/api/jury/events/${eventId}/finisher-poll?moto_id=${targetMotoId}`),
     ])
     if (!force && localEditingRef.current) return
     setRiders((res.data ?? []) as RiderItem[])
-    const existingResults = (resultRes.data ?? []) as Array<{
-      rider_id: string
-      finish_order?: number | null
-      result_status?: string | null
-    }>
-    const finishFromServer = [...existingResults]
-      .filter((r) => r.result_status === 'FINISH' && r.finish_order != null)
-      .sort((a, b) => Number(a.finish_order ?? 9999) - Number(b.finish_order ?? 9999))
-      .map((r) => r.rider_id)
-    const dnfFromServer = existingResults
-      .filter((r) => r.result_status === 'DNF')
-      .map((r) => r.rider_id)
-    const dnsFromServer = existingResults
-      .filter((r) => r.result_status === 'DNS')
-      .map((r) => r.rider_id)
-    setActions([])
-    setHasSubmitted(!isMotoLive(targetMoto?.status) && existingResults.length > 0)
-    const statusMap: Record<string, string> = {}
-    for (const row of statusRes.data ?? []) {
-      if (row?.rider_id && row?.participation_status) {
-        statusMap[row.rider_id] = row.participation_status
-      }
-    }
-    for (const riderId of dnsFromServer) {
-      statusMap[riderId] = 'DNS'
-    }
-    const blockedRiderIds = new Set(
-      Object.entries(statusMap)
-        .filter(([, status]) => status === 'DNS' || status === 'ABSENT')
-        .map(([riderId]) => riderId)
-    )
-    setFinishOrder(finishFromServer.filter((riderId) => !blockedRiderIds.has(riderId)))
-    setDnfRiders(dnfFromServer.filter((riderId) => !blockedRiderIds.has(riderId)))
-    setActions((prev) => prev.filter((action) => !blockedRiderIds.has(action.riderId)))
-    setParticipationByRider(statusMap)
-    if (eventId) {
-      const penaltiesRes = await apiFetch(`/api/jury/events/${eventId}/rider-penalties?moto_id=${targetMotoId}`)
-      if (!force && localEditingRef.current) return
-      const map: Record<string, number> = {}
-      const badgeMap: Record<string, PenaltyBadgeItem[]> = {}
-      for (const row of penaltiesRes.data ?? []) {
-        const approval = Array.isArray(row.rider_penalty_approvals)
-          ? row.rider_penalty_approvals[0]?.approval_status
-          : row.rider_penalty_approvals?.approval_status
-        if (approval !== 'APPROVED') continue
-        const points = Number(row.penalty_point ?? 0)
-        map[row.rider_id] = (map[row.rider_id] ?? 0) + points
-        const items = badgeMap[row.rider_id] ?? []
-        items.push({ code: String(row.rule_code ?? 'PEN').toUpperCase(), points })
-        badgeMap[row.rider_id] = items
-      }
-      setPenaltiesByRider(map)
-      setPenaltyBadgesByRider(badgeMap)
-    }
-  }, [apiFetch, eventId, motos, selectedMoto, selectedMotoId])
+    applyFinisherPollData((pollRes.data ?? {}) as FinisherPollData, targetMoto)
+  }, [apiFetch, applyFinisherPollData, eventId, motos, selectedMoto, selectedMotoId])
 
   useEffect(() => {
     void loadRiders()
   }, [loadRiders])
 
-  useEffect(() => {
-    const loadLock = async () => {
-      if (!selectedMotoId) return
-      const res = await apiFetch(`/api/jury/motos/${selectedMotoId}/lock-status`)
-      setMotoLocked(!!res.data)
-    }
-    void loadLock()
-  }, [apiFetch, selectedMotoId])
+  const refreshFinisherPollingState = useCallback(async (motoId: string, targetMoto: MotoItem | null) => {
+    if (!eventId || !motoId) return
+    const response = await apiFetch(`/api/jury/events/${eventId}/finisher-poll?moto_id=${motoId}`)
+    applyFinisherPollData((response.data ?? {}) as FinisherPollData, targetMoto)
+  }, [apiFetch, applyFinisherPollData, eventId])
 
   // Consolidated polling loop with page visibility awareness.
-  // Replaces the previous 3 separate intervals (loadAll every 5s, loadRiders every 2.5s,
-  // rider-status every 2.5s). Single 6-second loop that pauses when tab is not visible.
+  // Keeps the active race fresh with only moto-state plus one combined Finisher poll.
   const isPageVisible = usePageVisibility()
   useEffect(() => {
     if (!eventId) return
@@ -316,16 +350,26 @@ export default function JuryFinishPage() {
     if (!isPageVisible) return
 
     const interval = window.setInterval(() => {
-      const currentSelectedMoto = motos.find((m) => m.id === selectedMotoId) ?? null
       if (pressedId || actions.length > 0 || saving) return
-      if (isMotoLive(currentSelectedMoto?.status) && !hasSubmitted) {
-        void loadRiders()
-      } else {
-        void loadAll()
-      }
+      void (async () => {
+        try {
+          const state = await refreshMotoState()
+          if (!state?.selectedMotoId) return
+
+          const currentSelectedMoto = state.motos.find((m) => m.id === state.selectedMotoId) ?? null
+          const selectionChanged = state.selectedMotoId !== selectedMotoId
+          if (selectionChanged) {
+            await loadRiders(state.selectedMotoId, true)
+          } else if (isMotoLive(currentSelectedMoto?.status) && !hasSubmitted) {
+            await refreshFinisherPollingState(state.selectedMotoId, currentSelectedMoto)
+          }
+        } catch {
+          // Keep the finisher's current local state when a background poll fails.
+        }
+      })()
     }, 6000)
     return () => window.clearInterval(interval)
-  }, [eventId, selectedMotoId, isPageVisible, hasSubmitted, motos, pressedId, actions.length, saving, loadAll, loadRiders])
+  }, [eventId, selectedMotoId, isPageVisible, hasSubmitted, pressedId, actions.length, saving, loadAll, loadRiders, refreshFinisherPollingState, refreshMotoState])
 
   const availableRiders = useMemo(() => {
     const finished = new Set(finishOrder)
@@ -461,33 +505,28 @@ export default function JuryFinishPage() {
           }),
         })
       }
-      await apiFetch(`/api/jury/motos/${selectedMoto.id}/advance-stages`, {
-        method: 'POST',
-        body: JSON.stringify({}),
-      })
       setHasSubmitted(true)
       setMotos((prev) =>
         prev.map((m) => (m.id === selectedMoto.id ? { ...m, status: 'PROVISIONAL' } : m))
       )
-      if (selectedMoto) {
-        const catLabel = categoryLabel.get(selectedMoto.category_id ?? '') ?? 'Unknown Category'
-        setSubmitNotice({
-          type: 'success',
-          message: `Submitted: ${catLabel} | ${selectedMoto.moto_name}`,
-        })
-      } else {
-        setSubmitNotice({ type: 'success', message: 'Submit completed.' })
-      }
-      localEditingRef.current = false
-      await handleRefreshMotoSelector()
+      setSubmittedMotoNotice({
+        category: categoryLabel.get(selectedMoto.category_id ?? '') ?? 'Unknown Category',
+        motoName: selectedMoto.moto_name,
+      })
     } catch (error: unknown) {
       setSubmitNotice({
         type: 'error',
         message: error instanceof Error ? error.message : 'Submit result gagal.',
       })
     } finally {
+      localEditingRef.current = false
       setSaving(false)
     }
+  }
+
+  const handleSubmittedMotoNoticeClose = async () => {
+    setSubmittedMotoNotice(null)
+    await handleRefreshMotoSelector()
   }
 
 
@@ -668,13 +707,11 @@ export default function JuryFinishPage() {
             <div className="mb-3 text-xs font-extrabold uppercase tracking-[0.15em] text-slate-500">Input Grid</div>
             <div className="input-grid">
               {availableRiders.map((r) => {
-                const startStatus = participationByRider[r.id]
-                const isReady = startStatus !== 'DNS' && startStatus !== 'ABSENT'
                 return (
                   <button
                     key={r.id}
                     type="button"
-                    className={`finisher-rider-btn ${isReady ? 'is-ready' : ''} ${pressedId === r.id ? 'is-pressed' : ''
+                    className={`finisher-rider-btn ${pressedId === r.id ? 'is-pressed' : ''
                       } ${highVisibility ? 'is-large' : ''}`}
                     onContextMenu={(event) => event.preventDefault()}
                     onPointerDown={(event) => onCardPointerDown(event, r.id)}
@@ -688,6 +725,7 @@ export default function JuryFinishPage() {
                     <span className="finisher-rider-front">
                       <span className="finisher-rider-plate">{r.no_plate_display}</span>
                       <span className="finisher-rider-name">{r.name}</span>
+                      <span className="finisher-rider-cue">Tap = Finish</span>
                     </span>
                   </button>
                 )
@@ -699,33 +737,36 @@ export default function JuryFinishPage() {
               )}
             </div>
             <div className="mt-2 text-xs font-semibold text-slate-500">
-              {flags.dnf_enabled
-                ? 'Tap = Finish. Long press 800ms = DNF.'
-                : 'Tap = Finish. DNF dimatikan dari menu Penalties.'}
-              {selectedMotoLive && (
-                <span className="ml-2 font-extrabold text-slate-700">
-                  Result: {completedRiderCount}/{riders.length}
-                </span>
-              )}
+              {flags.dnf_enabled ? 'Tahan kartu 800ms untuk DNF.' : 'DNF dimatikan dari menu Penalties.'}
             </div>
 
-            <div className="jf-actions mt-4 flex items-center justify-between gap-3">
-              <button
-                type="button"
-                onClick={handleUndo}
-                disabled={actions.length === 0 || hasSubmitted || motoLocked}
-                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-extrabold uppercase tracking-[0.1em] text-slate-800 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+            <div className="jf-actions mt-4">
+              <div
+                aria-live="polite"
+                className={`jf-submit-progress ${allRidersHaveResult ? 'is-complete' : ''}`}
               >
-                Undo
-              </button>
-              <button
-                type="button"
-                onClick={handleSubmitHeat}
-                disabled={submitDisabled}
-                className="w-full rounded-xl border border-emerald-300 bg-emerald-500 px-4 py-3 text-sm font-extrabold uppercase tracking-[0.1em] text-white transition-colors hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {saving ? 'Submitting...' : 'Submit Result'}
-              </button>
+                <span>Hasil rider</span>
+                <strong>{completedRiderCount}/{riders.length}</strong>
+                <em>{allRidersHaveResult ? 'Siap disubmit' : `${Math.max(riders.length - completedRiderCount, 0)} belum masuk hasil`}</em>
+              </div>
+              <div className="mt-3 flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={handleUndo}
+                  disabled={actions.length === 0 || hasSubmitted || motoLocked}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-extrabold uppercase tracking-[0.1em] text-slate-800 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Undo Terakhir
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSubmitHeat}
+                  disabled={submitDisabled}
+                  className="w-full rounded-xl border border-emerald-300 bg-emerald-500 px-4 py-3 text-sm font-extrabold uppercase tracking-[0.1em] text-white transition-colors hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {saving ? 'Submitting...' : 'Submit Result'}
+                </button>
+              </div>
             </div>
             {selectedMotoLive && !allRidersHaveResult && (
               <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-extrabold text-amber-700">
@@ -733,9 +774,12 @@ export default function JuryFinishPage() {
               </div>
             )}
 
-            <div className="mt-4 border-t border-dashed border-slate-300 pt-4">
-              <div className="mb-3 text-xs font-extrabold uppercase tracking-[0.15em] text-slate-500">Starter List</div>
-              <div className="grid gap-2">
+            <details className="jf-starter-list mt-4">
+              <summary>
+                <span>Starter List</span>
+                <span>{riders.length} rider</span>
+              </summary>
+              <div className="mt-3 grid gap-2">
                 {riders.map((r) => {
                   const startStatus = participationByRider[r.id]
                   const status = finishOrder.includes(r.id)
@@ -767,7 +811,7 @@ export default function JuryFinishPage() {
                   )
                 })}
               </div>
-            </div>
+            </details>
           </section>
 
           <aside className="public-panel-light">
@@ -835,6 +879,37 @@ export default function JuryFinishPage() {
           </aside>
         </div>
 
+        {submittedMotoNotice && (
+          <div
+            className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/55 p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="submitted-moto-title"
+          >
+            <section className="w-full max-w-md rounded-2xl border border-emerald-200 bg-white p-6 text-center shadow-2xl">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-3xl font-black text-emerald-700">
+                OK
+              </div>
+              <p className="mt-4 text-xs font-extrabold uppercase tracking-[0.16em] text-emerald-700">Hasil Tersimpan</p>
+              <h2 id="submitted-moto-title" className="mt-2 text-2xl font-black text-slate-900">
+                Result telah disubmit
+              </h2>
+              <p className="mt-3 text-sm font-semibold text-slate-600">
+                {submittedMotoNotice.category} | {submittedMotoNotice.motoName}
+              </p>
+              <p className="mt-2 text-sm text-slate-500">
+                Status moto sekarang PROVISIONAL. Tekan OK untuk memperbarui moto yang ditampilkan.
+              </p>
+              <button
+                type="button"
+                onClick={() => void handleSubmittedMotoNoticeClose()}
+                className="mt-6 w-full rounded-xl border border-emerald-300 bg-emerald-500 px-4 py-3 text-sm font-extrabold uppercase tracking-[0.1em] text-white transition-colors hover:bg-emerald-400"
+              >
+                OK
+              </button>
+            </section>
+          </div>
+        )}
       </main>
       <style jsx>{`
         .layout-grid {
@@ -889,15 +964,6 @@ export default function JuryFinishPage() {
             hsl(222, 47%, 24%) 100%
           );
         }
-        .finisher-rider-btn.is-ready .finisher-rider-edge {
-          background: linear-gradient(
-            to left,
-            hsl(142, 72%, 25%) 0%,
-            hsl(142, 69%, 38%) 12%,
-            hsl(142, 69%, 38%) 88%,
-            hsl(142, 72%, 25%) 100%
-          );
-        }
         .finisher-rider-front {
           position: relative;
           display: flex;
@@ -919,9 +985,6 @@ export default function JuryFinishPage() {
         }
         .finisher-rider-btn.is-large .finisher-rider-front {
           min-height: 144px;
-        }
-        .finisher-rider-btn.is-ready .finisher-rider-front {
-          background: hsl(142, 58%, 50%);
         }
         .finisher-rider-btn:hover:not(:disabled) .finisher-rider-front {
           transform: translateY(-9px);
@@ -964,6 +1027,17 @@ export default function JuryFinishPage() {
           line-height: 1.2;
           text-align: center;
         }
+        .finisher-rider-cue {
+          margin-top: 10px;
+          border: 1px solid rgba(255, 255, 255, 0.45);
+          border-radius: 999px;
+          padding: 3px 9px;
+          background: rgba(15, 23, 42, 0.18);
+          font-size: 10px;
+          font-weight: 900;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+        }
         .finisher-rider-btn.is-large .finisher-rider-plate {
           font-size: 56px;
         }
@@ -976,6 +1050,61 @@ export default function JuryFinishPage() {
           border-radius: 16px;
           border: 1px solid rgba(148, 163, 184, 0.35);
           box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+        }
+        .jf-submit-progress {
+          display: grid;
+          grid-template-columns: auto auto 1fr;
+          align-items: center;
+          gap: 8px;
+          border: 1px solid rgba(245, 158, 11, 0.45);
+          border-radius: 12px;
+          padding: 10px 12px;
+          background: #fffbeb;
+          color: #92400e;
+          font-size: 12px;
+          font-weight: 800;
+        }
+        .jf-submit-progress strong {
+          font-size: 20px;
+          line-height: 1;
+        }
+        .jf-submit-progress em {
+          justify-self: end;
+          font-size: 11px;
+          font-style: normal;
+          text-align: right;
+        }
+        .jf-submit-progress.is-complete {
+          border-color: rgba(16, 185, 129, 0.45);
+          background: #ecfdf5;
+          color: #065f46;
+        }
+        .jf-starter-list {
+          border-top: 1px dashed #cbd5e1;
+          padding-top: 14px;
+        }
+        .jf-starter-list summary {
+          display: flex;
+          cursor: pointer;
+          list-style: none;
+          align-items: center;
+          justify-content: space-between;
+          color: #64748b;
+          font-size: 12px;
+          font-weight: 900;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+        }
+        .jf-starter-list summary::-webkit-details-marker {
+          display: none;
+        }
+        .jf-starter-list summary span:last-child {
+          border: 1px solid #cbd5e1;
+          border-radius: 999px;
+          padding: 3px 8px;
+          color: #334155;
+          font-size: 10px;
+          letter-spacing: 0.06em;
         }
         @media (min-width: 1280px) {
           .layout-grid {
@@ -992,6 +1121,14 @@ export default function JuryFinishPage() {
           }
           .jf-actions > button {
             width: 100%;
+          }
+          .jf-submit-progress {
+            grid-template-columns: auto auto;
+          }
+          .jf-submit-progress em {
+            grid-column: 1 / -1;
+            justify-self: start;
+            text-align: left;
           }
           .finisher-rider-btn,
           .finisher-rider-front {

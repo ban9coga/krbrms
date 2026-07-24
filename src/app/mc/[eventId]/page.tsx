@@ -1,7 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
-import Link from 'next/link'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import PublicTopbar from '../../../components/PublicTopbar'
 import { useHighVisibility } from '../../../hooks/useHighVisibility'
@@ -51,6 +50,14 @@ type NextMotoInfo = {
   status: 'UPCOMING' | 'READY' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED'
   category: string | null
   batch: string | null
+}
+
+type MotoStateItem = {
+  id: string
+  category_id: string
+  moto_order: number
+  status: string
+  checker_prep_ready_at?: string | null
 }
 
 type McResponse = {
@@ -161,11 +168,12 @@ export default function McLivePage() {
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<string | null>(null)
   const refreshInFlightRef = useRef(false)
+  const motoStateSignatureRef = useRef<string | null>(null)
   const { highVisibility, toggleHighVisibility } = useHighVisibility('mc-high-visibility')
 
   const apiFetch = useApiFetch()
 
-  const load = async (silent = false) => {
+  const load = useCallback(async (silent = false) => {
     if (!eventId) return
     if (refreshInFlightRef.current) return
     refreshInFlightRef.current = true
@@ -181,12 +189,38 @@ export default function McLivePage() {
       refreshInFlightRef.current = false
       if (!silent) setLoading(false)
     }
-  }
+  }, [apiFetch, eventId])
 
   useEffect(() => {
-    load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [eventId])
+    void load()
+  }, [load])
+
+  useEffect(() => {
+    if (!eventId) return
+
+    const refreshWhenMotoStateChanges = async () => {
+      try {
+        const response = (await apiFetch(`/api/jury/events/${eventId}/moto-state`)) as { data?: MotoStateItem[] }
+        const signature = (response.data ?? [])
+          .map((moto) => `${moto.id}:${moto.status}:${moto.checker_prep_ready_at ?? ''}`)
+          .join('|')
+        const previousSignature = motoStateSignatureRef.current
+        motoStateSignatureRef.current = signature
+
+        if (previousSignature && previousSignature !== signature) {
+          await load(true)
+        }
+      } catch {
+        // The full board keeps its last valid state until the next successful poll.
+      }
+    }
+
+    void refreshWhenMotoStateChanges()
+    const interval = window.setInterval(() => {
+      void refreshWhenMotoStateChanges()
+    }, 10000)
+    return () => window.clearInterval(interval)
+  }, [apiFetch, eventId, load])
 
   const ranking = useMemo(() => (data?.ranking ?? []).slice(0, 8), [data])
   const nextMotoRiders = useMemo(() => (data?.next_moto_riders ?? []).slice(0, 8), [data])
@@ -242,14 +276,6 @@ export default function McLivePage() {
             <div className={`rounded-full border px-4 py-2 text-sm font-extrabold uppercase tracking-[0.12em] ${badge.className}`}>
               {badge.label}
             </div>
-          </div>
-          <div className="relative z-10 mt-4 flex flex-wrap gap-3">
-            <Link
-              href={`/mc/${eventId}/draw`}
-              className="inline-flex items-center gap-2 rounded-xl border border-amber-400/40 bg-amber-400/10 px-4 py-2 text-sm font-extrabold uppercase tracking-[0.12em] text-amber-300 transition-colors hover:bg-amber-400/20"
-            >
-              🎰 Live Draw
-            </Link>
           </div>
         </section>
 

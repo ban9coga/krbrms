@@ -434,6 +434,69 @@ const buildSequentialGateRows = (motoId: string, riderIds: string[]) =>
     gate_position: index + 1,
   }))
 
+// Advanced stages are seeded as a whole, but gate lane numbers are always local
+// to one moto. Preserve the saved rider order and close any legacy gate gaps.
+const normalizeEditableAdvancedStageGates = async (eventId: string, categoryId: string) => {
+  const { data: motos, error: motoError } = await adminClient
+    .from('motos')
+    .select('id, moto_name, status')
+    .eq('event_id', eventId)
+    .eq('category_id', categoryId)
+
+  if (motoError) return motoError.message
+
+  const editableMotos = (motos ?? []).filter((moto) => {
+    const isAdvanced = /^(?:repechage|quarter final|semi final|final\s+)/i.test(moto.moto_name)
+    const status = String(moto.status ?? '').toUpperCase()
+    return isAdvanced && ['UPCOMING', 'READY'].includes(status)
+  })
+  if (editableMotos.length === 0) return null
+
+  const motoIds = editableMotos.map((moto) => moto.id)
+  const [{ data: gateRows, error: gateError }, { data: resultRows, error: resultError }] = await Promise.all([
+    adminClient
+      .from('moto_gate_positions')
+      .select('moto_id, rider_id, gate_position')
+      .in('moto_id', motoIds)
+      .order('gate_position', { ascending: true }),
+    adminClient.from('results').select('moto_id').in('moto_id', motoIds),
+  ])
+  if (gateError) return gateError.message
+  if (resultError) return resultError.message
+
+  const motosWithResults = new Set((resultRows ?? []).map((row) => row.moto_id))
+  const gatesByMoto = new Map<string, Array<{ rider_id: string; gate_position: number | null }>>()
+  for (const row of gateRows ?? []) {
+    const rows = gatesByMoto.get(row.moto_id) ?? []
+    rows.push({ rider_id: row.rider_id, gate_position: row.gate_position })
+    gatesByMoto.set(row.moto_id, rows)
+  }
+
+  for (const moto of editableMotos) {
+    if (motosWithResults.has(moto.id)) continue
+    const orderedRows = (gatesByMoto.get(moto.id) ?? [])
+      .sort(
+        (a, b) =>
+          Number(a.gate_position ?? Number.MAX_SAFE_INTEGER) - Number(b.gate_position ?? Number.MAX_SAFE_INTEGER) ||
+          a.rider_id.localeCompare(b.rider_id)
+      )
+      .filter((row, index, rows) => rows.findIndex((candidate) => candidate.rider_id === row.rider_id) === index)
+    if (orderedRows.length === 0) continue
+
+    const alreadySequential = orderedRows.every((row, index) => Number(row.gate_position) === index + 1)
+    if (alreadySequential) continue
+
+    const { error: deleteError } = await adminClient.from('moto_gate_positions').delete().eq('moto_id', moto.id)
+    if (deleteError) return deleteError.message
+    const { error: insertError } = await adminClient
+      .from('moto_gate_positions')
+      .insert(buildSequentialGateRows(moto.id, orderedRows.map((row) => row.rider_id)))
+    if (insertError) return insertError.message
+  }
+
+  return null
+}
+
 const backfillMissingGatePositionsForCategory = async (eventId: string, categoryId: string) => {
   const { data: motos, error: motoError } = await adminClient
     .from('motos')
@@ -1336,6 +1399,9 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
   if (gateTableReady) {
     const backfillWarning = await backfillMissingGatePositionsForCategory(eventId, categoryId)
     if (backfillWarning) return { ok: false, warning: backfillWarning }
+
+    const normalizeGateWarning = await normalizeEditableAdvancedStageGates(eventId, categoryId)
+    if (normalizeGateWarning) return { ok: false, warning: normalizeGateWarning }
   }
 
   await normalizeEventMotoSequence(eventId)
@@ -1818,54 +1884,43 @@ const computeCustomStageAdvances = (
   )
 }
 
-export async function autoLockProvisionalMotosForCategory(eventId: string, categoryId: string) {
-  const { data: stageMotos } = await adminClient
+const stageLockGroup = (motoName?: string | null) => {
+  const normalized = String(motoName ?? '').trim().toUpperCase()
+  if (/^MOTO\s*\d+\s*-\s*BATCH\s*\d+/.test(normalized)) return 'QUALIFICATION'
+  if (/^REPECHAGE\s*-\s*(?:BATCH|HEAT)\s*\d+/.test(normalized)) return 'REPECHAGE'
+  if (/^QUARTER\s*FINAL\s*-\s*(?:BATCH|HEAT)\s*\d+/.test(normalized)) return 'QUARTER_FINAL'
+  if (/^SEMI\s*FINAL\s*-\s*(?:BATCH|HEAT)\s*\d+/.test(normalized)) return 'SEMI_FINAL'
+  if (/^FINAL\s+/.test(normalized)) return normalized
+  return normalized
+}
+
+// Stage computation is intentionally held until every moto in the same stage has
+// been finalized. This keeps PROVISIONAL motos available for protest/review and
+// prevents the next bracket from being generated too early.
+export async function syncAdvancedRaceProgressAfterLockedStage(
+  eventId: string,
+  categoryId: string,
+  lockedMotoName?: string | null
+) {
+  const { data: categoryMotos, error } = await adminClient
     .from('motos')
-    .select('id, moto_name, status')
+    .select('moto_name, status')
     .eq('event_id', eventId)
     .eq('category_id', categoryId)
-    .in('status', ['UPCOMING', 'READY', 'LIVE'])
 
-  if (!stageMotos || stageMotos.length === 0) {
-    return { ok: true, lockedCount: 0 }
+  if (error) return { ok: false, warning: error.message }
+
+  const group = stageLockGroup(lockedMotoName)
+  const stageMotos = (categoryMotos ?? []).filter((moto) => stageLockGroup(moto.moto_name) === group)
+  const stageLocked =
+    stageMotos.length > 0 &&
+    stageMotos.every((moto) => ['LOCKED', 'FINISHED'].includes(String(moto.status ?? '').toUpperCase()))
+
+  if (!stageLocked) {
+    return { ok: true, skipped: true, warning: 'Menunggu semua moto pada stage ini LOCKED.' }
   }
 
-  const { data: provisionalMotos } = await adminClient
-    .from('motos')
-    .select('id, moto_name')
-    .eq('event_id', eventId)
-    .eq('category_id', categoryId)
-    .eq('status', 'PROVISIONAL')
-
-  if (!provisionalMotos || provisionalMotos.length === 0) {
-    return { ok: true, lockedCount: 0 }
-  }
-
-  const lockedAt = new Date().toISOString()
-  const provisionalIds = provisionalMotos.map((m) => m.id)
-
-  const { error: updateError } = await adminClient
-    .from('motos')
-    .update({ status: 'LOCKED' })
-    .in('id', provisionalIds)
-    .eq('status', 'PROVISIONAL')
-
-  if (updateError) {
-    return { ok: false, warning: updateError.message }
-  }
-
-  const lockRecords = provisionalIds.map((id) => ({
-    moto_id: id,
-    event_id: eventId,
-    is_locked: true,
-    locked_by: 'SYSTEM',
-    locked_at: lockedAt,
-    reason: 'AUTO_LOCK_STAGE_MOTO_GENERATED',
-  }))
-
-  await adminClient.from('moto_locks').upsert(lockRecords, { onConflict: 'moto_id' })
-
-  return { ok: true, lockedCount: provisionalIds.length }
+  return syncAdvancedRaceProgress(eventId, categoryId)
 }
 
 export async function syncAdvancedRaceProgress(eventId: string, categoryId: string) {
@@ -1887,8 +1942,5 @@ export async function syncAdvancedRaceProgress(eventId: string, categoryId: stri
     return genResult
   }
 
-  await autoLockProvisionalMotosForCategory(eventId, categoryId)
-
   return genResult
 }
-

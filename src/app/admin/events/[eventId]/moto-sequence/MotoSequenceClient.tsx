@@ -256,7 +256,7 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
     const interval = window.setInterval(() => {
       if (document.visibilityState === 'hidden') return
       void loadData('refresh')
-    }, 5000)
+    }, 50000)
     return () => window.clearInterval(interval)
   }, [autoRefreshEnabled, eventId, eventStatus, loadData])
 

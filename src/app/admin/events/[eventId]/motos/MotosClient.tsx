@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { compareMotoDisplayOrder, formatMotoDisplayName } from '../../../../../lib/motoDisplayOrder'
-import { supabase } from '@/src/lib/supabaseClient'
 import { useApiFetch } from '@/src/hooks/useApiFetch'
 
 type CategoryItem = {
@@ -112,9 +111,9 @@ const timestampForFilename = () => new Date().toISOString().slice(0, 19).replace
 const getAllowedMotoStatuses = (current: MotoItem['status']) => {
   switch (current) {
     case 'UPCOMING':
-      return ['UPCOMING', 'READY', 'LIVE'] as MotoItem['status'][]
+      return ['UPCOMING'] as MotoItem['status'][]
     case 'READY':
-      return ['UPCOMING', 'READY', 'LIVE'] as MotoItem['status'][]
+      return ['UPCOMING', 'READY'] as MotoItem['status'][]
     case 'LIVE':
       return ['UPCOMING', 'LIVE', 'PROVISIONAL'] as MotoItem['status'][]
     case 'PROVISIONAL':
@@ -517,7 +516,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     if (!moto) return
 
     const ok = confirm(
-      `Lock moto: ${formatMotoDisplayName(moto.moto_name)}?\n\nSetelah LOCKED, hasil dianggap final. Auto-live moto berikutnya sekarang dipicu saat hasil submit PROVISIONAL atau saat checker menekan Moto Ready.`
+      `Lock moto: ${formatMotoDisplayName(moto.moto_name)}?\n\nSetelah LOCKED, hasil dianggap final. Jika moto berikutnya sudah READY dari checker, sistem akan membuatnya LIVE sesuai urutan Moto Sequence.`
     )
     if (!ok) return
 
@@ -1717,4 +1716,3 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     </div>
   )
 }
-

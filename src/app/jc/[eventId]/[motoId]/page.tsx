@@ -275,10 +275,9 @@ export default function JCPage() {
 
   const loadStaticConfig = useCallback(async () => {
     if (!eventId) return
-    const [catRes, flagRes, safetyRes] = await Promise.all([
+    const [catRes, flagRes] = await Promise.all([
       fetch(`/api/events/${eventId}/categories`),
       apiFetch(`/api/jury/events/${eventId}/modules`),
-      apiFetch(`/api/jury/events/${eventId}/safety-requirements`),
     ])
     const catJson = await catRes.json()
     setCategories((catJson.data ?? []) as CategoryItem[])
@@ -290,13 +289,6 @@ export default function JCPage() {
         dnf_enabled: true,
       }
     )
-    const rawSafety = (safetyRes.data ?? []) as SafetyRequirement[]
-    const uniqueSafety = new Map<string, SafetyRequirement>()
-    for (const item of rawSafety) {
-      const key = item.label.trim().toLowerCase()
-      if (!uniqueSafety.has(key)) uniqueSafety.set(key, item)
-    }
-    setSafetyRequirements(Array.from(uniqueSafety.values()))
   }, [apiFetch, eventId])
 
   const loadMotos = useCallback(async (silent = false) => {
@@ -304,8 +296,7 @@ export default function JCPage() {
     if (!silent) setLoading(true)
     if (!silent) setErrorMessage(null)
     try {
-      const motoRes = await fetch(`/api/motos?event_id=${eventId}`)
-      const motoJson = await motoRes.json()
+      const motoJson = await apiFetch(`/api/jury/events/${eventId}/moto-state`)
 
       const rawMotos = (motoJson.data ?? []) as MotoItem[]
       const categoryBaseOrder = buildCategoryBaseOrder(rawMotos)
@@ -345,7 +336,7 @@ export default function JCPage() {
       if (!silent) setLoading(false)
     }
     return []
-  }, [allReadyDone, eventId, selectedMotoId, syncPrepMotoUrl])
+  }, [allReadyDone, apiFetch, eventId, selectedMotoId, syncPrepMotoUrl])
 
   useEffect(() => {
     void loadStaticConfig().catch((err: unknown) => {
@@ -491,30 +482,79 @@ export default function JCPage() {
     }
   }, [apiFetch, eventId, incidentMotoId, loadMotos])
 
+  const refreshCheckerPollingState = useCallback(
+    async (prepMotoId: string, activeIncidentMotoId: string) => {
+      if (!eventId) return
+      const params = new URLSearchParams()
+      if (prepMotoId) params.set('prep_moto_id', prepMotoId)
+      if (activeIncidentMotoId) params.set('incident_moto_id', activeIncidentMotoId)
+      const response = await apiFetch(`/api/jury/events/${eventId}/checker-poll?${params.toString()}`)
+
+      if (prepMotoId && response.prep?.moto_id === prepMotoId && selectedMotoIdRef.current === prepMotoId) {
+        const nextStatuses = buildStatusMap(response.prep.statuses ?? [])
+        setStatuses(nextStatuses)
+
+        const checks = response.prep.checks ?? []
+        setSafetyChecks((previous) => {
+          const next = { ...previous }
+          for (const rider of riders) {
+            const riderChecks = { ...(next[rider.id] ?? {}) }
+            for (const requirement of safetyRequirements) {
+              if (typeof riderChecks[requirement.id] !== 'boolean') riderChecks[requirement.id] = true
+            }
+            next[rider.id] = riderChecks
+          }
+          for (const row of checks) {
+            next[row.rider_id] = { ...(next[row.rider_id] ?? {}), [row.requirement_id]: row.is_checked }
+          }
+          return next
+        })
+        setLastUpdated(new Date().toLocaleTimeString())
+      }
+
+      if (activeIncidentMotoId && response.incident?.moto_id === activeIncidentMotoId) {
+        setIncidentLocked(Boolean(response.incident.locked))
+        setIncidentStatuses(buildStatusMap(response.incident.statuses ?? []))
+        setIncidentLastUpdated(new Date().toLocaleTimeString())
+      }
+    },
+    [apiFetch, eventId, riders, safetyRequirements]
+  )
+
   // Initial load — only runs once per moto selection
   useEffect(() => {
     if (!eventId) return
     initialLoadDone.current = false
-    void (async () => {
-      await loadMotos(false)
-      if (selectedMotoIdRef.current) await loadMoto(false, true)
-      if (incidentMotoId) await loadIncidentMoto(true)
+    void loadMotos(false).finally(() => {
       initialLoadDone.current = true
-    })()
+    })
+  }, [eventId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!eventId || !selectedMotoId) return
+    void loadMoto(false, true)
   }, [eventId, selectedMotoId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!eventId || !incidentMotoId) return
+    void loadIncidentMoto(true)
+  }, [eventId, incidentMotoId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Background polling — always silent, never shows Loading
   useEffect(() => {
     if (!eventId || !isPageVisible) return
 
     const interval = setInterval(() => {
-      void loadMotos(true)
-      if (selectedMotoIdRef.current) void loadMoto(true)
-      if (incidentMotoId) void loadIncidentMoto(true)
+      void (async () => {
+        const workflowMotos = (await loadMotos(true)) ?? []
+        const liveMotoId = workflowMotos.find((moto) => isMotoLive(moto.status))?.id ?? ''
+        const prepMotoId = pickPrepMotoId(workflowMotos, selectedMotoIdRef.current, liveMotoId, allReadyDone)
+        await refreshCheckerPollingState(prepMotoId, liveMotoId)
+      })()
     }, 10000)
 
     return () => clearInterval(interval)
-  }, [eventId, incidentMotoId, isPageVisible, loadMotos, loadMoto, loadIncidentMoto])
+  }, [allReadyDone, eventId, isPageVisible, loadMotos, refreshCheckerPollingState])
 
   useEffect(() => {
     setSafetyChecks((prev) => {
@@ -538,17 +578,25 @@ export default function JCPage() {
   }, [categories])
 
   const selectedMoto = useMemo(() => motos.find((m) => m.id === selectedMotoId) ?? null, [motos, selectedMotoId])
-  const activeCategoryId = incidentMoto?.category_id ?? selectedMoto?.category_id ?? null
+  const workflowPrepMotoId = useMemo(
+    () => pickPrepMotoId(motos, selectedMotoId, incidentMotoId, allReadyDone),
+    [allReadyDone, incidentMotoId, motos, selectedMotoId]
+  )
+  const workflowPrepMoto = useMemo(
+    () => motos.find((m) => m.id === workflowPrepMotoId) ?? null,
+    [motos, workflowPrepMotoId]
+  )
   const selectableMotos = useMemo(
     () =>
       motos.filter(
         (m) =>
           !isLockedStatus(m.status) &&
           isPrepMotoStatus(m.status) &&
-          // Only show motos from the category that is currently LIVE, or from the selected moto's category if no LIVE moto
-          (activeCategoryId ? m.category_id === activeCategoryId : true)
+          // The dropdown follows the prep moto picked by workflow order, not merely the currently LIVE category.
+          // This releases the next category only after the current category is actually complete.
+          (workflowPrepMoto?.category_id ? m.category_id === workflowPrepMoto.category_id : true)
       ),
-    [motos, activeCategoryId]
+    [motos, workflowPrepMoto]
   )
   const selectedMotoUpcoming = isMotoUpcoming(selectedMoto?.status)
   const selectedMotoReady = isMotoReady(selectedMoto?.status)
@@ -667,12 +715,6 @@ export default function JCPage() {
     [requiredSafety, safetyChecks]
   )
 
-  const activeCount = useMemo(() => {
-    return riderList.filter((r) => statuses[r.id]?.participation_status === 'ACTIVE').length
-  }, [riderList, statuses])
-  const warningCount = useMemo(() => {
-    return riderList.filter((r) => statuses[r.id]?.participation_status === 'ACTIVE' && !isSafetyOk(r.id)).length
-  }, [riderList, statuses, isSafetyOk])
   const allPrepReviewed = useMemo(() => {
     return (
       riders.length > 0 &&
@@ -1046,37 +1088,22 @@ export default function JCPage() {
           gap: isMobileLayout ? 12 : 16,
         }}
       >
-        <div style={{ display: 'grid', gap: 8 }}>
+          <div style={{ display: 'grid', gap: 8 }}>
           <div className="jc-header-row" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <div style={{ fontSize: highVisibility ? (isCompactLayout ? 30 : 34) : isCompactLayout ? 24 : 28, fontWeight: 900 }}>
               Checker Gate Start
-            </div>
-            <div className="jc-summary-text" style={{ marginLeft: 'auto', fontWeight: 700, fontSize: isCompactLayout ? 12 : 14 }}>
-              Prep: {selectedCategoryLabel} - {selectedMoto?.moto_name ?? 'Belum ada moto prep'} | Ready: {activeCount}/{summary.total} | Belum Dicek: {summary.unchecked}
-              {warningCount > 0 ? ` | Warning: ${warningCount}` : ''}
             </div>
             <select
               value={selectedMotoId}
               onChange={(e) => {
                 const next = e.target.value
+                const targetMoto = motos.find((moto) => moto.id === next)
                 manualSelectRef.current = true
                 selectedMotoIdRef.current = next
                 setSelectedMotoId(next)
-                setAllReadyDone(false)
+                setAllReadyDone(Boolean(targetMoto?.checker_prep_ready_at))
                 setBulkReadyState(null)
                 syncPrepMotoUrl(next)
-                // Immediately fetch rider data for the manually selected moto
-                setTimeout(async () => {
-                  // Refresh motos list first so allReadyDone syncs from fresh checker_prep_ready_at
-                  const refreshedMotos = await loadMotos(true)
-                  if (refreshedMotos && refreshedMotos.length > 0) {
-                    const targetMoto = refreshedMotos.find((m) => m.id === next)
-                    if (targetMoto) {
-                      setAllReadyDone(Boolean(targetMoto.checker_prep_ready_at))
-                    }
-                  }
-                  void loadMoto(false, true)
-                }, 50)
               }}
               className="jc-moto-select"
               style={{
@@ -1168,7 +1195,6 @@ export default function JCPage() {
             </div>
           )}
 
-          <div style={{ fontWeight: 700, color: '#333' }}>Safety checklist sebelum race start.</div>
           {!hasSafetyRequirements && (
             <div
               style={{
@@ -1436,9 +1462,6 @@ export default function JCPage() {
             background: '#ffffff',
           }}
         >
-          <div style={{ fontSize: 11, color: '#166534', fontWeight: 900, letterSpacing: 1 }}>
-            MOTO PREP SAAT INI
-          </div>
           <div style={{ fontSize: highVisibility ? (isCompactLayout ? 22 : 26) : isCompactLayout ? 18 : 22, fontWeight: 950, color: '#111827' }}>
             {selectedMoto?.moto_name ?? 'Belum ada moto prep'}
           </div>
@@ -1931,4 +1954,3 @@ export default function JCPage() {
     </div>
   )
 }
-

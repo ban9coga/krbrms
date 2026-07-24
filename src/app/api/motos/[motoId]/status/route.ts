@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../lib/auth'
 import { requireJury } from '../../../../../services/juryAuth'
+import { syncAdvancedRaceProgressAfterLockedStage } from '../../../../../services/advancedRaceAuto'
+import { promoteNextMotoToLive } from '../../../../../services/motoProgression'
 
 const allowedTargets = ['LOCKED', 'PROVISIONAL'] as const
 type TargetStatus = (typeof allowedTargets)[number]
@@ -60,7 +62,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
 
   const { data: moto, error } = await adminClient
     .from('motos')
-    .select('id, status, event_id')
+    .select('id, status, event_id, category_id, moto_name')
     .eq('id', motoId)
     .maybeSingle()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
@@ -120,7 +122,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
         { onConflict: 'moto_id' }
       )
 
-    return NextResponse.json({ ok: true })
+    const nextMoto = await promoteNextMotoToLive(moto.event_id as string, motoId)
+    const stageProgress = moto.category_id
+      ? await syncAdvancedRaceProgressAfterLockedStage(
+          moto.event_id as string,
+          moto.category_id as string,
+          moto.moto_name as string | null
+        )
+      : { ok: true, skipped: true }
+    return NextResponse.json({ ok: true, next_moto: nextMoto, stage_progress: stageProgress })
   }
   if (status === 'PROVISIONAL') {
     await adminClient

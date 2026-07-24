@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../lib/auth'
-import { autoLockPreviousProvisionalForLiveMoto } from '../../../../services/motoProgression'
 
 const MOTO_RETURN_SELECT =
   'id, event_id, category_id, moto_name, moto_order, status, is_published, published_at, provisional_at, checker_prep_ready_at'
@@ -42,6 +41,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ motoId
 
   if (status !== undefined) {
     const nextStatus = String(status).toUpperCase()
+    if (nextStatus === 'READY' || nextStatus === 'LIVE') {
+      return NextResponse.json(
+        { error: 'Status READY dan LIVE hanya dapat diubah melalui workflow Checker.' },
+        { status: 400 }
+      )
+    }
     if (nextStatus === 'LOCKED') {
       return NextResponse.json({ error: 'Gunakan workflow lock resmi untuk mengunci moto.' }, { status: 400 })
     }
@@ -78,9 +83,5 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ motoId
     .select(MOTO_RETURN_SELECT)
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-  if (status !== undefined && String(status).toUpperCase() === 'LIVE') {
-    const autoLock = await autoLockPreviousProvisionalForLiveMoto(existingMoto.event_id, motoId)
-    return NextResponse.json({ data, auto_lock: autoLock })
-  }
   return NextResponse.json({ data })
 }
