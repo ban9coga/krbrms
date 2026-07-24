@@ -97,6 +97,7 @@ async function loadCustomSplitRules(categoryId: string, sourceStage?: StageName)
   }
 
   return rows.map((row) => ({
+    sourceStage: row.source_stage,
     rankFrom: Number(row.rank_from),
     rankTo: Number(row.rank_to),
     targetStage: row.target_stage,
@@ -126,6 +127,24 @@ const resolveAllowedFinalClasses = (resolvedFinalClasses: string[], customRules:
     }
   })
   return allowed
+}
+
+// Final Class Rules define an explicit bracket. When a qualification rule sends
+// riders to a stage, that stage must take precedence over the rider-count default.
+const resolveCustomWorkflowStages = <T extends { enableQualification: boolean; enableQuarterFinal: boolean; enableSemiFinal: boolean }>(
+  stages: T,
+  rules: CustomSplitRule[]
+) => {
+  const qualificationRules = rules.filter((rule) => rule.sourceStage === 'QUALIFICATION')
+  if (qualificationRules.length === 0) return stages
+
+  return {
+    ...stages,
+    enableQuarterFinal: qualificationRules.some((rule) => rule.targetStage === 'QUARTER_FINAL'),
+    enableSemiFinal: rules.some(
+      (rule) => rule.targetStage === 'SEMI_FINAL' || rule.sourceStage === 'SEMI_FINAL'
+    ),
+  }
 }
 
 const parseBatchKey = (name: string) => {
@@ -727,7 +746,12 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
     .maybeSingle()
   if (!config?.enabled) return { ok: false, warning: 'Advanced race disabled.' }
 
-  const resolved = await resolveCategoryConfig(categoryId)
+  const baseResolved = await resolveCategoryConfig(categoryId)
+  const customRules = await loadCustomSplitRules(categoryId)
+  const resolved = {
+    ...baseResolved,
+    stages: resolveCustomWorkflowStages(baseResolved.stages, customRules),
+  }
   if (!resolved.stages.enableQualification) {
     return { ok: true, warning: 'Qualification not required for single batch.' }
   }
@@ -821,7 +845,7 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
 
   if (batches.length === 0) return { ok: false, warning: 'No qualifying batches found.' }
 
-  const customQualificationRules = await loadCustomSplitRules(categoryId, 'QUALIFICATION')
+  const customQualificationRules = customRules.filter((rule) => rule.sourceStage === 'QUALIFICATION')
   const qualificationReady = batches.every(
     (batch) => batch.riders.length > 0 && batch.finishes.length >= batch.riders.length * requiredMotoCount
   )
@@ -958,7 +982,12 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
   const repechageMaxRiders = Math.max(4, Number(config.repechage_max_riders_per_race ?? config.max_riders_per_race ?? 8))
   const quarterMaxRiders = Math.max(4, Number(config.quarter_final_max_riders_per_race ?? config.max_riders_per_race ?? 8))
   const semiMaxRiders = Math.max(4, Number(config.semi_final_max_riders_per_race ?? config.max_riders_per_race ?? 8))
-  const resolved = await resolveCategoryConfig(categoryId)
+  const baseResolved = await resolveCategoryConfig(categoryId)
+  const customRules = await loadCustomSplitRules(categoryId)
+  const resolved = {
+    ...baseResolved,
+    stages: resolveCustomWorkflowStages(baseResolved.stages, customRules),
+  }
 
   const { data: existingMotos, error: motoError } = await adminClient
     .from('motos')
