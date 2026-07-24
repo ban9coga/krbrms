@@ -309,20 +309,23 @@ export default function JCPage() {
         return workflowMotos
       }
 
+      const currentSelectedMotoId = selectedMotoIdRef.current
       const liveMoto = workflowMotos.find((m) => isMotoLive(m.status))
-      const nextMotoId = pickPrepMotoId(workflowMotos, selectedMotoId, liveMoto?.id ?? null, allReadyDone)
-      if (nextMotoId && nextMotoId !== selectedMotoId) {
+      const nextMotoId = pickPrepMotoId(workflowMotos, currentSelectedMotoId, liveMoto?.id ?? null, allReadyDone)
+      if (nextMotoId && nextMotoId !== currentSelectedMotoId) {
         const nextMoto = workflowMotos.find((m) => m.id === nextMotoId)
+        selectedMotoIdRef.current = nextMotoId
         setSelectedMotoId(nextMotoId)
         setAllReadyDone(Boolean(nextMoto?.checker_prep_ready_at))
         setBulkReadyState(null)
         syncPrepMotoUrl(nextMotoId)
       }
-      if (nextMotoId && nextMotoId === selectedMotoId) {
+      if (nextMotoId && nextMotoId === currentSelectedMotoId) {
         const currentMoto = workflowMotos.find((m) => m.id === nextMotoId)
         setAllReadyDone(Boolean(currentMoto?.checker_prep_ready_at))
       }
-      if (!nextMotoId && selectedMotoId) {
+      if (!nextMotoId && currentSelectedMotoId) {
+        selectedMotoIdRef.current = ''
         setSelectedMotoId('')
         setRiders([])
         setStatuses({})
@@ -336,7 +339,7 @@ export default function JCPage() {
       if (!silent) setLoading(false)
     }
     return []
-  }, [allReadyDone, apiFetch, eventId, selectedMotoId, syncPrepMotoUrl])
+  }, [allReadyDone, apiFetch, eventId, syncPrepMotoUrl])
 
   useEffect(() => {
     void loadStaticConfig().catch((err: unknown) => {

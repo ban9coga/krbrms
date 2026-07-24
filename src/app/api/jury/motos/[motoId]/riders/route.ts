@@ -72,9 +72,12 @@ const orderRidersByStageSeeds = (
     }
   }
 
-  const seen = new Set(ordered)
+  // A rider can have more than one historical seed (for example Qualification
+  // and Repechage). Keep only the first applicable seed in the derived order.
+  const uniqueOrdered = Array.from(new Set(ordered))
+  const seen = new Set(uniqueOrdered)
   const leftovers = riderIds.filter((id) => !seen.has(id)).sort((a, b) => a.localeCompare(b))
-  return [...ordered, ...leftovers]
+  return [...uniqueOrdered, ...leftovers]
 }
 
 const deriveAdvancedGateOrder = async (
