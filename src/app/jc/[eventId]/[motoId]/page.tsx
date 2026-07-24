@@ -897,6 +897,7 @@ export default function JCPage() {
     setWarningMessage(null)
     setErrorMessage(null)
     try {
+      const requests: Array<Promise<unknown>> = []
       if (safetyRequirements.length > 0) {
         const checks: SafetyCheckPayload[] = targetRiders.flatMap((rider) =>
           safetyRequirements.map((item) => ({
@@ -905,10 +906,12 @@ export default function JCPage() {
             is_checked: safetyChecks[rider.id]?.[item.id] === true,
           }))
         )
-        await apiFetch(`/api/jury/motos/${selectedMotoId}/safety-checks`, {
-          method: 'POST',
-          body: JSON.stringify({ checks }),
-        })
+        requests.push(
+          apiFetch(`/api/jury/motos/${selectedMotoId}/safety-checks`, {
+            method: 'POST',
+            body: JSON.stringify({ checks }),
+          })
+        )
       }
 
       const nextStatuses = targetRiders.reduce<Record<string, StatusRow>>((acc, rider, index) => {
@@ -926,17 +929,20 @@ export default function JCPage() {
       }))
       setAllReadyDone(false)
 
-      await apiFetch(`/api/jury/events/${eventId}/rider-status`, {
-        method: 'POST',
-        body: JSON.stringify({
-          changes: targetRiders.map((rider, index) => ({
-            rider_id: rider.id,
-            participation_status: 'ACTIVE',
-            registration_order: rider.gate_position ?? rider.registration_order ?? index + 1,
-            moto_id: selectedMotoId,
-          })),
-        }),
-      })
+      requests.push(
+        apiFetch(`/api/jury/events/${eventId}/rider-status`, {
+          method: 'POST',
+          body: JSON.stringify({
+            changes: targetRiders.map((rider, index) => ({
+              rider_id: rider.id,
+              participation_status: 'ACTIVE',
+              registration_order: rider.gate_position ?? rider.registration_order ?? index + 1,
+              moto_id: selectedMotoId,
+            })),
+          }),
+        })
+      )
+      await Promise.all(requests)
 
       setBulkReadyState({ motoId: selectedMotoId, changedStatuses })
       setWarningMessage(`${targetRiders.length} rider di ${selectedMoto?.moto_name ?? 'moto ini'} ditandai READY. Kalau ada yang keliru, tekan Undo All Riders Ready.`)

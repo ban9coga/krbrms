@@ -133,6 +133,24 @@ export async function promoteNextMotoToLive(eventId: string, currentMotoId: stri
   const currentMoto = loaded.rows.find((row) => row.id === currentMotoId)
   if (!currentMoto) return { ok: false as const, warning: 'Moto saat ini tidak ditemukan.' }
 
+  const currentIndex = loaded.rows.findIndex((row) => row.id === currentMotoId)
+  const hasNextMotoInSameCategory = loaded.rows
+    .slice(currentIndex + 1)
+    .some((row) => row.category_id === currentMoto.category_id && isNextCandidateMoto(row))
+
+  // Do not jump to another category when this category has reached the end of
+  // its currently generated stage. Locking here unlocks the stage computation
+  // that creates Repechage/QF/Semi/Final motos for the same category.
+  if (isProvisionalMoto(currentMoto) && !hasNextMotoInSameCategory) {
+    const autoLock = await autoLockProvisionalMoto(eventId, currentMotoId)
+    return {
+      ok: autoLock.ok,
+      skipped: true as const,
+      warning: autoLock.warning ?? 'Moto terakhir pada stage dikunci untuk menjalankan compute stage berikutnya.',
+      auto_lock: autoLock,
+    }
+  }
+
   const { nextMoto, warning } = pickNextMotoToPromote(loaded.rows, currentMoto)
   if (warning) return { ok: false as const, warning }
   if (!nextMoto) return { ok: true as const, skipped: true as const, warning: 'Tidak ada moto berikutnya.' }
