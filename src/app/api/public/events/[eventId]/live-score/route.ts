@@ -61,7 +61,7 @@ type StageGroup = {
   rows: StageRow[]
 }
 
-type QualificationRowStatus = 'FINISHED' | 'DNF' | 'DNS' | 'PENDING' | 'DQ'
+type QualificationRowStatus = 'FINISHED' | 'DNF' | 'DNS' | 'ABSENT' | 'PENDING' | 'DQ'
 
 type QualificationMotoStatus = 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'PENDING'
 
@@ -531,7 +531,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
           (moto3 ? moto3Result?.result_status === 'DQ' : false)
             ? 'DQ'
             : riderStatus === 'ABSENT' && hasRecordedResult
-              ? 'FINISHED'
+              ? 'ABSENT'
               : moto1Result && (!moto2 || moto2Result) && (!moto3 || moto3Result)
                 ? 'FINISHED'
                 : 'PENDING'

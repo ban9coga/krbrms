@@ -926,19 +926,17 @@ export default function JCPage() {
       }))
       setAllReadyDone(false)
 
-      await Promise.all(
-        targetRiders.map((rider, index) =>
-          apiFetch(`/api/jury/events/${eventId}/rider-status`, {
-            method: 'POST',
-            body: JSON.stringify({
-              rider_id: rider.id,
-              participation_status: 'ACTIVE',
-              registration_order: rider.gate_position ?? rider.registration_order ?? index + 1,
-              moto_id: selectedMotoId,
-            }),
-          })
-        )
-      )
+      await apiFetch(`/api/jury/events/${eventId}/rider-status`, {
+        method: 'POST',
+        body: JSON.stringify({
+          changes: targetRiders.map((rider, index) => ({
+            rider_id: rider.id,
+            participation_status: 'ACTIVE',
+            registration_order: rider.gate_position ?? rider.registration_order ?? index + 1,
+            moto_id: selectedMotoId,
+          })),
+        }),
+      })
 
       setBulkReadyState({ motoId: selectedMotoId, changedStatuses })
       setWarningMessage(`${targetRiders.length} rider di ${selectedMoto?.moto_name ?? 'moto ini'} ditandai READY. Kalau ada yang keliru, tekan Undo All Riders Ready.`)
@@ -1068,7 +1066,7 @@ export default function JCPage() {
   const interactionDisabled = saving || bannerDisabled || locked
   const safetyInteractionDisabled = interactionDisabled || allReadyDone
   const readyDisabled = interactionDisabled
-  const absentDisabled = interactionDisabled || allReadyDone || !flags.absent_enabled
+  const absentDisabled = interactionDisabled || allReadyDone || bulkReadyApplied || !flags.absent_enabled
   const bulkReadyDisabled = interactionDisabled || allReadyDone || riderList.length === 0
   const canGateReady = riderList.length > 0 && allPrepReviewed
   const motoReadyDisabled = interactionDisabled || !canGateReady || allReadyDone

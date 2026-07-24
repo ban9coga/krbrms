@@ -258,6 +258,22 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       )
       if (dnsResultError) return NextResponse.json({ error: dnsResultError.message }, { status: 400 })
     }
+
+    // Changing a previously absent rider back to READY must also clear the DNS
+    // result that ABSENT created, otherwise Finisher still treats the rider as DNS.
+    const activeRiderIds = autoApplyRows
+      .filter((row) => row.participation_status === 'ACTIVE')
+      .map((row) => row.rider_id)
+    if (activeRiderIds.length > 0) {
+      const { error: clearDnsError } = await adminClient
+        .from('results')
+        .delete()
+        .eq('event_id', eventId)
+        .eq('moto_id', motoId)
+        .in('rider_id', activeRiderIds)
+        .eq('result_status', 'DNS')
+      if (clearDnsError) return NextResponse.json({ error: clearDnsError.message }, { status: 400 })
+    }
   }
 
     await adminClient.from('audit_log').insert(
