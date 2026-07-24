@@ -273,7 +273,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     const interval = window.setInterval(() => {
       if (document.visibilityState === 'hidden') return
       void load('refresh', { includeAdvancedSummary: false })
-    }, 15000)
+    }, 50000)
     return () => window.clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId, eventStatus, autoRefreshEnabled])

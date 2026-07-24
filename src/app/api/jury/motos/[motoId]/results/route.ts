@@ -16,6 +16,8 @@ const isLockedMoto = async (motoId: string) => {
   return !!data
 }
 
+const needsMoto3Reseed = (motoName?: string | null) => /^moto\s*2\s*-\s*batch\s*1$/i.test(motoName ?? '')
+
 export async function GET(req: Request, { params }: { params: Promise<{ motoId: string }> }) {
   const { motoId } = await params
   const { data: moto } = await adminClient.from('motos').select('event_id').eq('id', motoId).maybeSingle()
@@ -67,7 +69,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
 
   const { data: moto, error: motoError } = await adminClient
     .from('motos')
-    .select('id, event_id')
+    .select('id, event_id, moto_name')
     .eq('id', motoId)
     .maybeSingle()
 
@@ -141,7 +143,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
     .update({ status: 'PROVISIONAL', provisional_at: new Date().toISOString() })
     .eq('id', motoId)
 
-  const moto3Reseed = await reseedSingleBatchMoto3FromMoto(motoId)
+  const moto3Reseed = needsMoto3Reseed(moto.moto_name)
+    ? await reseedSingleBatchMoto3FromMoto(motoId)
+    : { ok: true as const, warning: null }
   const nextMoto = await promoteNextMotoToLive(moto.event_id, motoId)
 
   return NextResponse.json({

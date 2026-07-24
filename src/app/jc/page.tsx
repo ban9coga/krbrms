@@ -118,7 +118,7 @@ export default function JCSelectorPage() {
     const timer = setInterval(() => {
       loadEvents()
       loadMotos()
-    }, 10000)
+    }, 15000)
     return () => clearInterval(timer)
   }, [loadEvents, loadMotos])
 

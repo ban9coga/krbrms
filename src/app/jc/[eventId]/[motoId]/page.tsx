@@ -574,7 +574,7 @@ export default function JCPage() {
         const prepMotoId = pickPrepMotoId(workflowMotos, selectedMotoIdRef.current, liveMotoId, allReadyDone)
         await refreshCheckerPollingState(prepMotoId, liveMotoId)
       })()
-    }, 10000)
+    }, 15000)
 
     return () => clearInterval(interval)
   }, [allReadyDone, eventId, isPageVisible, loadMotos, refreshCheckerPollingState])
