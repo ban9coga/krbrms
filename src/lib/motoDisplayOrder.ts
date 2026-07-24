@@ -7,15 +7,16 @@ type MotoLike = {
 }
 
 const FINAL_MOTO_DISPLAY_ORDER: Record<string, number> = {
-  BEGINNER: 0,
-  AMATEUR: 1,
-  ACADEMY: 2,
-  INTERMEDIATE: 3,
-  ADVANCED: 4,
-  ROOKIE: 5,
-  PRO: 6,
-  NOVICE: 7,
-  ELITE: 8,
+  EXPLORER: 0,
+  BEGINNER: 1,
+  AMATEUR: 2,
+  ACADEMY: 3,
+  INTERMEDIATE: 4,
+  ADVANCED: 5,
+  ROOKIE: 6,
+  PRO: 7,
+  NOVICE: 8,
+  ELITE: 9,
 }
 
 const DISPLAY_STAGE_ORDER: Record<string, number> = {
@@ -92,9 +93,6 @@ const parseDisplayMoto = (motoName: string): ParsedDisplayMoto | null => {
 }
 
 export const compareMotoDisplayOrder = <T extends MotoLike>(a: T, b: T) => {
-  const orderDiff = a.moto_order - b.moto_order
-  if (orderDiff !== 0) return orderDiff
-
   const aCategory = typeof a.category_id === 'string' ? a.category_id : null
   const bCategory = typeof b.category_id === 'string' ? b.category_id : null
   if (aCategory && bCategory && aCategory !== bCategory) {

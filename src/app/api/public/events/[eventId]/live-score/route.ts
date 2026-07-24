@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../../lib/auth'
-import { formatMotoDisplayName } from '../../../../../../lib/motoDisplayOrder'
+import { compareMotoDisplayOrder, formatMotoDisplayName } from '../../../../../../lib/motoDisplayOrder'
 import { resolveBasePointForRaceResult, resolveNonFinishAutoPenalty } from '../../../../../../lib/nonFinishScoring'
 import { isMotoPublicVisible, isMotoReady, isMotoUpcoming } from '../../../../../../lib/motoStatus'
 import { formatStageAdvanceLabel } from '../../../../../../services/raceStageEngine'
@@ -622,7 +622,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       return a.sequence_order - b.sequence_order
     })
 
-  const stageMotos = motoRows.filter((m) => !parseBatchKey(m.moto_name))
+  const stageMotos = motoRows
+    .filter((m) => !parseBatchKey(m.moto_name))
+    .sort(compareMotoDisplayOrder)
   const stageGroups: StageGroup[] = stageMotos.flatMap((moto) => {
     const gates = gateRows.filter((g) => g.moto_id === moto.id)
     const gateMap = new Map(gates.map((g) => [g.rider_id, g.gate_position]))

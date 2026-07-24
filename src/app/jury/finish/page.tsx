@@ -541,13 +541,11 @@ export default function JuryFinishPage() {
       const state = await refreshMotoState()
       if (!state?.selectedMotoId) return
 
-      // A changed selector triggers the rider-grid effect exactly once. Do not
-      // await it here: Refresh is an immediate moto-state check, not a full reload.
+      // A changed selector triggers the rider-grid effect exactly once. When
+      // the selector already points here, reload its grid too: the moto may
+      // have changed from READY to LIVE since the previous background poll.
       if (state.selectedMotoId === selectedMotoId) {
-        const selectedMoto = state.motos.find((m) => m.id === state.selectedMotoId) ?? null
-        if (isMotoLive(selectedMoto?.status) && !hasSubmitted) {
-          await refreshFinisherPollingState(state.selectedMotoId, selectedMoto)
-        }
+        void loadRiders(state.selectedMotoId, true)
       }
     } finally {
       setRefreshingSelector(false)
