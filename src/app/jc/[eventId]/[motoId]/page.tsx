@@ -663,6 +663,11 @@ export default function JCPage() {
   }, [selectableMotos, selectedMoto, selectedMotoPreppable])
   const bulkReadyApplied = bulkReadyState?.motoId === selectedMotoId
   const activeCategoryWaitingStage = useMemo(() => {
+    // A workflow prep moto takes precedence over any completed category that
+    // is still eligible for a later compute. Otherwise an older category can
+    // hide the prep panel after the selector has already advanced.
+    if (workflowPrepMoto) return null
+
     const categoryIds = Array.from(new Set(motos.map((moto) => moto.category_id).filter(Boolean))) as string[]
     for (const categoryId of categoryIds) {
       const categoryMotos = motos.filter((moto) => moto.category_id === categoryId)
@@ -686,7 +691,7 @@ export default function JCPage() {
       }
     }
     return null
-  }, [motos, categoryLabel])
+  }, [motos, categoryLabel, workflowPrepMoto])
   const incidentCategoryLabel = incidentMoto
     ? categoryLabel.get(incidentMoto.category_id ?? '') ?? 'Unknown Category'
     : 'Kategori'
