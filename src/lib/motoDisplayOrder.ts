@@ -8,9 +8,9 @@ type MotoLike = {
 
 const FINAL_MOTO_DISPLAY_ORDER: Record<string, number> = {
   EXPLORER: 0,
-  BEGINNER: 1,
-  AMATEUR: 2,
-  ACADEMY: 3,
+  ACADEMY: 1,
+  BEGINNER: 2,
+  AMATEUR: 3,
   INTERMEDIATE: 4,
   ADVANCED: 5,
   ROOKIE: 6,

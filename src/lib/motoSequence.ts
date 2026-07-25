@@ -20,9 +20,9 @@ type ParsedAdvancedMoto = {
 // Order untuk final class
 const FINAL_CLASS_ORDER_MAP: Record<string, number> = {
   EXPLORER: 1,
-  BEGINNER: 2,
-  AMATEUR: 3,
-  ACADEMY: 4,
+  ACADEMY: 2,
+  BEGINNER: 3,
+  AMATEUR: 4,
   INTERMEDIATE: 5,
   ADVANCED: 6,
   ROOKIE: 7,

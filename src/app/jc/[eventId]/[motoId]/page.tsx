@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import CheckerTopbar from '../../../../components/CheckerTopbar'
+import LoadingState from '../../../../components/LoadingState'
 import { useHighVisibility } from '../../../../hooks/useHighVisibility'
 import { buildCategoryBaseOrder, compareMotoWorkflowSequence } from '../../../../lib/motoSequence'
 import { useApiFetch } from '@/src/hooks/useApiFetch'
@@ -24,6 +25,12 @@ type MotoItem = {
   status: string
   category_id?: string
   checker_prep_ready_at?: string | null
+}
+
+type MotoReadyConfirmation = {
+  categoryLabel: string
+  motoName: string
+  status: 'READY' | 'LIVE'
 }
 
 type RiderItem = {
@@ -261,6 +268,8 @@ export default function JCPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [warningMessage, setWarningMessage] = useState<string | null>(null)
   const [allReadyDone, setAllReadyDone] = useState(false)
+  const [motoReadySaving, setMotoReadySaving] = useState(false)
+  const [motoReadyConfirmation, setMotoReadyConfirmation] = useState<MotoReadyConfirmation | null>(null)
   const [bulkReadyState, setBulkReadyState] = useState<{
     motoId: string
     changedStatuses: Record<string, StatusRow | null>
@@ -1058,20 +1067,33 @@ export default function JCPage() {
       setErrorMessage('Semua rider di moto ini harus dicek dulu. Tandai READY atau ABSENT sebelum tekan Moto Ready.')
       return
     }
+    setMotoReadySaving(true)
+    setSaving(true)
     setAllReadyDone(true)
+    setWarningMessage('Moto Ready sedang disimpan. Menunggu konfirmasi sistem...')
     try {
-      await apiFetch(`/api/jury/motos/${selectedMotoId}/prep-ready`, { method: 'POST' })
+      const response = (await apiFetch(`/api/jury/motos/${selectedMotoId}/prep-ready`, { method: 'POST' })) as {
+        next_moto?: { nextMotoId?: string; skipped?: boolean }
+      }
+      const status = response.next_moto?.nextMotoId === selectedMotoId && !response.next_moto?.skipped ? 'LIVE' : 'READY'
       setMotos((prev) =>
         prev.map((moto) =>
-          moto.id === selectedMotoId ? { ...moto, status: 'READY', checker_prep_ready_at: new Date().toISOString() } : moto
+          moto.id === selectedMotoId ? { ...moto, status, checker_prep_ready_at: new Date().toISOString() } : moto
         )
       )
-      setWarningMessage('Status prep rider saat ini dikunci. MC akan baca READY atau ABSENT sesuai hasil pengecekan checker.')
+      setWarningMessage(status === 'LIVE' ? 'Moto langsung LIVE karena moto sebelumnya sudah PROVISIONAL.' : 'Status prep rider saat ini dikunci.')
       setLastUpdated(new Date().toLocaleTimeString())
-      alert(`Moto Ready dikonfirmasi untuk ${selectedCategoryLabel} | ${selectedMoto?.moto_name ?? 'Moto'}`)
+      setMotoReadyConfirmation({
+        categoryLabel: selectedCategoryLabel,
+        motoName: selectedMoto?.moto_name ?? 'Moto',
+        status,
+      })
     } catch (err: unknown) {
       setAllReadyDone(false)
       setErrorMessage(err instanceof Error ? err.message : 'Gagal menyimpan Moto Ready.')
+    } finally {
+      setMotoReadySaving(false)
+      setSaving(false)
     }
   }
 
@@ -1997,6 +2019,69 @@ export default function JCPage() {
           }
         }
       `}</style>
+      {motoReadySaving && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 70,
+            display: 'grid',
+            placeItems: 'center',
+            padding: 20,
+            background: 'rgba(15, 23, 42, 0.52)',
+            backdropFilter: 'blur(3px)',
+          }}
+        >
+          <div style={{ width: 'min(100%, 360px)', display: 'grid', gap: 12 }}>
+            <LoadingState label="Mengonfirmasi Moto Ready..." />
+            <div style={{ color: '#fff', fontWeight: 800, textAlign: 'center', fontSize: 14 }}>
+              Menyimpan status rider dan mengecek alur race berikutnya.
+            </div>
+          </div>
+        </div>
+      )}
+      {motoReadyConfirmation && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="moto-ready-confirmation-title"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 71,
+            display: 'grid',
+            placeItems: 'center',
+            padding: 20,
+            background: 'rgba(15, 23, 42, 0.58)',
+            backdropFilter: 'blur(3px)',
+          }}
+        >
+          <div style={{ width: 'min(100%, 420px)', borderRadius: 20, border: '3px solid #166534', background: '#f0fdf4', padding: 24, boxShadow: '0 20px 50px rgba(15, 23, 42, 0.35)', textAlign: 'center' }}>
+            <div aria-hidden="true" style={{ width: 62, height: 62, margin: '0 auto 14px', display: 'grid', placeItems: 'center', borderRadius: '50%', background: '#22c55e', color: '#fff', fontSize: 36, fontWeight: 900 }}>
+              ✓
+            </div>
+            <div id="moto-ready-confirmation-title" style={{ fontSize: 22, fontWeight: 950, color: '#14532d' }}>
+              Moto Ready Terkonfirmasi
+            </div>
+            <div style={{ marginTop: 8, color: '#1f2937', fontWeight: 800 }}>
+              {motoReadyConfirmation.categoryLabel} | {motoReadyConfirmation.motoName}
+            </div>
+            <div style={{ margin: '14px auto 20px', display: 'inline-flex', borderRadius: 999, border: '2px solid #166534', padding: '6px 12px', color: '#14532d', background: '#dcfce7', fontWeight: 950, fontSize: 13 }}>
+              STATUS: {motoReadyConfirmation.status}
+            </div>
+            <button
+              type="button"
+              className="jc-action-btn jc-primary"
+              onClick={() => setMotoReadyConfirmation(null)}
+              style={{ width: '100%', padding: '13px 18px', borderRadius: 12, border: '2px solid #14532d', background: '#166534', color: '#fff', fontWeight: 950, fontSize: 16 }}
+            >
+              Tutup
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -76,9 +76,9 @@ export type PointResolver = (finishOrder: number | null) => number
 
 export const FINAL_CLASS_ORDER: FinalClass[] = [
   'EXPLORER',
+  'ACADEMY',
   'BEGINNER',
   'AMATEUR',
-  'ACADEMY',
   'INTERMEDIATE',
   'ADVANCED',
   'ROOKIE',
