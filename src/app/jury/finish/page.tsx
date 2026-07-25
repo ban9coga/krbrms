@@ -6,6 +6,7 @@ import { useHighVisibility } from '../../../hooks/useHighVisibility'
 import { buildCategoryBaseOrder, compareMotoWorkflowSequence } from '../../../lib/motoSequence'
 import { isMotoLive } from '../../../lib/motoStatus'
 import CheckerTopbar from '../../../components/CheckerTopbar'
+import LoadingState from '../../../components/LoadingState'
 import { usePageVisibility } from '../../../lib/usePageVisibility'
 import { useApiFetch } from '@/src/hooks/useApiFetch'
 
@@ -143,6 +144,7 @@ export default function JuryFinishPage() {
   const savingRef = useRef(false)
   const actionsCountRef = useRef(0)
   const localEditingRef = useRef(false)
+  const selectedMotoLiveRef = useRef({ id: '', live: false })
 
   useEffect(() => {
     pressedIdRef.current = pressedId
@@ -339,6 +341,22 @@ export default function JuryFinishPage() {
   useEffect(() => {
     void loadRiders()
   }, [loadRiders])
+
+  // The selector may already point to this moto while it changes from READY
+  // to LIVE. Reload the grid once so Finisher can start immediately.
+  useEffect(() => {
+    const previous = selectedMotoLiveRef.current
+    const becameLiveForSameMoto =
+      previous.id === selectedMotoId &&
+      !previous.live &&
+      selectedMotoLive &&
+      Boolean(selectedMotoId)
+
+    selectedMotoLiveRef.current = { id: selectedMotoId, live: selectedMotoLive }
+    if (becameLiveForSameMoto) {
+      void loadRiders(selectedMotoId, true)
+    }
+  }, [loadRiders, selectedMotoId, selectedMotoLive])
 
   const refreshFinisherPollingState = useCallback(async (motoId: string, targetMoto: MotoItem | null) => {
     if (!eventId || !motoId) return
@@ -923,6 +941,20 @@ export default function JuryFinishPage() {
                 OK
               </button>
             </section>
+          </div>
+        )}
+        {saving && (
+          <div
+            className="fixed inset-0 z-[79] grid place-items-center bg-slate-950/55 p-4 backdrop-blur-sm"
+            role="status"
+            aria-live="polite"
+          >
+            <div className="grid w-full max-w-sm gap-3">
+              <LoadingState label="Menyimpan hasil moto..." />
+              <p className="text-center text-sm font-bold text-white">
+                Menyimpan urutan finish dan menyiapkan alur moto berikutnya.
+              </p>
+            </div>
           </div>
         )}
       </main>
