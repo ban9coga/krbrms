@@ -33,6 +33,28 @@ type MotoReadyConfirmation = {
   status: 'READY' | 'LIVE'
 }
 
+const getStageWaitCopy = (motoName: string, status: string) => {
+  if (status === 'PROTEST_REVIEW') {
+    return {
+      title: 'Menunggu Review Protes',
+      detail: 'Hasil stage ini sedang dalam review. Moto prep berikutnya muncul setelah review selesai.',
+    }
+  }
+  if (/^moto\s*\d+/i.test(motoName)) {
+    return { title: 'Menunggu Hasil Kualifikasi Dihitung', detail: 'Sistem sedang menghitung hasil kualifikasi dan menyusun babak berikutnya.' }
+  }
+  if (/^repechage/i.test(motoName)) {
+    return { title: 'Menunggu Hasil Repechage Dihitung', detail: 'Sistem sedang menentukan rider yang lanjut dari Repechage ke babak berikutnya.' }
+  }
+  if (/^quarter final/i.test(motoName)) {
+    return { title: 'Menunggu Hasil Quarter Final Dihitung', detail: 'Sistem sedang menentukan rider yang lanjut dari Quarter Final ke babak berikutnya.' }
+  }
+  if (/^semi final/i.test(motoName)) {
+    return { title: 'Menunggu Hasil Semi Final Dihitung', detail: 'Sistem sedang menentukan rider yang lanjut dari Semi Final ke final.' }
+  }
+  return { title: 'Menunggu Hasil Stage Dihitung', detail: 'Sistem sedang menyusun moto berikutnya untuk kategori ini.' }
+}
+
 type RiderItem = {
   id: string
   name: string
@@ -640,29 +662,31 @@ export default function JCPage() {
     return [selectedMoto, ...selectableMotos]
   }, [selectableMotos, selectedMoto, selectedMotoPreppable])
   const bulkReadyApplied = bulkReadyState?.motoId === selectedMotoId
-  const activeCategoryWaitingQualification = useMemo(() => {
-    const activeCategoryId = selectedMoto?.category_id ?? incidentMoto?.category_id ?? null
-    if (!activeCategoryId) return null
+  const activeCategoryWaitingStage = useMemo(() => {
+    const categoryIds = Array.from(new Set(motos.map((moto) => moto.category_id).filter(Boolean))) as string[]
+    for (const categoryId of categoryIds) {
+      const categoryMotos = motos.filter((moto) => moto.category_id === categoryId)
+      const hasPrepMoto = categoryMotos.some((moto) => !isLockedStatus(moto.status) && isPrepMotoStatus(moto.status))
+      if (hasPrepMoto) continue
 
-    const categoryMotos = motos.filter((m) => m.category_id === activeCategoryId)
-    if (categoryMotos.length === 0) return null
+      const finalMotos = categoryMotos.filter((moto) => /^FINAL\s+/i.test(moto.moto_name))
+      if (finalMotos.length > 0 && finalMotos.every((moto) => isLockedStatus(moto.status))) continue
 
-    const hasProvisionalOrLive = categoryMotos.some((m) => {
-      const s = String(m.status ?? '').toUpperCase()
-      return s === 'PROVISIONAL' || s === 'LIVE' || s === 'PROTEST_REVIEW'
-    })
+      const pendingMoto = categoryMotos.find((moto) => ['PROVISIONAL', 'PROTEST_REVIEW'].includes(String(moto.status ?? '').toUpperCase()))
+      const lastLockedNonFinalMoto = [...categoryMotos]
+        .reverse()
+        .find((moto) => isLockedStatus(moto.status) && !/^FINAL\s+/i.test(moto.moto_name))
+      const waitingMoto = pendingMoto ?? lastLockedNonFinalMoto
+      if (!waitingMoto) continue
 
-    const hasPrepMotoInSameCategory = categoryMotos.some((m) => {
-      const s = String(m.status ?? '').toUpperCase()
-      return (s === 'UPCOMING' || s === 'READY') && !isLockedStatus(s)
-    })
-
-    if (hasProvisionalOrLive && !hasPrepMotoInSameCategory) {
-      return categoryLabel.get(activeCategoryId) ?? 'Kategori Terkait'
+      const status = String(waitingMoto.status ?? '').toUpperCase()
+      return {
+        categoryLabel: categoryLabel.get(categoryId) ?? 'Kategori Terkait',
+        ...getStageWaitCopy(waitingMoto.moto_name, status),
+      }
     }
-
     return null
-  }, [motos, selectedMoto, incidentMoto, categoryLabel])
+  }, [motos, categoryLabel])
   const incidentCategoryLabel = incidentMoto
     ? categoryLabel.get(incidentMoto.category_id ?? '') ?? 'Unknown Category'
     : 'Kategori'
@@ -1216,7 +1240,7 @@ export default function JCPage() {
             </button>
           </div>
 
-          {activeCategoryWaitingQualification && (
+          {false && (
             <div
               style={{
                 padding: '12px 16px',
@@ -1235,7 +1259,7 @@ export default function JCPage() {
               <span style={{ fontSize: 22 }}>⏳</span>
               <div>
                 <div style={{ fontWeight: 900, fontSize: 15 }}>
-                  Menunggu Hasil Kualifikasi ({activeCategoryWaitingQualification})
+                  Menunggu hasil stage dihitung
                 </div>
                 <div style={{ fontSize: 13, fontWeight: 600, opacity: 0.9, marginTop: 2 }}>
                   Kualifikasi kategori ini baru disubmit / provisional. Sistem sedang menghitung hasil kualifikasi & penyusunan stage berikutnya. Moto kategori selanjutnya ditahan hingga kualifikasi kategori ini selesai.
@@ -1520,44 +1544,60 @@ export default function JCPage() {
           </div>
         </div>
 
-        <div
-          style={{
-            display: 'grid',
-            gap: 6,
-            padding: isCompactLayout ? '10px 12px' : '12px 14px',
-            borderRadius: 14,
-            border: '2px solid #bbf7d0',
-            background: '#ffffff',
-          }}
-        >
-          <div style={{ fontSize: highVisibility ? (isCompactLayout ? 22 : 26) : isCompactLayout ? 18 : 22, fontWeight: 950, color: '#111827' }}>
-            {selectedMoto?.moto_name ?? 'Belum ada moto prep'}
+        {activeCategoryWaitingStage ? (
+          <div
+            role="status"
+            aria-live="polite"
+            style={{ display: 'grid', gap: 12, padding: isCompactLayout ? 14 : 18, borderRadius: 14, border: '2px solid #d97706', background: '#fff7ed' }}
+          >
+            <LoadingState label={activeCategoryWaitingStage.title} />
+            <div style={{ textAlign: 'center', color: '#92400e', fontWeight: 900 }}>
+              {activeCategoryWaitingStage.categoryLabel}
+            </div>
+            <div style={{ textAlign: 'center', color: '#78350f', fontSize: 13, fontWeight: 700, lineHeight: 1.45 }}>
+              {activeCategoryWaitingStage.detail}
+            </div>
           </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-            <span
-              style={{
-                padding: '4px 10px',
-                borderRadius: 999,
-                border: '1.5px solid #166534',
-                background: '#f0fdf4',
-                color: '#166534',
-                fontSize: 12,
-                fontWeight: 900,
-              }}
-            >
-              {selectedCategoryLabel}
-            </span>
-            <span style={{ fontSize: 12, color: '#475569', fontWeight: 800 }}>
-              {selectedMotoReady
-                ? allReadyDone
-                  ? 'Moto sudah READY dan prep sudah dikonfirmasi.'
-                  : 'Moto sudah READY; checker masih bisa koreksi sebelum race berjalan.'
-                : 'Moto ini masih fase prep sebelum start.'}
-            </span>
+        ) : (
+          <div
+            style={{
+              display: 'grid',
+              gap: 6,
+              padding: isCompactLayout ? '10px 12px' : '12px 14px',
+              borderRadius: 14,
+              border: '2px solid #bbf7d0',
+              background: '#ffffff',
+            }}
+          >
+            <div style={{ fontSize: highVisibility ? (isCompactLayout ? 22 : 26) : isCompactLayout ? 18 : 22, fontWeight: 950, color: '#111827' }}>
+              {selectedMoto?.moto_name ?? 'Belum ada moto prep'}
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              <span
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: 999,
+                  border: '1.5px solid #166534',
+                  background: '#f0fdf4',
+                  color: '#166534',
+                  fontSize: 12,
+                  fontWeight: 900,
+                }}
+              >
+                {selectedCategoryLabel}
+              </span>
+              <span style={{ fontSize: 12, color: '#475569', fontWeight: 800 }}>
+                {selectedMotoReady
+                  ? allReadyDone
+                    ? 'Moto sudah READY dan prep sudah dikonfirmasi.'
+                    : 'Moto sudah READY; checker masih bisa koreksi sebelum race berjalan.'
+                  : 'Moto ini masih fase prep sebelum start.'}
+              </span>
+            </div>
           </div>
-        </div>
+        )}
 
-        <div style={{ display: 'grid', gap: 10 }}>
+        <div style={{ display: activeCategoryWaitingStage ? 'none' : 'grid', gap: 10 }}>
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -1749,9 +1789,9 @@ export default function JCPage() {
           </div>
         </div>
 
-        {loading && !initialLoadDone.current && <div style={{ fontWeight: 900 }}>Loading...</div>}
+        {!activeCategoryWaitingStage && loading && !initialLoadDone.current && <div style={{ fontWeight: 900 }}>Loading...</div>}
 
-        <div
+        {!activeCategoryWaitingStage && <div
           style={{
             display: 'grid',
             gap: 12,
@@ -1949,7 +1989,7 @@ export default function JCPage() {
               </div>
             )
           })}
-        </div>
+        </div>}
         </div>
       </div>
       <style jsx>{`
