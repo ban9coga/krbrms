@@ -219,14 +219,10 @@ const safeMotoNameExists = async (eventId: string, categoryId: string, prefix: s
 }
 
 const tableExists = async (tableName: string) => {
-  const { data, error } = await adminClient
-    .from('information_schema.tables')
-    .select('table_name')
-    .eq('table_schema', 'public')
-    .eq('table_name', tableName)
-    .maybeSingle()
-  if (error) return false
-  return !!data?.table_name
+  // PostgREST does not expose information_schema on every Supabase project.
+  // Probe the actual table instead so advanced stages reliably persist gates.
+  const { error } = await adminClient.from(tableName).select('*', { head: true, count: 'exact' }).limit(1)
+  return !error
 }
 
 const sortSeedRows = (rows: StageResultSeedRow[], batchOrderById: Record<string, number> = {}) =>

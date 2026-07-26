@@ -142,9 +142,13 @@ const orderRidersByStageSeeds = (
     }
   }
 
-  const seen = new Set(ordered)
+  // A rider may carry more than one historical seed (for example from
+  // Qualification and Repechage). Keep the first matching seed, exactly as
+  // the Jury gate reader does, so fallback gates remain identical.
+  const uniqueOrdered = Array.from(new Set(ordered))
+  const seen = new Set(uniqueOrdered)
   const leftovers = riderIds.filter((riderId) => !seen.has(riderId)).sort((a, b) => a.localeCompare(b))
-  return [...ordered, ...leftovers]
+  return [...uniqueOrdered, ...leftovers]
 }
 
 const pointForMotoResult = (res: ResultRow | null, riderCount: number | null) => {
