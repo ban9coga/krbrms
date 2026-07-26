@@ -437,7 +437,7 @@ export default function JCPage() {
         return
       }
       // Stable-reference update: only replace riders if data actually changed
-      const newRiders = (riderRes.data ?? []).slice(0, 8) as RiderItem[]
+      const newRiders = (riderRes.data ?? []) as RiderItem[]
       setRiders((prev) => {
         if (prev.length === newRiders.length && prev.every((r, i) => r.id === newRiders[i]?.id)) return prev
         return newRiders
@@ -521,7 +521,7 @@ export default function JCPage() {
         await loadMotos(true)
         return
       }
-      setIncidentRiders((riderRes.data ?? []).slice(0, 8))
+      setIncidentRiders((riderRes.data ?? []) as RiderItem[])
 
       const statusList = (statusRes.data ?? []) as Array<{
         rider_id: string
