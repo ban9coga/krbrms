@@ -84,16 +84,19 @@ const isCategoryAwaitingStageCompute = (list: MotoItem[], categoryId?: string | 
   const nonFinalMotos = categoryMotos.filter((moto) => !/^FINAL\s+/i.test(moto.moto_name))
   if (nonFinalMotos.length === 0) return false
 
+  // A category is only allowed to release the workflow after at least one
+  // Final has been generated. Before that, locked Repechage/QF/Semi results
+  // still need a compute step and must not send Checker to another category.
+  const hasFinalMoto = categoryMotos.some((moto) => /^FINAL\s+/i.test(moto.moto_name))
+  if (hasFinalMoto) return false
+
   const hasPrepOrActiveMoto = categoryMotos.some((moto) => {
     const status = String(moto.status ?? '').toUpperCase()
     return isPrepMotoStatus(status) || status === 'LIVE' || status === 'PROVISIONAL' || status === 'PROTEST_REVIEW'
   })
   if (hasPrepOrActiveMoto) return false
 
-  const hasUnlockedFinalMoto = categoryMotos.some(
-    (moto) => /^FINAL\s+/i.test(moto.moto_name) && !isLockedStatus(moto.status)
-  )
-  return !hasUnlockedFinalMoto && nonFinalMotos.every((moto) => isLockedStatus(moto.status))
+  return nonFinalMotos.every((moto) => isLockedStatus(moto.status))
 }
 
 const isCategoryUnfinished = (list: MotoItem[], categoryId?: string | null) => {
