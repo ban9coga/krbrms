@@ -268,14 +268,12 @@ export default function RaceDirectorApprovalPage() {
         setStatusUpdates(approvalRes.status_updates ?? [])
         setPenalties(approvalRes.penalties ?? [])
         setApprovalMode((modeRes.data?.approval_mode as 'AUTO' | 'DIRECTOR') ?? 'AUTO')
-        const motoJson = await motoRes.json()
-        setMotos(motoJson.data ?? [])
+        setMotos((motoRes.data ?? []) as MotoRow[])
         const lockList = (lockRes.data ?? []) as Array<{ moto_id: string }>
         const map: Record<string, boolean> = {}
         for (const row of lockList) map[row.moto_id] = true
         setLockedMap(map)
-        const catJson = await catRes.json()
-        setCategories((catJson.data ?? []) as CategoryItem[])
+        setCategories((catRes.data ?? []) as CategoryItem[])
         setGateStatus(gateRes.data ?? [])
         if (includeHeavy) {
           setAuditLogs(
