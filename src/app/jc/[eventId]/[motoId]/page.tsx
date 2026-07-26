@@ -78,6 +78,24 @@ type EventFlags = {
 const isLockedStatus = (status?: string | null) => String(status ?? '').toUpperCase() === 'LOCKED'
 const isPrepMotoStatus = (status?: string | null) => isMotoUpcoming(status) || isMotoReady(status)
 
+const isCategoryAwaitingStageCompute = (list: MotoItem[], categoryId?: string | null) => {
+  if (!categoryId) return false
+  const categoryMotos = list.filter((moto) => moto.category_id === categoryId)
+  const nonFinalMotos = categoryMotos.filter((moto) => !/^FINAL\s+/i.test(moto.moto_name))
+  if (nonFinalMotos.length === 0) return false
+
+  const hasPrepOrActiveMoto = categoryMotos.some((moto) => {
+    const status = String(moto.status ?? '').toUpperCase()
+    return isPrepMotoStatus(status) || status === 'LIVE' || status === 'PROVISIONAL' || status === 'PROTEST_REVIEW'
+  })
+  if (hasPrepOrActiveMoto) return false
+
+  const hasUnlockedFinalMoto = categoryMotos.some(
+    (moto) => /^FINAL\s+/i.test(moto.moto_name) && !isLockedStatus(moto.status)
+  )
+  return !hasUnlockedFinalMoto && nonFinalMotos.every((moto) => isLockedStatus(moto.status))
+}
+
 const isCategoryUnfinished = (list: MotoItem[], categoryId?: string | null) => {
   if (!categoryId) return false
   const categoryMotos = list.filter((m) => m.category_id === categoryId)
@@ -88,6 +106,8 @@ const isCategoryUnfinished = (list: MotoItem[], categoryId?: string | null) => {
     return s === 'LIVE' || s === 'PROVISIONAL' || s === 'PROTEST_REVIEW'
   })
   if (hasActiveOrProvisional) return true
+
+  if (isCategoryAwaitingStageCompute(list, categoryId)) return true
 
   return categoryMotos.some((m) => {
     const s = String(m.status ?? '').toUpperCase()
@@ -161,6 +181,8 @@ const pickPrepMotoId = (
       (m) => m.category_id === activeCategoryId && !isLockedStatus(m.status) && isPrepMotoStatus(m.status)
     )
     if (activePrepMoto) return activePrepMoto.id
+
+    if (isCategoryAwaitingStageCompute(list, activeCategoryId)) return ''
   }
 
   if (currentId) {

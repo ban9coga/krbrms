@@ -109,24 +109,8 @@ const safeFilename = (value: string) =>
 const timestampForFilename = () => new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '')
 
 const getAllowedMotoStatuses = (current: MotoItem['status']) => {
-  switch (current) {
-    case 'UPCOMING':
-      return ['UPCOMING'] as MotoItem['status'][]
-    case 'READY':
-      return ['UPCOMING', 'READY'] as MotoItem['status'][]
-    case 'LIVE':
-      return ['UPCOMING', 'LIVE', 'PROVISIONAL'] as MotoItem['status'][]
-    case 'PROVISIONAL':
-      return ['UPCOMING', 'PROVISIONAL'] as MotoItem['status'][]
-    case 'PROTEST_REVIEW':
-      return ['PROTEST_REVIEW'] as MotoItem['status'][]
-    case 'LOCKED':
-      return ['LOCKED'] as MotoItem['status'][]
-    case 'FINISHED':
-      return ['FINISHED'] as MotoItem['status'][]
-    default:
-      return [current]
-  }
+  if (current === 'LOCKED' || current === 'PROTEST_REVIEW' || current === 'FINISHED') return [current]
+  return ['UPCOMING', 'READY', 'LIVE', 'PROVISIONAL'] as MotoItem['status'][]
 }
 
 const parseMotoBatch = (motoName: string) => {
@@ -490,12 +474,17 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       if (status === 'LOCKED') {
         await handleLockMoto(motoId)
         return
-      } else {
-        await apiFetch(`/api/motos/${motoId}`, {
-          method: 'PATCH',
-          body: JSON.stringify({ status }),
-        })
       }
+
+      const ok = confirm(
+        `Ubah status ${formatMotoDisplayName(moto.moto_name)} dari ${moto.status} menjadi ${status}?\n\nGunakan override ini hanya bila alur lapangan memang perlu dikoreksi.`
+      )
+      if (!ok) return
+
+      await apiFetch(`/api/motos/${motoId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+      })
       await load()
     } catch (err: unknown) {
       alert(getErrorMessage(err))

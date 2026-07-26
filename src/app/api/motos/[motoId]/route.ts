@@ -4,27 +4,7 @@ import { adminClient, requireAdmin } from '../../../../lib/auth'
 const MOTO_RETURN_SELECT =
   'id, event_id, category_id, moto_name, moto_order, status, is_published, published_at, provisional_at, checker_prep_ready_at'
 
-const getAllowedNextStatuses = (current?: string | null) => {
-  const normalized = (current ?? '').toUpperCase()
-  switch (normalized) {
-    case 'UPCOMING':
-      return ['READY', 'LIVE']
-    case 'READY':
-      return ['UPCOMING', 'LIVE']
-    case 'LIVE':
-      return ['UPCOMING', 'PROVISIONAL']
-    case 'PROVISIONAL':
-      return ['UPCOMING', 'PROTEST_REVIEW']
-    case 'PROTEST_REVIEW':
-      return []
-    case 'LOCKED':
-      return []
-    case 'FINISHED':
-      return []
-    default:
-      return []
-  }
-}
+const MANUAL_MOTO_STATUSES = ['UPCOMING', 'READY', 'LIVE', 'PROVISIONAL'] as const
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ motoId: string }> }) {
   const auth = await requireAdmin(req.headers.get('authorization'))
@@ -41,12 +21,6 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ motoId
 
   if (status !== undefined) {
     const nextStatus = String(status).toUpperCase()
-    if (nextStatus === 'READY' || nextStatus === 'LIVE') {
-      return NextResponse.json(
-        { error: 'Status READY dan LIVE hanya dapat diubah melalui workflow Checker.' },
-        { status: 400 }
-      )
-    }
     if (nextStatus === 'LOCKED') {
       return NextResponse.json({ error: 'Gunakan workflow lock resmi untuk mengunci moto.' }, { status: 400 })
     }
@@ -54,13 +28,26 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ motoId
       return NextResponse.json({ error: 'Status FINISHED dipensiunkan dari workflow moto.' }, { status: 400 })
     }
 
+    if (!(MANUAL_MOTO_STATUSES as readonly string[]).includes(nextStatus)) {
+      return NextResponse.json({ error: `Invalid manual moto status: ${nextStatus}` }, { status: 400 })
+    }
     const currentStatus = String(existingMoto.status ?? '').toUpperCase()
-    if (nextStatus !== currentStatus) {
-      const allowed = getAllowedNextStatuses(currentStatus)
-      if (!allowed.includes(nextStatus)) {
+    if (['LOCKED', 'PROTEST_REVIEW', 'FINISHED'].includes(currentStatus) && nextStatus !== currentStatus) {
+      return NextResponse.json({ error: `Moto ${currentStatus} tidak dapat diubah dari override manual.` }, { status: 400 })
+    }
+    if (nextStatus === 'LIVE') {
+      const { data: otherLiveMotos, error: otherLiveError } = await adminClient
+        .from('motos')
+        .select('id, moto_name')
+        .eq('event_id', existingMoto.event_id)
+        .eq('status', 'LIVE')
+        .neq('id', motoId)
+        .limit(1)
+      if (otherLiveError) return NextResponse.json({ error: otherLiveError.message }, { status: 400 })
+      if (otherLiveMotos?.length) {
         return NextResponse.json(
-          { error: `Invalid status transition: ${currentStatus || 'UNKNOWN'} -> ${nextStatus}` },
-          { status: 400 }
+          { error: `Tidak dapat membuat moto LIVE. ${otherLiveMotos[0].moto_name} masih LIVE.` },
+          { status: 409 }
         )
       }
     }
@@ -73,6 +60,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ motoId
     payload.status = status
     const nextStatus = String(status).toUpperCase()
     if (nextStatus === 'PROVISIONAL') payload.provisional_at = new Date().toISOString()
+    if (nextStatus === 'READY') payload.checker_prep_ready_at = new Date().toISOString()
+    if (nextStatus === 'UPCOMING') payload.checker_prep_ready_at = null
     if (nextStatus === 'LIVE' || nextStatus === 'READY' || nextStatus === 'UPCOMING') payload.provisional_at = null
   }
 
