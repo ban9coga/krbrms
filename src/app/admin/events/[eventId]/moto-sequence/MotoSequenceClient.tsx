@@ -1052,13 +1052,13 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
             fontWeight: 800,
           }}
         >
-          Geser kartu kategori untuk mengatur urutan tampilan publik. Perubahan disimpan otomatis setelah Anda selesai menggeser dan tidak mengubah queue moto yang sedang LIVE.
-          {savingCategoryOrder ? ' Menyimpan urutan...' : ''}
+          Geser kartu kategori untuk mengatur urutan tampilan publik. Perubahan disimpan otomatis di belakang layar dan tidak mengubah queue moto yang sedang LIVE.
+          {savingCategoryOrder ? <span style={{ marginLeft: '8px', color: '#64748b' }}>Tersimpan otomatis...</span> : null}
         </div>
         {categoriesSorted.map((category, index) => (
           <div
             key={category.id}
-            draggable={!savingCategoryOrder}
+            draggable
             onDragStart={(event) => {
               event.dataTransfer.effectAllowed = 'move'
               event.dataTransfer.setData('text/plain', category.id)
@@ -1087,7 +1087,7 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
               padding: '12px',
               display: 'grid',
               gap: '8px',
-              cursor: savingCategoryOrder ? 'wait' : 'grab',
+              cursor: 'grab',
               opacity: draggingCategoryId === category.id ? 0.62 : 1,
               transition: 'border-color 140ms ease, opacity 140ms ease',
             }}
@@ -1105,7 +1105,7 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
               <button
                 type="button"
                 onClick={() => moveCategory(category.id, -1)}
-                disabled={savingCategoryOrder || categoriesSorted[0]?.id === category.id}
+                disabled={categoriesSorted[0]?.id === category.id}
                 title="Naikkan urutan kategori"
                 aria-label="Naikkan urutan kategori"
                 style={{
@@ -1118,8 +1118,8 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
                   display: 'inline-flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  cursor: savingCategoryOrder || categoriesSorted[0]?.id === category.id ? 'not-allowed' : 'pointer',
-                  opacity: savingCategoryOrder || categoriesSorted[0]?.id === category.id ? 0.5 : 1,
+                  cursor: categoriesSorted[0]?.id === category.id ? 'not-allowed' : 'pointer',
+                  opacity: categoriesSorted[0]?.id === category.id ? 0.5 : 1,
                 }}
               >
                 <DirectionIcon direction="up" />
@@ -1127,7 +1127,7 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
               <button
                 type="button"
                 onClick={() => moveCategory(category.id, 1)}
-                disabled={savingCategoryOrder || categoriesSorted[categoriesSorted.length - 1]?.id === category.id}
+                disabled={categoriesSorted[categoriesSorted.length - 1]?.id === category.id}
                 title="Turunkan urutan kategori"
                 aria-label="Turunkan urutan kategori"
                 style={{
@@ -1141,9 +1141,9 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
                   alignItems: 'center',
                   justifyContent: 'center',
                   cursor:
-                    savingCategoryOrder || categoriesSorted[categoriesSorted.length - 1]?.id === category.id ? 'not-allowed' : 'pointer',
+                    categoriesSorted[categoriesSorted.length - 1]?.id === category.id ? 'not-allowed' : 'pointer',
                   opacity:
-                    savingCategoryOrder || categoriesSorted[categoriesSorted.length - 1]?.id === category.id ? 0.5 : 1,
+                    categoriesSorted[categoriesSorted.length - 1]?.id === category.id ? 0.5 : 1,
                 }}
               >
                 <DirectionIcon direction="down" />

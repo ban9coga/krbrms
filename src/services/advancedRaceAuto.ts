@@ -272,42 +272,6 @@ const orderRidersBySeedRows = (
   return [...ordered, ...leftovers]
 }
 
-const orderRidersByCarryOverSeedRows = (
-  riderIds: string[],
-  seedRows: StageResultSeedRow[],
-  batchOrderById: Record<string, number> = {}
-) => {
-  const wanted = new Set(riderIds)
-  const groupedRows = sortSeedRows(seedRows, batchOrderById)
-    .filter((row) => row.position !== null && wanted.has(row.rider_id))
-    .reduce<Record<string, StageResultSeedRow[]>>((acc, row) => {
-      const batchId = row.batch_id ?? '__NO_BATCH__'
-      if (!acc[batchId]) acc[batchId] = []
-      acc[batchId].push(row)
-      return acc
-    }, {})
-
-  const orderedBatchIds = Object.keys(groupedRows).sort((a, b) => {
-    const aOrder = a === '__NO_BATCH__' ? Number.MAX_SAFE_INTEGER : batchOrderById[a] ?? Number.MAX_SAFE_INTEGER
-    const bOrder = b === '__NO_BATCH__' ? Number.MAX_SAFE_INTEGER : batchOrderById[b] ?? Number.MAX_SAFE_INTEGER
-    if (aOrder !== bOrder) return aOrder - bOrder
-    return a.localeCompare(b)
-  })
-
-  const ordered: string[] = []
-  const maxRows = orderedBatchIds.reduce((max, batchId) => Math.max(max, groupedRows[batchId]?.length ?? 0), 0)
-  for (let rowIndex = 0; rowIndex < maxRows; rowIndex += 1) {
-    for (const batchId of orderedBatchIds) {
-      const row = groupedRows[batchId]?.[rowIndex]
-      if (row) ordered.push(row.rider_id)
-    }
-  }
-
-  const seen = new Set(ordered)
-  const leftovers = riderIds.filter((id) => !seen.has(id)).sort((a, b) => a.localeCompare(b))
-  return [...ordered, ...leftovers]
-}
-
 const uniqueRiderList = (riderIds: string[]) => Array.from(new Set(riderIds))
 
 const buildQualificationSeedRowsFromCurrentResults = (
@@ -1329,28 +1293,85 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
   }
 
   const orderFinalRidersBySource = (riderIds: string[]) => {
-    const wanted = new Set(riderIds)
-    const qualificationDirect = riderIds.filter(
-      (riderId) => wanted.has(riderId) && !repechageStageRiderIds.has(riderId) && !quarterStageRiderIds.has(riderId) && !semiStageRiderIds.has(riderId)
-    )
-    const repechageDerived = riderIds.filter(
-      (riderId) => wanted.has(riderId) && repechageStageRiderIds.has(riderId) && !quarterStageRiderIds.has(riderId) && !semiStageRiderIds.has(riderId)
-    )
-    const quarterDerived = riderIds.filter(
-      (riderId) => wanted.has(riderId) && quarterStageRiderIds.has(riderId) && !semiStageRiderIds.has(riderId)
-    )
-    const semiDerived = riderIds.filter((riderId) => wanted.has(riderId) && semiStageRiderIds.has(riderId))
+    const stagePriority: Record<Exclude<StageName, 'FINAL'>, number> = {
+      QUALIFICATION: 1,
+      REPECHAGE: 2,
+      QUARTER_FINAL: 3,
+      SEMI_FINAL: 4,
+    }
+    const qualificationSeedByRider = new Map(finalGateSeedRows.map((row) => [row.rider_id, row]))
+    const stageMotoMatches = (stage: Exclude<StageName, 'FINAL'>, motoName: string) => {
+      if (stage === 'QUALIFICATION') return /^moto\s*\d+\s*-\s*batch\s*\d+/i.test(motoName)
+      if (stage === 'REPECHAGE') return /^repechage/i.test(motoName)
+      if (stage === 'QUARTER_FINAL') return /^quarter final/i.test(motoName)
+      return /^semi final/i.test(motoName)
+    }
+    const resultQuality = (riderId: string, stage: Exclude<StageName, 'FINAL'>) => {
+      const statuses = categoryResultRows
+        .filter((row) => row.rider_id === riderId)
+        .filter((row) => {
+          const motoName = existingMotoRows.find((moto) => moto.id === row.moto_id)?.moto_name ?? ''
+          return stageMotoMatches(stage, motoName)
+        })
+        .map((row) => String(row.result_status ?? '').toUpperCase())
 
-    return [
-      ...orderRidersByCarryOverSeedRows(qualificationDirect, finalGateSeedRows, seedBatchOrderById),
-      ...orderRidersByCarryOverSeedRows(repechageDerived, repechageResultRows, seedBatchOrderById),
-      ...orderRidersByCarryOverSeedRows(quarterDerived, quarterResultRows, seedBatchOrderById),
-      ...orderRidersByCarryOverSeedRows(
-        semiDerived,
-        stageSeedRows.filter((row) => row.stage === 'SEMI_FINAL' && row.position !== null),
-        seedBatchOrderById
-      ),
-    ]
+      if (statuses.includes('FINISH')) return 0
+      if (statuses.includes('DNF')) return 1
+      if (statuses.includes('DNS') || statuses.includes('ABSENT')) return 2
+      if (statuses.includes('DQ')) return 3
+      return 4
+    }
+    const sourceSeedForRider = (riderId: string) => {
+      const sourceRows = stageSeedRows
+        .filter((row) => row.rider_id === riderId && row.stage !== 'FINAL' && row.position !== null)
+        .sort((a, b) => {
+          const stageDiff = stagePriority[b.stage as Exclude<StageName, 'FINAL'>] - stagePriority[a.stage as Exclude<StageName, 'FINAL'>]
+          if (stageDiff !== 0) return stageDiff
+          const positionDiff = Number(a.position ?? Number.MAX_SAFE_INTEGER) - Number(b.position ?? Number.MAX_SAFE_INTEGER)
+          if (positionDiff !== 0) return positionDiff
+          return Number(a.points ?? Number.MAX_SAFE_INTEGER) - Number(b.points ?? Number.MAX_SAFE_INTEGER)
+        })
+      const source = sourceRows[0] ?? qualificationSeedByRider.get(riderId) ?? null
+      const stage = (source?.stage === 'FINAL' || !source ? 'QUALIFICATION' : source.stage) as Exclude<StageName, 'FINAL'>
+      const qualificationSeed = qualificationSeedByRider.get(riderId)
+
+      return {
+        riderId,
+        quality: resultQuality(riderId, stage),
+        stagePriority: stagePriority[stage],
+        position: Number(source?.position ?? Number.MAX_SAFE_INTEGER),
+        points: Number(source?.points ?? Number.MAX_SAFE_INTEGER),
+        qualificationPosition: Number(qualificationSeed?.position ?? Number.MAX_SAFE_INTEGER),
+        qualificationPoints: Number(qualificationSeed?.points ?? Number.MAX_SAFE_INTEGER),
+        qualificationBatchOrder: qualificationSeed?.batch_id
+          ? seedBatchOrderById[qualificationSeed.batch_id] ?? Number.MAX_SAFE_INTEGER
+          : Number.MAX_SAFE_INTEGER,
+      }
+    }
+
+    return uniqueRiderList(riderIds)
+      .map(sourceSeedForRider)
+      .sort((a, b) => {
+        // A rider who finished a source stage must always seed ahead of DNF/DNS.
+        // For equal non-finish status, a later stage takes precedence over an
+        // earlier-stage DNS, then official rank/points resolve the order.
+        const qualityDiff = a.quality - b.quality
+        if (qualityDiff !== 0) return qualityDiff
+        const stageDiff = b.stagePriority - a.stagePriority
+        if (stageDiff !== 0) return stageDiff
+        const positionDiff = a.position - b.position
+        if (positionDiff !== 0) return positionDiff
+        const pointsDiff = a.points - b.points
+        if (pointsDiff !== 0) return pointsDiff
+        const qualificationPositionDiff = a.qualificationPosition - b.qualificationPosition
+        if (qualificationPositionDiff !== 0) return qualificationPositionDiff
+        const qualificationPointsDiff = a.qualificationPoints - b.qualificationPoints
+        if (qualificationPointsDiff !== 0) return qualificationPointsDiff
+        const batchDiff = a.qualificationBatchOrder - b.qualificationBatchOrder
+        if (batchDiff !== 0) return batchDiff
+        return a.riderId.localeCompare(b.riderId)
+      })
+      .map((row) => row.riderId)
   }
 
   if (!shouldDeferFinalsUntilStageReady) {
@@ -1369,7 +1390,7 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
         continue
       }
 
-      if (!motoHasResults) {
+      if (!motoHasResults && moto.status === 'UPCOMING') {
         const sameAssignments =
           currentRiders.length === desiredSorted.length &&
           currentRiders.every((riderId, index) => riderId === desiredSorted[index])
@@ -1857,6 +1878,12 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
     })
 
   const completedFinalRiders = new Set<string>()
+  const completedFinalEntries: Array<{
+    riderId: string
+    finalClass: string
+    point: number
+    resultStatus: ResultRow['result_status']
+  }> = []
   for (const moto of finalMotos) {
     if (!isMotoComplete(moto.id, motoRiderRows, resultRows)) continue
 
@@ -1870,13 +1897,72 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
       const point =
         (pointForRaceResult(row, riderCount, config ?? undefined) ?? 9999) +
         manualStagePenaltyForRider(id, moto as MotoRow, penaltyMaps)
+      completedFinalEntries.push({
+        riderId: id,
+        finalClass,
+        point,
+        resultStatus: row?.result_status ?? null,
+      })
+    })
+  }
+
+  const finalResultQuality = (status: ResultRow['result_status']) => {
+    if (status === 'FINISH') return 0
+    if (status === 'DNF') return 1
+    if (status === 'DNS') return 2
+    if (status === 'DQ') return 3
+    return 4
+  }
+  const finalSourceSeedForRider = (riderId: string) => {
+    const sourceCandidates: Array<{ priority: number; position: number; points: number }> = [
+      ...semiRows
+        .filter((row) => row.rider_id === riderId && row.position !== null)
+        .map((row) => ({ priority: 4, position: Number(row.position), points: Number(row.points ?? Number.MAX_SAFE_INTEGER) })),
+      ...quarterRows
+        .filter((row) => row.rider_id === riderId && row.position !== null)
+        .map((row) => ({ priority: 3, position: Number(row.position), points: Number(row.points ?? Number.MAX_SAFE_INTEGER) })),
+      ...repechageRows
+        .filter((row) => row.rider_id === riderId && row.position !== null)
+        .map((row) => ({ priority: 2, position: Number(row.position), points: Number(row.points ?? Number.MAX_SAFE_INTEGER) })),
+      ...(qualificationStageRows ?? [])
+        .filter((row) => row.rider_id === riderId && row.position !== null)
+        .map((row) => ({ priority: 1, position: Number(row.position), points: Number(row.points ?? Number.MAX_SAFE_INTEGER) })),
+    ].sort((a, b) => b.priority - a.priority || a.position - b.position || a.points - b.points)
+
+    return sourceCandidates[0] ?? { priority: 0, position: Number.MAX_SAFE_INTEGER, points: Number.MAX_SAFE_INTEGER }
+  }
+
+  for (const [finalClass, entries] of Object.entries(
+    completedFinalEntries.reduce<Record<string, typeof completedFinalEntries>>((acc, entry) => {
+      if (!acc[entry.finalClass]) acc[entry.finalClass] = []
+      acc[entry.finalClass].push(entry)
+      return acc
+    }, {})
+  )) {
+    const rankedEntries = [...entries]
+      .map((entry) => ({ ...entry, source: finalSourceSeedForRider(entry.riderId) }))
+      .sort((a, b) => {
+        const pointDiff = a.point - b.point
+        if (pointDiff !== 0) return pointDiff
+        const statusDiff = finalResultQuality(a.resultStatus) - finalResultQuality(b.resultStatus)
+        if (statusDiff !== 0) return statusDiff
+        const sourceStageDiff = b.source.priority - a.source.priority
+        if (sourceStageDiff !== 0) return sourceStageDiff
+        const sourcePositionDiff = a.source.position - b.source.position
+        if (sourcePositionDiff !== 0) return sourcePositionDiff
+        const sourcePointsDiff = a.source.points - b.source.points
+        if (sourcePointsDiff !== 0) return sourcePointsDiff
+        return a.riderId.localeCompare(b.riderId)
+      })
+
+    rankedEntries.forEach((entry, index) => {
       finalRows.push({
-        rider_id: id,
+        rider_id: entry.riderId,
         category_id: categoryId,
         stage: 'FINAL',
         final_class: finalClass,
-        position: point,
-        points: point,
+        position: index + 1,
+        points: entry.point,
       })
     })
   }

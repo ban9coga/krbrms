@@ -120,6 +120,7 @@ export default function JuryFinishPage() {
   const [refreshingSelector, setRefreshingSelector] = useState(false)
   const [hasSubmitted, setHasSubmitted] = useState(false)
   const [pressedId, setPressedId] = useState<string | null>(null)
+  const [dnsActionRiderId, setDnsActionRiderId] = useState<string | null>(null)
   const [penaltiesByRider, setPenaltiesByRider] = useState<Record<string, number>>({})
   const [penaltyBadgesByRider, setPenaltyBadgesByRider] = useState<Record<string, PenaltyBadgeItem[]>>({})
   const [participationByRider, setParticipationByRider] = useState<Record<string, string>>({})
@@ -471,6 +472,58 @@ export default function JuryFinishPage() {
     syncToSupabase(riderId, null, 'DNF')
   }
 
+  const handleSetDns = async (rider: RiderItem) => {
+    if (!selectedMoto || role === 'RACE_DIRECTOR' || motoLocked || !selectedMotoLive || !flags.dns_enabled) return
+    if (finishOrder.includes(rider.id) || dnfRiders.includes(rider.id)) return
+    const confirmed = window.confirm(
+      `Tetapkan DNS untuk ${rider.no_plate_display} - ${rider.name}?\n\nRider akan dikeluarkan dari input urutan finish dan dapat di-undo sebelum Submit Result.`
+    )
+    if (!confirmed) return
+
+    const previousStatus = participationByRider[rider.id]
+    setDnsActionRiderId(rider.id)
+    setParticipationByRider((prev) => ({ ...prev, [rider.id]: 'DNS' }))
+    try {
+      await apiFetch(`/api/jury/events/${eventId}/rider-status`, {
+        method: 'POST',
+        body: JSON.stringify({
+          rider_id: rider.id,
+          participation_status: 'DNS',
+          registration_order: rider.gate_position ?? 0,
+          moto_id: selectedMoto.id,
+        }),
+      })
+      vibrate()
+    } catch (error: unknown) {
+      setParticipationByRider((prev) => ({ ...prev, [rider.id]: previousStatus ?? 'ACTIVE' }))
+      setSubmitNotice({ type: 'error', message: error instanceof Error ? error.message : 'Gagal menetapkan DNS.' })
+    } finally {
+      setDnsActionRiderId(null)
+    }
+  }
+
+  const handleUndoDns = async (rider: RiderItem) => {
+    if (!selectedMoto || role === 'RACE_DIRECTOR' || motoLocked || !selectedMotoLive) return
+    const confirmed = window.confirm(`Batalkan DNS untuk ${rider.no_plate_display} - ${rider.name}?`)
+    if (!confirmed) return
+
+    const previousStatus = participationByRider[rider.id]
+    setDnsActionRiderId(rider.id)
+    setParticipationByRider((prev) => ({ ...prev, [rider.id]: 'ACTIVE' }))
+    try {
+      await apiFetch(
+        `/api/jury/events/${eventId}/rider-status?rider_id=${encodeURIComponent(rider.id)}&moto_id=${encodeURIComponent(selectedMoto.id)}`,
+        { method: 'DELETE' }
+      )
+      vibrate()
+    } catch (error: unknown) {
+      setParticipationByRider((prev) => ({ ...prev, [rider.id]: previousStatus ?? 'DNS' }))
+      setSubmitNotice({ type: 'error', message: error instanceof Error ? error.message : 'Gagal membatalkan DNS.' })
+    } finally {
+      setDnsActionRiderId(null)
+    }
+  }
+
   const handleUndo = () => {
     if (actions.length === 0) return
     localEditingRef.current = actions.length - 1 > 0
@@ -741,26 +794,35 @@ export default function JuryFinishPage() {
             <div className="input-grid">
               {availableRiders.map((r) => {
                 return (
-                  <button
-                    key={r.id}
-                    type="button"
-                    className={`finisher-rider-btn ${pressedId === r.id ? 'is-pressed' : ''
-                      } ${highVisibility ? 'is-large' : ''}`}
-                    onContextMenu={(event) => event.preventDefault()}
-                    onPointerDown={(event) => onCardPointerDown(event, r.id)}
-                    onPointerUp={(event) => onCardPointerUp(event, r.id)}
-                    onPointerLeave={() => onCardPointerLeave(r.id)}
-                    onPointerCancel={() => onCardPointerLeave(r.id)}
-                    disabled={role === 'RACE_DIRECTOR' || motoLocked || !selectedMotoLive}
-                  >
-                    <span className="finisher-rider-shadow" />
-                    <span className="finisher-rider-edge" />
-                    <span className="finisher-rider-front">
-                      <span className="finisher-rider-plate">{r.no_plate_display}</span>
-                      <span className="finisher-rider-name">{r.name}</span>
-                      <span className="finisher-rider-cue">Tap = Finish</span>
-                    </span>
-                  </button>
+                  <div key={r.id} className="grid gap-2">
+                    <button
+                      type="button"
+                      className={`finisher-rider-btn ${pressedId === r.id ? 'is-pressed' : ''
+                        } ${highVisibility ? 'is-large' : ''}`}
+                      onContextMenu={(event) => event.preventDefault()}
+                      onPointerDown={(event) => onCardPointerDown(event, r.id)}
+                      onPointerUp={(event) => onCardPointerUp(event, r.id)}
+                      onPointerLeave={() => onCardPointerLeave(r.id)}
+                      onPointerCancel={() => onCardPointerLeave(r.id)}
+                      disabled={role === 'RACE_DIRECTOR' || motoLocked || !selectedMotoLive || dnsActionRiderId === r.id}
+                    >
+                      <span className="finisher-rider-shadow" />
+                      <span className="finisher-rider-edge" />
+                      <span className="finisher-rider-front">
+                        <span className="finisher-rider-plate">{r.no_plate_display}</span>
+                        <span className="finisher-rider-name">{r.name}</span>
+                        <span className="finisher-rider-cue">Tap = Finish</span>
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleSetDns(r)}
+                      disabled={role === 'RACE_DIRECTOR' || motoLocked || !selectedMotoLive || !flags.dns_enabled || dnsActionRiderId === r.id}
+                      className="rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-extrabold uppercase tracking-[0.1em] text-rose-700 transition-colors hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {dnsActionRiderId === r.id ? 'Menyimpan DNS...' : 'Set DNS'}
+                    </button>
+                  </div>
                 )
               })}
               {availableRiders.length === 0 && (
@@ -770,7 +832,7 @@ export default function JuryFinishPage() {
               )}
             </div>
             <div className="mt-2 text-xs font-semibold text-slate-500">
-              {flags.dnf_enabled ? 'Tahan kartu 800ms untuk DNF.' : 'DNF dimatikan dari menu Penalties.'}
+              {flags.dnf_enabled ? 'Tap untuk Finish, tahan kartu 800ms untuk DNF, atau gunakan Set DNS.' : 'DNF dimatikan dari menu Penalties.'}
             </div>
 
             <div className="jf-actions mt-4">
@@ -896,11 +958,31 @@ export default function JuryFinishPage() {
                     const status = participationByRider[id] === 'ABSENT' ? 'ABSENT' : 'DNS'
                     const penalty = penaltiesByRider[id] ?? 0
                     const penaltyBadges = penaltyBadgesByRider[id] ?? []
+                    const canUndoDns = Boolean(
+                      rider &&
+                        status === 'DNS' &&
+                        role !== 'RACE_DIRECTOR' &&
+                        !motoLocked &&
+                        selectedMotoLive &&
+                        !hasSubmitted
+                    )
                     return (
-                      <div key={id} className={`${highVisibility ? 'text-base' : 'text-sm'} font-semibold text-rose-700`}>
-                        {rider?.no_plate_display} - {rider?.name} ({status})
-                        {penalty ? ` (+${penalty})` : ''}
-                        <PenaltyBadges items={penaltyBadges} />
+                      <div key={id} className="flex flex-wrap items-center justify-between gap-2">
+                        <div className={`${highVisibility ? 'text-base' : 'text-sm'} font-semibold text-rose-700`}>
+                          {rider?.no_plate_display} - {rider?.name} ({status})
+                          {penalty ? ` (+${penalty})` : ''}
+                          <PenaltyBadges items={penaltyBadges} />
+                        </div>
+                        {canUndoDns && rider && (
+                          <button
+                            type="button"
+                            onClick={() => void handleUndoDns(rider)}
+                            disabled={dnsActionRiderId === rider.id}
+                            className="rounded-lg border border-sky-300 bg-sky-50 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.08em] text-sky-800 transition-colors hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {dnsActionRiderId === rider.id ? 'Memuat...' : 'Undo DNS'}
+                          </button>
+                        )}
                       </div>
                     )
                   })}

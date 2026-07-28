@@ -132,7 +132,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
 
 export async function POST(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params
-  const auth = await requireJury(req, ['CHECKER', 'RACE_DIRECTOR', 'ADMIN', 'super_admin'], eventId)
+  const auth = await requireJury(req, ['CHECKER', 'FINISHER', 'RACE_DIRECTOR', 'ADMIN', 'super_admin'], eventId)
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
   const body = await req.json()
   const rows: RiderStatusChangeInput[] = Array.isArray(body?.changes)
@@ -202,7 +202,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       return NextResponse.json({ error: 'DNS baru bisa dipakai saat moto sudah LIVE.' }, { status: 409 })
     }
     return NextResponse.json(
-      { error: 'Checker hanya bisa set READY/ABSENT saat UPCOMING/READY, dan READY/ABSENT/DNS saat LIVE.' },
+      { error: 'Jury hanya bisa set READY/ABSENT saat UPCOMING/READY, dan READY/ABSENT/DNS saat LIVE.' },
       { status: 409 }
     )
   }
@@ -298,7 +298,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
 
 export async function DELETE(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params
-  const auth = await requireJury(req, ['CHECKER', 'RACE_DIRECTOR', 'ADMIN', 'super_admin'], eventId)
+  const auth = await requireJury(req, ['CHECKER', 'FINISHER', 'RACE_DIRECTOR', 'ADMIN', 'super_admin'], eventId)
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
   if (auth.role === 'RACE_DIRECTOR') {
@@ -336,7 +336,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ event
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Moto under protest review.' }, { status: 409 })
   }
   if (!canCheckerUndoStatus(moto.status)) {
-    return NextResponse.json({ error: 'Checker hanya bisa undo status saat moto masih UPCOMING, READY, atau LIVE.' }, { status: 409 })
+    return NextResponse.json({ error: 'Jury hanya bisa undo status saat moto masih UPCOMING, READY, atau LIVE.' }, { status: 409 })
   }
 
   const { error: updateDeleteError } = await adminClient
