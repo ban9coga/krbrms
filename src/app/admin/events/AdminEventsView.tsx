@@ -288,6 +288,21 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
     )
   }
 
+  const handleRefreshFinalArchive = async (event: EventItem) => {
+    const confirmed = window.confirm(
+      `Buat ulang arsip publik final untuk "${event.name}"?\n\nGunakan setelah koreksi hasil resmi. Halaman publik akan memakai hasil terbaru setelah refresh.`
+    )
+    if (!confirmed) return
+
+    await runEventAction(
+      `archive-${event.id}`,
+      async () => {
+        await apiFetch(`/api/admin/events/${event.id}/public-snapshot`, { method: 'POST' })
+      },
+      `Arsip publik final untuk "${event.name}" berhasil diperbarui.`
+    )
+  }
+
   const handleVisibility = async (event: EventItem, isPublic: boolean) => {
     await runEventAction(
       `visibility-${event.id}`,
@@ -376,21 +391,165 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
   }, [events, query, scopeFilter, statusFilter])
 
   const summary = useMemo(() => {
-    const publicEvents = events.filter((event) => (event.event_scope === 'INTERNAL' ? false : true)).length
-    const internalEvents = events.filter((event) => event.event_scope === 'INTERNAL').length
     const liveEvents = events.filter((event) => event.status === 'LIVE').length
-    const hiddenEvents = events.filter((event) => event.is_public === false).length
+    const upcomingEvents = events.filter((event) => event.status === 'UPCOMING').length
+    const finishedEvents = events.filter((event) => event.status === 'FINISHED').length
 
     return {
       total: events.length,
-      publicEvents,
-      internalEvents,
       liveEvents,
-      hiddenEvents,
+      upcomingEvents,
+      finishedEvents,
     }
   }, [events])
 
   const isRegistrationApprover = isRegistrationApproverRole(roleKey)
+  const activeEvents = filteredEvents.filter((event) => event.status !== 'FINISHED')
+  const completedEvents = filteredEvents.filter((event) => event.status === 'FINISHED')
+
+  const renderEventRow = (event: EventItem) => {
+    const statusMeta = STATUS_META[event.status]
+    const eventScope = event.event_scope === 'INTERNAL' ? 'INTERNAL' : 'PUBLIC'
+    const isPublic = event.is_public !== false
+    const registrationOpen = event.registration_open !== false
+    const drawMode = event.draw_mode === 'external_draw' ? 'External Draw' : 'Internal Live Draw'
+    const busy = Boolean(actionKey && actionKey.includes(event.id))
+
+    return (
+      <article key={event.id} className="border-b border-slate-200 py-5 first:pt-0 last:border-b-0 last:pb-0">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
+          <div className="grid min-w-0 gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <EventBadge label={statusMeta.label} tone={statusMeta.tone} />
+              {eventScope === 'INTERNAL' && <EventBadge label="Internal" tone="danger" />}
+              {!isPublic && <EventBadge label="Hidden" tone="neutral" />}
+              {!registrationOpen && <EventBadge label="Registration closed" tone="danger" />}
+            </div>
+
+            <div className="grid gap-1">
+              <h3 className="admin-heading text-xl sm:text-2xl">{event.name}</h3>
+              <div className="admin-muted flex flex-wrap gap-x-4 gap-y-1 text-sm font-semibold">
+                <span>{event.location || 'Lokasi belum diisi'}</span>
+                <span>{formatDate(event.event_date)}</span>
+                <span>{drawMode}</span>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Link href={`/admin/events/${event.id}/registrations`} className="event-card-nav-button">
+                Registrations
+              </Link>
+              {!isRegistrationApprover && (
+                <Link href={`/admin/events/${event.id}/riders`} className="event-card-nav-button">
+                  Riders
+                </Link>
+              )}
+              {!isRegistrationApprover && (
+                <Link href={`/admin/events/${event.id}/settings`} className="event-card-nav-button">
+                  Settings
+                </Link>
+              )}
+              <Link href={`/event/${event.id}`} className="event-card-nav-button">
+                Public Page
+              </Link>
+            </div>
+          </div>
+
+          {!isRegistrationApprover && (
+            <details className="group xl:min-w-[190px]">
+              <summary className="admin-outline-button cursor-pointer list-none justify-center gap-2 px-4 py-2.5 text-sm">
+                <span>Kelola Event</span>
+                <span aria-hidden="true" className="transition-transform group-open:rotate-45">+</span>
+              </summary>
+              <div className="admin-card-muted mt-3 grid gap-4 p-4 xl:absolute xl:right-0 xl:z-10 xl:w-[320px] xl:shadow-xl">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="admin-kicker">Status dan publikasi</div>
+                  {busy && <EventBadge label="Saving..." tone="accent" />}
+                </div>
+                <label className="grid gap-2">
+                  <span className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Status event</span>
+                  <select
+                    value={event.status}
+                    onChange={(e) => void handleStatus(event, e.target.value as EventItem['status'])}
+                    className={fieldClass}
+                    disabled={busy}
+                  >
+                    <option value="UPCOMING">UPCOMING</option>
+                    <option value="LIVE">LIVE</option>
+                    <option value="FINISHED">FINISHED</option>
+                    <option value="PROVISIONAL">PROVISIONAL</option>
+                    <option value="PROTEST_REVIEW">PROTEST_REVIEW</option>
+                    <option value="LOCKED">LOCKED</option>
+                  </select>
+                </label>
+                <div className="grid gap-2">
+                  <ToggleSwitch
+                    checked={registrationOpen}
+                    onChange={(checked) => void handleRegistrationOpen(event, checked)}
+                    disabled={busy}
+                    label="Registrasi dibuka"
+                  />
+                  <ToggleSwitch
+                    checked={isPublic}
+                    onChange={(checked) => void handleVisibility(event, checked)}
+                    disabled={busy}
+                    label="Tampilkan di publik"
+                  />
+                </div>
+                <details className="border-t border-slate-200 pt-3">
+                  <summary className="cursor-pointer text-xs font-black uppercase tracking-[0.14em] text-slate-500">
+                    Pengaturan lanjutan
+                  </summary>
+                  <div className="mt-3 grid gap-3">
+                    <label className="grid gap-2">
+                      <span className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Draw mode</span>
+                      <select
+                        value={event.draw_mode === 'external_draw' ? 'external_draw' : 'internal_live_draw'}
+                        onChange={(e) => void handleDrawMode(event, e.target.value as NonNullable<EventItem['draw_mode']>)}
+                        className={fieldClass}
+                        disabled={busy}
+                      >
+                        <option value="internal_live_draw">Internal Live Draw</option>
+                        <option value="external_draw">External Draw</option>
+                      </select>
+                    </label>
+                    <label className="grid gap-2">
+                      <span className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Tipe event</span>
+                      <select
+                        value={eventScope}
+                        onChange={(e) => void handleEventScope(event, e.target.value as NonNullable<EventItem['event_scope']>)}
+                        className={fieldClass}
+                        disabled={busy}
+                      >
+                        <option value="PUBLIC">Public Event</option>
+                        <option value="INTERNAL">Internal Event</option>
+                      </select>
+                    </label>
+                    <button type="button" onClick={() => void handleEdit(event)} className="event-card-ghost-button" disabled={busy}>
+                      Edit Basics
+                    </button>
+                    <button type="button" onClick={() => void handleDuplicate(event)} className="event-card-ghost-button" disabled={busy}>
+                      Duplicate Event
+                    </button>
+                    {roleKey === 'SUPER_ADMIN' && event.status === 'FINISHED' && (
+                      <button type="button" onClick={() => void handleRefreshFinalArchive(event)} className="event-card-ghost-button" disabled={busy}>
+                        Refresh Arsip Final
+                      </button>
+                    )}
+                    <button type="button" onClick={() => void handleDelete(event)} className="event-card-delete-button" disabled={busy}>
+                      <span className="event-card-delete-shadow" />
+                      <span className="event-card-delete-edge" />
+                      <span className="event-card-delete-front">Delete Event</span>
+                    </button>
+                  </div>
+                </details>
+              </div>
+            </details>
+          )}
+        </div>
+      </article>
+    )
+  }
 
   return (
     <div className="admin-events-theme grid gap-6">
@@ -429,12 +588,11 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
         </div>
       </section>
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <SummaryCard label="Total Event" value={summary.total} />
-        <SummaryCard label="Public Event" value={summary.publicEvents} />
-        <SummaryCard label="Internal Event" value={summary.internalEvents} />
         <SummaryCard label="Live Event" value={summary.liveEvents} />
-        <SummaryCard label="Hidden from Public" value={summary.hiddenEvents} />
+        <SummaryCard label="Upcoming Event" value={summary.upcomingEvents} />
+        <SummaryCard label="Finished Event" value={summary.finishedEvents} />
       </section>
 
       {feedback && (
@@ -583,7 +741,44 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
           </select>
         </div>
 
-        <div className="mt-6 grid gap-4">
+        <div className="mt-6 grid gap-8">
+          <div className="grid gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="admin-kicker">Operasional</div>
+                <h3 className="admin-heading mt-1 text-xl">Sedang berjalan dan mendatang</h3>
+              </div>
+              <span className="admin-tone-badge admin-tone-neutral">{activeEvents.length} event</span>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+              {activeEvents.length > 0 ? (
+                activeEvents.map(renderEventRow)
+              ) : (
+                <div className="admin-muted py-7 text-center text-sm font-semibold">Tidak ada event aktif atau mendatang.</div>
+              )}
+            </div>
+          </div>
+
+          <details className="group rounded-2xl border border-slate-200 bg-slate-50/80 p-4 sm:p-5" open={statusFilter === 'FINISHED'}>
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-4">
+              <span>
+                <span className="admin-kicker block">Arsip</span>
+                <span className="admin-heading mt-1 block text-xl">Event selesai</span>
+              </span>
+              <span className="admin-outline-button pointer-events-none gap-2 px-3 py-2 text-xs">
+                {completedEvents.length} event <span aria-hidden="true" className="transition-transform group-open:rotate-45">+</span>
+              </span>
+            </summary>
+            <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+              {completedEvents.length > 0 ? (
+                completedEvents.map(renderEventRow)
+              ) : (
+                <div className="admin-muted py-7 text-center text-sm font-semibold">Tidak ada event selesai yang cocok dengan filter.</div>
+              )}
+            </div>
+          </details>
+
+          <div className="hidden">
           {filteredEvents.map((event) => {
             const statusMeta = STATUS_META[event.status]
             const eventScope = event.event_scope === 'INTERNAL' ? 'INTERNAL' : 'PUBLIC'
@@ -742,6 +937,16 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
                         >
                           Duplicate Event
                         </button>
+                        {roleKey === 'SUPER_ADMIN' && event.status === 'FINISHED' && (
+                          <button
+                            type="button"
+                            onClick={() => void handleRefreshFinalArchive(event)}
+                            className="event-card-ghost-button"
+                            disabled={busy}
+                          >
+                            Refresh Arsip Final
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => void handleDelete(event)}
@@ -759,6 +964,8 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
               </article>
             )
           })}
+
+          </div>
 
           {!loading && filteredEvents.length === 0 && (
             <div className="admin-card-muted py-10 text-center">

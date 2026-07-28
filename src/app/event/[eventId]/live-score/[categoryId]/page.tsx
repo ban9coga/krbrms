@@ -4,9 +4,9 @@ import { adminClient } from '../../../../../lib/auth'
 import { proxyBusinessSettingsMedia, toPublicMediaUrl, toPublicMediaUrls } from '../../../../../lib/publicMedia'
 import type { BusinessSettings, EventItem, RiderCategory } from '../../../../../lib/eventService'
 import { unstable_cache } from 'next/cache'
+import { getPublicFinishedEventArchive } from '../../../../../services/publicFinishedEventArchive'
 
 export const dynamic = 'force-dynamic'
-const FINISHED_LIVE_SCORE_CACHE_SECONDS = 600
 
 const parseBusinessSettings = (value: unknown): BusinessSettings => {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
@@ -88,7 +88,9 @@ const loadCachedFinishedLiveScore = unstable_cache(
     loadInitialLiveScore(eventId, categoryId, includePhotos, false),
   ['public-finished-live-score'],
   {
-    revalidate: FINISHED_LIVE_SCORE_CACHE_SECONDS,
+    // A FINISHED event is immutable. The first request builds the archive view,
+    // while every later visitor is served from Next's data cache instead of Supabase.
+    revalidate: false,
     tags: ['public-finished-live-score'],
   }
 )
@@ -99,10 +101,10 @@ export default async function LiveScorePage({
   params: Promise<{ eventId: string; categoryId: string }>
 }) {
   const { eventId, categoryId } = await params
-  const [event, categories] = await Promise.all([
-    loadInitialEvent(eventId),
-    loadInitialCategories(eventId),
-  ])
+  const archive = await getPublicFinishedEventArchive(eventId)
+  const [event, categories] = archive
+    ? [archive.event, archive.categories]
+    : await Promise.all([loadInitialEvent(eventId), loadInitialCategories(eventId)])
   const includePhotos = event?.business_settings?.show_rider_photos_public === true
   const initialLiveScore =
     event?.status === 'LIVE'

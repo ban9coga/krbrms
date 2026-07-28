@@ -9,6 +9,7 @@ import type { EventItem, EventStatus } from '../lib/eventService'
 import { toPublicMediaUrl } from '../lib/publicMedia'
 import { getCommunityShowcaseLogos, type CommunityShowcaseLogo } from '../lib/communityShowcase'
 import { getLiveEvent } from '../lib/liveEvent'
+import { getPublicFinishedEventArchives } from '../services/publicFinishedEventArchive'
 
 export const revalidate = 30
 
@@ -219,16 +220,27 @@ function LandingEventSection({
 
 export default async function LandingPage() {
   const liveEvent = await getLiveEvent()
-  const [upcomingEventsRaw, finishedEventsRaw] = await Promise.all([
+  const [upcomingEventsRaw, finishedArchives] = await Promise.all([
     fetchLandingEvents('UPCOMING'),
-    fetchLandingEvents('FINISHED'),
+    getPublicFinishedEventArchives(),
   ])
-  const landingEventIds = Array.from(new Set([...upcomingEventsRaw, ...finishedEventsRaw].map((e) => e.id)))
+  const finishedEventsRaw = finishedArchives.map((archive) => archive.event)
   const [landingSettings, registrationAvailability] = await Promise.all([
-    loadEventSettings(landingEventIds),
+    loadEventSettings(upcomingEventsRaw.map((event) => event.id)),
     loadRegistrationAvailability(upcomingEventsRaw.map((event) => event.id)),
   ])
-  const { settingsMap, communityLogos } = landingSettings
+  const settingsMap = new Map(landingSettings.settingsMap)
+  for (const archive of finishedArchives) {
+    settingsMap.set(archive.event.id, {
+      logo: archive.event.event_logo_url ?? null,
+      slogan: archive.slogan,
+      event_scope: archive.event.event_scope ?? 'PUBLIC',
+      registration_open: archive.event.registration_open ?? true,
+    })
+  }
+  const communityLogos = getCommunityShowcaseLogos(
+    finishedArchives.map((archive) => ({ business_settings: archive.event.business_settings }))
+  )
   const upcomingEvents = attachLandingSettings(upcomingEventsRaw, settingsMap)
   const finishedEvents = attachLandingSettings(finishedEventsRaw, settingsMap)
 
@@ -285,4 +297,3 @@ export default async function LandingPage() {
     </div>
   )
 }
-

@@ -77,6 +77,15 @@ type QualificationCustomRuleRow = {
 
 type StageCustomRuleRow = QualificationCustomRuleRow
 
+type EventSnapshotPayload = {
+  event?: { status?: string | null }
+  live_scores?: Record<string, unknown>
+}
+
+const FINISHED_ARCHIVE_CACHE_HEADERS = {
+  'Cache-Control': 'public, max-age=31536000, s-maxage=31536000, immutable',
+}
+
 type StageSeedRow = {
   rider_id: string
   stage: 'QUALIFICATION' | 'QUARTER_FINAL' | 'REPECHAGE' | 'SEMI_FINAL' | 'FINAL'
@@ -196,6 +205,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const includeUpcoming = ['1', 'true', 'yes'].includes(
     (searchParams.get('include_upcoming') ?? '').toLowerCase()
   )
+  const snapshotRefreshSecret = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
+  const forceArchiveRefresh =
+    snapshotRefreshSecret.length > 0 &&
+    req.headers.get('x-racepushbike-snapshot-refresh') === snapshotRefreshSecret
   const cacheHeaders = includeUpcoming
     ? { 'Cache-Control': 'no-store' }
     : { 'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=300' }
@@ -208,7 +221,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const [categoryResult, settingsResult, pointOverrideResult, motoResult] = await Promise.all([
     adminClient
       .from('categories')
-      .select('id, event_id, label')
+      .select('id, event_id, label, events!inner(status)')
       .eq('id', categoryId)
       .maybeSingle(),
     shouldLoadPhotoSettings
@@ -237,6 +250,25 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const { data: category, error: catError } = categoryResult
   if (catError || !category || category.event_id !== eventId) {
     return NextResponse.json({ error: 'Category not found in event' }, { status: 404 })
+  }
+
+  const relatedEvent = Array.isArray(category.events) ? category.events[0] : category.events
+  const isFinishedEvent = relatedEvent?.status === 'FINISHED'
+  let snapshotPayload: EventSnapshotPayload | null = null
+  if (isFinishedEvent && !forceArchiveRefresh) {
+    const { data: snapshot, error: snapshotError } = await adminClient
+      .from('event_public_snapshots')
+      .select('payload')
+      .eq('event_id', eventId)
+      .maybeSingle()
+    if (snapshotError) return NextResponse.json({ error: snapshotError.message }, { status: 500 })
+    if (snapshot?.payload && typeof snapshot.payload === 'object') {
+      snapshotPayload = snapshot.payload as EventSnapshotPayload
+      const archivedScore = snapshotPayload.live_scores?.[categoryId]
+      if (archivedScore) {
+        return NextResponse.json({ data: archivedScore }, { headers: FINISHED_ARCHIVE_CACHE_HEADERS })
+      }
+    }
   }
 
   if (settingsResult.error) return NextResponse.json({ error: settingsResult.error.message }, { status: 400 })
@@ -773,14 +805,31 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     }]
   })
 
-  return NextResponse.json(
-    {
-      data: {
-        category: category.label,
-        batches,
-        stages: stageGroups,
+  const liveScoreData = {
+    category: category.label,
+    batches,
+    stages: stageGroups,
+  }
+
+  // Historical archives created before live_scores existed are warmed once on
+  // first access. New snapshots are already complete when the event finishes.
+  if (isFinishedEvent && snapshotPayload) {
+    const updatedPayload = {
+      ...snapshotPayload,
+      live_scores: {
+        ...(snapshotPayload.live_scores ?? {}),
+        [categoryId]: liveScoreData,
       },
-    },
-    { headers: cacheHeaders }
+    }
+    const { error: archiveError } = await adminClient
+      .from('event_public_snapshots')
+      .update({ payload: updatedPayload })
+      .eq('event_id', eventId)
+    if (archiveError) console.error('Failed to warm finished live score archive:', archiveError.message)
+  }
+
+  return NextResponse.json(
+    { data: liveScoreData },
+    { headers: isFinishedEvent ? FINISHED_ARCHIVE_CACHE_HEADERS : cacheHeaders }
   )
 }

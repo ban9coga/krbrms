@@ -17,6 +17,7 @@ import {
   type MotoItem,
 } from '../../../../lib/eventService'
 import { isMotoFinished, isMotoLive, isMotoUpcoming } from '../../../../lib/motoStatus'
+import type { PublicFinishedEventArchive } from '../../../../services/publicFinishedEventArchive'
 
 type CategoryStatus = 'UPCOMING' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED'
 
@@ -27,10 +28,49 @@ const cardGradients = [
   'linear-gradient(140deg,#1f2937 0%,#334155 52%,#7f1d1d 100%)',
 ]
 
-export default function ResultsClient({ eventId }: { eventId: string }) {
-  const [event, setEvent] = useState<EventItem | null>(null)
-  const [categories, setCategories] = useState<(RiderCategory & { status: CategoryStatus })[]>([])
-  const [loading, setLoading] = useState(false)
+const withCategoryStatus = (base: RiderCategory[], motos: MotoItem[]) => {
+  const categories = base
+    .filter((category) => category.enabled)
+    .map((category) => {
+      const categoryMotos = motos.filter((moto) => moto.category_id === category.id)
+      const hasLive = categoryMotos.some((moto) => isMotoLive(moto.status))
+      const hasFinished = categoryMotos.some((moto) => isMotoFinished(moto.status))
+      const hasUpcoming = categoryMotos.some((moto) => isMotoUpcoming(moto.status))
+      const status: CategoryStatus = hasLive
+        ? 'LIVE'
+        : hasFinished && hasUpcoming
+        ? 'LIVE'
+        : hasFinished
+        ? 'FINISHED'
+        : 'UPCOMING'
+      return { ...category, status }
+    })
+  const genderOrder = { BOY: 0, GIRL: 1, MIX: 2 } as const
+  const statusOrder = { LIVE: 0, UPCOMING: 1, FINISHED: 2 } as const
+  return categories.sort((a, b) => {
+    const sa = statusOrder[a.status] ?? 9
+    const sb = statusOrder[b.status] ?? 9
+    if (sa !== sb) return sa - sb
+    if (b.year !== a.year) return b.year - a.year
+    const ag = genderOrder[a.gender] ?? 9
+    const bg = genderOrder[b.gender] ?? 9
+    if (ag !== bg) return ag - bg
+    return a.label.localeCompare(b.label)
+  })
+}
+
+export default function ResultsClient({
+  eventId,
+  initialArchive,
+}: {
+  eventId: string
+  initialArchive: PublicFinishedEventArchive | null
+}) {
+  const [event, setEvent] = useState<EventItem | null>(initialArchive?.event ?? null)
+  const [categories, setCategories] = useState<(RiderCategory & { status: CategoryStatus })[]>(
+    initialArchive ? withCategoryStatus(initialArchive.categories, initialArchive.motos) : []
+  )
+  const [loading, setLoading] = useState(!initialArchive)
   const router = useRouter()
   const business = event?.business_settings ?? null
   const publicEventTitle = business?.public_event_title?.trim() || event?.name || 'Event Results'
@@ -55,6 +95,7 @@ export default function ResultsClient({ eventId }: { eventId: string }) {
 
   useEffect(() => {
     const load = async () => {
+      if (initialArchive) return
       setLoading(true)
       const eventData = await getEventById(eventId)
       const base = await getEventCategories(eventId)
@@ -76,24 +117,12 @@ export default function ResultsClient({ eventId }: { eventId: string }) {
             return { ...category, status }
           })
       )
-      const genderOrder = { BOY: 0, GIRL: 1, MIX: 2 } as const
-      const statusOrder = { LIVE: 0, UPCOMING: 1, FINISHED: 2 } as const
-      withStatus.sort((a, b) => {
-        const sa = statusOrder[a.status] ?? 9
-        const sb = statusOrder[b.status] ?? 9
-        if (sa !== sb) return sa - sb
-        if (b.year !== a.year) return b.year - a.year
-        const ag = genderOrder[a.gender] ?? 9
-        const bg = genderOrder[b.gender] ?? 9
-        if (ag !== bg) return ag - bg
-        return a.label.localeCompare(b.label)
-      })
       setEvent(eventData)
       setCategories(withStatus)
       setLoading(false)
     }
     if (eventId) load()
-  }, [eventId])
+  }, [eventId, initialArchive])
 
   return (
     <div className="public-page">

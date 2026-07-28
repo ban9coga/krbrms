@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "optimize:rider-photos": "node scripts/optimize-rider-photos.mjs"
+    "optimize:rider-photos": "node scripts/optimize-rider-photos.mjs",
+    "backfill:public-snapshots": "node scripts/backfill-public-event-snapshots.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.94.1",

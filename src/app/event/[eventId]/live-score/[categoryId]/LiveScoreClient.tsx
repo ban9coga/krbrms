@@ -177,14 +177,15 @@ const renderSortButtons = (
   </div>
 )
 
-const renderRefreshButton = (refresh: () => void, refreshing: boolean) => (
+const renderRefreshButton = (refresh: () => void, refreshing: boolean, enabled: boolean) => (
   <button
     type="button"
     onClick={refresh}
-    disabled={refreshing}
+    disabled={refreshing || !enabled}
+    title={enabled ? 'Muat ulang hasil terbaru' : 'Hasil event selesai sudah diarsipkan'}
     className="live-score-editorial-refresh rounded-full border px-4 py-2 text-xs font-extrabold uppercase transition-colors disabled:cursor-not-allowed disabled:opacity-70"
   >
-    {refreshing ? 'Refreshing...' : 'Refresh'}
+    {refreshing ? 'Refreshing...' : enabled ? 'Refresh' : 'Final'}
   </button>
 )
 
@@ -455,7 +456,7 @@ export default function LiveScoreClient({
                   </span>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                  {renderRefreshButton(refresh, refreshing)}
+                  {renderRefreshButton(refresh, refreshing, isLiveEvent)}
                   {renderSortButtons(sortMode, setSortMode)}
                 </div>
               </div>
@@ -541,7 +542,7 @@ export default function LiveScoreClient({
                     </span>
                   </div>
                   <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                    {renderRefreshButton(refresh, refreshing)}
+                    {renderRefreshButton(refresh, refreshing, isLiveEvent)}
                     {renderSortButtons(sortMode, setSortMode)}
                   </div>
                 </div>

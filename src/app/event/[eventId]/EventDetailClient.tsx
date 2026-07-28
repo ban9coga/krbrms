@@ -18,6 +18,7 @@ import {
   type EventItem,
   type RiderCategory,
 } from '../../../lib/eventService'
+import type { PublicFinishedEventArchive } from '../../../services/publicFinishedEventArchive'
 
 const categoryCoverGradients = [
   'linear-gradient(140deg,#0f172a 0%,#1e293b 52%,#4f1d2f 100%)',
@@ -29,13 +30,15 @@ const categoryCoverGradients = [
 export default function EventDetailClient({
   eventId,
   initialEvent,
+  initialArchive,
 }: {
   eventId: string
   initialEvent: EventItem | null
+  initialArchive?: PublicFinishedEventArchive | null
 }) {
   const hideRegistrationAndVenueActions = eventId === '1d063c20-af89-4416-a578-cc06b824adc2'
   const [event, setEvent] = useState<EventItem | null>(initialEvent)
-  const [categories, setCategories] = useState<RiderCategory[]>([])
+  const [categories, setCategories] = useState<RiderCategory[]>(initialArchive?.categories ?? [])
   const [liveMotos, setLiveMotos] = useState<MotoItem[]>([])
   const [liveResults, setLiveResults] = useState<Record<string, LeaderboardRow[]>>({})
   const [liveLoading, setLiveLoading] = useState<Record<string, boolean>>({})
@@ -53,12 +56,36 @@ export default function EventDetailClient({
     >
   >({})
   const [stageLoading, setStageLoading] = useState<Record<string, boolean>>({})
-  const [riderTotal, setRiderTotal] = useState(0)
+  const [riderTotal, setRiderTotal] = useState(initialArchive?.riderTotal ?? 0)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     const load = async () => {
       setLoading(!initialEvent)
+      if (initialArchive) {
+        setEvent(initialArchive.event)
+        setCategories(initialArchive.categories)
+        setRiderTotal(initialArchive.riderTotal)
+        setLiveMotos([])
+        setLoading(false)
+        return
+      }
+      if (initialEvent?.status === 'FINISHED') {
+        try {
+          const archiveResponse = await fetch(`/api/public/events/${eventId}/snapshot`)
+          if (archiveResponse.ok) {
+            const archive = await archiveResponse.json()
+            const archiveData = archive.data ?? {}
+            setCategories((archiveData.categories ?? []).filter((category: RiderCategory) => category.enabled))
+            setRiderTotal(Number(archiveData.rider_total ?? 0))
+            setLiveMotos([])
+            setLoading(false)
+            return
+          }
+        } catch {
+          // Fall through to the existing live source while an older finished event has no archive yet.
+        }
+      }
       const [eventData, categoryData, riderData, motoRes] = await Promise.all([
         initialEvent ? Promise.resolve(initialEvent) : getEventById(eventId),
         getEventCategories(eventId),
@@ -74,7 +101,7 @@ export default function EventDetailClient({
       setLoading(false)
     }
     if (eventId) load()
-  }, [eventId, initialEvent])
+  }, [eventId, initialArchive, initialEvent])
 
   const totalFilledSlots = useMemo(
     () => categories.reduce((sum, category) => sum + Math.max(0, Number(category.filled ?? 0)), 0),
@@ -516,5 +543,3 @@ export default function EventDetailClient({
     </div>
   )
 }
-
-
