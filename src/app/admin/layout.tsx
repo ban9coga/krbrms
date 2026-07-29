@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { ThemeToggleSwitch, useTheme } from '../../components/ThemeProvider'
+import LogoutButton from '../../components/LogoutButton'
 import { canAccessAdminWorkspace, formatAppRoleLabel, isRegistrationApproverRole, normalizeAppRole } from '../../lib/roles'
 import { supabase } from '@/src/lib/supabaseClient'
 
@@ -599,10 +600,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       className={`admin-theme-scope min-h-screen ${
         isDark
           ? 'bg-[radial-gradient(circle_at_top,#1e293b_0%,#020617_54%,#000000_100%)] text-slate-100'
-          : 'bg-[radial-gradient(circle_at_top,#fef3c7_0%,#f8fafc_34%,#eef2ff_100%)] text-slate-900'
+          : 'bg-[#f8eedb] text-[#1d0d07]'
       }`}
     >
-      <div className={`fixed inset-x-0 top-0 z-40 backdrop-blur-xl ${isDark ? 'border-b border-slate-800 bg-slate-950/82' : 'border-b border-white/70 bg-white/85'}`}>
+      <div className={`fixed inset-x-0 top-0 z-40 backdrop-blur-xl ${isDark ? 'border-b border-slate-800 bg-slate-950/82' : 'border-b border-[#dfd1c2] bg-[#fff8e8]/95'}`}>
         <div className="mx-auto flex h-18 max-w-[1800px] items-center gap-4 px-4 sm:px-6 lg:px-8">
           {isMobile && (
             <button type="button" onClick={() => setSidebarOpen(true)} className="admin-secondary-button shrink-0 px-3">
@@ -616,7 +617,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <div className="min-w-0 flex-1">
             <div className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Admin workspace</div>
             <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2">
-              <span className={`truncate text-lg font-black tracking-tight ${isDark ? 'text-slate-100' : 'text-slate-950'}`}>
+              <span className={`truncate text-lg font-black tracking-tight ${isDark ? 'text-slate-100' : 'text-[#1d0d07]'}`}>
                 {eventId ? eventMenuLabel : 'Control Dashboard'}
               </span>
             </div>
@@ -633,7 +634,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                       ? 'border-amber-300 bg-amber-100 text-amber-900'
                       : isDark
                         ? 'border-slate-700 bg-slate-900/80 text-slate-300 hover:bg-slate-800'
-                        : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-white'
+                        : 'border-[#d9ceb4] bg-[#fffaf0] text-[#5f5042] hover:bg-[#efe3c8]'
                   }`}
                 >
                   {action.label}
@@ -642,16 +643,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </div>
             <ThemeToggleSwitch />
             {!isMobile && (
-              <div className={`hidden max-w-[320px] rounded-full border px-4 py-2 text-right sm:block ${isDark ? 'border-slate-700 bg-slate-900/80' : 'border-slate-200 bg-slate-50'}`}>
+              <div className={`hidden max-w-[320px] rounded-full border px-4 py-2 text-right sm:block ${isDark ? 'border-slate-700 bg-slate-900/80' : 'border-[#d9ceb4] bg-[#fffaf0]'}`}>
                 <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">{formatAppRoleLabel(userRole)}</div>
-                <div className={`truncate text-sm font-semibold ${isDark ? 'text-slate-300' : 'text-slate-600'}`} title={userEmail ?? undefined}>
+                <div className={`truncate text-sm font-semibold ${isDark ? 'text-slate-300' : 'text-[#5f5042]'}`} title={userEmail ?? undefined}>
                   {userEmail ?? 'No email'}
                 </div>
               </div>
             )}
-            <button type="button" onClick={handleLogout} className="admin-outline-button">
-              Logout
-            </button>
+            <LogoutButton onClick={handleLogout} />
           </div>
         </div>
       </div>

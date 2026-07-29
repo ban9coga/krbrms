@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import ToggleSwitch from '../../../../../components/ToggleSwitch'
-import { supabase } from '@/src/lib/supabaseClient'
 import { useApiFetch } from '@/src/hooks/useApiFetch'
 
 type CategoryItem = {
@@ -198,14 +197,7 @@ export default function CategoriesClient({ eventId }: { eventId: string }) {
           type="button"
           onClick={syncFromRiders}
           disabled={syncing}
-          style={{
-            padding: '8px 12px',
-            borderRadius: 12,
-            border: '2px solid #111',
-            background: '#bfead2',
-            fontWeight: 900,
-            cursor: 'pointer',
-          }}
+          className="admin-success-button"
         >
           {syncing ? 'Syncing...' : 'Sync Categories from Riders'}
         </button>
@@ -264,15 +256,7 @@ export default function CategoriesClient({ eventId }: { eventId: string }) {
           type="button"
           onClick={createCategory}
           disabled={creating}
-          style={{
-            padding: '8px 12px',
-            borderRadius: 12,
-            border: '2px solid #111',
-            background: '#d7ecff',
-            fontWeight: 900,
-            cursor: 'pointer',
-            width: 'fit-content',
-          }}
+          className="admin-primary-button w-fit"
         >
           {creating ? 'Creating...' : 'Tambah Category'}
         </button>
@@ -415,14 +399,7 @@ export default function CategoriesClient({ eventId }: { eventId: string }) {
                   type="button"
                   onClick={() => saveEdit(item)}
                   disabled={savingId === item.id}
-                  style={{
-                    padding: '6px 10px',
-                    borderRadius: 10,
-                    border: '2px solid #111',
-                    background: '#d7ecff',
-                    fontWeight: 900,
-                    width: 'fit-content',
-                  }}
+                  className="admin-primary-button w-fit"
                 >
                   {savingId === item.id ? 'Saving...' : 'Save'}
                 </button>
@@ -440,4 +417,3 @@ export default function CategoriesClient({ eventId }: { eventId: string }) {
     </div>
   )
 }
-

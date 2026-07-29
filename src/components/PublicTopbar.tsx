@@ -9,6 +9,7 @@ import { supabase } from '@/src/lib/supabaseClient'
 import PublicBottomBar from './PublicBottomBar'
 import LiveEntryButton from './LiveEntryButton'
 import { ThemeToggleSwitch } from './ThemeProvider'
+import LogoutButton from './LogoutButton'
 
 const navItems = [
   { href: '/', label: 'Home' },
@@ -193,13 +194,7 @@ export default function PublicTopbar({}: PublicTopbarProps) {
                   >
                     {panelLabel}
                   </Link>
-                  <button
-                    type="button"
-                    onClick={handleLogout}
-                    className="rounded-full bg-[#1d0d07] px-5 py-2 text-sm font-bold text-[#fff8e8] transition-colors hover:bg-[#e84b16]"
-                  >
-                    Logout
-                  </button>
+                  <LogoutButton onClick={handleLogout} />
                 </>
               ) : (
                 <Link

@@ -885,46 +885,45 @@ html[data-theme='dark'] .login-editorial-password-toggle {
   html[data-theme='dark'] .admin-secondary-button,
   html[data-theme='dark'] .admin-outline-button,
   html[data-theme='dark'] .admin-export-button {
-    border-color: #334155 !important;
-    background: #0f172a !important;
-    color: #e2e8f0 !important;
+    --admin-button-front: #334155;
+    --admin-button-edge: #0f172a;
+    --admin-button-text: #f8fafc;
   }
 
   html[data-theme='dark'] .admin-secondary-button:hover,
   html[data-theme='dark'] .admin-outline-button:hover,
   html[data-theme='dark'] .admin-export-button:hover {
-    border-color: #64748b !important;
-    background: #1e293b !important;
+    --admin-button-front: #475569;
   }
 
   html[data-theme='dark'] .admin-primary-button {
-    border-color: #fbbf24 !important;
-    background: #fbbf24 !important;
-    color: #111827 !important;
+    --admin-button-front: #f3c63d;
+    --admin-button-edge: #a16207;
+    --admin-button-text: #1d0d07;
   }
 
   html[data-theme='dark'] .admin-primary-button:hover {
-    background: #fde68a !important;
+    --admin-button-front: #ffda5a;
   }
 
   html[data-theme='dark'] .admin-danger-button {
-    border-color: #7f1d1d !important;
-    background: #450a0a !important;
-    color: #fecaca !important;
+    --admin-button-front: #dc2626;
+    --admin-button-edge: #7f1d1d;
+    --admin-button-text: #fff7ed;
   }
 
   html[data-theme='dark'] .admin-danger-button:hover {
-    background: #7f1d1d !important;
+    --admin-button-front: #ef4444;
   }
 
   html[data-theme='dark'] .admin-success-button {
-    border-color: #065f46 !important;
-    background: #064e3b !important;
-    color: #d1fae5 !important;
+    --admin-button-front: #16a34a;
+    --admin-button-edge: #166534;
+    --admin-button-text: #f0fdf4;
   }
 
   html[data-theme='dark'] .admin-success-button:hover {
-    background: #065f46 !important;
+    --admin-button-front: #22c55e;
   }
 
   html[data-theme='dark'] .admin-tone-danger {
@@ -1004,6 +1003,24 @@ html[data-theme='dark'] .login-editorial-password-toggle {
 }
 
 @layer components {
+  html:not([data-theme='dark']) .admin-theme-scope {
+    --app-bg: #f8eedb;
+    --app-text: #1d0d07;
+    --surface-bg: rgba(255, 248, 232, 0.94);
+    --surface-border: #dfd1c2;
+    --surface-shadow: 0 20px 45px rgba(74, 41, 22, 0.1);
+    --panel-bg: #fff8e8;
+    --panel-border: #dfd1c2;
+    --chip-bg: #f3e7cf;
+    --chip-border: #dfd1c2;
+    --chip-text: #6d5847;
+    --table-head-bg: #efe3c8;
+    --table-head-text: #5f5042;
+    --table-row-odd: #fffaf0;
+    --table-row-even: #fff8e8;
+    --table-row-hover: #f3e7cf;
+  }
+
   .admin-surface {
     @apply rounded-[1.75rem] backdrop-blur-xl;
     border: 1px solid var(--surface-border);
@@ -1012,7 +1029,7 @@ html[data-theme='dark'] .login-editorial-password-toggle {
   }
 
   .admin-card {
-    @apply rounded-[1.6rem] border p-5 shadow-[0_14px_34px_rgba(15,23,42,0.05)] transition-colors;
+    @apply rounded-[1.6rem] border p-5 shadow-[0_14px_34px_rgba(74,41,22,0.08)] transition-colors;
     border-color: var(--panel-border);
     background: var(--panel-bg);
   }
@@ -1081,6 +1098,10 @@ html[data-theme='dark'] .login-editorial-password-toggle {
     background: linear-gradient(135deg, rgba(255, 255, 255, 0.92) 0%, rgba(248, 250, 252, 0.88) 68%, rgba(254, 243, 199, 0.92) 100%);
   }
 
+  html:not([data-theme='dark']) .admin-theme-scope .admin-dashboard-heartbeat {
+    background: linear-gradient(135deg, #fff8e8 0%, #f8eedb 65%, #f3c63d 145%);
+  }
+
   .admin-alert-danger {
     @apply rounded-[1.25rem] border px-4 py-3 text-sm font-bold;
     border-color: #fecaca;
@@ -1102,54 +1123,123 @@ html[data-theme='dark'] .login-editorial-password-toggle {
     color: var(--chip-text);
   }
 
+  .admin-primary-button,
+  .admin-secondary-button,
+  .admin-outline-button,
+  .admin-danger-button,
+  .admin-success-button,
+  .admin-export-button {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-black uppercase tracking-[0.12em] disabled:cursor-not-allowed disabled:opacity-60;
+    position: relative;
+    isolation: isolate;
+    min-height: 2.75rem;
+    border: 0;
+    border-radius: 0.75rem;
+    background: var(--admin-button-front);
+    color: var(--admin-button-text);
+    cursor: pointer;
+    outline-offset: 4px;
+    touch-action: manipulation;
+    transform: translateY(-3px);
+    box-shadow:
+      0 4px 0 var(--admin-button-edge),
+      0 7px 10px rgb(15 23 42 / 0.18),
+      inset 0 2px 2px rgb(255 255 255 / 0.22),
+      inset 0 -2px 2px rgb(15 23 42 / 0.2);
+    transition: transform 250ms cubic-bezier(0.3, 0.7, 0.4, 1.5), filter 250ms, box-shadow 250ms;
+    user-select: none;
+  }
+
   .admin-primary-button {
-    @apply inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-black uppercase tracking-[0.12em] transition-colors disabled:cursor-not-allowed disabled:opacity-60;
-    border-color: #020617;
-    background: #020617;
-    color: #ffffff;
+    --admin-button-front: #1d4ed8;
+    --admin-button-edge: #1e3a8a;
+    --admin-button-text: #ffffff;
   }
 
-  .admin-primary-button:hover {
-    background: #1e293b;
-  }
-
-  .admin-secondary-button {
-    @apply inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950;
-  }
-
-  .admin-outline-button {
-    @apply inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-black uppercase tracking-[0.12em] transition-colors disabled:cursor-not-allowed disabled:opacity-60;
-    border-color: var(--panel-border);
-    background: var(--panel-bg);
-    color: var(--app-text);
-  }
-
-  .admin-outline-button:hover {
-    border-color: #94a3b8;
+  .admin-secondary-button,
+  .admin-outline-button,
+  .admin-export-button {
+    --admin-button-front: #475569;
+    --admin-button-edge: #1e293b;
+    --admin-button-text: #ffffff;
   }
 
   .admin-danger-button {
-    @apply inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-black uppercase tracking-[0.12em] transition-colors disabled:cursor-not-allowed disabled:opacity-60;
-    border-color: #fecaca;
-    background: #fee2e2;
-    color: #991b1b;
-  }
-
-  .admin-danger-button:hover {
-    border-color: #f87171;
-    background: #fecaca;
+    --admin-button-front: #e11d48;
+    --admin-button-edge: #9f1239;
+    --admin-button-text: #ffffff;
   }
 
   .admin-success-button {
-    @apply inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-black uppercase tracking-[0.12em] transition-colors disabled:cursor-not-allowed disabled:opacity-60;
-    border-color: #a7f3d0;
-    background: #d1fae5;
-    color: #047857;
+    --admin-button-front: #16a34a;
+    --admin-button-edge: #166534;
+    --admin-button-text: #ffffff;
   }
 
-  .admin-success-button:hover {
-    border-color: #34d399;
-    background: #a7f3d0;
+  .admin-primary-button:not(:disabled):hover,
+  .admin-secondary-button:not(:disabled):hover,
+  .admin-outline-button:not(:disabled):hover,
+  .admin-danger-button:not(:disabled):hover,
+  .admin-success-button:not(:disabled):hover,
+  .admin-export-button:not(:disabled):hover {
+    filter: brightness(1.08);
+    transform: translateY(-5px);
+    box-shadow:
+      0 6px 0 var(--admin-button-edge),
+      0 10px 15px rgb(15 23 42 / 0.2),
+      inset 0 2px 2px rgb(255 255 255 / 0.24),
+      inset 0 -2px 2px rgb(15 23 42 / 0.2);
+  }
+
+  .admin-primary-button:not(:disabled):active,
+  .admin-secondary-button:not(:disabled):active,
+  .admin-outline-button:not(:disabled):active,
+  .admin-danger-button:not(:disabled):active,
+  .admin-success-button:not(:disabled):active,
+  .admin-export-button:not(:disabled):active {
+    transform: translateY(-1px);
+    box-shadow:
+      0 2px 0 var(--admin-button-edge),
+      0 3px 5px rgb(15 23 42 / 0.18),
+      inset 0 2px 2px rgb(255 255 255 / 0.18),
+      inset 0 -2px 2px rgb(15 23 42 / 0.22);
+    transition-duration: 34ms;
+  }
+
+  .admin-primary-button:disabled,
+  .admin-secondary-button:disabled,
+  .admin-outline-button:disabled,
+  .admin-danger-button:disabled,
+  .admin-success-button:disabled,
+  .admin-export-button:disabled {
+    transform: none;
+    box-shadow: none;
+  }
+
+  .admin-theme-scope .motos-action-button,
+  .admin-theme-scope .motos-compute-button {
+    box-shadow:
+      0 4px 0 rgba(55, 36, 24, 0.45),
+      0 7px 14px rgba(55, 36, 24, 0.12);
+    transition: transform 160ms cubic-bezier(0.3, 0.7, 0.4, 1), box-shadow 160ms ease, filter 160ms ease;
+  }
+
+  .admin-theme-scope .motos-action-button:not(:disabled):hover,
+  .admin-theme-scope .motos-compute-button:not(:disabled):hover {
+    filter: brightness(1.04);
+    transform: translateY(-2px);
+    box-shadow:
+      0 6px 0 rgba(55, 36, 24, 0.45),
+      0 10px 17px rgba(55, 36, 24, 0.15);
+  }
+
+  .admin-theme-scope .motos-action-button:not(:disabled):active,
+  .admin-theme-scope .motos-compute-button:not(:disabled):active {
+    transform: translateY(2px);
+    box-shadow:
+      0 2px 0 rgba(55, 36, 24, 0.45),
+      0 4px 8px rgba(55, 36, 24, 0.12);
+    transition-duration: 45ms;
   }
 
   .admin-action-row {
@@ -3903,6 +3993,85 @@ html[data-theme='dark'] .live-score-editorial-page .public-table .live-score-rid
 .homepage-editorial-performance-action:hover {
   background: #ffda5a;
   transform: translateY(-1px);
+}
+
+/* Shared logout affordance for backoffice and signed-in public topbars. */
+.role-logout-button {
+  display: inline-flex;
+  width: 45px;
+  height: 45px;
+  flex: 0 0 45px;
+  align-items: center;
+  justify-content: flex-start;
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(255, 65, 65);
+  box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.2);
+  color: #fff;
+  cursor: pointer;
+  padding: 0;
+  transition: width 0.3s ease, border-radius 0.3s ease, transform 0.12s ease, filter 0.2s ease;
+}
+
+.role-logout-icon {
+  display: inline-flex;
+  width: 45px;
+  min-width: 45px;
+  align-items: center;
+  justify-content: center;
+}
+
+.role-logout-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.role-logout-label {
+  width: 0;
+  overflow: hidden;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  opacity: 0;
+  text-align: center;
+  transition: width 0.3s ease, opacity 0.2s ease;
+  white-space: nowrap;
+}
+
+.role-logout-button:hover,
+.role-logout-button:focus-visible {
+  width: 125px;
+  border-radius: 40px;
+  filter: brightness(1.04);
+}
+
+.role-logout-button:hover .role-logout-icon,
+.role-logout-button:focus-visible .role-logout-icon {
+  width: 38px;
+  min-width: 38px;
+}
+
+.role-logout-button:hover .role-logout-label,
+.role-logout-button:focus-visible .role-logout-label {
+  width: 76px;
+  opacity: 1;
+}
+
+.role-logout-button:active {
+  transform: translate(2px, 2px);
+}
+
+.role-logout-button:focus-visible {
+  outline: 3px solid rgba(255, 65, 65, 0.35);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .role-logout-button,
+  .role-logout-label {
+    transition: none;
+  }
 }
 
 @media (max-width: 1050px) {

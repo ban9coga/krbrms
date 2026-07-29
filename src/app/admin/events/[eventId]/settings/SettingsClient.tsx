@@ -527,7 +527,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     paymentRegistration: boolean
     eventStaff: boolean
   }>({
-    sponsors: true,
+    sponsors: false,
     communityShowcase: false,
     appearance: false,
     publicInfo: false,
@@ -1549,6 +1549,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     form.business_central_control_enabled ? 'aktif' : 'off'
   }`
   const appearanceSummary = 'Logo event + race format'
+  const hasOpenSettingsSection = Object.values(sections).some(Boolean)
   const filteredAvailableUsers = useMemo(() => {
     const keyword = staffSearch.trim().toLowerCase()
     if (!keyword) return availableUsers
@@ -1627,6 +1628,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
         </div>
       )}
 
+      {(loading || hasOpenSettingsSection) && (
       <div
         style={{
           marginTop: 16,
@@ -3005,6 +3007,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
           </>
         )}
       </div>
+      )}
 
       {advancedOnly && (
         <div
@@ -3509,7 +3512,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
         </div>
       )}
 
-      {!advancedOnly && (
+      {!advancedOnly && (hasOpenSettingsSection || isDirty) && (
         <div
           style={{
             position: 'sticky',
@@ -3548,7 +3551,3 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     </div>
   )
 }
-
-
-
-

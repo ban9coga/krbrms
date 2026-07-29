@@ -30,14 +30,6 @@ const pickPrimaryEvent = (events: DashboardEvent[]) => {
   })[0]
 }
 
-const countRiders = async (accessibleEventIds: string[] | null) => {
-  let query = adminClient.from('riders').select('id', { count: 'exact', head: true })
-  if (accessibleEventIds) query = query.in('event_id', accessibleEventIds)
-  const { count, error } = await query
-  if (error) throw new Error(error.message)
-  return count ?? 0
-}
-
 const countRegistrations = async (accessibleEventIds: string[] | null, status?: 'PENDING' | 'APPROVED') => {
   let query = adminClient.from('registrations').select('id', { count: 'exact', head: true })
   if (accessibleEventIds) query = query.in('event_id', accessibleEventIds)
@@ -80,29 +72,6 @@ const countPendingPayments = async (accessibleEventIds: string[] | null) => {
   return count ?? 0
 }
 
-const countCheckedInRiders = async (accessibleEventIds: string[] | null) => {
-  let query = adminClient
-    .from('registration_items')
-    .select('id, registrations!inner(event_id)', { count: 'exact', head: true })
-    .eq('venue_status', 'CHECKED_IN')
-  if (accessibleEventIds) query = query.in('registrations.event_id', accessibleEventIds)
-  const { count, error } = await query
-  if (error) throw new Error(error.message)
-  return count ?? 0
-}
-
-const countGoodieBagPending = async (accessibleEventIds: string[] | null) => {
-  let query = adminClient
-    .from('registration_items')
-    .select('id, registrations!inner(event_id)', { count: 'exact', head: true })
-    .eq('venue_status', 'CHECKED_IN')
-    .is('goodie_bag_collected_at', null)
-  if (accessibleEventIds) query = query.in('registrations.event_id', accessibleEventIds)
-  const { count, error } = await query
-  if (error) throw new Error(error.message)
-  return count ?? 0
-}
-
 const getDashboardEvents = async (accessibleEventIds: string[] | null) => {
   let query = adminClient
     .from('events')
@@ -136,14 +105,9 @@ export async function GET(req: Request) {
   if (accessibleEventIds && accessibleEventIds.length === 0) {
     return NextResponse.json({
       data: {
-        total_riders: 0,
-        total_registrations: 0,
         approved_riders: 0,
         pending_registrations: 0,
-        approved_registrations: 0,
         pending_payments: 0,
-        checked_in_riders: 0,
-        goodie_bag_pending: 0,
         live_motos: 0,
         last_updated: null,
         primary_event: null,
@@ -153,25 +117,15 @@ export async function GET(req: Request) {
 
   try {
     const [
-      riderCount,
-      regCount,
       approvedRiders,
       pendingRegistrations,
-      approvedRegistrations,
       pendingPayments,
-      checkedInRiders,
-      goodieBagPending,
       liveMotos,
       dashboardEvents,
     ] = await Promise.all([
-      countRiders(accessibleEventIds),
-      countRegistrations(accessibleEventIds),
       countApprovedRiders(accessibleEventIds),
       countRegistrations(accessibleEventIds, 'PENDING'),
-      countRegistrations(accessibleEventIds, 'APPROVED'),
       countPendingPayments(accessibleEventIds),
-      countCheckedInRiders(accessibleEventIds),
-      countGoodieBagPending(accessibleEventIds),
       countLiveMotos(accessibleEventIds),
       getDashboardEvents(accessibleEventIds),
     ])
@@ -186,14 +140,9 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       data: {
-        total_riders: riderCount,
-        total_registrations: regCount,
         approved_riders: approvedRiders,
         pending_registrations: pendingRegistrations,
-        approved_registrations: approvedRegistrations,
         pending_payments: pendingPayments,
-        checked_in_riders: checkedInRiders,
-        goodie_bag_pending: goodieBagPending,
         live_motos: liveMotos,
         last_updated: lastEventRow?.updated_at ?? lastEventRow?.created_at ?? null,
         primary_event: primaryEvent

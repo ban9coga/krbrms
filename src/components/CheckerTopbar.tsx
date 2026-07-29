@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { formatAppRoleLabel, normalizeAppRole } from '../lib/roles'
 import { supabase } from '@/src/lib/supabaseClient'
+import LogoutButton from './LogoutButton'
 
 type CheckerTopbarProps = {
   title?: string
@@ -89,13 +90,7 @@ export default function CheckerTopbar({ title = 'Checker Control' }: CheckerTopb
               <div className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-slate-500">{formatAppRoleLabel(roleKey)}</div>
               <div className="truncate text-sm font-bold text-slate-900">{name}</div>
             </div>
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="rounded-full bg-amber-400 px-4 py-2 text-sm font-bold text-slate-900 transition-colors hover:bg-amber-300"
-            >
-              Logout
-            </button>
+            <LogoutButton onClick={handleLogout} />
           </div>
         </div>
       </div>

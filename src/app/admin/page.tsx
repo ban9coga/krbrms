@@ -8,14 +8,9 @@ import { formatAppRoleLabel, normalizeAppRole } from '../../lib/roles'
 import { supabase } from '@/src/lib/supabaseClient'
 
 type DashboardMetrics = {
-  total_riders: number
-  total_registrations: number
   approved_riders: number
   pending_registrations: number
-  approved_registrations: number
   pending_payments: number
-  checked_in_riders: number
-  goodie_bag_pending: number
   live_motos: number
   last_updated: string | null
   primary_event: {
