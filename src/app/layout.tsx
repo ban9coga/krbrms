@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Anton, Plus_Jakarta_Sans } from 'next/font/google'
 import FloatingLiveScoreButton from '../components/FloatingLiveScoreButton'
 import { PwaRegister } from '../components/PwaRegister'
@@ -8,6 +8,13 @@ import { serializeJsonLd, siteStructuredData } from '../lib/structuredData'
 import './globals.css'
 
 export const revalidate = 30
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: '#24140d',
+}
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ['latin'],
@@ -68,7 +75,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     title: 'RacePushbike',
-    statusBarStyle: 'default',
+    statusBarStyle: 'black-translucent',
   },
 }
 

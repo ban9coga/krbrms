@@ -7,6 +7,109 @@
   flex: 0 0 auto;
 }
 
+.quick-pwa-entry {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom));
+  background: #f8eedb;
+  color: #24140d;
+}
+
+.quick-pwa-entry-card {
+  width: min(380px, 100%);
+  border: 1px solid rgba(70, 37, 18, 0.18);
+  border-radius: 24px;
+  background: #fff8e8;
+  padding: 30px;
+  text-align: center;
+  box-shadow: 0 20px 48px rgba(53, 29, 15, 0.15);
+}
+
+.quick-pwa-entry-kicker {
+  margin: 0;
+  color: #b64913;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.quick-pwa-entry-card h1 {
+  margin: 18px 0 8px;
+  font-family: var(--font-display), sans-serif;
+  font-size: 34px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.quick-pwa-entry-card > p:last-child {
+  margin: 0;
+  color: #674334;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.quick-pwa-entry-loader {
+  display: flex;
+  height: 52px;
+  justify-content: center;
+  align-items: center;
+  gap: 5px;
+  margin-top: 24px;
+}
+
+.quick-pwa-entry-loader span {
+  width: 5px;
+  height: 34px;
+  border-radius: 999px;
+  background: #b64913;
+  animation: quick-pwa-pulse 0.9s ease-in-out infinite;
+}
+
+.quick-pwa-entry-loader span:nth-child(2) { background: #f1bf35; animation-delay: -0.72s; }
+.quick-pwa-entry-loader span:nth-child(3) { background: #24140d; animation-delay: -0.54s; }
+.quick-pwa-entry-loader span:nth-child(4) { background: #e8671b; animation-delay: -0.36s; }
+.quick-pwa-entry-loader span:nth-child(5) { background: #76502c; animation-delay: -0.18s; }
+
+@keyframes quick-pwa-pulse {
+  0%, 40%, 100% { transform: scaleY(0.18); }
+  20% { transform: scaleY(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .quick-pwa-entry-loader span { animation: none; transform: scaleY(0.65); }
+}
+
+.login-editorial-mode,
+.login-editorial-mode-active {
+  min-height: 42px;
+  border-radius: 999px;
+  padding: 0 14px;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+
+.login-editorial-mode {
+  border: 1px solid rgba(70, 37, 18, 0.2);
+  background: transparent;
+  color: #684535;
+}
+
+.login-editorial-mode:hover {
+  border-color: #b64913;
+  color: #7d2c0e;
+}
+
+.login-editorial-mode-active {
+  border: 1px solid #24140d;
+  background: #24140d;
+  color: #fff8e8;
+}
+
 .theme {
   --bg: #ffffff;
   --primary: #ee4b16;

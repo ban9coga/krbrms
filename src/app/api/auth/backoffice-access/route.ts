@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server'
 import { getAccessibleEventIds, requireBackoffice } from '../../../../lib/auth'
 
 const getHomePath = async (role: string, userId: string) => {
+  if (role === 'CHECKER') return '/jc'
+  if (role === 'FINISHER') return '/jury/finish'
+  if (role === 'RACE_DIRECTOR') return '/race-director/approval'
+  if (role === 'RACE_CONTROL') return '/race-control'
+  if (role === 'MC') return '/mc'
   if (role === 'REGISTRATION_APPROVER') {
     const eventIds = await getAccessibleEventIds(userId, ['REGISTRATION_APPROVER'])
     return eventIds.length === 1 ? `/admin/events/${eventIds[0]}/registrations` : '/admin/events'

@@ -8,7 +8,26 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 type CreateUserPayload = {
   email: string
   password: string
+  crewCode?: string
   role: 'admin' | 'jury' | 'race_control' | 'REGISTRATION_APPROVER' | 'CHECKER' | 'FINISHER' | 'RACE_DIRECTOR' | 'MC'
+}
+
+const normalizeCrewCode = (value: unknown) =>
+  String(value ?? '')
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, '')
+
+const validateCrewCode = (crewCode: string) => !crewCode || /^[A-Z0-9-]{3,32}$/.test(crewCode)
+
+const crewCodeInUse = async (crewCode: string) => {
+  if (!crewCode) return false
+  const { data, error } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 })
+  if (error) throw new Error('Gagal memeriksa kode crew.')
+  return data.users.some((user) => {
+    const metadata = (user.user_metadata ?? {}) as Record<string, unknown>
+    return normalizeCrewCode(metadata.crew_code) === crewCode
+  })
 }
 
 export async function POST(req: Request) {
@@ -37,7 +56,7 @@ export async function POST(req: Request) {
     (typeof meta.role === 'string' ? meta.role : null) ||
     (typeof appMeta.role === 'string' ? appMeta.role : null)
 
-  if (role !== 'super_admin') {
+  if (String(role ?? '').toUpperCase() !== 'SUPER_ADMIN') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -47,11 +66,22 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Payload tidak lengkap.' }, { status: 400 })
   }
 
+  const crewCode = normalizeCrewCode(body.crewCode)
+  if (!validateCrewCode(crewCode)) {
+    return NextResponse.json({ error: 'Kode crew gunakan 3-32 karakter: huruf, angka, atau tanda hubung.' }, { status: 400 })
+  }
+  if (crewCode && !/^\d{6}$/.test(body.password)) {
+    return NextResponse.json({ error: 'Akun dengan kode crew wajib memakai PIN 6 digit.' }, { status: 400 })
+  }
+  if (await crewCodeInUse(crewCode)) {
+    return NextResponse.json({ error: 'Kode crew sudah dipakai akun lain.' }, { status: 409 })
+  }
+
   const { data, error } = await adminClient.auth.admin.createUser({
     email: body.email,
     password: body.password,
     email_confirm: true,
-    user_metadata: { role: body.role },
+    user_metadata: { role: body.role, ...(crewCode ? { crew_code: crewCode } : {}) },
   })
 
   if (error) {

@@ -1,0 +1,61 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { supabase } from '@/src/lib/supabaseClient'
+
+export default function QuickPwaEntryPage() {
+  const [message, setMessage] = useState('Menyiapkan panel crew...')
+
+  useEffect(() => {
+    let cancelled = false
+
+    const openRoleHome = async () => {
+      const { data } = await supabase.auth.getSession()
+      const accessToken = data.session?.access_token
+
+      if (!accessToken) {
+        window.location.replace('/login?next=%2Fquick&crew=1')
+        return
+      }
+
+      try {
+        const response = await fetch('/api/auth/backoffice-access', {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          cache: 'no-store',
+        })
+        const json = await response.json().catch(() => ({}))
+        const home = typeof json?.data?.home === 'string' ? json.data.home : null
+
+        if (!response.ok || !home) {
+          throw new Error(typeof json?.error === 'string' ? json.error : 'Akses panel tidak tersedia.')
+        }
+        window.location.replace(home)
+      } catch (error) {
+        if (cancelled) return
+        setMessage(error instanceof Error ? error.message : 'Gagal menyiapkan panel crew.')
+      }
+    }
+
+    void openRoleHome()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  return (
+    <main className="quick-pwa-entry">
+      <section className="quick-pwa-entry-card" aria-live="polite">
+        <p className="quick-pwa-entry-kicker">RacePushbike Crew</p>
+        <div className="quick-pwa-entry-loader" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+        </div>
+        <h1>Membuka workspace</h1>
+        <p>{message}</p>
+      </section>
+    </main>
+  )
+}

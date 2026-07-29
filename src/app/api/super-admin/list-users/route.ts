@@ -23,7 +23,9 @@ export async function GET(req: Request) {
     (typeof meta.role === 'string' ? meta.role : null) ||
     (typeof appMeta.role === 'string' ? appMeta.role : null)
 
-  if (role !== 'super_admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (String(role ?? '').toUpperCase() !== 'SUPER_ADMIN') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
   const { searchParams } = new URL(req.url)
   const page = Number(searchParams.get('page') ?? '1')

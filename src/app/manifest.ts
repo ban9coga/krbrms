@@ -5,11 +5,11 @@ export default function manifest(): MetadataRoute.Manifest {
     name: 'RacePushbike Race Management',
     short_name: 'RacePushbike',
     description: 'Akses cepat race management, motos, jury, MC, dan live display.',
-    start_url: '/quick/motos',
+    start_url: '/quick',
     scope: '/',
     display: 'standalone',
-    background_color: '#ffffff',
-    theme_color: '#facc15',
+    background_color: '#f8eedb',
+    theme_color: '#24140d',
     orientation: 'any',
     icons: [
       {
