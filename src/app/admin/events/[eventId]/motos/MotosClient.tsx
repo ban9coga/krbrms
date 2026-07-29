@@ -39,6 +39,16 @@ type AdvancedSummaryItem = {
   }
 }
 
+type RaceResetPreview = {
+  event: { id: string; name: string; status: string }
+  advancedMotos: number
+  results: number
+  penalties: number
+  safetyChecks: number
+  locks: number
+  stageResults: number
+}
+
 type StatusChip = {
   label: string
   tone: 'green' | 'blue' | 'amber' | 'slate'
@@ -159,6 +169,10 @@ export default function MotosClient({ eventId }: { eventId: string }) {
   const [advancedEnabledByCategory, setAdvancedEnabledByCategory] = useState<Record<string, boolean>>({})
   const [advancedSummaryByCategory, setAdvancedSummaryByCategory] = useState<Record<string, AdvancedSummaryItem>>({})
   const [computingCategoryId, setComputingCategoryId] = useState<string | null>(null)
+  const [raceResetPreview, setRaceResetPreview] = useState<RaceResetPreview | null>(null)
+  const [raceResetConfirmation, setRaceResetConfirmation] = useState('')
+  const [raceResetLoading, setRaceResetLoading] = useState(false)
+  const [raceResetSubmitting, setRaceResetSubmitting] = useState(false)
 
   const getErrorMessage = (err: unknown) => (err instanceof Error ? err.message : 'Request failed')
 
@@ -535,6 +549,38 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       await load()
     } catch (err: unknown) {
       alert(getErrorMessage(err))
+    }
+  }
+
+  const openRaceReset = async () => {
+    setRaceResetLoading(true)
+    setRaceResetConfirmation('')
+    try {
+      const response = await apiFetch(`/api/admin/events/${eventId}/reset-race-data`)
+      setRaceResetPreview(response.data as RaceResetPreview)
+    } catch (err: unknown) {
+      alert(getErrorMessage(err))
+    } finally {
+      setRaceResetLoading(false)
+    }
+  }
+
+  const submitRaceReset = async () => {
+    if (raceResetConfirmation !== 'RESET RACE') return
+    setRaceResetSubmitting(true)
+    try {
+      const response = await apiFetch(`/api/admin/events/${eventId}/reset-race-data`, {
+        method: 'POST',
+        body: JSON.stringify({ confirmation: raceResetConfirmation }),
+      })
+      const summary = response.data as { advanced_motos_deleted?: number; results_deleted?: number }
+      setRaceResetPreview(null)
+      await load('refresh', { includeAdvancedSummary: true })
+      alert(`Data race dibersihkan. ${summary.advanced_motos_deleted ?? 0} moto advanced dan ${summary.results_deleted ?? 0} hasil dihapus.`)
+    } catch (err: unknown) {
+      alert(getErrorMessage(err))
+    } finally {
+      setRaceResetSubmitting(false)
     }
   }
 
@@ -1059,6 +1105,17 @@ export default function MotosClient({ eventId }: { eventId: string }) {
           >
             {loading || refreshing ? 'Refreshing...' : 'Refresh Data'}
           </button>
+          {eventStatus === 'UPCOMING' && (
+            <button
+              type="button"
+              onClick={() => void openRaceReset()}
+              disabled={raceResetLoading}
+              className="admin-danger-button"
+              style={{ cursor: raceResetLoading ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap', opacity: raceResetLoading ? 0.6 : 1 }}
+            >
+              {raceResetLoading ? 'Memeriksa Data...' : 'Reset Data Race'}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => void handleExportMotoRidersWord()}
@@ -1375,7 +1432,6 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                         <button
                           type="button"
                           onClick={() => handleUnlockMoto(m.id)}
-                          disabled={eventStatus !== 'LIVE'}
                           className="motos-action-button"
                           style={{
                             padding: '8px 12px',
@@ -1383,7 +1439,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                             border: '2px solid #111',
                             background: '#e0f2fe',
                             fontWeight: 900,
-                            cursor: eventStatus === 'LIVE' ? 'pointer' : 'not-allowed',
+                            cursor: 'pointer',
                           }}
                         >
                           Unlock Moto
@@ -1628,6 +1684,48 @@ export default function MotosClient({ eventId }: { eventId: string }) {
           </section>
           ))}
       </div>
+      {raceResetPreview && (
+        <div
+          className="no-print"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="race-reset-title"
+          style={{ position: 'fixed', inset: 0, zIndex: 90, display: 'grid', placeItems: 'center', padding: 20, background: 'rgba(15, 23, 42, 0.58)' }}
+        >
+          <section style={{ width: 'min(560px, 100%)', borderRadius: 18, border: '2px solid #991b1b', background: '#fff', padding: 20, boxShadow: '0 24px 70px rgba(15,23,42,.32)' }}>
+            <p style={{ margin: 0, color: '#b91c1c', fontSize: 11, fontWeight: 950, letterSpacing: '.12em' }}>DESTRUCTIVE ACTION</p>
+            <h2 id="race-reset-title" style={{ margin: '8px 0', fontSize: 24, fontWeight: 950 }}>Reset Data Race</h2>
+            <p style={{ margin: 0, color: '#475569', fontWeight: 700, lineHeight: 1.5 }}>
+              {raceResetPreview.event.name} akan kembali ke kondisi sebelum race. Rider, kategori, gate awal, dan konfigurasi tetap disimpan.
+            </p>
+            <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+              {[
+                ['Moto advanced', raceResetPreview.advancedMotos],
+                ['Hasil moto', raceResetPreview.results],
+                ['Stage result', raceResetPreview.stageResults],
+                ['Penalty', raceResetPreview.penalties],
+                ['Safety check', raceResetPreview.safetyChecks],
+                ['Lock moto', raceResetPreview.locks],
+              ].map(([label, value]) => (
+                <div key={String(label)} style={{ border: '1px solid #fecaca', borderRadius: 12, background: '#fff7f7', padding: '10px 12px' }}>
+                  <div style={{ color: '#7f1d1d', fontSize: 11, fontWeight: 900 }}>{label}</div>
+                  <div style={{ marginTop: 3, fontSize: 22, fontWeight: 950 }}>{value}</div>
+                </div>
+              ))}
+            </div>
+            <label style={{ display: 'grid', gap: 7, marginTop: 16, fontSize: 12, fontWeight: 900 }}>
+              Ketik <strong>RESET RACE</strong> untuk melanjutkan
+              <input value={raceResetConfirmation} onChange={(event) => setRaceResetConfirmation(event.target.value.toUpperCase())} className="motos-status-select" style={{ minHeight: 44, padding: '0 12px', fontWeight: 900 }} autoFocus />
+            </label>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18, flexWrap: 'wrap' }}>
+              <button type="button" className="admin-outline-button" onClick={() => setRaceResetPreview(null)} disabled={raceResetSubmitting}>Batal</button>
+              <button type="button" className="admin-danger-button" onClick={() => void submitRaceReset()} disabled={raceResetConfirmation !== 'RESET RACE' || raceResetSubmitting}>
+                {raceResetSubmitting ? 'Mereset Data...' : 'Reset Sekarang'}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
       <style>{`
         @media (max-width: 860px) {
           .motos-print-root {
