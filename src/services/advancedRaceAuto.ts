@@ -1016,6 +1016,10 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
     readiness.repechageReady ||
     (existingRepechageMotos.length > 0 &&
       existingRepechageMotos.every((moto) => ['LOCKED', 'FINISHED'].includes(String(moto.status ?? '').toUpperCase())))
+  const quarterFinalAlreadyFinalized =
+    existingQuarterMotos.some((moto) => hasMotoResults(moto.id, categoryResultRows)) ||
+    (existingQuarterMotos.length > 0 &&
+      existingQuarterMotos.every((moto) => ['LOCKED', 'FINISHED'].includes(String(moto.status ?? '').toUpperCase())))
 
   const { data: stageRows, error } = await adminClient
     .from('race_stage_result')
@@ -1171,7 +1175,10 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
     const pendingQuarter = existingQuarterIds.length === 0
       ? quarterRiders
       : quarterRiders.filter((id) => !assignedQuarter.has(id))
-    if (pendingQuarter.length > 0) {
+    // Once any QF has a result (or the QF is locked), its entry list is historical.
+    // A later compute may recalculate a Repechage placement, but it must never append
+    // a new QF batch and change the bracket that has already been raced.
+    if (pendingQuarter.length > 0 && !quarterFinalAlreadyFinalized) {
       const groups =
         distributeCarryOverHeats(pendingQuarter, qualificationRows, seedBatchOrderById, quarterMaxRiders) ??
         distributeSeededHeats(pendingQuarter, quarterMaxRiders)

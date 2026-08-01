@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../../lib/auth'
 
 const isAdvancedMoto = (motoName: string) => /^(REPECHAGE|QUARTER\s+FINAL|SEMI\s+FINAL|FINAL\s+)/i.test(motoName)
+const isQualificationMoto = (motoName: string) => /^moto\s*\d+\s*-\s*batch\s*\d+\s*$/i.test(motoName)
+const isGeneratedSingleBatchMoto3 = (motoName: string, batchCount: number) =>
+  batchCount === 1 && /^moto\s*3\s*-\s*batch\s*1\s*$/i.test(motoName)
 
 async function requireCentralAdmin(req: Request, eventId: string) {
   const auth = await requireAdmin(req.headers.get('authorization'), eventId)
@@ -26,7 +29,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
 
   const [eventResult, motosResult, resultsResult, penaltiesResult, safetyResult, locksResult, stageResult] = await Promise.all([
     adminClient.from('events').select('id, name, status').eq('id', eventId).maybeSingle(),
-    adminClient.from('motos').select('id, moto_name').eq('event_id', eventId),
+    adminClient.from('motos').select('id, category_id, moto_name').eq('event_id', eventId),
     adminClient.from('results').select('id', { count: 'exact', head: true }).eq('event_id', eventId),
     adminClient.from('rider_penalties').select('id', { count: 'exact', head: true }).eq('event_id', eventId),
     adminClient.from('rider_safety_checks').select('id', { count: 'exact', head: true }).eq('event_id', eventId),
@@ -35,10 +38,25 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   ])
   if (eventResult.error || !eventResult.data) return NextResponse.json({ error: 'Event tidak ditemukan.' }, { status: 404 })
 
+  const motos = motosResult.data ?? []
+  const qualificationBatchesByCategory = new Map<string, Set<string>>()
+  motos.forEach((moto) => {
+    if (!isQualificationMoto(moto.moto_name)) return
+    const batch = moto.moto_name.match(/batch\s*(\d+)/i)?.[1]
+    if (!batch) return
+    const batches = qualificationBatchesByCategory.get(moto.category_id) ?? new Set<string>()
+    batches.add(batch)
+    qualificationBatchesByCategory.set(moto.category_id, batches)
+  })
+  const generatedQualificationMotos = motos.filter((moto) =>
+    isGeneratedSingleBatchMoto3(moto.moto_name, qualificationBatchesByCategory.get(moto.category_id)?.size ?? 0)
+  ).length
+
   return NextResponse.json({
     data: {
       event: eventResult.data,
-      advancedMotos: (motosResult.data ?? []).filter((moto) => isAdvancedMoto(moto.moto_name)).length,
+      advancedMotos: motos.filter((moto) => isAdvancedMoto(moto.moto_name)).length,
+      generatedQualificationMotos,
       results: resultsResult.count ?? 0,
       penalties: penaltiesResult.count ?? 0,
       safetyChecks: safetyResult.count ?? 0,

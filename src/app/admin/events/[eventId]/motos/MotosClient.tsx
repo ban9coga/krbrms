@@ -42,6 +42,7 @@ type AdvancedSummaryItem = {
 type RaceResetPreview = {
   event: { id: string; name: string; status: string }
   advancedMotos: number
+  generatedQualificationMotos: number
   results: number
   penalties: number
   safetyChecks: number
@@ -573,10 +574,10 @@ export default function MotosClient({ eventId }: { eventId: string }) {
         method: 'POST',
         body: JSON.stringify({ confirmation: raceResetConfirmation }),
       })
-      const summary = response.data as { advanced_motos_deleted?: number; results_deleted?: number }
+      const summary = response.data as { motos_deleted?: number; results_deleted?: number }
       setRaceResetPreview(null)
       await load('refresh', { includeAdvancedSummary: true })
-      alert(`Data race dibersihkan. ${summary.advanced_motos_deleted ?? 0} moto advanced dan ${summary.results_deleted ?? 0} hasil dihapus.`)
+      alert(`Data race dibersihkan. ${summary.motos_deleted ?? 0} moto hasil race dan ${summary.results_deleted ?? 0} hasil dihapus.`)
     } catch (err: unknown) {
       alert(getErrorMessage(err))
     } finally {
@@ -1701,6 +1702,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
             <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
               {[
                 ['Moto advanced', raceResetPreview.advancedMotos],
+                ['Moto 3 hasil generate', raceResetPreview.generatedQualificationMotos],
                 ['Hasil moto', raceResetPreview.results],
                 ['Stage result', raceResetPreview.stageResults],
                 ['Penalty', raceResetPreview.penalties],
