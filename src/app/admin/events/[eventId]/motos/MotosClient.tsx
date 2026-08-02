@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { compareMotoDisplayOrder, formatMotoDisplayName } from '../../../../../lib/motoDisplayOrder'
 import { useApiFetch } from '@/src/hooks/useApiFetch'
 
@@ -61,6 +61,8 @@ type ComputeModalState = {
   status: 'loading' | 'success' | 'warning' | 'error'
   message: string
 }
+
+type RaceDayFilter = 'ALL' | 'ACTION' | 'LIVE_READY' | 'PROVISIONAL' | 'LOCKED'
 
 function MotoListSkeleton() {
   return (
@@ -182,6 +184,9 @@ export default function MotosClient({ eventId }: { eventId: string }) {
   const [raceResetConfirmation, setRaceResetConfirmation] = useState('')
   const [raceResetLoading, setRaceResetLoading] = useState(false)
   const [raceResetSubmitting, setRaceResetSubmitting] = useState(false)
+  const [raceDayFilter, setRaceDayFilter] = useState<RaceDayFilter>('ACTION')
+  const [expandedCategoryIds, setExpandedCategoryIds] = useState<string[]>([])
+  const hasInitializedRaceDayView = useRef(false)
 
   const getErrorMessage = (err: unknown) => (err instanceof Error ? err.message : 'Request failed')
 
@@ -369,6 +374,38 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       return 0
     })
   }, [categoriesSorted, isCategoryComplete])
+
+  const raceDayOverview = useMemo(() => {
+    const live = motos.filter((moto) => moto.status === 'LIVE')
+    const ready = motos.filter((moto) => moto.status === 'READY')
+    const provisional = motos.filter((moto) => moto.status === 'PROVISIONAL' || moto.status === 'PROTEST_REVIEW')
+    const actionable = motos.filter((moto) => ['LIVE', 'READY', 'PROVISIONAL', 'PROTEST_REVIEW'].includes(moto.status))
+    return { live, ready, provisional, actionable }
+  }, [motos])
+
+  const filteredCategories = useMemo(() => {
+    if (raceDayFilter === 'ALL') return displayCategoriesSorted
+    return displayCategoriesSorted.filter((category) => {
+      const list = motosByCategory.get(category.id) ?? []
+      if (raceDayFilter === 'ACTION') return list.some((moto) => ['LIVE', 'READY', 'PROVISIONAL', 'PROTEST_REVIEW'].includes(moto.status))
+      if (raceDayFilter === 'LIVE_READY') return list.some((moto) => moto.status === 'LIVE' || moto.status === 'READY')
+      if (raceDayFilter === 'PROVISIONAL') return list.some((moto) => moto.status === 'PROVISIONAL' || moto.status === 'PROTEST_REVIEW')
+      return list.length > 0 && list.every((moto) => moto.status === 'LOCKED')
+    })
+  }, [displayCategoriesSorted, motosByCategory, raceDayFilter])
+
+  useEffect(() => {
+    if (hasInitializedRaceDayView.current || motos.length === 0) return
+    const activeCategoryIds = Array.from(
+      new Set(
+        motos
+          .filter((moto) => ['LIVE', 'READY', 'PROVISIONAL', 'PROTEST_REVIEW'].includes(moto.status))
+          .map((moto) => moto.category_id)
+      )
+    )
+    setExpandedCategoryIds(activeCategoryIds)
+    hasInitializedRaceDayView.current = true
+  }, [motos])
 
   useEffect(() => {
     const completedCategoryIds = categories
@@ -657,6 +694,17 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     setHiddenCategoryIds((prev) =>
       prev.includes(categoryId) ? prev.filter((id) => id !== categoryId) : [...prev, categoryId]
     )
+  }
+
+  const toggleCategoryExpansion = (categoryId: string) => {
+    setExpandedCategoryIds((prev) =>
+      prev.includes(categoryId) ? prev.filter((id) => id !== categoryId) : [...prev, categoryId]
+    )
+  }
+
+  const focusCategory = (categoryId: string) => {
+    setExpandedCategoryIds((prev) => (prev.includes(categoryId) ? prev : [...prev, categoryId]))
+    window.setTimeout(() => document.getElementById(`moto-category-${categoryId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0)
   }
 
   const getComputeAction = (categoryId: string) => {
@@ -1238,8 +1286,73 @@ export default function MotosClient({ eventId }: { eventId: string }) {
         </div>
       )}
 
+      <section
+        className="no-print motos-race-day-panel"
+        style={{
+          marginTop: 14,
+          padding: 12,
+          borderRadius: 14,
+          border: '2px solid #1f2937',
+          background: '#fff7ed',
+          display: 'grid',
+          gap: 10,
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div>
+            <div style={{ fontWeight: 950, fontSize: 14 }}>Race Day Control</div>
+            <div style={{ fontSize: 12, color: '#475569', fontWeight: 700 }}>Pilih hanya kategori yang perlu dipantau sekarang.</div>
+          </div>
+          <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+            {([
+              ['ALL', 'Semua'],
+              ['ACTION', `Butuh Aksi ${raceDayOverview.actionable.length}`],
+              ['LIVE_READY', `Live / Ready ${raceDayOverview.live.length + raceDayOverview.ready.length}`],
+              ['PROVISIONAL', `Provisional ${raceDayOverview.provisional.length}`],
+              ['LOCKED', 'Locked'],
+            ] as Array<[RaceDayFilter, string]>).map(([filter, label]) => (
+              <button
+                key={filter}
+                type="button"
+                onClick={() => setRaceDayFilter(filter)}
+                style={{
+                  padding: '6px 10px',
+                  borderRadius: 999,
+                  border: '1px solid #111',
+                  background: raceDayFilter === filter ? '#1f2937' : '#fff',
+                  color: raceDayFilter === filter ? '#fff' : '#111',
+                  fontSize: 12,
+                  fontWeight: 900,
+                  cursor: 'pointer',
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+        {(raceDayOverview.live[0] || raceDayOverview.ready[0] || raceDayOverview.provisional[0]) && (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {raceDayOverview.live.slice(0, 1).map((moto) => (
+              <button key={moto.id} type="button" onClick={() => focusCategory(moto.category_id)} className="motos-race-day-link">
+                LIVE: {formatMotoDisplayName(moto.moto_name)}
+              </button>
+            ))}
+            {raceDayOverview.ready.slice(0, 1).map((moto) => (
+              <button key={moto.id} type="button" onClick={() => focusCategory(moto.category_id)} className="motos-race-day-link">
+                NEXT READY: {formatMotoDisplayName(moto.moto_name)}
+              </button>
+            ))}
+            {raceDayOverview.provisional.slice(0, 1).map((moto) => (
+              <button key={moto.id} type="button" onClick={() => focusCategory(moto.category_id)} className="motos-race-day-link">
+                PERLU REVIEW: {formatMotoDisplayName(moto.moto_name)}
+              </button>
+            ))}
+          </div>
+        )}
+      </section>
 
-      <div style={{ marginTop: 16, display: 'grid', gap: 16 }}>
+      <div style={{ marginTop: 12, display: 'grid', gap: 10 }}>
         {loading && motos.length === 0 && (
           <div className="no-print">
             <MotoListSkeleton />
@@ -1252,10 +1365,17 @@ export default function MotosClient({ eventId }: { eventId: string }) {
           </div>
         )}
 
-        {displayCategoriesSorted.map((cat) => {
+        {!loading && motos.length > 0 && filteredCategories.length === 0 && (
+          <div style={{ padding: 14, borderRadius: 14, border: '1px dashed #94a3b8', background: '#fff', color: '#475569', fontWeight: 800 }}>
+            Tidak ada kategori dengan filter ini.
+          </div>
+        )}
+
+        {filteredCategories.map((cat) => {
           const list = motosByCategory.get(cat.id) ?? []
           if (list.length === 0) return null
           const isHidden = hiddenCategoryIds.includes(cat.id)
+          const isExpanded = expandedCategoryIds.includes(cat.id)
           const isComplete = isCategoryComplete(cat.id)
           const computeAction = getComputeAction(cat.id)
           const summary = advancedSummaryByCategory[cat.id]
@@ -1263,10 +1383,11 @@ export default function MotosClient({ eventId }: { eventId: string }) {
           return (
           <div
             key={cat.id}
+            id={`moto-category-${cat.id}`}
             className="moto-category-card"
             style={{
-              padding: 14,
-              borderRadius: 16,
+              padding: 12,
+              borderRadius: 14,
               border: '2px solid #111',
               background: '#fff',
               display: 'grid',
@@ -1330,6 +1451,24 @@ export default function MotosClient({ eventId }: { eventId: string }) {
               <div className="no-print motos-category-actions" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <button
                   type="button"
+                  onClick={() => toggleCategoryExpansion(cat.id)}
+                  style={{
+                    padding: '6px 10px',
+                    borderRadius: 999,
+                    border: '2px solid #111',
+                    background: isExpanded ? '#1f2937' : '#fff',
+                    color: isExpanded ? '#fff' : '#111',
+                    fontWeight: 900,
+                    fontSize: 12,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                  }}
+                  aria-expanded={isExpanded}
+                >
+                  {isExpanded ? 'Tutup' : 'Buka'}
+                </button>
+                <button
+                  type="button"
                   onClick={() =>
                     window.open(
                       `/event/${eventId}/live-score/${encodeURIComponent(cat.id)}`,
@@ -1367,23 +1506,23 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                 </button>
               </div>
             </div>
-            {isHidden ? null : (
+            {isHidden || !isExpanded ? null : (
               <div style={{ display: 'grid', gap: 8 }}>
                 {list.map((m) => (
                   <div
                     key={m.id}
                     className="moto-row-card"
                     style={{
-                      padding: 12,
-                      borderRadius: 14,
+                      padding: '9px 10px',
+                      borderRadius: 12,
                       border: '2px solid #111',
                       background: '#eaf7ee',
                       display: 'grid',
                       gridTemplateColumns: '1fr auto',
-                      gap: 10,
+                      gap: 8,
                     }}
                   >
-                    <div style={{ display: 'grid', gap: 6 }}>
+                    <div style={{ display: 'grid', gap: 4 }}>
                       <div style={{ fontWeight: 900 }}>
                         {m.moto_order}. {formatMotoDisplayName(m.moto_name)}
                       </div>
@@ -1828,6 +1967,21 @@ export default function MotosClient({ eventId }: { eventId: string }) {
           flex: 0 0 auto;
           animation: motos-compute-spin .8s linear infinite;
         }
+        .motos-race-day-link {
+          padding: 7px 10px;
+          border: 1px solid #7c2d12;
+          border-radius: 999px;
+          background: #fff;
+          color: #7c2d12;
+          font-size: 12px;
+          font-weight: 900;
+          cursor: pointer;
+          white-space: nowrap;
+        }
+        .motos-race-day-link:hover {
+          background: #7c2d12;
+          color: #fff;
+        }
         @keyframes motos-compute-spin { to { transform: rotate(360deg); } }
         @media (max-width: 860px) {
           .motos-print-root {
@@ -1835,7 +1989,8 @@ export default function MotosClient({ eventId }: { eventId: string }) {
           }
           .motos-topbar,
           .motos-category-header,
-          .motos-rider-toggle {
+          .motos-rider-toggle,
+          .motos-race-day-panel {
             align-items: stretch !important;
             flex-direction: column !important;
           }
