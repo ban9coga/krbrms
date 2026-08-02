@@ -33,9 +33,36 @@ type ResultRow = {
   dnf_progress_percent?: number | null
 }
 
+type RiderParticipationHistory = {
+  dnsCount: number
+  dnfCount: number
+  dqCount: number
+  finishCount: number
+}
+
 type MotoRiderRow = {
   moto_id: string
   rider_id: string
+}
+
+const buildParticipationHistory = (rows: ResultRow[]) => {
+  const historyByRider = new Map<string, RiderParticipationHistory>()
+  rows.forEach((row) => {
+    const history = historyByRider.get(row.rider_id) ?? { dnsCount: 0, dnfCount: 0, dqCount: 0, finishCount: 0 }
+    if (row.result_status === 'DNS') history.dnsCount += 1
+    else if (row.result_status === 'DNF') history.dnfCount += 1
+    else if (row.result_status === 'DQ') history.dqCount += 1
+    else if (row.result_status === 'FINISH') history.finishCount += 1
+    historyByRider.set(row.rider_id, history)
+  })
+  return historyByRider
+}
+
+const compareParticipationHistory = (a: RiderParticipationHistory, b: RiderParticipationHistory) => {
+  if (a.dnsCount !== b.dnsCount) return a.dnsCount - b.dnsCount
+  if (a.dnfCount !== b.dnfCount) return a.dnfCount - b.dnfCount
+  if (a.dqCount !== b.dqCount) return a.dqCount - b.dqCount
+  return b.finishCount - a.finishCount
 }
 
 type StageResultSeedRow = {
@@ -1659,6 +1686,21 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
   if (resultError) return { ok: false, warning: resultError.message }
   const resultRows = (results ?? []) as ResultRow[]
 
+  // Final ties use the rider's prior race record, never the result currently
+  // being ranked. This keeps a rider who raced earlier above one who had DNS
+  // throughout the bracket when both are DNS in the Final.
+  const preFinalMotoIds = (existingMotos ?? [])
+    .filter((moto) => !/^final\b/i.test(moto.moto_name))
+    .map((moto) => moto.id)
+  const { data: preFinalResults, error: preFinalResultError } = preFinalMotoIds.length
+    ? await adminClient
+        .from('results')
+        .select('moto_id, rider_id, finish_order, result_status, dnf_progress_percent')
+        .in('moto_id', preFinalMotoIds)
+    : { data: [], error: null }
+  if (preFinalResultError) return { ok: false, warning: preFinalResultError.message }
+  const participationHistoryByRider = buildParticipationHistory((preFinalResults ?? []) as ResultRow[])
+
   const { data: motoRiders, error: riderError } = await adminClient
     .from('moto_riders')
     .select('moto_id, rider_id')
@@ -2101,6 +2143,7 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
     finalClass: string
     point: number
     resultStatus: ResultRow['result_status']
+    dnfProgressPercent: number | null
   }> = []
   for (const moto of finalMotos) {
     if (!isMotoComplete(moto.id, motoRiderRows, resultRows)) continue
@@ -2120,6 +2163,7 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
         finalClass,
         point,
         resultStatus: row?.result_status ?? null,
+        dnfProgressPercent: row?.dnf_progress_percent ?? null,
       })
     })
   }
@@ -2162,8 +2206,17 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
       .sort((a, b) => {
         const statusDiff = finalResultQuality(a.resultStatus) - finalResultQuality(b.resultStatus)
         if (statusDiff !== 0) return statusDiff
+        if (a.resultStatus === 'DNF' && b.resultStatus === 'DNF') {
+          const progressDiff = Number(b.dnfProgressPercent ?? -1) - Number(a.dnfProgressPercent ?? -1)
+          if (progressDiff !== 0) return progressDiff
+        }
         const pointDiff = a.point - b.point
         if (pointDiff !== 0) return pointDiff
+        const historyDiff = compareParticipationHistory(
+          participationHistoryByRider.get(a.riderId) ?? { dnsCount: 0, dnfCount: 0, dqCount: 0, finishCount: 0 },
+          participationHistoryByRider.get(b.riderId) ?? { dnsCount: 0, dnfCount: 0, dqCount: 0, finishCount: 0 }
+        )
+        if (historyDiff !== 0) return historyDiff
         const sourceStageDiff = b.source.priority - a.source.priority
         if (sourceStageDiff !== 0) return sourceStageDiff
         const sourcePositionDiff = a.source.position - b.source.position

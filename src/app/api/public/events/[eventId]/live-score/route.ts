@@ -33,6 +33,13 @@ type ResultRow = {
   dnf_progress_percent?: number | null
 }
 
+type RiderParticipationHistory = {
+  dnsCount: number
+  dnfCount: number
+  dqCount: number
+  finishCount: number
+}
+
 type RiderRow = {
   id: string
   name: string
@@ -182,6 +189,27 @@ const getStageStatusSortOrder = (status: StageRow['status']) => {
 
 const compareNullableNumber = (a: number | null | undefined, b: number | null | undefined) =>
   Number(a ?? Number.MAX_SAFE_INTEGER) - Number(b ?? Number.MAX_SAFE_INTEGER)
+
+const buildParticipationHistory = (rows: ResultRow[], excludedMotoIds: Set<string>) => {
+  const historyByRider = new Map<string, RiderParticipationHistory>()
+  rows.forEach((row) => {
+    if (excludedMotoIds.has(row.moto_id)) return
+    const history = historyByRider.get(row.rider_id) ?? { dnsCount: 0, dnfCount: 0, dqCount: 0, finishCount: 0 }
+    if (row.result_status === 'DNS') history.dnsCount += 1
+    else if (row.result_status === 'DNF') history.dnfCount += 1
+    else if (row.result_status === 'DQ') history.dqCount += 1
+    else if (row.result_status === 'FINISH') history.finishCount += 1
+    historyByRider.set(row.rider_id, history)
+  })
+  return historyByRider
+}
+
+const compareParticipationHistory = (a: RiderParticipationHistory, b: RiderParticipationHistory) => {
+  if (a.dnsCount !== b.dnsCount) return a.dnsCount - b.dnsCount
+  if (a.dnfCount !== b.dnfCount) return a.dnfCount - b.dnfCount
+  if (a.dqCount !== b.dqCount) return a.dqCount - b.dqCount
+  return b.finishCount - a.finishCount
+}
 
 const resolvePenaltyStagesForMoto = (name: string): Array<'QUARTER' | 'REPECHAGE' | 'SEMI' | 'FINAL' | 'ALL'> => {
   if (/^quarter final/i.test(name)) return ['QUARTER', 'ALL']
@@ -354,6 +382,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const { data: results, error: resultError } = resultResult
   if (resultError) return NextResponse.json({ error: resultError.message }, { status: 400 })
   const resultRows = (results ?? []) as ResultRow[]
+  const finalMotoIds = new Set(motoRows.filter((moto) => /^final\b/i.test(moto.moto_name)).map((moto) => moto.id))
+  const participationHistoryByRider = buildParticipationHistory(resultRows, finalMotoIds)
 
   const { data: stageSeedData, error: stageSeedError } = stageSeedResult
   if (stageSeedError) return NextResponse.json({ error: stageSeedError.message }, { status: 400 })
@@ -788,6 +818,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
           const aPoint = (a.point ?? Number.MAX_SAFE_INTEGER) + (a.penalty_total ?? 0)
           const bPoint = (b.point ?? Number.MAX_SAFE_INTEGER) + (b.penalty_total ?? 0)
           if (aPoint !== bPoint) return aPoint - bPoint
+
+          if (/^final\b/i.test(moto.moto_name)) {
+            const historyDiff = compareParticipationHistory(
+              participationHistoryByRider.get(a.rider_id) ?? { dnsCount: 0, dnfCount: 0, dqCount: 0, finishCount: 0 },
+              participationHistoryByRider.get(b.rider_id) ?? { dnsCount: 0, dnfCount: 0, dqCount: 0, finishCount: 0 }
+            )
+            if (historyDiff !== 0) return historyDiff
+          }
 
           const aDirectSeed = directSeedByRider.get(a.rider_id)
           const bDirectSeed = directSeedByRider.get(b.rider_id)
