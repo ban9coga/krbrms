@@ -244,7 +244,13 @@ const tableExists = async (tableName: string) => {
   return !error
 }
 
-const sortSeedRows = (rows: StageResultSeedRow[], batchOrderById: Record<string, number> = {}) =>
+const seedRowKey = (row: StageResultSeedRow) => `${row.stage}:${row.batch_id ?? 'none'}:${row.rider_id}`
+
+const sortSeedRows = (
+  rows: StageResultSeedRow[],
+  batchOrderById: Record<string, number> = {},
+  gateBySeedRowKey: Map<string, number> = new Map()
+) =>
   [...rows].sort((a, b) => {
     const positionDiff = (a.position ?? 9999) - (b.position ?? 9999)
     if (positionDiff !== 0) return positionDiff
@@ -254,6 +260,10 @@ const sortSeedRows = (rows: StageResultSeedRow[], batchOrderById: Record<string,
     if (batchDiff !== 0) return batchDiff
     const pointsDiff = (a.points ?? 9999) - (b.points ?? 9999)
     if (pointsDiff !== 0) return pointsDiff
+    const gateDiff =
+      (gateBySeedRowKey.get(seedRowKey(a)) ?? Number.MAX_SAFE_INTEGER) -
+      (gateBySeedRowKey.get(seedRowKey(b)) ?? Number.MAX_SAFE_INTEGER)
+    if (gateDiff !== 0) return gateDiff
     return a.rider_id.localeCompare(b.rider_id)
   })
 
@@ -261,10 +271,11 @@ const orderRidersBySeedRows = (
   riderIds: string[],
   seedRows: StageResultSeedRow[],
   batchOrderById: Record<string, number> = {},
-  dnsSeedKeys: Set<string> = new Set()
+  dnsSeedKeys: Set<string> = new Set(),
+  gateBySeedRowKey: Map<string, number> = new Map()
 ) => {
   const wanted = new Set(riderIds)
-  const sorted = sortSeedRows(seedRows, batchOrderById)
+  const sorted = sortSeedRows(seedRows, batchOrderById, gateBySeedRowKey)
     .filter((row) => row.position !== null && wanted.has(row.rider_id))
   // DNS riders remain ordered by rank, batch, then points, but seed after riders
   // who took part in the source stage. Snake distribution happens afterwards.
@@ -361,11 +372,12 @@ const distributeCarryOverHeats = (
   riderIds: string[],
   seedRows: StageResultSeedRow[],
   batchOrderById: Record<string, number>,
-  maxRiders: number
+  maxRiders: number,
+  gateBySeedRowKey: Map<string, number> = new Map()
 ) => {
   if (riderIds.length === 0 || maxRiders <= 0) return null
   const wanted = new Set(riderIds)
-  const groupedRows = sortSeedRows(seedRows, batchOrderById)
+  const groupedRows = sortSeedRows(seedRows, batchOrderById, gateBySeedRowKey)
     .filter((row) => row.position !== null && wanted.has(row.rider_id) && row.batch_id)
     .reduce<Record<string, StageResultSeedRow[]>>((acc, row) => {
       const batchId = row.batch_id as string
@@ -1032,6 +1044,21 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
   if (error) return { ok: false, warning: error.message }
 
   const stageSeedRows = (stageRows ?? []) as StageResultSeedRow[]
+  const gateBySeedRowKey = new Map<string, number>()
+  if (existingMotoIds.length > 0) {
+    const { data: gateRows } = await adminClient
+      .from('moto_gate_positions')
+      .select('moto_id, rider_id, gate_position')
+      .in('moto_id', existingMotoIds)
+    const gateByMotoRider = new Map(
+      (gateRows ?? []).map((gate) => [`${gate.moto_id}:${gate.rider_id}`, Number(gate.gate_position)])
+    )
+    stageSeedRows.forEach((row) => {
+      if (!row.batch_id) return
+      const gate = gateByMotoRider.get(`${row.batch_id}:${row.rider_id}`)
+      if (gate != null) gateBySeedRowKey.set(seedRowKey(row), gate)
+    })
+  }
   const dnsSeedKeys = new Set<string>()
   for (const row of stageSeedRows) {
     if (!row.batch_id) continue
@@ -1068,8 +1095,8 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
   const quarterDirectRiders = quarterEntrantIds.filter((riderId) => !repechageStageRiderIds.has(riderId))
   const quarterRepechageRiders = quarterEntrantIds.filter((riderId) => repechageStageRiderIds.has(riderId))
   const quarterRiders = [
-    ...orderRidersBySeedRows(quarterDirectRiders, qualificationRows, seedBatchOrderById, dnsSeedKeys),
-    ...orderRidersBySeedRows(quarterRepechageRiders, repechageResultRows, seedBatchOrderById, dnsSeedKeys),
+    ...orderRidersBySeedRows(quarterDirectRiders, qualificationRows, seedBatchOrderById, dnsSeedKeys, gateBySeedRowKey),
+    ...orderRidersBySeedRows(quarterRepechageRiders, repechageResultRows, seedBatchOrderById, dnsSeedKeys, gateBySeedRowKey),
   ]
   const repechageRiders = orderRidersBySeedRows(
     stageSeedRows.filter((r) => r.stage === 'REPECHAGE').map((r) => r.rider_id),
@@ -1077,7 +1104,8 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
       row.stage === 'QUALIFICATION' || row.stage === 'QUARTER_FINAL' || row.stage === 'SEMI_FINAL'
     ),
     seedBatchOrderById,
-    dnsSeedKeys
+    dnsSeedKeys,
+    gateBySeedRowKey
   )
   const semiEntrantIds = Array.from(semiStageRiderIds)
   const semiQualificationDirectRiders = semiEntrantIds.filter(
@@ -1088,9 +1116,9 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
     (riderId) => repechageStageRiderIds.has(riderId) && !quarterStageRiderIds.has(riderId)
   )
   const semiRiders = [
-    ...orderRidersBySeedRows(semiQualificationDirectRiders, qualificationRows, seedBatchOrderById, dnsSeedKeys),
-    ...orderRidersBySeedRows(semiQuarterRiders, quarterResultRows, seedBatchOrderById, dnsSeedKeys),
-    ...orderRidersBySeedRows(semiRepechageRiders, repechageResultRows, seedBatchOrderById, dnsSeedKeys),
+    ...orderRidersBySeedRows(semiQualificationDirectRiders, qualificationRows, seedBatchOrderById, dnsSeedKeys, gateBySeedRowKey),
+    ...orderRidersBySeedRows(semiQuarterRiders, quarterResultRows, seedBatchOrderById, dnsSeedKeys, gateBySeedRowKey),
+    ...orderRidersBySeedRows(semiRepechageRiders, repechageResultRows, seedBatchOrderById, dnsSeedKeys, gateBySeedRowKey),
   ]
   const finals = stageSeedRows
     .filter((r) => r.stage === 'FINAL' && r.final_class)
@@ -1202,7 +1230,7 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
     // a new QF batch and change the bracket that has already been raced.
     if (pendingQuarter.length > 0 && !quarterFinalAlreadyFinalized) {
       const groups =
-        distributeCarryOverHeats(pendingQuarter, qualificationRows, seedBatchOrderById, quarterMaxRiders) ??
+        distributeCarryOverHeats(pendingQuarter, qualificationRows, seedBatchOrderById, quarterMaxRiders, gateBySeedRowKey) ??
         distributeSeededHeats(pendingQuarter, quarterMaxRiders)
       const startIndex = existingQuarterMotos.length
       groups.forEach((_, idx) => {
@@ -1251,7 +1279,8 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
             row.stage === 'QUALIFICATION' || row.stage === 'QUARTER_FINAL' || row.stage === 'SEMI_FINAL'
           ),
           seedBatchOrderById,
-          repechageMaxRiders
+          repechageMaxRiders,
+          gateBySeedRowKey
         ) ?? distributeSeededHeats(pendingRepechage, repechageMaxRiders)
       const startIndex = existingRepechageMotos.length
       const { data: motoRows, error: motoError } = await adminClient
@@ -1282,7 +1311,8 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
         semiRiders,
         [...quarterResultRows, ...repechageResultRows, ...qualificationRows],
         seedBatchOrderById,
-        semiMaxRiders
+        semiMaxRiders,
+        gateBySeedRowKey
       ) ?? distributeSeededHeats(semiRiders, semiMaxRiders)
     const { data: motoRows, error: motoError } = await adminClient
       .from('motos')
@@ -1358,7 +1388,12 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
           if (stageDiff !== 0) return stageDiff
           const positionDiff = Number(a.position ?? Number.MAX_SAFE_INTEGER) - Number(b.position ?? Number.MAX_SAFE_INTEGER)
           if (positionDiff !== 0) return positionDiff
-          return Number(a.points ?? Number.MAX_SAFE_INTEGER) - Number(b.points ?? Number.MAX_SAFE_INTEGER)
+          const pointsDiff = Number(a.points ?? Number.MAX_SAFE_INTEGER) - Number(b.points ?? Number.MAX_SAFE_INTEGER)
+          if (pointsDiff !== 0) return pointsDiff
+          return (
+            (gateBySeedRowKey.get(seedRowKey(a)) ?? Number.MAX_SAFE_INTEGER) -
+            (gateBySeedRowKey.get(seedRowKey(b)) ?? Number.MAX_SAFE_INTEGER)
+          )
         })
       const source = sourceRows[0] ?? qualificationSeedByRider.get(riderId) ?? null
       const stage = (source?.stage === 'FINAL' || !source ? 'QUALIFICATION' : source.stage) as Exclude<StageName, 'FINAL'>
@@ -1370,10 +1405,14 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
         stagePriority: stagePriority[stage],
         position: Number(source?.position ?? Number.MAX_SAFE_INTEGER),
         points: Number(source?.points ?? Number.MAX_SAFE_INTEGER),
+        gate: source ? gateBySeedRowKey.get(seedRowKey(source)) ?? Number.MAX_SAFE_INTEGER : Number.MAX_SAFE_INTEGER,
         qualificationPosition: Number(qualificationSeed?.position ?? Number.MAX_SAFE_INTEGER),
         qualificationPoints: Number(qualificationSeed?.points ?? Number.MAX_SAFE_INTEGER),
         qualificationBatchOrder: qualificationSeed?.batch_id
           ? seedBatchOrderById[qualificationSeed.batch_id] ?? Number.MAX_SAFE_INTEGER
+          : Number.MAX_SAFE_INTEGER,
+        qualificationGate: qualificationSeed
+          ? gateBySeedRowKey.get(seedRowKey(qualificationSeed)) ?? Number.MAX_SAFE_INTEGER
           : Number.MAX_SAFE_INTEGER,
       }
     }
@@ -1392,12 +1431,16 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
         if (positionDiff !== 0) return positionDiff
         const pointsDiff = a.points - b.points
         if (pointsDiff !== 0) return pointsDiff
+        const gateDiff = a.gate - b.gate
+        if (gateDiff !== 0) return gateDiff
         const qualificationPositionDiff = a.qualificationPosition - b.qualificationPosition
         if (qualificationPositionDiff !== 0) return qualificationPositionDiff
         const qualificationPointsDiff = a.qualificationPoints - b.qualificationPoints
         if (qualificationPointsDiff !== 0) return qualificationPointsDiff
         const batchDiff = a.qualificationBatchOrder - b.qualificationBatchOrder
         if (batchDiff !== 0) return batchDiff
+        const qualificationGateDiff = a.qualificationGate - b.qualificationGate
+        if (qualificationGateDiff !== 0) return qualificationGateDiff
         return a.riderId.localeCompare(b.riderId)
       })
       .map((row) => row.riderId)
@@ -2107,10 +2150,10 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
     const rankedEntries = [...entries]
       .map((entry) => ({ ...entry, source: finalSourceSeedForRider(entry.riderId) }))
       .sort((a, b) => {
-        const pointDiff = a.point - b.point
-        if (pointDiff !== 0) return pointDiff
         const statusDiff = finalResultQuality(a.resultStatus) - finalResultQuality(b.resultStatus)
         if (statusDiff !== 0) return statusDiff
+        const pointDiff = a.point - b.point
+        if (pointDiff !== 0) return pointDiff
         const sourceStageDiff = b.source.priority - a.source.priority
         if (sourceStageDiff !== 0) return sourceStageDiff
         const sourcePositionDiff = a.source.position - b.source.position
