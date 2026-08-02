@@ -4098,29 +4098,40 @@ html[data-theme='dark'] .live-score-editorial-page .public-table .live-score-rid
   transform: translateY(-1px);
 }
 
-/* Shared logout affordance for backoffice and signed-in public topbars. */
+/* Shared logout control for backoffice and signed-in public topbars. */
 .role-logout-button {
   display: inline-flex;
-  width: 45px;
-  height: 45px;
-  flex: 0 0 45px;
+  min-height: 40px;
   align-items: center;
-  justify-content: flex-start;
-  overflow: hidden;
-  border: 0;
-  border-radius: 999px;
-  background: rgb(255, 65, 65);
-  box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.2);
-  color: #fff;
+  gap: 8px;
+  padding: 9px 14px;
+  border: 1px solid rgba(185, 58, 58, 0.62);
+  border-radius: 8px;
+  background: transparent;
+  box-shadow: none;
+  color: #7c2d2d;
   cursor: pointer;
-  padding: 0;
-  transition: width 0.3s ease, border-radius 0.3s ease, transform 0.12s ease, filter 0.2s ease;
+  font-size: 13px;
+  font-weight: 850;
+  letter-spacing: 0;
+  text-shadow: none;
+  transition: color 0.5s ease, background-color 0.5s ease, border-color 0.5s ease, box-shadow 0.5s ease, transform 0.15s ease;
+  user-select: none;
+}
+
+.role-logout-button:hover,
+.role-logout-button:focus-visible {
+  border-color: #d94a4a;
+  background: #d94a4a;
+  box-shadow: 0 0 5px rgba(217, 74, 74, 0.9), 0 0 20px rgba(217, 74, 74, 0.56), 0 0 42px rgba(217, 74, 74, 0.3);
+  color: #fff;
+  text-shadow: 0 0 5px #fff;
 }
 
 .role-logout-icon {
   display: inline-flex;
-  width: 45px;
-  min-width: 45px;
+  width: 16px;
+  height: 16px;
   align-items: center;
   justify-content: center;
 }
@@ -4131,48 +4142,23 @@ html[data-theme='dark'] .live-score-editorial-page .public-table .live-score-rid
 }
 
 .role-logout-label {
-  width: 0;
-  overflow: hidden;
-  color: #fff;
-  font-size: 14px;
-  font-weight: 800;
-  opacity: 0;
-  text-align: center;
-  transition: width 0.3s ease, opacity 0.2s ease;
+  color: currentColor;
+  font-size: 13px;
+  font-weight: 850;
   white-space: nowrap;
 }
 
-.role-logout-button:hover,
-.role-logout-button:focus-visible {
-  width: 125px;
-  border-radius: 40px;
-  filter: brightness(1.04);
-}
-
-.role-logout-button:hover .role-logout-icon,
-.role-logout-button:focus-visible .role-logout-icon {
-  width: 38px;
-  min-width: 38px;
-}
-
-.role-logout-button:hover .role-logout-label,
-.role-logout-button:focus-visible .role-logout-label {
-  width: 76px;
-  opacity: 1;
-}
-
 .role-logout-button:active {
-  transform: translate(2px, 2px);
+  transform: translateY(1px);
 }
 
 .role-logout-button:focus-visible {
-  outline: 3px solid rgba(255, 65, 65, 0.35);
+  outline: 3px solid rgba(217, 74, 74, 0.4);
   outline-offset: 3px;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .role-logout-button,
-  .role-logout-label {
+  .role-logout-button {
     transition: none;
   }
 }

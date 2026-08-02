@@ -6,7 +6,7 @@ type LogoutButtonProps = {
 
 export default function LogoutButton({ onClick }: LogoutButtonProps) {
   return (
-    <button type="button" onClick={onClick} className="role-logout-button" aria-label="Logout" title="Logout">
+    <button type="button" onClick={onClick} className="role-logout-button" aria-label="Keluar dari akun" title="Keluar dari akun">
       <span className="role-logout-icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
           <path d="M10 17l5-5-5-5" />
@@ -14,7 +14,7 @@ export default function LogoutButton({ onClick }: LogoutButtonProps) {
           <path d="M21 3v18" />
         </svg>
       </span>
-      <span className="role-logout-label">Logout</span>
+      <span className="role-logout-label">Keluar</span>
     </button>
   )
 }
