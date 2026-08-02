@@ -30,6 +30,7 @@ type ResultRow = {
   rider_id: string
   finish_order: number | null
   result_status?: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | null
+  dnf_progress_percent?: number | null
 }
 
 type RiderRow = {
@@ -179,6 +180,9 @@ const getStageStatusSortOrder = (status: StageRow['status']) => {
   }
 }
 
+const compareNullableNumber = (a: number | null | undefined, b: number | null | undefined) =>
+  Number(a ?? Number.MAX_SAFE_INTEGER) - Number(b ?? Number.MAX_SAFE_INTEGER)
+
 const resolvePenaltyStagesForMoto = (name: string): Array<'QUARTER' | 'REPECHAGE' | 'SEMI' | 'FINAL' | 'ALL'> => {
   if (/^quarter final/i.test(name)) return ['QUARTER', 'ALL']
   if (/^repechage/i.test(name)) return ['REPECHAGE', 'ALL']
@@ -317,7 +321,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       .order('created_at', { ascending: true }),
     adminClient
       .from('results')
-      .select('moto_id, rider_id, finish_order, result_status')
+      .select('moto_id, rider_id, finish_order, result_status, dnf_progress_percent')
       .in('moto_id', motoIds),
     adminClient
       .from('race_stage_result')
@@ -513,6 +517,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const repechageStageRiderIds = new Set(stageSeedRows.filter((row) => row.stage === 'REPECHAGE').map((row) => row.rider_id))
   const semiStageRiderIds = new Set(stageSeedRows.filter((row) => row.stage === 'SEMI_FINAL').map((row) => row.rider_id))
 
+  const qualificationGateByRider = new Map<string, number>()
+  for (const moto of motoRows) {
+    const parsed = parseBatchKey(moto.moto_name)
+    if (!parsed || parsed.motoIndex !== 1) continue
+    for (const gate of gateRows.filter((row) => row.moto_id === moto.id)) {
+      qualificationGateByRider.set(gate.rider_id, gate.gate_position)
+    }
+  }
+
   const batches = batchEntries
     .map(([batchIndex, entry]) => {
       const moto1 = entry.moto1 as MotoRow
@@ -674,6 +687,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
           : /^semi final/i.test(moto.moto_name)
             ? 'SEMI_FINAL'
             : null
+    // A tied advanced-stage result is resolved from the rider's entry seed,
+    // not from the lane used in the current moto.
+    const directSeedRows =
+      stageSource === 'QUARTER_FINAL'
+        ? repechageStageResultRows
+        : stageSource === 'SEMI_FINAL'
+          ? [...repechageStageResultRows, ...quarterStageResultRows]
+          : []
+    const qualificationSeedByRider = new Map(qualificationStageSeedRows.map((row) => [row.rider_id, row]))
+    const directSeedByRider = new Map(directSeedRows.map((row) => [row.rider_id, row]))
     const validAssignedRiderIds = assignedRiderIds.filter((id) => riderMap.has(id))
     const validRiderIdsInMoto = riderIdsInMoto.filter((id) => riderMap.has(id))
 
@@ -722,11 +745,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     validRiderIdsWithGates.forEach((r, idx) => collapsedGateMap.set(r.id, idx + 1))
     
     const riderCount = validRiderIdsInMoto.length || null
+    const resultByRider = new Map(
+      resultRows.filter((row) => row.moto_id === moto.id).map((row) => [row.rider_id, row])
+    )
 
     const stagePenaltyStages = resolvePenaltyStagesForMoto(moto.moto_name)
     const rows: StageRow[] = validRiderIdsInMoto.map((riderId) => {
       const rider = riderMap.get(riderId)
-      const res = resultRows.find((r) => r.moto_id === moto.id && r.rider_id === riderId) ?? null
+      const res = resultByRider.get(riderId) ?? null
       const status = (res?.result_status ?? 'PENDING') as StageRow['status']
       const manualPenaltyTotal = stagePenaltyStages.reduce((sum, stageKey) => {
         return sum + (stagePenaltyMap.get(`${riderId}:${stageKey}`) ?? 0)
@@ -753,9 +779,40 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
           const aStatusOrder = getStageStatusSortOrder(a.status)
           const bStatusOrder = getStageStatusSortOrder(b.status)
           if (aStatusOrder !== bStatusOrder) return aStatusOrder - bStatusOrder
+          if (a.status === 'DNF' && b.status === 'DNF') {
+            const progressDiff =
+              Number(resultByRider.get(b.rider_id)?.dnf_progress_percent ?? -1) -
+              Number(resultByRider.get(a.rider_id)?.dnf_progress_percent ?? -1)
+            if (progressDiff !== 0) return progressDiff
+          }
           const aPoint = (a.point ?? Number.MAX_SAFE_INTEGER) + (a.penalty_total ?? 0)
           const bPoint = (b.point ?? Number.MAX_SAFE_INTEGER) + (b.penalty_total ?? 0)
           if (aPoint !== bPoint) return aPoint - bPoint
+
+          const aDirectSeed = directSeedByRider.get(a.rider_id)
+          const bDirectSeed = directSeedByRider.get(b.rider_id)
+          const directRankDiff = compareNullableNumber(aDirectSeed?.position, bDirectSeed?.position)
+          if (directRankDiff !== 0) return directRankDiff
+          const directPointDiff = compareNullableNumber(aDirectSeed?.points, bDirectSeed?.points)
+          if (directPointDiff !== 0) return directPointDiff
+
+          const aQualificationSeed = qualificationSeedByRider.get(a.rider_id)
+          const bQualificationSeed = qualificationSeedByRider.get(b.rider_id)
+          const qualificationRankDiff = compareNullableNumber(aQualificationSeed?.position, bQualificationSeed?.position)
+          if (qualificationRankDiff !== 0) return qualificationRankDiff
+          const qualificationPointDiff = compareNullableNumber(aQualificationSeed?.points, bQualificationSeed?.points)
+          if (qualificationPointDiff !== 0) return qualificationPointDiff
+          const qualificationBatchDiff = compareNullableNumber(
+            aQualificationSeed?.batch_id ? stageBatchOrderById.get(aQualificationSeed.batch_id) : null,
+            bQualificationSeed?.batch_id ? stageBatchOrderById.get(bQualificationSeed.batch_id) : null
+          )
+          if (qualificationBatchDiff !== 0) return qualificationBatchDiff
+          const qualificationGateDiff = compareNullableNumber(
+            qualificationGateByRider.get(a.rider_id),
+            qualificationGateByRider.get(b.rider_id)
+          )
+          if (qualificationGateDiff !== 0) return qualificationGateDiff
+
           const aGate = a.gate ?? Number.MAX_SAFE_INTEGER
           const bGate = b.gate ?? Number.MAX_SAFE_INTEGER
           if (aGate !== bGate) return aGate - bGate

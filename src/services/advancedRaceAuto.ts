@@ -30,6 +30,7 @@ type ResultRow = {
   rider_id: string
   finish_order: number | null
   result_status?: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | null
+  dnf_progress_percent?: number | null
 }
 
 type MotoRiderRow = {
@@ -1557,6 +1558,7 @@ export type StageRankInput = {
   riderId: string
   points: number
   resultStatus?: ResultRow['result_status']
+  dnfProgressPercent?: number | null
 }
 
 const stageResultQuality = (status: ResultRow['result_status']) => {
@@ -1580,6 +1582,10 @@ const rankStageRidersWithTieBreak = (
     .sort((a, b) => {
       const qualityDiff = stageResultQuality(a.resultStatus) - stageResultQuality(b.resultStatus)
       if (qualityDiff !== 0) return qualityDiff
+      if (a.resultStatus === 'DNF' && b.resultStatus === 'DNF') {
+        const progressDiff = Number(b.dnfProgressPercent ?? -1) - Number(a.dnfProgressPercent ?? -1)
+        if (progressDiff !== 0) return progressDiff
+      }
       if (a.points !== b.points) return a.points - b.points
 
       const aSeed = seedByRider.get(a.riderId)
@@ -1648,7 +1654,7 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
   const motoIds = allMotos.map((m) => m.id)
   const { data: results, error: resultError } = await adminClient
     .from('results')
-    .select('moto_id, rider_id, finish_order, result_status')
+    .select('moto_id, rider_id, finish_order, result_status, dnf_progress_percent')
     .in('moto_id', motoIds)
   if (resultError) return { ok: false, warning: resultError.message }
   const resultRows = (results ?? []) as ResultRow[]
@@ -1781,6 +1787,7 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
           riderId,
           points: scores[riderId],
           resultStatus: resultRows.find((row) => row.moto_id === moto.id && row.rider_id === riderId)?.result_status,
+          dnfProgressPercent: resultRows.find((row) => row.moto_id === moto.id && row.rider_id === riderId)?.dnf_progress_percent,
         })),
         fallbackSeeds
       ).forEach((row) => {
@@ -1900,6 +1907,7 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
         riderId,
         points: scores[riderId],
         resultStatus: resultRows.find((row) => row.moto_id === moto.id && row.rider_id === riderId)?.result_status,
+        dnfProgressPercent: resultRows.find((row) => row.moto_id === moto.id && row.rider_id === riderId)?.dnf_progress_percent,
       })),
       mergeSeedMaps(qualificationSeedByRider, repechageSeedByRider)
     )
@@ -1963,6 +1971,7 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
         riderId,
         points: scores[riderId],
         resultStatus: resultRows.find((row) => row.moto_id === moto.id && row.rider_id === riderId)?.result_status,
+        dnfProgressPercent: resultRows.find((row) => row.moto_id === moto.id && row.rider_id === riderId)?.dnf_progress_percent,
       })),
       qualificationSeedByRider
     )
@@ -2021,6 +2030,7 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
         riderId,
         points: scores[riderId],
         resultStatus: resultRows.find((row) => row.moto_id === moto.id && row.rider_id === riderId)?.result_status,
+        dnfProgressPercent: resultRows.find((row) => row.moto_id === moto.id && row.rider_id === riderId)?.dnf_progress_percent,
       })),
       mergeSeedMaps(qualificationSeedByRider, repechageSeedByRider, quarterSeedByRider, semiSeedByRider)
     )
