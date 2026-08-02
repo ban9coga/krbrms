@@ -10,6 +10,7 @@ type FeatureFlags = {
   absent_enabled: boolean
   dns_enabled: boolean
   dnf_enabled: boolean
+  dnf_progress_enabled: boolean
 }
 
 type PenaltyRule = {
@@ -228,7 +229,7 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
       const reqJson = reqRes
       const advancedJson = advancedRes
 
-      setFlags(flagJson.data ?? { penalty_enabled: false, absent_enabled: false, dns_enabled: false, dnf_enabled: false })
+      setFlags(flagJson.data ?? { penalty_enabled: false, absent_enabled: false, dns_enabled: false, dnf_enabled: false, dnf_progress_enabled: false })
       setRules(ruleJson.data ?? [])
       setRequirements(reqJson.data ?? [])
       const advancedCategories = (advancedJson.data?.categories ?? []) as CategoryItem[]
@@ -590,6 +591,7 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
                 absent_enabled: flags?.absent_enabled ?? false,
                 dns_enabled: flags?.dns_enabled ?? false,
                 dnf_enabled: flags?.dnf_enabled ?? false,
+                dnf_progress_enabled: flags?.dnf_progress_enabled ?? false,
               })
             }
             label="Modul penalty aktif"
@@ -602,6 +604,7 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
                 absent_enabled: checked,
                 dns_enabled: flags?.dns_enabled ?? false,
                 dnf_enabled: flags?.dnf_enabled ?? false,
+                dnf_progress_enabled: flags?.dnf_progress_enabled ?? false,
               })
             }
             label="Modul absent aktif"
@@ -614,6 +617,7 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
                 absent_enabled: flags?.absent_enabled ?? false,
                 dns_enabled: checked,
                 dnf_enabled: flags?.dnf_enabled ?? false,
+                dnf_progress_enabled: flags?.dnf_progress_enabled ?? false,
               })
             }
             label="Modul DNS aktif"
@@ -626,14 +630,29 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
                 absent_enabled: flags?.absent_enabled ?? false,
                 dns_enabled: flags?.dns_enabled ?? false,
                 dnf_enabled: checked,
+                dnf_progress_enabled: flags?.dnf_progress_enabled ?? false,
               })
             }
             label="Modul DNF aktif"
+          />
+          <ToggleSwitch
+            checked={flags?.dnf_progress_enabled ?? false}
+            onChange={(checked) =>
+              saveFlags({
+                penalty_enabled: flags?.penalty_enabled ?? false,
+                absent_enabled: flags?.absent_enabled ?? false,
+                dns_enabled: flags?.dns_enabled ?? false,
+                dnf_enabled: flags?.dnf_enabled ?? false,
+                dnf_progress_enabled: checked,
+              })
+            }
+            label="DNF berdasarkan progres trek"
           />
         </div>
         <div style={{ display: 'grid', gap: 6, fontSize: 12, fontWeight: 800, color: '#334155' }}>
           <div>DNS module: checker bisa menandai rider DNS. Nilai rider otomatis dihitung sebagai jumlah rider + 2.</div>
           <div>DNF module: finisher bisa menandai rider DNF. Nilai rider otomatis dihitung sebagai posisi terakhir.</div>
+          <div>DNF berdasarkan progres trek: Finisher mencatat 0-100%. DNF dengan progres lebih jauh mendapat urutan dan point lebih baik.</div>
         </div>
       </div>
 
@@ -1260,4 +1279,3 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
     </div>
   )
 }
-

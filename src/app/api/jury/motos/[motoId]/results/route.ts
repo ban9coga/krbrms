@@ -25,7 +25,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ motoId: 
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
   const { data, error } = await adminClient
     .from('results')
-    .select('rider_id, finish_order, result_status')
+    .select('rider_id, finish_order, result_status, dnf_progress_percent')
     .eq('moto_id', motoId)
     .order('finish_order', { ascending: true, nullsFirst: false })
 
@@ -77,13 +77,28 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
     return NextResponse.json({ error: 'Moto not found' }, { status: 404 })
   }
 
-  const payload = (results as Array<{ rider_id: string; finish_order?: number | null; result_status?: string }>).map((row) => ({
+  const payload = (results as Array<{ rider_id: string; finish_order?: number | null; result_status?: string; dnf_progress_percent?: number | null }>).map((row) => ({
     event_id: moto.event_id,
     moto_id: motoId,
     rider_id: row.rider_id,
     finish_order: row.finish_order ?? null,
     result_status: row.result_status ?? 'FINISH',
+    dnf_progress_percent: row.result_status === 'DNF' && row.dnf_progress_percent != null ? Number(row.dnf_progress_percent) : null,
   }))
+
+  const { data: flags } = await adminClient
+    .from('event_feature_flags')
+    .select('dnf_progress_enabled')
+    .eq('event_id', moto.event_id)
+    .maybeSingle()
+  if (flags?.dnf_progress_enabled) {
+    const invalidDnf = payload.find(
+      (row) =>
+        row.result_status === 'DNF' &&
+        (!Number.isFinite(row.dnf_progress_percent) || Number(row.dnf_progress_percent) < 0 || Number(row.dnf_progress_percent) > 100)
+    )
+    if (invalidDnf) return NextResponse.json({ error: 'DNF progress wajib diisi antara 0-100%.' }, { status: 400 })
+  }
 
   const { data: assigned, error: assignedError } = await adminClient
     .from('moto_riders')

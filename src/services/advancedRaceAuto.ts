@@ -260,11 +260,15 @@ const sortSeedRows = (rows: StageResultSeedRow[], batchOrderById: Record<string,
 const orderRidersBySeedRows = (
   riderIds: string[],
   seedRows: StageResultSeedRow[],
-  batchOrderById: Record<string, number> = {}
+  batchOrderById: Record<string, number> = {},
+  dnsSeedKeys: Set<string> = new Set()
 ) => {
   const wanted = new Set(riderIds)
-  const ordered = sortSeedRows(seedRows, batchOrderById)
+  const sorted = sortSeedRows(seedRows, batchOrderById)
     .filter((row) => row.position !== null && wanted.has(row.rider_id))
+  // DNS riders remain ordered by rank, batch, then points, but seed after riders
+  // who took part in the source stage. Snake distribution happens afterwards.
+  const ordered = [...sorted.filter((row) => !dnsSeedKeys.has(`${row.stage}:${row.rider_id}`)), ...sorted.filter((row) => dnsSeedKeys.has(`${row.stage}:${row.rider_id}`))]
     .map((row) => row.rider_id)
 
   const seen = new Set(ordered)
@@ -1028,6 +1032,23 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
   if (error) return { ok: false, warning: error.message }
 
   const stageSeedRows = (stageRows ?? []) as StageResultSeedRow[]
+  const dnsSeedKeys = new Set<string>()
+  for (const row of stageSeedRows) {
+    if (!row.batch_id) continue
+    const sourceMoto = existingMotoRows.find((moto) => moto.id === row.batch_id)
+    const qualificationBatch = row.stage === 'QUALIFICATION' ? parseBatchKey(sourceMoto?.moto_name ?? '') : null
+    const sourceMotoIds = qualificationBatch
+      ? existingMotoRows
+          .filter((moto) => parseBatchKey(moto.moto_name)?.batchIndex === qualificationBatch.batchIndex)
+          .map((moto) => moto.id)
+      : [row.batch_id]
+    const sourceStatuses = categoryResultRows
+      .filter((result) => result.rider_id === row.rider_id && sourceMotoIds.includes(result.moto_id))
+      .map((result) => String(result.result_status ?? '').toUpperCase())
+    if (sourceStatuses.length > 0 && sourceStatuses.every((status) => status === 'DNS')) {
+      dnsSeedKeys.add(`${row.stage}:${row.rider_id}`)
+    }
+  }
   const qualificationRows = stageSeedRows.filter((row) => row.stage === 'QUALIFICATION')
   const currentQualificationSeedRows = buildQualificationSeedRowsFromCurrentResults(
     existingMotoRows,
@@ -1047,15 +1068,16 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
   const quarterDirectRiders = quarterEntrantIds.filter((riderId) => !repechageStageRiderIds.has(riderId))
   const quarterRepechageRiders = quarterEntrantIds.filter((riderId) => repechageStageRiderIds.has(riderId))
   const quarterRiders = [
-    ...orderRidersBySeedRows(quarterDirectRiders, qualificationRows, seedBatchOrderById),
-    ...orderRidersBySeedRows(quarterRepechageRiders, repechageResultRows, seedBatchOrderById),
+    ...orderRidersBySeedRows(quarterDirectRiders, qualificationRows, seedBatchOrderById, dnsSeedKeys),
+    ...orderRidersBySeedRows(quarterRepechageRiders, repechageResultRows, seedBatchOrderById, dnsSeedKeys),
   ]
   const repechageRiders = orderRidersBySeedRows(
     stageSeedRows.filter((r) => r.stage === 'REPECHAGE').map((r) => r.rider_id),
     stageSeedRows.filter((row) =>
       row.stage === 'QUALIFICATION' || row.stage === 'QUARTER_FINAL' || row.stage === 'SEMI_FINAL'
     ),
-    seedBatchOrderById
+    seedBatchOrderById,
+    dnsSeedKeys
   )
   const semiEntrantIds = Array.from(semiStageRiderIds)
   const semiQualificationDirectRiders = semiEntrantIds.filter(
@@ -1066,9 +1088,9 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
     (riderId) => repechageStageRiderIds.has(riderId) && !quarterStageRiderIds.has(riderId)
   )
   const semiRiders = [
-    ...orderRidersBySeedRows(semiQualificationDirectRiders, qualificationRows, seedBatchOrderById),
-    ...orderRidersBySeedRows(semiQuarterRiders, quarterResultRows, seedBatchOrderById),
-    ...orderRidersBySeedRows(semiRepechageRiders, repechageResultRows, seedBatchOrderById),
+    ...orderRidersBySeedRows(semiQualificationDirectRiders, qualificationRows, seedBatchOrderById, dnsSeedKeys),
+    ...orderRidersBySeedRows(semiQuarterRiders, quarterResultRows, seedBatchOrderById, dnsSeedKeys),
+    ...orderRidersBySeedRows(semiRepechageRiders, repechageResultRows, seedBatchOrderById, dnsSeedKeys),
   ]
   const finals = stageSeedRows
     .filter((r) => r.stage === 'FINAL' && r.final_class)
@@ -1479,20 +1501,61 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
 
 type RankedRow = { riderId: string; points: number; rank: number }
 
-const rankByPoints = (scores: Record<string, number>): RankedRow[] => {
-  const rows = Object.entries(scores)
-    .map(([riderId, points]) => ({ riderId, points }))
-    .sort((a, b) => a.points - b.points)
-  let currentRank = 0
-  let lastPoints: number | null = null
-  return rows.map((row, idx) => {
-    if (lastPoints === null || row.points !== lastPoints) {
-      currentRank = idx + 1
-      lastPoints = row.points
-    }
-    return { ...row, rank: currentRank }
-  })
+export type StageTieBreakSeed = {
+  sourceRank?: number | null
+  sourcePoints?: number | null
+  qualificationRank?: number | null
+  qualificationPoints?: number | null
+  qualificationBatchOrder?: number | null
+  qualificationGate?: number | null
 }
+
+export type StageRankInput = {
+  riderId: string
+  points: number
+  resultStatus?: ResultRow['result_status']
+}
+
+const stageResultQuality = (status: ResultRow['result_status']) => {
+  if (status === 'FINISH') return 0
+  if (status === 'DNF') return 1
+  if (status === 'DNS') return 2
+  if (status === 'DQ') return 3
+  return 4
+}
+
+const compareNullableNumber = (a: number | null | undefined, b: number | null | undefined) =>
+  Number(a ?? Number.MAX_SAFE_INTEGER) - Number(b ?? Number.MAX_SAFE_INTEGER)
+
+// Every stage needs a deterministic order, including riders with identical DNS/DNF points.
+// The direct source-stage seed is preferred; qualification is the shared fallback for all stages.
+const rankStageRidersWithTieBreak = (
+  rows: StageRankInput[],
+  seedByRider: Map<string, StageTieBreakSeed> = new Map()
+): RankedRow[] =>
+  [...rows]
+    .sort((a, b) => {
+      const qualityDiff = stageResultQuality(a.resultStatus) - stageResultQuality(b.resultStatus)
+      if (qualityDiff !== 0) return qualityDiff
+      if (a.points !== b.points) return a.points - b.points
+
+      const aSeed = seedByRider.get(a.riderId)
+      const bSeed = seedByRider.get(b.riderId)
+      const sourceRankDiff = compareNullableNumber(aSeed?.sourceRank, bSeed?.sourceRank)
+      if (sourceRankDiff !== 0) return sourceRankDiff
+      const sourcePointDiff = compareNullableNumber(aSeed?.sourcePoints, bSeed?.sourcePoints)
+      if (sourcePointDiff !== 0) return sourcePointDiff
+      const qualificationRankDiff = compareNullableNumber(aSeed?.qualificationRank, bSeed?.qualificationRank)
+      if (qualificationRankDiff !== 0) return qualificationRankDiff
+      const qualificationPointDiff = compareNullableNumber(aSeed?.qualificationPoints, bSeed?.qualificationPoints)
+      if (qualificationPointDiff !== 0) return qualificationPointDiff
+      const qualificationBatchDiff = compareNullableNumber(aSeed?.qualificationBatchOrder, bSeed?.qualificationBatchOrder)
+      if (qualificationBatchDiff !== 0) return qualificationBatchDiff
+      const qualificationGateDiff = compareNullableNumber(aSeed?.qualificationGate, bSeed?.qualificationGate)
+      if (qualificationGateDiff !== 0) return qualificationGateDiff
+      return a.riderId.localeCompare(b.riderId)
+    })
+    .map((row, index) => ({ riderId: row.riderId, points: row.points, rank: index + 1 }))
 
 const loadStageMotos = async (eventId: string, categoryId: string, prefix: string) => {
   const { data, error } = await adminClient
@@ -1618,6 +1681,80 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
       return acc
     }, {})
 
+  const qualificationSeedByRider = new Map<string, StageTieBreakSeed>()
+  for (const row of qualificationStageRows ?? []) {
+    if (row.position === null) continue
+    const candidate: StageTieBreakSeed = {
+      sourceRank: Number(row.position),
+      sourcePoints: Number(row.points ?? Number.MAX_SAFE_INTEGER),
+      qualificationRank: Number(row.position),
+      qualificationPoints: Number(row.points ?? Number.MAX_SAFE_INTEGER),
+      qualificationBatchOrder: row.batch_id ? qualificationBatchIndexById[row.batch_id] ?? Number.MAX_SAFE_INTEGER : Number.MAX_SAFE_INTEGER,
+    }
+    const current = qualificationSeedByRider.get(row.rider_id)
+    if (
+      !current ||
+      compareNullableNumber(candidate.qualificationRank, current.qualificationRank) < 0 ||
+      (compareNullableNumber(candidate.qualificationRank, current.qualificationRank) === 0 &&
+        compareNullableNumber(candidate.qualificationPoints, current.qualificationPoints) < 0)
+    ) {
+      qualificationSeedByRider.set(row.rider_id, candidate)
+    }
+  }
+
+  const qualificationMotoIds = Object.keys(qualificationBatchIndexById)
+  if (qualificationMotoIds.length > 0) {
+    const { data: qualificationGates } = await adminClient
+      .from('moto_gate_positions')
+      .select('moto_id, rider_id, gate_position')
+      .in('moto_id', qualificationMotoIds)
+    ;(qualificationGates ?? []).forEach((gate) => {
+      const seed = qualificationSeedByRider.get(gate.rider_id)
+      if (!seed || seed.qualificationGate != null) return
+      qualificationSeedByRider.set(gate.rider_id, { ...seed, qualificationGate: Number(gate.gate_position) })
+    })
+  }
+
+  const mergeSeedMaps = (...maps: Array<Map<string, StageTieBreakSeed>>) => {
+    const merged = new Map<string, StageTieBreakSeed>()
+    maps.forEach((map) => map.forEach((seed, riderId) => merged.set(riderId, seed)))
+    return merged
+  }
+
+  const buildCompletedStageSeeds = (motos: Array<Pick<MotoRow, 'id' | 'moto_name'>>, fallbackSeeds: Map<string, StageTieBreakSeed>) => {
+    const seeds = new Map<string, StageTieBreakSeed>()
+    motos.forEach((moto) => {
+      if (!isMotoComplete(moto.id, motoRiderRows, resultRows)) return
+      const riders = motoRiderRows.filter((row) => row.moto_id === moto.id).map((row) => row.rider_id)
+      const scores: Record<string, number> = {}
+      riders.forEach((riderId) => {
+        const result = resultRows.find((row) => row.moto_id === moto.id && row.rider_id === riderId)
+        scores[riderId] =
+          (pointForRaceResult(result, riders.length, config ?? undefined) ?? 9999) +
+          manualStagePenaltyForRider(riderId, moto as MotoRow, penaltyMaps)
+      })
+      rankStageRidersWithTieBreak(
+        riders.map((riderId) => ({
+          riderId,
+          points: scores[riderId],
+          resultStatus: resultRows.find((row) => row.moto_id === moto.id && row.rider_id === riderId)?.result_status,
+        })),
+        fallbackSeeds
+      ).forEach((row) => {
+        const fallback = fallbackSeeds.get(row.riderId)
+        seeds.set(row.riderId, { ...fallback, sourceRank: row.rank, sourcePoints: row.points })
+      })
+    })
+    return seeds
+  }
+
+  const repechageSeedByRider = buildCompletedStageSeeds(repechageMotos, qualificationSeedByRider)
+  const quarterSeedByRider = buildCompletedStageSeeds(quarterMotos, mergeSeedMaps(qualificationSeedByRider, repechageSeedByRider))
+  const semiSeedByRider = buildCompletedStageSeeds(
+    semiMotos,
+    mergeSeedMaps(qualificationSeedByRider, repechageSeedByRider, quarterSeedByRider)
+  )
+
   const pendingQuarterRiders = new Set<string>()
   const pendingRepechageRiders = new Set<string>()
   const pendingSemiRiders = new Set<string>()
@@ -1715,7 +1852,14 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
         (pointForRaceResult(row, riderCount, config ?? undefined) ?? 9999) +
         manualStagePenaltyForRider(id, moto as MotoRow, penaltyMaps)
     })
-    const ranked = rankByPoints(scores)
+    const ranked = rankStageRidersWithTieBreak(
+      riders.map((riderId) => ({
+        riderId,
+        points: scores[riderId],
+        resultStatus: resultRows.find((row) => row.moto_id === moto.id && row.rider_id === riderId)?.result_status,
+      })),
+      mergeSeedMaps(qualificationSeedByRider, repechageSeedByRider)
+    )
     const advances =
       quarterCustomRules.length > 0
         ? computeCustomStageAdvances(ranked, quarterCustomRules, resolveQuarterFinalPrimaryAdvance(resolved.stages))
@@ -1771,7 +1915,14 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
         (pointForRaceResult(row, riderCount, config ?? undefined) ?? 9999) +
         manualStagePenaltyForRider(id, moto as MotoRow, penaltyMaps)
     })
-    const ranked = rankByPoints(scores)
+    const ranked = rankStageRidersWithTieBreak(
+      riders.map((riderId) => ({
+        riderId,
+        points: scores[riderId],
+        resultStatus: resultRows.find((row) => row.moto_id === moto.id && row.rider_id === riderId)?.result_status,
+      })),
+      qualificationSeedByRider
+    )
     const advances = computeCustomStageAdvances(ranked, repechageCustomRules, { toStage: 'SEMI_FINAL' })
 
     ranked.forEach((r) => {
@@ -1822,7 +1973,14 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
         (pointForRaceResult(row, riderCount, config ?? undefined) ?? 9999) +
         manualStagePenaltyForRider(id, moto as MotoRow, penaltyMaps)
     })
-    const ranked = rankByPoints(scores)
+    const ranked = rankStageRidersWithTieBreak(
+      riders.map((riderId) => ({
+        riderId,
+        points: scores[riderId],
+        resultStatus: resultRows.find((row) => row.moto_id === moto.id && row.rider_id === riderId)?.result_status,
+      })),
+      mergeSeedMaps(qualificationSeedByRider, repechageSeedByRider, quarterSeedByRider, semiSeedByRider)
+    )
     const advances =
       semiCustomRules.length > 0
         ? computeCustomStageAdvances(ranked, semiCustomRules, { toStage: 'FINAL', finalClass: 'ELITE' })

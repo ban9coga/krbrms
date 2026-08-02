@@ -48,6 +48,7 @@ type EventFlags = {
   absent_enabled: boolean
   dns_enabled: boolean
   dnf_enabled: boolean
+  dnf_progress_enabled: boolean
 }
 
 type PenaltyBadgeItem = {
@@ -64,6 +65,7 @@ type FinisherPollData = {
     rider_id: string
     finish_order?: number | null
     result_status?: string | null
+    dnf_progress_percent?: number | null
   }>
   penalties: Array<{
     rider_id: string
@@ -129,10 +131,14 @@ export default function JuryFinishPage() {
     absent_enabled: true,
     dns_enabled: true,
     dnf_enabled: true,
+    dnf_progress_enabled: false,
   })
 
   const [finishOrder, setFinishOrder] = useState<string[]>([])
   const [dnfRiders, setDnfRiders] = useState<string[]>([])
+  const [dnfProgressByRider, setDnfProgressByRider] = useState<Record<string, number>>({})
+  const [dnfProgressRiderId, setDnfProgressRiderId] = useState<string | null>(null)
+  const [dnfProgressDraft, setDnfProgressDraft] = useState('')
   const [actions, setActions] = useState<Action[]>([])
   const [submitNotice, setSubmitNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [submittedMotoNotice, setSubmittedMotoNotice] = useState<SubmittedMotoNotice | null>(null)
@@ -223,6 +229,7 @@ export default function JuryFinishPage() {
         absent_enabled: true,
         dns_enabled: true,
         dnf_enabled: true,
+        dnf_progress_enabled: false,
       }
     )
     const catRows = (catRes.data ?? []) as CategoryItem[]
@@ -274,6 +281,11 @@ export default function JuryFinishPage() {
     const dnfFromServer = existingResults
       .filter((r) => r.result_status === 'DNF')
       .map((r) => r.rider_id)
+    const dnfProgressMap = Object.fromEntries(
+      existingResults
+        .filter((r) => r.result_status === 'DNF' && r.dnf_progress_percent != null)
+        .map((r) => [r.rider_id, Number(r.dnf_progress_percent)])
+    )
     const dnsFromServer = existingResults
       .filter((r) => r.result_status === 'DNS')
       .map((r) => r.rider_id)
@@ -309,6 +321,7 @@ export default function JuryFinishPage() {
     setHasSubmitted(!isMotoLive(targetMoto?.status) && existingResults.length > 0)
     setFinishOrder(finishFromServer.filter((riderId) => !blockedRiderIds.has(riderId)))
     setDnfRiders(dnfFromServer.filter((riderId) => !blockedRiderIds.has(riderId)))
+    setDnfProgressByRider(dnfProgressMap)
     setParticipationByRider(statusMap)
     setPenaltiesByRider(penaltyMap)
     setPenaltyBadgesByRider(badgeMap)
@@ -322,6 +335,7 @@ export default function JuryFinishPage() {
       setRiders([])
       setFinishOrder([])
       setDnfRiders([])
+      setDnfProgressByRider({})
       setActions([])
       setPenaltiesByRider({})
       setPenaltyBadgesByRider({})
@@ -432,7 +446,12 @@ export default function JuryFinishPage() {
     }
   }
 
-  const syncToSupabase = async (riderId: string, position: number | null, status: 'FINISH' | 'DNF') => {
+  const syncToSupabase = async (
+    riderId: string,
+    position: number | null,
+    status: 'FINISH' | 'DNF',
+    dnfProgressPercent: number | null = null
+  ) => {
     if (!selectedMoto) return
     await supabase.from('results').upsert(
       {
@@ -441,6 +460,7 @@ export default function JuryFinishPage() {
         rider_id: riderId,
         finish_order: position,
         result_status: status,
+        dnf_progress_percent: status === 'DNF' ? dnfProgressPercent : null,
       },
       { onConflict: 'moto_id,rider_id' }
     )
@@ -462,14 +482,38 @@ export default function JuryFinishPage() {
     syncToSupabase(riderId, position, 'FINISH')
   }
 
-  const handleDNF = (riderId: string) => {
+  const saveDNF = (riderId: string, progressPercent: number | null) => {
     if (role === 'RACE_DIRECTOR' || motoLocked || !selectedMotoLive || !flags.dnf_enabled) return
     if (finishOrder.includes(riderId) || dnfRiders.includes(riderId)) return
     localEditingRef.current = true
     setDnfRiders((prev) => [...prev, riderId])
+    if (progressPercent != null) setDnfProgressByRider((prev) => ({ ...prev, [riderId]: progressPercent }))
     setActions((prev) => [...prev, { type: 'dnf', riderId }])
     vibrate()
-    syncToSupabase(riderId, null, 'DNF')
+    void syncToSupabase(riderId, null, 'DNF', progressPercent)
+  }
+
+  const handleDNF = (riderId: string) => {
+    if (role === 'RACE_DIRECTOR' || motoLocked || !selectedMotoLive || !flags.dnf_enabled) return
+    if (finishOrder.includes(riderId) || dnfRiders.includes(riderId)) return
+    if (flags.dnf_progress_enabled) {
+      setDnfProgressRiderId(riderId)
+      setDnfProgressDraft('')
+      return
+    }
+    saveDNF(riderId, null)
+  }
+
+  const handleConfirmDNFProgress = () => {
+    if (!dnfProgressRiderId) return
+    const progress = Number(dnfProgressDraft)
+    if (!Number.isFinite(progress) || progress < 0 || progress > 100) {
+      setSubmitNotice({ type: 'error', message: 'Progress DNF harus diisi antara 0 sampai 100%.' })
+      return
+    }
+    const riderId = dnfProgressRiderId
+    setDnfProgressRiderId(null)
+    saveDNF(riderId, progress)
   }
 
   const handleSetDns = async (rider: RiderItem) => {
@@ -533,6 +577,11 @@ export default function JuryFinishPage() {
       setFinishOrder((prev) => prev.filter((id) => id !== last.riderId))
     } else {
       setDnfRiders((prev) => prev.filter((id) => id !== last.riderId))
+      setDnfProgressByRider((prev) => {
+        const next = { ...prev }
+        delete next[last.riderId]
+        return next
+      })
     }
     vibrate()
     removeFromSupabase(last.riderId)
@@ -559,23 +608,28 @@ export default function JuryFinishPage() {
           rider_id: f.id,
           finish_order: f.position,
           result_status: 'FINISH',
+          dnf_progress_percent: null,
         })),
-        ...dnfRiders.map((id) => ({
+        ...[...dnfRiders]
+          .sort((a, b) => Number(dnfProgressByRider[b] ?? -1) - Number(dnfProgressByRider[a] ?? -1))
+          .map((id, index) => ({
           event_id: eventId,
           moto_id: selectedMoto.id,
           rider_id: id,
-          finish_order: null,
+          finish_order: flags.dnf_progress_enabled ? finishSequence.length + index + 1 : null,
           result_status: 'DNF',
+          dnf_progress_percent: flags.dnf_progress_enabled ? dnfProgressByRider[id] ?? null : null,
         })),
       ]
       if (payload.length) {
         await apiFetch(`/api/jury/motos/${selectedMoto.id}/results`, {
           method: 'POST',
           body: JSON.stringify({
-            results: payload.map(({ rider_id, finish_order, result_status }) => ({
+            results: payload.map(({ rider_id, finish_order, result_status, dnf_progress_percent }) => ({
               rider_id,
               finish_order,
               result_status,
+              dnf_progress_percent,
             })),
           }),
         })
@@ -941,6 +995,7 @@ export default function JuryFinishPage() {
                     return (
                       <div key={id} className={`${highVisibility ? 'text-base' : 'text-sm'} font-semibold text-amber-700`}>
                         {rider?.no_plate_display} - {rider?.name}
+                        {flags.dnf_progress_enabled && dnfProgressByRider[id] != null ? ` (${dnfProgressByRider[id]}%)` : ''}
                         {penalty ? ` (+${penalty})` : ''}
                         <PenaltyBadges items={penaltyBadges} />
                       </div>
@@ -993,6 +1048,44 @@ export default function JuryFinishPage() {
             </div>
           </aside>
         </div>
+
+        {dnfProgressRiderId && (
+          <div className="fixed inset-0 z-[81] flex items-center justify-center bg-slate-950/55 p-4" role="dialog" aria-modal="true" aria-labelledby="dnf-progress-title">
+            <section className="w-full max-w-sm rounded-2xl border border-amber-200 bg-white p-5 shadow-2xl">
+              <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-amber-700">DNF Berdasarkan Progres Trek</p>
+              <h2 id="dnf-progress-title" className="mt-2 text-xl font-black text-slate-900">
+                {riders.find((rider) => rider.id === dnfProgressRiderId)?.no_plate_display} - {riders.find((rider) => rider.id === dnfProgressRiderId)?.name}
+              </h2>
+              <label className="mt-5 grid gap-2 text-sm font-bold text-slate-700">
+                Progres saat DNF (0-100%)
+                <input
+                  autoFocus
+                  inputMode="decimal"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  type="number"
+                  value={dnfProgressDraft}
+                  onChange={(event) => setDnfProgressDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') handleConfirmDNFProgress()
+                  }}
+                  className="rounded-xl border border-slate-300 bg-white px-3 py-3 text-lg font-black text-slate-900 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-200"
+                  placeholder="Contoh: 75"
+                />
+              </label>
+              <p className="mt-3 text-sm text-slate-500">Progres lebih jauh akan mendapat urutan DNF dan point lebih baik.</p>
+              <div className="mt-5 grid grid-cols-2 gap-3">
+                <button type="button" onClick={() => setDnfProgressRiderId(null)} className="rounded-xl border border-slate-300 px-3 py-3 text-sm font-extrabold text-slate-700">
+                  Batal
+                </button>
+                <button type="button" onClick={handleConfirmDNFProgress} className="rounded-xl bg-amber-500 px-3 py-3 text-sm font-extrabold text-slate-950 shadow-sm hover:bg-amber-400">
+                  Simpan DNF
+                </button>
+              </div>
+            </section>
+          </div>
+        )}
 
         {submittedMotoNotice && (
           <div

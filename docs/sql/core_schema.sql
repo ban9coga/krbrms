@@ -209,6 +209,7 @@ create table if not exists results (
   rider_id uuid not null references riders(id) on delete cascade,
   finish_order int,
   result_status result_status not null default 'FINISH',
+  dnf_progress_percent numeric(5,2),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -415,6 +416,8 @@ create table if not exists event_feature_flags (
   penalty_enabled boolean not null default false,
   absent_enabled boolean not null default false,
   dns_enabled boolean not null default false,
+  dnf_enabled boolean not null default false,
+  dnf_progress_enabled boolean not null default false,
   created_at timestamptz not null default now()
 );
 

@@ -599,6 +599,21 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       return
     }
 
+    const liveMotoInSameCategory = motos.find(
+      (candidate) =>
+        candidate.id !== moto.id &&
+        candidate.category_id === moto.category_id &&
+        String(candidate.status ?? '').toUpperCase() === 'LIVE'
+    )
+    let moveLiveMotoToReady = false
+    if (liveMotoInSameCategory) {
+      moveLiveMotoToReady = confirm(
+        `${formatMotoDisplayName(liveMotoInSameCategory.moto_name)} sedang LIVE.\n\n` +
+          `Agar tidak ada dua moto LIVE, moto tersebut akan dikembalikan ke READY sebelum ${formatMotoDisplayName(moto.moto_name)} di-reset. Lanjutkan?`
+      )
+      if (!moveLiveMotoToReady) return
+    }
+
     const ok = confirm(`Reset results untuk moto: ${formatMotoDisplayName(moto.moto_name)}?`)
     if (!ok) return
 
@@ -608,7 +623,10 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     try {
       await apiFetch(`/api/race-director/motos/${motoId}/reset-results`, {
         method: 'POST',
-        body: JSON.stringify({ reason: reason.trim() || 'Reset moto results' }),
+        body: JSON.stringify({
+          reason: reason.trim() || 'Reset moto results',
+          move_live_moto_to_ready: moveLiveMotoToReady,
+        }),
       })
       alert('Results berhasil direset!')
       await load()
