@@ -55,6 +55,13 @@ type StatusChip = {
   tone: 'green' | 'blue' | 'amber' | 'slate'
 }
 
+type ComputeModalState = {
+  categoryName: string
+  actionLabel: string
+  status: 'loading' | 'success' | 'warning' | 'error'
+  message: string
+}
+
 function MotoListSkeleton() {
   return (
     <div className="grid gap-4">
@@ -170,6 +177,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
   const [advancedEnabledByCategory, setAdvancedEnabledByCategory] = useState<Record<string, boolean>>({})
   const [advancedSummaryByCategory, setAdvancedSummaryByCategory] = useState<Record<string, AdvancedSummaryItem>>({})
   const [computingCategoryId, setComputingCategoryId] = useState<string | null>(null)
+  const [computeModal, setComputeModal] = useState<ComputeModalState | null>(null)
   const [raceResetPreview, setRaceResetPreview] = useState<RaceResetPreview | null>(null)
   const [raceResetConfirmation, setRaceResetConfirmation] = useState('')
   const [raceResetLoading, setRaceResetLoading] = useState(false)
@@ -338,9 +346,19 @@ export default function MotosClient({ eventId }: { eventId: string }) {
   const isCategoryComplete = useCallback(
     (categoryId: string) => {
       const list = motosByCategory.get(categoryId) ?? []
-      return list.length > 0 && list.every((moto) => moto.status === 'LOCKED')
+      if (list.length === 0) return false
+
+      // Advanced categories can temporarily have every current moto locked
+      // while the next bracket has not been computed yet. They are complete
+      // only after every generated Final is locked.
+      if (advancedEnabledByCategory[categoryId]) {
+        const finalMotos = list.filter((moto) => /^final\s+/i.test(moto.moto_name))
+        return finalMotos.length > 0 && finalMotos.every((moto) => moto.status === 'LOCKED')
+      }
+
+      return list.every((moto) => moto.status === 'LOCKED')
     },
-    [motosByCategory]
+    [advancedEnabledByCategory, motosByCategory]
   )
 
   const displayCategoriesSorted = useMemo(() => {
@@ -765,20 +783,33 @@ export default function MotosClient({ eventId }: { eventId: string }) {
   }
 
   const handleComputeCategory = async (categoryId: string, endpoint: 'compute' | 'advance') => {
+    const categoryName = categoryLabel.get(categoryId) ?? 'Kategori ini'
+    const actionLabel = endpoint === 'compute' ? 'Run Qualification' : 'Compute Stage Berikutnya'
     try {
       setComputingCategoryId(categoryId)
+      setComputeModal({
+        categoryName,
+        actionLabel,
+        status: 'loading',
+        message: 'Membaca hasil, menghitung ranking, lalu menyusun moto stage berikutnya.',
+      })
       const res = await apiFetch(`/api/events/${eventId}/advanced-race/${endpoint}`, {
         method: 'POST',
         body: JSON.stringify({ category_id: categoryId }),
       })
       if (res?.warning) {
-        alert(res.warning)
+        setComputeModal({ categoryName, actionLabel, status: 'warning', message: res.warning })
       } else {
-        alert(endpoint === 'compute' ? 'Qualification berhasil dihitung.' : 'Stage berikutnya berhasil dihitung.')
+        setComputeModal({
+          categoryName,
+          actionLabel,
+          status: 'success',
+          message: endpoint === 'compute' ? 'Qualification berhasil dihitung.' : 'Stage berikutnya berhasil dihitung.',
+        })
       }
       await load('refresh', { includeAdvancedSummary: true })
     } catch (err: unknown) {
-      alert(getErrorMessage(err))
+      setComputeModal({ categoryName, actionLabel, status: 'error', message: getErrorMessage(err) })
     } finally {
       setComputingCategoryId(null)
     }
@@ -1703,6 +1734,47 @@ export default function MotosClient({ eventId }: { eventId: string }) {
           </section>
           ))}
       </div>
+      {computeModal && (
+        <div
+          className="no-print"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="compute-stage-title"
+          style={{ position: 'fixed', inset: 0, zIndex: 95, display: 'grid', placeItems: 'center', padding: 20, background: 'rgba(15, 23, 42, 0.58)' }}
+        >
+          <section style={{ width: 'min(440px, 100%)', borderRadius: 18, border: '2px solid #111', background: '#fff', padding: 20, boxShadow: '0 24px 70px rgba(15,23,42,.32)' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+              {computeModal.status === 'loading' ? (
+                <span className="motos-compute-spinner" aria-hidden="true" />
+              ) : (
+                <span
+                  aria-hidden="true"
+                  style={{ width: 34, height: 34, borderRadius: '50%', display: 'grid', placeItems: 'center', background: computeModal.status === 'success' ? '#dcfce7' : computeModal.status === 'warning' ? '#fef3c7' : '#fee2e2', color: computeModal.status === 'success' ? '#166534' : computeModal.status === 'warning' ? '#92400e' : '#991b1b', fontWeight: 950 }}
+                >
+                  {computeModal.status === 'success' ? 'OK' : '!'}
+                </span>
+              )}
+              <div style={{ display: 'grid', gap: 4 }}>
+                <p style={{ margin: 0, fontSize: 11, fontWeight: 950, letterSpacing: '.1em', color: '#64748b' }}>{computeModal.actionLabel.toUpperCase()}</p>
+                <h2 id="compute-stage-title" style={{ margin: 0, fontSize: 22, fontWeight: 950 }}>{computeModal.categoryName}</h2>
+              </div>
+            </div>
+            <p style={{ margin: '16px 0 0', color: '#334155', fontWeight: 700, lineHeight: 1.5 }}>{computeModal.message}</p>
+            {computeModal.status === 'loading' && (
+              <div style={{ marginTop: 16, display: 'grid', gap: 8, color: '#475569', fontSize: 12, fontWeight: 800 }}>
+                <span>1. Validasi hasil moto</span>
+                <span>2. Hitung rank dan tie-break</span>
+                <span>3. Susun rider, gate, dan moto berikutnya</span>
+              </div>
+            )}
+            {computeModal.status !== 'loading' && (
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 18 }}>
+                <button type="button" className="admin-primary-button" onClick={() => setComputeModal(null)}>Tutup</button>
+              </div>
+            )}
+          </section>
+        </div>
+      )}
       {raceResetPreview && (
         <div
           className="no-print"
@@ -1747,6 +1819,16 @@ export default function MotosClient({ eventId }: { eventId: string }) {
         </div>
       )}
       <style>{`
+        .motos-compute-spinner {
+          width: 30px;
+          height: 30px;
+          border: 4px solid #dbeafe;
+          border-top-color: #2563eb;
+          border-radius: 50%;
+          flex: 0 0 auto;
+          animation: motos-compute-spin .8s linear infinite;
+        }
+        @keyframes motos-compute-spin { to { transform: rotate(360deg); } }
         @media (max-width: 860px) {
           .motos-print-root {
             max-width: none !important;
