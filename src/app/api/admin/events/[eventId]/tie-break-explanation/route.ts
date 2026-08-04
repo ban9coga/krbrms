@@ -41,6 +41,14 @@ type JourneyEntry = {
   current: boolean
 }
 
+type PenaltyItem = { label: string; points: number }
+type ScoreBreakdown = {
+  point: number
+  penalty: number
+  total: number
+  penalty_items: PenaltyItem[]
+}
+
 const stagePriority: Record<string, number> = {
   QUALIFICATION: 1,
   REPECHAGE: 2,
@@ -57,6 +65,10 @@ const statusQuality = (status: string) => {
 }
 
 const formatValue = (value: string | number | null | undefined) => (value == null ? '-' : String(value))
+const formatPenaltyCode = (code: string | null | undefined) =>
+  String(code ?? 'PENALTY')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, (letter) => letter.toUpperCase())
 
 const formatRankConclusion = ({
   riderRank,
@@ -232,7 +244,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const qualificationMotoIds = (categoryMotos ?? [])
     .filter((item) => /^moto\s*1\s*-\s*batch\s*\d+/i.test(item.moto_name))
     .map((item) => item.id)
-  const [{ data: allResults }, { data: qualificationGateRows }] = await Promise.all([
+  const [{ data: allResults }, { data: qualificationGateRows }, { data: approvedPenalties }] = await Promise.all([
     categoryMotoIds.length
       ? adminClient
           .from('results')
@@ -247,6 +259,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
           .in('moto_id', qualificationMotoIds)
           .in('rider_id', comparedRiderIds)
       : Promise.resolve({ data: [] }),
+    adminClient
+      .from('rider_penalties')
+      .select('rider_id, moto_id, stage, rule_code, penalty_point, rider_penalty_approvals!inner(approval_status)')
+      .eq('event_id', eventId)
+      .eq('rider_penalty_approvals.approval_status', 'APPROVED')
+      .in('rider_id', comparedRiderIds),
   ])
 
   const allSeedRows = (stageSeeds ?? []) as StageSeed[]
@@ -274,6 +292,32 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   }
   const resultByRider = new Map((allResults ?? []).filter((row) => row.moto_id === motoId).map((row) => [row.rider_id, row]))
   const isFinal = /^final\b/i.test(moto?.moto_name ?? stage.title)
+  const penaltyStage = /^quarter final/i.test(moto?.moto_name ?? '')
+    ? 'QUARTER'
+    : /^repechage/i.test(moto?.moto_name ?? '')
+    ? 'REPECHAGE'
+    : /^semi final/i.test(moto?.moto_name ?? '')
+    ? 'SEMI'
+    : isFinal
+    ? 'FINAL'
+    : 'MOTO'
+  const scoreBreakdown = (row: StageRow): ScoreBreakdown => {
+    const point = Number(row.point ?? 0)
+    const penalty = Number(row.penalty_total ?? 0)
+    const manualItems = (approvedPenalties ?? [])
+      .filter((item) => item.rider_id === row.rider_id)
+      .filter((item) => item.moto_id === motoId || (!item.moto_id && (item.stage === 'ALL' || item.stage === penaltyStage)))
+      .map((item) => ({ label: formatPenaltyCode(item.rule_code), points: Number(item.penalty_point ?? 0) }))
+    const manualTotal = manualItems.reduce((sum, item) => sum + item.points, 0)
+    const automaticPenalty = penalty - manualTotal
+    if (automaticPenalty > 0) {
+      manualItems.unshift({
+        label: row.status === 'DNS' || row.status === 'DNF' ? `Penalty status ${row.status}` : 'Penalty lainnya',
+        points: automaticPenalty,
+      })
+    }
+    return { point, penalty, total: point + penalty, penalty_items: manualItems }
+  }
   const statusForStage = (seed: StageSeed) =>
     (allResults ?? []).find((result) => result.rider_id === riderId && result.moto_id === seed.batch_id)?.result_status ?? null
   const stageLabel = (seed: StageSeed) => {
@@ -400,6 +444,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         : null,
       deciding_rule: decidingRule,
       is_full_tie: Boolean(comparisonRider && !decidingRule),
+      score_breakdown: {
+        rider: scoreBreakdown(rider),
+        comparator: comparisonRider ? scoreBreakdown(comparisonRider) : null,
+      },
       journey,
       history_note: isFinal
         ? decidingRule === 'Riwayat sebelum Final'

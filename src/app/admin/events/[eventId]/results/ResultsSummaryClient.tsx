@@ -124,6 +124,10 @@ type TieBreakExplanation = {
   deciding_rule: string | null
   is_full_tie: boolean
   criteria: Array<{ label: string; rider: string; comparator: string; resolved: boolean }>
+  score_breakdown?: {
+    rider: { point: number; penalty: number; total: number; penalty_items: Array<{ label: string; points: number }> }
+    comparator: { point: number; penalty: number; total: number; penalty_items: Array<{ label: string; points: number }> } | null
+  }
   journey: Array<{ label: string; rank: number | null; point: number | null; status: string | null; current: boolean }>
   history_note: string
   tiebreak_order: string[]
@@ -1325,15 +1329,30 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
                     {tieBreakExplanation.history_note}
                   </div>
                 </div>
-                <div style={{ display: 'grid', gap: 8, padding: 14, borderRadius: 14, background: '#f8fafc', border: '1px solid #cbd5e1' }}>
+                {tieBreakExplanation.score_breakdown ? (
+                  <div style={{ display: 'grid', gap: 8, padding: 14, borderRadius: 14, background: '#fff7ed', border: '1px solid #fdba74' }}>
+                    <div style={{ fontSize: 12, fontWeight: 950, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#9a3412' }}>
+                      Perhitungan Point dan Penalty
+                    </div>
+                    {[{ label: 'Rider ini', value: tieBreakExplanation.score_breakdown.rider }, ...(tieBreakExplanation.score_breakdown.comparator ? [{ label: 'Rank di atas', value: tieBreakExplanation.score_breakdown.comparator }] : [])].map((entry) => (
+                      <div key={entry.label} style={{ color: '#7c2d12', fontSize: 13, fontWeight: 800 }}>
+                        <strong>{entry.label}:</strong> Point {entry.value.point} + penalty {entry.value.penalty} = total {entry.value.total}
+                        {entry.value.penalty_items.length > 0 ? ` (${entry.value.penalty_items.map((item) => `${item.label} +${item.points}`).join(', ')})` : ''}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, padding: 12, borderRadius: 14, background: '#f8fafc', border: '1px solid #cbd5e1' }}>
                   <div style={{ fontSize: 12, fontWeight: 950, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#334155' }}>
                     Urutan Tie-Break yang Diperiksa
                   </div>
-                  <ol style={{ display: 'grid', gap: 5, margin: 0, paddingLeft: 20, color: '#334155', fontSize: 13, fontWeight: 700 }}>
-                    {tieBreakExplanation.tiebreak_order.map((rule) => (
-                      <li key={rule}>{rule}</li>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {tieBreakExplanation.tiebreak_order.map((rule, index) => (
+                      <span key={rule} style={{ padding: '5px 8px', borderRadius: 999, background: '#fff', border: '1px solid #cbd5e1', color: '#334155', fontSize: 11, fontWeight: 800 }}>
+                        {index + 1}. {rule}
+                      </span>
                     ))}
-                  </ol>
+                  </div>
                 </div>
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', minWidth: 560, borderCollapse: 'collapse' }}>
