@@ -49,6 +49,43 @@ const statusQuality = (status: string) => {
 
 const formatValue = (value: string | number | null | undefined) => (value == null ? '-' : String(value))
 
+const formatRankConclusion = ({
+  riderRank,
+  comparisonRank,
+  riderName,
+  comparisonName,
+  decidingRule,
+  riderValue,
+  comparisonValue,
+}: {
+  riderRank: number
+  comparisonRank: number
+  riderName: string
+  comparisonName: string
+  decidingRule: string | null
+  riderValue?: string | number | null
+  comparisonValue?: string | number | null
+}) => {
+  if (!decidingRule) {
+    return `Nilai ${riderName} dan ${comparisonName} sama pada seluruh aturan pembanding. Rank #${riderRank} dipertahankan sebagai urutan teknis agar slot stage tidak berubah.`
+  }
+
+  const valueText = riderValue != null && comparisonValue != null ? ` (${formatValue(riderValue)} dibanding ${formatValue(comparisonValue)})` : ''
+  const ruleText: Record<string, string> = {
+    'Status hasil': 'urutan status FINISH > DNF > DNS > DQ',
+    'Progress DNF': 'keduanya DNF dan progres DNF yang lebih jauh diprioritaskan',
+    'Total poin termasuk penalty': 'total poin termasuk penalty yang lebih kecil diprioritaskan',
+    'Riwayat sebelum Final': 'riwayat sebelum final dibandingkan: DNS lebih sedikit, lalu DNF lebih sedikit, lalu FINISH lebih banyak',
+    'Rank stage sumber': 'rank pada stage sumber yang lebih kecil diprioritaskan',
+    'Rank seed kualifikasi': 'rank seed kualifikasi yang lebih kecil diprioritaskan',
+    'Batch seed kualifikasi': 'batch seed kualifikasi yang lebih awal diprioritaskan',
+    'Poin Moto 3': 'poin Moto 3 dipakai sebagai pembanding berikutnya',
+    'Poin Moto 2': 'poin Moto 2 dipakai sebagai pembanding berikutnya',
+    'Poin Moto 1': 'poin Moto 1 dipakai sebagai pembanding terakhir',
+  }
+  return `${riderName} berada di Rank #${riderRank}, setelah ${comparisonName} di Rank #${comparisonRank}, karena ${ruleText[decidingRule] ?? decidingRule.toLowerCase()}${valueText}.`
+}
+
 const parseQualificationBatch = (name: string | null | undefined) => {
   const match = String(name ?? '').match(/^moto\s*1\s*-\s*batch\s*(\d+)/i)
   return match ? Number(match[1]) : Number.MAX_SAFE_INTEGER
@@ -115,6 +152,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       if (!decidingRule) addCriterion('Poin Moto 1', rider.point_moto1, comparisonRider.point_moto1)
     }
 
+    const decidingCriterion = criteria.find((criterion) => criterion.label === decidingRule)
     return NextResponse.json({
       data: {
         stage: `Kualifikasi - Batch ${batch.batch_index}`,
@@ -124,12 +162,25 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
           : null,
         deciding_rule: decidingRule,
         is_full_tie: Boolean(comparisonRider && !decidingRule),
+        tiebreak_order: [
+          'Total poin termasuk penalty: angka lebih kecil lebih baik',
+          'Poin Moto 3',
+          'Poin Moto 2',
+          'Poin Moto 1',
+          'Jika tetap sama: urutan teknis untuk menjaga slot stage stabil',
+        ],
         criteria,
         summary: comparisonRider
-          ? decidingRule
-            ? `Posisi dibandingkan dengan rank ${comparisonRider.rank_point}; pembeda utamanya: ${decidingRule}.`
-            : 'Nilai lomba seri penuh. Urutan administrasi dipakai hanya untuk menjaga pembagian slot stage tetap stabil.'
-          : 'Rider berada di rank pertama pada batch ini.',
+          ? formatRankConclusion({
+              riderRank,
+              comparisonRank: comparisonRider.rank_point ?? riderRank - 1,
+              riderName: rider.name,
+              comparisonName: comparisonRider.name,
+              decidingRule,
+              riderValue: decidingCriterion?.rider,
+              comparisonValue: decidingCriterion?.comparator,
+            })
+          : `${rider.name} berada di Rank #1 karena memiliki hasil terbaik pada batch ini.`,
       },
     })
   }
@@ -142,7 +193,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
 
   const riderRank = rider.rank
   const comparisonRider = stage.rows.find((row) => row.rank === riderRank - 1) ?? null
-  const [{ data: moto }, { data: stageSeeds }, { data: categoryMotos }] = await Promise.all([
+  const [{ data: moto }, { data: stageSeeds }, { data: categoryMotos }, { data: featureFlags }] = await Promise.all([
     adminClient.from('motos').select('id, moto_name').eq('id', motoId).maybeSingle(),
     adminClient
       .from('race_stage_result')
@@ -150,7 +201,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       .eq('category_id', categoryId)
       .neq('stage', 'FINAL'),
     adminClient.from('motos').select('id, moto_name').eq('category_id', categoryId),
+    adminClient.from('event_feature_flags').select('dnf_progress_enabled').eq('event_id', eventId).maybeSingle(),
   ])
+  const dnfProgressEnabled = featureFlags?.dnf_progress_enabled === true
   const categoryMotoIds = (categoryMotos ?? []).map((item) => item.id)
   const { data: allResults } = categoryMotoIds.length
     ? await adminClient
@@ -198,7 +251,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     const statusDiff = addCriterion('Status hasil', rider.status, comparisonRider.status, statusQuality(rider.status) - statusQuality(comparisonRider.status))
     if (statusDiff !== 0) decidingRule = 'Status hasil'
 
-    if (!decidingRule && rider.status === 'DNF' && comparisonRider.status === 'DNF') {
+    if (!decidingRule && dnfProgressEnabled && rider.status === 'DNF' && comparisonRider.status === 'DNF') {
       const ownProgress = Number(selectedResult?.dnf_progress_percent ?? -1)
       const otherProgress = Number(compareResult?.dnf_progress_percent ?? -1)
       const progressDiff = addCriterion('Progress DNF', `${ownProgress}%`, `${otherProgress}%`, otherProgress - ownProgress)
@@ -245,6 +298,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     }
   }
 
+  const decidingCriterion = criteria.find((criterion) => criterion.label === decidingRule)
   return NextResponse.json({
     data: {
       stage: stage.title,
@@ -254,12 +308,28 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         : null,
       deciding_rule: decidingRule,
       is_full_tie: Boolean(comparisonRider && !decidingRule),
+      tiebreak_order: [
+        'Status hasil: FINISH > DNF > DNS > DQ',
+        ...(dnfProgressEnabled ? ['Jika sama-sama DNF: progress yang lebih jauh lebih baik'] : []),
+        'Total poin termasuk penalty: angka lebih kecil lebih baik',
+        ...(isFinal ? ['Untuk Final: riwayat DNS lebih sedikit, lalu DNF lebih sedikit, lalu FINISH lebih banyak'] : []),
+        'Rank stage sumber yang lebih kecil lebih baik',
+        'Rank seed kualifikasi yang lebih kecil lebih baik',
+        'Batch seed kualifikasi yang lebih awal lebih baik',
+        'Jika seluruhnya sama: urutan teknis untuk menjaga slot stage stabil',
+      ],
       criteria,
       summary: comparisonRider
-        ? decidingRule
-          ? `Posisi dibandingkan dengan rank ${comparisonRider.rank}; pembeda utamanya: ${decidingRule}.`
-          : 'Nilai lomba seri penuh. Urutan administrasi dipakai hanya untuk menjaga pembagian slot stage tetap stabil.'
-        : 'Rider berada di rank pertama pada stage ini.',
+        ? formatRankConclusion({
+            riderRank,
+            comparisonRank: comparisonRider.rank ?? riderRank - 1,
+            riderName: rider.name,
+            comparisonName: comparisonRider.name,
+            decidingRule,
+            riderValue: decidingCriterion?.rider,
+            comparisonValue: decidingCriterion?.comparator,
+          })
+        : `${rider.name} berada di Rank #1 karena memiliki hasil terbaik pada stage ini.`,
     },
   })
 }

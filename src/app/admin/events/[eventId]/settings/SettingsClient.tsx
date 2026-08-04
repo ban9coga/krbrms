@@ -485,6 +485,9 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [row, setRow] = useState<SettingsRow | null>(null)
+  const [eventStatus, setEventStatus] = useState<string>('')
+  const [snapshotRefreshing, setSnapshotRefreshing] = useState(false)
+  const [snapshotNotice, setSnapshotNotice] = useState<string>('')
   const [advancedLoading, setAdvancedLoading] = useState(false)
   const [advancedSaving, setAdvancedSaving] = useState(false)
   const [advancedItems, setAdvancedItems] = useState<
@@ -713,9 +716,13 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     if (!eventId) return
     setLoading(true)
     try {
-      const res = await fetch(`/api/events/${eventId}/settings`)
+      const [res, eventResult] = await Promise.all([
+        fetch(`/api/events/${eventId}/settings`),
+        apiFetch(`/api/events/${eventId}`).catch(() => null),
+      ])
       const json = await res.json()
       const data = json.data as SettingsRow | null
+      setEventStatus(typeof eventResult?.data?.status === 'string' ? eventResult.data.status : '')
       setRow(data)
       if (data) {
         const scoring = (data.scoring_rules ?? {}) as Record<string, unknown>
@@ -886,6 +893,19 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
       }
     } finally {
       setLoading(false)
+    }
+  }
+
+  const refreshPublicSnapshot = async () => {
+    setSnapshotRefreshing(true)
+    setSnapshotNotice('')
+    try {
+      await apiFetch(`/api/admin/events/${eventId}/public-snapshot`, { method: 'POST' })
+      setSnapshotNotice('Arsip publik berhasil diperbarui. Cache hasil final telah dibersihkan.')
+    } catch (error) {
+      setSnapshotNotice(error instanceof Error ? error.message : 'Gagal memperbarui arsip publik.')
+    } finally {
+      setSnapshotRefreshing(false)
     }
   }
 
@@ -2333,6 +2353,53 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                     </span>
                   </div>
                 </div>
+                {eventStatus === 'FINISHED' && (
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'minmax(0, 1fr) auto',
+                      alignItems: 'center',
+                      gap: 14,
+                      marginTop: 12,
+                      padding: 14,
+                      border: '2px solid #111',
+                      borderRadius: 16,
+                      background: '#fff7d6',
+                    }}
+                  >
+                    <div style={{ display: 'grid', gap: 4 }}>
+                      <div style={{ fontSize: 12, fontWeight: 950, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                        Arsip Hasil Final
+                      </div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#4a3412' }}>
+                        Jika data event FINISHED dikoreksi, perbarui snapshot agar Live Score publik memakai hasil terbaru.
+                      </div>
+                      {snapshotNotice && (
+                        <div style={{ fontSize: 12, fontWeight: 850, color: snapshotNotice.startsWith('Arsip') ? '#047857' : '#b91c1c' }}>
+                          {snapshotNotice}
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={refreshPublicSnapshot}
+                      disabled={snapshotRefreshing}
+                      style={{
+                        minHeight: 42,
+                        padding: '10px 14px',
+                        borderRadius: 10,
+                        border: '2px solid #111',
+                        background: snapshotRefreshing ? '#d1d5db' : '#fbbf24',
+                        color: '#111',
+                        cursor: snapshotRefreshing ? 'wait' : 'pointer',
+                        fontWeight: 950,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {snapshotRefreshing ? 'Memperbarui...' : 'Refresh Public Snapshot'}
+                    </button>
+                  </div>
+                )}
                 <div style={{ display: 'grid', gap: 8, marginTop: 6 }}>
                   <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
                     Public Branding

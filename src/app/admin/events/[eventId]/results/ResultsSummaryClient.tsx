@@ -124,6 +124,7 @@ type TieBreakExplanation = {
   deciding_rule: string | null
   is_full_tie: boolean
   criteria: Array<{ label: string; rider: string; comparator: string; resolved: boolean }>
+  tiebreak_order: string[]
   summary: string
 }
 
@@ -1284,8 +1285,13 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
             {tieBreakError ? <div style={{ padding: 12, borderRadius: 12, background: '#fee2e2', color: '#991b1b', fontWeight: 800 }}>{tieBreakError}</div> : null}
             {tieBreakExplanation ? (
               <>
-                <div style={{ padding: 14, borderRadius: 14, background: '#fef3c7', border: '1px solid #f59e0b', fontWeight: 800 }}>
-                  {tieBreakExplanation.summary}
+                <div style={{ padding: 16, borderRadius: 14, background: '#ecfdf5', border: '2px solid #059669', display: 'grid', gap: 6 }}>
+                  <div style={{ color: '#047857', fontSize: 11, fontWeight: 950, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                    Kesimpulan
+                  </div>
+                  <div style={{ color: '#064e3b', fontWeight: 850, lineHeight: 1.55 }}>
+                    {tieBreakExplanation.summary}
+                  </div>
                 </div>
                 {tieBreakExplanation.is_full_tie ? (
                   <div style={{ padding: '8px 12px', borderRadius: 999, width: 'fit-content', background: '#fee2e2', color: '#991b1b', fontSize: 12, fontWeight: 950, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
@@ -1297,6 +1303,16 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
                     Dibandingkan dengan rank #{tieBreakExplanation.comparison_rider.rank}: {tieBreakExplanation.comparison_rider.name} ({tieBreakExplanation.comparison_rider.plate}).
                   </div>
                 ) : null}
+                <div style={{ display: 'grid', gap: 8, padding: 14, borderRadius: 14, background: '#f8fafc', border: '1px solid #cbd5e1' }}>
+                  <div style={{ fontSize: 12, fontWeight: 950, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#334155' }}>
+                    Urutan Tie-Break yang Diperiksa
+                  </div>
+                  <ol style={{ display: 'grid', gap: 5, margin: 0, paddingLeft: 20, color: '#334155', fontSize: 13, fontWeight: 700 }}>
+                    {tieBreakExplanation.tiebreak_order.map((rule) => (
+                      <li key={rule}>{rule}</li>
+                    ))}
+                  </ol>
+                </div>
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', minWidth: 560, borderCollapse: 'collapse' }}>
                     <thead>
