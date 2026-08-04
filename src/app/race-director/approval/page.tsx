@@ -795,6 +795,16 @@ export default function RaceDirectorApprovalPage() {
               >
                 {refreshing ? 'Memuat...' : 'Segarkan'}
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (eventId) window.location.assign(`/admin/events/${eventId}/results`)
+                }}
+                disabled={!eventId}
+                className="inline-flex items-center justify-center rounded-xl border border-amber-400 bg-amber-300 px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.1em] text-amber-950 transition-colors hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Rekap Hasil
+              </button>
               <div
                 className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-extrabold uppercase tracking-[0.12em] ${approvalMode === 'AUTO'
                     ? 'border-emerald-300 bg-emerald-100 text-emerald-800'

@@ -250,7 +250,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   let includePhotos = includePhotosParam === '1' || includePhotosParam === 'true'
   const shouldLoadPhotoSettings = includePhotosParam !== '0' && includePhotosParam !== 'false' && !includePhotos
 
-  const [categoryResult, settingsResult, pointOverrideResult, motoResult] = await Promise.all([
+  const [categoryResult, settingsResult, pointOverrideResult, featureFlagsResult, motoResult] = await Promise.all([
     adminClient
       .from('categories')
       .select('id, event_id, label, events!inner(status)')
@@ -270,6 +270,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       .select('dnf_point_override, dns_point_override')
       .eq('event_id', eventId)
       .eq('category_id', categoryId)
+      .maybeSingle(),
+    adminClient
+      .from('event_feature_flags')
+      .select('dnf_progress_enabled')
+      .eq('event_id', eventId)
       .maybeSingle(),
     adminClient
       .from('motos')
@@ -317,6 +322,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   }
 
   const { data: pointOverrideConfig } = pointOverrideResult
+  const dnfProgressEnabled = featureFlagsResult.data?.dnf_progress_enabled === true
   const { data: motos, error: motoError } = motoResult
   if (motoError) return NextResponse.json({ error: motoError.message }, { status: 400 })
   const motoRows = ((motos ?? []) as MotoRow[]).filter((m) => {
@@ -492,6 +498,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       const key = `${row.moto_id}:${row.rider_id}`
       const current = motoPenaltyMap.get(key) ?? 0
       motoPenaltyMap.set(key, current + amount)
+      continue
     }
     if (row.stage === 'MOTO') {
       const current = qualificationPenaltyMap.get(row.rider_id) ?? 0
@@ -809,7 +816,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
           const aStatusOrder = getStageStatusSortOrder(a.status)
           const bStatusOrder = getStageStatusSortOrder(b.status)
           if (aStatusOrder !== bStatusOrder) return aStatusOrder - bStatusOrder
-          if (a.status === 'DNF' && b.status === 'DNF') {
+          if (dnfProgressEnabled && a.status === 'DNF' && b.status === 'DNF') {
             const progressDiff =
               Number(resultByRider.get(b.rider_id)?.dnf_progress_percent ?? -1) -
               Number(resultByRider.get(a.rider_id)?.dnf_progress_percent ?? -1)

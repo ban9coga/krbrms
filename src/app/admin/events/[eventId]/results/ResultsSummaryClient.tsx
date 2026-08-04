@@ -117,6 +117,16 @@ type BestTeamState = {
   rows: BestTeamRow[]
 }
 
+type TieBreakExplanation = {
+  stage: string
+  rider: { id: string; name: string; plate: string; rank: number }
+  comparison_rider: { id: string; name: string; plate: string; rank: number } | null
+  deciding_rule: string | null
+  is_full_tie: boolean
+  criteria: Array<{ label: string; rider: string; comparator: string; resolved: boolean }>
+  summary: string
+}
+
 const isFinalStage = (stage: StageGroup) => stage.title.trim().toLowerCase().startsWith('final')
 
 export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
@@ -129,13 +139,16 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'FINISHED' | 'DNF' | 'DNS' | 'DQ'>('ALL')
   const [sectionFilter, setSectionFilter] = useState<SectionFilter>('ALL')
-  const [resultView] = useState<'QUALIFICATION' | 'STAGES'>('STAGES')
+  const [resultView, setResultView] = useState<'QUALIFICATION' | 'STAGES'>('STAGES')
   const [recapCategories, setRecapCategories] = useState<CategoryRecap[]>([])
   const [penaltyMap, setPenaltyMap] = useState<Record<string, PenaltyRow[]>>({})
   const [storyData, setStoryData] = useState<ResultStoryCardData | null>(null)
   const [storyDownloading, setStoryDownloading] = useState(false)
   const [bestTeam, setBestTeam] = useState<BestTeamState | null>(null)
   const [bestTeamLoading, setBestTeamLoading] = useState(false)
+  const [tieBreakExplanation, setTieBreakExplanation] = useState<TieBreakExplanation | null>(null)
+  const [tieBreakLoading, setTieBreakLoading] = useState<string | null>(null)
+  const [tieBreakError, setTieBreakError] = useState<string | null>(null)
 
   const apiFetch = async (url: string) => {
     const { data } = await supabase.auth.getSession()
@@ -143,6 +156,42 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
     const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : undefined })
     const json = await res.json().catch(() => ({}))
     return { res, json }
+  }
+
+  const openTieBreakExplanation = async (categoryId: string, stage: StageGroup, row: StageRow) => {
+    if (row.rank == null) return
+    const requestKey = `${stage.moto_id}:${row.rider_id}`
+    setTieBreakLoading(requestKey)
+    setTieBreakError(null)
+    try {
+      const { res, json } = await apiFetch(
+        `/api/admin/events/${eventId}/tie-break-explanation?category_id=${encodeURIComponent(categoryId)}&moto_id=${encodeURIComponent(stage.moto_id)}&rider_id=${encodeURIComponent(row.rider_id)}`
+      )
+      if (!res.ok) throw new Error(json?.error || 'Gagal memuat penjelasan posisi.')
+      setTieBreakExplanation(json.data as TieBreakExplanation)
+    } catch (error) {
+      setTieBreakError(error instanceof Error ? error.message : 'Gagal memuat penjelasan posisi.')
+    } finally {
+      setTieBreakLoading(null)
+    }
+  }
+
+  const openQualificationTieBreakExplanation = async (batch: Batch, row: SummaryRow) => {
+    if (row.rank_point == null || selectedCategory === 'ALL_CATEGORIES') return
+    const requestKey = `qualification:${batch.batch_index}:${row.rider_id}`
+    setTieBreakLoading(requestKey)
+    setTieBreakError(null)
+    try {
+      const { res, json } = await apiFetch(
+        `/api/admin/events/${eventId}/tie-break-explanation?category_id=${encodeURIComponent(selectedCategory)}&batch_index=${batch.batch_index}&rider_id=${encodeURIComponent(row.rider_id)}`
+      )
+      if (!res.ok) throw new Error(json?.error || 'Gagal memuat penjelasan posisi.')
+      setTieBreakExplanation(json.data as TieBreakExplanation)
+    } catch (error) {
+      setTieBreakError(error instanceof Error ? error.message : 'Gagal memuat penjelasan posisi.')
+    } finally {
+      setTieBreakLoading(null)
+    }
   }
 
   const loadEventMeta = async () => {
@@ -509,7 +558,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
     scoringSupportLabel: scoringSupportLabel || null,
   })
 
-  const renderStageTable = (stage: StageGroup) => {
+  const renderStageTable = (stage: StageGroup, categoryId: string) => {
     const rows = statusFilter === 'ALL'
       ? stage.rows
       : stage.rows.filter((r) => (statusFilter === 'FINISHED' ? r.status === 'FINISH' : r.status === statusFilter))
@@ -527,7 +576,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
           <table className="table-striped" style={{ width: '100%', borderCollapse: 'collapse', minWidth: 760 }}>
             <thead>
               <tr style={{ background: '#f5f5f5', textAlign: 'left' }}>
-                {['Rank', 'Gate', 'Nama', 'No Plat', 'Komunitas', 'Point', 'Penalty', 'Status', 'Story'].map((h) => (
+                {['Rank', 'Gate', 'Nama', 'No Plat', 'Komunitas', 'Point', 'Penalty', 'Status', 'Aksi'].map((h) => (
                   <th key={h} style={{ padding: 8, borderBottom: '2px solid #111', fontWeight: 900 }}>
                     {h}
                   </th>
@@ -560,6 +609,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
                   </td>
                   <td style={{ padding: 8 }}>{row.status === 'FINISH' ? 'FINISHED' : row.status}</td>
                   <td style={{ padding: 8 }}>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     <button
                       type="button"
                       onClick={() => setStoryData(createStageStoryData(row, stage.title))}
@@ -576,6 +626,25 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
                     >
                       Preview
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => void openTieBreakExplanation(categoryId, stage, row)}
+                      disabled={row.rank == null || tieBreakLoading === `${stage.moto_id}:${row.rider_id}`}
+                      style={{
+                        padding: '8px 10px',
+                        borderRadius: 10,
+                        border: '2px solid #111',
+                        background: '#fff',
+                        color: '#111',
+                        fontWeight: 900,
+                        cursor: row.rank == null ? 'not-allowed' : 'pointer',
+                        whiteSpace: 'nowrap',
+                        opacity: row.rank == null ? 0.5 : 1,
+                      }}
+                    >
+                      {tieBreakLoading === `${stage.moto_id}:${row.rider_id}` ? 'Memuat...' : 'Alasan Rank'}
+                    </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -691,6 +760,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
             onChange={(e) => {
               setSelectedCategory(e.target.value)
               setSectionFilter('ALL')
+              if (e.target.value === 'ALL_CATEGORIES') setResultView('STAGES')
             }}
             style={{ padding: '8px 12px', borderRadius: 10, border: '2px solid #111', fontWeight: 800 }}
           >
@@ -701,6 +771,29 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
               </option>
             ))}
           </select>
+          <div style={{ display: 'inline-flex', overflow: 'hidden', border: '2px solid #111', borderRadius: 10 }}>
+            <button
+              type="button"
+              onClick={() => {
+                setResultView('STAGES')
+                setSectionFilter('ALL')
+              }}
+              style={{ padding: '8px 10px', border: 0, background: resultView === 'STAGES' ? '#111' : '#fff', color: resultView === 'STAGES' ? '#fff' : '#111', fontWeight: 900, cursor: 'pointer' }}
+            >
+              Stage & Final
+            </button>
+            <button
+              type="button"
+              disabled={selectedCategory === 'ALL_CATEGORIES'}
+              onClick={() => {
+                setResultView('QUALIFICATION')
+                setSectionFilter('ALL')
+              }}
+              style={{ padding: '8px 10px', border: 0, borderLeft: '2px solid #111', background: resultView === 'QUALIFICATION' ? '#111' : '#fff', color: resultView === 'QUALIFICATION' ? '#fff' : '#111', fontWeight: 900, cursor: selectedCategory === 'ALL_CATEGORIES' ? 'not-allowed' : 'pointer', opacity: selectedCategory === 'ALL_CATEGORIES' ? 0.45 : 1 }}
+            >
+              Kualifikasi
+            </button>
+          </div>
           <select
             value={sectionFilter}
             onChange={(e) => setSectionFilter(e.target.value as typeof sectionFilter)}
@@ -911,7 +1004,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
               <div style={{ padding: '10px 12px', border: '2px solid #111', borderRadius: 14, background: '#eef7ff', fontWeight: 950 }}>
                 Kategori: {group.category.label}
               </div>
-              {visibleStages.map((stage) => renderStageTable(stage))}
+              {visibleStages.map((stage) => renderStageTable(stage, group.category.id))}
             </div>
           )
         })}
@@ -954,7 +1047,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
                       'Total',
                       'Class',
                       'Status',
-                      'Story',
+                      'Aksi',
                     ].map((h) => (
                       <th key={h} style={{ padding: 8, borderBottom: '2px solid #111', fontWeight: 900 }}>
                         {h}
@@ -993,6 +1086,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
                       <td style={{ padding: 8 }}>{row.class_label ?? '-'}</td>
                       <td style={{ padding: 8 }}>{row.status ?? '-'}</td>
                       <td style={{ padding: 8 }}>
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                         <button
                           type="button"
                           onClick={() => setStoryData(createStoryData(row))}
@@ -1009,6 +1103,15 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
                         >
                           Preview
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => void openQualificationTieBreakExplanation(batch, row)}
+                          disabled={row.rank_point == null || tieBreakLoading === `qualification:${batch.batch_index}:${row.rider_id}`}
+                          style={{ padding: '8px 10px', borderRadius: 10, border: '2px solid #111', background: '#fff', color: '#111', fontWeight: 900, cursor: row.rank_point == null ? 'not-allowed' : 'pointer', opacity: row.rank_point == null ? 0.5 : 1, whiteSpace: 'nowrap' }}
+                        >
+                          {tieBreakLoading === `qualification:${batch.batch_index}:${row.rider_id}` ? 'Memuat...' : 'Alasan Rank'}
+                        </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1127,6 +1230,101 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
           </section>
         )}
       </div>
+      {(tieBreakExplanation || tieBreakError) && (
+        <div
+          className="no-print"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 81,
+            background: 'rgba(15,23,42,0.74)',
+            display: 'grid',
+            placeItems: 'center',
+            padding: 20,
+          }}
+          onClick={() => {
+            setTieBreakExplanation(null)
+            setTieBreakError(null)
+          }}
+        >
+          <div
+            style={{
+              width: 'min(100%, 760px)',
+              maxHeight: 'calc(100vh - 40px)',
+              overflow: 'auto',
+              background: '#fff',
+              borderRadius: 20,
+              padding: 20,
+              display: 'grid',
+              gap: 16,
+              boxShadow: '0 24px 80px rgba(15,23,42,0.32)',
+            }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: 12 }}>
+              <div>
+                <div style={{ fontSize: 20, fontWeight: 950 }}>Penjelasan Posisi</div>
+                {tieBreakExplanation ? (
+                  <div style={{ marginTop: 4, color: '#475569', fontWeight: 700 }}>
+                    {tieBreakExplanation.stage} | {tieBreakExplanation.rider.name} ({tieBreakExplanation.rider.plate}) | Rank #{tieBreakExplanation.rider.rank}
+                  </div>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setTieBreakExplanation(null)
+                  setTieBreakError(null)
+                }}
+                style={{ padding: '8px 12px', borderRadius: 10, border: '2px solid #111', background: '#fff', fontWeight: 900, cursor: 'pointer' }}
+              >
+                Tutup
+              </button>
+            </div>
+            {tieBreakError ? <div style={{ padding: 12, borderRadius: 12, background: '#fee2e2', color: '#991b1b', fontWeight: 800 }}>{tieBreakError}</div> : null}
+            {tieBreakExplanation ? (
+              <>
+                <div style={{ padding: 14, borderRadius: 14, background: '#fef3c7', border: '1px solid #f59e0b', fontWeight: 800 }}>
+                  {tieBreakExplanation.summary}
+                </div>
+                {tieBreakExplanation.is_full_tie ? (
+                  <div style={{ padding: '8px 12px', borderRadius: 999, width: 'fit-content', background: '#fee2e2', color: '#991b1b', fontSize: 12, fontWeight: 950, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                    Nilai Lomba Seri Penuh
+                  </div>
+                ) : null}
+                {tieBreakExplanation.comparison_rider ? (
+                  <div style={{ color: '#475569', fontWeight: 700 }}>
+                    Dibandingkan dengan rank #{tieBreakExplanation.comparison_rider.rank}: {tieBreakExplanation.comparison_rider.name} ({tieBreakExplanation.comparison_rider.plate}).
+                  </div>
+                ) : null}
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', minWidth: 560, borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ background: '#f8fafc', textAlign: 'left' }}>
+                        <th style={{ padding: 10, borderBottom: '2px solid #111' }}>Pembanding</th>
+                        <th style={{ padding: 10, borderBottom: '2px solid #111' }}>Rider Ini</th>
+                        <th style={{ padding: 10, borderBottom: '2px solid #111' }}>Rank Di Atas</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tieBreakExplanation.criteria.map((criterion) => (
+                        <tr key={criterion.label} style={{ background: criterion.resolved ? '#ecfdf5' : '#fff', borderBottom: '1px solid #e2e8f0' }}>
+                          <td style={{ padding: 10, fontWeight: criterion.resolved ? 900 : 700 }}>{criterion.label}{criterion.resolved ? ' - pembeda' : ''}</td>
+                          <td style={{ padding: 10 }}>{criterion.rider}</td>
+                          <td style={{ padding: 10 }}>{criterion.comparator}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div style={{ color: '#475569', fontSize: 13, fontWeight: 650 }}>
+                  Urutan pembanding mengikuti aturan sistem. Jika semua pembanding sama, urutan teknis dipakai hanya agar daftar tetap stabil.
+                </div>
+              </>
+            ) : null}
+          </div>
+        </div>
+      )}
       {storyData && (
         <div
           className="no-print"

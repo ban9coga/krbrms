@@ -217,7 +217,11 @@ const loadApprovedPenaltyMaps = async (eventId: string, riderIds: string[]): Pro
 
   for (const row of data ?? []) {
     const amount = Number(row.penalty_point ?? 0)
-    if (row.moto_id) addPenaltyAmount(maps.moto, `${row.moto_id}:${row.rider_id}`, amount)
+    // A moto-specific penalty stores its stage as context, but must only apply once.
+    if (row.moto_id) {
+      addPenaltyAmount(maps.moto, `${row.moto_id}:${row.rider_id}`, amount)
+      continue
+    }
     if (row.stage === 'MOTO') addPenaltyAmount(maps.qualification, row.rider_id, amount)
     if (row.stage === 'ALL') addPenaltyAmount(maps.stage, `${row.rider_id}:ALL`, amount)
     if (row.stage === 'QUARTER' || row.stage === 'REPECHAGE' || row.stage === 'SEMI' || row.stage === 'FINAL') {
@@ -1603,13 +1607,14 @@ const compareNullableNumber = (a: number | null | undefined, b: number | null | 
 // The direct source-stage seed is preferred; qualification is the shared fallback for all stages.
 const rankStageRidersWithTieBreak = (
   rows: StageRankInput[],
-  seedByRider: Map<string, StageTieBreakSeed> = new Map()
+  seedByRider: Map<string, StageTieBreakSeed> = new Map(),
+  dnfProgressEnabled = false
 ): RankedRow[] =>
   [...rows]
     .sort((a, b) => {
       const qualityDiff = stageResultQuality(a.resultStatus) - stageResultQuality(b.resultStatus)
       if (qualityDiff !== 0) return qualityDiff
-      if (a.resultStatus === 'DNF' && b.resultStatus === 'DNF') {
+      if (dnfProgressEnabled && a.resultStatus === 'DNF' && b.resultStatus === 'DNF') {
         const progressDiff = Number(b.dnfProgressPercent ?? -1) - Number(a.dnfProgressPercent ?? -1)
         if (progressDiff !== 0) return progressDiff
       }
@@ -1646,13 +1651,21 @@ const loadStageMotos = async (eventId: string, categoryId: string, prefix: strin
 }
 
 export async function computeStageAdvances(eventId: string, categoryId: string) {
-  const { data: config } = await adminClient
-    .from('race_stage_config')
-    .select('enabled, max_riders_per_race, dnf_point_override, dns_point_override')
-    .eq('event_id', eventId)
-    .eq('category_id', categoryId)
-    .maybeSingle()
+  const [{ data: config }, { data: featureFlags }] = await Promise.all([
+    adminClient
+      .from('race_stage_config')
+      .select('enabled, max_riders_per_race, dnf_point_override, dns_point_override')
+      .eq('event_id', eventId)
+      .eq('category_id', categoryId)
+      .maybeSingle(),
+    adminClient
+      .from('event_feature_flags')
+      .select('dnf_progress_enabled')
+      .eq('event_id', eventId)
+      .maybeSingle(),
+  ])
   if (!config?.enabled) return { ok: false, warning: 'Advanced race disabled.' }
+  const dnfProgressEnabled = featureFlags?.dnf_progress_enabled === true
   const resolved = await resolveCategoryConfig(categoryId)
 
   const { data: existingMotos, error: motoError } = await adminClient
@@ -1831,7 +1844,8 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
           resultStatus: resultRows.find((row) => row.moto_id === moto.id && row.rider_id === riderId)?.result_status,
           dnfProgressPercent: resultRows.find((row) => row.moto_id === moto.id && row.rider_id === riderId)?.dnf_progress_percent,
         })),
-        fallbackSeeds
+        fallbackSeeds,
+        dnfProgressEnabled
       ).forEach((row) => {
         const fallback = fallbackSeeds.get(row.riderId)
         seeds.set(row.riderId, { ...fallback, sourceRank: row.rank, sourcePoints: row.points })
@@ -1951,7 +1965,8 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
         resultStatus: resultRows.find((row) => row.moto_id === moto.id && row.rider_id === riderId)?.result_status,
         dnfProgressPercent: resultRows.find((row) => row.moto_id === moto.id && row.rider_id === riderId)?.dnf_progress_percent,
       })),
-      mergeSeedMaps(qualificationSeedByRider, repechageSeedByRider)
+      mergeSeedMaps(qualificationSeedByRider, repechageSeedByRider),
+      dnfProgressEnabled
     )
     const advances =
       quarterCustomRules.length > 0
@@ -2015,7 +2030,8 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
         resultStatus: resultRows.find((row) => row.moto_id === moto.id && row.rider_id === riderId)?.result_status,
         dnfProgressPercent: resultRows.find((row) => row.moto_id === moto.id && row.rider_id === riderId)?.dnf_progress_percent,
       })),
-      qualificationSeedByRider
+      qualificationSeedByRider,
+      dnfProgressEnabled
     )
     const advances = computeCustomStageAdvances(ranked, repechageCustomRules, { toStage: 'SEMI_FINAL' })
 
@@ -2074,7 +2090,8 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
         resultStatus: resultRows.find((row) => row.moto_id === moto.id && row.rider_id === riderId)?.result_status,
         dnfProgressPercent: resultRows.find((row) => row.moto_id === moto.id && row.rider_id === riderId)?.dnf_progress_percent,
       })),
-      mergeSeedMaps(qualificationSeedByRider, repechageSeedByRider, quarterSeedByRider, semiSeedByRider)
+      mergeSeedMaps(qualificationSeedByRider, repechageSeedByRider, quarterSeedByRider, semiSeedByRider),
+      dnfProgressEnabled
     )
     const advances =
       semiCustomRules.length > 0
@@ -2191,7 +2208,14 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
         .map((row) => ({ priority: 1, position: Number(row.position), points: Number(row.points ?? Number.MAX_SAFE_INTEGER) })),
     ].sort((a, b) => b.priority - a.priority || a.position - b.position || a.points - b.points)
 
-    return sourceCandidates[0] ?? { priority: 0, position: Number.MAX_SAFE_INTEGER, points: Number.MAX_SAFE_INTEGER }
+    const qualificationSeed = qualificationSeedByRider.get(riderId)
+    return {
+      ...(sourceCandidates[0] ?? { priority: 0, position: Number.MAX_SAFE_INTEGER, points: Number.MAX_SAFE_INTEGER }),
+      qualificationRank: qualificationSeed?.qualificationRank ?? Number.MAX_SAFE_INTEGER,
+      qualificationPoints: qualificationSeed?.qualificationPoints ?? Number.MAX_SAFE_INTEGER,
+      qualificationBatchOrder: qualificationSeed?.qualificationBatchOrder ?? Number.MAX_SAFE_INTEGER,
+      qualificationGate: qualificationSeed?.qualificationGate ?? Number.MAX_SAFE_INTEGER,
+    }
   }
 
   for (const [finalClass, entries] of Object.entries(
@@ -2206,7 +2230,7 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
       .sort((a, b) => {
         const statusDiff = finalResultQuality(a.resultStatus) - finalResultQuality(b.resultStatus)
         if (statusDiff !== 0) return statusDiff
-        if (a.resultStatus === 'DNF' && b.resultStatus === 'DNF') {
+        if (dnfProgressEnabled && a.resultStatus === 'DNF' && b.resultStatus === 'DNF') {
           const progressDiff = Number(b.dnfProgressPercent ?? -1) - Number(a.dnfProgressPercent ?? -1)
           if (progressDiff !== 0) return progressDiff
         }
@@ -2223,6 +2247,14 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
         if (sourcePositionDiff !== 0) return sourcePositionDiff
         const sourcePointsDiff = a.source.points - b.source.points
         if (sourcePointsDiff !== 0) return sourcePointsDiff
+        const qualificationRankDiff = a.source.qualificationRank - b.source.qualificationRank
+        if (qualificationRankDiff !== 0) return qualificationRankDiff
+        const qualificationPointsDiff = a.source.qualificationPoints - b.source.qualificationPoints
+        if (qualificationPointsDiff !== 0) return qualificationPointsDiff
+        const qualificationBatchDiff = a.source.qualificationBatchOrder - b.source.qualificationBatchOrder
+        if (qualificationBatchDiff !== 0) return qualificationBatchDiff
+        const qualificationGateDiff = a.source.qualificationGate - b.source.qualificationGate
+        if (qualificationGateDiff !== 0) return qualificationGateDiff
         return a.riderId.localeCompare(b.riderId)
       })
 

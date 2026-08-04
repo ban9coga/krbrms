@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server'
-import { requireBackoffice } from '../../../../../../lib/auth'
+import { requireEventRole } from '../../../../../../lib/auth'
 import { GET as getLiveScore } from '../../../../public/events/[eventId]/live-score/route'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params
-  const auth = await requireBackoffice(req.headers.get('authorization'), eventId)
+  const auth = await requireEventRole(req.headers.get('authorization'), eventId, ['SUPER_ADMIN', 'ADMIN', 'RACE_DIRECTOR'])
   if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const sourceUrl = new URL(req.url)
