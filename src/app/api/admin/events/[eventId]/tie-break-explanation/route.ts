@@ -85,9 +85,13 @@ const formatRankConclusion = ({
     'Progress DNF': 'keduanya DNF dan progres DNF yang lebih jauh diprioritaskan',
     'Total poin termasuk penalty': 'total poin termasuk penalty yang lebih kecil diprioritaskan',
     'Riwayat sebelum Final': 'riwayat sebelum final dibandingkan: DNS lebih sedikit, lalu DNF lebih sedikit, lalu FINISH lebih banyak',
+    'Prioritas stage sumber': 'stage sumber yang lebih lanjut diprioritaskan',
     'Rank stage sumber': 'rank pada stage sumber yang lebih kecil diprioritaskan',
+    'Point stage sumber': 'point stage sumber yang lebih kecil diprioritaskan',
     'Rank seed kualifikasi': 'rank seed kualifikasi yang lebih kecil diprioritaskan',
+    'Point seed kualifikasi': 'point seed kualifikasi yang lebih kecil diprioritaskan',
     'Batch seed kualifikasi': 'batch seed kualifikasi yang lebih awal diprioritaskan',
+    'Gate seed kualifikasi': 'gate seed kualifikasi yang lebih awal diprioritaskan',
     'Poin Moto 3': 'poin Moto 3 dipakai sebagai pembanding berikutnya',
     'Poin Moto 2': 'poin Moto 2 dipakai sebagai pembanding berikutnya',
     'Poin Moto 1': 'poin Moto 1 dipakai sebagai pembanding terakhir',
@@ -224,13 +228,26 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   ])
   const dnfProgressEnabled = featureFlags?.dnf_progress_enabled === true
   const categoryMotoIds = (categoryMotos ?? []).map((item) => item.id)
-  const { data: allResults } = categoryMotoIds.length
-    ? await adminClient
-        .from('results')
-        .select('moto_id, rider_id, result_status, dnf_progress_percent')
-        .in('moto_id', categoryMotoIds)
-        .in('rider_id', comparisonRider ? [riderId, comparisonRider.rider_id] : [riderId])
-    : { data: [] }
+  const comparedRiderIds = comparisonRider ? [riderId, comparisonRider.rider_id] : [riderId]
+  const qualificationMotoIds = (categoryMotos ?? [])
+    .filter((item) => /^moto\s*1\s*-\s*batch\s*\d+/i.test(item.moto_name))
+    .map((item) => item.id)
+  const [{ data: allResults }, { data: qualificationGateRows }] = await Promise.all([
+    categoryMotoIds.length
+      ? adminClient
+          .from('results')
+          .select('moto_id, rider_id, result_status, dnf_progress_percent')
+          .in('moto_id', categoryMotoIds)
+          .in('rider_id', comparedRiderIds)
+      : Promise.resolve({ data: [] }),
+    qualificationMotoIds.length
+      ? adminClient
+          .from('moto_gate_positions')
+          .select('moto_id, rider_id, gate_position')
+          .in('moto_id', qualificationMotoIds)
+          .in('rider_id', comparedRiderIds)
+      : Promise.resolve({ data: [] }),
+  ])
 
   const allSeedRows = (stageSeeds ?? []) as StageSeed[]
   const byRider = (id: string) => allSeedRows.filter((row) => row.rider_id === id)
@@ -248,6 +265,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const qualificationBatch = (seed: StageSeed | null) => {
     const moto = (categoryMotos ?? []).find((item) => item.id === seed?.batch_id)
     return parseQualificationBatch(moto?.moto_name)
+  }
+  const qualificationGate = (id: string) => {
+    const seed = qualificationSeed(id)
+    return (qualificationGateRows ?? []).find(
+      (row) => row.moto_id === seed?.batch_id && row.rider_id === id
+    )?.gate_position ?? null
   }
   const resultByRider = new Map((allResults ?? []).filter((row) => row.moto_id === motoId).map((row) => [row.rider_id, row]))
   const isFinal = /^final\b/i.test(moto?.moto_name ?? stage.title)
@@ -327,10 +350,20 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
 
     const ownSource = bestSource(riderId)
     const otherSource = bestSource(comparisonRider.rider_id)
+    if (isFinal && !decidingRule) {
+      const sourceStageDiff = (stagePriority[otherSource?.stage ?? ''] ?? 0) - (stagePriority[ownSource?.stage ?? ''] ?? 0)
+      addCriterion('Prioritas stage sumber', ownSource?.stage ?? null, otherSource?.stage ?? null, sourceStageDiff)
+      if (sourceStageDiff !== 0) decidingRule = 'Prioritas stage sumber'
+    }
     if (!decidingRule) {
       const sourceDiff = Number(ownSource?.position ?? Number.MAX_SAFE_INTEGER) - Number(otherSource?.position ?? Number.MAX_SAFE_INTEGER)
       addCriterion('Rank stage sumber', ownSource ? `${ownSource.stage} #${ownSource.position}` : null, otherSource ? `${otherSource.stage} #${otherSource.position}` : null, sourceDiff)
       if (sourceDiff !== 0) decidingRule = 'Rank stage sumber'
+    }
+    if (!decidingRule) {
+      const sourcePointDiff = Number(ownSource?.points ?? Number.MAX_SAFE_INTEGER) - Number(otherSource?.points ?? Number.MAX_SAFE_INTEGER)
+      addCriterion('Point stage sumber', ownSource?.points ?? null, otherSource?.points ?? null, sourcePointDiff)
+      if (sourcePointDiff !== 0) decidingRule = 'Point stage sumber'
     }
 
     const ownQualification = qualificationSeed(riderId)
@@ -341,9 +374,19 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       if (qualificationRankDiff !== 0) decidingRule = 'Rank seed kualifikasi'
     }
     if (!decidingRule) {
+      const qualificationPointDiff = Number(ownQualification?.points ?? Number.MAX_SAFE_INTEGER) - Number(otherQualification?.points ?? Number.MAX_SAFE_INTEGER)
+      addCriterion('Point seed kualifikasi', ownQualification?.points ?? null, otherQualification?.points ?? null, qualificationPointDiff)
+      if (qualificationPointDiff !== 0) decidingRule = 'Point seed kualifikasi'
+    }
+    if (!decidingRule) {
       const batchDiff = qualificationBatch(ownQualification) - qualificationBatch(otherQualification)
       addCriterion('Batch seed kualifikasi', Number.isFinite(qualificationBatch(ownQualification)) ? qualificationBatch(ownQualification) : null, Number.isFinite(qualificationBatch(otherQualification)) ? qualificationBatch(otherQualification) : null, batchDiff)
       if (batchDiff !== 0) decidingRule = 'Batch seed kualifikasi'
+    }
+    if (!decidingRule) {
+      const gateDiff = Number(qualificationGate(riderId) ?? Number.MAX_SAFE_INTEGER) - Number(qualificationGate(comparisonRider.rider_id) ?? Number.MAX_SAFE_INTEGER)
+      addCriterion('Gate seed kualifikasi', qualificationGate(riderId), qualificationGate(comparisonRider.rider_id), gateDiff)
+      if (gateDiff !== 0) decidingRule = 'Gate seed kualifikasi'
     }
   }
 
@@ -368,9 +411,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         ...(dnfProgressEnabled ? ['Jika sama-sama DNF: progress yang lebih jauh lebih baik'] : []),
         'Total poin termasuk penalty: angka lebih kecil lebih baik',
         ...(isFinal ? ['Untuk Final: riwayat DNS lebih sedikit, lalu DNF lebih sedikit, lalu FINISH lebih banyak'] : []),
+        ...(isFinal ? ['Untuk Final: stage sumber yang lebih lanjut diprioritaskan (Semi Final, QF, Repechage, Kualifikasi)'] : []),
         'Rank stage sumber yang lebih kecil lebih baik',
+        'Point stage sumber yang lebih kecil lebih baik',
         'Rank seed kualifikasi yang lebih kecil lebih baik',
+        'Point seed kualifikasi yang lebih kecil lebih baik',
         'Batch seed kualifikasi yang lebih awal lebih baik',
+        'Gate seed kualifikasi yang lebih awal lebih baik',
         'Jika seluruhnya sama: urutan teknis untuk menjaga slot stage stabil',
       ],
       criteria,
