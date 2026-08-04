@@ -30,6 +30,15 @@ type StageSeed = {
   batch_id: string | null
   position: number | null
   points: number | null
+  final_class: string | null
+}
+
+type JourneyEntry = {
+  label: string
+  rank: number | null
+  point: number | null
+  status: string | null
+  current: boolean
 }
 
 const stagePriority: Record<string, number> = {
@@ -162,6 +171,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
           : null,
         deciding_rule: decidingRule,
         is_full_tie: Boolean(comparisonRider && !decidingRule),
+        journey: [
+          {
+            label: `Kualifikasi - Batch ${batch.batch_index}`,
+            rank: rider.rank_point,
+            point: rider.total_point,
+            status: null,
+            current: true,
+          },
+        ] satisfies JourneyEntry[],
+        history_note: 'Pada kualifikasi, rank ditentukan dari total poin dan urutan poin tiap moto dalam batch yang sama.',
         tiebreak_order: [
           'Total poin termasuk penalty: angka lebih kecil lebih baik',
           'Poin Moto 3',
@@ -197,7 +216,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     adminClient.from('motos').select('id, moto_name').eq('id', motoId).maybeSingle(),
     adminClient
       .from('race_stage_result')
-      .select('rider_id, stage, batch_id, position, points')
+      .select('rider_id, stage, batch_id, position, points, final_class')
       .eq('category_id', categoryId)
       .neq('stage', 'FINAL'),
     adminClient.from('motos').select('id, moto_name').eq('category_id', categoryId),
@@ -232,6 +251,36 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   }
   const resultByRider = new Map((allResults ?? []).filter((row) => row.moto_id === motoId).map((row) => [row.rider_id, row]))
   const isFinal = /^final\b/i.test(moto?.moto_name ?? stage.title)
+  const statusForStage = (seed: StageSeed) =>
+    (allResults ?? []).find((result) => result.rider_id === riderId && result.moto_id === seed.batch_id)?.result_status ?? null
+  const stageLabel = (seed: StageSeed) => {
+    if (seed.stage === 'QUALIFICATION') {
+      const batch = qualificationBatch(seed)
+      return `Kualifikasi${Number.isFinite(batch) ? ` - Batch ${batch}` : ''}`
+    }
+    const batchName = (categoryMotos ?? []).find((item) => item.id === seed.batch_id)?.moto_name
+    return batchName || `${seed.stage.replace(/_/g, ' ')}${seed.final_class ? ` - ${seed.final_class}` : ''}`
+  }
+  const journey: JourneyEntry[] = [...byRider(riderId)]
+    .sort((a, b) => {
+      const stageDiff = (stagePriority[a.stage] ?? 0) - (stagePriority[b.stage] ?? 0)
+      if (stageDiff !== 0) return stageDiff
+      return qualificationBatch(a) - qualificationBatch(b)
+    })
+    .map((seed) => ({
+      label: stageLabel(seed),
+      rank: seed.position,
+      point: seed.points,
+      status: statusForStage(seed),
+      current: false,
+    }))
+  journey.push({
+    label: stage.title,
+    rank: rider.rank,
+    point: Number(rider.point ?? 0) + Number(rider.penalty_total ?? 0),
+    status: rider.status,
+    current: true,
+  })
 
   const criteria: Array<{ label: string; rider: string; comparator: string; resolved: boolean }> = []
   const addCriterion = (label: string, own: string | number | null, other: string | number | null, diff: number) => {
@@ -308,6 +357,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         : null,
       deciding_rule: decidingRule,
       is_full_tie: Boolean(comparisonRider && !decidingRule),
+      journey,
+      history_note: isFinal
+        ? decidingRule === 'Riwayat sebelum Final'
+          ? 'Riwayat sebelum final menjadi pembeda rank karena status dan total poin final sama.'
+          : `Riwayat sebelum final ditampilkan sebagai konteks, tetapi rank ini sudah ditentukan lebih dahulu oleh ${decidingRule ?? 'urutan teknis'}.`
+        : 'Riwayat stage ditampilkan untuk menjelaskan jalur rider menuju babak ini. Rank pada stage ini tetap ditentukan oleh hasil stage yang sedang dibuka.',
       tiebreak_order: [
         'Status hasil: FINISH > DNF > DNS > DQ',
         ...(dnfProgressEnabled ? ['Jika sama-sama DNF: progress yang lebih jauh lebih baik'] : []),

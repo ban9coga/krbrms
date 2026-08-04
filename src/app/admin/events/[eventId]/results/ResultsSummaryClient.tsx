@@ -124,6 +124,8 @@ type TieBreakExplanation = {
   deciding_rule: string | null
   is_full_tie: boolean
   criteria: Array<{ label: string; rider: string; comparator: string; resolved: boolean }>
+  journey: Array<{ label: string; rank: number | null; point: number | null; status: string | null; current: boolean }>
+  history_note: string
   tiebreak_order: string[]
   summary: string
 }
@@ -1303,6 +1305,26 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
                     Dibandingkan dengan rank #{tieBreakExplanation.comparison_rider.rank}: {tieBreakExplanation.comparison_rider.name} ({tieBreakExplanation.comparison_rider.plate}).
                   </div>
                 ) : null}
+                <div style={{ display: 'grid', gap: 8, padding: 14, borderRadius: 14, background: '#eff6ff', border: '1px solid #93c5fd' }}>
+                  <div style={{ fontSize: 12, fontWeight: 950, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#1d4ed8' }}>
+                    Jalur Rider Sampai Babak Ini
+                  </div>
+                  <div style={{ display: 'grid', gap: 7 }}>
+                    {tieBreakExplanation.journey.map((entry, index) => (
+                      <div key={`${entry.label}-${index}`} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 7, fontSize: 13, fontWeight: entry.current ? 900 : 700, color: '#1e3a8a' }}>
+                        <span style={{ minWidth: 22, height: 22, display: 'inline-grid', placeItems: 'center', borderRadius: 999, background: entry.current ? '#1d4ed8' : '#bfdbfe', color: entry.current ? '#fff' : '#1e3a8a', fontSize: 11 }}>{index + 1}</span>
+                        <span>{entry.label}</span>
+                        {entry.rank != null ? <span>Rank #{entry.rank}</span> : null}
+                        {entry.point != null ? <span>| Total {entry.point}</span> : null}
+                        {entry.status ? <span>| {entry.status}</span> : null}
+                        {entry.current ? <span style={{ color: '#047857' }}>| Babak yang sedang dilihat</span> : null}
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ color: '#1e40af', fontSize: 12, fontWeight: 750, lineHeight: 1.45 }}>
+                    {tieBreakExplanation.history_note}
+                  </div>
+                </div>
                 <div style={{ display: 'grid', gap: 8, padding: 14, borderRadius: 14, background: '#f8fafc', border: '1px solid #cbd5e1' }}>
                   <div style={{ fontSize: 12, fontWeight: 950, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#334155' }}>
                     Urutan Tie-Break yang Diperiksa
