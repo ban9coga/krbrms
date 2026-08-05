@@ -403,11 +403,11 @@ export default function LiveScoreClient({
               <p className="text-xs font-extrabold uppercase text-[#f3c63d]">
                 {publicBrandName || 'Live Score'}
               </p>
-              <h1 className="max-w-4xl text-3xl font-black text-[#fff8e8] sm:text-4xl lg:text-[3.2rem] lg:leading-none">
-                {publicEventTitle}
-              </h1>
-              <p className="text-sm font-semibold text-[#eadcca] sm:text-base">
+              <h1 className="max-w-4xl text-4xl font-black uppercase text-[#f3c63d] sm:text-5xl lg:text-[4rem] lg:leading-none">
                 {categoryLabel || 'Category'}
+              </h1>
+              <p className="max-w-3xl text-base font-bold text-[#fff8e8] sm:text-lg">
+                {publicEventTitle}
               </p>
               {(publicTagline || showOperatingCommittee || showScoringSupport || showMc) && (
                 <div className="grid gap-2">

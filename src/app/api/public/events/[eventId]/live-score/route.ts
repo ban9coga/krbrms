@@ -658,7 +658,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       })
       const rankMap = new Map(
         rankedRows
-          .filter((r) => r.total_point !== null)
+          // DQ does not receive points, but still needs a display rank at the bottom
+          // of the table so its final ordering is visible.
+          .filter((r) => r.total_point !== null || r.status === 'DQ')
           .map((r, idx) => ({ rider_id: r.rider_id, rank: idx + 1 }))
           .map((r) => [r.rider_id, r.rank])
       )
@@ -811,7 +813,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
 
     const rankMap = new Map(
       [...rows]
-        .filter((row) => row.point !== null)
+        // Keep DQ unscored while assigning it the final display rank after DNS.
+        .filter((row) => row.point !== null || row.status === 'DQ')
         .sort((a, b) => {
           const aStatusOrder = getStageStatusSortOrder(a.status)
           const bStatusOrder = getStageStatusSortOrder(b.status)
