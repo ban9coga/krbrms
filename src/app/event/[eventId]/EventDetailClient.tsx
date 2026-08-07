@@ -259,11 +259,11 @@ export default function EventDetailClient({
                       </span>
                     </div>
                     {publicStaff.length > 0 && (
-                      <div className="grid max-w-5xl gap-2 pt-1">
+                      <div className="grid max-w-6xl gap-2 pt-1">
                         <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-[#c9b7a5]">Panitia & Official</p>
-                        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                        <div className="flex flex-wrap gap-2 xl:flex-nowrap">
                           {publicStaff.map((staff) => (
-                            <div key={staff.role} className="flex min-w-0 items-center gap-3 rounded-xl border border-white/15 bg-white/5 px-3 py-2">
+                            <div key={staff.role} className="flex min-w-[220px] flex-1 items-center gap-3 rounded-xl border border-white/15 bg-white/5 px-3 py-2">
                               {staff.photoUrl ? (
                                 <Image
                                   src={staff.photoUrl}
@@ -303,20 +303,15 @@ export default function EventDetailClient({
                         {Math.max(daysToEvent, 0)} hari lagi
                       </div>
                     )}
+                    {event.status !== 'UPCOMING' && (
+                      <div className="inline-flex items-center gap-2 rounded-full border border-[#705547] bg-[#2a160d] px-3 py-1.5 text-xs font-bold text-[#eadcca]">
+                        <span className="uppercase tracking-[0.1em] text-[#c9b7a5]">Riders</span>
+                        <span className="text-base font-black text-[#fff8e8]">{totalFilledSlots}</span>
+                        {upclassSlotCount > 0 && <span className="text-[10px] text-[#c9b7a5]">{riderTotal} + {upclassSlotCount} upclass</span>}
+                      </div>
+                    )}
                   </div>
                 </div>
-
-                {event.status !== 'UPCOMING' && (
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-2xl border border-[#705547] bg-[#2a160d] p-4 text-[#fff8e8]">
-                      <p className="text-xs font-bold uppercase text-[#c9b7a5]">Total Riders</p>
-                      <p className="mt-2 text-3xl font-black">{totalFilledSlots}</p>
-                      <p className="mt-1 text-xs font-semibold text-[#c9b7a5]">
-                        {`${riderTotal} rider${upclassSlotCount > 0 ? ` + ${upclassSlotCount} rider upclass` : ''}`}
-                      </p>
-                    </div>
-                  </div>
-                )}
 
                 <div className="flex flex-wrap gap-3">
                   {event.status === 'LIVE' && (
