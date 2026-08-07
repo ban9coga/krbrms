@@ -811,6 +811,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       }
     })
 
+    const hasScoredStageResult = rows.some((row) => row.point !== null)
+    const pendingStarterCount = rows.filter((row) => row.status !== 'DQ').length
     const rankMap = new Map(
       [...rows]
         // Keep DQ unscored while assigning it the final display rank after DNS.
@@ -866,7 +868,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
           if (aGate !== bGate) return aGate - bGate
           return a.rider_id.localeCompare(b.rider_id)
         })
-        .map((row, index) => [row.rider_id, index + 1] as const)
+        // Before a final starts, DQ may be the only persisted result. It must
+        // remain an administrative last-place entry, not temporarily rank #1.
+        .map((row, index) => [row.rider_id, hasScoredStageResult ? index + 1 : pendingStarterCount + index + 1] as const)
     )
 
     rows.forEach((row) => {

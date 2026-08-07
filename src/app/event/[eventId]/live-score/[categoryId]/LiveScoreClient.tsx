@@ -354,6 +354,11 @@ export default function LiveScoreClient({
               return a.name.localeCompare(b.name)
             }
 
+            // A pre-race DQ has an administrative last-place rank, while the
+            // active riders are still PENDING. Keep starters visible first.
+            if (a.status === 'PENDING' && b.status === 'DQ') return -1
+            if (a.status === 'DQ' && b.status === 'PENDING') return 1
+
             const aRank = a.rank ?? Number.MAX_SAFE_INTEGER
             const bRank = b.rank ?? Number.MAX_SAFE_INTEGER
             if (aRank !== bRank) return aRank - bRank
