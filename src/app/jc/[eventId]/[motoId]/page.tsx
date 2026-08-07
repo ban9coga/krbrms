@@ -60,6 +60,7 @@ type RiderItem = {
   name: string
   no_plate_display: string
   gate_position?: number | null
+  dq_reason?: string | null
 }
 
 type StatusRow = {
@@ -293,6 +294,7 @@ export default function JCPage() {
   const selectedMotoIdRef = useRef(initialMotoId)
   const manualSelectRef = useRef(false)
   const [riders, setRiders] = useState<RiderItem[]>([])
+  const [prepDqRiders, setPrepDqRiders] = useState<RiderItem[]>([])
   const [statuses, setStatuses] = useState<Record<string, StatusRow>>({})
   const [incidentRiders, setIncidentRiders] = useState<RiderItem[]>([])
   const [incidentStatuses, setIncidentStatuses] = useState<Record<string, StatusRow>>({})
@@ -404,6 +406,7 @@ export default function JCPage() {
         selectedMotoIdRef.current = ''
         setSelectedMotoId('')
         setRiders([])
+        setPrepDqRiders([])
         setStatuses({})
         setAllReadyDone(false)
         setBulkReadyState(null)
@@ -463,6 +466,7 @@ export default function JCPage() {
       }
       // Stable-reference update: only replace riders if data actually changed
       const newRiders = (riderRes.data ?? []) as RiderItem[]
+      setPrepDqRiders((riderRes.dq_riders ?? []) as RiderItem[])
       setRiders((prev) => {
         if (prev.length === newRiders.length && prev.every((r, i) => r.id === newRiders[i]?.id)) return prev
         return newRiders
@@ -1624,6 +1628,28 @@ export default function JCPage() {
                   : 'Moto ini masih fase prep sebelum start.'}
               </span>
             </div>
+          </div>
+        )}
+
+        {prepDqRiders.length > 0 && !activeCategoryWaitingStage && (
+          <div
+            style={{
+              display: 'grid',
+              gap: 8,
+              padding: isCompactLayout ? 10 : 12,
+              borderRadius: 12,
+              border: '2px solid #be123c',
+              background: '#fff1f2',
+            }}
+          >
+            <div style={{ color: '#9f1239', fontWeight: 950, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              Tidak Dapat Start - DQ
+            </div>
+            {prepDqRiders.map((rider) => (
+              <div key={rider.id} style={{ color: '#881337', fontWeight: 800, fontSize: 13 }}>
+                {rider.no_plate_display} - {rider.name}{rider.dq_reason ? `: ${rider.dq_reason}` : ''}
+              </div>
+            ))}
           </div>
         )}
 

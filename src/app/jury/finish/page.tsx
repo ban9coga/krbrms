@@ -66,6 +66,9 @@ type FinisherPollData = {
     finish_order?: number | null
     result_status?: string | null
     dnf_progress_percent?: number | null
+    dq_reason?: string | null
+    is_auto_dq?: boolean | null
+    riders?: RiderItem | RiderItem[] | null
   }>
   penalties: Array<{
     rider_id: string
@@ -136,6 +139,7 @@ export default function JuryFinishPage() {
 
   const [finishOrder, setFinishOrder] = useState<string[]>([])
   const [dnfRiders, setDnfRiders] = useState<string[]>([])
+  const [dqRiders, setDqRiders] = useState<Array<{ rider: RiderItem; reason: string | null }>>([])
   const [dnfProgressByRider, setDnfProgressByRider] = useState<Record<string, number>>({})
   const [dnfProgressRiderId, setDnfProgressRiderId] = useState<string | null>(null)
   const [dnfProgressDraft, setDnfProgressDraft] = useState('')
@@ -289,6 +293,12 @@ export default function JuryFinishPage() {
     const dnsFromServer = existingResults
       .filter((r) => r.result_status === 'DNS')
       .map((r) => r.rider_id)
+    const dqFromServer = existingResults
+      .filter((r) => r.result_status === 'DQ')
+      .flatMap((row) => {
+        const rider = Array.isArray(row.riders) ? row.riders[0] : row.riders
+        return rider ? [{ rider, reason: row.dq_reason ?? null }] : []
+      })
 
     const statusMap: Record<string, string> = {}
     for (const row of data.statuses ?? []) {
@@ -321,6 +331,7 @@ export default function JuryFinishPage() {
     setHasSubmitted(!isMotoLive(targetMoto?.status) && existingResults.length > 0)
     setFinishOrder(finishFromServer.filter((riderId) => !blockedRiderIds.has(riderId)))
     setDnfRiders(dnfFromServer.filter((riderId) => !blockedRiderIds.has(riderId)))
+    setDqRiders(dqFromServer)
     setDnfProgressByRider(dnfProgressMap)
     setParticipationByRider(statusMap)
     setPenaltiesByRider(penaltyMap)
@@ -1044,6 +1055,19 @@ export default function JuryFinishPage() {
                   {dnsRiders.length === 0 && <div className="text-sm font-semibold text-slate-500">Kosong.</div>}
                 </div>
               </div>
+
+              {dqRiders.length > 0 && (
+                <div className="rounded-xl border border-rose-200 bg-rose-50 p-3">
+                  <div className={`${highVisibility ? 'text-xs' : 'text-[10px]'} font-extrabold uppercase tracking-[0.12em] text-rose-700`}>DQ / Tidak Start</div>
+                  <div className="mt-2 grid gap-1.5">
+                    {dqRiders.map(({ rider, reason }) => (
+                      <div key={rider.id} className={`${highVisibility ? 'text-base' : 'text-sm'} font-semibold text-rose-800`}>
+                        {rider.no_plate_display} - {rider.name}{reason ? `: ${reason}` : ''}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
             </div>
           </aside>

@@ -783,10 +783,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     const collapsedGateMap = new Map<string, number>()
     validRiderIdsWithGates.forEach((r, idx) => collapsedGateMap.set(r.id, idx + 1))
     
-    const riderCount = validRiderIdsInMoto.length || null
     const resultByRider = new Map(
       resultRows.filter((row) => row.moto_id === moto.id).map((row) => [row.rider_id, row])
     )
+    const riderCount = validRiderIdsInMoto.filter((riderId) => resultByRider.get(riderId)?.result_status !== 'DQ').length || null
 
     const stagePenaltyStages = resolvePenaltyStagesForMoto(moto.moto_name)
     const rows: StageRow[] = validRiderIdsInMoto.map((riderId) => {
@@ -799,7 +799,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       const autoPenaltyTotal = resolveNonFinishAutoPenalty(status, pointOverrideConfig ?? undefined)
       return {
         rider_id: riderId,
-        gate: collapsedGateMap.get(riderId) ?? null,
+        gate: status === 'DQ' ? null : collapsedGateMap.get(riderId) ?? null,
         name: rider?.name ?? '-',
         no_plate: rider?.no_plate_display ?? '-',
         club: rider?.club ?? '-',

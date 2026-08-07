@@ -7,7 +7,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { data, error } = await adminClient
     .from('event_feature_flags')
-    .select('event_id, penalty_enabled, absent_enabled, dns_enabled, dnf_enabled, dnf_progress_enabled')
+    .select('event_id, penalty_enabled, absent_enabled, dns_enabled, dnf_enabled, dnf_progress_enabled, dq_retains_final_classification')
     .eq('event_id', eventId)
     .maybeSingle()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
@@ -19,7 +19,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ eventI
   if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { eventId } = await params
   const body = await req.json()
-  const { penalty_enabled, absent_enabled, dns_enabled, dnf_enabled, dnf_progress_enabled } = body ?? {}
+  const { penalty_enabled, absent_enabled, dns_enabled, dnf_enabled, dnf_progress_enabled, dq_retains_final_classification } = body ?? {}
 
   const { data, error } = await adminClient
     .from('event_feature_flags')
@@ -31,10 +31,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ eventI
         dns_enabled: !!dns_enabled,
         dnf_enabled: !!dnf_enabled,
         dnf_progress_enabled: !!dnf_progress_enabled,
+        dq_retains_final_classification: !!dq_retains_final_classification,
       }],
       { onConflict: 'event_id' }
     )
-    .select('event_id, penalty_enabled, absent_enabled, dns_enabled, dnf_enabled, dnf_progress_enabled')
+    .select('event_id, penalty_enabled, absent_enabled, dns_enabled, dnf_enabled, dnf_progress_enabled, dq_retains_final_classification')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })

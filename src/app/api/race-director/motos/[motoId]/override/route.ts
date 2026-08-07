@@ -22,13 +22,22 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
     return NextResponse.json({ error: 'Moto not found' }, { status: 404 })
   }
 
-  const payload = (results as Array<{ rider_id: string; finish_order?: number | null; result_status?: string }>).map((row) => ({
-    event_id: moto.event_id,
-    moto_id: motoId,
-    rider_id: row.rider_id,
-    finish_order: row.finish_order ?? null,
-    result_status: row.result_status ?? 'FINISH',
-  }))
+  const normalizedReason = String(reason ?? '').trim()
+  if ((results as Array<{ result_status?: string }>).some((row) => row.result_status === 'DQ') && !normalizedReason) {
+    return NextResponse.json({ error: 'Alasan DQ wajib diisi.' }, { status: 400 })
+  }
+  const payload = (results as Array<{ rider_id: string; finish_order?: number | null; result_status?: string }>).map((row) => {
+    const resultStatus = row.result_status ?? 'FINISH'
+    return {
+      event_id: moto.event_id,
+      moto_id: motoId,
+      rider_id: row.rider_id,
+      finish_order: row.finish_order ?? null,
+      result_status: resultStatus,
+      dq_reason: resultStatus === 'DQ' ? normalizedReason : null,
+      is_auto_dq: false,
+    }
+  })
 
   const { data: assigned, error: assignedError } = await adminClient
     .from('moto_riders')
@@ -59,4 +68,3 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
 
   return NextResponse.json({ ok: true })
 }
-

@@ -31,6 +31,8 @@ type ResultRow = {
   finish_order: number | null
   result_status?: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | null
   dnf_progress_percent?: number | null
+  dq_reason?: string | null
+  is_auto_dq?: boolean | null
 }
 
 type RiderParticipationHistory = {
@@ -44,6 +46,50 @@ type MotoRiderRow = {
   moto_id: string
   rider_id: string
 }
+
+type StageAdvance = {
+  riderId: string
+  toStage: 'QUARTER_FINAL' | 'REPECHAGE' | 'SEMI_FINAL' | 'FINAL'
+  finalClass?: string
+}
+
+const excludeDisqualifiedAdvances = (advances: StageAdvance[], disqualifiedRiderIds: Set<string>) =>
+  advances.filter((advance) => !disqualifiedRiderIds.has(advance.riderId))
+
+const retainDisqualifiedFinalAdvances = (
+  advances: StageAdvance[],
+  disqualifiedRiderIds: Set<string>,
+  fallbackFinalClass: string
+) =>
+  advances.map((advance) =>
+    disqualifiedRiderIds.has(advance.riderId)
+      ? {
+          riderId: advance.riderId,
+          toStage: 'FINAL' as const,
+          finalClass: advance.toStage === 'FINAL' && advance.finalClass ? advance.finalClass : fallbackFinalClass,
+        }
+      : advance
+  )
+
+const resolveLowestFinalClass = (finalClasses: string[]) =>
+  FINAL_CLASS_ORDER.find((finalClass) => finalClasses.includes(finalClass)) ?? FINAL_CLASS_ORDER[0]
+
+const disqualifiedRiderIdsForMotos = (results: ResultRow[], motoIds: string[]) => {
+  const motoIdSet = new Set(motoIds)
+  return new Set(
+    results
+      .filter((row) => motoIdSet.has(row.moto_id) && String(row.result_status ?? '').toUpperCase() === 'DQ')
+      .map((row) => row.rider_id)
+  )
+}
+
+const scoringRiderCount = (riderIds: string[], motoId: string, results: ResultRow[]) =>
+  Math.max(
+    1,
+    riderIds.filter(
+      (riderId) => results.find((row) => row.moto_id === motoId && row.rider_id === riderId)?.result_status !== 'DQ'
+    ).length
+  )
 
 const buildParticipationHistory = (rows: ResultRow[]) => {
   const historyByRider = new Map<string, RiderParticipationHistory>()
@@ -746,13 +792,21 @@ const isAdvancedStageMotoName = (name?: string | null) =>
   /^(?:repechage|quarter\s*final|semi\s*final|final\s+)/i.test(String(name ?? '').trim())
 
 export async function computeQualificationAndStore(eventId: string, categoryId: string) {
-  const { data: config } = await adminClient
-    .from('race_stage_config')
-    .select('enabled, qualification_moto_count, dnf_point_override, dns_point_override')
-    .eq('event_id', eventId)
-    .eq('category_id', categoryId)
-    .maybeSingle()
+  const [{ data: config }, { data: featureFlags }] = await Promise.all([
+    adminClient
+      .from('race_stage_config')
+      .select('enabled, qualification_moto_count, dnf_point_override, dns_point_override')
+      .eq('event_id', eventId)
+      .eq('category_id', categoryId)
+      .maybeSingle(),
+    adminClient
+      .from('event_feature_flags')
+      .select('dq_retains_final_classification')
+      .eq('event_id', eventId)
+      .maybeSingle(),
+  ])
   if (!config?.enabled) return { ok: false, warning: 'Advanced race disabled.' }
+  const dqRetainsFinalClassification = featureFlags?.dq_retains_final_classification === true
 
   const baseResolved = await resolveCategoryConfig(categoryId)
   const customRules = await loadCustomSplitRules(categoryId)
@@ -890,7 +944,7 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
         )
       )
     : []
-  const effectiveAdvances = useCombinedCustomSplit
+  const rawEffectiveAdvances = useCombinedCustomSplit
     ? computeQualificationAdvancesFromRanks(
         combinedQualificationRanks,
         resolveQualificationPrimaryAdvance(resolved.stages),
@@ -919,7 +973,15 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
         )
       )
 
-  const filteredAdvances = effectiveAdvances.filter((row) => {
+  const disqualifiedQualificationRiderIds = disqualifiedRiderIdsForMotos(resultRows, motoIds)
+  const filteredAdvances = (dqRetainsFinalClassification
+    ? retainDisqualifiedFinalAdvances(
+        rawEffectiveAdvances,
+        disqualifiedQualificationRiderIds,
+        resolveLowestFinalClass(Array.from(allowedFinalClasses))
+      )
+    : excludeDisqualifiedAdvances(rawEffectiveAdvances, disqualifiedQualificationRiderIds)
+  ).filter((row) => {
     if (row.toStage === 'QUARTER_FINAL' && !resolved.stages.enableQuarterFinal) return false
     if (row.toStage === 'SEMI_FINAL' && !resolved.stages.enableSemiFinal) return false
     if (row.toStage === 'FINAL') {
@@ -979,13 +1041,21 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
 }
 
 export async function generateStageMotos(eventId: string, categoryId: string) {
-  const { data: config } = await adminClient
-    .from('race_stage_config')
-    .select('enabled, max_riders_per_race, qualification_moto_count, repechage_max_riders_per_race, quarter_final_max_riders_per_race, semi_final_max_riders_per_race, dnf_point_override, dns_point_override')
-    .eq('event_id', eventId)
-    .eq('category_id', categoryId)
-    .maybeSingle()
+  const [{ data: config }, { data: featureFlags }] = await Promise.all([
+    adminClient
+      .from('race_stage_config')
+      .select('enabled, max_riders_per_race, qualification_moto_count, repechage_max_riders_per_race, quarter_final_max_riders_per_race, semi_final_max_riders_per_race, dnf_point_override, dns_point_override')
+      .eq('event_id', eventId)
+      .eq('category_id', categoryId)
+      .maybeSingle(),
+    adminClient
+      .from('event_feature_flags')
+      .select('dq_retains_final_classification')
+      .eq('event_id', eventId)
+      .maybeSingle(),
+  ])
   if (!config?.enabled) return { ok: false, warning: 'Advanced race disabled.' }
+  const dqRetainsFinalClassification = featureFlags?.dq_retains_final_classification === true
 
   const repechageMaxRiders = Math.max(4, Number(config.repechage_max_riders_per_race ?? config.max_riders_per_race ?? 8))
   const quarterMaxRiders = Math.max(4, Number(config.quarter_final_max_riders_per_race ?? config.max_riders_per_race ?? 8))
@@ -1021,12 +1091,21 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
   if (riderSnapshotError) return { ok: false, warning: riderSnapshotError.message }
 
   const { data: categoryResults, error: resultSnapshotError } = existingMotoIds.length
-    ? await adminClient.from('results').select('moto_id, rider_id, finish_order, result_status').in('moto_id', existingMotoIds)
+    ? await adminClient.from('results').select('moto_id, rider_id, finish_order, result_status, dq_reason, is_auto_dq').in('moto_id', existingMotoIds)
     : { data: [], error: null }
   if (resultSnapshotError) return { ok: false, warning: resultSnapshotError.message }
 
   const categoryMotoRiderRows = (categoryMotoRiders ?? []) as MotoRiderRow[]
   const categoryResultRows = (categoryResults ?? []) as ResultRow[]
+  const retainedDqRiderIds = new Set(
+    dqRetainsFinalClassification
+      ? categoryResultRows.filter((row) => row.result_status === 'DQ').map((row) => row.rider_id)
+      : []
+  )
+  const dqReasonByRider = new Map<string, string>()
+  categoryResultRows
+    .filter((row) => row.result_status === 'DQ' && row.dq_reason)
+    .forEach((row) => dqReasonByRider.set(row.rider_id, row.dq_reason as string))
   let categoryPenaltyMaps: ApprovedPenaltyMaps
   try {
     categoryPenaltyMaps = await loadApprovedPenaltyMaps(eventId, categoryMotoRiderRows.map((row) => row.rider_id))
@@ -1486,6 +1565,8 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
       const motoHasResults = hasMotoResults(moto.id, categoryResultRows)
       const currentRiders = [...(existingFinalRiderMap.get(moto.id) ?? [])].sort((a, b) => a.localeCompare(b))
       const orderedDesiredRiders = uniqueRiderList(orderFinalRidersBySource(desiredRiders))
+      const gateEligibleRiders = orderedDesiredRiders.filter((riderId) => !retainedDqRiderIds.has(riderId))
+      const retainedDqRiders = orderedDesiredRiders.filter((riderId) => retainedDqRiderIds.has(riderId))
       const desiredSorted = [...orderedDesiredRiders].sort((a, b) => a.localeCompare(b))
 
       if ((!finalReady || desiredRiders.length === 0) && !motoHasResults) {
@@ -1512,8 +1593,25 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
           await adminClient.from('moto_gate_positions').delete().eq('moto_id', moto.id)
           const { error: gateRefreshError } = await adminClient
             .from('moto_gate_positions')
-            .insert(buildSequentialGateRows(moto.id, orderedDesiredRiders))
+            .insert(buildSequentialGateRows(moto.id, gateEligibleRiders))
           if (gateRefreshError) return { ok: false, warning: gateRefreshError.message }
+        }
+
+        await adminClient.from('results').delete().eq('moto_id', moto.id).eq('is_auto_dq', true)
+        if (retainedDqRiders.length > 0) {
+          const { error: autoDqError } = await adminClient.from('results').upsert(
+            retainedDqRiders.map((riderId) => ({
+              event_id: eventId,
+              moto_id: moto.id,
+              rider_id: riderId,
+              finish_order: null,
+              result_status: 'DQ',
+              dq_reason: dqReasonByRider.get(riderId) ?? 'DQ dibawa dari stage sebelumnya.',
+              is_auto_dq: true,
+            })),
+            { onConflict: 'moto_id,rider_id' }
+          )
+          if (autoDqError) return { ok: false, warning: autoDqError.message }
         }
       }
     }
@@ -1539,8 +1637,9 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
     motoRows.forEach((m) => {
       const key = m.moto_name.replace('Final ', '')
       const riders = uniqueRiderList(orderFinalRidersBySource(finals[key] ?? []))
+      const gateEligibleRiders = riders.filter((riderId) => !retainedDqRiderIds.has(riderId))
       riders.forEach((riderId) => newMotoRiders.push({ moto_id: m.id, rider_id: riderId }))
-      newGatePositions.push(...buildSequentialGateRows(m.id, riders))
+      newGatePositions.push(...buildSequentialGateRows(m.id, gateEligibleRiders))
     })
   }
 
@@ -1559,6 +1658,35 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
   if (gateTableReady && uniqueNewGatePositions.length > 0) {
     const { error: gateError } = await adminClient.from('moto_gate_positions').insert(uniqueNewGatePositions)
     if (gateError) return { ok: false, warning: gateError.message }
+  }
+
+  if (dqRetainsFinalClassification && finalsToCreate.length > 0) {
+    const finalMotos = await adminClient
+      .from('motos')
+      .select('id, moto_name')
+      .eq('event_id', eventId)
+      .eq('category_id', categoryId)
+      .in('moto_name', finalsToCreate.map((finalClass) => `Final ${finalClass}`))
+    if (finalMotos.error) return { ok: false, warning: finalMotos.error.message }
+
+    const autoDqRows = (finalMotos.data ?? []).flatMap((moto) => {
+      const finalClass = moto.moto_name.replace(/^Final\s+/i, '').trim().toUpperCase()
+      return uniqueRiderList(finals[finalClass] ?? [])
+        .filter((riderId) => retainedDqRiderIds.has(riderId))
+        .map((riderId) => ({
+          event_id: eventId,
+          moto_id: moto.id,
+          rider_id: riderId,
+          finish_order: null,
+          result_status: 'DQ',
+          dq_reason: dqReasonByRider.get(riderId) ?? 'DQ dibawa dari stage sebelumnya.',
+          is_auto_dq: true,
+        }))
+    })
+    if (autoDqRows.length > 0) {
+      const { error: autoDqError } = await adminClient.from('results').upsert(autoDqRows, { onConflict: 'moto_id,rider_id' })
+      if (autoDqError) return { ok: false, warning: autoDqError.message }
+    }
   }
 
   if (gateTableReady) {
@@ -1660,13 +1788,15 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
       .maybeSingle(),
     adminClient
       .from('event_feature_flags')
-      .select('dnf_progress_enabled')
+      .select('dnf_progress_enabled, dq_retains_final_classification')
       .eq('event_id', eventId)
       .maybeSingle(),
   ])
   if (!config?.enabled) return { ok: false, warning: 'Advanced race disabled.' }
   const dnfProgressEnabled = featureFlags?.dnf_progress_enabled === true
+  const dqRetainsFinalClassification = featureFlags?.dq_retains_final_classification === true
   const resolved = await resolveCategoryConfig(categoryId)
+  const dqFallbackFinalClass = resolveLowestFinalClass(resolved.finalClasses)
 
   const { data: existingMotos, error: motoError } = await adminClient
     .from('motos')
@@ -1872,7 +2002,7 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
   const useCombinedCustomSplit =
     customQualificationRules.length > 0 && customSplitBasis === 'COMBINED' && qualificationBatchCount > 1
   const useDefaultHybrid = customQualificationRules.length === 0
-  const qualificationAdvances = useCombinedCustomSplit
+  const rawQualificationAdvances = useCombinedCustomSplit
     ? computeQualificationAdvancesFromRanks(
         rankCombinedQualificationRows(
           Object.entries(qualificationRanksByBatch).flatMap(([batchId, rankedRows]) =>
@@ -1922,6 +2052,17 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
         )
       })
 
+  const qualificationAdvances = dqRetainsFinalClassification
+    ? retainDisqualifiedFinalAdvances(
+        rawQualificationAdvances,
+        disqualifiedRiderIdsForMotos((preFinalResults ?? []) as ResultRow[], preFinalMotoIds),
+        dqFallbackFinalClass
+      )
+    : excludeDisqualifiedAdvances(
+        rawQualificationAdvances,
+        disqualifiedRiderIdsForMotos((preFinalResults ?? []) as ResultRow[], preFinalMotoIds)
+      )
+
   qualificationAdvances.forEach((advance) => {
     if (advance.toStage === 'QUARTER_FINAL') {
       pendingQuarterRiders.add(advance.riderId)
@@ -1951,7 +2092,7 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
 
     const riders = motoRiderRows.filter((r) => r.moto_id === moto.id).map((r) => r.rider_id)
     const scores: Record<string, number> = {}
-    const riderCount = riders.length
+    const riderCount = scoringRiderCount(riders, moto.id, resultRows)
     riders.forEach((id) => {
       const row = resultRows.find((r) => r.moto_id === moto.id && r.rider_id === id)
       scores[id] =
@@ -1968,10 +2109,17 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
       mergeSeedMaps(qualificationSeedByRider, repechageSeedByRider),
       dnfProgressEnabled
     )
-    const advances =
+    const rawAdvances =
       quarterCustomRules.length > 0
         ? computeCustomStageAdvances(ranked, quarterCustomRules, resolveQuarterFinalPrimaryAdvance(resolved.stages))
         : computeQuarterFinal(ranked, resolveQuarterFinalPrimaryAdvance(resolved.stages))
+    const advances = dqRetainsFinalClassification
+      ? retainDisqualifiedFinalAdvances(
+          rawAdvances,
+          disqualifiedRiderIdsForMotos(resultRows, [moto.id]),
+          dqFallbackFinalClass
+        )
+      : excludeDisqualifiedAdvances(rawAdvances, disqualifiedRiderIdsForMotos(resultRows, [moto.id]))
 
     ranked.forEach((r) => {
       quarterRows.push({
@@ -2016,7 +2164,7 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
 
     const riders = motoRiderRows.filter((r) => r.moto_id === moto.id).map((r) => r.rider_id)
     const scores: Record<string, number> = {}
-    const riderCount = riders.length
+    const riderCount = scoringRiderCount(riders, moto.id, resultRows)
     riders.forEach((id) => {
       const row = resultRows.find((r) => r.moto_id === moto.id && r.rider_id === id)
       scores[id] =
@@ -2033,7 +2181,14 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
       qualificationSeedByRider,
       dnfProgressEnabled
     )
-    const advances = computeCustomStageAdvances(ranked, repechageCustomRules, { toStage: 'SEMI_FINAL' })
+    const rawAdvances = computeCustomStageAdvances(ranked, repechageCustomRules, { toStage: 'SEMI_FINAL' })
+    const advances = dqRetainsFinalClassification
+      ? retainDisqualifiedFinalAdvances(
+          rawAdvances,
+          disqualifiedRiderIdsForMotos(resultRows, [moto.id]),
+          dqFallbackFinalClass
+        )
+      : excludeDisqualifiedAdvances(rawAdvances, disqualifiedRiderIdsForMotos(resultRows, [moto.id]))
 
     ranked.forEach((r) => {
       repechageRows.push({
@@ -2076,7 +2231,7 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
 
     const riders = motoRiderRows.filter((r) => r.moto_id === moto.id).map((r) => r.rider_id)
     const scores: Record<string, number> = {}
-    const riderCount = riders.length
+    const riderCount = scoringRiderCount(riders, moto.id, resultRows)
     riders.forEach((id) => {
       const row = resultRows.find((r) => r.moto_id === moto.id && r.rider_id === id)
       scores[id] =
@@ -2093,10 +2248,17 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
       mergeSeedMaps(qualificationSeedByRider, repechageSeedByRider, quarterSeedByRider, semiSeedByRider),
       dnfProgressEnabled
     )
-    const advances =
+    const rawAdvances =
       semiCustomRules.length > 0
         ? computeCustomStageAdvances(ranked, semiCustomRules, { toStage: 'FINAL', finalClass: 'ELITE' })
         : computeSemiFinal(ranked)
+    const advances = dqRetainsFinalClassification
+      ? retainDisqualifiedFinalAdvances(
+          rawAdvances,
+          disqualifiedRiderIdsForMotos(resultRows, [moto.id]),
+          dqFallbackFinalClass
+        )
+      : excludeDisqualifiedAdvances(rawAdvances, disqualifiedRiderIdsForMotos(resultRows, [moto.id]))
     ranked.forEach((r) => {
       completedSemiRiders.add(r.riderId)
       semiRows.push({
@@ -2168,7 +2330,7 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
     const finalClass = normalizeFinalClassValue(moto.moto_name.replace(/^Final\s+/i, '').trim().toUpperCase())
     if (!finalClass) continue
     const riders = motoRiderRows.filter((r) => r.moto_id === moto.id).map((r) => r.rider_id)
-    const riderCount = riders.length
+    const riderCount = scoringRiderCount(riders, moto.id, resultRows)
     riders.forEach((id) => {
       completedFinalRiders.add(id)
       const row = resultRows.find((r) => r.moto_id === moto.id && r.rider_id === id)

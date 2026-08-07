@@ -73,7 +73,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       loadMotoStatuses(eventId, motoId),
       adminClient
         .from('results')
-        .select('rider_id, finish_order, result_status, dnf_progress_percent')
+        .select('rider_id, finish_order, result_status, dnf_progress_percent, dq_reason, is_auto_dq, riders(id, name, no_plate_display)')
         .eq('moto_id', motoId)
         .order('finish_order', { ascending: true, nullsFirst: false }),
       adminClient
