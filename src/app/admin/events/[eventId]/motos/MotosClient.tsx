@@ -383,16 +383,37 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     return { live, ready, provisional, actionable }
   }, [motos])
 
+  const raceDayActionCategoryIds = useMemo(() => {
+    const actionCategoryIds = new Set(raceDayOverview.actionable.map((moto) => moto.category_id))
+
+    Object.entries(advancedSummaryByCategory).forEach(([categoryId, summary]) => {
+      const readiness = summary.readiness
+      if (!advancedEnabledByCategory[categoryId] || !readiness.requiresQualification) return
+
+      const computeIsReady = !readiness.qualificationRun
+        ? readiness.canRunQualification
+        : readiness.canComputeAdvances &&
+          summary.motoCounts.final === 0 &&
+          (summary.motoCounts.repechage === 0 || readiness.repechageReady) &&
+          (summary.motoCounts.quarter === 0 || readiness.quarterReady) &&
+          (summary.motoCounts.semi === 0 || readiness.semiReady)
+
+      if (computeIsReady) actionCategoryIds.add(categoryId)
+    })
+
+    return actionCategoryIds
+  }, [advancedEnabledByCategory, advancedSummaryByCategory, raceDayOverview.actionable])
+
   const filteredCategories = useMemo(() => {
     if (raceDayFilter === 'ALL') return displayCategoriesSorted
     return displayCategoriesSorted.filter((category) => {
       const list = motosByCategory.get(category.id) ?? []
-      if (raceDayFilter === 'ACTION') return list.some((moto) => ['LIVE', 'READY', 'PROVISIONAL', 'PROTEST_REVIEW'].includes(moto.status))
+      if (raceDayFilter === 'ACTION') return raceDayActionCategoryIds.has(category.id)
       if (raceDayFilter === 'LIVE_READY') return list.some((moto) => moto.status === 'LIVE' || moto.status === 'READY')
       if (raceDayFilter === 'PROVISIONAL') return list.some((moto) => moto.status === 'PROVISIONAL' || moto.status === 'PROTEST_REVIEW')
       return list.length > 0 && list.every((moto) => moto.status === 'LOCKED')
     })
-  }, [displayCategoriesSorted, motosByCategory, raceDayFilter])
+  }, [displayCategoriesSorted, motosByCategory, raceDayActionCategoryIds, raceDayFilter])
 
   useEffect(() => {
     if (hasInitializedRaceDayView.current || motos.length === 0) return
@@ -1328,7 +1349,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
           <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
             {([
               ['ALL', 'Semua'],
-              ['ACTION', `Butuh Aksi ${raceDayOverview.actionable.length}`],
+              ['ACTION', `Butuh Aksi ${raceDayActionCategoryIds.size}`],
               ['LIVE_READY', `Live / Ready ${raceDayOverview.live.length + raceDayOverview.ready.length}`],
               ['PROVISIONAL', `Provisional ${raceDayOverview.provisional.length}`],
               ['LOCKED', 'Locked'],
