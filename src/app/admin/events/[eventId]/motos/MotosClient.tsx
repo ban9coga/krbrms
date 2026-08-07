@@ -794,20 +794,42 @@ export default function MotosClient({ eventId }: { eventId: string }) {
           disabled: false,
         }
       }
-      if ((summary?.motoCounts?.quarter ?? 0) > 0 && readiness.quarterReady) {
-        return {
-          visible: true,
-          label: 'Compute Quarter Final -> Final',
-          description: 'Bentuk final classes dari hasil Quarter Final kategori ini.',
-          endpoint: 'advance' as const,
-          disabled: false,
-        }
-      }
+
+      // When Semi Final exists, QF has already been advanced. Prefer the latest
+      // source stage so the action label never offers an outdated QF compute.
       if ((summary?.motoCounts?.semi ?? 0) > 0 && readiness.semiReady) {
+        if ((summary?.motoCounts?.final ?? 0) > 0) {
+          return {
+            visible: true,
+            label: 'Final Sudah Dibentuk',
+            description: 'Moto Final sudah tersedia. Tidak ada compute stage lanjutan yang perlu dijalankan.',
+            endpoint: null as null | 'compute' | 'advance',
+            disabled: true,
+          }
+        }
         return {
           visible: true,
           label: 'Compute Semi Final -> Final',
           description: 'Bentuk final dari hasil Semi Final kategori ini.',
+          endpoint: 'advance' as const,
+          disabled: false,
+        }
+      }
+
+      if ((summary?.motoCounts?.quarter ?? 0) > 0 && readiness.quarterReady) {
+        if ((summary?.motoCounts?.final ?? 0) > 0) {
+          return {
+            visible: true,
+            label: 'Final Sudah Dibentuk',
+            description: 'Moto Final sudah tersedia. Tidak ada compute Quarter Final yang perlu dijalankan lagi.',
+            endpoint: null as null | 'compute' | 'advance',
+            disabled: true,
+          }
+        }
+        return {
+          visible: true,
+          label: 'Compute Quarter Final -> Final',
+          description: 'Bentuk final classes dari hasil Quarter Final kategori ini.',
           endpoint: 'advance' as const,
           disabled: false,
         }
