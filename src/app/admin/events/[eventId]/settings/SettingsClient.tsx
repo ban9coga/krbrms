@@ -114,6 +114,15 @@ type CommunityLogoDraft = {
   is_active: boolean
 }
 
+type StaffPhotoField =
+  | 'business_event_owner_photo_url'
+  | 'business_operating_committee_photo_url'
+  | 'business_scoring_support_photo_url'
+  | 'business_race_director_photo_url'
+  | 'business_mc_photo_url'
+
+type StaffPhotoRole = 'event-owner' | 'operating-committee' | 'scoring-support' | 'race-director' | 'mc'
+
 function SettingsSectionSkeleton({ label = 'Memuat konfigurasi...' }: { label?: string }) {
   return (
     <div className="admin-card grid gap-4">
@@ -159,6 +168,47 @@ function AdminPreviewImage({
       sizes="(max-width: 640px) 100vw, 360px"
       style={{ display: 'block', width: '100%', height: 'auto', objectFit: 'contain', ...style }}
     />
+  )
+}
+
+function StaffPhotoUpload({
+  label,
+  url,
+  uploading,
+  onUpload,
+}: {
+  label: string
+  url: string
+  uploading: boolean
+  onUpload: (file: File | null) => void
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+      {url ? (
+        <div style={{ width: 58, height: 58, overflow: 'hidden', borderRadius: '50%', border: '2px solid #111', background: '#fff' }}>
+          <AdminPreviewImage src={url} alt={`Foto ${label}`} width={58} height={58} style={{ height: 58, objectFit: 'cover' }} />
+        </div>
+      ) : (
+        <div style={{ width: 58, height: 58, display: 'grid', placeItems: 'center', borderRadius: '50%', border: '2px dashed #64748b', color: '#64748b', fontSize: 11, fontWeight: 900, textAlign: 'center' }}>
+          FOTO
+        </div>
+      )}
+      <label style={{ cursor: uploading ? 'wait' : 'pointer' }}>
+        <span style={{ display: 'inline-flex', padding: '9px 12px', borderRadius: 10, border: '2px solid #111', background: '#fff', fontSize: 12, fontWeight: 900 }}>
+          {uploading ? 'Mengunggah...' : url ? 'Ganti Foto' : `Upload Foto ${label}`}
+        </span>
+        <input
+          type="file"
+          accept="image/*"
+          disabled={uploading}
+          onChange={(event) => {
+            onUpload(event.target.files?.[0] ?? null)
+            event.currentTarget.value = ''
+          }}
+          style={{ display: 'none' }}
+        />
+      </label>
+    </div>
   )
 }
 
@@ -546,6 +596,8 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
   const [registrationMediaError, setRegistrationMediaError] = useState<string>('')
   const [staffLoading, setStaffLoading] = useState(false)
   const [staffSaving, setStaffSaving] = useState(false)
+  const [staffPhotoUploadingField, setStaffPhotoUploadingField] = useState<StaffPhotoField | null>(null)
+  const [staffPhotoError, setStaffPhotoError] = useState('')
   const [staffAssignments, setStaffAssignments] = useState<EventStaffAssignmentRow[]>([])
   const [availableUsers, setAvailableUsers] = useState<EventStaffUserRow[]>([])
   const [staffSearch, setStaffSearch] = useState('')
@@ -600,13 +652,18 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     business_registration_rider_photo_enabled: true,
     business_jersey_size_options: 'XS, S, M, L, XL, 2XL, 3XL',
     business_event_owner_name: '',
+    business_event_owner_photo_url: '',
     business_event_owner_type: 'COMMUNITY',
     business_operating_committee_name: '',
     business_operating_committee_label: '',
+    business_operating_committee_photo_url: '',
     business_scoring_support_name: '',
     business_scoring_support_label: '',
+    business_scoring_support_photo_url: '',
     business_race_director_name: '',
+    business_race_director_photo_url: '',
     business_mc_name: '',
+    business_mc_photo_url: '',
     business_central_control_enabled: true,
     business_requires_platform_approval: false,
     business_show_event_owner_publicly: false,
@@ -677,6 +734,37 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     const json = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(json?.error || 'Gagal upload logo komunitas.')
     return json?.url as string
+  }
+
+  const uploadStaffPhoto = async (file: File, role: StaffPhotoRole) => {
+    const { data } = await supabase.auth.getSession()
+    const token = data.session?.access_token
+    if (!token) throw new Error('Session expired. Silakan login ulang.')
+    const body = new FormData()
+    body.append('file', file)
+    body.append('role', role)
+    const res = await fetch(`/api/events/${eventId}/staff-photo`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body,
+    })
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(json?.error || 'Gagal upload foto staff.')
+    return json?.url as string
+  }
+
+  const handleStaffPhotoUpload = async (file: File | null, field: StaffPhotoField, role: StaffPhotoRole) => {
+    if (!file) return
+    setStaffPhotoUploadingField(field)
+    setStaffPhotoError('')
+    try {
+      const url = await uploadStaffPhoto(file, role)
+      setForm((prev) => ({ ...prev, [field]: url }))
+    } catch (err) {
+      setStaffPhotoError(err instanceof Error ? err.message : 'Gagal upload foto staff.')
+    } finally {
+      setStaffPhotoUploadingField(null)
+    }
   }
 
   const uploadRegistrationMedia = async (file: File, kind: 'qris' | 'jersey-chart') => {
@@ -794,20 +882,30 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
               : 'XS, S, M, L, XL, 2XL, 3XL',
           business_event_owner_name:
             typeof business.event_owner_name === 'string' ? business.event_owner_name : '',
+          business_event_owner_photo_url:
+            typeof business.event_owner_photo_url === 'string' ? business.event_owner_photo_url : '',
           business_event_owner_type:
             typeof business.event_owner_type === 'string' ? business.event_owner_type : 'COMMUNITY',
           business_operating_committee_name:
             typeof business.operating_committee_name === 'string' ? business.operating_committee_name : '',
           business_operating_committee_label:
             typeof business.operating_committee_label === 'string' ? business.operating_committee_label : '',
+          business_operating_committee_photo_url:
+            typeof business.operating_committee_photo_url === 'string' ? business.operating_committee_photo_url : '',
           business_scoring_support_name:
             typeof business.scoring_support_name === 'string' ? business.scoring_support_name : '',
           business_scoring_support_label:
             typeof business.scoring_support_label === 'string' ? business.scoring_support_label : '',
+          business_scoring_support_photo_url:
+            typeof business.scoring_support_photo_url === 'string' ? business.scoring_support_photo_url : '',
           business_race_director_name:
             typeof business.race_director_name === 'string' ? business.race_director_name : '',
+          business_race_director_photo_url:
+            typeof business.race_director_photo_url === 'string' ? business.race_director_photo_url : '',
           business_mc_name:
             typeof business.mc_name === 'string' ? business.mc_name : '',
+          business_mc_photo_url:
+            typeof business.mc_photo_url === 'string' ? business.mc_photo_url : '',
           business_central_control_enabled:
             typeof business.central_control_enabled === 'boolean' ? business.central_control_enabled : true,
           business_requires_platform_approval:
@@ -1443,13 +1541,18 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
         .filter((value) => ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'].includes(value))
         .filter((value, index, array) => array.indexOf(value) === index),
       event_owner_name: form.business_event_owner_name.trim() || null,
+      event_owner_photo_url: form.business_event_owner_photo_url.trim() || null,
       event_owner_type: ownerType,
       operating_committee_name: form.business_operating_committee_name.trim() || null,
       operating_committee_label: form.business_operating_committee_label.trim() || null,
+      operating_committee_photo_url: form.business_operating_committee_photo_url.trim() || null,
       scoring_support_name: form.business_scoring_support_name.trim() || null,
       scoring_support_label: form.business_scoring_support_label.trim() || null,
+      scoring_support_photo_url: form.business_scoring_support_photo_url.trim() || null,
       race_director_name: form.business_race_director_name.trim() || null,
+      race_director_photo_url: form.business_race_director_photo_url.trim() || null,
       mc_name: form.business_mc_name.trim() || null,
+      mc_photo_url: form.business_mc_photo_url.trim() || null,
       central_control_enabled: Boolean(form.business_central_control_enabled),
       requires_platform_approval: Boolean(form.business_requires_platform_approval),
       show_event_owner_publicly: Boolean(form.business_show_event_owner_publicly),
@@ -2738,6 +2841,12 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                     onChange={(checked) => setForm({ ...form, business_show_event_owner_publicly: checked })}
                     label="Tampilkan event owner di halaman publik"
                   />
+                  <StaffPhotoUpload
+                    label="Event Owner"
+                    url={form.business_event_owner_photo_url}
+                    uploading={staffPhotoUploadingField === 'business_event_owner_photo_url'}
+                    onUpload={(file) => void handleStaffPhotoUpload(file, 'business_event_owner_photo_url', 'event-owner')}
+                  />
                 </div>
                 <div style={{ display: sections.publicInfo ? 'grid' : 'none', gap: 8, marginTop: 6 }}>
                   <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
@@ -2762,6 +2871,12 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                     }
                     label="Tampilkan operating committee di halaman publik"
                   />
+                  <StaffPhotoUpload
+                    label="Operating Committee"
+                    url={form.business_operating_committee_photo_url}
+                    uploading={staffPhotoUploadingField === 'business_operating_committee_photo_url'}
+                    onUpload={(file) => void handleStaffPhotoUpload(file, 'business_operating_committee_photo_url', 'operating-committee')}
+                  />
                 </div>
                 <div style={{ display: sections.publicInfo ? 'grid' : 'none', gap: 8, marginTop: 6 }}>
                   <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
@@ -2784,6 +2899,12 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                     onChange={(checked) => setForm({ ...form, business_show_scoring_support_publicly: checked })}
                     label="Tampilkan scoring support di halaman publik"
                   />
+                  <StaffPhotoUpload
+                    label="Scoring Support"
+                    url={form.business_scoring_support_photo_url}
+                    uploading={staffPhotoUploadingField === 'business_scoring_support_photo_url'}
+                    onUpload={(file) => void handleStaffPhotoUpload(file, 'business_scoring_support_photo_url', 'scoring-support')}
+                  />
                 </div>
                 <div style={{ display: sections.publicInfo ? 'grid' : 'none', gap: 8, marginTop: 6 }}>
                   <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
@@ -2799,6 +2920,12 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                     checked={form.business_show_race_director_publicly}
                     onChange={(checked) => setForm({ ...form, business_show_race_director_publicly: checked })}
                     label="Tampilkan Race Director di halaman publik"
+                  />
+                  <StaffPhotoUpload
+                    label="Race Director"
+                    url={form.business_race_director_photo_url}
+                    uploading={staffPhotoUploadingField === 'business_race_director_photo_url'}
+                    onUpload={(file) => void handleStaffPhotoUpload(file, 'business_race_director_photo_url', 'race-director')}
                   />
                 </div>
                 <div style={{ display: sections.publicInfo ? 'grid' : 'none', gap: 8, marginTop: 6 }}>
@@ -2816,7 +2943,18 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                     onChange={(checked) => setForm({ ...form, business_show_mc_publicly: checked })}
                     label="Tampilkan MC di halaman publik"
                   />
+                  <StaffPhotoUpload
+                    label="MC / Announcer"
+                    url={form.business_mc_photo_url}
+                    uploading={staffPhotoUploadingField === 'business_mc_photo_url'}
+                    onUpload={(file) => void handleStaffPhotoUpload(file, 'business_mc_photo_url', 'mc')}
+                  />
                 </div>
+                {staffPhotoError && (
+                  <div style={{ display: sections.publicInfo ? 'block' : 'none', marginTop: 8, color: '#b91c1c', fontSize: 12, fontWeight: 800 }}>
+                    {staffPhotoError}
+                  </div>
+                )}
                 <div style={{ display: sections.eventStaff ? 'grid' : 'none', gap: 8, marginTop: 6 }}>
                   <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
                     Central Control

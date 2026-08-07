@@ -215,7 +215,7 @@ export default function LoginPage() {
               <label htmlFor="login-identifier">{loginMode === 'crew' ? 'Kode Crew' : 'Email'}</label>
               <input
                 type={loginMode === 'crew' ? 'text' : 'email'}
-                placeholder={loginMode === 'crew' ? 'Contoh: CHECKER-01' : 'nama@email.com'}
+                placeholder={loginMode === 'crew' ? 'Masukkan kode crew' : 'nama@email.com'}
                 value={identifier}
                 onChange={(e) => setIdentifier(loginMode === 'crew' ? e.target.value.toUpperCase() : e.target.value)}
                 name="identifier"
@@ -230,7 +230,7 @@ export default function LoginPage() {
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
-                  placeholder={loginMode === 'crew' ? 'Masukkan PIN minimal 6 digit' : 'Masukkan password'}
+                  placeholder={loginMode === 'crew' ? 'Masukkan PIN 6 digit' : 'Masukkan password'}
                   value={password}
                   onChange={(e) => setPassword(loginMode === 'crew' ? e.target.value.replace(/\D/g, '').slice(0, 6) : e.target.value)}
                   name="password"
