@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../../lib/auth'
 import { requireJury } from '../../../../../../services/juryAuth'
+import { parseRiderStatusSourceNote } from '../../../../../../lib/riderStatusSource'
 
 const loadMotoStatuses = async (eventId: string, motoId: string) => {
   const [participationResult, updatesResult, resultsResult] = await Promise.all([
@@ -11,7 +12,7 @@ const loadMotoStatuses = async (eventId: string, motoId: string) => {
       .eq('moto_id', motoId),
     adminClient
       .from('rider_status_updates')
-      .select('rider_id, proposed_status, approval_status, created_at')
+      .select('rider_id, proposed_status, approval_status, created_at, note')
       .eq('event_id', eventId)
       .eq('moto_id', motoId)
       .order('created_at', { ascending: false }),
@@ -28,12 +29,14 @@ const loadMotoStatuses = async (eventId: string, motoId: string) => {
     if (row.result_status === 'DNS') approved.set(row.rider_id, 'DNS')
   }
 
-  const latestUpdates = new Map<string, { proposed_status: string | null; approval_status: string | null }>()
+  const latestUpdates = new Map<string, { proposed_status: string | null; approval_status: string | null; created_at: string; note?: string | null }>()
   for (const row of updatesResult.data ?? []) {
     if (!latestUpdates.has(row.rider_id)) {
       latestUpdates.set(row.rider_id, {
         proposed_status: row.proposed_status,
         approval_status: row.approval_status,
+        created_at: row.created_at,
+        note: row.note,
       })
     }
   }
@@ -42,11 +45,15 @@ const loadMotoStatuses = async (eventId: string, motoId: string) => {
   return Array.from(riderIds).map((rider_id) => {
     const update = latestUpdates.get(rider_id)
     const participationStatus = approved.get(rider_id)
+    const source = parseRiderStatusSourceNote(update?.note)
     return {
       rider_id,
       approval_status: update?.approval_status ?? (participationStatus ? 'APPROVED' : 'NONE'),
       proposed_status: update?.proposed_status ?? participationStatus ?? null,
       participation_status: participationStatus ?? null,
+      status_source_role: source?.role ?? null,
+      status_source_label: source?.label ?? null,
+      status_updated_at: update?.created_at ?? null,
     }
   })
 }

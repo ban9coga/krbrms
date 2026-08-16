@@ -1,12 +1,14 @@
 import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../../lib/auth'
 import { requireJury } from '../../../../../../services/juryAuth'
+import { parseRiderStatusSourceNote } from '../../../../../../lib/riderStatusSource'
 
 type MotoStatusRow = {
   rider_id: string
   proposed_status: string | null
   approval_status: string | null
   created_at: string
+  note?: string | null
 }
 
 const loadMotoStatuses = async (eventId: string, motoId?: string | null) => {
@@ -20,7 +22,7 @@ const loadMotoStatuses = async (eventId: string, motoId?: string | null) => {
       .eq('moto_id', motoId),
     adminClient
       .from('rider_status_updates')
-      .select('rider_id, proposed_status, approval_status, created_at')
+      .select('rider_id, proposed_status, approval_status, created_at, note')
       .eq('event_id', eventId)
       .eq('moto_id', motoId)
       .order('created_at', { ascending: false }),
@@ -52,11 +54,15 @@ const loadMotoStatuses = async (eventId: string, motoId?: string | null) => {
   return Array.from(riderIds).map((rider_id) => {
     const update = latestUpdates.get(rider_id)
     const participationStatus = approved.get(rider_id)
+    const source = parseRiderStatusSourceNote(update?.note)
     return {
       rider_id,
       approval_status: update?.approval_status ?? (participationStatus ? 'APPROVED' : 'NONE'),
       proposed_status: update?.proposed_status ?? participationStatus ?? null,
       participation_status: participationStatus ?? null,
+      status_source_role: source?.role ?? null,
+      status_source_label: source?.label ?? null,
+      status_updated_at: update?.created_at ?? null,
     }
   })
 }

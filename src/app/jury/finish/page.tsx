@@ -9,6 +9,7 @@ import CheckerTopbar from '../../../components/CheckerTopbar'
 import LoadingState from '../../../components/LoadingState'
 import { usePageVisibility } from '../../../lib/usePageVisibility'
 import { useApiFetch } from '@/src/hooks/useApiFetch'
+import { useEventRaceRealtime } from '@/src/hooks/useEventRaceRealtime'
 
 type EventItem = {
   id: string
@@ -60,6 +61,9 @@ type FinisherPollData = {
   statuses: Array<{
     rider_id: string
     participation_status?: string | null
+    status_source_role?: string | null
+    status_source_label?: string | null
+    status_updated_at?: string | null
   }>
   results: Array<{
     rider_id: string
@@ -129,6 +133,9 @@ export default function JuryFinishPage() {
   const [penaltiesByRider, setPenaltiesByRider] = useState<Record<string, number>>({})
   const [penaltyBadgesByRider, setPenaltyBadgesByRider] = useState<Record<string, PenaltyBadgeItem[]>>({})
   const [participationByRider, setParticipationByRider] = useState<Record<string, string>>({})
+  const [statusSourceByRider, setStatusSourceByRider] = useState<
+    Record<string, { role: string; label: string; updatedAt: string | null }>
+  >({})
   const [flags, setFlags] = useState<EventFlags>({
     penalty_enabled: true,
     absent_enabled: true,
@@ -301,9 +308,17 @@ export default function JuryFinishPage() {
       })
 
     const statusMap: Record<string, string> = {}
+    const sourceMap: Record<string, { role: string; label: string; updatedAt: string | null }> = {}
     for (const row of data.statuses ?? []) {
       if (row?.rider_id && row?.participation_status) {
         statusMap[row.rider_id] = row.participation_status
+      }
+      if (row?.rider_id && row.status_source_role && row.status_source_label) {
+        sourceMap[row.rider_id] = {
+          role: row.status_source_role,
+          label: row.status_source_label,
+          updatedAt: row.status_updated_at ?? null,
+        }
       }
     }
     for (const riderId of dnsFromServer) statusMap[riderId] = 'DNS'
@@ -334,6 +349,7 @@ export default function JuryFinishPage() {
     setDqRiders(dqFromServer)
     setDnfProgressByRider(dnfProgressMap)
     setParticipationByRider(statusMap)
+    setStatusSourceByRider(sourceMap)
     setPenaltiesByRider(penaltyMap)
     setPenaltyBadgesByRider(badgeMap)
     setMotoLocked(Boolean(data.locked))
@@ -351,6 +367,7 @@ export default function JuryFinishPage() {
       setPenaltiesByRider({})
       setPenaltyBadgesByRider({})
       setParticipationByRider({})
+      setStatusSourceByRider({})
       setMotoLocked(false)
       return
     }
@@ -393,6 +410,34 @@ export default function JuryFinishPage() {
   // Consolidated polling loop with page visibility awareness.
   // Keeps the active race fresh with only moto-state plus one combined Finisher poll.
   const isPageVisible = usePageVisibility()
+
+  const refreshFromRealtime = useCallback(async () => {
+    if (localEditingRef.current) return
+
+    try {
+      const state = await refreshMotoState()
+      if (!state?.selectedMotoId || localEditingRef.current) return
+
+      const targetMoto = state.motos.find((m) => m.id === state.selectedMotoId) ?? null
+      const [ridersResponse, pollResponse] = await Promise.all([
+        apiFetch(`/api/jury/motos/${state.selectedMotoId}/riders`),
+        apiFetch(`/api/jury/events/${eventId}/finisher-poll?moto_id=${state.selectedMotoId}`),
+      ])
+      if (localEditingRef.current) return
+
+      setRiders((ridersResponse.data ?? []) as RiderItem[])
+      applyFinisherPollData((pollResponse.data ?? {}) as FinisherPollData, targetMoto)
+    } catch {
+      // The periodic poll remains the fallback when Realtime is unavailable.
+    }
+  }, [apiFetch, applyFinisherPollData, eventId, refreshMotoState])
+
+  useEventRaceRealtime({
+    eventId,
+    enabled: isPageVisible,
+    onRaceStateChanged: refreshFromRealtime,
+  })
+
   useEffect(() => {
     if (!eventId) return
     void loadAll()
@@ -538,6 +583,10 @@ export default function JuryFinishPage() {
     const previousStatus = participationByRider[rider.id]
     setDnsActionRiderId(rider.id)
     setParticipationByRider((prev) => ({ ...prev, [rider.id]: 'DNS' }))
+    setStatusSourceByRider((prev) => ({
+      ...prev,
+      [rider.id]: { role: 'FINISHER', label: 'Finisher', updatedAt: new Date().toISOString() },
+    }))
     try {
       await apiFetch(`/api/jury/events/${eventId}/rider-status`, {
         method: 'POST',
@@ -551,6 +600,11 @@ export default function JuryFinishPage() {
       vibrate()
     } catch (error: unknown) {
       setParticipationByRider((prev) => ({ ...prev, [rider.id]: previousStatus ?? 'ACTIVE' }))
+      setStatusSourceByRider((prev) => {
+        const next = { ...prev }
+        delete next[rider.id]
+        return next
+      })
       setSubmitNotice({ type: 'error', message: error instanceof Error ? error.message : 'Gagal menetapkan DNS.' })
     } finally {
       setDnsActionRiderId(null)
@@ -559,12 +613,21 @@ export default function JuryFinishPage() {
 
   const handleUndoDns = async (rider: RiderItem) => {
     if (!selectedMoto || role === 'RACE_DIRECTOR' || motoLocked || !selectedMotoLive) return
-    const confirmed = window.confirm(`Batalkan DNS untuk ${rider.no_plate_display} - ${rider.name}?`)
+    const source = statusSourceByRider[rider.id]
+    const sourceDetail = source && source.role !== 'FINISHER'
+      ? `\n\nPerhatian: DNS ini ditetapkan oleh ${source.label} (${source.role}). Anda akan membatalkan keputusan role lain.`
+      : ''
+    const confirmed = window.confirm(`Batalkan DNS untuk ${rider.no_plate_display} - ${rider.name}?${sourceDetail}`)
     if (!confirmed) return
 
     const previousStatus = participationByRider[rider.id]
     setDnsActionRiderId(rider.id)
     setParticipationByRider((prev) => ({ ...prev, [rider.id]: 'ACTIVE' }))
+    setStatusSourceByRider((prev) => {
+      const next = { ...prev }
+      delete next[rider.id]
+      return next
+    })
     try {
       await apiFetch(
         `/api/jury/events/${eventId}/rider-status?rider_id=${encodeURIComponent(rider.id)}&moto_id=${encodeURIComponent(selectedMoto.id)}`,
@@ -573,6 +636,7 @@ export default function JuryFinishPage() {
       vibrate()
     } catch (error: unknown) {
       setParticipationByRider((prev) => ({ ...prev, [rider.id]: previousStatus ?? 'DNS' }))
+      if (source) setStatusSourceByRider((prev) => ({ ...prev, [rider.id]: source }))
       setSubmitNotice({ type: 'error', message: error instanceof Error ? error.message : 'Gagal membatalkan DNS.' })
     } finally {
       setDnsActionRiderId(null)
@@ -1024,6 +1088,7 @@ export default function JuryFinishPage() {
                     const status = participationByRider[id] === 'ABSENT' ? 'ABSENT' : 'DNS'
                     const penalty = penaltiesByRider[id] ?? 0
                     const penaltyBadges = penaltyBadgesByRider[id] ?? []
+                    const source = statusSourceByRider[id]
                     const canUndoDns = Boolean(
                       rider &&
                         status === 'DNS' &&
@@ -1036,6 +1101,7 @@ export default function JuryFinishPage() {
                       <div key={id} className="flex flex-wrap items-center justify-between gap-2">
                         <div className={`${highVisibility ? 'text-base' : 'text-sm'} font-semibold text-rose-700`}>
                           {rider?.no_plate_display} - {rider?.name} ({status})
+                          {source ? ` - oleh ${source.label} (${source.role})` : ''}
                           {penalty ? ` (+${penalty})` : ''}
                           <PenaltyBadges items={penaltyBadges} />
                         </div>

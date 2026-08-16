@@ -5,6 +5,8 @@ import CheckerTopbar from '../../../components/CheckerTopbar'
 import { compareMotoSequence } from '../../../lib/motoSequence'
 import { supabase } from '@/src/lib/supabaseClient'
 import { useApiFetch } from '@/src/hooks/useApiFetch'
+import { useEventRaceRealtime } from '@/src/hooks/useEventRaceRealtime'
+import { usePageVisibility } from '@/src/lib/usePageVisibility'
 
 type StatusUpdate = {
   id: string
@@ -92,6 +94,7 @@ const normalizeRole = (value: string | null | undefined) => String(value ?? '').
 const getErrorMessage = (err: unknown) => (err instanceof Error ? err.message : 'Request failed')
 
 export default function RaceDirectorApprovalPage() {
+  const isPageVisible = usePageVisibility()
   const [eventId, setEventId] = useState('')
   const [events, setEvents] = useState<EventItem[]>([])
   const [categories, setCategories] = useState<CategoryItem[]>([])
@@ -305,23 +308,42 @@ export default function RaceDirectorApprovalPage() {
     [apiFetch, eventId, showNotice]
   )
 
+  const refreshFromRealtime = useCallback(() => {
+    if (
+      isFetchingRef.current ||
+      decisionSubmitting ||
+      addingPenalty ||
+      settingDq ||
+      Boolean(voidingPenaltyId)
+    ) {
+      return
+    }
+    void loadEventData({ silent: true, includeHeavy: false })
+  }, [addingPenalty, decisionSubmitting, loadEventData, settingDq, voidingPenaltyId])
+
+  useEventRaceRealtime({
+    eventId,
+    enabled: isPageVisible,
+    onRaceStateChanged: refreshFromRealtime,
+  })
+
   useEffect(() => {
     void loadEventData({ silent: false, includeHeavy: true, notifyOnError: true })
   }, [loadEventData])
 
   useEffect(() => {
-    if (!eventId) return
+    if (!eventId || !isPageVisible) return
     const lightTimer = setInterval(() => {
       void loadEventData({ silent: true, includeHeavy: false })
-    }, 15000)
+    }, 60000)
     const heavyTimer = setInterval(() => {
       void loadEventData({ silent: true, includeHeavy: true })
-    }, 20000)
+    }, 300000)
     return () => {
       clearInterval(lightTimer)
       clearInterval(heavyTimer)
     }
-  }, [eventId, loadEventData])
+  }, [eventId, isPageVisible, loadEventData])
 
   const categoriesSorted = useMemo(() => {
     return categories

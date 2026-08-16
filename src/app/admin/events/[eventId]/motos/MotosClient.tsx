@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { compareMotoDisplayOrder, formatMotoDisplayName } from '../../../../../lib/motoDisplayOrder'
 import { useApiFetch } from '@/src/hooks/useApiFetch'
+import { useEventRaceRealtime } from '@/src/hooks/useEventRaceRealtime'
+import { usePageVisibility } from '@/src/lib/usePageVisibility'
 
 type CategoryItem = {
   id: string
@@ -161,6 +163,7 @@ const getCheckerPrepBadge = (moto: MotoItem) => {
 }
 
 export default function MotosClient({ eventId }: { eventId: string }) {
+  const isPageVisible = usePageVisibility()
   const [categories, setCategories] = useState<CategoryItem[]>([])
   const [motos, setMotos] = useState<MotoItem[]>([])
   const [gateOrdersByCategory, setGateOrdersByCategory] = useState<Record<string, GateMotoItem[]>>({})
@@ -278,6 +281,17 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
+
+  const refreshFromRealtime = useCallback(() => {
+    if (loading || refreshing || computingCategoryId || raceResetLoading || raceResetSubmitting) return
+    void load('refresh', { includeAdvancedSummary: true })
+  }, [computingCategoryId, loading, raceResetLoading, raceResetSubmitting, refreshing]) // load intentionally reads current page state.
+
+  useEventRaceRealtime({
+    eventId,
+    enabled: isPageVisible,
+    onRaceStateChanged: refreshFromRealtime,
+  })
 
   useEffect(() => {
     if (!eventId) return

@@ -9,6 +9,7 @@ import { buildCategoryBaseOrder, compareMotoWorkflowSequence } from '../../../..
 import { useApiFetch } from '@/src/hooks/useApiFetch'
 import { isMotoLive, isMotoReady, isMotoUpcoming } from '../../../../lib/motoStatus'
 import { usePageVisibility } from '../../../../lib/usePageVisibility'
+import { useEventRaceRealtime } from '@/src/hooks/useEventRaceRealtime'
 
 
 type CategoryItem = {
@@ -67,6 +68,9 @@ type StatusRow = {
   rider_id: string
   participation_status: 'ACTIVE' | 'DNS' | 'DNF' | 'ABSENT'
   registration_order: number
+  status_source_role?: string | null
+  status_source_label?: string | null
+  status_updated_at?: string | null
 }
 
 type EventFlags = {
@@ -266,6 +270,9 @@ const buildStatusMap = (
   statusList: Array<{
     rider_id: string
     proposed_status?: string | null
+    status_source_role?: string | null
+    status_source_label?: string | null
+    status_updated_at?: string | null
   }>
 ) => {
   const nextStatuses: Record<string, StatusRow> = {}
@@ -275,6 +282,9 @@ const buildStatusMap = (
         rider_id: row.rider_id,
         participation_status: row.proposed_status as StatusRow['participation_status'],
         registration_order: 0,
+        status_source_role: row.status_source_role ?? null,
+        status_source_label: row.status_source_label ?? null,
+        status_updated_at: row.status_updated_at ?? null,
       }
     }
   }
@@ -325,6 +335,7 @@ export default function JCPage() {
   } | null>(null)
   const [viewportWidth, setViewportWidth] = useState(1280)
   const { highVisibility, toggleHighVisibility } = useHighVisibility('jury-checker-high-visibility')
+  const localMutationRef = useRef(false)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -475,6 +486,9 @@ export default function JCPage() {
       const statusList = (statusRes.data ?? []) as Array<{
         rider_id: string
         proposed_status?: string | null
+        status_source_role?: string | null
+        status_source_label?: string | null
+        status_updated_at?: string | null
       }>
       // Stable-reference update: only replace statuses if data actually changed
       const newStatuses = buildStatusMap(statusList)
@@ -483,7 +497,11 @@ export default function JCPage() {
         const nextKeys = Object.keys(newStatuses)
         if (prevKeys.length !== nextKeys.length) return newStatuses
         for (const key of nextKeys) {
-          if (prev[key]?.participation_status !== newStatuses[key]?.participation_status) return newStatuses
+          if (
+            prev[key]?.participation_status !== newStatuses[key]?.participation_status ||
+            prev[key]?.status_source_role !== newStatuses[key]?.status_source_role ||
+            prev[key]?.status_source_label !== newStatuses[key]?.status_source_label
+          ) return newStatuses
         }
         return prev
       })
@@ -555,6 +573,9 @@ export default function JCPage() {
       const statusList = (statusRes.data ?? []) as Array<{
         rider_id: string
         proposed_status?: string | null
+        status_source_role?: string | null
+        status_source_label?: string | null
+        status_updated_at?: string | null
       }>
       setIncidentStatuses(buildStatusMap(statusList))
       setIncidentLastUpdated(new Date().toLocaleTimeString())
@@ -603,6 +624,25 @@ export default function JCPage() {
     },
     [apiFetch, eventId, riders, safetyRequirements]
   )
+
+  const refreshFromRealtime = useCallback(async () => {
+    if (saving || motoReadySaving || localMutationRef.current) return
+
+    try {
+      const workflowMotos = (await loadMotos(true)) ?? []
+      const liveMotoId = workflowMotos.find((moto) => isMotoLive(moto.status))?.id ?? ''
+      const prepMotoId = pickPrepMotoId(workflowMotos, selectedMotoIdRef.current, liveMotoId, allReadyDone)
+      await refreshCheckerPollingState(prepMotoId, liveMotoId)
+    } catch {
+      // The 15-second polling loop remains the fallback if Realtime fails.
+    }
+  }, [allReadyDone, loadMotos, motoReadySaving, refreshCheckerPollingState, saving])
+
+  useEventRaceRealtime({
+    eventId,
+    enabled: isPageVisible,
+    onRaceStateChanged: refreshFromRealtime,
+  })
 
   // Initial load — only runs once per moto selection
   useEffect(() => {
@@ -933,6 +973,12 @@ export default function JCPage() {
     if (!incidentMotoId || incidentLocked) return
     const previousStatus = incidentStatuses[riderId]
     if (!previousStatus || previousStatus.participation_status !== 'DNS') return
+    if (previousStatus.status_source_role && previousStatus.status_source_role !== 'CHECKER') {
+      const confirmed = window.confirm(
+        `DNS ini ditetapkan oleh ${previousStatus.status_source_label || 'role lain'} (${previousStatus.status_source_role}).\n\nBatalkan DNS dan kembalikan rider ke status aktif?`
+      )
+      if (!confirmed) return
+    }
     setSaving(true)
     setWarningMessage(null)
     setErrorMessage(null)
@@ -1456,9 +1502,13 @@ export default function JCPage() {
               }}
             >
               {incidentRiderList.map((r) => {
-                const rawStatus = incidentStatuses[r.id]?.participation_status
+                const statusRow = incidentStatuses[r.id]
+                const rawStatus = statusRow?.participation_status
                 const statusLabel = !rawStatus ? 'READY/UNKNOWN' : rawStatus === 'ACTIVE' ? 'READY' : rawStatus
                 const isDns = rawStatus === 'DNS'
+                const sourceLabel = isDns && statusRow?.status_source_label
+                  ? `DNS oleh ${statusRow.status_source_label} (${statusRow.status_source_role})`
+                  : null
                 return (
                   <button
                     key={`incident-${r.id}`}
@@ -1510,6 +1560,11 @@ export default function JCPage() {
                       >
                         {r.name}
                       </span>
+                      {sourceLabel && (
+                        <span style={{ fontSize: 10, fontWeight: 800, color: '#1e3a8a' }}>
+                          {sourceLabel}
+                        </span>
+                      )}
                     </div>
                     <span
                       style={{
@@ -1746,6 +1801,7 @@ export default function JCPage() {
             type="button"
             onClick={async () => {
               if (!selectedMotoId) return
+              localMutationRef.current = true
               setSafetyChecks((prev) => {
                 const next = { ...prev }
                 for (const rider of riderList) {
@@ -1763,11 +1819,15 @@ export default function JCPage() {
                   is_checked: true,
                 }))
               )
-              if (checks.length > 0) {
-                await apiFetch(`/api/jury/motos/${selectedMotoId}/safety-checks`, {
-                  method: 'POST',
-                  body: JSON.stringify({ checks }),
-                })
+              try {
+                if (checks.length > 0) {
+                  await apiFetch(`/api/jury/motos/${selectedMotoId}/safety-checks`, {
+                    method: 'POST',
+                    body: JSON.stringify({ checks }),
+                  })
+                }
+              } finally {
+                localMutationRef.current = false
               }
             }}
             disabled={safetyInteractionDisabled || !hasSafetyRequirements}
@@ -1937,6 +1997,7 @@ export default function JCPage() {
                         type="button"
                         onClick={async () => {
                           const nextChecked = !checked
+                          localMutationRef.current = true
                           setSafetyChecks((prev) => ({
                             ...prev,
                             [r.id]: { ...(prev[r.id] ?? {}), [item.id]: nextChecked },
@@ -1956,6 +2017,8 @@ export default function JCPage() {
                               ...prev,
                               [r.id]: { ...(prev[r.id] ?? {}), [item.id]: checked },
                             }))
+                          } finally {
+                            localMutationRef.current = false
                           }
                         }}
                         disabled={safetyInteractionDisabled}

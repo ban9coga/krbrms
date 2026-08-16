@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../../lib/auth'
 import { assertMotoEditable, assertMotoNotUnderProtest } from '../../../../../../lib/motoLock'
 import { isMotoLive, isMotoReady, isMotoUpcoming } from '../../../../../../lib/motoStatus'
+import {
+  buildRiderStatusSourceNote,
+  getRiderStatusActorLabel,
+  parseRiderStatusSourceNote,
+} from '../../../../../../lib/riderStatusSource'
 import { requireJury } from '../../../../../../services/juryAuth'
 import { upsertRiderParticipationStatuses } from '../../../../../../services/riderParticipationStatus'
 
@@ -72,7 +77,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
 
   let updatesQuery = adminClient
     .from('rider_status_updates')
-    .select('rider_id, proposed_status, approval_status, created_at, moto_id')
+    .select('rider_id, proposed_status, approval_status, created_at, moto_id, note')
     .eq('event_id', eventId)
     .order('created_at', { ascending: false })
   if (motoId) updatesQuery = updatesQuery.eq('moto_id', motoId)
@@ -101,12 +106,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     }
   }
 
-  const latestUpdate = new Map<string, { proposed_status: string; approval_status: string }>()
+  const latestUpdate = new Map<string, { proposed_status: string; approval_status: string; created_at: string; note?: string | null }>()
   for (const row of updates ?? []) {
     if (!latestUpdate.has(row.rider_id)) {
       latestUpdate.set(row.rider_id, {
         proposed_status: row.proposed_status,
         approval_status: row.approval_status,
+        created_at: row.created_at,
+        note: row.note,
       })
     }
   }
@@ -119,11 +126,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const data = Array.from(riderIds).map((rider_id) => {
     const update = latestUpdate.get(rider_id)
     const approved = approvedMap.get(rider_id)
+    const source = parseRiderStatusSourceNote(update?.note)
     return {
       rider_id,
       approval_status: update?.approval_status ?? (approved ? 'APPROVED' : 'NONE'),
       proposed_status: update?.proposed_status ?? approved ?? null,
       participation_status: approved ?? null,
+      status_source_role: source?.role ?? null,
+      status_source_label: source?.label ?? null,
+      status_updated_at: update?.created_at ?? null,
     }
   })
 
@@ -219,6 +230,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     approval_status: shouldAutoApply(row.participation_status) ? 'APPROVED' : 'PENDING',
     approved_by: shouldAutoApply(row.participation_status) ? 'SYSTEM' : null,
     approved_at: shouldAutoApply(row.participation_status) ? new Date().toISOString() : null,
+    note: buildRiderStatusSourceNote({
+      role: auth.role,
+      label: getRiderStatusActorLabel(auth.user),
+    }),
   }))
 
   const { data, error } = await adminClient
@@ -289,7 +304,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
           : row.participation_status === 'ABSENT'
             ? 'ABSENT status applied with DNS scoring'
             : 'AUTO mode: status applied'
-        : 'Status update submitted',
+        : `Status update submitted by ${auth.role}`,
     }))
   )
 
