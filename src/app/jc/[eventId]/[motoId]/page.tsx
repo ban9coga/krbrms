@@ -797,11 +797,15 @@ export default function JCPage() {
   }, [riderList, query])
 
   const incidentRiderList = useMemo(() => {
-    const sorted = [...incidentRiders].sort((a, b) => {
-      const ga = a.gate_position ?? 9999
-      const gb = b.gate_position ?? 9999
-      return ga - gb
-    })
+    // ABSENT is decided during prep and is not a live-race incident. Keeping it
+    // here made the rider look actionable again through the red Set DNS card.
+    const sorted = incidentRiders
+      .filter((rider) => incidentStatuses[rider.id]?.participation_status !== 'ABSENT')
+      .sort((a, b) => {
+        const ga = a.gate_position ?? 9999
+        const gb = b.gate_position ?? 9999
+        return ga - gb
+      })
     return sorted.map((r, idx) => ({
       ...r,
       status: incidentStatuses[r.id]?.participation_status ?? 'ACTIVE',
