@@ -550,6 +550,14 @@ html[data-theme='dark'] .theme__toggle {
   box-shadow: 0 0 0 4px rgba(238, 75, 22, 0.13);
 }
 
+.login-editorial-input-hint {
+  margin: -2px 0 4px;
+  color: #806c5c;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
 .login-editorial-password-toggle {
   position: absolute;
   top: 50%;
@@ -623,6 +631,10 @@ html[data-theme='dark'] .login-editorial-form label {
 }
 
 html[data-theme='dark'] .login-editorial-intro {
+  color: #c9b9aa;
+}
+
+html[data-theme='dark'] .login-editorial-input-hint {
   color: #c9b9aa;
 }
 

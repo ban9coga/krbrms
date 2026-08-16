@@ -7,10 +7,6 @@ import MarketingTopbar from '../../components/MarketingTopbar'
 import { supabase } from '@/src/lib/supabaseClient'
 
 export default function LoginPage() {
-  const [loginMode, setLoginMode] = useState<'crew' | 'email'>(() => {
-    if (typeof window === 'undefined') return 'email'
-    return new URLSearchParams(window.location.search).get('crew') === '1' ? 'crew' : 'email'
-  })
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -52,7 +48,9 @@ export default function LoginPage() {
     let expiresIn = 3600
     let loginError: string | null = null
 
-    if (loginMode === 'crew') {
+    const isEmailLogin = identifier.includes('@')
+
+    if (!isEmailLogin) {
       try {
         const response = await fetch('/api/auth/crew-login', {
           method: 'POST',
@@ -183,61 +181,38 @@ export default function LoginPage() {
             </p>
 
             <form onSubmit={handleLogin} className="login-editorial-form">
-              <div className="grid grid-cols-2 gap-2" role="tablist" aria-label="Metode login">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={loginMode === 'crew'}
-                  onClick={() => {
-                    setLoginMode('crew')
-                    setIdentifier('')
-                    setErrorMessage(null)
-                  }}
-                  className={loginMode === 'crew' ? 'login-editorial-mode-active' : 'login-editorial-mode'}
-                >
-                  Kode Crew
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={loginMode === 'email'}
-                  onClick={() => {
-                    setLoginMode('email')
-                    setIdentifier('')
-                    setErrorMessage(null)
-                  }}
-                  className={loginMode === 'email' ? 'login-editorial-mode-active' : 'login-editorial-mode'}
-                >
-                  Email Admin
-                </button>
-              </div>
-
-              <label htmlFor="login-identifier">{loginMode === 'crew' ? 'Kode Crew' : 'Email'}</label>
+              <label htmlFor="login-identifier">Email atau Kode Crew</label>
               <input
-                type={loginMode === 'crew' ? 'text' : 'email'}
-                placeholder={loginMode === 'crew' ? 'Masukkan kode crew' : 'nama@email.com'}
+                type="text"
+                placeholder="nama@email.com atau kode crew"
                 value={identifier}
-                onChange={(e) => setIdentifier(loginMode === 'crew' ? e.target.value.toUpperCase() : e.target.value)}
+                onChange={(e) => {
+                  setIdentifier(e.target.value)
+                  setErrorMessage(null)
+                }}
                 name="identifier"
                 id="login-identifier"
                 autoComplete="username"
-                autoCapitalize={loginMode === 'crew' ? 'characters' : 'none'}
+                autoCapitalize="none"
                 className="login-editorial-input"
                 required
               />
 
-              <label htmlFor="login-password">{loginMode === 'crew' ? 'PIN' : 'Password'}</label>
+              <p className="login-editorial-input-hint">
+                Gunakan email dan password untuk admin, atau kode crew dan PIN untuk petugas race.
+              </p>
+
+              <label htmlFor="login-password">Password atau PIN</label>
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
-                  placeholder={loginMode === 'crew' ? 'Masukkan PIN 6 digit' : 'Masukkan password'}
+                  placeholder="Masukkan password atau PIN"
                   value={password}
-                  onChange={(e) => setPassword(loginMode === 'crew' ? e.target.value.replace(/\D/g, '').slice(0, 6) : e.target.value)}
+                  onChange={(e) => setPassword(e.target.value)}
                   name="password"
                   id="login-password"
                   autoComplete="current-password"
-                  inputMode={loginMode === 'crew' ? 'numeric' : 'text'}
-                  maxLength={loginMode === 'crew' ? 6 : undefined}
+                  inputMode="text"
                   className="login-editorial-input w-full pr-20"
                   required
                 />
@@ -254,7 +229,7 @@ export default function LoginPage() {
               {errorMessage && <div className="login-editorial-error">{errorMessage}</div>}
 
               <button type="submit" disabled={loading} className="login-editorial-submit">
-                {loading ? 'Memproses...' : loginMode === 'crew' ? 'Masuk Panel Crew' : 'Login'}
+                {loading ? 'Memproses...' : 'Masuk Dashboard'}
               </button>
             </form>
           </div>
