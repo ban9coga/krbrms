@@ -797,15 +797,11 @@ export default function JCPage() {
   }, [riderList, query])
 
   const incidentRiderList = useMemo(() => {
-    // ABSENT is decided during prep and is not a live-race incident. Keeping it
-    // here made the rider look actionable again through the red Set DNS card.
-    const sorted = incidentRiders
-      .filter((rider) => incidentStatuses[rider.id]?.participation_status !== 'ABSENT')
-      .sort((a, b) => {
-        const ga = a.gate_position ?? 9999
-        const gb = b.gate_position ?? 9999
-        return ga - gb
-      })
+    const sorted = [...incidentRiders].sort((a, b) => {
+      const ga = a.gate_position ?? 9999
+      const gb = b.gate_position ?? 9999
+      return ga - gb
+    })
     return sorted.map((r, idx) => ({
       ...r,
       status: incidentStatuses[r.id]?.participation_status ?? 'ACTIVE',
@@ -816,6 +812,7 @@ export default function JCPage() {
   const incidentSummary = useMemo(() => {
     const total = incidentRiderList.length
     const dns = incidentRiderList.filter((r) => incidentStatuses[r.id]?.participation_status === 'DNS').length
+    const absent = incidentRiderList.filter((r) => incidentStatuses[r.id]?.participation_status === 'ABSENT').length
     const ready = incidentRiderList.filter((r) => {
       const status = incidentStatuses[r.id]?.participation_status
       return !status || status === 'ACTIVE'
@@ -823,8 +820,9 @@ export default function JCPage() {
     return {
       total,
       dns,
+      absent,
       ready,
-      remaining: Math.max(total - dns, 0),
+      remaining: Math.max(total - dns - absent, 0),
     }
   }, [incidentRiderList, incidentStatuses])
 
@@ -1487,6 +1485,18 @@ export default function JCPage() {
                 style={{
                   padding: '6px 12px',
                   borderRadius: 999,
+                  border: '2px solid #64748b',
+                  background: '#f1f5f9',
+                  color: '#334155',
+                  fontWeight: 900,
+                }}
+              >
+                ABSENT: {incidentSummary.absent}
+              </span>
+              <span
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 999,
                   border: '2px solid #1d4ed8',
                   background: '#dbeafe',
                   color: '#1e3a8a',
@@ -1499,94 +1509,40 @@ export default function JCPage() {
           ) : null}
           {incidentMoto ? (
             <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                gap: isCompactLayout ? 8 : 10,
-              }}
+              className="jc-incident-grid"
+              style={{ gap: isCompactLayout ? 8 : 10 }}
             >
               {incidentRiderList.map((r) => {
                 const statusRow = incidentStatuses[r.id]
                 const rawStatus = statusRow?.participation_status
                 const statusLabel = !rawStatus ? 'READY/UNKNOWN' : rawStatus === 'ACTIVE' ? 'READY' : rawStatus
                 const isDns = rawStatus === 'DNS'
-                const sourceLabel = isDns && statusRow?.status_source_label
-                  ? `DNS oleh ${statusRow.status_source_label} (${statusRow.status_source_role})`
+                const isAbsent = rawStatus === 'ABSENT'
+                const isActionable = !isDns && !isAbsent
+                const sourceLabel = (isDns || isAbsent) && statusRow?.status_source_label
+                  ? `${statusLabel} oleh ${statusRow.status_source_label} (${statusRow.status_source_role})`
                   : null
                 return (
                   <button
                     key={`incident-${r.id}`}
-                    className="jc-incident-rider-btn"
                     type="button"
                     onClick={() =>
                       isDns
                         ? handleUndoIncidentDns(r.id)
-                        : handleIncidentDns(r.id, r.gate_position ?? r.registration_order ?? 0)
+                        : isActionable
+                          ? handleIncidentDns(r.id, r.gate_position ?? r.registration_order ?? 0)
+                          : undefined
                     }
-                    disabled={incidentDnsDisabled}
-                    aria-label={`${isDns ? 'Undo DNS' : 'Set DNS'} ${r.no_plate_display} ${r.name}`}
-                    style={{
-                      minHeight: highVisibility ? (isCompactLayout ? 112 : 122) : isCompactLayout ? 92 : 104,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'flex-start',
-                      justifyContent: 'space-between',
-                      gap: 8,
-                      padding: isCompactLayout ? '10px' : '12px',
-                      borderRadius: 14,
-                      border: `2px solid ${isDns ? '#1d4ed8' : '#c2410c'}`,
-                      background: isDns ? '#dbeafe' : '#fff',
-                      color: isDns ? '#1e3a8a' : '#7f1d1d',
-                      textAlign: 'left',
-                      cursor: incidentDnsDisabled ? 'not-allowed' : 'pointer',
-                      opacity: incidentDnsDisabled ? 0.55 : 1,
-                    }}
+                    disabled={incidentDnsDisabled || isAbsent}
+                    aria-label={`${isDns ? 'Undo DNS' : isAbsent ? 'Rider absent' : 'Set DNS'} ${r.no_plate_display} ${r.name}`}
+                    className={`jc-incident-rider-btn ${isDns ? 'is-dns' : isAbsent ? 'is-absent' : 'is-actionable'} ${highVisibility ? 'is-large' : ''}`}
                   >
-                    <div style={{ display: 'grid', gap: 3, minWidth: 0 }}>
-                      <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', minWidth: 0 }}>
-                        <span style={{ fontSize: highVisibility ? (isCompactLayout ? 24 : 28) : isCompactLayout ? 20 : 24, fontWeight: 950, lineHeight: 1 }}>
-                          {r.no_plate_display}
-                        </span>
-                        <span style={{ fontSize: 11, fontWeight: 900, color: isDns ? '#1e3a8a' : '#9a3412' }}>
-                          GATE {r.gate_position ?? '-'}
-                        </span>
-                      </div>
-                      <span
-                        style={{
-                          overflow: 'hidden',
-                          display: '-webkit-box',
-                          WebkitBoxOrient: 'vertical',
-                          WebkitLineClamp: 2,
-                          fontSize: highVisibility ? 14 : 12,
-                          fontWeight: 900,
-                          lineHeight: 1.15,
-                        }}
-                      >
-                        {r.name}
-                      </span>
-                      {sourceLabel && (
-                        <span style={{ fontSize: 10, fontWeight: 800, color: '#1e3a8a' }}>
-                          {sourceLabel}
-                        </span>
-                      )}
-                    </div>
-                    <span
-                      style={{
-                        width: '100%',
-                        padding: highVisibility ? '8px 10px' : '6px 8px',
-                        borderRadius: 999,
-                        border: `2px solid ${isDns ? '#1d4ed8' : '#c2410c'}`,
-                        background: isDns ? '#fff' : '#ffedd5',
-                        color: isDns ? '#1e3a8a' : '#9a3412',
-                        fontWeight: 900,
-                        fontSize: highVisibility ? 13 : 11,
-                        letterSpacing: '0.06em',
-                        textAlign: 'center',
-                        textTransform: 'uppercase',
-                      }}
-                    >
-                      {isDns ? 'UNDO DNS' : 'SET DNS'}
+                    <span className="jc-incident-rider-shadow" />
+                    <span className="jc-incident-rider-edge" />
+                    <span className="jc-incident-rider-front">
+                      <span className="jc-incident-rider-plate">{r.no_plate_display}</span>
                     </span>
+                    {sourceLabel && <span className="sr-only">{sourceLabel}</span>}
                     <span className="sr-only">Status {statusLabel}</span>
                   </button>
                 )
@@ -2067,7 +2023,7 @@ export default function JCPage() {
 
                 <div className="jc-status-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
                   <button
-                    className="jc-action-btn jc-primary"
+                    className={`jc-rider-action-btn ${isRiderReady ? 'is-ready' : isRiderAbsent ? 'is-muted' : safetyOk ? 'is-ready' : 'is-warning'}`}
                     type="button"
                     onClick={() =>
                       statuses[r.id]?.participation_status === 'ACTIVE'
@@ -2075,20 +2031,13 @@ export default function JCPage() {
                         : handleSaveStatus(r.id, 'ACTIVE', r.gate_position ?? 0)
                     }
                     disabled={readyDisabled || isRiderAbsent}
-                    style={{
-                      padding: highVisibility ? (isCompactLayout ? '12px 14px' : '14px 16px') : isCompactLayout ? '10px 12px' : '12px 14px',
-                      borderRadius: 999,
-                      border: '2px solid #1b5e20',
-                      background: isRiderReady ? '#dcfce7' : isRiderAbsent ? '#e5e7eb' : safetyOk ? '#2ecc71' : '#ffe9a8',
-                      color: '#111',
-                      fontWeight: 900,
-                      fontSize: highVisibility ? (isCompactLayout ? 14 : 16) : isCompactLayout ? 12 : undefined,
-                    }}
                   >
-                    {isRiderReady ? 'UNDO READY' : 'READY'}
+                    <span className="jc-rider-action-shadow" />
+                    <span className="jc-rider-action-edge" />
+                    <span className="jc-rider-action-front">{isRiderReady ? 'UNDO READY' : 'READY'}</span>
                   </button>
                   <button
-                    className="jc-action-btn"
+                    className={`jc-rider-action-btn ${isRiderAbsent ? 'is-absent' : isRiderReady ? 'is-muted' : 'is-danger'}`}
                     type="button"
                     onClick={() =>
                       isRiderAbsent
@@ -2096,17 +2045,10 @@ export default function JCPage() {
                         : handleSaveStatus(r.id, 'ABSENT', r.gate_position ?? 0)
                     }
                     disabled={absentDisabled || isRiderReady}
-                    style={{
-                      padding: highVisibility ? (isCompactLayout ? '12px 14px' : '14px 16px') : isCompactLayout ? '10px 12px' : '12px 14px',
-                      borderRadius: 999,
-                      border: '2px solid #b91c1c',
-                      background: isRiderAbsent ? '#fecaca' : isRiderReady ? '#e5e7eb' : '#fee2e2',
-                      color: '#7f1d1d',
-                      fontWeight: 900,
-                      fontSize: highVisibility ? (isCompactLayout ? 14 : 16) : isCompactLayout ? 12 : undefined,
-                    }}
                   >
-                    {isRiderAbsent ? 'UNDO ABSENT' : 'ABSENT'}
+                    <span className="jc-rider-action-shadow" />
+                    <span className="jc-rider-action-edge" />
+                    <span className="jc-rider-action-front">{isRiderAbsent ? 'UNDO ABSENT' : 'ABSENT'}</span>
                   </button>
                 </div>
               </div>
@@ -2144,6 +2086,195 @@ export default function JCPage() {
         .jc-page :global(.jc-action-btn:disabled) {
           opacity: 0.66;
           filter: saturate(0.75);
+        }
+
+        .jc-incident-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+        }
+
+        .jc-incident-rider-btn,
+        .jc-rider-action-btn {
+          position: relative;
+          border: 0;
+          padding: 0;
+          background: transparent;
+          cursor: pointer;
+          outline-offset: 4px;
+          -webkit-tap-highlight-color: transparent;
+          touch-action: manipulation;
+          user-select: none;
+        }
+
+        .jc-incident-rider-btn {
+          min-height: 98px;
+        }
+
+        .jc-incident-rider-btn.is-large {
+          min-height: 120px;
+        }
+
+        .jc-incident-rider-shadow,
+        .jc-incident-rider-edge,
+        .jc-rider-action-shadow,
+        .jc-rider-action-edge {
+          position: absolute;
+          inset: 0;
+          border-radius: 14px;
+          pointer-events: none;
+        }
+
+        .jc-incident-rider-shadow,
+        .jc-rider-action-shadow {
+          background: rgba(15, 23, 42, 0.24);
+          filter: blur(4px);
+          transform: translateY(5px);
+          transition: transform 120ms ease, filter 120ms ease;
+        }
+
+        .jc-incident-rider-edge {
+          background: linear-gradient(to left, #9a3412, #ea580c 12%, #ea580c 88%, #9a3412);
+        }
+
+        .jc-incident-rider-btn.is-dns .jc-incident-rider-edge {
+          background: linear-gradient(to left, #1e3a8a, #2563eb 12%, #2563eb 88%, #1e3a8a);
+        }
+
+        .jc-incident-rider-btn.is-absent .jc-incident-rider-edge {
+          background: linear-gradient(to left, #475569, #94a3b8 12%, #94a3b8 88%, #475569);
+        }
+
+        .jc-incident-rider-front {
+          position: relative;
+          display: grid;
+          min-height: 98px;
+          align-content: center;
+          justify-items: center;
+          gap: 5px;
+          padding: 9px;
+          border-radius: 14px;
+          background: #fb923c;
+          color: #431407;
+          box-shadow: inset 0 2px 3px rgba(255, 255, 255, 0.45), inset 0 -2px 3px rgba(0, 0, 0, 0.16);
+          text-shadow: 0 1px 1px rgba(255, 255, 255, 0.18);
+          transform: translateY(-6px);
+          transition: transform 110ms cubic-bezier(0.3, 0.7, 0.4, 1), background-color 150ms ease;
+        }
+
+        .jc-incident-rider-btn.is-large .jc-incident-rider-front {
+          min-height: 120px;
+        }
+
+        .jc-incident-rider-btn.is-dns .jc-incident-rider-front {
+          background: #60a5fa;
+          color: #172554;
+        }
+
+        .jc-incident-rider-btn.is-absent .jc-incident-rider-front {
+          background: #cbd5e1;
+          color: #334155;
+        }
+
+        .jc-incident-rider-plate {
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace;
+          font-size: 31px;
+          font-weight: 950;
+          line-height: 1;
+          letter-spacing: 0.04em;
+        }
+
+        .jc-incident-rider-btn.is-large .jc-incident-rider-plate {
+          font-size: 40px;
+        }
+
+        .jc-rider-action-btn {
+          min-height: 48px;
+        }
+
+        .jc-rider-action-edge {
+          background: linear-gradient(to left, #166534, #22c55e 12%, #22c55e 88%, #166534);
+        }
+
+        .jc-rider-action-front {
+          position: relative;
+          display: grid;
+          min-height: 48px;
+          place-items: center;
+          padding: 10px 12px;
+          border-radius: 14px;
+          background: #4ade80;
+          color: #052e16;
+          font-size: 12px;
+          font-weight: 950;
+          letter-spacing: 0.06em;
+          box-shadow: inset 0 2px 3px rgba(255, 255, 255, 0.45), inset 0 -2px 3px rgba(0, 0, 0, 0.16);
+          transform: translateY(-5px);
+          transition: transform 110ms cubic-bezier(0.3, 0.7, 0.4, 1), background-color 150ms ease;
+        }
+
+        .jc-rider-action-btn.is-warning .jc-rider-action-edge {
+          background: linear-gradient(to left, #a16207, #eab308 12%, #eab308 88%, #a16207);
+        }
+
+        .jc-rider-action-btn.is-warning .jc-rider-action-front {
+          background: #fde047;
+          color: #713f12;
+        }
+
+        .jc-rider-action-btn.is-danger .jc-rider-action-edge,
+        .jc-rider-action-btn.is-absent .jc-rider-action-edge {
+          background: linear-gradient(to left, #991b1b, #ef4444 12%, #ef4444 88%, #991b1b);
+        }
+
+        .jc-rider-action-btn.is-danger .jc-rider-action-front,
+        .jc-rider-action-btn.is-absent .jc-rider-action-front {
+          background: #fca5a5;
+          color: #7f1d1d;
+        }
+
+        .jc-rider-action-btn.is-muted .jc-rider-action-edge {
+          background: linear-gradient(to left, #64748b, #94a3b8 12%, #94a3b8 88%, #64748b);
+        }
+
+        .jc-rider-action-btn.is-muted .jc-rider-action-front {
+          background: #e2e8f0;
+          color: #64748b;
+        }
+
+        .jc-incident-rider-btn:hover:not(:disabled) .jc-incident-rider-front,
+        .jc-rider-action-btn:hover:not(:disabled) .jc-rider-action-front {
+          transform: translateY(-8px);
+        }
+
+        .jc-incident-rider-btn:hover:not(:disabled) .jc-incident-rider-shadow,
+        .jc-rider-action-btn:hover:not(:disabled) .jc-rider-action-shadow {
+          transform: translateY(7px);
+          filter: blur(6px);
+        }
+
+        .jc-incident-rider-btn:active:not(:disabled) .jc-incident-rider-front,
+        .jc-rider-action-btn:active:not(:disabled) .jc-rider-action-front {
+          transform: translateY(-1px);
+          transition-duration: 45ms;
+        }
+
+        .jc-incident-rider-btn:active:not(:disabled) .jc-incident-rider-shadow,
+        .jc-rider-action-btn:active:not(:disabled) .jc-rider-action-shadow {
+          transform: translateY(2px);
+          filter: blur(2px);
+          transition-duration: 45ms;
+        }
+
+        .jc-incident-rider-btn:focus-visible,
+        .jc-rider-action-btn:focus-visible {
+          outline: 3px solid #38bdf8;
+          border-radius: 14px;
+        }
+
+        .jc-incident-rider-btn:disabled,
+        .jc-rider-action-btn:disabled {
+          cursor: not-allowed;
+          opacity: 0.56;
         }
 
         .jc-page :global(.jc-action-btn.jc-primary:not(:disabled)) {

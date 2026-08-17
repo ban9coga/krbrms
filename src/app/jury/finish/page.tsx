@@ -321,7 +321,9 @@ export default function JuryFinishPage() {
         }
       }
     }
-    for (const riderId of dnsFromServer) statusMap[riderId] = 'DNS'
+    for (const riderId of dnsFromServer) {
+      if (statusMap[riderId] !== 'ABSENT') statusMap[riderId] = 'DNS'
+    }
 
     const blockedRiderIds = new Set(
       Object.entries(statusMap)

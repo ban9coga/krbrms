@@ -26,7 +26,11 @@ const loadMotoStatuses = async (eventId: string, motoId: string) => {
   for (const row of participationResult.data ?? []) approved.set(row.rider_id, row.participation_status)
   for (const row of resultsResult.data ?? []) {
     if (row.result_status === 'FINISH' || row.result_status === 'DNF') approved.set(row.rider_id, 'ACTIVE')
-    if (row.result_status === 'DNS') approved.set(row.rider_id, 'DNS')
+    // Preserve ABSENT as the operational status; its result row is DNS only
+    // so the configured DNS points are applied during scoring.
+    if (row.result_status === 'DNS' && approved.get(row.rider_id) !== 'ABSENT') {
+      approved.set(row.rider_id, 'DNS')
+    }
   }
 
   const latestUpdates = new Map<string, { proposed_status: string | null; approval_status: string | null; created_at: string; note?: string | null }>()

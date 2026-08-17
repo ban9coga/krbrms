@@ -42,7 +42,10 @@ const loadMotoStatuses = async (eventId: string, motoId?: string | null) => {
 
   for (const row of resultsResult.data ?? []) {
     if (row.result_status === 'FINISH' || row.result_status === 'DNF') approved.set(row.rider_id, 'ACTIVE')
-    if (row.result_status === 'DNS') approved.set(row.rider_id, 'DNS')
+    // ABSENT carries DNS scoring but stays ABSENT for the Checker's workflow.
+    if (row.result_status === 'DNS' && approved.get(row.rider_id) !== 'ABSENT') {
+      approved.set(row.rider_id, 'DNS')
+    }
   }
 
   const latestUpdates = new Map<string, MotoStatusRow>()

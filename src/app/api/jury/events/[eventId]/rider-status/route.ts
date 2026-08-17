@@ -100,7 +100,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       if (row.result_status === 'FINISH' || row.result_status === 'DNF') {
         approvedMap.set(row.rider_id, 'ACTIVE')
       }
-      if (row.result_status === 'DNS') {
+      // ABSENT creates a DNS result for scoring, but must remain ABSENT in
+      // operational screens so it is not offered again as a live DNS action.
+      if (row.result_status === 'DNS' && approvedMap.get(row.rider_id) !== 'ABSENT') {
         approvedMap.set(row.rider_id, 'DNS')
       }
     }
