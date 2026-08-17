@@ -26,7 +26,7 @@ type Row = {
   penalty_total: number | null
   total_point: number | null
   rank_point: number | null
-  status: 'FINISHED' | 'DNF' | 'DNS' | 'ABSENT' | 'PENDING' | 'DQ'
+  status: 'FINISHED' | 'DNF' | 'DNS' | 'PENDING' | 'DQ'
   class_label?: string | null
 }
 
@@ -101,8 +101,6 @@ const statusBadgeClass = (status: string) => {
     case 'DNF':
       return 'border-amber-300 bg-amber-50 text-amber-700'
     case 'DNS':
-      return 'border-rose-300 bg-rose-50 text-rose-700'
-    case 'ABSENT':
       return 'border-rose-300 bg-rose-50 text-rose-700'
     case 'DQ':
       return 'border-red-400 bg-red-100 text-red-800'
@@ -512,7 +510,7 @@ export default function LiveScoreClient({
                         <td className="font-extrabold text-emerald-700">
                           <div className="flex flex-col gap-1">
                             <span>{row.rank_point ?? '-'}</span>
-                            {(row.status === 'DQ' || row.status === 'PENDING' || row.status === 'ABSENT') && (
+                            {(row.status === 'DQ' || row.status === 'PENDING') && (
                               <span
                                 className={`inline-flex w-fit rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] ${statusBadgeClass(row.status)}`}
                               >
