@@ -126,6 +126,7 @@ export const config = {
     '/race-director/:path*',
     '/jc/:path*',
     '/mc/:path*',
+    '/draw',
     '/draw/:path*',
   ],
 }
