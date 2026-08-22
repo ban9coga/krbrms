@@ -12,7 +12,7 @@ import { supabase } from '@/src/lib/supabaseClient'
 type NavItem = {
   label: string
   href: string
-  icon: 'dashboard' | 'events' | 'users' | 'registrations' | 'riders' | 'categories' | 'draw' | 'motos' | 'sequence' | 'advanced' | 'customSplit' | 'schedule' | 'results' | 'penalties' | 'settings'
+  icon: 'dashboard' | 'events' | 'users' | 'registrations' | 'riders' | 'categories' | 'draw' | 'drawSettings' | 'motos' | 'sequence' | 'advanced' | 'customSplit' | 'schedule' | 'results' | 'penalties' | 'settings'
 }
 
 const BRAND = {
@@ -29,6 +29,7 @@ const EVENT_NAV = (eventId: string): NavItem[] => [
   { label: 'Registrations', href: `/admin/events/${eventId}/registrations`, icon: 'registrations' },
   { label: 'Riders', href: `/admin/events/${eventId}/riders`, icon: 'riders' },
   { label: 'Categories', href: `/admin/events/${eventId}/categories`, icon: 'categories' },
+  { label: 'Draw Settings', href: `/admin/events/${eventId}/draw-settings`, icon: 'drawSettings' },
   { label: 'Draw Setup', href: `/admin/events/${eventId}/live-draw`, icon: 'draw' },
   { label: 'Motos', href: `/admin/events/${eventId}/motos`, icon: 'motos' },
   { label: 'Moto Sequence', href: `/admin/events/${eventId}/moto-sequence`, icon: 'sequence' },
@@ -142,6 +143,14 @@ function Icon({ type, active }: { type: NavItem['icon']; active: boolean }) {
     return (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={common}>
         <path d="M12 4v16M6 8h12M7 12h10M9 16h6" strokeLinecap="round" />
+      </svg>
+    )
+  }
+  if (type === 'drawSettings') {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={common}>
+        <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.64 5.64l2.12 2.12M16.24 16.24l2.12 2.12M18.36 5.64l-2.12 2.12M7.76 16.24l-2.12 2.12" strokeLinecap="round" />
+        <circle cx="12" cy="12" r="3" />
       </svg>
     )
   }

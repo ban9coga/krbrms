@@ -34,6 +34,7 @@ export default function LoginPage() {
     if (role === 'CHECKER') return '/jc'
     if (role === 'RACE_CONTROL') return '/race-control'
     if (role === 'MC') return '/mc'
+    if (role === 'DRAW_MANAGER') return '/draw'
     if (role === 'REGISTRATION_APPROVER') return '/admin/events'
     if (role === 'ADMIN' || role === 'SUPER_ADMIN') return '/admin'
     return '/dashboard'
@@ -153,6 +154,7 @@ export default function LoginPage() {
               <span>Checker</span>
               <span>Finisher</span>
               <span>Race Director</span>
+              <span>Drawing Manager</span>
             </div>
           </div>
 

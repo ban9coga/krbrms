@@ -23,11 +23,12 @@ const roleWeight = (role: string) => {
   if (role === 'SUPER_ADMIN') return 0
   if (role === 'ADMIN') return 1
   if (role === 'REGISTRATION_APPROVER') return 2
-  if (role === 'RACE_DIRECTOR') return 3
-  if (role === 'RACE_CONTROL') return 4
-  if (role === 'CHECKER') return 5
-  if (role === 'FINISHER') return 6
-  if (role === 'MC') return 7
+  if (role === 'DRAW_MANAGER') return 3
+  if (role === 'RACE_DIRECTOR') return 4
+  if (role === 'RACE_CONTROL') return 5
+  if (role === 'CHECKER') return 6
+  if (role === 'FINISHER') return 7
+  if (role === 'MC') return 8
   return 99
 }
 
@@ -199,3 +200,41 @@ export const requireEventRole = async (
   return { ok: true, user, role: effectiveRole, eventRole }
 }
 
+// A scoped workspace role must always be assigned to the target event. Global
+// central admins can still assist every event, but a role such as DRAW_MANAGER
+// never gains access merely because it exists in the user's profile metadata.
+export const requireScopedEventWorkspace = async (
+  authHeader: string | null | undefined,
+  eventId: string,
+  allowedRoles: string[]
+): Promise<AuthSuccess | AuthFailure> => {
+  const user = await getAuthenticatedUser(authHeader)
+  if (!user) return { ok: false }
+
+  const globalRole = getGlobalRole(user)
+  const eventRole = await getEventRole(user.id, eventId)
+  if (globalRole === 'SUPER_ADMIN' || globalRole === 'ADMIN') {
+    return { ok: true, user, role: globalRole, eventRole }
+  }
+
+  const allowed = allowedRoles.map((role) => normalizeAppRole(role)).filter(Boolean)
+  if (!eventRole || !allowed.includes(eventRole)) return { ok: false }
+  return { ok: true, user, role: eventRole, eventRole }
+}
+
+export const requireScopedWorkspace = async (
+  authHeader: string | null | undefined,
+  allowedRoles: string[]
+): Promise<AuthSuccess | AuthFailure> => {
+  const user = await getAuthenticatedUser(authHeader)
+  if (!user) return { ok: false }
+
+  const globalRole = getGlobalRole(user)
+  if (globalRole === 'SUPER_ADMIN' || globalRole === 'ADMIN') {
+    return { ok: true, user, role: globalRole, eventRole: null }
+  }
+
+  const eventRole = await getAnyAllowedEventRole(user.id, allowedRoles)
+  if (!eventRole) return { ok: false }
+  return { ok: true, user, role: eventRole, eventRole }
+}

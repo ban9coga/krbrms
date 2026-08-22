@@ -6,6 +6,7 @@ export const normalizeAppRole = (value: string | null | undefined) => {
   if (upper === 'RACE_CONTROL') return 'RACE_CONTROL'
   if (upper === 'RACE_DIRECTOR') return 'RACE_DIRECTOR'
   if (upper === 'REGISTRATION_APPROVER') return 'REGISTRATION_APPROVER'
+  if (upper === 'DRAW_MANAGER') return 'DRAW_MANAGER'
   if (upper === 'SUPER_ADMIN') return 'SUPER_ADMIN'
   if (upper === 'ADMIN') return 'ADMIN'
   if (upper === 'CHECKER' || upper === 'FINISHER' || upper === 'MC') return upper
@@ -17,6 +18,7 @@ export const formatAppRoleLabel = (value: string | null | undefined) => {
   if (role === 'SUPER_ADMIN') return 'Central Admin'
   if (role === 'ADMIN') return 'Operator Admin'
   if (role === 'REGISTRATION_APPROVER') return 'Registration Approver'
+  if (role === 'DRAW_MANAGER') return 'Drawing Manager'
   if (role === 'CHECKER') return 'Checker'
   if (role === 'FINISHER') return 'Finisher'
   if (role === 'RACE_DIRECTOR') return 'Race Director'

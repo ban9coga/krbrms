@@ -29,6 +29,7 @@ const roleHome = (value: string | null) => {
   if (role === 'CHECKER') return '/jc'
   if (role === 'RACE_CONTROL') return '/race-control'
   if (role === 'MC') return '/mc'
+  if (role === 'DRAW_MANAGER') return '/draw'
   if (role === 'REGISTRATION_APPROVER') return '/admin/events'
   if (role === 'ADMIN' || role === 'SUPER_ADMIN') return '/admin'
   return '/dashboard'

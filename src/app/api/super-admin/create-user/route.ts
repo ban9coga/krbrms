@@ -9,7 +9,7 @@ type CreateUserPayload = {
   email: string
   password: string
   crewCode?: string
-  role: 'admin' | 'jury' | 'race_control' | 'REGISTRATION_APPROVER' | 'CHECKER' | 'FINISHER' | 'RACE_DIRECTOR' | 'MC'
+  role: 'admin' | 'jury' | 'race_control' | 'REGISTRATION_APPROVER' | 'DRAW_MANAGER' | 'CHECKER' | 'FINISHER' | 'RACE_DIRECTOR' | 'MC'
 }
 
 const normalizeCrewCode = (value: unknown) =>

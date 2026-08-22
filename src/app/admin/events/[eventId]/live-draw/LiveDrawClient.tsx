@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import confetti from 'canvas-confetti'
 import { buildBrandedPrintHtml } from '../../../../../lib/printTheme'
 import { supabase } from '@/src/lib/supabaseClient'
+import { normalizeDrawCategoryConfig, type DrawMoto2Order } from '@/src/lib/drawConfig'
 
 type CategoryItem = {
   id: string
@@ -224,7 +225,13 @@ const moveItem = <T,>(items: T[], fromIndex: number, toIndex: number) => {
 const serializeBatchRiders = (batches: RiderItem[][]) =>
   batches.map((batch) => batch.map((rider) => rider.id).join('\n'))
 
-export default function LiveDrawClient({ eventId }: { eventId: string }) {
+export default function LiveDrawClient({
+  eventId,
+  workspaceLabel = 'Admin Drawing',
+}: {
+  eventId: string
+  workspaceLabel?: string
+}) {
   const [categories, setCategories] = useState<CategoryItem[]>([])
   const [selectedCategory, setSelectedCategory] = useState<string>('')
   const [riders, setRiders] = useState<RiderItem[]>([])
@@ -237,6 +244,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
   const [manualBatchCount, setManualBatchCount] = useState(1)
   const [customBatchPattern, setCustomBatchPattern] = useState('')
   const [gatePositions, setGatePositions] = useState(8)
+  const [moto2Order, setMoto2Order] = useState<DrawMoto2Order>('REVERSE')
   const [eventLogoUrl, setEventLogoUrl] = useState<string | null>(null)
   const [drawMode, setDrawMode] = useState<DrawMode>('internal_live_draw')
   const [rollingName, setRollingName] = useState<string>('Ready')
@@ -815,8 +823,14 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       const { res, json } = await apiFetch(`/api/events/${eventId}/live-draw?categoryId=${categoryId}`)
       if (!res.ok) throw new Error(json?.error || 'Gagal mengambil rider')
       const list = (json?.data ?? []) as RiderItem[]
+      const drawConfig = normalizeDrawCategoryConfig(json?.draw_config)
       const locked = Boolean(json?.has_motos)
       setRiders(list)
+      setBatchMode(drawConfig.batch_mode)
+      setBatchSize(drawConfig.batch_size ?? Math.max(1, Number(json?.gate_positions ?? gatePositions)))
+      setManualBatchCount(drawConfig.batch_count ?? Math.max(1, Math.ceil(list.length / Math.max(1, Number(json?.gate_positions ?? gatePositions)))) )
+      setCustomBatchPattern(drawConfig.custom_batch_sizes.join(', '))
+      setMoto2Order(drawConfig.moto2_order)
       setDrawnOrder([])
       setSaveState('idle')
       setRollingName('Ready')
@@ -828,7 +842,6 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       setExternalBatchTexts([])
       setExternalMoto2BatchTexts([])
       setExternalUndoStack([])
-      setCustomBatchPattern('')
       setWheelRiders([])
       setWheelRotation(0)
       setResultModal(null)
@@ -1662,6 +1675,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
         category_id: selectedCategory,
         rider_ids: riderIdsForMoto1,
         batch_size: batchMode === 'CUSTOM_BATCH_SIZES' ? maxBatchRiders : batchSize,
+        moto2_order: moto2Order,
         ...(batchMode === 'MANUAL_BATCH_COUNT' ? { batch_count: effectiveBatchCount } : {}),
         ...(riderBatches.length > 0 ? { rider_batches: riderBatches } : {}),
         ...(manualMoto2Ids.length > 0 ? { rider_ids_moto2: manualMoto2Ids } : {}),
@@ -1793,6 +1807,7 @@ export default function LiveDrawClient({ eventId }: { eventId: string }) {
       />
       <div className="ld-page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'end', gap: 12 }}>
         <div>
+          <div className="ld-kicker">{workspaceLabel}</div>
           <h1 style={{ fontSize: 26, fontWeight: 950, margin: 0 }}>
             {drawMode === 'external_draw' ? `External Draw (${eventName})` : `Live Draw (${eventName})`}
           </h1>

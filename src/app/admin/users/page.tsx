@@ -10,6 +10,7 @@ type RoleType =
   | 'race_control'
   | 'super_admin'
   | 'REGISTRATION_APPROVER'
+  | 'DRAW_MANAGER'
   | 'CHECKER'
   | 'FINISHER'
   | 'RACE_DIRECTOR'
@@ -199,6 +200,7 @@ export default function AdminUsersPage() {
             <select value={role} onChange={(e) => setRole(e.target.value as RoleType)} className={inputClass}>
               <option value="admin">Operator Admin</option>
               <option value="REGISTRATION_APPROVER">Registration Approver</option>
+              <option value="DRAW_MANAGER">Drawing Manager</option>
               <option value="race_control">Race Control</option>
               <option value="CHECKER">Checker</option>
               <option value="FINISHER">Finisher</option>
@@ -295,6 +297,7 @@ export default function AdminUsersPage() {
                       <option value="super_admin">Central Admin</option>
                       <option value="admin">Operator Admin</option>
                       <option value="REGISTRATION_APPROVER">Registration Approver</option>
+                      <option value="DRAW_MANAGER">Drawing Manager</option>
                       <option value="race_control">Race Control</option>
                       <option value="CHECKER">Checker</option>
                       <option value="FINISHER">Finisher</option>
