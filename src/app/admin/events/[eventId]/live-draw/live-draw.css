@@ -728,6 +728,199 @@
   color: #fff !important;
 }
 
+/* Drawing workspace: settings live in Draw Settings, this page is for execution. */
+.ld-workspace-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  min-height: 82px;
+  padding: 8px 120px 8px 0;
+}
+
+.ld-workspace-brand {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+}
+
+.ld-brand-mark,
+.ld-event-logo {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  place-items: center;
+  border: 1px solid rgba(248, 206, 61, 0.58);
+  border-radius: 50%;
+  background: #171411;
+  color: #f8ce3d !important;
+  font-family: 'Anybody', sans-serif;
+  font-style: italic;
+  font-size: 15px;
+  font-weight: 900;
+  object-fit: contain;
+}
+
+.ld-event-logo {
+  padding: 4px;
+  background: #f5eee0;
+}
+
+.ld-workspace-head h1 {
+  margin: 0 !important;
+  font-size: clamp(26px, 3vw, 38px) !important;
+  line-height: 0.95;
+}
+
+.ld-workspace-head p {
+  margin: 6px 0 0;
+  color: #b9b2aa !important;
+  font-size: 12px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ld-mode-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  padding: 8px 11px;
+  border: 1px solid rgba(248, 206, 61, 0.34);
+  background: #171411;
+  color: #f8ce3d !important;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.ld-mode-badge span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #f8ce3d;
+  box-shadow: 0 0 12px rgba(248, 206, 61, 0.7);
+}
+
+.ld-mode-badge--external_draw span {
+  background: #72d4ff;
+  box-shadow: 0 0 12px rgba(114, 212, 255, 0.7);
+}
+
+.ld-workspace-grid {
+  grid-template-columns: minmax(0, 1fr) 330px !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.ld-workspace-toolbar {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  display: grid;
+  grid-template-columns: minmax(210px, 1.25fr) minmax(190px, 1fr) minmax(150px, 0.85fr) minmax(150px, 0.85fr) auto;
+  align-items: stretch;
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid #34302a;
+  background: #34302a;
+}
+
+.ld-workspace-toolbar > * {
+  min-width: 0;
+  padding: 13px 14px;
+  background: #171411;
+}
+
+.ld-workspace-toolbar .ld-category-field {
+  grid-column: auto;
+  display: grid;
+  gap: 7px;
+}
+
+.ld-category-field > span,
+.ld-config-chip > span {
+  color: #938a80 !important;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.ld-category-field select {
+  width: 100%;
+  min-height: 36px;
+  border: 0 !important;
+  border-bottom: 1px solid #5a5148 !important;
+  border-radius: 0 !important;
+  padding: 0 24px 0 0 !important;
+  background: transparent !important;
+  color: #f6f0e8 !important;
+  font-family: 'Anybody', sans-serif;
+  font-size: 15px;
+  font-style: italic;
+  font-weight: 800;
+}
+
+.ld-category-field option { color: #16110d !important; }
+
+.ld-category-summary,
+.ld-config-chip {
+  display: grid;
+  align-content: center;
+  gap: 5px;
+}
+
+.ld-category-summary strong,
+.ld-config-chip strong {
+  overflow: hidden;
+  color: #f6f0e8 !important;
+  font-size: 14px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ld-category-summary span {
+  color: #b9b2aa !important;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.ld-refresh-btn {
+  min-width: 116px;
+  border: 0 !important;
+  background: #f8ce3d !important;
+  color: #17110b !important;
+  font-family: 'Anybody', sans-serif;
+  font-size: 12px;
+  font-style: italic;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.ld-refresh-btn:hover:not(:disabled) { background: #fff0a7 !important; }
+.ld-refresh-btn:disabled { cursor: wait; opacity: 0.62; }
+
+.ld-workspace-grid .ld-draw-stage {
+  grid-column: 1;
+  grid-row: 2;
+  border-radius: 0 !important;
+}
+
+.ld-workspace-grid .ld-results-panel {
+  grid-column: 2;
+  grid-row: 2;
+}
+
 /* ── Racing utility classes ── */
 .ld-shell .racing-skew {
   transform: skew(-10deg);
@@ -793,5 +986,31 @@
     position: relative;
     top: auto;
     max-height: none;
+  }
+
+  .ld-workspace-head {
+    min-height: 66px;
+    padding: 0 92px 0 0;
+  }
+
+  .ld-workspace-head p { max-width: 190px; }
+  .ld-mode-badge { display: none; }
+
+  .ld-workspace-toolbar {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .ld-workspace-toolbar .ld-category-field {
+    grid-column: 1 / -1;
+  }
+
+  .ld-workspace-toolbar .ld-refresh-btn {
+    min-height: 56px;
+  }
+
+  .ld-workspace-grid .ld-draw-stage,
+  .ld-workspace-grid .ld-results-panel {
+    grid-column: 1;
+    grid-row: auto;
   }
 }

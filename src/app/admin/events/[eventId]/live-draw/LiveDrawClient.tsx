@@ -333,6 +333,12 @@ export default function LiveDrawClient({
     () => categories.find((category) => category.id === selectedCategory)?.label ?? 'Kategori',
     [categories, selectedCategory]
   )
+  const batchModeLabel = useMemo(() => {
+    if (batchMode === 'MANUAL_BATCH_COUNT') return `${effectiveBatchCount ?? 0} batch seimbang`
+    if (batchMode === 'CUSTOM_BATCH_SIZES') return `Pola ${customBatchPattern || '-'}`
+    return `Maks. ${batchSize} rider / batch`
+  }, [batchMode, batchSize, customBatchPattern, effectiveBatchCount])
+  const moto2OrderLabel = moto2Order === 'SAME' ? 'Sama seperti Moto 1' : 'Dibalik otomatis'
   const savedMotoBatches = useMemo(() => {
     const grouped = new Map<number, GateMoto[]>()
     for (const moto of lockedMotos) {
@@ -1805,17 +1811,23 @@ export default function LiveDrawClient({
         title="live-draw-print-frame"
         style={{ position: 'absolute', width: 0, height: 0, border: 0, visibility: 'hidden' }}
       />
-      <div className="ld-page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'end', gap: 12 }}>
-        <div>
-          <div className="ld-kicker">{workspaceLabel}</div>
-          <h1 style={{ fontSize: 26, fontWeight: 950, margin: 0 }}>
-            {drawMode === 'external_draw' ? `External Draw (${eventName})` : `Live Draw (${eventName})`}
-          </h1>
+      <header className="ld-page-head ld-workspace-head">
+        <div className="ld-workspace-brand">
+          {eventLogoUrl ? <img src={eventLogoUrl} alt="" className="ld-event-logo" /> : <span className="ld-brand-mark">VD</span>}
+          <div>
+            <div className="ld-kicker">{workspaceLabel}</div>
+            <h1>Velocity Draw</h1>
+            <p>{eventName}</p>
+          </div>
         </div>
-      </div>
+        <div className={`ld-mode-badge ld-mode-badge--${drawMode}`}>
+          <span />
+          {drawMode === 'external_draw' ? 'External Order' : 'Live Spin'}
+        </div>
+      </header>
 
       <div
-        className="ld-control-grid"
+        className="ld-control-grid ld-workspace-grid"
         style={{
           marginTop: 16,
           background: '#1c1b1b',
@@ -1826,154 +1838,38 @@ export default function LiveDrawClient({
           gap: 12,
         }}
       >
-        <div className="ld-mode-field" style={{ display: 'grid', gap: 8 }}>
-          <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-            Mode
+        <section className="ld-workspace-toolbar">
+          <label className="ld-category-field">
+            <span>Pilih kategori</span>
+            <select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)}>
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="ld-category-summary">
+            <strong>{selectedCategoryLabel}</strong>
+            <span>{riders.length} rider terdaftar</span>
           </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {[
-              { value: 'internal_live_draw' as const, label: 'Internal Live Draw' },
-              { value: 'external_draw' as const, label: 'External Draw / Restore' },
-            ].map((option) => {
-              const active = drawMode === option.value
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => setDrawMode(option.value)}
-                  disabled={categoryLocked}
-                  style={{
-                    border: active ? '1px solid #f8ce3d' : '1px solid #353534',
-                    background: active ? '#f8ce3d' : '#111',
-                    color: active ? '#111' : '#e5e2e1',
-                    cursor: categoryLocked ? 'not-allowed' : 'pointer',
-                    fontWeight: 950,
-                    opacity: categoryLocked ? 0.55 : 1,
-                    padding: '10px 12px',
-                    textTransform: 'uppercase',
-                  }}
-                >
-                  {option.label}
-                </button>
-              )
-            })}
+          <div className="ld-config-chip">
+            <span>Batch</span>
+            <strong>{batchModeLabel}</strong>
           </div>
-          {categoryLocked && (
-            <div style={{ color: '#f87171', fontSize: 12, fontWeight: 900 }}>
-              Mode tidak bisa diubah karena kategori ini sudah memiliki moto tersimpan.
-            </div>
-          )}
-        </div>
-
-        <div className="ld-category-field" style={{ display: 'grid', gap: 8 }}>
-          <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-            Pilih Kategori
+          <div className="ld-config-chip">
+            <span>Moto 2</span>
+            <strong>{moto2OrderLabel}</strong>
           </div>
-          <select
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
-            style={{ padding: 12, borderRadius: 0, border: '1px solid #353534' }}
+          <button
+            type="button"
+            className="ld-refresh-btn"
+            onClick={() => loadRiders(selectedCategory)}
+            disabled={loading || !selectedCategory}
           >
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="ld-format-field" style={{ display: 'grid', gap: 8 }}>
-          <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-            Format Batch
-          </div>
-          <div className="ld-format-options" style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800 }}>
-              <input
-                type="radio"
-                checked={batchMode === 'AUTO_BY_GATE'}
-                onChange={() => setBatchMode('AUTO_BY_GATE')}
-              />
-              Auto by gate size
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800 }}>
-              <input
-                type="radio"
-                checked={batchMode === 'MANUAL_BATCH_COUNT'}
-                onChange={() => setBatchMode('MANUAL_BATCH_COUNT')}
-              />
-              Manual batch count
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800 }}>
-              <input
-                type="radio"
-                checked={batchMode === 'CUSTOM_BATCH_SIZES'}
-                onChange={() => setBatchMode('CUSTOM_BATCH_SIZES')}
-              />
-              Custom rider per batch
-            </label>
-          </div>
-          {batchMode === 'AUTO_BY_GATE' ? (
-            <>
-              <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                Maks Rider per Batch
-              </div>
-              <input
-                type="number"
-                min={4}
-                max={Math.max(4, gatePositions)}
-                value={batchSize}
-                onChange={(e) => {
-                  const next = Number(e.target.value)
-                  const maxGate = Math.max(4, gatePositions)
-                  setBatchSize(Math.max(4, Math.min(maxGate, next)))
-                }}
-                style={{ padding: 12, borderRadius: 0, border: '1px solid #353534', maxWidth: 160 }}
-              />
-            </>
-          ) : batchMode === 'CUSTOM_BATCH_SIZES' ? (
-            <>
-              <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                Pola Jumlah Rider per Batch
-              </div>
-              <input
-                type="text"
-                value={customBatchPattern}
-                onChange={(e) => setCustomBatchPattern(e.target.value)}
-                placeholder="Contoh: 7,6,6"
-                style={{ padding: 12, borderRadius: 0, border: '1px solid #353534', maxWidth: 260 }}
-              />
-              <div style={{ color: customBatchError ? '#b91c1c' : '#047857', fontWeight: 800 }}>
-                {customBatchError ??
-                  `Valid: ${customBatchSizes.length} batch, total ${customBatchTotal} rider. Maksimal ${maxBatchRiders} rider per batch.`}
-              </div>
-              <div style={{ color: '#475569', fontWeight: 800 }}>
-                Pisahkan angka dengan koma atau spasi. Contoh 19 rider: 7,6,6.
-              </div>
-            </>
-          ) : (
-            <>
-              <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                Jumlah Batch
-              </div>
-              <input
-                type="number"
-                min={minimumManualBatchCount}
-                max={Math.max(1, riders.length)}
-                value={effectiveBatchCount ?? manualBatchCount}
-                onChange={(e) => {
-                  const next = Number(e.target.value)
-                  setManualBatchCount(
-                    Math.max(minimumManualBatchCount, Math.min(Math.max(1, riders.length), next))
-                  )
-                }}
-                style={{ padding: 12, borderRadius: 0, border: '1px solid #353534', maxWidth: 160 }}
-              />
-              <div style={{ color: '#475569', fontWeight: 800 }}>
-                Sistem akan membagi rider seimbang per batch. Maksimal {maxBatchRiders} rider per batch, jadi minimal perlu {minimumManualBatchCount} batch untuk {riders.length} rider.
-              </div>
-            </>
-          )}
-        </div>
+            {loading ? 'Memuat...' : 'Muat Ulang'}
+          </button>
+        </section>
 
         <div
           className="ld-draw-stage"
