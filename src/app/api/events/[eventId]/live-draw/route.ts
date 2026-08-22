@@ -353,15 +353,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     )
   }
 
-  const { data: lastOrderRow } = await adminClient
-    .from('motos')
-    .select('moto_order')
-    .eq('event_id', eventId)
-    .order('moto_order', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-
-  const baseOrder = lastOrderRow?.moto_order ?? 0
   // The error response above has already returned, but keep this value concrete
   // for TypeScript because loadDrawConfiguration has an error-result branch.
   const gateCapacity = Math.max(1, Number(drawConfiguration.gatePositions ?? 8))
@@ -416,90 +407,33 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       }
     }
   }
-  // Moto 3 is no longer created during draw setup.
-  // For single-batch categories, Moto 3 will be created after Moto 2 results are complete (via moto3Reseed service).
-  const motoCount = 2
-  const orderFor = (motoIndex: number, batchIndex: number) =>
-    baseOrder + (motoIndex - 1) * batches.length + batchIndex + 1
-  const motoRecords = batches.flatMap((_, idx) => [
-    {
-      event_id: eventId,
-      category_id: categoryId,
-      moto_name: `Moto 1 - Batch ${idx + 1}`,
-      moto_order: orderFor(1, idx),
-      status: 'UPCOMING',
-    },
-    {
-      event_id: eventId,
-      category_id: categoryId,
-      moto_name: `Moto 2 - Batch ${idx + 1}`,
-      moto_order: orderFor(2, idx),
-      status: 'UPCOMING',
-    },
-  ])
-
-  const { data: motoRows, error: motoError } = await adminClient
-    .from('motos')
-    .insert(motoRecords)
-    .select('id, moto_name, moto_order')
-
-  if (motoError || !motoRows) {
-    return NextResponse.json({ error: motoError?.message || 'Failed to create motos' }, { status: 400 })
-  }
-
-  const motoRowByName = new Map(
-    motoRows.map((row) => [String(row.moto_name ?? '').toLowerCase(), row])
-  )
-  const motoRiders: Array<{ moto_id: string; rider_id: string }> = []
-  const gatePositions: Array<{ moto_id: string; rider_id: string; gate_position: number }> = []
-
-  batches.forEach((batch, batchIndex) => {
-    const moto1 = motoRowByName.get(`moto 1 - batch ${batchIndex + 1}`.toLowerCase())
-    const moto2 = motoRowByName.get(`moto 2 - batch ${batchIndex + 1}`.toLowerCase())
-    if (!moto1 || !moto2) {
-      return
-    }
-    const moto2Order = hasManualMoto2Batches
-      ? (moto2Batches[batchIndex] ?? [])
-      : hasCustomMoto2
-        ? (moto2Batches[batchIndex] ?? [])
-        : drawConfiguration.config?.moto2_order === 'SAME'
-          ? [...batch]
-          : [...batch].reverse()
-
-    batch.forEach((riderId, idx) => {
-      motoRiders.push({ moto_id: moto1.id, rider_id: riderId })
-      gatePositions.push({ moto_id: moto1.id, rider_id: riderId, gate_position: idx + 1 })
-    })
-
-    moto2Order.forEach((riderId, idx) => {
-      motoRiders.push({ moto_id: moto2.id, rider_id: riderId })
-      gatePositions.push({ moto_id: moto2.id, rider_id: riderId, gate_position: idx + 1 })
-    })
+  const finalizedMoto2Batches = batches.map((batch, batchIndex) => {
+    if (hasManualMoto2Batches || hasCustomMoto2) return moto2Batches[batchIndex] ?? []
+    return drawConfiguration.config?.moto2_order === 'SAME' ? [...batch] : [...batch].reverse()
   })
 
-  const expectedMotoCount = batches.length * motoCount
-  if (motoRiders.length !== effectiveRiderIds.length * motoCount || motoRows.length !== expectedMotoCount) {
-    return NextResponse.json({ error: 'Moto batch mapping failed while saving draw order' }, { status: 500 })
+  // The RPC uses one database transaction plus an event advisory lock. This
+  // avoids partially created motos and prevents simultaneous saves from two
+  // drawing devices from reusing the same moto order.
+  const { data: savedDraw, error: saveError } = await adminClient.rpc('save_live_draw_motos', {
+    p_event_id: eventId,
+    p_category_id: categoryId,
+    p_batches: batches,
+    p_moto2_batches: finalizedMoto2Batches,
+  })
+
+  if (saveError) {
+    const status = saveError.code === '23505' ? 409 : 400
+    return NextResponse.json({ error: saveError.message }, { status })
   }
 
-  const { error: riderError } = await adminClient.from('moto_riders').insert(motoRiders)
-  if (riderError) {
-    return NextResponse.json({ error: riderError.message }, { status: 400 })
-  }
-
-  if (gatePositions.length > 0) {
-    const { error: gateError } = await adminClient.from('moto_gate_positions').insert(gatePositions)
-    if (gateError) {
-      return NextResponse.json({ error: gateError.message }, { status: 400 })
-    }
-  }
+  const summary = Array.isArray(savedDraw) ? savedDraw[0] : savedDraw
 
   return NextResponse.json({
     data: {
-      batch_count: batches.length,
-      moto_count: motoRows.length,
-      gate_positions_saved: gatePositions.length > 0,
+      batch_count: Number(summary?.batch_count ?? batches.length),
+      moto_count: Number(summary?.moto_count ?? batches.length * 2),
+      gate_positions_saved: Number(summary?.gate_positions_saved ?? 0) > 0,
     },
   })
 }

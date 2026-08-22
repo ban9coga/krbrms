@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import confetti from 'canvas-confetti'
-import { buildBrandedPrintHtml } from '../../../../../lib/printTheme'
 import { supabase } from '@/src/lib/supabaseClient'
 import { normalizeDrawCategoryConfig, type DrawMoto2Order } from '@/src/lib/drawConfig'
 
@@ -252,7 +251,6 @@ export default function LiveDrawClient({
   const [wheelRiders, setWheelRiders] = useState<RiderItem[]>([])
   const [wheelRotation, setWheelRotation] = useState(0)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
-  const printFrameRef = useRef<HTMLIFrameElement | null>(null)
   const externalBatchSearchInputRef = useRef<HTMLInputElement | null>(null)
   const [hasDrawn, setHasDrawn] = useState(false)
   const [categoryLocked, setCategoryLocked] = useState(false)
@@ -266,6 +264,8 @@ export default function LiveDrawClient({
   const [externalTargetField, setExternalTargetField] = useState<ExternalTargetField>({ batchIndex: 0, moto: 1 })
   const [externalBatchSearch, setExternalBatchSearch] = useState('')
   const [resultModal, setResultModal] = useState<'draft' | 'saved' | null>(null)
+  const [saveSuccessModal, setSaveSuccessModal] = useState(false)
+  const [categoryPickerOpen, setCategoryPickerOpen] = useState(false)
   const [draggingRiderIndex, setDraggingRiderIndex] = useState<number | null>(null)
   const [dragTargetIndex, setDragTargetIndex] = useState<number | null>(null)
   const [selectedRiderIndex, setSelectedRiderIndex] = useState<number | null>(null)
@@ -333,6 +333,10 @@ export default function LiveDrawClient({
     () => categories.find((category) => category.id === selectedCategory)?.label ?? 'Kategori',
     [categories, selectedCategory]
   )
+  const nextCategory = useMemo(() => {
+    const currentIndex = categories.findIndex((category) => category.id === selectedCategory)
+    return currentIndex >= 0 ? categories[currentIndex + 1] ?? null : null
+  }, [categories, selectedCategory])
   const batchModeLabel = useMemo(() => {
     if (batchMode === 'MANUAL_BATCH_COUNT') return `${effectiveBatchCount ?? 0} batch seimbang`
     if (batchMode === 'CUSTOM_BATCH_SIZES') return `Pola ${customBatchPattern || '-'}`
@@ -937,7 +941,6 @@ export default function LiveDrawClient({
       setDrawnOrder(shuffled)
       setDrawing(false)
       triggerVictoryEffects()
-      setResultModal('draft')
     }, 4500)
   }
 
@@ -997,7 +1000,6 @@ export default function LiveDrawClient({
     setRollingName('External order ready')
     setHasDrawn(true)
     setSaveState('idle')
-    setResultModal('draft')
   }
 
   const moveRiderInPreview = (fromIndex: number, direction: -1 | 1) => {
@@ -1694,130 +1696,163 @@ export default function LiveDrawClient({
       if (!res.ok) throw new Error(json?.error || 'Gagal menyimpan Moto')
       setSaveState('saved')
       await loadRiders(selectedCategory)
-      setResultModal('saved')
-      alert('Moto berhasil dibuat.')
+      setSaveSuccessModal(true)
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Gagal menyimpan hasil draw')
       setSaveState('idle')
     }
   }
 
-  const handleDownloadLiveDrawPdf = () => {
+  const handleDownloadLiveDrawExcel = async () => {
     if (lockedMotos.length === 0) {
       alert('Belum ada moto tersimpan untuk diunduh.')
       return
     }
 
-    const grouped = new Map<number, GateMoto[]>()
-    lockedMotos.forEach((moto) => {
-      const parsed = parseMotoBatch(moto.moto_name)
-      const key = parsed.batchNo > 0 ? parsed.batchNo : 1
-      const list = grouped.get(key) ?? []
-      list.push(moto)
-      grouped.set(key, list)
-    })
+    try {
+      const XLSX = await import('xlsx-js-style')
+      const workbook = XLSX.utils.book_new()
+      const grouped = new Map<number, GateMoto[]>()
 
-    const sections = Array.from(grouped.entries())
-      .sort((a, b) => a[0] - b[0])
-      .map(([batchNo, motos]) => {
-        const orderedMotos = [...motos].sort((a, b) => {
-          const pa = parseMotoBatch(a.moto_name)
-          const pb = parseMotoBatch(b.moto_name)
-          if (pa.motoNo !== pb.motoNo) return pa.motoNo - pb.motoNo
-          return a.moto_order - b.moto_order
-        })
-        const riderMap = new Map<
-          string,
-          { name: string; noPlate: string; gates: Record<number, number> }
-        >()
-
-        orderedMotos.forEach((moto, motoIndex) => {
-          moto.gates.forEach((gate) => {
-            const existing = riderMap.get(gate.rider_id) ?? {
-              name: gate.name,
-              noPlate: gate.no_plate_display,
-              gates: {},
-            }
-            existing.gates[motoIndex + 1] = gate.gate_position
-            riderMap.set(gate.rider_id, existing)
-          })
-        })
-
-        const rows = Array.from(riderMap.values()).sort((a, b) => {
-          const gateA = a.gates[1] ?? 999
-          const gateB = b.gates[1] ?? 999
-          if (gateA !== gateB) return gateA - gateB
-          return a.name.localeCompare(b.name)
-        })
-
-        const headerCells = orderedMotos
-          .map((moto, index) => `<th>Gate M${index + 1}</th>`)
-          .join('')
-        const bodyRows = rows
-          .map((row) => {
-            const gateCells = orderedMotos
-              .map((_, index) => `<td>${row.gates[index + 1] ?? '-'}</td>`)
-              .join('')
-            return `<tr>${gateCells}<td>${escapeHtml(row.noPlate)}</td><td>${escapeHtml(row.name)}</td></tr>`
-          })
-          .join('')
-        const motoMeta = orderedMotos
-          .map((moto, index) => `<span>M${index + 1}: ${escapeHtml(moto.moto_name)}</span>`)
-          .join('')
-
-        return `
-          <section class="section-card">
-            <h2 class="section-title">Batch ${batchNo}</h2>
-            <div class="meta-row">${motoMeta
-            .replace(/<span>/g, '<span class="meta-pill">')}</div>
-            <table>
-              <thead>
-                <tr>${headerCells}<th>No Plate</th><th>Nama Rider</th></tr>
-              </thead>
-              <tbody>${bodyRows}</tbody>
-            </table>
-          </section>
-        `
+      lockedMotos.forEach((moto) => {
+        const parsed = parseMotoBatch(moto.moto_name)
+        const batchNo = parsed.batchNo > 0 ? parsed.batchNo : 1
+        grouped.set(batchNo, [...(grouped.get(batchNo) ?? []), moto])
       })
-      .join('')
 
-    const html = buildBrandedPrintHtml({
-      title: `Live Draw ${escapeHtml(selectedCategoryLabel)}`,
-      eyebrow: 'Live Draw Result',
-      heading: escapeHtml(eventName),
-      subtitle: escapeHtml(selectedCategoryLabel),
-      body: sections,
-    })
+      const generatedAt = new Date()
+      const batchData = Array.from(grouped.entries())
+        .sort(([a], [b]) => a - b)
+        .map(([batchNo, motos]) => {
+          const orderedMotos = [...motos].sort((a, b) => {
+            const aMoto = parseMotoBatch(a.moto_name)
+            const bMoto = parseMotoBatch(b.moto_name)
+            return aMoto.motoNo - bMoto.motoNo || a.moto_order - b.moto_order
+          })
+          const ridersById = new Map<string, { name: string; plate: string; gates: Record<number, number> }>()
 
-    const frame = printFrameRef.current
-    if (!frame) {
-      alert('Frame print tidak tersedia. Refresh halaman lalu coba lagi.')
-      return
+          orderedMotos.forEach((moto, index) => {
+            moto.gates.forEach((gate) => {
+              const rider = ridersById.get(gate.rider_id) ?? {
+                name: gate.name,
+                plate: gate.no_plate_display,
+                gates: {},
+              }
+              rider.gates[index + 1] = gate.gate_position
+              ridersById.set(gate.rider_id, rider)
+            })
+          })
+
+          const rows = Array.from(ridersById.values()).sort(
+            (a, b) => (a.gates[1] ?? Number.MAX_SAFE_INTEGER) - (b.gates[1] ?? Number.MAX_SAFE_INTEGER) || a.name.localeCompare(b.name)
+          )
+          return { batchNo, rows }
+        })
+
+      const sheet = XLSX.utils.aoa_to_sheet([
+        ['HASIL DRAW'],
+        ['Event', eventName],
+        ['Kategori', selectedCategoryLabel],
+        ['Dibuat', generatedAt.toLocaleString('id-ID')],
+        ['Jumlah Batch', batchData.length],
+      ])
+      const merges: Array<{ s: { r: number; c: number }; e: { r: number; c: number } }> = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 9 } },
+      ]
+      const setStyle = (address: string, style: Record<string, unknown>) => {
+        const cell = sheet[address] as { s?: Record<string, unknown> } | undefined
+        if (cell) cell.s = style
+      }
+      const titleStyle = {
+        font: { bold: true, sz: 18, color: { rgb: 'FFFFFF' } },
+        fill: { fgColor: { rgb: '241008' } },
+        alignment: { horizontal: 'center', vertical: 'center' },
+      }
+      const batchStyle = {
+        font: { bold: true, color: { rgb: 'FFFFFF' } },
+        fill: { fgColor: { rgb: 'A75C05' } },
+        alignment: { horizontal: 'center' },
+      }
+      const headerStyle = {
+        font: { bold: true, color: { rgb: '261406' } },
+        fill: { fgColor: { rgb: 'F7C940' } },
+        alignment: { horizontal: 'center' },
+      }
+      const bodyStyle = {
+        alignment: { vertical: 'center' },
+        border: {
+          top: { style: 'thin', color: { rgb: 'D6B77D' } },
+          bottom: { style: 'thin', color: { rgb: 'D6B77D' } },
+          left: { style: 'thin', color: { rgb: 'D6B77D' } },
+          right: { style: 'thin', color: { rgb: 'D6B77D' } },
+        },
+      }
+
+      setStyle('A1', titleStyle)
+      ;['A2', 'A3', 'A4', 'A5'].forEach((address) => setStyle(address, { font: { bold: true, color: { rgb: 'A75C05' } } }))
+
+      let currentRow = 6
+      for (let index = 0; index < batchData.length; index += 2) {
+        const pair = batchData.slice(index, index + 2)
+        const pairHeight = Math.max(...pair.map((batch) => batch.rows.length + 2))
+
+        pair.forEach((batch, pairIndex) => {
+          const startColumn = pairIndex === 0 ? 0 : 6
+          const data = [
+            [`BATCH ${batch.batchNo}`],
+            ['Gate Moto 1', 'Gate Moto 2', 'No. Plate', 'Nama Rider'],
+            ...batch.rows.map((rider) => [rider.gates[1] ?? '-', rider.gates[2] ?? '-', rider.plate, rider.name]),
+          ]
+          XLSX.utils.sheet_add_aoa(sheet, data, { origin: { r: currentRow, c: startColumn } })
+          merges.push({ s: { r: currentRow, c: startColumn }, e: { r: currentRow, c: startColumn + 3 } })
+          setStyle(XLSX.utils.encode_cell({ r: currentRow, c: startColumn }), batchStyle)
+          for (let column = 0; column < 4; column += 1) {
+            setStyle(XLSX.utils.encode_cell({ r: currentRow + 1, c: startColumn + column }), headerStyle)
+          }
+          batch.rows.forEach((_, riderIndex) => {
+            for (let column = 0; column < 4; column += 1) {
+              const address = XLSX.utils.encode_cell({ r: currentRow + riderIndex + 2, c: startColumn + column })
+              setStyle(address, {
+                ...bodyStyle,
+                fill: { fgColor: { rgb: riderIndex % 2 === 0 ? 'FFF8E7' : 'F3E5C9' } },
+                alignment: { horizontal: column < 2 ? 'center' : 'left', vertical: 'center' },
+              })
+            }
+          })
+        })
+
+        currentRow += pairHeight + 2
+      }
+
+      sheet['!merges'] = merges
+      sheet['!cols'] = [
+        { wch: 14 }, { wch: 14 }, { wch: 13 }, { wch: 30 }, { wch: 3 }, { wch: 3 },
+        { wch: 14 }, { wch: 14 }, { wch: 13 }, { wch: 30 },
+      ]
+      sheet['!views'] = [{ state: 'frozen', ySplit: 6 }]
+      sheet['!pageSetup'] = { orientation: 'landscape', fitToWidth: 1, fitToHeight: 1, paperSize: 9 }
+      sheet['!margins'] = { left: 0.25, right: 0.25, top: 0.35, bottom: 0.35, header: 0.15, footer: 0.15 }
+      XLSX.utils.book_append_sheet(workbook, sheet, 'Hasil Draw')
+
+      XLSX.writeFile(
+        workbook,
+        `hasil-draw_${sanitizeFileName(eventName)}_${sanitizeFileName(selectedCategoryLabel)}_${generatedAt.toISOString().slice(0, 10)}.xlsx`
+      )
+    } catch (error) {
+      console.error(error)
+      alert(error instanceof Error ? error.message : 'Gagal mengunduh Excel hasil draw.')
     }
-
-    frame.onload = () => {
-      const win = frame.contentWindow
-      if (!win) return
-      win.focus()
-      win.print()
-    }
-    frame.srcdoc = html
   }
 
   return (
     <div className="ld-client" style={{ maxWidth: 1280 }}>
-      <iframe
-        ref={printFrameRef}
-        title="live-draw-print-frame"
-        style={{ position: 'absolute', width: 0, height: 0, border: 0, visibility: 'hidden' }}
-      />
       <header className="ld-page-head ld-workspace-head">
         <div className="ld-workspace-brand">
           {eventLogoUrl ? <img src={eventLogoUrl} alt="" className="ld-event-logo" /> : <span className="ld-brand-mark">VD</span>}
           <div>
             <div className="ld-kicker">{workspaceLabel}</div>
-            <h1>Velocity Draw</h1>
-            <p>{eventName}</p>
+            <h1>{eventName}</h1>
+            <p>Draw setup dan pembagian gate rider</p>
           </div>
         </div>
         <div className={`ld-mode-badge ld-mode-badge--${drawMode}`}>
@@ -1839,16 +1874,41 @@ export default function LiveDrawClient({
         }}
       >
         <section className="ld-workspace-toolbar">
-          <label className="ld-category-field">
+          <div className="ld-category-field ld-category-picker">
             <span>Pilih kategori</span>
-            <select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)}>
+            <button
+              type="button"
+              className="ld-category-picker-trigger"
+              aria-haspopup="listbox"
+              aria-expanded={categoryPickerOpen}
+              onClick={() => setCategoryPickerOpen((isOpen) => !isOpen)}
+            >
+              <span>{selectedCategoryLabel}</span>
+              <svg aria-hidden="true" viewBox="0 0 16 16" focusable="false">
+                <path d="m3.25 5.75 4.75 4.5 4.75-4.5" />
+              </svg>
+            </button>
+            {categoryPickerOpen && (
+              <div className="ld-category-picker-menu" role="listbox" aria-label="Daftar kategori">
               {categories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.label}
-                </option>
+                <button
+                  key={category.id}
+                  type="button"
+                  role="option"
+                  aria-selected={category.id === selectedCategory}
+                  className={category.id === selectedCategory ? 'is-selected' : ''}
+                  onClick={() => {
+                    setSaveSuccessModal(false)
+                    setCategoryPickerOpen(false)
+                    setSelectedCategory(category.id)
+                  }}
+                >
+                  <span>{category.label}</span>
+                </button>
               ))}
-            </select>
-          </label>
+              </div>
+            )}
+          </div>
           <div className="ld-category-summary">
             <strong>{selectedCategoryLabel}</strong>
             <span>{riders.length} rider terdaftar</span>
@@ -1887,15 +1947,6 @@ export default function LiveDrawClient({
           }}
         >
           <div style={{ display: 'grid', gap: 6 }}>
-            <div className="ld-stage-title" style={{ fontWeight: 900, fontSize: 18 }}>
-              {drawMode === 'external_draw' ? 'External Order' : 'Wheel Spin'}
-            </div>
-            <div style={{ fontSize: 22, fontWeight: 950, color: '#e5e2e1' }}>{rollingName}</div>
-            {drawing && (
-              <div style={{ color: '#f8ce3d', fontWeight: 900 }}>
-                Sedang mengundi rider, tunggu sampai hasil preview muncul otomatis.
-              </div>
-            )}
             <div style={{ color: '#9a9693', fontWeight: 700 }}>
               Total rider: {riders.length} | Batch: {displayedBatchCount}
             </div>
@@ -2075,25 +2126,19 @@ export default function LiveDrawClient({
                   }}
                 />
               </div>
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <div className="ld-spin-controls">
                 <button
                   type="button"
+                  className="ld-spin-draw-btn"
                   onClick={startDraw}
-                  disabled={loading || drawing || riders.length === 0 || hasDrawn || (batchMode === 'CUSTOM_BATCH_SIZES' && Boolean(customBatchError))}
-                  style={{
-                    padding: '12px 16px',
-                    borderRadius: 0,
-                    border: '1px solid #353534',
-                    background: drawing || hasDrawn || (batchMode === 'CUSTOM_BATCH_SIZES' && Boolean(customBatchError)) ? '#ddd' : '#f8ce3d',
-                    fontWeight: 900,
-                    cursor: drawing || hasDrawn || (batchMode === 'CUSTOM_BATCH_SIZES' && Boolean(customBatchError)) ? 'not-allowed' : 'pointer',
-                  }}
+                disabled={loading || drawing || riders.length === 0 || hasDrawn || (batchMode === 'CUSTOM_BATCH_SIZES' && Boolean(customBatchError))}
                 >
-                  {hasDrawn ? 'Draw Terkunci' : 'SPIN DRAW'}
+                  <span>{hasDrawn ? 'Draw Terkunci' : drawing ? 'Memutar Draw...' : 'Spin Draw'}</span>
                 </button>
                 {drawnOrder.length > 0 && !categoryLocked && (
                   <button
                     type="button"
+                    className="ld-reset-draw-btn"
                     onClick={resetDraw}
                     style={{
                       padding: '12px 16px',
@@ -2542,6 +2587,7 @@ export default function LiveDrawClient({
                 {drawnOrder.length > 0 && !categoryLocked && (
                   <button
                     type="button"
+                    className="ld-reset-draw-btn"
                     onClick={resetDraw}
                     style={{
                       padding: '12px 16px',
@@ -2601,19 +2647,28 @@ export default function LiveDrawClient({
           <div className="ld-results-panel__body">
             {!categoryLocked && drawnOrder.length === 0 && (
               <div className="ld-empty-telemetry">
-                <div className="ld-spinner-mark">↻</div>
-                <div>Awaiting telemetry...</div>
+                <div className="ld-jelly-loader" aria-hidden="true">
+                  <div className="ld-jelly" />
+                  <svg className="ld-jelly-maker" aria-hidden="true">
+                    <defs>
+                      <filter id="ld-jelly-ooze">
+                        <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur" />
+                        <feColorMatrix
+                          in="blur"
+                          mode="matrix"
+                          values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -7"
+                          result="goo"
+                        />
+                        <feBlend in="SourceGraphic" in2="goo" />
+                      </filter>
+                    </defs>
+                  </svg>
+                </div>
+                <div>Menunggu Spin Draw</div>
               </div>
             )}
 
             {!categoryLocked && batchLayouts.map((batch) => {
-              const moto2Manual =
-                drawMode === 'external_draw' &&
-                  externalBatchInputMode === 'PER_BATCH' &&
-                  externalPerBatchValidation.moto2Provided
-                  ? externalPerBatchValidation.orderedMoto2Batches[batch.index - 1] ?? []
-                  : []
-              const moto2Riders = moto2Manual.length > 0 ? moto2Manual : [...batch.riders].reverse()
               return (
                 <div key={`inline-draft-${batch.index}`} className="ld-result-card">
                   <div className="ld-result-card__title">Batch {batch.index}</div>
@@ -2627,16 +2682,6 @@ export default function LiveDrawClient({
                       </div>
                     ))}
                   </div>
-                  <div className="ld-result-moto">
-                    <div className="ld-result-moto__label">Moto 2</div>
-                    {moto2Riders.map((rider, index) => (
-                      <div key={`inline-draft-m2-${batch.index}-${rider.id}`} className="ld-result-row">
-                        <span>G{index + 1}</span>
-                        <strong>{rider.no_plate_display}</strong>
-                        <em>{rider.name}</em>
-                      </div>
-                    ))}
-                  </div>
                 </div>
               )
             })}
@@ -2644,7 +2689,7 @@ export default function LiveDrawClient({
             {categoryLocked && savedMotoBatches.map((batch) => (
               <div key={`inline-saved-${batch.batchNo}`} className="ld-result-card">
                 <div className="ld-result-card__title">Batch {batch.batchNo}</div>
-                {batch.motos.map((moto) => (
+                {batch.motos.filter((moto) => /^Moto 1\b/i.test(moto.moto_name)).map((moto) => (
                   <div key={`inline-saved-moto-${moto.id}`} className="ld-result-moto">
                     <div className="ld-result-moto__label">{moto.moto_name}</div>
                     {moto.gates.map((gate) => (
@@ -2663,6 +2708,7 @@ export default function LiveDrawClient({
           <div className="ld-results-panel__footer">
             <button
               type="button"
+              className="ld-draw-share-control"
               onClick={async () => {
                 try {
                   const blobs: Blob[] = [];
@@ -2738,12 +2784,12 @@ export default function LiveDrawClient({
               Bagikan Draw
             </button>
             {categoryLocked && (
-              <button type="button" onClick={handleDownloadLiveDrawPdf}>
-                Download PDF
+              <button type="button" onClick={handleDownloadLiveDrawExcel}>
+                Download Excel
               </button>
             )}
             {!categoryLocked && drawnOrder.length > 0 && (
-              <button type="button" onClick={saveAsMoto} disabled={saveState === 'saving'}>
+              <button className="ld-save-moto-btn" type="button" onClick={saveAsMoto} disabled={saveState === 'saving'}>
                 {saveState === 'saving' ? 'Saving...' : 'Save as Moto'}
               </button>
             )}
@@ -2760,81 +2806,40 @@ export default function LiveDrawClient({
               : 'Belum ada hasil draw.'}
           </div>
         )}
-        {categoryLocked && lockedMotos.length > 0 && (
-          <div style={{ marginTop: 14, display: 'grid', gap: 12 }}>
-            <div style={{ fontWeight: 900 }}>Gate Order (Saved Moto)</div>
-            {savedMotoBatches.map((batch) => (
-              <div
-                key={`saved-batch-${batch.batchNo}`}
-                style={{
-                  border: '1px solid #353534',
-                  borderRadius: 0,
-                  padding: 12,
-                  background: '#1c1b1b',
-                  display: 'grid',
-                  gap: 10,
-                }}
-              >
-                <div style={{ fontWeight: 950, fontSize: 18 }}>Batch {batch.batchNo}</div>
-                {batch.motos.map((moto) => (
-                  <div
-                    key={moto.id}
-                    style={{
-                      border: '1px solid #353534',
-                      borderRadius: 14,
-                      padding: 10,
-                      background: '#141414',
-                    }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => setOpenMotoId((prev) => (prev === moto.id ? null : moto.id))}
-                      style={{
-                        width: '100%',
-                        textAlign: 'left',
-                        padding: '10px 12px',
-                        borderRadius: 0,
-                        border: '1px solid #353534',
-                        background: '#001a00',
-                        fontWeight: 900,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {moto.moto_order}. {moto.moto_name} {openMotoId === moto.id ? '[Hide]' : '[Show]'}
-                    </button>
-                    {openMotoId === moto.id && (
-                      <div style={{ marginTop: 8, display: 'grid', gap: 6 }}>
-                        {moto.gates.map((g) => (
-                          <div
-                            key={`${moto.id}-${g.rider_id}`}
-                            style={{
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              gap: 10,
-                              padding: '8px 10px',
-                              borderRadius: 10,
-                              border: '1px solid #2a2a2a',
-                              background: '#1c1b1b',
-                              fontWeight: 800,
-                            }}
-                          >
-                            <span>
-                              Gate {g.gate_position} - {g.name}
-                            </span>
-                            <span>{g.no_plate_display}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
-      {false && resultModal && (
+      {saveSuccessModal && (
+        <div className="ld-save-success-overlay" role="dialog" aria-modal="true" aria-labelledby="ld-save-success-title">
+          <div className="ld-save-success-modal">
+            <div className="ld-save-success-mark" aria-hidden="true">✓</div>
+            <div className="ld-kicker">Moto Tersimpan</div>
+            <h2 id="ld-save-success-title">Moto kategori telah disimpan</h2>
+            <p>{selectedCategoryLabel} siap digunakan di halaman Motos dan oleh crew race.</p>
+            <div className="ld-save-success-actions">
+              <button type="button" className="ld-save-success-excel" onClick={handleDownloadLiveDrawExcel}>
+                Download Excel
+              </button>
+              <button
+                type="button"
+                className="ld-save-success-next"
+                disabled={!nextCategory}
+                onClick={() => {
+                  if (!nextCategory) return
+                  setSaveSuccessModal(false)
+                  setSelectedCategory(nextCategory.id)
+                }}
+              >
+                {nextCategory ? `Next: ${nextCategory.label}` : 'Kategori Terakhir'}
+              </button>
+              <button type="button" className="ld-save-success-close" onClick={() => setSaveSuccessModal(false)}>
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {resultModal && (
         <div
           style={{
             position: 'fixed',
@@ -2886,6 +2891,7 @@ export default function LiveDrawClient({
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <button
                   type="button"
+                  className="ld-draw-share-control"
                   onClick={async () => {
                     try {
                       const blobs: Blob[] = [];
@@ -3087,6 +3093,7 @@ export default function LiveDrawClient({
                           </button>
                           <button
                             type="button"
+                            className="ld-draw-share-control"
                             onClick={() => {
                               downloadDraftBatchPng(batch).catch((err: unknown) => {
                                 alert(err instanceof Error ? err.message : 'Gagal membuat PNG.')
@@ -3331,6 +3338,7 @@ export default function LiveDrawClient({
                         </button>
                         <button
                           type="button"
+                          className="ld-draw-share-control"
                           onClick={() => {
                             downloadSavedBatchPng(batch).catch((err: unknown) => {
                               alert(err instanceof Error ? err.message : 'Gagal membuat PNG.')
@@ -3441,6 +3449,7 @@ export default function LiveDrawClient({
                   <>
                     <button
                       type="button"
+                      className="ld-reset-draw-btn"
                       onClick={resetDraw}
                       disabled={categoryLocked || saveState === 'saving'}
                       style={{
@@ -3456,6 +3465,7 @@ export default function LiveDrawClient({
                     </button>
                     <button
                       type="button"
+                      className="ld-save-moto-btn"
                       onClick={saveAsMoto}
                       disabled={saveState === 'saving' || drawnOrder.length === 0}
                       style={{
@@ -3476,7 +3486,7 @@ export default function LiveDrawClient({
                   <>
                     <button
                       type="button"
-                      onClick={handleDownloadLiveDrawPdf}
+                      onClick={handleDownloadLiveDrawExcel}
                       style={{
                         padding: '12px 16px',
                         borderRadius: 0,
@@ -3486,7 +3496,7 @@ export default function LiveDrawClient({
                         cursor: 'pointer',
                       }}
                     >
-                      Download PDF
+                      Download Excel
                     </button>
                     {!deleteGuard.canDelete && deleteGuard.reason && (
                       <div
