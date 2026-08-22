@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const PROTECTED_PATHS = ['/admin', '/scoring', '/race-control', '/super-admin', '/jury', '/race-director', '/jc', '/mc']
+const PROTECTED_PATHS = ['/admin', '/scoring', '/race-control', '/super-admin', '/jury', '/race-director', '/jc', '/mc', '/draw']
 
 const ROLE_GUARDS: Record<string, string[]> = {
   '/admin/users': ['SUPER_ADMIN'],
@@ -14,6 +14,7 @@ const ROLE_GUARDS: Record<string, string[]> = {
   '/race-control': ['RACE_CONTROL', 'SUPER_ADMIN'],
   '/super-admin': ['SUPER_ADMIN'],
   '/mc': ['MC', 'RACE_DIRECTOR', 'SUPER_ADMIN'],
+  '/draw': ['DRAW_MANAGER', 'ADMIN', 'SUPER_ADMIN'],
 }
 
 const tryParseJson = (value: string) => {
@@ -61,7 +62,7 @@ const decodeJwt = (token: string) => {
   }
 }
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl
   const needsAuth = PROTECTED_PATHS.some((path) => pathname.startsWith(path))
 
@@ -85,22 +86,21 @@ export function middleware(req: NextRequest) {
     normalizedRole === 'jury_start' || normalizedRole === 'JURY_START'
       ? 'CHECKER'
       : normalizedRole === 'jury_finish' || normalizedRole === 'JURY_FINISH'
-      ? 'FINISHER'
-      : normalizedRole.toUpperCase()
+        ? 'FINISHER'
+        : normalizedRole.toUpperCase()
 
-  // Match the most specific guard first (longer path wins).
   const guardPath = Object.keys(ROLE_GUARDS)
     .sort((a, b) => b.length - a.length)
     .find((path) => pathname.startsWith(path))
-  const defaultRoute = (r: string) => {
-    if (r === 'RACE_DIRECTOR') return '/race-director/approval'
-    if (r === 'FINISHER') return '/jury/finish'
-    if (r === 'CHECKER') return '/jc'
-    if (r === 'REGISTRATION_APPROVER') return '/admin/events'
-    if (r === 'SUPER_ADMIN') return '/admin'
-    if (r === 'ADMIN') return '/admin'
-    if (r === 'RACE_CONTROL') return '/race-control'
-    if (r === 'MC') return '/mc'
+  const defaultRoute = (currentRole: string) => {
+    if (currentRole === 'RACE_DIRECTOR') return '/race-director/approval'
+    if (currentRole === 'FINISHER') return '/jury/finish'
+    if (currentRole === 'CHECKER') return '/jc'
+    if (currentRole === 'REGISTRATION_APPROVER') return '/admin/events'
+    if (currentRole === 'SUPER_ADMIN' || currentRole === 'ADMIN') return '/admin'
+    if (currentRole === 'RACE_CONTROL') return '/race-control'
+    if (currentRole === 'MC') return '/mc'
+    if (currentRole === 'DRAW_MANAGER') return '/draw'
     return '/login'
   }
 
@@ -126,5 +126,6 @@ export const config = {
     '/race-director/:path*',
     '/jc/:path*',
     '/mc/:path*',
+    '/draw/:path*',
   ],
 }
