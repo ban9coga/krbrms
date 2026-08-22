@@ -362,9 +362,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     .maybeSingle()
 
   const baseOrder = lastOrderRow?.moto_order ?? 0
+  // The error response above has already returned, but keep this value concrete
+  // for TypeScript because loadDrawConfiguration has an error-result branch.
+  const gateCapacity = Math.max(1, Number(drawConfiguration.gatePositions ?? 8))
   const configuredBatchSize = Math.max(
     1,
-    Math.min(drawConfiguration.gatePositions, drawConfiguration.config?.batch_size ?? drawConfiguration.gatePositions)
+    Math.min(gateCapacity, drawConfiguration.config?.batch_size ?? gateCapacity)
   )
   const configuredBatches = (() => {
     const config = drawConfiguration.config
@@ -381,7 +384,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       : hasManualBatches
         ? effectiveBatches
         : chunk(riderIds, batchSize)
-  const capacityLimit = drawConfiguration.drawMode === 'internal_live_draw' ? drawConfiguration.gatePositions : batchSize
+  const capacityLimit = drawConfiguration.drawMode === 'internal_live_draw' ? gateCapacity : batchSize
   const moto2Batches = hasManualMoto2Batches ? riderBatchesMoto2.filter((batch) => Array.isArray(batch) && batch.length > 0) : hasCustomMoto2 ? chunk(riderIdsMoto2, batchSize) : []
   const overCapacityBatches = batches
     .map((batch, index) => (batch.length > capacityLimit ? index + 1 : null))
