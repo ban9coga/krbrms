@@ -42,6 +42,8 @@ export type BusinessSettings = {
   registration_qris_image_url?: string | null
   registration_jersey_size_chart_url?: string | null
   registration_rider_photo_enabled?: boolean | null
+  certificate_enabled?: boolean | null
+  certificate_template_url?: string | null
   jersey_size_options?: string[] | null
   public_contact_name?: string | null
   public_contact_phone?: string | null
@@ -275,4 +277,3 @@ export const getMotoResults = async (motoId: string): Promise<LeaderboardRow[]> 
     penalty_total: row.penalty_total,
   }))
 }
-

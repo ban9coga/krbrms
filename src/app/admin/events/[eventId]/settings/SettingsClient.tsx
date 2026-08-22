@@ -592,7 +592,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
   const [initialForm, setInitialForm] = useState<string>('')
   const [logoUploading, setLogoUploading] = useState(false)
   const [logoError, setLogoError] = useState<string>('')
-  const [registrationMediaUploading, setRegistrationMediaUploading] = useState<'qris' | 'jersey-chart' | null>(null)
+  const [registrationMediaUploading, setRegistrationMediaUploading] = useState<'qris' | 'jersey-chart' | 'certificate-template' | null>(null)
   const [registrationMediaError, setRegistrationMediaError] = useState<string>('')
   const [staffLoading, setStaffLoading] = useState(false)
   const [staffSaving, setStaffSaving] = useState(false)
@@ -650,6 +650,8 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     business_registration_qris_image_url: '',
     business_registration_jersey_size_chart_url: '',
     business_registration_rider_photo_enabled: true,
+    business_certificate_enabled: false,
+    business_certificate_template_url: '',
     business_jersey_size_options: 'XS, S, M, L, XL, 2XL, 3XL',
     business_event_owner_name: '',
     business_event_owner_photo_url: '',
@@ -767,7 +769,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     }
   }
 
-  const uploadRegistrationMedia = async (file: File, kind: 'qris' | 'jersey-chart') => {
+  const uploadRegistrationMedia = async (file: File, kind: 'qris' | 'jersey-chart' | 'certificate-template') => {
     const { data } = await supabase.auth.getSession()
     const token = data.session?.access_token
     if (!token) throw new Error('Session expired. Silakan login ulang.')
@@ -876,6 +878,9 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
             typeof business.registration_rider_photo_enabled === 'boolean'
               ? business.registration_rider_photo_enabled
               : true,
+          business_certificate_enabled: typeof business.certificate_enabled === 'boolean' ? business.certificate_enabled : false,
+          business_certificate_template_url:
+            typeof business.certificate_template_url === 'string' ? business.certificate_template_url : '',
           business_jersey_size_options:
             Array.isArray(business.jersey_size_options) && business.jersey_size_options.length > 0
               ? business.jersey_size_options.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).join(', ')
@@ -1043,15 +1048,22 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     )
   }
 
-  const handleRegistrationMediaUpload = async (file: File | null, kind: 'qris' | 'jersey-chart') => {
+  const handleRegistrationMediaUpload = async (file: File | null, kind: 'qris' | 'jersey-chart' | 'certificate-template') => {
     if (!file) return
     setRegistrationMediaError('')
     if (!file.type.startsWith('image/')) {
       setRegistrationMediaError('Media registrasi harus berupa gambar.')
       return
     }
-    if (file.size > 2 * 1024 * 1024) {
-      setRegistrationMediaError('Media registrasi terlalu besar. Maksimal 2.0 MB.')
+    if (kind === 'certificate-template' && file.type !== 'image/png') {
+      setRegistrationMediaError('Template sertifikat harus berupa PNG.')
+      return
+    }
+    const maxBytes = kind === 'certificate-template' ? 10 * 1024 * 1024 : 2 * 1024 * 1024
+    if (file.size > maxBytes) {
+      setRegistrationMediaError(
+        kind === 'certificate-template' ? 'Template sertifikat terlalu besar. Maksimal 10 MB.' : 'Media registrasi terlalu besar. Maksimal 2.0 MB.'
+      )
       return
     }
     setRegistrationMediaUploading(kind)
@@ -1061,7 +1073,9 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
         ...prev,
         ...(kind === 'qris'
           ? { business_registration_qris_image_url: url }
-          : { business_registration_jersey_size_chart_url: url }),
+          : kind === 'jersey-chart'
+            ? { business_registration_jersey_size_chart_url: url }
+            : { business_certificate_template_url: url }),
       }))
     } catch (err) {
       setRegistrationMediaError(err instanceof Error ? err.message : 'Gagal upload media registrasi.')
@@ -1535,6 +1549,8 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
       registration_qris_image_url: form.business_registration_qris_image_url.trim() || null,
       registration_jersey_size_chart_url: form.business_registration_jersey_size_chart_url.trim() || null,
       registration_rider_photo_enabled: Boolean(form.business_registration_rider_photo_enabled),
+      certificate_enabled: Boolean(form.business_certificate_enabled),
+      certificate_template_url: form.business_certificate_template_url.trim() || null,
       jersey_size_options: form.business_jersey_size_options
         .split(',')
         .map((value) => value.trim().toUpperCase())
@@ -2605,6 +2621,71 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                     </div>
                     <div style={{ fontSize: 12, color: '#334155', fontWeight: 700 }}>
                       Leaderboard Best Team akan dihitung dari hasil final resmi yang sudah masuk recap hasil akhir. Rider DQ otomatis tidak menambah point team.
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: sections.publicInfo ? 'grid' : 'none', gap: 8, marginTop: 6 }}>
+                  <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                    E-Sertifikat
+                  </div>
+                  <div style={{ display: 'grid', gap: 12, padding: 14, border: '2px solid #111', borderRadius: 16, background: '#f8fafc' }}>
+                    <ToggleSwitch
+                      checked={form.business_certificate_enabled}
+                      onChange={(checked) => setForm({ ...form, business_certificate_enabled: checked })}
+                      label="Aktifkan e-sertifikat untuk event ini"
+                    />
+                    <div style={{ fontSize: 12, color: '#334155', fontWeight: 700, lineHeight: 1.5 }}>
+                      Sertifikat hanya dapat dibuka setelah event berstatus FINISHED. Wali rider memverifikasi nomor registrasi dan WhatsApp yang dipakai saat mendaftar.
+                    </div>
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                      <label
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: '10px 14px',
+                          borderRadius: 12,
+                          border: '2px solid #111',
+                          background: '#fff',
+                          fontWeight: 900,
+                          cursor: registrationMediaUploading ? 'wait' : 'pointer',
+                        }}
+                      >
+                        {registrationMediaUploading === 'certificate-template' ? 'Mengunggah...' : 'Upload Template PNG'}
+                        <input
+                          type="file"
+                          accept="image/png"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0] ?? null
+                            void handleRegistrationMediaUpload(file, 'certificate-template')
+                            e.currentTarget.value = ''
+                          }}
+                          style={{ display: 'none' }}
+                        />
+                      </label>
+                      {form.business_certificate_template_url && (
+                        <a
+                          href={form.business_certificate_template_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{ fontWeight: 800, color: '#0f766e', textDecoration: 'underline' }}
+                        >
+                          Buka template
+                        </a>
+                      )}
+                    </div>
+                    {form.business_certificate_template_url && (
+                      <div style={{ overflow: 'hidden', borderRadius: 14, border: '2px solid #111', background: '#fff', maxWidth: 520 }}>
+                        <AdminPreviewImage
+                          src={form.business_certificate_template_url}
+                          alt="Preview template e-sertifikat"
+                          width={520}
+                          height={368}
+                        />
+                      </div>
+                    )}
+                    <div style={{ fontSize: 12, color: '#334155', fontWeight: 700 }}>
+                      Gunakan PNG lanskap beresolusi tinggi dan sisakan area kosong di tengah untuk nama rider serta kategori. Maksimal 10 MB.
                     </div>
                   </div>
                 </div>

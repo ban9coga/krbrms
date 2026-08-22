@@ -154,6 +154,9 @@ export default function EventDetailClient({
   const daysToEvent =
     eventDate ? Math.ceil((eventDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null
   const registrationOpen = event?.registration_open !== false
+  const canDownloadCertificate = Boolean(
+    event?.status === 'FINISHED' && business?.certificate_enabled && business?.certificate_template_url
+  )
   const isCategoryFull = (category: RiderCategory) => {
     if (category.is_full === true) return true
     if (typeof category.capacity !== 'number') return false
@@ -328,6 +331,14 @@ export default function EventDetailClient({
                       className="public-editorial-register-cta inline-flex min-h-[54px] items-center rounded-full bg-[#f3c63d] px-8 py-3 text-sm font-black uppercase text-[#1d0d07] shadow-[0_12px_28px_rgba(243,198,61,0.24)] transition-transform hover:-translate-y-0.5 hover:bg-[#ffda5a]"
                     >
                       Daftar Sekarang
+                    </Link>
+                  )}
+                  {canDownloadCertificate && (
+                    <Link
+                      href={`/event/${event.id}/certificate`}
+                      className="inline-flex min-h-[54px] items-center rounded-full border border-[#f3c63d]/70 bg-[#2a160d] px-7 py-3 text-sm font-black uppercase text-[#f3c63d] transition-colors hover:bg-[#3e2113]"
+                    >
+                      Unduh E-Sertifikat
                     </Link>
                   )}
                 </div>

@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../lib/auth'
-import { prepareImageUpload } from '../../../../../lib/imageUpload'
+import { prepareImageUpload, preparePassthroughUpload } from '../../../../../lib/imageUpload'
 import { toPublicMediaUrl } from '../../../../../lib/publicMedia'
 
 const BUCKET = 'event-logos'
-const ALLOWED_KINDS = new Set(['qris', 'jersey-chart'])
+const ALLOWED_KINDS = new Set(['qris', 'jersey-chart', 'certificate-template'])
 const REGISTRATION_MEDIA_MAX_BYTES = 2 * 1024 * 1024
+const CERTIFICATE_TEMPLATE_MAX_BYTES = 10 * 1024 * 1024
 
 const ensureBucket = async () => {
   const { data } = await adminClient.storage.getBucket(BUCKET)
@@ -31,14 +32,25 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   if (!file.type.startsWith('image/')) {
     return NextResponse.json({ error: 'File harus berupa gambar.' }, { status: 400 })
   }
+  if (kind === 'certificate-template' && file.type !== 'image/png') {
+    return NextResponse.json({ error: 'Template sertifikat harus berupa file PNG.' }, { status: 400 })
+  }
   let upload
   try {
-    upload = await prepareImageUpload(file, {
-      maxBytes: REGISTRATION_MEDIA_MAX_BYTES,
-      maxDimension: 1200,
-      quality: 82,
-      label: kind === 'qris' ? 'Gambar QRIS' : 'Gambar size chart',
-    })
+    upload =
+      kind === 'certificate-template'
+        ? await preparePassthroughUpload(file, {
+            maxBytes: CERTIFICATE_TEMPLATE_MAX_BYTES,
+            contentType: 'image/png',
+            extension: 'png',
+            label: 'Template sertifikat PNG',
+          })
+        : await prepareImageUpload(file, {
+            maxBytes: REGISTRATION_MEDIA_MAX_BYTES,
+            maxDimension: 1200,
+            quality: 82,
+            label: kind === 'qris' ? 'Gambar QRIS' : 'Gambar size chart',
+          })
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Gambar gagal diproses.' }, { status: 400 })
   }

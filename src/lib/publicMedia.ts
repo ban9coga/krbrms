@@ -57,6 +57,7 @@ export const proxyBusinessSettingsMedia = (settings: BusinessSettings): Business
   ...settings,
   registration_qris_image_url: toPublicMediaUrl(settings.registration_qris_image_url),
   registration_jersey_size_chart_url: toPublicMediaUrl(settings.registration_jersey_size_chart_url),
+  certificate_template_url: toPublicMediaUrl(settings.certificate_template_url),
   event_owner_photo_url: toPublicMediaUrl(settings.event_owner_photo_url),
   operating_committee_photo_url: toPublicMediaUrl(settings.operating_committee_photo_url),
   scoring_support_photo_url: toPublicMediaUrl(settings.scoring_support_photo_url),
