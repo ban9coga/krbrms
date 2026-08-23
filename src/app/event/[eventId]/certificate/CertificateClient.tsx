@@ -17,6 +17,8 @@ type CertificateLookup = {
   registration_code: string
   achievement_enabled: boolean
   riders: CertificateRider[]
+  access_token: string
+  access_expires_at: string
 }
 
 export default function CertificateClient({ eventId }: { eventId: string }) {
@@ -56,14 +58,14 @@ export default function CertificateClient({ eventId }: { eventId: string }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          registration_code: registrationCode,
-          contact_phone: contactPhone,
+          access_token: result?.access_token,
           registration_item_id: rider.id,
           certificate_type: certificateType,
         }),
       })
       if (!response.ok) {
         const json = await response.json().catch(() => ({}))
+        if (response.status === 401) setResult(null)
         throw new Error(json?.error || 'PDF sertifikat gagal dibuat.')
       }
       const blob = await response.blob()

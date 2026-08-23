@@ -29,10 +29,7 @@ export type CertificateContext = {
   assets: {
     eventLogoUrl: string | null
     organizerLogoUrl: string | null
-    raceDirectorSignatureUrl: string | null
-    organizerSignatureUrl: string | null
   }
-  signatories: { raceDirectorName: string | null; organizerName: string | null }
   riders: CertificateRider[]
 }
 
@@ -203,12 +200,6 @@ export const loadCertificateContext = async (
       assets: {
         eventLogoUrl: toPublicMediaUrl(business.certificate_event_logo_url),
         organizerLogoUrl: toPublicMediaUrl(business.certificate_organizer_logo_url),
-        raceDirectorSignatureUrl: toPublicMediaUrl(business.certificate_race_director_signature_url),
-        organizerSignatureUrl: toPublicMediaUrl(business.certificate_organizer_signature_url),
-      },
-      signatories: {
-        raceDirectorName: business.race_director_name?.trim() || null,
-        organizerName: business.certificate_organizer_name?.trim() || business.operating_committee_name?.trim() || business.event_owner_name?.trim() || null,
       },
       riders,
     },

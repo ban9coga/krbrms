@@ -50,9 +50,6 @@ export type BusinessSettings = {
   certificate_achievement_enabled?: boolean | null
   certificate_event_logo_url?: string | null
   certificate_organizer_logo_url?: string | null
-  certificate_race_director_signature_url?: string | null
-  certificate_organizer_signature_url?: string | null
-  certificate_organizer_name?: string | null
   certificate_layout?: CertificateLayout | null
   jersey_size_options?: string[] | null
   public_contact_name?: string | null

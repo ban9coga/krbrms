@@ -20,10 +20,13 @@ import { ADVANCED_RACE_FINAL_CLASS_ORDER } from '../../../../../lib/advancedRace
 import type { BusinessSettings, CommunityShowcaseItem, EventSponsor, EventSponsorTier } from '../../../../../lib/eventService'
 import {
   CERTIFICATE_IMAGE_ELEMENT_LABELS,
+  CERTIFICATE_FONT_LABELS,
+  CERTIFICATE_FONT_PREVIEW_FAMILIES,
   CERTIFICATE_TEXT_ELEMENT_LABELS,
   DEFAULT_CERTIFICATE_LAYOUT,
   normalizeCertificateLayout,
   type CertificateImageElement,
+  type CertificateFont,
   type CertificateLayout,
   type CertificateTextElement,
 } from '../../../../../lib/certificateLayout'
@@ -203,17 +206,19 @@ function CertificateLayoutPreview({
     qr: 'QR',
     eventLogo: 'LOGO EVENT',
     organizerLogo: 'LOGO PANITIA',
-    raceDirectorSignature: 'TTD RD',
-    organizerSignature: 'TTD PANITIA',
   }
 
   return (
     <div style={{ width: '100%', maxWidth: 760, overflow: 'hidden', borderRadius: 14, border: '2px solid #111', background: '#fff', containerType: 'inline-size' }}>
+      <style>{`
+        @font-face { font-family: 'Certificate Montserrat Regular'; src: url('/fonts/certificates/Montserrat-Regular.ttf') format('truetype'); font-display: swap; }
+        @font-face { font-family: 'Certificate Montserrat ExtraBold'; src: url('/fonts/certificates/Montserrat-ExtraBold.ttf') format('truetype'); font-display: swap; }
+        @font-face { font-family: 'Certificate Anton'; src: url('/fonts/certificates/Anton-Regular.ttf') format('truetype'); font-display: swap; }
+      `}</style>
       <div style={{ position: 'relative', width: '100%', aspectRatio: '1491 / 1055', overflow: 'hidden' }}>
         <Image src={templateUrl} alt="Live preview template e-sertifikat" fill sizes="(max-width: 820px) 100vw, 760px" style={{ objectFit: 'cover' }} />
         {(Object.keys(layout.text) as CertificateTextElement[]).map((key) => {
           const position = layout.text[key]
-          const emphasis = key === 'name' || key === 'eventName'
           return (
             <span
               key={key}
@@ -226,7 +231,8 @@ function CertificateLayoutPreview({
                 transform: 'translate(-50%, -100%)',
                 color: key === 'eventName' || key === 'certificateCode' ? '#d94908' : '#25130a',
                 fontSize: `${(position.fontSize / 1491) * 100}cqw`,
-                fontWeight: emphasis ? 900 : 700,
+                fontFamily: CERTIFICATE_FONT_PREVIEW_FAMILIES[position.font],
+                fontWeight: position.font === 'MONTSERRAT_EXTRA_BOLD' || position.font === 'ANTON' ? 900 : 700,
                 lineHeight: 1,
                 textAlign: 'center',
                 whiteSpace: 'nowrap',
@@ -241,7 +247,7 @@ function CertificateLayoutPreview({
         })}
         {(Object.keys(layout.image) as CertificateImageElement[]).map((key) => {
           const position = layout.image[key]
-          const source = key === 'eventLogo' ? assets.eventLogo : key === 'organizerLogo' ? assets.organizerLogo : key === 'raceDirectorSignature' ? assets.raceDirectorSignature : key === 'organizerSignature' ? assets.organizerSignature : ''
+          const source = key === 'eventLogo' ? assets.eventLogo : key === 'organizerLogo' ? assets.organizerLogo : ''
           return (
             <div
               key={key}
@@ -701,8 +707,6 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     | 'certificate-template'
     | 'certificate-event-logo'
     | 'certificate-organizer-logo'
-    | 'certificate-race-director-signature'
-    | 'certificate-organizer-signature'
     | null
   >(null)
   const [registrationMediaError, setRegistrationMediaError] = useState<string>('')
@@ -768,9 +772,6 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     business_certificate_achievement_enabled: false,
     business_certificate_event_logo_url: '',
     business_certificate_organizer_logo_url: '',
-    business_certificate_race_director_signature_url: '',
-    business_certificate_organizer_signature_url: '',
-    business_certificate_organizer_name: '',
     business_certificate_layout: DEFAULT_CERTIFICATE_LAYOUT as CertificateLayout,
     business_jersey_size_options: 'XS, S, M, L, XL, 2XL, 3XL',
     business_event_owner_name: '',
@@ -1021,12 +1022,6 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
             typeof business.certificate_event_logo_url === 'string' ? business.certificate_event_logo_url : '',
           business_certificate_organizer_logo_url:
             typeof business.certificate_organizer_logo_url === 'string' ? business.certificate_organizer_logo_url : '',
-          business_certificate_race_director_signature_url:
-            typeof business.certificate_race_director_signature_url === 'string' ? business.certificate_race_director_signature_url : '',
-          business_certificate_organizer_signature_url:
-            typeof business.certificate_organizer_signature_url === 'string' ? business.certificate_organizer_signature_url : '',
-          business_certificate_organizer_name:
-            typeof business.certificate_organizer_name === 'string' ? business.certificate_organizer_name : '',
           business_certificate_layout: normalizeCertificateLayout(business.certificate_layout),
           business_jersey_size_options:
             Array.isArray(business.jersey_size_options) && business.jersey_size_options.length > 0
@@ -1203,8 +1198,6 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
       | 'certificate-template'
       | 'certificate-event-logo'
       | 'certificate-organizer-logo'
-      | 'certificate-race-director-signature'
-      | 'certificate-organizer-signature'
   ) => {
     if (!file) return
     setRegistrationMediaError('')
@@ -1241,11 +1234,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
               ? { business_certificate_template_url: url }
               : kind === 'certificate-event-logo'
                 ? { business_certificate_event_logo_url: url }
-                : kind === 'certificate-organizer-logo'
-                  ? { business_certificate_organizer_logo_url: url }
-                  : kind === 'certificate-race-director-signature'
-                    ? { business_certificate_race_director_signature_url: url }
-                    : { business_certificate_organizer_signature_url: url }),
+                : { business_certificate_organizer_logo_url: url }),
       }))
     } catch (err) {
       setRegistrationMediaError(err instanceof Error ? err.message : 'Gagal upload media registrasi.')
@@ -1725,9 +1714,6 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
       certificate_achievement_enabled: Boolean(form.business_certificate_achievement_enabled),
       certificate_event_logo_url: form.business_certificate_event_logo_url.trim() || null,
       certificate_organizer_logo_url: form.business_certificate_organizer_logo_url.trim() || null,
-      certificate_race_director_signature_url: form.business_certificate_race_director_signature_url.trim() || null,
-      certificate_organizer_signature_url: form.business_certificate_organizer_signature_url.trim() || null,
-      certificate_organizer_name: form.business_certificate_organizer_name.trim() || null,
       certificate_layout: normalizeCertificateLayout(form.business_certificate_layout),
       jersey_size_options: form.business_jersey_size_options
         .split(',')
@@ -2884,8 +2870,6 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                         assets={{
                           eventLogo: form.business_certificate_event_logo_url,
                           organizerLogo: form.business_certificate_organizer_logo_url,
-                          raceDirectorSignature: form.business_certificate_race_director_signature_url,
-                          organizerSignature: form.business_certificate_organizer_signature_url,
                         }}
                       />
                     )}
@@ -2901,8 +2885,6 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                       {([
                         ['certificate-event-logo', 'business_certificate_event_logo_url', 'Logo event'],
                         ['certificate-organizer-logo', 'business_certificate_organizer_logo_url', 'Logo penyelenggara'],
-                        ['certificate-race-director-signature', 'business_certificate_race_director_signature_url', 'Tanda tangan Race Director'],
-                        ['certificate-organizer-signature', 'business_certificate_organizer_signature_url', 'Tanda tangan penyelenggara'],
                       ] as const).map(([kind, field, label]) => (
                         <div key={kind} style={{ display: 'grid', gap: 7, padding: 10, border: '1px solid #cbd5e1', borderRadius: 12, background: '#fff' }}>
                           <div style={{ fontSize: 12, fontWeight: 900 }}>{label}</div>
@@ -2924,15 +2906,6 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                         </div>
                       ))}
                     </div>
-                    <label style={{ display: 'grid', gap: 6, maxWidth: 360, fontSize: 12, fontWeight: 900 }}>
-                      Nama penyelenggara pada sertifikat
-                      <input
-                        value={form.business_certificate_organizer_name}
-                        onChange={(event) => setForm({ ...form, business_certificate_organizer_name: event.target.value })}
-                        placeholder="Contoh: Sawahlunto Heritage Committee"
-                        style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
-                      />
-                    </label>
                     <details style={{ border: '1px solid #cbd5e1', borderRadius: 12, padding: 12, background: '#fff' }}>
                       <summary style={{ cursor: 'pointer', fontWeight: 900 }}>Atur posisi elemen pada template</summary>
                       <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
@@ -2940,8 +2913,8 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                         {(Object.keys(CERTIFICATE_TEXT_ELEMENT_LABELS) as CertificateTextElement[]).map((key) => {
                           const position = form.business_certificate_layout.text[key]
                           return (
-                            <div key={key} style={{ display: 'grid', gap: 7, gridTemplateColumns: 'minmax(145px, 1fr) repeat(4, minmax(70px, 100px))', alignItems: 'center' }}>
-                              <strong style={{ fontSize: 12 }}>{CERTIFICATE_TEXT_ELEMENT_LABELS[key]}</strong>
+                          <div key={key} style={{ display: 'grid', gap: 7, gridTemplateColumns: 'minmax(145px, 1fr) repeat(5, minmax(70px, 100px))', alignItems: 'center' }}>
+                            <strong style={{ fontSize: 12 }}>{CERTIFICATE_TEXT_ELEMENT_LABELS[key]}</strong>
                               {(['x', 'top', 'width', 'fontSize'] as const).map((field) => (
                                 <label key={field} style={{ display: 'grid', gap: 3, fontSize: 10, fontWeight: 800 }}>
                                   {field === 'x' ? 'Kiri %' : field === 'top' ? 'Atas %' : field === 'width' ? 'Lebar %' : 'Font pt'}
@@ -2964,6 +2937,32 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                                   />
                                 </label>
                               ))}
+                              <label style={{ display: 'grid', gap: 3, fontSize: 10, fontWeight: 800 }}>
+                                Font
+                                <select
+                                  value={position.font}
+                                  onChange={(event) =>
+                                    setForm((previous) => ({
+                                      ...previous,
+                                      business_certificate_layout: {
+                                        ...previous.business_certificate_layout,
+                                        text: {
+                                          ...previous.business_certificate_layout.text,
+                                          [key]: {
+                                            ...previous.business_certificate_layout.text[key],
+                                            font: event.target.value as CertificateFont,
+                                          },
+                                        },
+                                      },
+                                    }))
+                                  }
+                                  style={{ padding: 7, borderRadius: 8, border: '1px solid #64748b', fontWeight: 800 }}
+                                >
+                                  {(Object.keys(CERTIFICATE_FONT_LABELS) as CertificateFont[]).map((font) => (
+                                    <option key={font} value={font}>{CERTIFICATE_FONT_LABELS[font]}</option>
+                                  ))}
+                                </select>
+                              </label>
                             </div>
                           )
                         })}
@@ -3006,7 +3005,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                       Kelola sertifikat yang sudah diterbitkan
                     </Link>
                     <div style={{ fontSize: 12, color: '#334155', fontWeight: 700 }}>
-                      Gunakan PNG lanskap beresolusi tinggi. Template contoh berukuran 1491 x 1055 px dan sudah menyisakan area dinamis untuk nama rider, nama event, kategori, nomor plate, prestasi, tanggal, lokasi, QR verifikasi, ID sertifikat, logo, serta tanda tangan. Maksimal 10 MB.
+                      Nama Race Director otomatis mengikuti data Race Director event. Gunakan PNG lanskap beresolusi tinggi. Template contoh berukuran 1491 x 1055 px dan sudah menyisakan area dinamis untuk nama rider, nama event, kategori, nomor plate, prestasi, tanggal, lokasi, QR verifikasi, ID sertifikat, logo, serta tanda tangan. Maksimal 10 MB.
                     </div>
                   </div>
                 </div>

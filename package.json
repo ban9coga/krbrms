@@ -11,6 +11,7 @@
     "backfill:public-snapshots": "node scripts/backfill-public-event-snapshots.mjs"
   },
   "dependencies": {
+    "@pdf-lib/fontkit": "^1.1.1",
     "@supabase/supabase-js": "^2.94.1",
     "@types/canvas-confetti": "^1.9.0",
     "@types/qrcode": "^1.5.6",

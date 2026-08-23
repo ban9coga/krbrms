@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server'
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
+import { PDFDocument, rgb } from 'pdf-lib'
 import QRCode from 'qrcode'
-import { issueCertificate, loadCertificateContext, type CertificateContext, type CertificateRider, type CertificateType } from '@/src/lib/eventCertificate'
+import { issueCertificate, type CertificateContext, type CertificateRider, type CertificateType } from '@/src/lib/eventCertificate'
+import { readCertificateAccessToken } from '@/src/lib/certificateAccessToken'
 import { rateLimit } from '@/src/lib/rateLimit'
+import { embedCertificateFonts } from '@/src/lib/certificateFonts'
 
 export const runtime = 'nodejs'
 
@@ -40,7 +42,12 @@ const localImageUrl = (value: string | null, requestOrigin: string) => {
 
 const fetchPng = async (url: URL | null) => {
   if (!url) return null
-  const response = await fetch(url, { cache: 'no-store' })
+  const response = await fetch(url, {
+    // Upload paths include a unique filename (or version query), so a long-lived
+    // cache never serves a replaced certificate template or logo.
+    cache: 'force-cache',
+    next: { revalidate: 31_536_000 },
+  })
   return response.ok ? response.arrayBuffer() : null
 }
 
@@ -72,15 +79,27 @@ const renderCertificate = async (
 ) => {
   const template = localImageUrl(context.templateUrl, requestOrigin)
   if (!template) throw new Error('Template sertifikat harus diunggah melalui Event Settings.')
-  const templateBytes = await fetchPng(template)
+  const assetUrls = {
+    eventLogo: localImageUrl(context.assets.eventLogoUrl, requestOrigin),
+    organizerLogo: localImageUrl(context.assets.organizerLogoUrl, requestOrigin),
+  }
+  const assetEntries = Object.entries(assetUrls) as Array<[keyof typeof assetUrls, URL | null]>
+  const [templateBytes, assetBytes] = await Promise.all([
+    fetchPng(template),
+    Promise.all(assetEntries.map(async ([key, url]) => [key, await fetchPng(url)] as const)),
+  ])
   if (!templateBytes) throw new Error('Template sertifikat tidak dapat dimuat.')
 
   const pdf = await PDFDocument.create()
   const templateImage = await pdf.embedPng(templateBytes)
   const page = pdf.addPage([templateImage.width, templateImage.height]) as unknown as PdfPage
   page.drawImage(templateImage, { x: 0, y: 0, width: templateImage.width, height: templateImage.height })
-  const bold = await pdf.embedFont(StandardFonts.HelveticaBold)
-  const regular = await pdf.embedFont(StandardFonts.Helvetica)
+  const fontsPromise = embedCertificateFonts(pdf)
+  const verifyUrl = `${requestOrigin}/certificate/verify/${encodeURIComponent(code)}`
+  const [fonts, qrDataUrl] = await Promise.all([
+    fontsPromise,
+    QRCode.toDataURL(verifyUrl, { errorCorrectionLevel: 'M', margin: 1, width: 480 }),
+  ])
   const dark = rgb(0.12, 0.06, 0.03)
   const orange = rgb(0.86, 0.22, 0.04)
   const muted = rgb(0.27, 0.16, 0.09)
@@ -104,23 +123,14 @@ const renderCertificate = async (
       position.top,
       position.width,
       position.fontSize,
-      key === 'name' || key === 'eventName' || key === 'certificateCode' ? bold : regular,
+      fonts[position.font],
       key === 'eventName' || key === 'certificateCode' ? orange : key === 'name' ? dark : muted
     )
   })
 
-  const verifyUrl = `${requestOrigin}/certificate/verify/${encodeURIComponent(code)}`
-  const qrDataUrl = await QRCode.toDataURL(verifyUrl, { errorCorrectionLevel: 'M', margin: 1, width: 480 })
   const qrImage = await pdf.embedPng(Buffer.from(qrDataUrl.split(',')[1], 'base64'))
-  const assetUrls = {
-    eventLogo: localImageUrl(context.assets.eventLogoUrl, requestOrigin),
-    organizerLogo: localImageUrl(context.assets.organizerLogoUrl, requestOrigin),
-    raceDirectorSignature: localImageUrl(context.assets.raceDirectorSignatureUrl, requestOrigin),
-    organizerSignature: localImageUrl(context.assets.organizerSignatureUrl, requestOrigin),
-  }
   drawImageAt(page, qrImage, layout.image.qr.x, layout.image.qr.top, layout.image.qr.width)
-  for (const key of Object.keys(assetUrls) as Array<keyof typeof assetUrls>) {
-    const bytes = await fetchPng(assetUrls[key])
+  for (const [key, bytes] of assetBytes) {
     if (!bytes) continue
     const image = await pdf.embedPng(bytes)
     const position = layout.image[key]
@@ -136,18 +146,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   const { eventId } = await params
   const body = await req.json().catch(() => ({}))
   const type = certificateType(body.certificate_type) ?? 'PARTICIPATION'
-  const result = await loadCertificateContext(eventId, body.registration_code, body.contact_phone)
-  if (!result.data) return NextResponse.json({ error: result.error }, { status: result.status ?? 400, headers: limit.headers })
-  const rider = result.data.riders.find((item) => item.id === String(body.registration_item_id ?? ''))
+  const access = readCertificateAccessToken(body.access_token)
+  if (!access || access.context.event.id !== eventId) {
+    return NextResponse.json({ error: 'Sesi verifikasi sertifikat sudah habis. Silakan verifikasi ulang.' }, { status: 401, headers: limit.headers })
+  }
+  const rider = access.context.riders.find((item) => item.id === String(body.registration_item_id ?? ''))
   if (!rider) return NextResponse.json({ error: 'Rider tidak ditemukan pada pendaftaran ini.' }, { status: 404, headers: limit.headers })
 
-  const issued = await issueCertificate(result.data, rider, type)
+  const issued = await issueCertificate(access.context, rider, type)
   if (!issued.data) return NextResponse.json({ error: issued.error || 'Certificate ID gagal dibuat.' }, { status: 500, headers: limit.headers })
   if (issued.data.revokedAt) return NextResponse.json({ error: 'Sertifikat ini sudah dicabut oleh panitia.' }, { status: 410, headers: limit.headers })
 
   try {
     const requestOrigin = new URL(req.url).origin
-    const bytes = await renderCertificate(result.data, rider, type, issued.data.code, requestOrigin)
+    const bytes = await renderCertificate(access.context, rider, type, issued.data.code, requestOrigin)
     return new NextResponse(Buffer.from(bytes), {
       headers: {
         ...limit.headers,

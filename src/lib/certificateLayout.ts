@@ -1,11 +1,21 @@
-export type CertificateTextElement = 'name' | 'eventName' | 'category' | 'plate' | 'achievement' | 'eventDate' | 'location' | 'certificateCode'
-export type CertificateImageElement = 'qr' | 'eventLogo' | 'organizerLogo' | 'raceDirectorSignature' | 'organizerSignature'
+export type CertificateTextElement =
+  | 'name'
+  | 'eventName'
+  | 'category'
+  | 'plate'
+  | 'achievement'
+  | 'eventDate'
+  | 'location'
+  | 'certificateCode'
+export type CertificateImageElement = 'qr' | 'eventLogo' | 'organizerLogo'
+export type CertificateFont = 'MONTSERRAT_REGULAR' | 'MONTSERRAT_EXTRA_BOLD' | 'ANTON' | 'MONO'
 
 export type CertificateTextPosition = {
   x: number
   top: number
   width: number
   fontSize: number
+  font: CertificateFont
 }
 
 export type CertificateImagePosition = {
@@ -30,31 +40,41 @@ export const CERTIFICATE_TEXT_ELEMENT_LABELS: Record<CertificateTextElement, str
   certificateCode: 'Certificate ID',
 }
 
+export const CERTIFICATE_FONT_LABELS: Record<CertificateFont, string> = {
+  MONTSERRAT_REGULAR: 'Montserrat Regular',
+  MONTSERRAT_EXTRA_BOLD: 'Montserrat ExtraBold',
+  ANTON: 'Anton',
+  MONO: 'Mono (Certificate ID)',
+}
+
+export const CERTIFICATE_FONT_PREVIEW_FAMILIES: Record<CertificateFont, string> = {
+  MONTSERRAT_REGULAR: 'Certificate Montserrat Regular, Arial, sans-serif',
+  MONTSERRAT_EXTRA_BOLD: 'Certificate Montserrat ExtraBold, Arial, sans-serif',
+  ANTON: 'Certificate Anton, Impact, sans-serif',
+  MONO: 'Courier New, monospace',
+}
+
 export const CERTIFICATE_IMAGE_ELEMENT_LABELS: Record<CertificateImageElement, string> = {
   qr: 'QR verifikasi',
   eventLogo: 'Logo event',
   organizerLogo: 'Logo penyelenggara',
-  raceDirectorSignature: 'Tanda tangan Race Director',
-  organizerSignature: 'Tanda tangan penyelenggara',
 }
 
 export const DEFAULT_CERTIFICATE_LAYOUT: CertificateLayout = {
   text: {
-    name: { x: 50, top: 44.5, width: 66, fontSize: 44 },
-    eventName: { x: 50, top: 60.5, width: 50, fontSize: 28 },
-    category: { x: 20.5, top: 77, width: 12, fontSize: 13 },
-    plate: { x: 34.5, top: 77, width: 12, fontSize: 13 },
-    achievement: { x: 49, top: 77, width: 12, fontSize: 13 },
-    eventDate: { x: 63, top: 77, width: 12, fontSize: 11 },
-    location: { x: 76.5, top: 77, width: 12, fontSize: 11 },
-    certificateCode: { x: 50, top: 88.2, width: 24, fontSize: 14 },
+    name: { x: 50, top: 44.5, width: 66, fontSize: 44, font: 'ANTON' },
+    eventName: { x: 50, top: 60.5, width: 50, fontSize: 28, font: 'MONTSERRAT_EXTRA_BOLD' },
+    category: { x: 20.5, top: 77, width: 12, fontSize: 13, font: 'MONTSERRAT_REGULAR' },
+    plate: { x: 34.5, top: 77, width: 12, fontSize: 13, font: 'MONTSERRAT_REGULAR' },
+    achievement: { x: 49, top: 77, width: 12, fontSize: 13, font: 'MONTSERRAT_EXTRA_BOLD' },
+    eventDate: { x: 63, top: 77, width: 12, fontSize: 11, font: 'MONTSERRAT_REGULAR' },
+    location: { x: 76.5, top: 77, width: 12, fontSize: 11, font: 'MONTSERRAT_REGULAR' },
+    certificateCode: { x: 50, top: 88.2, width: 24, fontSize: 14, font: 'MONO' },
   },
   image: {
     qr: { x: 89, top: 83, width: 10.5 },
     eventLogo: { x: 11, top: 8, width: 10 },
     organizerLogo: { x: 89, top: 8, width: 10 },
-    raceDirectorSignature: { x: 20.5, top: 82.2, width: 12 },
-    organizerSignature: { x: 73.5, top: 82.2, width: 12 },
   },
 }
 
@@ -63,6 +83,9 @@ const bounded = (value: unknown, fallback: number, min: number, max: number) => 
   if (!Number.isFinite(numeric)) return fallback
   return Math.min(max, Math.max(min, numeric))
 }
+
+const isCertificateFont = (value: unknown): value is CertificateFont =>
+  value === 'MONTSERRAT_REGULAR' || value === 'MONTSERRAT_EXTRA_BOLD' || value === 'ANTON' || value === 'MONO'
 
 export const normalizeCertificateLayout = (value: unknown): CertificateLayout => {
   const input = value && typeof value === 'object' && !Array.isArray(value) ? (value as Partial<CertificateLayout>) : {}
@@ -80,6 +103,7 @@ export const normalizeCertificateLayout = (value: unknown): CertificateLayout =>
           top: bounded(candidate.top, fallback.top, 0, 100),
           width: bounded(candidate.width, fallback.width, 4, 100),
           fontSize: bounded(candidate.fontSize, fallback.fontSize, 6, 96),
+          font: isCertificateFont(candidate.font) ? candidate.font : fallback.font,
         },
       ]
     })

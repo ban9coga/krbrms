@@ -10,8 +10,6 @@ const ALLOWED_KINDS = new Set([
   'certificate-template',
   'certificate-event-logo',
   'certificate-organizer-logo',
-  'certificate-race-director-signature',
-  'certificate-organizer-signature',
 ])
 const REGISTRATION_MEDIA_MAX_BYTES = 2 * 1024 * 1024
 const CERTIFICATE_TEMPLATE_MAX_BYTES = 10 * 1024 * 1024
