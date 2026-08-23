@@ -4,9 +4,20 @@ import { prepareImageUpload, preparePassthroughUpload } from '../../../../../lib
 import { toPublicMediaUrl } from '../../../../../lib/publicMedia'
 
 const BUCKET = 'event-logos'
-const ALLOWED_KINDS = new Set(['qris', 'jersey-chart', 'certificate-template'])
+const ALLOWED_KINDS = new Set([
+  'qris',
+  'jersey-chart',
+  'certificate-template',
+  'certificate-event-logo',
+  'certificate-organizer-logo',
+  'certificate-race-director-signature',
+  'certificate-organizer-signature',
+])
 const REGISTRATION_MEDIA_MAX_BYTES = 2 * 1024 * 1024
 const CERTIFICATE_TEMPLATE_MAX_BYTES = 10 * 1024 * 1024
+const CERTIFICATE_ASSET_MAX_BYTES = 3 * 1024 * 1024
+
+const isCertificateAsset = (kind: string) => kind.startsWith('certificate-')
 
 const ensureBucket = async () => {
   const { data } = await adminClient.storage.getBucket(BUCKET)
@@ -32,18 +43,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   if (!file.type.startsWith('image/')) {
     return NextResponse.json({ error: 'File harus berupa gambar.' }, { status: 400 })
   }
-  if (kind === 'certificate-template' && file.type !== 'image/png') {
-    return NextResponse.json({ error: 'Template sertifikat harus berupa file PNG.' }, { status: 400 })
+  if (isCertificateAsset(kind) && file.type !== 'image/png') {
+    return NextResponse.json({ error: 'Aset sertifikat harus berupa file PNG.' }, { status: 400 })
   }
   let upload
   try {
     upload =
-      kind === 'certificate-template'
+      isCertificateAsset(kind)
         ? await preparePassthroughUpload(file, {
-            maxBytes: CERTIFICATE_TEMPLATE_MAX_BYTES,
+            maxBytes: kind === 'certificate-template' ? CERTIFICATE_TEMPLATE_MAX_BYTES : CERTIFICATE_ASSET_MAX_BYTES,
             contentType: 'image/png',
             extension: 'png',
-            label: 'Template sertifikat PNG',
+            label: kind === 'certificate-template' ? 'Template sertifikat PNG' : 'Aset sertifikat PNG',
           })
         : await prepareImageUpload(file, {
             maxBytes: REGISTRATION_MEDIA_MAX_BYTES,

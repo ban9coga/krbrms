@@ -1,3 +1,5 @@
+import type { CertificateLayout } from './certificateLayout'
+
 export type EventStatus = 'UPCOMING' | 'LIVE' | 'FINISHED'
 
 export type EventSponsorTier = 'TITLE' | 'MAIN' | 'SUPPORT' | 'MEDIA' | 'COMMUNITY' | 'PARTNER'
@@ -44,6 +46,14 @@ export type BusinessSettings = {
   registration_rider_photo_enabled?: boolean | null
   certificate_enabled?: boolean | null
   certificate_template_url?: string | null
+  certificate_id_prefix?: string | null
+  certificate_achievement_enabled?: boolean | null
+  certificate_event_logo_url?: string | null
+  certificate_organizer_logo_url?: string | null
+  certificate_race_director_signature_url?: string | null
+  certificate_organizer_signature_url?: string | null
+  certificate_organizer_name?: string | null
+  certificate_layout?: CertificateLayout | null
   jersey_size_options?: string[] | null
   public_contact_name?: string | null
   public_contact_phone?: string | null

@@ -19,6 +19,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
         event_name: result.data.event.name,
         event_date: result.data.event.event_date,
         registration_code: result.data.registrationCode,
+        achievement_enabled: result.data.achievementEnabled,
         riders: result.data.riders,
       },
     },
