@@ -4,6 +4,9 @@ import { applyBestTeamSettingsNormalization } from '../../../../../lib/bestTeam'
 import type { BusinessSettings } from '../../../../../lib/eventService'
 import { normalizeFinalClassList } from '../../../../../lib/advancedRaceDefaults'
 import { proxyBusinessSettingsMedia, toPublicMediaUrl, toPublicMediaUrls } from '../../../../../lib/publicMedia'
+import { capturePublicEventSnapshot } from '../../../../../services/publicEventSnapshot'
+import { PUBLIC_FINISHED_EVENT_ARCHIVE_TAG } from '../../../../../services/publicFinishedEventArchive'
+import { revalidateTag } from 'next/cache'
 
 const EVENT_SETTINGS_RETURN_SELECT =
   'event_id, event_logo_url, sponsor_logo_urls, base_price, extra_price, registration_open, require_jersey_size, scoring_rules, display_theme, race_format_settings, business_settings, created_at, updated_at'
@@ -141,5 +144,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ eventI
     .limit(1)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  const { data: event } = await adminClient.from('events').select('status').eq('id', eventId).maybeSingle()
+  if (event?.status === 'FINISHED') {
+    try {
+      await capturePublicEventSnapshot(eventId)
+      revalidateTag(PUBLIC_FINISHED_EVENT_ARCHIVE_TAG, 'max')
+    } catch (snapshotError) {
+      console.warn('[event-settings] failed refreshing finished event archive:', snapshotError)
+    }
+  }
   return NextResponse.json({ data: (data ?? [])[0] ?? null })
 }

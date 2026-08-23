@@ -180,6 +180,100 @@ function AdminPreviewImage({
   )
 }
 
+function CertificateLayoutPreview({
+  templateUrl,
+  layout,
+  assets,
+}: {
+  templateUrl: string
+  layout: CertificateLayout
+  assets: Record<Exclude<CertificateImageElement, 'qr'>, string>
+}) {
+  const textValues: Record<CertificateTextElement, string> = {
+    name: 'NAMA PESERTA',
+    eventName: 'NAMA EVENT PUSHBIKE',
+    category: '2023-2024 MIX',
+    plate: '221',
+    achievement: 'PESERTA',
+    eventDate: '23 AGUSTUS 2026',
+    location: 'SAWAHLUNTO',
+    certificateCode: 'RPB-2026-PREVIEW',
+  }
+  const imageLabels: Record<CertificateImageElement, string> = {
+    qr: 'QR',
+    eventLogo: 'LOGO EVENT',
+    organizerLogo: 'LOGO PANITIA',
+    raceDirectorSignature: 'TTD RD',
+    organizerSignature: 'TTD PANITIA',
+  }
+
+  return (
+    <div style={{ width: '100%', maxWidth: 760, overflow: 'hidden', borderRadius: 14, border: '2px solid #111', background: '#fff', containerType: 'inline-size' }}>
+      <div style={{ position: 'relative', width: '100%', aspectRatio: '1491 / 1055', overflow: 'hidden' }}>
+        <Image src={templateUrl} alt="Live preview template e-sertifikat" fill sizes="(max-width: 820px) 100vw, 760px" style={{ objectFit: 'cover' }} />
+        {(Object.keys(layout.text) as CertificateTextElement[]).map((key) => {
+          const position = layout.text[key]
+          const emphasis = key === 'name' || key === 'eventName'
+          return (
+            <span
+              key={key}
+              style={{
+                position: 'absolute',
+                zIndex: 2,
+                left: `${position.x}%`,
+                top: `${position.top}%`,
+                width: `${position.width}%`,
+                transform: 'translate(-50%, -100%)',
+                color: key === 'eventName' || key === 'certificateCode' ? '#d94908' : '#25130a',
+                fontSize: `${(position.fontSize / 1491) * 100}cqw`,
+                fontWeight: emphasis ? 900 : 700,
+                lineHeight: 1,
+                textAlign: 'center',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                pointerEvents: 'none',
+              }}
+            >
+              {textValues[key]}
+            </span>
+          )
+        })}
+        {(Object.keys(layout.image) as CertificateImageElement[]).map((key) => {
+          const position = layout.image[key]
+          const source = key === 'eventLogo' ? assets.eventLogo : key === 'organizerLogo' ? assets.organizerLogo : key === 'raceDirectorSignature' ? assets.raceDirectorSignature : key === 'organizerSignature' ? assets.organizerSignature : ''
+          return (
+            <div
+              key={key}
+              style={{
+                position: 'absolute',
+                zIndex: 3,
+                left: `${position.x}%`,
+                top: `${position.top}%`,
+                width: `${position.width}%`,
+                height: `${position.width}%`,
+                transform: 'translateX(-50%)',
+                display: 'grid',
+                placeItems: 'center',
+                overflow: 'hidden',
+                border: source ? 'none' : '1px dashed #9a3412',
+                color: '#9a3412',
+                fontSize: '1.35cqw',
+                fontWeight: 900,
+                textAlign: 'center',
+                background: source ? 'transparent' : 'rgba(255,255,255,.7)',
+                pointerEvents: 'none',
+              }}
+            >
+              {key === 'qr' ? <span style={{ display: 'grid', width: '70%', aspectRatio: '1', placeItems: 'center', background: '#111', color: '#fff', fontSize: '1.2cqw' }}>QR</span> : source ? <Image src={source} alt="" fill sizes="160px" style={{ objectFit: 'contain' }} /> : imageLabels[key]}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function StaffPhotoUpload({
   label,
   url,
@@ -2784,14 +2878,16 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                       )}
                     </div>
                     {form.business_certificate_template_url && (
-                      <div style={{ overflow: 'hidden', borderRadius: 14, border: '2px solid #111', background: '#fff', maxWidth: 520 }}>
-                        <AdminPreviewImage
-                          src={form.business_certificate_template_url}
-                          alt="Preview template e-sertifikat"
-                          width={520}
-                          height={368}
-                        />
-                      </div>
+                      <CertificateLayoutPreview
+                        templateUrl={form.business_certificate_template_url}
+                        layout={normalizeCertificateLayout(form.business_certificate_layout)}
+                        assets={{
+                          eventLogo: form.business_certificate_event_logo_url,
+                          organizerLogo: form.business_certificate_organizer_logo_url,
+                          raceDirectorSignature: form.business_certificate_race_director_signature_url,
+                          organizerSignature: form.business_certificate_organizer_signature_url,
+                        }}
+                      />
                     )}
                     <ToggleSwitch
                       checked={form.business_certificate_achievement_enabled}
