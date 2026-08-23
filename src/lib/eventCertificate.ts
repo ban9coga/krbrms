@@ -24,6 +24,7 @@ export type CertificateContext = {
   registrationCode: string
   templateUrl: string
   certificatePrefix: string
+  participationEnabled: boolean
   achievementEnabled: boolean
   layout: CertificateLayout
   assets: {
@@ -61,6 +62,7 @@ const normalizeCertificateCode = (value: unknown) => String(value ?? '').trim().
 const normalizePrefix = (value: unknown) => String(value ?? '').trim().toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 12) || 'RPB'
 const normalizeName = (value: unknown) => String(value ?? '').trim().toLocaleUpperCase('id-ID')
 const normalizePlate = (value: unknown) => String(value ?? '').trim().toLocaleUpperCase('id-ID')
+const participationCertificateEnabled = (business: BusinessSettings) => business.certificate_participation_enabled !== false
 
 export const normalizeWhatsappDigits = (value: unknown) => {
   const raw = String(value ?? '').trim()
@@ -136,7 +138,11 @@ export const loadCertificateContext = async (
 
   const business = (settings?.business_settings ?? {}) as BusinessSettings
   const templateUrl = toPublicMediaUrl(business.certificate_template_url)?.trim() || ''
-  if (!business.certificate_enabled || !templateUrl) return { data: null, error: 'E-sertifikat belum diaktifkan untuk event ini.', status: 404 }
+  const participationEnabled = participationCertificateEnabled(business)
+  const achievementEnabled = Boolean(business.certificate_achievement_enabled)
+  if (!business.certificate_enabled || !templateUrl || (!participationEnabled && !achievementEnabled)) {
+    return { data: null, error: 'E-sertifikat belum diaktifkan untuk event ini.', status: 404 }
+  }
 
   const { data: registration, error: registrationError } = await adminClient
     .from('registrations')
@@ -195,13 +201,88 @@ export const loadCertificateContext = async (
       registrationCode: registration.registration_code,
       templateUrl,
       certificatePrefix: normalizePrefix(business.certificate_id_prefix),
-      achievementEnabled: Boolean(business.certificate_achievement_enabled),
+      participationEnabled,
+      achievementEnabled,
       layout: normalizeCertificateLayout(business.certificate_layout),
       assets: {
         eventLogoUrl: toPublicMediaUrl(business.certificate_event_logo_url),
         organizerLogoUrl: toPublicMediaUrl(business.certificate_organizer_logo_url),
       },
       riders,
+    },
+  }
+}
+
+// Tokens avoid the expensive registration lookup on every download, but this
+// compact recheck keeps certificate issuance aligned with current race/admin state.
+export const revalidateCertificateDownload = async (
+  context: CertificateContext,
+  rider: CertificateRider,
+  type: CertificateType
+): Promise<{ data: { context: CertificateContext; rider: CertificateRider } | null; error?: string; status?: number }> => {
+  const [eventResult, settingsResult, registrationResult, itemResult] = await Promise.all([
+    adminClient.from('events').select('id, name, event_date, location, status').eq('id', context.event.id).maybeSingle(),
+    adminClient.from('event_settings').select('business_settings').eq('event_id', context.event.id).maybeSingle(),
+    adminClient.from('registrations').select('id, status').eq('id', context.registrationId).eq('event_id', context.event.id).maybeSingle(),
+    adminClient.from('registration_items').select('id, status').eq('id', rider.id).eq('registration_id', context.registrationId).maybeSingle(),
+  ])
+
+  const event = eventResult.data
+  const business = (settingsResult.data?.business_settings ?? {}) as BusinessSettings
+  const templateUrl = toPublicMediaUrl(business.certificate_template_url)?.trim() || ''
+  if (eventResult.error || settingsResult.error || !event) return { data: null, error: 'Status event tidak dapat diverifikasi.', status: 503 }
+  if (event.status !== 'FINISHED') return { data: null, error: 'E-sertifikat hanya tersedia setelah event selesai.', status: 409 }
+  const participationEnabled = participationCertificateEnabled(business)
+  const achievementEnabled = Boolean(business.certificate_achievement_enabled)
+  if (!business.certificate_enabled || !templateUrl || (!participationEnabled && !achievementEnabled)) {
+    return { data: null, error: 'E-sertifikat sedang tidak tersedia.', status: 409 }
+  }
+  if (registrationResult.error || registrationResult.data?.status !== 'APPROVED' || itemResult.error || itemResult.data?.status !== 'APPROVED') {
+    return { data: null, error: 'Status pendaftaran rider sudah berubah. Silakan verifikasi ulang.', status: 409 }
+  }
+
+  const currentContext: CertificateContext = {
+    ...context,
+    event: { id: event.id, name: event.name, event_date: event.event_date, location: event.location },
+    templateUrl,
+    certificatePrefix: normalizePrefix(business.certificate_id_prefix),
+    participationEnabled,
+    achievementEnabled,
+    layout: normalizeCertificateLayout(business.certificate_layout),
+    assets: {
+      eventLogoUrl: toPublicMediaUrl(business.certificate_event_logo_url),
+      organizerLogoUrl: toPublicMediaUrl(business.certificate_organizer_logo_url),
+    },
+  }
+
+  if (type === 'PARTICIPATION') {
+    if (!currentContext.participationEnabled) {
+      return { data: null, error: 'Sertifikat partisipasi belum tersedia untuk event ini.', status: 409 }
+    }
+    return { data: { context: currentContext, rider } }
+  }
+  if (!currentContext.achievementEnabled || !rider.riderId || !rider.categoryId) {
+    return { data: null, error: 'Sertifikat prestasi belum tersedia untuk rider ini.', status: 409 }
+  }
+
+  const { data: final, error: finalError } = await adminClient
+    .from('race_stage_result')
+    .select('final_class, position')
+    .eq('rider_id', rider.riderId)
+    .eq('category_id', rider.categoryId)
+    .eq('stage', 'FINAL')
+    .not('position', 'is', null)
+    .maybeSingle()
+  const position = typeof final?.position === 'number' ? final.position : null
+  const finalClass = String(final?.final_class ?? '').trim()
+  if (finalError || !position || !finalClass) {
+    return { data: null, error: 'Hasil final rider belum tersedia atau sedang diperbarui.', status: 409 }
+  }
+
+  return {
+    data: {
+      context: currentContext,
+      rider: { ...rider, achievement: { position, finalClass, label: achievementLabel(position, finalClass) } },
     },
   }
 }
@@ -216,6 +297,9 @@ export const issueCertificate = async (
   rider: CertificateRider,
   type: CertificateType
 ): Promise<{ data: IssuedCertificate | null; error?: string }> => {
+  if (type === 'PARTICIPATION' && !context.participationEnabled) {
+    return { data: null, error: 'Sertifikat partisipasi belum tersedia untuk rider ini.' }
+  }
   if (type === 'ACHIEVEMENT' && (!context.achievementEnabled || !rider.achievement)) {
     return { data: null, error: 'Sertifikat prestasi belum tersedia untuk rider ini.' }
   }

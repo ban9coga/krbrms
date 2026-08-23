@@ -15,6 +15,7 @@ type CertificateLookup = {
   event_name: string
   event_date: string | null
   registration_code: string
+  participation_enabled: boolean
   achievement_enabled: boolean
   riders: CertificateRider[]
   access_token: string
@@ -131,9 +132,9 @@ export default function CertificateClient({ eventId }: { eventId: string }) {
                     {result.achievement_enabled && rider.achievement && <p className="mt-1 text-xs font-black uppercase tracking-wide text-[#a34a0a]">{rider.achievement.label}</p>}
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <button type="button" disabled={downloadingId !== null} onClick={() => void download(rider, 'PARTICIPATION')} className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#1d0d07] px-5 py-3 text-xs font-black uppercase text-[#fff8e8] hover:bg-[#3e2113] disabled:cursor-wait disabled:opacity-60">
+                    {result.participation_enabled && <button type="button" disabled={downloadingId !== null} onClick={() => void download(rider, 'PARTICIPATION')} className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#1d0d07] px-5 py-3 text-xs font-black uppercase text-[#fff8e8] hover:bg-[#3e2113] disabled:cursor-wait disabled:opacity-60">
                       {downloadingId === `${rider.id}:PARTICIPATION` ? 'Membuat PDF...' : 'Sertifikat Partisipasi'}
-                    </button>
+                    </button>}
                     {result.achievement_enabled && rider.achievement && <button type="button" disabled={downloadingId !== null} onClick={() => void download(rider, 'ACHIEVEMENT')} className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#e84b16] px-5 py-3 text-xs font-black uppercase text-white hover:bg-[#c63b0b] disabled:cursor-wait disabled:opacity-60">
                       {downloadingId === `${rider.id}:ACHIEVEMENT` ? 'Membuat PDF...' : 'Sertifikat Prestasi'}
                     </button>}

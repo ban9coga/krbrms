@@ -767,6 +767,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     business_registration_jersey_size_chart_url: '',
     business_registration_rider_photo_enabled: true,
     business_certificate_enabled: false,
+    business_certificate_participation_enabled: true,
     business_certificate_template_url: '',
     business_certificate_id_prefix: 'RPB',
     business_certificate_achievement_enabled: false,
@@ -1010,6 +1011,8 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
               ? business.registration_rider_photo_enabled
               : true,
           business_certificate_enabled: typeof business.certificate_enabled === 'boolean' ? business.certificate_enabled : false,
+          business_certificate_participation_enabled:
+            typeof business.certificate_participation_enabled === 'boolean' ? business.certificate_participation_enabled : true,
           business_certificate_template_url:
             typeof business.certificate_template_url === 'string' ? business.certificate_template_url : '',
           business_certificate_id_prefix:
@@ -1709,6 +1712,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
       registration_jersey_size_chart_url: form.business_registration_jersey_size_chart_url.trim() || null,
       registration_rider_photo_enabled: Boolean(form.business_registration_rider_photo_enabled),
       certificate_enabled: Boolean(form.business_certificate_enabled),
+      certificate_participation_enabled: Boolean(form.business_certificate_participation_enabled),
       certificate_template_url: form.business_certificate_template_url.trim() || null,
       certificate_id_prefix: form.business_certificate_id_prefix.trim().toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 12) || 'RPB',
       certificate_achievement_enabled: Boolean(form.business_certificate_achievement_enabled),
@@ -2796,7 +2800,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                     <ToggleSwitch
                       checked={form.business_certificate_enabled}
                       onChange={(checked) => setForm({ ...form, business_certificate_enabled: checked })}
-                      label="Aktifkan e-sertifikat untuk event ini"
+                      label="Aktifkan fitur e-sertifikat untuk event ini"
                     />
                     <div style={{ fontSize: 12, color: '#334155', fontWeight: 700, lineHeight: 1.5 }}>
                       Sertifikat hanya dapat dibuka setelah event berstatus FINISHED. Wali rider memverifikasi nomor registrasi dan WhatsApp yang dipakai saat mendaftar.
@@ -2874,12 +2878,17 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                       />
                     )}
                     <ToggleSwitch
+                      checked={form.business_certificate_participation_enabled}
+                      onChange={(checked) => setForm({ ...form, business_certificate_participation_enabled: checked })}
+                      label="Aktifkan sertifikat partisipasi"
+                    />
+                    <ToggleSwitch
                       checked={form.business_certificate_achievement_enabled}
                       onChange={(checked) => setForm({ ...form, business_certificate_achievement_enabled: checked })}
                       label="Aktifkan sertifikat prestasi/rank final"
                     />
                     <div style={{ fontSize: 12, color: '#334155', fontWeight: 700, lineHeight: 1.5 }}>
-                      Sertifikat prestasi hanya tersedia bila hasil FINAL resmi sudah terkunci. Sertifikat partisipasi tetap tersedia untuk seluruh rider yang disetujui.
+                      Sertifikat partisipasi tersedia untuk rider yang disetujui. Sertifikat prestasi hanya tersedia bila hasil FINAL resmi sudah terkunci. Kedua jenis dapat diaktifkan atau dinonaktifkan terpisah.
                     </div>
                     <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))' }}>
                       {([
@@ -2913,10 +2922,11 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                         {(Object.keys(CERTIFICATE_TEXT_ELEMENT_LABELS) as CertificateTextElement[]).map((key) => {
                           const position = form.business_certificate_layout.text[key]
                           return (
-                          <div key={key} style={{ display: 'grid', gap: 7, gridTemplateColumns: 'minmax(145px, 1fr) repeat(5, minmax(70px, 100px))', alignItems: 'center' }}>
-                            <strong style={{ fontSize: 12 }}>{CERTIFICATE_TEXT_ELEMENT_LABELS[key]}</strong>
+                          <div key={key} style={{ display: 'grid', gap: 9, padding: 12, border: '1px solid #d8dee8', borderRadius: 12, background: '#f8fafc' }}>
+                            <strong style={{ fontSize: 13, color: '#172033' }}>{CERTIFICATE_TEXT_ELEMENT_LABELS[key]}</strong>
+                            <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))' }}>
                               {(['x', 'top', 'width', 'fontSize'] as const).map((field) => (
-                                <label key={field} style={{ display: 'grid', gap: 3, fontSize: 10, fontWeight: 800 }}>
+                                <label key={field} style={{ display: 'grid', minWidth: 0, gap: 4, fontSize: 11, fontWeight: 800 }}>
                                   {field === 'x' ? 'Kiri %' : field === 'top' ? 'Atas %' : field === 'width' ? 'Lebar %' : 'Font pt'}
                                   <input
                                     type="number"
@@ -2933,11 +2943,11 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                                         },
                                       }))
                                     }
-                                    style={{ padding: 7, borderRadius: 8, border: '1px solid #64748b', fontWeight: 800 }}
+                                    style={{ boxSizing: 'border-box', width: '100%', minWidth: 0, padding: '9px 10px', borderRadius: 8, border: '1px solid #64748b', fontWeight: 800 }}
                                   />
                                 </label>
                               ))}
-                              <label style={{ display: 'grid', gap: 3, fontSize: 10, fontWeight: 800 }}>
+                              <label style={{ display: 'grid', minWidth: 0, gap: 4, fontSize: 11, fontWeight: 800 }}>
                                 Font
                                 <select
                                   value={position.font}
@@ -2956,7 +2966,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                                       },
                                     }))
                                   }
-                                  style={{ padding: 7, borderRadius: 8, border: '1px solid #64748b', fontWeight: 800 }}
+                                  style={{ boxSizing: 'border-box', width: '100%', minWidth: 0, padding: '9px 10px', borderRadius: 8, border: '1px solid #64748b', fontWeight: 800 }}
                                 >
                                   {(Object.keys(CERTIFICATE_FONT_LABELS) as CertificateFont[]).map((font) => (
                                     <option key={font} value={font}>{CERTIFICATE_FONT_LABELS[font]}</option>
@@ -2964,15 +2974,17 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                                 </select>
                               </label>
                             </div>
+                            </div>
                           )
                         })}
                         {(Object.keys(CERTIFICATE_IMAGE_ELEMENT_LABELS) as CertificateImageElement[]).map((key) => {
                           const position = form.business_certificate_layout.image[key]
                           return (
-                            <div key={key} style={{ display: 'grid', gap: 7, gridTemplateColumns: 'minmax(145px, 1fr) repeat(3, minmax(70px, 100px))', alignItems: 'center' }}>
-                              <strong style={{ fontSize: 12 }}>{CERTIFICATE_IMAGE_ELEMENT_LABELS[key]}</strong>
+                            <div key={key} style={{ display: 'grid', gap: 9, padding: 12, border: '1px solid #d8dee8', borderRadius: 12, background: '#f8fafc' }}>
+                              <strong style={{ fontSize: 13, color: '#172033' }}>{CERTIFICATE_IMAGE_ELEMENT_LABELS[key]}</strong>
+                              <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))' }}>
                               {(['x', 'top', 'width'] as const).map((field) => (
-                                <label key={field} style={{ display: 'grid', gap: 3, fontSize: 10, fontWeight: 800 }}>
+                                <label key={field} style={{ display: 'grid', minWidth: 0, gap: 4, fontSize: 11, fontWeight: 800 }}>
                                   {field === 'x' ? 'Kiri %' : field === 'top' ? 'Atas %' : 'Lebar %'}
                                   <input
                                     type="number"
@@ -2989,10 +3001,11 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                                         },
                                       }))
                                     }
-                                    style={{ padding: 7, borderRadius: 8, border: '1px solid #64748b', fontWeight: 800 }}
+                                    style={{ boxSizing: 'border-box', width: '100%', minWidth: 0, padding: '9px 10px', borderRadius: 8, border: '1px solid #64748b', fontWeight: 800 }}
                                   />
                                 </label>
                               ))}
+                              </div>
                             </div>
                           )
                         })}
@@ -3005,7 +3018,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                       Kelola sertifikat yang sudah diterbitkan
                     </Link>
                     <div style={{ fontSize: 12, color: '#334155', fontWeight: 700 }}>
-                      Nama Race Director otomatis mengikuti data Race Director event. Gunakan PNG lanskap beresolusi tinggi. Template contoh berukuran 1491 x 1055 px dan sudah menyisakan area dinamis untuk nama rider, nama event, kategori, nomor plate, prestasi, tanggal, lokasi, QR verifikasi, ID sertifikat, logo, serta tanda tangan. Maksimal 10 MB.
+                      Gunakan PNG lanskap beresolusi tinggi. Template contoh berukuran 1491 x 1055 px. Area dinamis hanya untuk data rider, event, hasil, QR verifikasi, Certificate ID, dan logo; nama serta tanda tangan pejabat harus sudah menyatu di template. Maksimal 10 MB.
                     </div>
                   </div>
                 </div>

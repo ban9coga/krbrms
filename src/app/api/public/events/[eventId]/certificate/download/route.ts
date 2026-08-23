@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { PDFDocument, rgb } from 'pdf-lib'
 import QRCode from 'qrcode'
-import { issueCertificate, type CertificateContext, type CertificateRider, type CertificateType } from '@/src/lib/eventCertificate'
+import { issueCertificate, revalidateCertificateDownload, type CertificateContext, type CertificateSnapshot, type CertificateType } from '@/src/lib/eventCertificate'
 import { readCertificateAccessToken } from '@/src/lib/certificateAccessToken'
 import { rateLimit } from '@/src/lib/rateLimit'
 import { embedCertificateFonts } from '@/src/lib/certificateFonts'
@@ -68,13 +68,13 @@ const drawImageAt = (page: PdfPage, image: unknown, xPercent: number, topPercent
 
 const certificateType = (value: unknown): CertificateType | null => (value === 'ACHIEVEMENT' || value === 'PARTICIPATION' ? value : null)
 
-const achievementValue = (rider: CertificateRider, type: CertificateType) => (type === 'ACHIEVEMENT' ? rider.achievement?.label || 'Prestasi final' : 'Peserta')
+const achievementValue = (snapshot: CertificateSnapshot, type: CertificateType) => (type === 'ACHIEVEMENT' ? snapshot.achievement?.label || 'Prestasi final' : 'Peserta')
 
 const renderCertificate = async (
   context: CertificateContext,
-  rider: CertificateRider,
   type: CertificateType,
   code: string,
+  snapshot: CertificateSnapshot,
   requestOrigin: string
 ) => {
   const template = localImageUrl(context.templateUrl, requestOrigin)
@@ -104,13 +104,13 @@ const renderCertificate = async (
   const orange = rgb(0.86, 0.22, 0.04)
   const muted = rgb(0.27, 0.16, 0.09)
   const values = {
-    name: rider.name.trim().toUpperCase(),
-    eventName: context.event.name.trim().toUpperCase(),
-    category: rider.category,
-    plate: rider.plate,
-    achievement: achievementValue(rider, type),
-    eventDate: formatEventDate(context.event.event_date),
-    location: context.event.location || '-',
+    name: snapshot.rider_name.trim().toUpperCase(),
+    eventName: snapshot.event_name.trim().toUpperCase(),
+    category: snapshot.category,
+    plate: snapshot.plate,
+    achievement: achievementValue(snapshot, type),
+    eventDate: formatEventDate(snapshot.event_date),
+    location: snapshot.location || '-',
     certificateCode: code,
   }
   const layout = context.layout
@@ -153,13 +153,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   const rider = access.context.riders.find((item) => item.id === String(body.registration_item_id ?? ''))
   if (!rider) return NextResponse.json({ error: 'Rider tidak ditemukan pada pendaftaran ini.' }, { status: 404, headers: limit.headers })
 
-  const issued = await issueCertificate(access.context, rider, type)
+  const validated = await revalidateCertificateDownload(access.context, rider, type)
+  if (!validated.data) return NextResponse.json({ error: validated.error }, { status: validated.status ?? 409, headers: limit.headers })
+
+  const issued = await issueCertificate(validated.data.context, validated.data.rider, type)
   if (!issued.data) return NextResponse.json({ error: issued.error || 'Certificate ID gagal dibuat.' }, { status: 500, headers: limit.headers })
   if (issued.data.revokedAt) return NextResponse.json({ error: 'Sertifikat ini sudah dicabut oleh panitia.' }, { status: 410, headers: limit.headers })
 
   try {
     const requestOrigin = new URL(req.url).origin
-    const bytes = await renderCertificate(access.context, rider, type, issued.data.code, requestOrigin)
+    const bytes = await renderCertificate(validated.data.context, type, issued.data.code, issued.data.snapshot, requestOrigin)
     return new NextResponse(Buffer.from(bytes), {
       headers: {
         ...limit.headers,

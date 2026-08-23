@@ -155,7 +155,10 @@ export default function EventDetailClient({
     eventDate ? Math.ceil((eventDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null
   const registrationOpen = event?.registration_open !== false
   const canDownloadCertificate = Boolean(
-    event?.status === 'FINISHED' && business?.certificate_enabled && business?.certificate_template_url
+    event?.status === 'FINISHED' &&
+      business?.certificate_enabled &&
+      business?.certificate_template_url &&
+      (business?.certificate_participation_enabled !== false || business?.certificate_achievement_enabled)
   )
   const isCategoryFull = (category: RiderCategory) => {
     if (category.is_full === true) return true

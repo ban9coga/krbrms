@@ -45,6 +45,7 @@ export type BusinessSettings = {
   registration_jersey_size_chart_url?: string | null
   registration_rider_photo_enabled?: boolean | null
   certificate_enabled?: boolean | null
+  certificate_participation_enabled?: boolean | null
   certificate_template_url?: string | null
   certificate_id_prefix?: string | null
   certificate_achievement_enabled?: boolean | null
