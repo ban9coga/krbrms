@@ -432,6 +432,20 @@ const buildWhatsAppMessage = (
         'Masukkan nomor WhatsApp yang digunakan saat mendaftar.',
       ]
     : ['Kode registrasi belum tersedia. Silakan hubungi panitia.']
+  const attendanceInstructions =
+    registration.status === 'APPROVED' &&
+    registration.attendance_status !== 'ATTENDING' &&
+    registration.attendance_status !== 'NOT_ATTENDING' &&
+    !registration.checked_in_at
+      ? [
+          '',
+          'Konfirmasi kehadiran:',
+          '1. Buka link status & QR di atas.',
+          '2. Masukkan kode registrasi dan nomor WhatsApp yang digunakan saat mendaftar.',
+          '3. Saat panel Konfirmasi Kehadiran tersedia, pilih Saya Akan Hadir atau Tidak Hadir.',
+          'Mohon lakukan sebelum event dimulai.',
+        ]
+      : []
 
   if (kind === 'STATUS_ACCESS') {
     return [
@@ -444,6 +458,7 @@ const buildWhatsAppMessage = (
       `Konfirmasi kehadiran: ${getAttendanceLabel(registration)}`,
       getVenueStatusLabel(registration.checked_in_at, 'Sudah check-in', 'Belum check-in'),
       getVenueStatusLabel(registration.goodie_bag_collected_at, 'Goodie bag sudah diambil', 'Goodie bag belum diambil'),
+      ...attendanceInstructions,
       '',
       'Simpan kode atau QR tersebut untuk proses check-in di venue.',
       'Terima kasih.',

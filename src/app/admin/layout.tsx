@@ -87,7 +87,7 @@ const readCookieValue = (name: string) => {
 const isAllowedAdminPath = (role: string | null, pathname: string) => {
   if (!isRegistrationApproverRole(role)) return true
   if (pathname === '/admin' || pathname === '/admin/events') return true
-  return /^\/admin\/events\/[^/]+\/registrations(?:\/|$)/.test(pathname)
+  return /^\/admin\/events\/[^/]+\/(registrations|check-in)(?:\/|$)/.test(pathname)
 }
 
 function Icon({ type, active }: { type: NavItem['icon']; active: boolean }) {
