@@ -89,17 +89,26 @@ const toIssuedCertificate = (row: {
   revoked_at: string | null
   revoked_reason: string | null
   snapshot: CertificateSnapshot
-}): IssuedCertificate => ({
-  id: row.id,
-  eventId: row.event_id,
-  registrationItemId: row.registration_item_id,
-  type: row.certificate_type,
-  code: row.certificate_code,
-  issuedAt: row.issued_at,
-  revokedAt: row.revoked_at,
-  revokedReason: row.revoked_reason,
-  snapshot: row.snapshot,
-})
+}): IssuedCertificate => {
+  const achievement = row.snapshot.achievement
+    ? {
+        ...row.snapshot.achievement,
+        label: `Juara ${row.snapshot.achievement.position} - ${row.snapshot.achievement.finalClass}`,
+      }
+    : null
+
+  return {
+    id: row.id,
+    eventId: row.event_id,
+    registrationItemId: row.registration_item_id,
+    type: row.certificate_type,
+    code: row.certificate_code,
+    issuedAt: row.issued_at,
+    revokedAt: row.revoked_at,
+    revokedReason: row.revoked_reason,
+    snapshot: { ...row.snapshot, achievement },
+  }
+}
 
 const readExistingCertificate = async (eventId: string, registrationItemId: string, type: CertificateType) => {
   const { data, error } = await adminClient
@@ -114,8 +123,7 @@ const readExistingCertificate = async (eventId: string, registrationItemId: stri
 }
 
 const achievementLabel = (position: number, finalClass: string) => {
-  const title = position === 1 ? 'Juara 1' : position === 2 ? 'Juara 2' : position === 3 ? 'Juara 3' : `Posisi ${position}`
-  return `${title} - ${finalClass}`
+  return `Juara ${position} - ${finalClass}`
 }
 
 export const loadCertificateContext = async (
