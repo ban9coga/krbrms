@@ -710,6 +710,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     | null
   >(null)
   const [registrationMediaError, setRegistrationMediaError] = useState<string>('')
+  const [registrationMediaSuccess, setRegistrationMediaSuccess] = useState<string>('')
   const [staffLoading, setStaffLoading] = useState(false)
   const [staffSaving, setStaffSaving] = useState(false)
   const [staffPhotoUploadingField, setStaffPhotoUploadingField] = useState<StaffPhotoField | null>(null)
@@ -905,6 +906,36 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     const { data } = await supabase.auth.getSession()
     const token = data.session?.access_token
     if (!token) throw new Error('Session expired. Silakan login ulang.')
+
+    if (kind.startsWith('certificate-')) {
+      const targetResponse = await fetch(`/api/events/${eventId}/registration-media`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'create-certificate-upload',
+          kind,
+          file_name: file.name,
+        }),
+      })
+      const targetJson = await targetResponse.json().catch(() => ({}))
+      const target = targetJson?.data as { path?: string; token?: string; url?: string } | undefined
+      if (!targetResponse.ok || !target?.path || !target?.token || !target?.url) {
+        throw new Error(targetJson?.error || 'Gagal menyiapkan upload sertifikat.')
+      }
+
+      const { error } = await supabase.storage
+        .from('event-logos')
+        .uploadToSignedUrl(target.path, target.token, file, {
+          contentType: 'image/png',
+          cacheControl: '31536000',
+        })
+      if (error) throw new Error(error.message || 'Gagal mengunggah aset sertifikat.')
+      return target.url
+    }
+
     const body = new FormData()
     body.append('file', file)
     body.append('kind', kind)
@@ -1204,6 +1235,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
   ) => {
     if (!file) return
     setRegistrationMediaError('')
+    setRegistrationMediaSuccess('')
     if (!file.type.startsWith('image/')) {
       setRegistrationMediaError('Media registrasi harus berupa gambar.')
       return
@@ -1237,8 +1269,13 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
               ? { business_certificate_template_url: url }
               : kind === 'certificate-event-logo'
                 ? { business_certificate_event_logo_url: url }
-                : { business_certificate_organizer_logo_url: url }),
+              : { business_certificate_organizer_logo_url: url }),
       }))
+      setRegistrationMediaSuccess(
+        kind === 'certificate-template'
+          ? 'Template sertifikat berhasil diunggah. Klik Save Event Settings untuk menyimpannya ke event.'
+          : 'Media berhasil diunggah. Klik Save Event Settings untuk menyimpannya ke event.'
+      )
     } catch (err) {
       setRegistrationMediaError(err instanceof Error ? err.message : 'Gagal upload media registrasi.')
     } finally {
@@ -2867,6 +2904,19 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                         </a>
                       )}
                     </div>
+                    <div style={{ fontSize: 12, color: '#475569', fontWeight: 700 }}>
+                      Format PNG, maksimal 10 MB. Setelah upload, simpan Event Settings agar template digunakan publik.
+                    </div>
+                    {registrationMediaSuccess && (
+                      <div style={{ border: '1px solid #86efac', borderRadius: 10, background: '#f0fdf4', padding: '9px 11px', color: '#166534', fontSize: 12, fontWeight: 800 }}>
+                        {registrationMediaSuccess}
+                      </div>
+                    )}
+                    {registrationMediaError && (
+                      <div style={{ border: '1px solid #fca5a5', borderRadius: 10, background: '#fef2f2', padding: '9px 11px', color: '#b91c1c', fontSize: 12, fontWeight: 800 }}>
+                        Upload gagal: {registrationMediaError}
+                      </div>
+                    )}
                     {form.business_certificate_template_url && (
                       <CertificateLayoutPreview
                         templateUrl={form.business_certificate_template_url}

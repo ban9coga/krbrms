@@ -17,6 +17,12 @@ const CERTIFICATE_ASSET_MAX_BYTES = 3 * 1024 * 1024
 
 const isCertificateAsset = (kind: string) => kind.startsWith('certificate-')
 
+const buildStoragePath = (eventId: string, kind: string, fileName: string) => {
+  const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '-')
+  const baseName = safeName.replace(/\.[^.]+$/, '') || kind
+  return `events/${eventId}/registration/${kind}-${Date.now()}-${baseName}.png`
+}
+
 const ensureBucket = async () => {
   const { data } = await adminClient.storage.getBucket(BUCKET)
   if (data) return
@@ -27,6 +33,32 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   const { eventId } = await params
   const auth = await requireAdmin(req.headers.get('authorization'), eventId)
   if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  if (req.headers.get('content-type')?.includes('application/json')) {
+    const body = await req.json().catch(() => null)
+    const kind = String(body?.kind ?? '').trim()
+    const fileName = String(body?.file_name ?? '').trim()
+
+    if (body?.action !== 'create-certificate-upload' || !isCertificateAsset(kind) || !ALLOWED_KINDS.has(kind)) {
+      return NextResponse.json({ error: 'Permintaan upload sertifikat tidak valid.' }, { status: 400 })
+    }
+
+    await ensureBucket()
+    const path = buildStoragePath(eventId, kind, fileName)
+    const { data, error } = await adminClient.storage.from(BUCKET).createSignedUploadUrl(path, { upsert: true })
+    if (error || !data?.token) {
+      return NextResponse.json({ error: error?.message || 'Gagal menyiapkan upload sertifikat.' }, { status: 400 })
+    }
+
+    const publicUrl = adminClient.storage.from(BUCKET).getPublicUrl(path).data.publicUrl
+    return NextResponse.json({
+      data: {
+        path,
+        token: data.token,
+        url: toPublicMediaUrl(publicUrl) ?? publicUrl,
+      },
+    })
+  }
 
   const form = await req.formData()
   const file = form.get('file')
@@ -65,9 +97,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   }
 
   await ensureBucket()
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '-')
-  const baseName = safeName.replace(/\.[^.]+$/, '') || kind
-  const path = `events/${eventId}/registration/${kind}-${Date.now()}-${baseName}.${upload.extension}`
+  const path = buildStoragePath(eventId, kind, file.name).replace(/\.png$/, `.${upload.extension}`)
   const { error: uploadError } = await adminClient.storage
     .from(BUCKET)
     .upload(path, upload.buffer, { contentType: upload.contentType, cacheControl: '31536000', upsert: true })
