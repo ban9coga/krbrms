@@ -33,7 +33,7 @@ const securityHeaders = [
       "frame-ancestors 'none'",
       "object-src 'none'",
       "form-action 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://static.cloudflareinsights.com",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https://*.supabase.co https://api.qrserver.com https://res.cloudinary.com",
       "font-src 'self' data:",

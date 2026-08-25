@@ -13,7 +13,11 @@ export default function InsightCard({ post, priority = false, featured = false }
 
   return (
     <article className={`insight-card${featured ? ' insight-card-featured' : ''}`}>
-      <Link href={`/insight/${post.slug}`} className="insight-card-cover" aria-label={`Baca ${post.title}`}>
+      <Link
+        href={`/insight/${post.slug}`}
+        className="insight-card-cover"
+        aria-label={`Baca ${getInsightCategoryLabel(post.category)}: ${post.title}`}
+      >
         {post.cover_image_url ? (
           <Image
             src={post.cover_image_url}
