@@ -14,6 +14,7 @@ import LogoutButton from './LogoutButton'
 const navItems = [
   { href: '/', label: 'Home' },
   { href: '/jadwal-race-pushbike', label: 'Events' },
+  { href: '/insight', label: 'Insight' },
 ]
 
 type MarketingTopbarProps = {

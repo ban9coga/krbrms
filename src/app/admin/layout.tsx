@@ -12,7 +12,7 @@ import { supabase } from '@/src/lib/supabaseClient'
 type NavItem = {
   label: string
   href: string
-  icon: 'dashboard' | 'events' | 'users' | 'registrations' | 'riders' | 'categories' | 'draw' | 'drawSettings' | 'motos' | 'sequence' | 'advanced' | 'customSplit' | 'schedule' | 'results' | 'penalties' | 'settings'
+  icon: 'dashboard' | 'events' | 'content' | 'users' | 'registrations' | 'riders' | 'categories' | 'draw' | 'drawSettings' | 'motos' | 'sequence' | 'advanced' | 'customSplit' | 'schedule' | 'results' | 'penalties' | 'settings'
 }
 
 const BRAND = {
@@ -23,6 +23,7 @@ const BRAND = {
 const GLOBAL_NAV: NavItem[] = [
   { label: 'Dashboard', href: '/admin', icon: 'dashboard' },
   { label: 'Events', href: '/admin/events', icon: 'events' },
+  { label: 'Content Studio', href: '/admin/content', icon: 'content' },
 ]
 
 const EVENT_NAV = (eventId: string): NavItem[] => [
@@ -105,6 +106,14 @@ function Icon({ type, active }: { type: NavItem['icon']; active: boolean }) {
     return (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={common}>
         <path d="M7 3v4M17 3v4M4 9h16M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  }
+  if (type === 'content') {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={common}>
+        <path d="M6 4h9l3 3v13H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M9 10h6M9 14h6M9 18h4" strokeLinecap="round" />
       </svg>
     )
   }
@@ -340,7 +349,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       return actions
     }
 
-    const actions = [{ label: 'Events', href: '/admin/events' }]
+    const actions = [{ label: 'Events', href: '/admin/events' }, { label: 'Content Studio', href: '/admin/content' }]
     if ((userRole ?? '').toLowerCase() === 'super_admin') {
       actions.push({ label: 'Users', href: '/admin/users' })
     }

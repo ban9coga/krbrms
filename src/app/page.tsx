@@ -10,6 +10,8 @@ import { toPublicMediaUrl } from '../lib/publicMedia'
 import { getCommunityShowcaseLogos, type CommunityShowcaseLogo } from '../lib/communityShowcase'
 import { getLiveEvent } from '../lib/liveEvent'
 import { getPublicFinishedEventArchives } from '../services/publicFinishedEventArchive'
+import { getLatestInsightPosts } from '../lib/insight'
+import InsightHomeSection from '../components/InsightHomeSection'
 
 export const revalidate = 30
 
@@ -220,9 +222,10 @@ function LandingEventSection({
 
 export default async function LandingPage() {
   const liveEvent = await getLiveEvent()
-  const [upcomingEventsRaw, finishedArchives] = await Promise.all([
+  const [upcomingEventsRaw, finishedArchives, insightPosts] = await Promise.all([
     fetchLandingEvents('UPCOMING'),
     getPublicFinishedEventArchives(),
+    getLatestInsightPosts(3),
   ])
   const finishedEventsRaw = finishedArchives.map((archive) => archive.event)
   const [landingSettings, registrationAvailability] = await Promise.all([
@@ -268,30 +271,34 @@ export default async function LandingPage() {
           events={finishedEvents}
           settingsMap={settingsMap}
           emptyMessage="Belum ada completed event yang tampil untuk publik."
-        >
-          {communityLogos.length > 0 && (
-            <div className="homepage-editorial-community">
-              <h3>Komunitas &amp; Partner</h3>
-              <div className="homepage-editorial-community-logos">
-                {communityLogos.map((item) => (
-                  <div
-                    key={item.name}
-                    className="homepage-editorial-community-logo"
-                    title={item.name}
-                  >
-                    <Image
-                      src={item.logoSrc}
-                      alt={item.alt ?? `${item.name} logo`}
-                      width={112}
-                      height={64}
-                      className="max-h-full max-w-full object-contain"
-                    />
-                  </div>
-                ))}
+        />
+        <InsightHomeSection posts={insightPosts} />
+        {communityLogos.length > 0 && (
+          <section className="homepage-editorial-section homepage-editorial-community-section">
+            <div className="homepage-editorial-section-inner">
+              <div className="homepage-editorial-community">
+                <h3>Komunitas &amp; Partner</h3>
+                <div className="homepage-editorial-community-logos">
+                  {communityLogos.map((item) => (
+                    <div
+                      key={item.name}
+                      className="homepage-editorial-community-logo"
+                      title={item.name}
+                    >
+                      <Image
+                        src={item.logoSrc}
+                        alt={item.alt ?? `${item.name} logo`}
+                        width={112}
+                        height={64}
+                        className="max-h-full max-w-full object-contain"
+                      />
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
-          )}
-        </LandingEventSection>
+          </section>
+        )}
       </main>
 
     </div>

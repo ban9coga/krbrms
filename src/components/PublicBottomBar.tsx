@@ -5,6 +5,7 @@ import Link from 'next/link'
 const footerLinks = [
   { href: '/', label: 'Home' },
   { href: '/jadwal-race-pushbike', label: 'Jadwal Race' },
+  { href: '/insight', label: 'Insight' },
   { href: '/registration-status', label: 'Cek Status' },
   { href: '/live-results', label: 'Live Results' },
 ]

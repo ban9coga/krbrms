@@ -14,6 +14,7 @@ import LogoutButton from './LogoutButton'
 const navItems = [
   { href: '/', label: 'Home' },
   { href: '/dashboard', label: 'Events' },
+  { href: '/insight', label: 'Insight' },
   { href: '/registration-status', label: 'Cek Status' },
 ]
 

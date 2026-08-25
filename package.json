@@ -24,6 +24,8 @@
     "qrcode": "^1.5.4",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "sharp": "^0.34.5",
     "xlsx": "^0.18.5",
     "xlsx-js-style": "^1.2.0"
