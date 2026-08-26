@@ -6,10 +6,10 @@ export default async function DrawEventWorkspacePage({ params }: { params: Promi
   const { eventId } = await params
   return (
     <div className="ld-shell">
-      <Link href="/draw" className="ld-exit-btn">
-        Kembali ke Event
+      <Link href="/draw" className="ld-exit-btn" aria-label="Keluar dari drawing">
+        <span aria-hidden="true">⇥</span>
       </Link>
-      <LiveDrawClient eventId={eventId} workspaceLabel="Drawing Workspace" />
+      <LiveDrawClient eventId={eventId} />
     </div>
   )
 }

@@ -226,10 +226,8 @@ const serializeBatchRiders = (batches: RiderItem[][]) =>
 
 export default function LiveDrawClient({
   eventId,
-  workspaceLabel = 'Admin Drawing',
 }: {
   eventId: string
-  workspaceLabel?: string
 }) {
   const [categories, setCategories] = useState<CategoryItem[]>([])
   const [selectedCategory, setSelectedCategory] = useState<string>('')
@@ -692,7 +690,6 @@ export default function LiveDrawClient({
     const size = canvas.width
     const radius = size / 2
     const step = (Math.PI * 2) / count
-    const labelEvery = count <= 40 ? 1 : Math.ceil(count / 40)
 
     ctx.clearRect(0, 0, size, size)
     ctx.save()
@@ -705,36 +702,34 @@ export default function LiveDrawClient({
       ctx.moveTo(0, 0)
       ctx.arc(0, 0, radius - 2, start, end)
       ctx.closePath()
-      ctx.fillStyle = i % 3 === 0 ? '#ff1010' : i % 2 === 0 ? '#303030' : '#141414'
+      ctx.fillStyle = i % 3 === 0 ? '#173b3b' : i % 2 === 0 ? '#1b2b2f' : '#142126'
       ctx.fill()
-      ctx.strokeStyle = '#0b0b0b'
+      ctx.strokeStyle = '#315557'
       ctx.lineWidth = 2
       ctx.stroke()
 
-      if (list.length > 0 && i % labelEvery === 0) {
-        const mid = start + step / 2
-        ctx.save()
-        ctx.rotate(mid)
-        ctx.translate(radius * 0.58, 0)
-        ctx.rotate(Math.PI / 2)
-        ctx.fillStyle = '#ffffff'
-        ctx.font = '900 14px Arial, Helvetica, sans-serif'
-        const plate = list[i]?.no_plate_display ?? ''
-        ctx.fillText(plate.slice(0, 4), -12, 4)
-        ctx.restore()
-      }
+      const mid = start + step / 2
+      ctx.save()
+      ctx.rotate(mid)
+      ctx.translate(radius * 0.58, 0)
+      ctx.rotate(Math.PI / 2)
+      ctx.fillStyle = '#d7f6f3'
+      ctx.font = `${count > 24 ? '700 11px' : '700 15px'} Inter, Arial, Helvetica, sans-serif`
+      ctx.textAlign = 'center'
+      ctx.fillText(list[i]?.no_plate_display?.slice(0, 5) ?? String(i + 1), 0, 5)
+      ctx.restore()
     }
 
     ctx.beginPath()
     ctx.arc(0, 0, radius * 0.18, 0, Math.PI * 2)
-    ctx.fillStyle = '#151515'
+    ctx.fillStyle = '#0b1418'
     ctx.fill()
-    ctx.strokeStyle = '#2a2a2a'
+    ctx.strokeStyle = '#38585b'
     ctx.lineWidth = 3
     ctx.stroke()
     ctx.beginPath()
     ctx.arc(0, 0, radius * 0.07, 0, Math.PI * 2)
-    ctx.fillStyle = '#202020'
+    ctx.fillStyle = '#ff6b00'
     ctx.fill()
     ctx.restore()
   }, [drawMode, visibleWheelRiders])
@@ -1850,11 +1845,66 @@ export default function LiveDrawClient({
         <div className="ld-workspace-brand">
           {eventLogoUrl ? <img src={eventLogoUrl} alt="" className="ld-event-logo" /> : <span className="ld-brand-mark">VD</span>}
           <div>
-            <div className="ld-kicker">{workspaceLabel}</div>
-            <h1>{eventName}</h1>
-            <p>Draw setup dan pembagian gate rider</p>
+            <h1>
+              <span>Drawing Batch</span>
+              <strong>{eventName}</strong>
+            </h1>
           </div>
         </div>
+        <section className="ld-workspace-toolbar">
+          <div className="ld-category-field ld-category-picker">
+            <button
+              type="button"
+              className="ld-category-picker-trigger"
+              aria-haspopup="listbox"
+              aria-expanded={categoryPickerOpen}
+              onClick={() => setCategoryPickerOpen((isOpen) => !isOpen)}
+            >
+              <span>{selectedCategoryLabel} · {riders.length} Riders</span>
+              <svg aria-hidden="true" viewBox="0 0 16 16" focusable="false">
+                <path d="m3.25 5.75 4.75 4.5 4.75-4.5" />
+              </svg>
+            </button>
+            {categoryPickerOpen && (
+              <div className="ld-category-picker-menu" role="listbox" aria-label="Daftar kategori">
+                {categories.map((category) => (
+                  <button
+                    key={category.id}
+                    type="button"
+                    role="option"
+                    aria-selected={category.id === selectedCategory}
+                    className={category.id === selectedCategory ? 'is-selected' : ''}
+                    onClick={() => {
+                      setSaveSuccessModal(false)
+                      setCategoryPickerOpen(false)
+                      setSelectedCategory(category.id)
+                    }}
+                  >
+                    <span>{category.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="ld-config-chip ld-config-chip--moto-one">
+            <span>Moto 1</span>
+            <strong>{displayedBatchCount} Batches</strong>
+          </div>
+          <div className="ld-config-chip ld-config-chip--moto-two">
+            <span>Moto 2</span>
+            <strong>{moto2OrderLabel}</strong>
+          </div>
+          <button
+            type="button"
+            className="ld-refresh-btn"
+            aria-label="Muat ulang data kategori"
+            title="Muat ulang data kategori"
+            onClick={() => loadRiders(selectedCategory)}
+            disabled={loading || !selectedCategory}
+          >
+            ↻
+          </button>
+        </section>
         <div className={`ld-mode-badge ld-mode-badge--${drawMode}`}>
           <span />
           {drawMode === 'external_draw' ? 'External Order' : 'Live Spin'}
@@ -1873,66 +1923,8 @@ export default function LiveDrawClient({
           gap: 12,
         }}
       >
-        <section className="ld-workspace-toolbar">
-          <div className="ld-category-field ld-category-picker">
-            <span>Pilih kategori</span>
-            <button
-              type="button"
-              className="ld-category-picker-trigger"
-              aria-haspopup="listbox"
-              aria-expanded={categoryPickerOpen}
-              onClick={() => setCategoryPickerOpen((isOpen) => !isOpen)}
-            >
-              <span>{selectedCategoryLabel}</span>
-              <svg aria-hidden="true" viewBox="0 0 16 16" focusable="false">
-                <path d="m3.25 5.75 4.75 4.5 4.75-4.5" />
-              </svg>
-            </button>
-            {categoryPickerOpen && (
-              <div className="ld-category-picker-menu" role="listbox" aria-label="Daftar kategori">
-              {categories.map((category) => (
-                <button
-                  key={category.id}
-                  type="button"
-                  role="option"
-                  aria-selected={category.id === selectedCategory}
-                  className={category.id === selectedCategory ? 'is-selected' : ''}
-                  onClick={() => {
-                    setSaveSuccessModal(false)
-                    setCategoryPickerOpen(false)
-                    setSelectedCategory(category.id)
-                  }}
-                >
-                  <span>{category.label}</span>
-                </button>
-              ))}
-              </div>
-            )}
-          </div>
-          <div className="ld-category-summary">
-            <strong>{selectedCategoryLabel}</strong>
-            <span>{riders.length} rider terdaftar</span>
-          </div>
-          <div className="ld-config-chip">
-            <span>Batch</span>
-            <strong>{batchModeLabel}</strong>
-          </div>
-          <div className="ld-config-chip">
-            <span>Moto 2</span>
-            <strong>{moto2OrderLabel}</strong>
-          </div>
-          <button
-            type="button"
-            className="ld-refresh-btn"
-            onClick={() => loadRiders(selectedCategory)}
-            disabled={loading || !selectedCategory}
-          >
-            {loading ? 'Memuat...' : 'Muat Ulang'}
-          </button>
-        </section>
-
         <div
-          className="ld-draw-stage"
+          className={`ld-draw-stage ${drawMode === 'internal_live_draw' ? 'ld-draw-stage--spin' : 'ld-draw-stage--manual'}`}
           style={{
             border: '1px solid #353534',
             borderRadius: 24,
@@ -1946,7 +1938,8 @@ export default function LiveDrawClient({
             boxShadow: '0 24px 48px rgba(15, 23, 42, 0.08)',
           }}
         >
-          <div style={{ display: 'grid', gap: 6 }}>
+          {drawMode === 'external_draw' && <>
+          <div className="ld-draw-summary" style={{ display: 'grid', gap: 6 }}>
             <div style={{ color: '#9a9693', fontWeight: 700 }}>
               Total rider: {riders.length} | Batch: {displayedBatchCount}
             </div>
@@ -1959,7 +1952,7 @@ export default function LiveDrawClient({
               </div>
             )}
           </div>
-          <div style={{ display: 'grid', gap: 8 }}>
+          <div className="ld-rider-preview" style={{ display: 'grid', gap: 8 }}>
             <div style={{ fontWeight: 900 }}>Preview Rider</div>
             {drawMode === 'external_draw' && externalBatchInputMode === 'PER_BATCH' && (
               <div style={{ display: 'grid', gap: 8 }}>
@@ -2098,8 +2091,10 @@ export default function LiveDrawClient({
               </div>
             )}
           </div>
+          </>}
           {drawMode === 'internal_live_draw' ? (
             <div
+              className="ld-wheel-zone"
               style={{
                 display: 'grid',
                 gridTemplateColumns: '1fr',
@@ -2108,7 +2103,7 @@ export default function LiveDrawClient({
                 gap: 10,
               }}
             >
-              <div style={{ position: 'relative', width: 360, height: 360 }}>
+              <div className="ld-wheel-frame" style={{ position: 'relative', width: 360, height: 360 }}>
 
                 <canvas
                   ref={canvasRef}
@@ -2635,43 +2630,19 @@ export default function LiveDrawClient({
                   ? `${savedMotoBatches.length} batch tersimpan`
                   : drawnOrder.length > 0
                     ? `${batchLayouts.length} batch draft`
-                    : 'Belum ada hasil draw.'}
+                    : ''}
               </div>
             </div>
-            <span className="ld-recording-dot">
-              <span />
-              Recording
-            </span>
           </div>
 
           <div className="ld-results-panel__body">
-            {!categoryLocked && drawnOrder.length === 0 && (
-              <div className="ld-empty-telemetry">
-                <div className="ld-jelly-loader" aria-hidden="true">
-                  <div className="ld-jelly" />
-                  <svg className="ld-jelly-maker" aria-hidden="true">
-                    <defs>
-                      <filter id="ld-jelly-ooze">
-                        <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur" />
-                        <feColorMatrix
-                          in="blur"
-                          mode="matrix"
-                          values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -7"
-                          result="goo"
-                        />
-                        <feBlend in="SourceGraphic" in2="goo" />
-                      </filter>
-                    </defs>
-                  </svg>
-                </div>
-                <div>Menunggu Spin Draw</div>
-              </div>
-            )}
-
             {!categoryLocked && batchLayouts.map((batch) => {
               return (
                 <div key={`inline-draft-${batch.index}`} className="ld-result-card">
-                  <div className="ld-result-card__title">Batch {batch.index}</div>
+                  <div className="ld-result-card__title">
+                    <span>Batch {batch.index}</span>
+                    <small>{batch.riders.length} riders</small>
+                  </div>
                   <div className="ld-result-moto">
                     <div className="ld-result-moto__label">Moto 1</div>
                     {batch.riders.map((rider, index) => (
@@ -2688,7 +2659,10 @@ export default function LiveDrawClient({
 
             {categoryLocked && savedMotoBatches.map((batch) => (
               <div key={`inline-saved-${batch.batchNo}`} className="ld-result-card">
-                <div className="ld-result-card__title">Batch {batch.batchNo}</div>
+                <div className="ld-result-card__title">
+                  <span>Batch {batch.batchNo}</span>
+                  <small>{batch.motos.find((moto) => /^Moto 1\b/i.test(moto.moto_name))?.gates.length ?? 0} riders</small>
+                </div>
                 {batch.motos.filter((moto) => /^Moto 1\b/i.test(moto.moto_name)).map((moto) => (
                   <div key={`inline-saved-moto-${moto.id}`} className="ld-result-moto">
                     <div className="ld-result-moto__label">{moto.moto_name}</div>
@@ -2797,16 +2771,8 @@ export default function LiveDrawClient({
         </aside>
       </div>
 
-      <div style={{ marginTop: 18 }}>
-        {loading && <div style={{ fontWeight: 800 }}>Memuat data...</div>}
-        {!loading && drawnOrder.length === 0 && !categoryLocked && (
-          <div style={{ color: '#9a9693', fontWeight: 700 }}>
-            {drawMode === 'external_draw'
-              ? 'Belum ada hasil editor batch yang dipakai.'
-              : 'Belum ada hasil draw.'}
-          </div>
-        )}
-      </div>
+      {loading && <div className="ld-page-loading">Memuat data...</div>}
+      <footer className="ld-powered-by">Powered by <strong>racepushbike.com</strong></footer>
 
       {saveSuccessModal && (
         <div className="ld-save-success-overlay" role="dialog" aria-modal="true" aria-labelledby="ld-save-success-title">
