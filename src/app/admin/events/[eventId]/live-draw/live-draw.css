@@ -277,6 +277,57 @@
   background-position: 0 0, 0 6px, 6px -6px, -6px 0;
 }
 
+.ld-draw-idle-state {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  gap: 14px;
+  align-self: center;
+  justify-self: center;
+  margin: auto;
+  min-height: min(460px, 55dvh);
+  width: 100%;
+}
+
+.ld-draw-idle-spinner {
+  width: 34px;
+  height: 34px;
+  border: 3px solid rgba(0, 240, 232, 0.22);
+  border-top-color: #00f0e8;
+  border-right-color: #f8ce3d;
+  border-radius: 50%;
+  animation: ld-draw-idle-spin 0.9s linear infinite;
+}
+
+.ld-draw-idle-label {
+  color: rgba(223, 248, 247, 0.76);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+@keyframes ld-draw-idle-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes ld-result-card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.ld-result-card--enter {
+  animation: ld-result-card-enter 360ms cubic-bezier(0.2, 0.78, 0.22, 1) both;
+}
+
 .ld-empty-telemetry {
   min-height: 220px;
   display: grid;

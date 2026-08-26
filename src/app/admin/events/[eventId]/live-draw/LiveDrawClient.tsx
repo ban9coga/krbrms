@@ -2125,28 +2125,11 @@ export default function LiveDrawClient({
                 <button
                   type="button"
                   className="ld-spin-draw-btn"
-                  onClick={startDraw}
-                disabled={loading || drawing || riders.length === 0 || hasDrawn || (batchMode === 'CUSTOM_BATCH_SIZES' && Boolean(customBatchError))}
+                  onClick={hasDrawn ? resetDraw : startDraw}
+                  disabled={loading || drawing || categoryLocked || riders.length === 0 || (batchMode === 'CUSTOM_BATCH_SIZES' && Boolean(customBatchError))}
                 >
-                  <span>{hasDrawn ? 'Draw Terkunci' : drawing ? 'Memutar Draw...' : 'Spin Draw'}</span>
+                  <span>{drawing ? 'Memutar Draw...' : hasDrawn ? 'Ulangi Draw' : 'Spin Draw'}</span>
                 </button>
-                {drawnOrder.length > 0 && !categoryLocked && (
-                  <button
-                    type="button"
-                    className="ld-reset-draw-btn"
-                    onClick={resetDraw}
-                    style={{
-                      padding: '12px 16px',
-                      borderRadius: 0,
-                      border: '1px solid #353534',
-                      background: '#1c1b1b',
-                      fontWeight: 900,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Ulangi Draw
-                  </button>
-                )}
                 {categoryLocked && (
                   <>
                     {!deleteGuard.canDelete && deleteGuard.reason && (
@@ -2625,20 +2608,24 @@ export default function LiveDrawClient({
           <div className="ld-results-panel__head">
             <div>
               <div className="ld-kicker">Draw Result</div>
-              <div className="ld-results-panel__meta">
-                {categoryLocked
-                  ? `${savedMotoBatches.length} batch tersimpan`
-                  : drawnOrder.length > 0
-                    ? `${batchLayouts.length} batch draft`
-                    : ''}
-              </div>
+              {categoryLocked && <div className="ld-results-panel__meta">{savedMotoBatches.length} batch tersimpan</div>}
             </div>
           </div>
 
           <div className="ld-results-panel__body">
+            {!categoryLocked && drawnOrder.length === 0 && (
+              <div className="ld-draw-idle-state" role="status">
+                <span className="ld-draw-idle-spinner" aria-hidden="true" />
+                <span className="ld-draw-idle-label">Menunggu hasil drawing</span>
+              </div>
+            )}
             {!categoryLocked && batchLayouts.map((batch) => {
               return (
-                <div key={`inline-draft-${batch.index}`} className="ld-result-card">
+                <div
+                  key={`inline-draft-${batch.index}`}
+                  className="ld-result-card ld-result-card--enter"
+                  style={{ animationDelay: `${Math.max(0, batch.index - 1) * 180}ms` }}
+                >
                   <div className="ld-result-card__title">
                     <span>Batch {batch.index}</span>
                     <small>{batch.riders.length} riders</small>
