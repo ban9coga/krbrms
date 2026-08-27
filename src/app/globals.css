@@ -374,9 +374,9 @@ html[data-theme='dark'] .theme__toggle {
 
 .login-editorial-shell {
   display: grid;
-  width: min(100%, 1080px);
+  width: min(100%, 920px);
   overflow: hidden;
-  grid-template-columns: minmax(0, 1.08fr) minmax(380px, 0.92fr);
+  grid-template-columns: minmax(0, 1.04fr) minmax(380px, 0.96fr);
   border: 1px solid #d9ceb4;
   border-radius: 30px;
   background: #fffaf0;
@@ -386,7 +386,7 @@ html[data-theme='dark'] .theme__toggle {
 .login-editorial-story {
   position: relative;
   display: flex;
-  min-height: 570px;
+  min-height: 540px;
   overflow: hidden;
   flex-direction: column;
   justify-content: flex-end;

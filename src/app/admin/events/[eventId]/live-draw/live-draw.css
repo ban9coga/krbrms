@@ -1545,6 +1545,7 @@
   display: none !important;
 }
 
+.ld-save-progress-overlay,
 .ld-save-success-overlay {
   position: fixed;
   z-index: 100;
@@ -1556,6 +1557,7 @@
   backdrop-filter: blur(8px);
 }
 
+.ld-save-progress-modal,
 .ld-save-success-modal {
   width: min(460px, 100%);
   border: 1px solid #8a5a3e;
@@ -1580,6 +1582,19 @@
   font-weight: 900;
 }
 
+.ld-save-progress-spinner {
+  display: block;
+  width: 52px;
+  height: 52px;
+  margin: 0 auto 18px;
+  border: 4px solid rgba(247, 201, 64, 0.2);
+  border-top-color: #f7c940;
+  border-right-color: #1e9f90;
+  border-radius: 50%;
+  animation: ld-save-progress-spin 0.9s linear infinite;
+}
+
+.ld-save-progress-modal h2,
 .ld-save-success-modal h2 {
   margin: 7px 0 8px;
   color: #fff4df;
@@ -1588,12 +1603,19 @@
   font-style: italic;
 }
 
+.ld-save-progress-modal p,
 .ld-save-success-modal p {
   margin: 0 auto;
   max-width: 360px;
   color: #d9c8b7;
   font-weight: 650;
   line-height: 1.55;
+}
+
+@keyframes ld-save-progress-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .ld-save-success-actions {

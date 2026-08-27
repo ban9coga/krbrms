@@ -2615,8 +2615,14 @@ export default function LiveDrawClient({
           <div className="ld-results-panel__body">
             {!categoryLocked && drawnOrder.length === 0 && (
               <div className="ld-draw-idle-state" role="status">
-                <span className="ld-draw-idle-spinner" aria-hidden="true" />
-                <span className="ld-draw-idle-label">Menunggu hasil drawing</span>
+                {drawing ? (
+                  <>
+                    <span className="ld-draw-idle-spinner" aria-hidden="true" />
+                    <span className="ld-draw-idle-label">Sedang mengundi rider</span>
+                  </>
+                ) : (
+                  <span className="ld-draw-idle-label">Belum ada hasil draw</span>
+                )}
               </div>
             )}
             {!categoryLocked && batchLayouts.map((batch) => {
@@ -2760,6 +2766,26 @@ export default function LiveDrawClient({
 
       {loading && <div className="ld-page-loading">Memuat data...</div>}
       <footer className="ld-powered-by">Powered by <strong>racepushbike.com</strong></footer>
+
+      {saveState === 'saving' && !saveSuccessModal && (
+        <div
+          className="ld-save-progress-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="ld-save-progress-title"
+          aria-describedby="ld-save-progress-description"
+          aria-busy="true"
+        >
+          <div className="ld-save-progress-modal">
+            <span className="ld-save-progress-spinner" aria-hidden="true" />
+            <div className="ld-kicker">Mohon Tunggu</div>
+            <h2 id="ld-save-progress-title">Menyimpan moto kategori</h2>
+            <p id="ld-save-progress-description">
+              Sistem sedang menyimpan susunan gate dan memuat ulang data moto. Jangan tutup halaman ini.
+            </p>
+          </div>
+        </div>
+      )}
 
       {saveSuccessModal && (
         <div className="ld-save-success-overlay" role="dialog" aria-modal="true" aria-labelledby="ld-save-success-title">
