@@ -590,7 +590,7 @@
   color: #e5e2e1 !important;
 }
 
-.ld-draw-stage > div:nth-child(3) button:first-of-type {
+.ld-draw-stage--spin > div:nth-child(3) button:first-of-type {
   min-width: 250px !important;
   padding: 18px 48px !important;
   border: 0 !important;
@@ -606,7 +606,7 @@
   box-shadow: 0 0 30px rgba(248, 206, 61, 0.55), 0 16px 30px rgba(248, 206, 61, 0.2) !important;
 }
 
-.ld-draw-stage > div:nth-child(3) button:first-of-type:disabled {
+.ld-draw-stage--spin > div:nth-child(3) button:first-of-type:disabled {
   background: #353534 !important;
   border-bottom-color: #777 !important;
   box-shadow: none !important;
@@ -1186,12 +1186,12 @@
   max-height: calc(100vh - 142px);
 }
 
-.ld-workspace-grid .ld-draw-stage > div:first-child {
+.ld-workspace-grid .ld-draw-stage--spin > div:first-child {
   border-bottom: 1px solid rgba(247, 201, 64, 0.25);
   padding-bottom: 12px;
 }
 
-.ld-workspace-grid .ld-draw-stage > div:nth-child(2) {
+.ld-workspace-grid .ld-draw-stage--spin > div:nth-child(2) {
   margin-top: 14px;
   border-color: #653923 !important;
   border-radius: 6px !important;
@@ -1199,11 +1199,11 @@
   padding: 12px !important;
 }
 
-.ld-workspace-grid .ld-draw-stage > div:nth-child(3) {
+.ld-workspace-grid .ld-draw-stage--spin > div:nth-child(3) {
   width: 100%;
 }
 
-.ld-workspace-grid .ld-draw-stage > div:nth-child(3) > div:first-child {
+.ld-workspace-grid .ld-draw-stage--spin > div:nth-child(3) > div:first-child {
   width: min(100%, 235px) !important;
   height: auto !important;
   aspect-ratio: 1;
@@ -1217,11 +1217,11 @@
   box-shadow: 0 20px 32px rgba(0, 0, 0, 0.38) !important;
 }
 
-.ld-workspace-grid .ld-draw-stage > div:nth-child(3) > div:last-child {
+.ld-workspace-grid .ld-draw-stage--spin > div:nth-child(3) > div:last-child {
   width: 100%;
 }
 
-.ld-workspace-grid .ld-draw-stage > div:nth-child(3) button:first-child {
+.ld-workspace-grid .ld-draw-stage--spin > div:nth-child(3) button:first-child {
   width: 100%;
   min-height: 52px;
   border: 0 !important;
@@ -1421,11 +1421,11 @@
     padding: 13px !important;
   }
 
-  .ld-workspace-grid .ld-draw-stage > div:nth-child(3) > div:first-child {
+  .ld-workspace-grid .ld-draw-stage--spin > div:nth-child(3) > div:first-child {
     width: min(100%, clamp(150px, 20vh, 235px)) !important;
   }
 
-  .ld-workspace-grid .ld-draw-stage > div:nth-child(3) button:first-child {
+  .ld-workspace-grid .ld-draw-stage--spin > div:nth-child(3) button:first-child {
     min-height: 42px;
   }
 
@@ -1926,7 +1926,7 @@
 
 .ld-rider-preview > div:first-child { color: #c3fffa !important; }
 
-.ld-workspace-grid .ld-draw-stage > div:nth-child(2) {
+.ld-workspace-grid .ld-draw-stage--spin > div:nth-child(2) {
   border-color: rgba(255, 255, 255, 0.12) !important;
   background: rgba(2, 8, 14, 0.38) !important;
 }
@@ -2545,4 +2545,451 @@
 .ld-shell .ld-save-moto-btn:not(:disabled):hover {
   box-shadow: 0 6px 0 #007b77 !important;
   filter: saturate(1.08) brightness(1.05);
+}
+
+/* Manual/external drawing is an assignment workspace, not a smaller version of
+   the spin screen. Keep rider inventory, target selection, and batch boards
+   visible at the same time. */
+.ld-workspace-grid--manual {
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 16px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+.ld-workspace-grid--manual .ld-draw-stage--manual {
+  grid-column: 1 !important;
+  grid-row: auto !important;
+  min-height: 0 !important;
+  display: grid !important;
+  grid-template-columns: minmax(265px, 315px) minmax(0, 1fr);
+  grid-template-areas: 'sidebar workspace';
+  grid-template-rows: minmax(0, 1fr) !important;
+  align-items: start;
+  gap: 16px !important;
+  padding: 16px !important;
+  border: 1px solid rgba(0, 240, 232, 0.2) !important;
+  border-radius: 12px !important;
+  background: linear-gradient(135deg, rgba(12, 26, 35, 0.98), rgba(7, 18, 27, 0.96)) !important;
+}
+
+.ld-workspace-grid--manual .ld-manual-sidebar {
+  grid-area: sidebar;
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.ld-workspace-grid--manual .ld-manual-summary {
+  order: initial !important;
+  margin: 0 !important;
+  padding: 14px !important;
+  border: 1px solid rgba(255, 182, 147, 0.24) !important;
+  border-radius: 9px;
+  background: rgba(255, 107, 0, 0.08) !important;
+}
+
+.ld-workspace-grid--manual .ld-manual-summary::before {
+  margin-bottom: 8px;
+  color: #ffb693;
+  font-size: 18px;
+}
+
+.ld-workspace-grid--manual .ld-manual-rider-bank {
+  order: initial !important;
+  min-height: 0;
+  max-height: calc(100dvh - 158px);
+  margin: 0 !important;
+  padding: 12px !important;
+  overflow-y: auto;
+  position: sticky;
+  top: 14px;
+  border: 1px solid rgba(0, 240, 232, 0.28) !important;
+  border-radius: 9px;
+  background: rgba(2, 10, 15, 0.82) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.ld-workspace-grid--manual .ld-manual-rider-bank > div:first-child {
+  color: #c3fffa !important;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ld-manual-rider-target-status {
+  padding: 10px 11px !important;
+  border: 1px solid rgba(255, 107, 0, 0.42) !important;
+  border-radius: 7px !important;
+  background: rgba(255, 107, 0, 0.1) !important;
+  color: #ffd8c6 !important;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.ld-manual-rider-target-status strong { color: #ffb693 !important; }
+
+.ld-manual-rider-search {
+  min-height: 38px;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  border-radius: 7px !important;
+  background: rgba(248, 221, 210, 0.06) !important;
+  color: #f8ddd2 !important;
+  outline: none;
+}
+
+.ld-manual-rider-search::placeholder { color: #9fb1bc; }
+.ld-manual-rider-search:focus { border-color: #00f0e8 !important; box-shadow: 0 0 0 3px rgba(0, 240, 232, 0.12); }
+
+.ld-workspace-grid--manual .ld-manual-rider-list {
+  max-height: none !important;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)) !important;
+  padding-right: 0 !important;
+}
+
+.ld-workspace-grid--manual .ld-manual-rider-bank button.ld-manual-rider-card {
+  min-height: 94px;
+  border: 1px solid rgba(0, 240, 232, 0.26) !important;
+  border-radius: 7px !important;
+  background: rgba(19, 37, 50, 0.9) !important;
+  color: #f8ddd2 !important;
+  opacity: 1 !important;
+  box-shadow: none !important;
+}
+
+.ld-workspace-grid--manual .ld-manual-rider-bank button.ld-manual-rider-card.is-available:hover {
+  transform: translateY(-2px);
+  border-color: #00f0e8 !important;
+  background: rgba(0, 240, 232, 0.12) !important;
+  box-shadow: 0 8px 18px rgba(0, 240, 232, 0.12) !important;
+}
+
+.ld-workspace-grid--manual .ld-manual-rider-bank button.ld-manual-rider-card.is-disabled {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  background: rgba(255, 255, 255, 0.035) !important;
+  opacity: 0.64 !important;
+}
+
+.ld-manual-rider-plate { color: #ffb693 !important; }
+.ld-manual-rider-card.is-available .ld-manual-rider-plate { color: #c3fffa !important; }
+.ld-manual-rider-name { color: #f8ddd2 !important; }
+.ld-manual-rider-state { color: #9fb1bc !important; }
+.ld-manual-rider-card.is-assigned-moto-one .ld-manual-rider-state { color: #ffcf70 !important; }
+.ld-manual-rider-card.is-assigned-moto-two .ld-manual-rider-state { color: #a9ebe7 !important; }
+
+.ld-workspace-grid--manual .ld-manual-workspace {
+  grid-area: workspace;
+  order: initial !important;
+  min-width: 0;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+}
+
+.ld-manual-intro {
+  color: #e2bfb0 !important;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.ld-manual-target-bar {
+  display: grid !important;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    'title batches undo'
+    'title motos undo';
+  gap: 10px !important;
+  padding: 12px !important;
+  border: 1px solid rgba(0, 240, 232, 0.32) !important;
+  border-radius: 9px !important;
+  background: rgba(2, 10, 15, 0.82) !important;
+}
+
+.ld-manual-target-title {
+  grid-area: title;
+  display: grid;
+  align-items: center;
+  color: #c3fffa !important;
+  font-size: 12px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.ld-workspace-grid--manual .ld-manual-target-group {
+  display: flex !important;
+  align-items: center;
+  gap: 8px !important;
+  flex-wrap: wrap;
+}
+
+.ld-manual-target-group--batches { grid-area: batches; }
+.ld-manual-target-group--motos { grid-area: motos; }
+
+.ld-manual-target-button,
+.ld-manual-batch-status,
+.ld-manual-undo,
+.ld-manual-select-rider,
+.ld-manual-cancel-move {
+  transition: transform 160ms ease, background 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.ld-workspace-grid--manual .ld-draw-stage--manual .ld-manual-workspace button,
+.ld-workspace-grid--manual .ld-manual-rider-bank button {
+  min-width: 0 !important;
+  border-bottom-width: 1px !important;
+  clip-path: none !important;
+  font-family: 'Hanken Grotesk', sans-serif !important;
+  font-size: 12px !important;
+  font-style: normal !important;
+  letter-spacing: 0.04em !important;
+  text-shadow: none !important;
+}
+
+.ld-workspace-grid--manual .ld-draw-stage--manual .ld-manual-workspace button.ld-manual-target-button {
+  width: 78px;
+  min-height: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.17) !important;
+  border-radius: 7px !important;
+  background: rgba(248, 221, 210, 0.055) !important;
+  color: #e2bfb0 !important;
+}
+
+.ld-workspace-grid--manual .ld-draw-stage--manual .ld-manual-workspace .ld-manual-target-group--motos button.ld-manual-target-button {
+  width: 72px;
+}
+
+.ld-workspace-grid--manual .ld-draw-stage--manual .ld-manual-workspace button.ld-manual-target-button.is-active {
+  border-color: #00f0e8 !important;
+  background: linear-gradient(110deg, #ff6b00, #00bdb7) !important;
+  color: #061417 !important;
+  box-shadow: 0 0 0 2px rgba(0, 240, 232, 0.14), 0 7px 16px rgba(0, 0, 0, 0.23) !important;
+}
+
+.ld-manual-target-button:not(:disabled):hover,
+.ld-manual-batch-status:not(:disabled):hover { transform: translateY(-1px); }
+.ld-manual-target-button:disabled,
+.ld-manual-batch-status:disabled { cursor: not-allowed !important; opacity: 0.5; }
+
+.ld-workspace-grid--manual .ld-draw-stage--manual .ld-manual-workspace button.ld-manual-undo {
+  grid-area: undo;
+  min-height: 34px;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+  border-radius: 7px !important;
+  background: rgba(248, 221, 210, 0.055) !important;
+  color: #e2bfb0 !important;
+}
+
+.ld-manual-undo:not(:disabled):hover { border-color: #ffb693 !important; color: #ffdbcc !important; }
+
+.ld-manual-batch-statuses {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 8px !important;
+}
+
+.ld-workspace-grid--manual .ld-draw-stage--manual .ld-manual-workspace button.ld-manual-batch-status {
+  min-width: 108px;
+  min-height: 42px;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: 7px !important;
+  background: rgba(248, 221, 210, 0.045) !important;
+  color: #e2bfb0 !important;
+  text-align: left;
+}
+
+.ld-workspace-grid--manual .ld-draw-stage--manual .ld-manual-workspace button.ld-manual-batch-status.is-empty {
+  border-style: dashed !important;
+  color: #ffcf70 !important;
+}
+
+.ld-workspace-grid--manual .ld-draw-stage--manual .ld-manual-workspace button.ld-manual-batch-status.is-active {
+  border-color: #00f0e8 !important;
+  background: rgba(0, 240, 232, 0.12) !important;
+  color: #c3fffa !important;
+  box-shadow: inset 3px 0 0 #ff6b00;
+}
+
+.ld-manual-validation {
+  padding: 12px 14px !important;
+  border-radius: 8px !important;
+  background: rgba(255, 107, 0, 0.08) !important;
+  color: #ffd8c6 !important;
+}
+
+.ld-manual-validation.is-valid {
+  border-color: rgba(0, 240, 232, 0.55) !important;
+  background: rgba(0, 240, 232, 0.1) !important;
+  color: #c3fffa !important;
+}
+
+.ld-manual-validation div { color: inherit !important; }
+
+.ld-manual-editor {
+  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+  align-items: stretch;
+}
+
+.ld-manual-hint,
+.ld-manual-move-notice,
+.ld-manual-actions { grid-column: 1 / -1; }
+
+.ld-manual-hint {
+  padding: 11px 13px !important;
+  border: 1px solid rgba(255, 182, 147, 0.32) !important;
+  border-radius: 8px !important;
+  background: rgba(255, 107, 0, 0.08) !important;
+  color: #ffd8c6 !important;
+  font-size: 12px;
+}
+
+.ld-manual-move-notice {
+  border-color: #00f0e8 !important;
+  border-radius: 8px !important;
+  background: rgba(0, 240, 232, 0.12) !important;
+  color: #c3fffa !important;
+}
+
+.ld-workspace-grid--manual .ld-draw-stage--manual .ld-manual-workspace button.ld-manual-cancel-move {
+  border-color: rgba(255, 182, 147, 0.72) !important;
+  background: rgba(255, 107, 0, 0.12) !important;
+  color: #ffdbcc !important;
+}
+
+.ld-manual-batch-board {
+  height: 390px;
+  min-width: 0;
+  padding: 12px !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 9px !important;
+  background: rgba(2, 10, 15, 0.62) !important;
+  overflow-y: auto;
+}
+
+.ld-manual-batch-board.is-active {
+  border-color: rgba(0, 240, 232, 0.6) !important;
+  box-shadow: inset 3px 0 0 #ff6b00, 0 0 0 1px rgba(0, 240, 232, 0.12);
+}
+
+.ld-manual-batch-board-head > div:first-child { color: #f8ddd2 !important; }
+.ld-manual-batch-count {
+  border: 1px solid rgba(255, 182, 147, 0.35);
+  border-radius: 999px !important;
+  background: rgba(255, 107, 0, 0.1) !important;
+  color: #ffcfba !important;
+}
+
+.ld-manual-gate-row {
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 7px !important;
+  background: rgba(248, 221, 210, 0.045) !important;
+}
+
+.ld-manual-gate-row.is-selected {
+  border-color: #ff6b00 !important;
+  background: rgba(255, 107, 0, 0.12) !important;
+}
+
+.ld-manual-gate-row.is-drop-target {
+  border-color: #00f0e8 !important;
+  border-style: dashed !important;
+  background: rgba(0, 240, 232, 0.14) !important;
+}
+
+.ld-manual-drag-handle {
+  border-color: rgba(255, 255, 255, 0.2) !important;
+  border-radius: 6px !important;
+  background: rgba(2, 10, 15, 0.72) !important;
+  color: #c3fffa !important;
+}
+
+.ld-manual-gate-label {
+  border-radius: 5px !important;
+  background: rgba(255, 107, 0, 0.18) !important;
+  color: #ffcfba !important;
+}
+
+.ld-manual-gate-rider { color: #f8ddd2 !important; }
+.ld-manual-gate-rider span { color: #9fb1bc !important; }
+
+.ld-workspace-grid--manual .ld-draw-stage--manual .ld-manual-workspace button.ld-manual-select-rider {
+  border-color: rgba(0, 240, 232, 0.35) !important;
+  border-radius: 6px !important;
+  background: rgba(0, 240, 232, 0.08) !important;
+  color: #c3fffa !important;
+}
+
+.ld-workspace-grid--manual .ld-draw-stage--manual .ld-manual-workspace button.ld-manual-select-rider.is-selected {
+  border-color: #ff6b00 !important;
+  background: #ff6b00 !important;
+  color: #061417 !important;
+}
+
+.ld-manual-empty-batch {
+  border-color: rgba(0, 240, 232, 0.36) !important;
+  border-radius: 7px !important;
+  background: rgba(0, 240, 232, 0.06) !important;
+  color: #a9ebe7 !important;
+  font-size: 12px;
+}
+
+.ld-manual-actions {
+  margin-top: 2px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.ld-workspace-grid--manual .ld-draw-stage--manual .ld-manual-workspace button.ld-manual-apply {
+  min-height: 44px;
+  padding-inline: 18px !important;
+  border: 1px solid #00f0e8 !important;
+  border-radius: 8px !important;
+  background: linear-gradient(105deg, #ff6b00, #00c3bd) !important;
+  color: #061417 !important;
+  box-shadow: 0 4px 0 #007b77 !important;
+}
+
+.ld-workspace-grid--manual .ld-draw-stage--manual .ld-manual-workspace button.ld-manual-apply:not(:disabled):hover { transform: translateY(-2px); box-shadow: 0 6px 0 #007b77 !important; }
+.ld-workspace-grid--manual .ld-draw-stage--manual .ld-manual-workspace button.ld-manual-apply:disabled { opacity: 0.5; cursor: not-allowed !important; }
+
+.ld-workspace-grid--manual .ld-results-panel--manual {
+  grid-column: 1 !important;
+  grid-row: auto !important;
+  position: static !important;
+  min-height: 0 !important;
+  max-height: none !important;
+}
+
+.ld-workspace-grid--manual .ld-results-panel--manual.is-empty { display: none; }
+
+@media (max-width: 920px) {
+  .ld-workspace-grid--manual .ld-draw-stage--manual {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'sidebar'
+      'workspace';
+    grid-template-rows: auto auto !important;
+  }
+
+  .ld-workspace-grid--manual .ld-manual-rider-bank {
+    max-height: 430px;
+    position: static;
+  }
+
+  .ld-manual-target-bar { grid-template-columns: minmax(0, 1fr); }
+  .ld-manual-target-bar {
+    grid-template-areas:
+      'title'
+      'batches'
+      'motos'
+      'undo';
+  }
+}
+
+@media (max-width: 560px) {
+  .ld-manual-rider-list { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .ld-manual-editor { grid-template-columns: minmax(0, 1fr); }
+  .ld-manual-gate-row { grid-template-columns: auto auto minmax(0, 1fr) !important; gap: 8px !important; }
+  .ld-manual-select-rider { grid-column: 3; justify-self: start; }
 }

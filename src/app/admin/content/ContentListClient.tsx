@@ -39,6 +39,7 @@ export default function ContentListClient() {
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -60,6 +61,24 @@ export default function ContentListClient() {
     const timer = window.setTimeout(() => void load(), search ? 220 : 0)
     return () => window.clearTimeout(timer)
   }, [load, search])
+
+  const deleteContent = useCallback(async (item: ContentListItem) => {
+    const confirmed = window.confirm(
+      `Hapus konten "${item.title}"? Artikel Insight dan paket Instagram terkait juga akan dihapus. Tindakan ini tidak bisa dibatalkan.`
+    )
+    if (!confirmed) return
+
+    setDeletingId(item.id)
+    setError(null)
+    try {
+      await apiFetch(`/api/admin/content/${item.id}`, { method: 'DELETE' })
+      setItems((previous) => previous.filter((current) => current.id !== item.id))
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Gagal menghapus konten.')
+    } finally {
+      setDeletingId(null)
+    }
+  }, [apiFetch])
 
   const summary = useMemo(
     () => ({
@@ -149,7 +168,19 @@ export default function ContentListClient() {
                     <td className="px-4 py-4 font-semibold text-slate-700">{getInsightCategoryLabel(item.category)}</td>
                     <td className="px-4 py-4 text-xs font-semibold text-slate-500">{formatDate(item.updated_at)}</td>
                     <td className="px-4 py-4 text-xs font-semibold text-slate-500">{formatDate(item.published_at)}</td>
-                    <td className="px-4 py-4 text-right"><Link href={`/admin/content/${item.id}`} className="admin-outline-button">Edit</Link></td>
+                    <td className="px-4 py-4 text-right">
+                      <div className="inline-flex items-center justify-end gap-2">
+                        <Link href={`/admin/content/${item.id}`} className="admin-outline-button">Edit</Link>
+                        <button
+                          type="button"
+                          onClick={() => void deleteContent(item)}
+                          disabled={deletingId !== null}
+                          className="rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-extrabold text-rose-700 transition-colors hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {deletingId === item.id ? 'Menghapus...' : 'Hapus'}
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>

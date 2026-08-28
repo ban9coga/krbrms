@@ -143,3 +143,34 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
   return NextResponse.json({ data: { insight, status: insightStatus } })
 }
+
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await requireAdmin(req.headers.get('authorization'))
+  if (!auth.ok) return unauthorized()
+  const { id } = await params
+
+  const { data: item, error: itemError } = await adminClient
+    .from('content_items')
+    .select('id, topic')
+    .eq('id', id)
+    .maybeSingle()
+
+  if (itemError) return NextResponse.json({ error: itemError.message }, { status: 500 })
+  if (!item) return NextResponse.json({ error: 'Konten tidak ditemukan.' }, { status: 404 })
+
+  // Delete the public Insight record first. Its foreign key safely clears the
+  // content-item reference, then deleting the parent cascades its IG package.
+  const { error: insightError } = await adminClient
+    .from('insight_posts')
+    .delete()
+    .eq('content_item_id', id)
+  if (insightError) return NextResponse.json({ error: insightError.message }, { status: 500 })
+
+  const { error: deleteError } = await adminClient
+    .from('content_items')
+    .delete()
+    .eq('id', id)
+  if (deleteError) return NextResponse.json({ error: deleteError.message }, { status: 500 })
+
+  return NextResponse.json({ data: { id, topic: item.topic } })
+}
