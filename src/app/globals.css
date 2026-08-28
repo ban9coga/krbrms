@@ -4816,6 +4816,67 @@ html[data-theme='dark'] .insight-markdown tr:nth-child(even) {
   color: #f3c63d;
 }
 
+/* Shared card language for the homepage: event and editorial content stay distinct,
+   but now use the same frame, media ratio, and reading surface. */
+.homepage-editorial-page .editorial-event-card,
+.homepage-editorial-page .insight-card {
+  overflow: hidden;
+  border: 1px solid #5a4032;
+  border-radius: 12px;
+  background: #1d0d07;
+  box-shadow: 0 12px 28px rgba(55, 23, 9, 0.18);
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.homepage-editorial-page .editorial-event-card:hover,
+.homepage-editorial-page .insight-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 38px rgba(55, 23, 9, 0.26);
+}
+
+.homepage-editorial-page .editorial-event-card-media,
+.homepage-editorial-page .insight-card-cover {
+  min-height: 0;
+  aspect-ratio: 16 / 9;
+}
+
+.homepage-editorial-page .editorial-event-card-body,
+.homepage-editorial-page .insight-card-body {
+  min-height: 236px;
+  background: #1d0d07;
+  padding: 24px;
+}
+
+.homepage-editorial-page .editorial-event-card-title,
+.homepage-editorial-page .insight-card-body h3 a,
+.homepage-editorial-page .insight-card-body h3 a:hover,
+.homepage-editorial-page .insight-card-body > p:not(.insight-card-meta) {
+  color: #fff8e8;
+}
+
+.homepage-editorial-page .editorial-event-card-location {
+  color: #dfd1c2;
+}
+
+.homepage-editorial-page .editorial-event-card-slogan,
+.homepage-editorial-page .editorial-event-card-footer {
+  color: #bca998;
+}
+
+.homepage-editorial-page .editorial-event-card-footer {
+  border-top-color: #554034;
+}
+
+.homepage-editorial-page .editorial-event-card-action {
+  background: #f3c63d;
+  color: #1d0d07;
+}
+
+.homepage-editorial-page .editorial-event-card-action:hover {
+  background: #fff8e8;
+  color: #1d0d07;
+}
+
 .insight-article {
   width: min(100%, 1060px);
   margin-top: 32px;
