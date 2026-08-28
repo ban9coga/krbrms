@@ -776,19 +776,28 @@
 }
 
 .ld-powered-by {
-  margin-top: 12px;
-  color: rgba(226, 191, 176, 0.55);
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+  margin: 16px 0 6px;
+  color: #a9ebe7;
+  font-family: 'Hanken Grotesk', sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
   text-align: center;
   text-transform: uppercase;
 }
 
 .ld-powered-by strong {
-  color: #ffb693;
+  color: #ffd24d;
+  font-family: 'Anybody', sans-serif;
+  font-size: 20px;
+  font-style: italic;
   font-weight: 900;
+  letter-spacing: 0.03em;
+  text-shadow: 0 0 16px rgba(255, 210, 77, 0.32);
 }
 
 /* Drawing workspace: settings live in Draw Settings, this page is for execution. */

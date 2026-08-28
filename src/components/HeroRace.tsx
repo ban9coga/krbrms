@@ -59,7 +59,7 @@ export default function HeroRace({ liveEvent }: { liveEvent: LiveEventItem | nul
         <div className="homepage-editorial-hero-content">
           <div className="homepage-editorial-kicker">
             <span className={liveEvent ? 'homepage-editorial-live-dot' : 'homepage-editorial-idle-dot'} />
-            RACEPUSHBIKE.COM - SISTEM EVENT PUSHBIKE INDONESIA
+            RACEPUSHBIKE.COM - PLATFORM EVENT PUSHBIKE INDONESIA
           </div>
 
           <h1 className="homepage-editorial-title">

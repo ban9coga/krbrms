@@ -2274,11 +2274,11 @@ html[data-theme='dark'] .setting-toggle-control:has(input:checked) .setting-togg
 .homepage-editorial-copy {
   max-width: 680px;
   margin: 24px 0 0;
-  border: 1px solid rgba(255, 250, 240, 0.24);
-  border-radius: 12px;
-  background: rgba(29, 13, 7, 0.78);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: #ffffff;
-  padding: 10px 14px;
+  padding: 0;
   font-size: 17px;
   font-weight: 650;
   line-height: 1.55;
@@ -2336,10 +2336,10 @@ html[data-theme='dark'] .setting-toggle-control:has(input:checked) .setting-togg
   display: grid;
   width: min(100%, 690px);
   margin-top: 34px;
-  border: 1px solid rgba(255, 250, 240, 0.28);
-  border-radius: 16px;
-  background: rgba(29, 13, 7, 0.78);
-  padding: 20px 10px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 20px 0;
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
