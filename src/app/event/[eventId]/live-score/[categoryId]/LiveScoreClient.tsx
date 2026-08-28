@@ -188,17 +188,21 @@ const renderSortButtons = (
   </div>
 )
 
-const renderRefreshButton = (refresh: () => void, refreshing: boolean, enabled: boolean) => (
-  <button
+const renderRefreshButton = (refresh: () => void, refreshing: boolean, enabled: boolean) => {
+  if (!enabled) return null
+
+  return (
+    <button
     type="button"
     onClick={refresh}
     disabled={refreshing || !enabled}
     title={enabled ? 'Muat ulang hasil terbaru' : 'Hasil event selesai sudah diarsipkan'}
     className="live-score-editorial-refresh rounded-full border px-4 py-2 text-xs font-extrabold uppercase transition-colors disabled:cursor-not-allowed disabled:opacity-70"
   >
-    {refreshing ? 'Refreshing...' : enabled ? 'Refresh' : 'Final'}
-  </button>
-)
+      {refreshing ? 'Refreshing...' : 'Refresh'}
+    </button>
+  )
+}
 
 
 type LiveScoreClientProps = {
@@ -477,7 +481,7 @@ export default function LiveScoreClient({
                 </div>
               </div>
               <div className="md:hidden">
-                <div className="table-mobile-hint">Geser tabel untuk melihat seluruh hasil.</div>
+                <div className="table-mobile-hint">Geser tabel ke samping untuk melihat seluruh hasil</div>
                 <div className="public-table-wrap">
                   <table className="public-table min-w-[710px] text-[11px]">
                     <thead>
@@ -525,7 +529,7 @@ export default function LiveScoreClient({
                   </table>
                 </div>
               </div>
-              <div className="table-mobile-hint hidden md:block">Geser kiri/kanan untuk lihat semua kolom.</div>
+              <div className="table-mobile-hint hidden md:block">Geser tabel ke samping untuk melihat seluruh hasil</div>
               <div className="public-table-wrap hidden md:block">
                 <table className="public-table min-w-[940px] text-[11px] sm:text-xs md:text-sm">
                   <thead>
@@ -600,9 +604,6 @@ export default function LiveScoreClient({
                 <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-lg font-black uppercase text-[#fff8e8]">{stage.title}</h2>
-                    <span className="live-score-editorial-stage-badge rounded-full border px-3 py-1 text-xs font-extrabold uppercase">
-                      Advanced Stage
-                    </span>
                   </div>
                   <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                     {renderRefreshButton(refresh, refreshing, isLiveEvent)}
@@ -610,7 +611,7 @@ export default function LiveScoreClient({
                   </div>
                 </div>
                 <div className="md:hidden">
-                  <div className="table-mobile-hint">Geser tabel untuk melihat seluruh hasil.</div>
+                  <div className="table-mobile-hint">Geser tabel ke samping untuk melihat seluruh hasil</div>
                   <div className="public-table-wrap">
                     <table className="public-table min-w-[620px] text-[11px]">
                       <thead>
@@ -641,7 +642,7 @@ export default function LiveScoreClient({
                     </table>
                   </div>
                 </div>
-                <div className="table-mobile-hint hidden md:block">Geser kiri/kanan untuk lihat semua kolom.</div>
+                <div className="table-mobile-hint hidden md:block">Geser tabel ke samping untuk melihat seluruh hasil</div>
                 <div className="public-table-wrap hidden md:block">
                   <table className="public-table min-w-[680px] text-[11px] sm:text-xs md:text-sm">
                     <thead>
