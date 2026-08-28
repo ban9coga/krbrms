@@ -2030,7 +2030,8 @@ html[data-theme='dark'] .setting-toggle-control:has(input:checked) .setting-togg
   flex-direction: column;
   justify-content: space-between;
   border-radius: 28px;
-  background: #e64816;
+  /* Darker orange keeps the editorial hero legible at mobile text sizes. */
+  background: #bd3410;
   box-shadow: 0 28px 70px rgba(71, 32, 12, 0.2);
   isolation: isolate;
 }

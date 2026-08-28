@@ -74,7 +74,7 @@ export default function EventCard({
               alt=""
               fill
               sizes="(max-width: 640px) calc(100vw - 24px), (max-width: 1024px) 50vw, 420px"
-              quality={65}
+              quality={55}
               className="editorial-event-card-image"
             />
           )}
