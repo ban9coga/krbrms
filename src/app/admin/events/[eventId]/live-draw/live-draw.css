@@ -2377,8 +2377,22 @@
   font-size: 9px;
 }
 
-.ld-result-row strong { font-size: 11px; }
-.ld-result-row em { font-size: 9px; }
+.ld-result-row {
+  min-height: 60px;
+}
+
+.ld-result-row strong { font-size: 12px; }
+
+.ld-result-row em {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: #f8ddd2 !important;
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1.15;
+}
 
 @media (min-width: 769px) {
   .ld-workspace-grid .ld-results-panel { max-height: calc(100dvh - 171px); }
@@ -2506,20 +2520,54 @@
   width: 100%;
   min-height: 46px;
   padding: 12px 20px !important;
-  border: 1px solid #ffb693 !important;
+  border: 1px solid #fff1a8 !important;
   border-radius: 999px !important;
-  background: rgba(255, 107, 0, 0.12) !important;
-  color: #ffb693 !important;
-  box-shadow: 0 0 20px rgba(255, 107, 0, 0.18) !important;
+  background: linear-gradient(135deg, #ffbc22, #ffd84c) !important;
+  color: #241008 !important;
+  box-shadow: 0 5px 0 #a35a00, 0 0 28px rgba(255, 190, 34, 0.44) !important;
   font-family: 'Inter', sans-serif !important;
   font-size: 14px !important;
   font-style: normal !important;
   letter-spacing: 0.12em !important;
 }
 
+.ld-shell .ld-workspace-grid .ld-draw-stage--spin .ld-spin-draw-btn span {
+  color: #241008 !important;
+  text-shadow: none !important;
+}
+
+.ld-shell .ld-workspace-grid .ld-draw-stage--spin .ld-spin-draw-btn.is-redraw {
+  border-color: #d69b26 !important;
+  background: linear-gradient(135deg, #bb7516, #dc9e25) !important;
+  color: #241008 !important;
+  box-shadow: 0 5px 0 #70400b, 0 0 18px rgba(214, 155, 38, 0.28) !important;
+}
+
+.ld-shell .ld-workspace-grid .ld-draw-stage--spin .ld-spin-draw-btn.is-redraw:not(:disabled):hover {
+  background: linear-gradient(135deg, #cc861d, #e5ad35) !important;
+  box-shadow: 0 8px 0 #70400b, 0 0 28px rgba(229, 173, 53, 0.42) !important;
+}
+
 .ld-shell .ld-workspace-grid .ld-draw-stage--spin .ld-spin-draw-btn:not(:disabled):hover {
-  background: rgba(255, 107, 0, 0.28) !important;
-  box-shadow: 0 0 30px rgba(255, 107, 0, 0.4) !important;
+  background: linear-gradient(135deg, #ffd24d, #ffea87) !important;
+  box-shadow: 0 8px 0 #a35a00, 0 0 36px rgba(255, 210, 77, 0.58) !important;
+  transform: translateY(-3px) !important;
+}
+
+.ld-shell .ld-workspace-grid .ld-draw-stage--spin .ld-spin-draw-btn:active:not(:disabled) {
+  box-shadow: 0 2px 0 #a35a00, 0 0 18px rgba(255, 210, 77, 0.42) !important;
+  transform: translateY(3px) !important;
+}
+
+.ld-shell .ld-workspace-grid .ld-draw-stage--spin .ld-spin-draw-btn:disabled {
+  border-color: #53483a !important;
+  background: #38332d !important;
+  color: #a89d90 !important;
+  box-shadow: none !important;
+}
+
+.ld-shell .ld-workspace-grid .ld-draw-stage--spin .ld-spin-draw-btn:disabled span {
+  color: #a89d90 !important;
 }
 
 @media (max-width: 768px) {

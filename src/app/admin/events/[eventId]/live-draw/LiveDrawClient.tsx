@@ -2130,7 +2130,7 @@ export default function LiveDrawClient({
               <div className="ld-spin-controls">
                 <button
                   type="button"
-                  className="ld-spin-draw-btn"
+                  className={`ld-spin-draw-btn ${hasDrawn ? 'is-redraw' : ''}`}
                   onClick={hasDrawn ? resetDraw : startDraw}
                   disabled={loading || drawing || categoryLocked || riders.length === 0 || (batchMode === 'CUSTOM_BATCH_SIZES' && Boolean(customBatchError))}
                 >
