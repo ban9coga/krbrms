@@ -42,14 +42,14 @@ export default function PublicBottomBar({ variant = 'default' }: { variant?: 'de
             editorial ? 'text-[#eadcca]' : 'text-slate-300'
           }`}
         >
-          <nav aria-label="Navigasi footer" className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <nav aria-label="Navigasi footer" className="flex h-5 flex-wrap items-center gap-x-3 gap-y-1 leading-none">
             {footerLinks.map((item) => (
-              <Link key={item.href} href={item.href} className={linkClass}>
+              <Link key={item.href} href={item.href} className={`${linkClass} h-5 whitespace-nowrap leading-none`}>
                 {item.label}
               </Link>
             ))}
           </nav>
-          <span aria-hidden="true" className={`hidden md:inline ${mutedTextClass}`}>
+          <span aria-hidden="true" className={`hidden h-5 items-center leading-none md:inline-flex ${mutedTextClass}`}>
             •
           </span>
           <a
@@ -57,16 +57,22 @@ export default function PublicBottomBar({ variant = 'default' }: { variant?: 'de
             target="_blank"
             rel="noopener noreferrer"
             aria-label="Instagram RacePushbike"
-            className={linkClass}
+            className={`${linkClass} h-5 shrink-0 items-center whitespace-nowrap leading-none align-middle`}
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-3.5 w-3.5">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              className="block h-3.5 w-3.5 shrink-0"
+            >
               <rect x="3.5" y="3.5" width="17" height="17" rx="5" />
               <circle cx="12" cy="12" r="4" />
               <circle cx="17.3" cy="6.7" r="0.8" fill="currentColor" stroke="none" />
             </svg>
-            <span>@racepushbike</span>
+            <span className="block leading-none">@racepushbike</span>
           </a>
-          <span className={mutedTextClass}>
+          <span className={`inline-flex h-5 shrink-0 items-center whitespace-nowrap leading-none ${mutedTextClass}`}>
             Sistem by{' '}
             <span className={editorial ? 'font-semibold text-[#f3c63d]' : 'font-semibold text-slate-200'}>
               FernTech Studio
