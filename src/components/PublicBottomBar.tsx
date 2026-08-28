@@ -57,20 +57,22 @@ export default function PublicBottomBar({ variant = 'default' }: { variant?: 'de
             target="_blank"
             rel="noopener noreferrer"
             aria-label="Instagram RacePushbike"
-            className={`${linkClass} h-5 shrink-0 items-center whitespace-nowrap leading-none align-middle`}
+            className={`inline-flex h-5 shrink-0 items-center gap-1 whitespace-nowrap leading-none transition-colors ${
+              editorial ? 'hover:text-[#f3c63d]' : 'hover:text-white'
+            }`}
           >
             <svg
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
               strokeWidth="1.8"
-              className="block h-3.5 w-3.5 shrink-0"
+              className="relative top-px block h-3.5 w-3.5 shrink-0"
             >
               <rect x="3.5" y="3.5" width="17" height="17" rx="5" />
               <circle cx="12" cy="12" r="4" />
               <circle cx="17.3" cy="6.7" r="0.8" fill="currentColor" stroke="none" />
             </svg>
-            <span className="block leading-none">@racepushbike</span>
+            <span className="block pt-px leading-none">@racepushbike</span>
           </a>
           <span className={`inline-flex h-5 shrink-0 items-center whitespace-nowrap leading-none ${mutedTextClass}`}>
             Sistem by{' '}
