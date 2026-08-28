@@ -463,10 +463,57 @@ export default function LiveScoreClient({
                   {renderSortButtons(sortMode, setSortMode)}
                 </div>
               </div>
-              <div className="table-mobile-hint">
-                Geser kiri/kanan untuk lihat semua kolom.
+              <div className="md:hidden">
+                <div className="table-mobile-hint">Geser tabel untuk melihat seluruh hasil.</div>
+                <div className="public-table-wrap">
+                  <table className="public-table min-w-[710px] text-[11px]">
+                    <thead>
+                      <tr>
+                        {[
+                          'Rider',
+                          'Gate M1',
+                          'Gate M2',
+                          ...(showMoto3 ? ['Gate M3'] : []),
+                          'Point M1',
+                          'Point M2',
+                          ...(showMoto3 ? ['Point M3'] : []),
+                          'Penalty',
+                          'Total',
+                          'Rank / Next',
+                        ].map((heading) => <th key={`mobile-${heading}`}>{heading}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {batch.rows.map((row) => (
+                        <tr key={`mobile-qualification-${row.rider_id}`}>
+                          <td className="min-w-[210px] whitespace-normal">
+                            <div className="live-score-rider-name text-[13px] font-black leading-tight">{row.name}</div>
+                            <div className="mt-1 text-[10px] font-extrabold text-amber-700">{row.no_plate}</div>
+                            <div className="mt-0.5 text-[10px] font-semibold leading-tight text-slate-600">{row.club || '-'}</div>
+                          </td>
+                          <td className="font-bold">{row.gate_moto1 ?? '-'}</td>
+                          <td className="font-bold">{row.gate_moto2 ?? '-'}</td>
+                          {showMoto3 && <td className="font-bold">{row.gate_moto3 ?? '-'}</td>}
+                          <td>{renderMotoResultCell(row.point_moto1, row.moto1_status)}</td>
+                          <td>{renderMotoResultCell(row.point_moto2, row.moto2_status)}</td>
+                          {showMoto3 && <td>{renderMotoResultCell(row.point_moto3, row.moto3_status)}</td>}
+                          <td className="font-extrabold text-amber-600">{row.penalty_total ?? '-'}</td>
+                          <td className="font-extrabold text-sky-700">{row.total_point ?? '-'}</td>
+                          <td className="font-extrabold text-emerald-700">
+                            <div className="flex flex-col gap-1">
+                              <span>{row.rank_point ?? '-'}</span>
+                              {(row.status === 'DQ' || row.status === 'PENDING') && <span className={`inline-flex w-fit rounded-full border px-1 py-0.5 text-[8px] font-black uppercase ${statusBadgeClass(row.status)}`}>{row.status}</span>}
+                              {showQualificationNextColumn && row.class_label && <span className="text-[9px] font-black uppercase leading-tight text-slate-600">{row.class_label}</span>}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-              <div className="public-table-wrap">
+              <div className="table-mobile-hint hidden md:block">Geser kiri/kanan untuk lihat semua kolom.</div>
+              <div className="public-table-wrap hidden md:block">
                 <table className="public-table min-w-[940px] text-[11px] sm:text-xs md:text-sm">
                   <thead>
                     <tr>
@@ -549,8 +596,40 @@ export default function LiveScoreClient({
                     {renderSortButtons(sortMode, setSortMode)}
                   </div>
                 </div>
-                <div className="table-mobile-hint">Geser kiri/kanan untuk lihat semua kolom.</div>
-                <div className="public-table-wrap">
+                <div className="md:hidden">
+                  <div className="table-mobile-hint">Geser tabel untuk melihat seluruh hasil.</div>
+                  <div className="public-table-wrap">
+                    <table className="public-table min-w-[620px] text-[11px]">
+                      <thead>
+                        <tr>
+                          {['Rider', 'Gate', 'Point', 'Penalty', 'Rank / Next'].map((heading) => <th key={`mobile-stage-${heading}`}>{heading}</th>)}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {stage.rows.map((row) => (
+                          <tr key={`mobile-stage-${row.rider_id}`}>
+                            <td className="min-w-[210px] whitespace-normal">
+                              <div className="live-score-rider-name text-[13px] font-black leading-tight">{row.name}</div>
+                              <div className="mt-1 text-[10px] font-extrabold text-amber-700">{row.no_plate}</div>
+                              <div className="mt-0.5 text-[10px] font-semibold leading-tight text-slate-600">{row.club || '-'}</div>
+                            </td>
+                            <td className="font-bold">{row.gate ?? '-'}</td>
+                            <td className="font-extrabold text-sky-700">{renderStagePointCell(row.point, row.status)}</td>
+                            <td className="font-extrabold text-amber-600">{row.penalty_total ?? '-'}</td>
+                            <td className="font-extrabold text-emerald-700">
+                              <div className="flex flex-col gap-1">
+                                <span>{row.rank ?? '-'}</span>
+                                {showStageNextColumn && row.next_class_label && <span className="text-[9px] font-black uppercase leading-tight text-slate-600">{row.next_class_label}</span>}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <div className="table-mobile-hint hidden md:block">Geser kiri/kanan untuk lihat semua kolom.</div>
+                <div className="public-table-wrap hidden md:block">
                   <table className="public-table min-w-[680px] text-[11px] sm:text-xs md:text-sm">
                     <thead>
                       <tr>
