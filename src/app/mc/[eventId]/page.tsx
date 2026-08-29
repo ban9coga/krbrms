@@ -3,10 +3,11 @@
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import PublicTopbar from '../../../components/PublicTopbar'
+import LogoutButton from '@/src/components/LogoutButton'
 import { useApiFetch } from '@/src/hooks/useApiFetch'
 import { useEventRaceRealtime } from '@/src/hooks/useEventRaceRealtime'
 import { useHighVisibility } from '@/src/hooks/useHighVisibility'
+import { supabase } from '@/src/lib/supabaseClient'
 
 type Category = {
   id: string
@@ -294,10 +295,24 @@ export default function McLivePage() {
     return currentIndex >= 0 ? categories[currentIndex + 1] ?? null : null
   }, [categories, routeCategoryId])
 
+  const handleLogout = useCallback(async () => {
+    await supabase.auth.signOut()
+    document.cookie = 'sb-access-token=; Path=/; Max-Age=0'
+    router.replace('/login')
+  }, [router])
+
   return (
-    <div className="public-page public-editorial-page live-score-editorial-page">
-      <PublicTopbar theme="dark" />
-      <main className="public-main live-score-editorial-main">
+    <div className="min-h-screen bg-[#f7f3ea] text-slate-900">
+      <header className="border-b border-slate-200 bg-white">
+        <div className="mx-auto flex w-full max-w-[1440px] items-center justify-between gap-3 px-3 py-2.5 sm:px-5">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-[#e95c18]">RacePushbike Crew</p>
+            <p className="text-sm font-black text-slate-900">MC Control</p>
+          </div>
+          <LogoutButton onClick={handleLogout} />
+        </div>
+      </header>
+      <main className="mx-auto grid w-full max-w-[1440px] gap-4 px-3 py-3 sm:px-5 sm:py-5">
         <section className="public-hero live-score-editorial-hero !rounded-[24px] px-4 py-5 sm:px-6">
           <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
@@ -328,29 +343,36 @@ export default function McLivePage() {
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {categories.map((category) => {
               const selected = category.id === routeCategoryId
+              const categoryName = category.label.toUpperCase()
+              const isGirls = categoryName.includes('GIRL')
+              const isBoys = categoryName.includes('BOY')
+              const isMix = categoryName.includes('MIX')
+              const categoryStyle = isGirls
+                ? 'border-[#e78da7] bg-[#fff0f4] text-[#79233d] hover:bg-[#ffdfe8]'
+                : isBoys
+                  ? 'border-[#7194c9] bg-[#edf3ff] text-[#173d72] hover:bg-[#dce9ff]'
+                  : isMix
+                    ? 'border-[#42a49c] bg-[#e8f7f3] text-[#0d4a46] hover:bg-[#d7f0ea]'
+                    : 'border-[#f2a43a] bg-[#fff6df] text-[#5b2b08] hover:bg-[#ffedbd]'
+              const accentStyle = isGirls ? 'bg-[#d65b82]' : isBoys ? 'bg-[#3f6ca8]' : isMix ? 'bg-[#15857d]' : 'bg-[#e95c18]'
               return (
                 <button
                   key={category.id}
                   type="button"
                   onClick={() => router.push(`/mc/${eventId}/${category.id}`)}
-                  className={`min-h-16 rounded-xl border px-3 py-3 text-left transition-colors ${
-                    selected ? 'border-[#e95c18] bg-[#e95c18] text-white shadow-sm' : 'border-slate-200 bg-slate-50 text-slate-800 hover:border-amber-300 hover:bg-amber-50'
+                  className={`relative min-h-20 overflow-hidden rounded-xl border px-3 py-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md ${
+                    selected ? 'border-[#e95c18] bg-[#e95c18] text-white shadow-sm' : categoryStyle
                   }`}
                 >
-                  <span className="block text-sm font-black leading-tight">{category.label}</span>
-                  <span className={`mt-1 block text-[10px] font-bold uppercase tracking-[0.1em] ${selected ? 'text-white/75' : 'text-slate-500'}`}>Tampilkan hasil</span>
+                  <span className={`absolute inset-x-0 top-0 h-1 ${selected ? 'bg-[#f3c63d]' : accentStyle}`} />
+                  <span className="block pr-8 text-sm font-black leading-tight">{category.label}</span>
+                  <span className={`mt-2 block text-[10px] font-black uppercase tracking-[0.1em] ${selected ? 'text-white/80' : 'opacity-70'}`}>Buka tabel kategori</span>
+                  <span className={`absolute bottom-3 right-3 text-lg font-black ${selected ? 'text-white/80' : 'opacity-45'}`} aria-hidden="true">→</span>
                 </button>
               )
             })}
           </div>
         </section> : null}
-
-        {!isCategoryPage && !loadingCategories ? (
-          <section className="rounded-[20px] border border-dashed border-slate-300 bg-slate-50 px-5 py-12 text-center">
-            <h2 className="text-xl font-black text-slate-900">Pilih satu kategori</h2>
-            <p className="mt-2 text-sm font-semibold text-slate-600">Tabel batch dan stage akan tampil di sini.</p>
-          </section>
-        ) : null}
 
         {selectedCategory ? (
           <section className="grid gap-4">
