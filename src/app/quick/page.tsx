@@ -19,20 +19,34 @@ export default function QuickPwaEntryPage() {
       }
 
       try {
+        const controller = new AbortController()
+        const timeout = window.setTimeout(() => controller.abort(), 10_000)
         const response = await fetch('/api/auth/backoffice-access', {
           headers: { Authorization: `Bearer ${accessToken}` },
           cache: 'no-store',
+          signal: controller.signal,
         })
+        window.clearTimeout(timeout)
         const json = await response.json().catch(() => ({}))
         const home = typeof json?.data?.home === 'string' ? json.data.home : null
 
+        if (response.status === 401) {
+          window.location.replace('/login?next=%2Fquick&crew=1')
+          return
+        }
         if (!response.ok || !home) {
           throw new Error(typeof json?.error === 'string' ? json.error : 'Akses panel tidak tersedia.')
         }
         window.location.replace(home)
       } catch (error) {
         if (cancelled) return
-        setMessage(error instanceof Error ? error.message : 'Gagal menyiapkan panel crew.')
+        setMessage(
+          error instanceof DOMException && error.name === 'AbortError'
+            ? 'Koneksi ke panel crew terlalu lama. Coba buka ulang aplikasi.'
+            : error instanceof Error
+              ? error.message
+              : 'Gagal menyiapkan panel crew.'
+        )
       }
     }
 

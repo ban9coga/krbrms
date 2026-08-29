@@ -76,9 +76,14 @@ export default function PublicBottomBar({ variant = 'default' }: { variant?: 'de
           </a>
           <span className={`inline-flex h-5 shrink-0 items-center whitespace-nowrap leading-none ${mutedTextClass}`}>
             Sistem by{' '}
-            <span className={editorial ? 'font-semibold text-[#f3c63d]' : 'font-semibold text-slate-200'}>
+            <a
+              href="https://ferntech.my.id"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`${editorial ? 'text-[#f3c63d] hover:text-[#ffd95c]' : 'text-slate-200 hover:text-white'} font-semibold transition-colors`}
+            >
               FernTech Studio
-            </span>
+            </a>
           </span>
         </div>
       </div>
