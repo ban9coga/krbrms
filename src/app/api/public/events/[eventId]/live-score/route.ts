@@ -803,6 +803,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         rider_id: riderId,
         gate: status === 'DQ' ? null : collapsedGateMap.get(riderId) ?? null,
         name: rider?.name ?? '-',
+        rider_nickname: rider?.rider_nickname ?? null,
         no_plate: rider?.no_plate_display ?? '-',
         club: rider?.club ?? '-',
         ...(includePhotos ? { photo_thumbnail_url: rider?.photo_thumbnail_url ?? null } : {}),

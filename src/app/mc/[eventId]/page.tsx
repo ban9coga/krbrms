@@ -1,627 +1,410 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useParams } from 'next/navigation'
+import Link from 'next/link'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useParams, useRouter } from 'next/navigation'
 import PublicTopbar from '../../../components/PublicTopbar'
-import { useHighVisibility } from '../../../hooks/useHighVisibility'
 import { useApiFetch } from '@/src/hooks/useApiFetch'
+import { useEventRaceRealtime } from '@/src/hooks/useEventRaceRealtime'
+import { useHighVisibility } from '@/src/hooks/useHighVisibility'
 
-
-type MotoInfo = {
+type Category = {
   id: string
-  moto_name: string
-  moto_order: number
-  status: 'UPCOMING' | 'READY' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED'
-  is_published: boolean | null
+  label: string
+  enabled: boolean
+  sequence_order: number | null
 }
 
-type RankingRow = {
+type QualificationRow = {
   rider_id: string
-  finish_order: number | null
-  base_point: number | null
+  gate_moto1: number | null
+  gate_moto2: number | null
+  gate_moto3?: number | null
+  name: string
+  rider_nickname?: string | null
+  no_plate: string
+  club: string | null
+  point_moto1: number | null
+  point_moto2: number | null
+  point_moto3?: number | null
+  moto1_status?: ResultStatus | null
+  moto2_status?: ResultStatus | null
+  moto3_status?: ResultStatus | null
   penalty_total: number | null
-  penalty_breakdown?: Array<{ code: string; points: number }>
   total_point: number | null
-  rider_name: string
-  rider_nickname?: string | null
-  plate: string
-  club?: string | null
-  gate_position?: number | null
-  status: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'READY' | 'PENDING' | 'ABSENT'
+  rank_point: number | null
+  status: ResultStatus
+  class_label?: string | null
 }
 
-type NextMotoRiderRow = {
+type Batch = {
+  batch_index: number
+  moto1_id: string
+  moto2_id: string | null
+  moto3_id?: string | null
+  rows: QualificationRow[]
+}
+
+type ResultStatus = 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'PENDING' | 'FINISHED'
+
+type StageRow = {
   rider_id: string
-  rider_name: string
+  gate: number | null
+  name: string
   rider_nickname?: string | null
-  plate: string
-  club?: string | null
-  gate_position?: number | null
-  penalty_total?: number | null
-  penalty_breakdown?: Array<{ code: string; points: number }>
-  status: 'READY' | 'ABSENT' | 'DNS' | 'PENDING'
+  no_plate: string
+  club: string | null
+  point: number | null
+  penalty_total: number | null
+  rank: number | null
+  status: ResultStatus
+  next_class_label?: string | null
 }
 
-type NextMotoInfo = {
-  id: string
-  moto_name: string
-  moto_label: string
-  moto_order: number
-  status: 'UPCOMING' | 'READY' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED'
-  category: string | null
-  batch: string | null
+type Stage = {
+  title: string
+  moto_id: string
+  rows: StageRow[]
 }
 
-type MotoStateItem = {
+type ScoreData = {
+  category?: string
+  batches?: Batch[]
+  stages?: Stage[]
+}
+
+type MotoState = {
   id: string
   category_id: string
-  moto_order: number
-  status: string
-  checker_prep_ready_at?: string | null
+  moto_name: string
+  status: 'UPCOMING' | 'READY' | 'LIVE' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED' | 'FINISHED'
 }
 
-type McResponse = {
-  data: {
-    under_review: boolean
-    event_name?: string | null
-    review_moto?: MotoInfo | null
-    moto?: MotoInfo | null
-    now_moto?: MotoInfo | null
-    category?: string | null
-    now_category?: string | null
-    batch?: string | null
-    now_batch?: string | null
-    ranking?: RankingRow[]
-    next_moto_riders?: NextMotoRiderRow[]
-    next_moto?: NextMotoInfo | null
-  }
+const motoStatusClass = (status: MotoState['status']) => {
+  if (status === 'LIVE') return 'border-emerald-300 bg-emerald-50 text-emerald-800'
+  if (status === 'READY') return 'border-sky-300 bg-sky-50 text-sky-800'
+  if (status === 'PROVISIONAL') return 'border-amber-300 bg-amber-50 text-amber-800'
+  if (status === 'LOCKED' || status === 'FINISHED') return 'border-slate-300 bg-slate-100 text-slate-700'
+  return 'border-slate-200 bg-white text-slate-600'
 }
 
-const statusBadge = (moto?: MotoInfo | null) => {
-  if (!moto) return { label: 'NO MOTO', className: 'border-slate-300 bg-slate-100 text-slate-700' }
-  if (moto.status === 'LIVE') return { label: 'Race Berlangsung', className: 'border-emerald-300 bg-emerald-50 text-emerald-700' }
-  if (moto.status === 'READY') return { label: 'Ready Start', className: 'border-emerald-300 bg-emerald-50 text-emerald-700' }
-  if (moto.status === 'UPCOMING') return { label: 'Menunggu Start', className: 'border-slate-300 bg-slate-100 text-slate-700' }
-  if (moto.status === 'PROVISIONAL') return { label: 'Hasil Sementara', className: 'border-amber-300 bg-amber-50 text-amber-700' }
-  if (moto.status === 'LOCKED' || moto.status === 'FINISHED') return { label: 'Moto Selesai', className: 'border-sky-300 bg-sky-50 text-sky-700' }
-  return { label: 'Menunggu Start', className: 'border-slate-300 bg-slate-100 text-slate-700' }
-}
-
-const resultStatusBadge = (status: RankingRow['status']) => {
-  if (status === 'READY') return 'border-sky-300 bg-sky-50 text-sky-700'
-  if (status === 'ABSENT') return 'border-rose-300 bg-rose-50 text-rose-700'
+const statusClass = (status?: ResultStatus | null) => {
+  if (status === 'DNF') return 'border-amber-300 bg-amber-50 text-amber-800'
+  if (status === 'DNS') return 'border-rose-300 bg-rose-50 text-rose-800'
   if (status === 'DQ') return 'border-red-400 bg-red-100 text-red-800'
-  if (status === 'DNF') return 'border-amber-300 bg-amber-50 text-amber-700'
-  if (status === 'DNS') return 'border-rose-300 bg-rose-50 text-rose-700'
-  if (status === 'PENDING') return 'border-slate-300 bg-slate-100 text-slate-700'
-  return 'border-emerald-300 bg-emerald-50 text-emerald-700'
+  if (status === 'PENDING') return 'border-slate-300 bg-slate-100 text-slate-600'
+  return 'border-emerald-300 bg-emerald-50 text-emerald-800'
 }
 
-const nextMotoStatusBadge = (status: NextMotoRiderRow['status']) => {
-  if (status === 'READY') return 'border-emerald-300 bg-emerald-50 text-emerald-700'
-  if (status === 'ABSENT') return 'border-rose-300 bg-rose-50 text-rose-700'
-  if (status === 'DNS') return 'border-amber-300 bg-amber-50 text-amber-700'
-  return 'border-slate-300 bg-slate-100 text-slate-700'
-}
-
-const riderDisplayName = (row: RankingRow) => row.rider_nickname?.trim() || row.rider_name
-const nextMotoRiderDisplayName = (row: NextMotoRiderRow) => row.rider_nickname?.trim() || row.rider_name
-const isResultReady = (motoStatus?: MotoInfo['status']) => motoStatus === 'PROVISIONAL' || motoStatus === 'LOCKED' || motoStatus === 'FINISHED'
-const mcRankLabel = (readyToAnnounce: boolean, index: number) => (readyToAnnounce ? String(index + 1) : '-')
-const mcStatusLabel = (status: RankingRow['status']) =>
-  status === 'PENDING'
-    ? 'Belum Dicek'
-    : status === 'READY'
-      ? 'Ready'
-      : status === 'ABSENT'
-        ? 'Absent'
-      : status === 'FINISH'
-        ? 'Finish'
-        : status
-const nextMotoStatusLabel = (status: NextMotoRiderRow['status']) =>
-  status === 'PENDING' ? 'Belum Dicek' : status === 'READY' ? 'Ready' : status === 'ABSENT' ? 'Absent' : status
-const mcCueText = (nowMoto?: MotoInfo | null, resultMoto?: MotoInfo | null, nextMoto?: NextMotoInfo | null) => {
-  if (!nowMoto && !resultMoto) return 'Menunggu data moto dari sistem.'
-  if (resultMoto && isResultReady(resultMoto.status) && nowMoto && resultMoto.id !== nowMoto.id) {
-    return nextMoto
-      ? 'Bacakan hasil moto yang baru finish, sambil siapkan rider moto yang sedang live dan moto berikutnya.'
-      : 'Bacakan hasil moto yang baru finish, lalu lanjutkan panduan start untuk race berikutnya.'
+const renderPoint = (point: number | null, status?: ResultStatus | null) => {
+  if (status === 'DNF' || status === 'DNS' || status === 'DQ') {
+    return (
+      <span className="inline-flex flex-col items-center gap-1">
+        <span className={`rounded-full border px-1.5 py-0.5 text-[9px] font-black ${statusClass(status)}`}>{status}</span>
+        <span>{point ?? '-'}</span>
+      </span>
+    )
   }
-  const moto = nowMoto ?? resultMoto
-  if (!moto) return 'Menunggu data moto dari sistem.'
-  if (moto.status === 'LIVE') return 'Pandu suasana dan siapkan rider berikutnya ke area tunggu.'
-  if (moto.status === 'READY') return 'Moto sudah ready dari checker. Panggil rider ke gate dan siapkan start.'
-  if (moto.status === 'UPCOMING') return 'Panggil rider ke gate sesuai urutan start.'
-  if (moto.status === 'PROVISIONAL') return nextMoto ? 'Bacakan hasil sementara, lalu lanjut panggil starter moto berikutnya.' : 'Bacakan hasil sementara kepada penonton.'
-  if (moto.status === 'LOCKED' || moto.status === 'FINISHED') return nextMoto ? 'Hasil sudah siap dibacakan. Lanjutkan calling rider untuk moto berikutnya.' : 'Hasil sudah final dan siap dibacakan.'
-  return 'Pantau update dari juri dan race control.'
+  return point ?? '-'
 }
 
-const PenaltyBadges = ({ items, compact = false }: { items?: Array<{ code: string; points: number }>; compact?: boolean }) => {
-  if (!items?.length) return null
-  const visible = items.slice(0, compact ? 2 : 3)
-  const hiddenCount = items.length - visible.length
+const stageSortKey = (title: string) => {
+  const normalized = title.trim().toUpperCase()
+  if (normalized.startsWith('REPECHAGE')) return 0
+  if (normalized.startsWith('QUARTER FINAL')) return 1
+  if (normalized.startsWith('SEMI FINAL')) return 2
+  if (normalized.startsWith('FINAL')) return 3
+  return 4
+}
+
+const riderDisplayName = (row: { name: string; rider_nickname?: string | null }) => row.rider_nickname?.trim() || row.name
+
+const hasDifferentNickname = (row: { name: string; rider_nickname?: string | null }) => {
+  const nickname = row.rider_nickname?.trim()
+  return Boolean(nickname && nickname.toLocaleLowerCase() !== row.name.trim().toLocaleLowerCase())
+}
+
+function CompactQualificationTable({ batch, showMoto3, large }: { batch: Batch; showMoto3: boolean; large: boolean }) {
   return (
-    <div className="mt-1 flex flex-wrap justify-center gap-1">
-      {visible.map((item, index) => (
-        <span
-          key={`${item.code}-${item.points}-${index}`}
-          className="inline-flex rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] text-amber-700"
-        >
-          {item.code} +{item.points}
-        </span>
-      ))}
-      {hiddenCount > 0 && (
-        <span className="inline-flex rounded-full border border-slate-300 bg-slate-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] text-slate-600">
-          +{hiddenCount}
-        </span>
-      )}
+    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+      <table className={`w-full min-w-[720px] border-collapse ${large ? 'text-sm md:text-base' : 'text-xs md:text-sm'}`}>
+        <thead className="bg-slate-100 text-left text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">
+          <tr>
+            <th className="min-w-[210px] px-3 py-2.5">Rider</th>
+            <th className="px-2 py-2.5 text-center">G1</th>
+            <th className="px-2 py-2.5 text-center">G2</th>
+            {showMoto3 && <th className="px-2 py-2.5 text-center">G3</th>}
+            <th className="px-2 py-2.5 text-center">P1</th>
+            <th className="px-2 py-2.5 text-center">P2</th>
+            {showMoto3 && <th className="px-2 py-2.5 text-center">P3</th>}
+            <th className="px-2 py-2.5 text-center">Penalty</th>
+            <th className="px-2 py-2.5 text-center">Total</th>
+            <th className="px-2 py-2.5 text-center">Rank</th>
+            <th className="min-w-[110px] px-3 py-2.5">Lanjut</th>
+          </tr>
+        </thead>
+        <tbody>
+          {batch.rows.map((row) => (
+            <tr key={row.rider_id} className="border-t border-slate-100">
+              <td className="px-3 py-2.5">
+                <div className="font-black text-slate-900">{riderDisplayName(row)}</div>
+                {hasDifferentNickname(row) && <div className="mt-0.5 text-[9px] font-bold text-slate-500">{row.name}</div>}
+                <div className="mt-1 text-[10px] font-bold text-amber-700">{row.no_plate} <span className="text-slate-400">|</span> <span className="text-slate-600">{row.club || '-'}</span></div>
+              </td>
+              <td className="px-2 py-2.5 text-center font-black">{row.gate_moto1 ?? '-'}</td>
+              <td className="px-2 py-2.5 text-center font-black">{row.gate_moto2 ?? '-'}</td>
+              {showMoto3 && <td className="px-2 py-2.5 text-center font-black">{row.gate_moto3 ?? '-'}</td>}
+              <td className="px-2 py-2.5 text-center font-black text-sky-700">{renderPoint(row.point_moto1, row.moto1_status)}</td>
+              <td className="px-2 py-2.5 text-center font-black text-sky-700">{renderPoint(row.point_moto2, row.moto2_status)}</td>
+              {showMoto3 && <td className="px-2 py-2.5 text-center font-black text-sky-700">{renderPoint(row.point_moto3 ?? null, row.moto3_status)}</td>}
+              <td className="px-2 py-2.5 text-center font-black text-amber-700">{row.penalty_total ?? '-'}</td>
+              <td className="px-2 py-2.5 text-center font-black text-slate-900">{row.total_point ?? '-'}</td>
+              <td className="px-2 py-2.5 text-center font-black text-emerald-700">{row.rank_point ?? '-'}</td>
+              <td className="px-3 py-2.5 text-[10px] font-black uppercase leading-tight text-slate-600">{row.class_label || '-'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function CompactStageTable({ stage, large }: { stage: Stage; large: boolean }) {
+  const isFinal = stage.title.trim().toUpperCase().startsWith('FINAL')
+  return (
+    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+      <table className={`w-full min-w-[620px] border-collapse ${large ? 'text-sm md:text-base' : 'text-xs md:text-sm'}`}>
+        <thead className="bg-slate-100 text-left text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">
+          <tr>
+            <th className="min-w-[220px] px-3 py-2.5">Rider</th>
+            <th className="px-2 py-2.5 text-center">Gate</th>
+            <th className="px-2 py-2.5 text-center">Point</th>
+            <th className="px-2 py-2.5 text-center">Penalty</th>
+            <th className="px-2 py-2.5 text-center">Rank</th>
+            {!isFinal && <th className="min-w-[110px] px-3 py-2.5">Lanjut</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {stage.rows.map((row) => (
+            <tr key={row.rider_id} className="border-t border-slate-100">
+              <td className="px-3 py-2.5">
+                <div className="font-black text-slate-900">{riderDisplayName(row)}</div>
+                {hasDifferentNickname(row) && <div className="mt-0.5 text-[9px] font-bold text-slate-500">{row.name}</div>}
+                <div className="mt-1 text-[10px] font-bold text-amber-700">{row.no_plate} <span className="text-slate-400">|</span> <span className="text-slate-600">{row.club || '-'}</span></div>
+              </td>
+              <td className="px-2 py-2.5 text-center font-black">{row.gate ?? '-'}</td>
+              <td className="px-2 py-2.5 text-center font-black text-sky-700">{renderPoint(row.point, row.status)}</td>
+              <td className="px-2 py-2.5 text-center font-black text-amber-700">{row.penalty_total ?? '-'}</td>
+              <td className="px-2 py-2.5 text-center font-black text-emerald-700">{row.rank ?? '-'}</td>
+              {!isFinal && <td className="px-3 py-2.5 text-[10px] font-black uppercase leading-tight text-slate-600">{row.next_class_label || '-'}</td>}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }
 
 export default function McLivePage() {
   const params = useParams()
+  const router = useRouter()
   const eventId = String(params?.eventId ?? '')
-  const [data, setData] = useState<McResponse['data'] | null>(null)
-  const [loading, setLoading] = useState(false)
+  const routeCategoryId = typeof params?.categoryId === 'string' ? params.categoryId : null
+  const isCategoryPage = Boolean(routeCategoryId)
+  const apiFetch = useApiFetch()
+  const { highVisibility, toggleHighVisibility } = useHighVisibility('mc-high-visibility')
+  const [categories, setCategories] = useState<Category[]>([])
+  const [score, setScore] = useState<ScoreData | null>(null)
+  const [motoStates, setMotoStates] = useState<MotoState[]>([])
+  const [loadingCategories, setLoadingCategories] = useState(true)
+  const [loadingScore, setLoadingScore] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<string | null>(null)
-  const refreshInFlightRef = useRef(false)
-  const motoStateSignatureRef = useRef<string | null>(null)
-  const { highVisibility, toggleHighVisibility } = useHighVisibility('mc-high-visibility')
 
-  const apiFetch = useApiFetch()
+  const selectedCategory = useMemo(
+    () => categories.find((category) => category.id === routeCategoryId) ?? null,
+    [categories, routeCategoryId]
+  )
 
-  const load = useCallback(async (silent = false) => {
+  const loadCategories = useCallback(async () => {
     if (!eventId) return
-    if (refreshInFlightRef.current) return
-    refreshInFlightRef.current = true
-    if (!silent) setLoading(true)
+    setLoadingCategories(true)
     setError(null)
     try {
-      const json = (await apiFetch(`/api/internal/events/${eventId}/mc-live`)) as McResponse
-      setData(json.data ?? null)
-      setLastUpdated(new Date().toLocaleTimeString())
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Gagal memuat data')
+      const json = await apiFetch(`/api/events/${eventId}/categories`)
+      const nextCategories = ((json.data ?? []) as Category[]).filter((category) => category.enabled !== false)
+      setCategories(nextCategories)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Gagal memuat kategori.')
     } finally {
-      refreshInFlightRef.current = false
-      if (!silent) setLoading(false)
+      setLoadingCategories(false)
     }
   }, [apiFetch, eventId])
 
-  useEffect(() => {
-    void load()
-  }, [load])
-
-  useEffect(() => {
-    if (!eventId) return
-
-    const refreshWhenMotoStateChanges = async () => {
-      try {
-        const response = (await apiFetch(`/api/jury/events/${eventId}/moto-state`)) as { data?: MotoStateItem[] }
-        const signature = (response.data ?? [])
-          .map((moto) => `${moto.id}:${moto.status}:${moto.checker_prep_ready_at ?? ''}`)
-          .join('|')
-        const previousSignature = motoStateSignatureRef.current
-        motoStateSignatureRef.current = signature
-
-        if (previousSignature && previousSignature !== signature) {
-          await load(true)
-        }
-      } catch {
-        // The full board keeps its last valid state until the next successful poll.
-      }
+  const loadScore = useCallback(async (silent = false) => {
+    if (!eventId || !routeCategoryId) return
+    if (!silent) setLoadingScore(true)
+    setError(null)
+    try {
+      const query = new URLSearchParams({ category_id: routeCategoryId, include_upcoming: '1', include_photos: '0' })
+      const [json, motoStateJson] = await Promise.all([
+        apiFetch(`/api/public/events/${eventId}/live-score?${query.toString()}`),
+        apiFetch(`/api/jury/events/${eventId}/moto-state`),
+      ])
+      setScore((json.data ?? null) as ScoreData | null)
+      setMotoStates(((motoStateJson.data ?? []) as MotoState[]).filter((moto) => moto.category_id === routeCategoryId))
+      setLastUpdated(new Date().toLocaleTimeString())
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Gagal memuat hasil kategori.')
+    } finally {
+      if (!silent) setLoadingScore(false)
     }
+  }, [apiFetch, eventId, routeCategoryId])
 
-    void refreshWhenMotoStateChanges()
-    const interval = window.setInterval(() => {
-      void refreshWhenMotoStateChanges()
-    }, 10000)
+  useEffect(() => {
+    void loadCategories()
+  }, [loadCategories])
+
+  useEffect(() => {
+    setScore(null)
+    setMotoStates([])
+    if (routeCategoryId) void loadScore()
+  }, [loadScore, routeCategoryId])
+
+  useEventRaceRealtime({
+    eventId,
+    enabled: Boolean(eventId && routeCategoryId),
+    onRaceStateChanged: () => void loadScore(true),
+    debounceMs: 500,
+  })
+
+  useEffect(() => {
+    if (!routeCategoryId) return
+    const interval = window.setInterval(() => void loadScore(true), 45_000)
     return () => window.clearInterval(interval)
-  }, [apiFetch, eventId, load])
+  }, [loadScore, routeCategoryId])
 
-  const ranking = useMemo(() => (data?.ranking ?? []).slice(0, 8), [data])
-  const nextMotoRiders = useMemo(() => (data?.next_moto_riders ?? []).slice(0, 8), [data])
-  const readyToAnnounce = isResultReady(data?.moto?.status)
-  const nowMoto = data?.now_moto ?? data?.moto ?? null
-  const nowCategory = data?.now_category ?? data?.category ?? null
-  const nowBatch = data?.now_batch ?? data?.batch ?? null
-  const announcingDifferentMoto = !!(readyToAnnounce && data?.moto && nowMoto && data.moto.id !== nowMoto.id)
+  const batches = score?.batches ?? []
+  const stages = useMemo(() => [...(score?.stages ?? [])].sort((a, b) => stageSortKey(a.title) - stageSortKey(b.title) || a.title.localeCompare(b.title)), [score])
+  const showMoto3 = batches.some((batch) => Boolean(batch.moto3_id))
+  const motoStateById = useMemo(() => new Map(motoStates.map((moto) => [moto.id, moto])), [motoStates])
+  const nextCategory = useMemo(() => {
+    if (!routeCategoryId) return null
+    const currentIndex = categories.findIndex((category) => category.id === routeCategoryId)
+    return currentIndex >= 0 ? categories[currentIndex + 1] ?? null : null
+  }, [categories, routeCategoryId])
 
-  if (data?.under_review) {
-    return (
-      <div className="grid min-h-screen place-items-center bg-amber-700 px-6 text-center text-white">
-        <div className="max-w-3xl">
-          <div className="text-4xl font-black uppercase tracking-[0.12em] md:text-6xl">Under Protest Review</div>
-          <div className="mt-4 text-base font-semibold text-amber-100 md:text-xl">
-            {data.review_moto?.moto_name ?? 'Moto sedang di review'}
-          </div>
-          <div className="mt-3 text-sm font-semibold text-amber-100/90">Ranking disembunyikan sampai review selesai.</div>
-        </div>
-      </div>
-    )
-  }
-
-  const badge = statusBadge(nowMoto)
   return (
-    <div className="public-page">
-      <PublicTopbar />
-      <main className="public-main max-w-[1100px]">
-        <section className="public-hero">
-          <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-amber-400/15 blur-3xl" />
-          <div className="pointer-events-none absolute -top-24 right-0 h-72 w-72 rounded-full bg-sky-400/15 blur-3xl" />
-          <div className="relative z-10 flex flex-wrap items-start justify-between gap-3">
-            <div className="grid gap-1">
-              <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-amber-300">MC Live Board</p>
-              <h1 className={`${highVisibility ? 'text-3xl md:text-5xl' : 'text-2xl md:text-4xl'} font-black tracking-tight text-white`}>
-                {nowCategory ?? 'Kategori'} | {nowBatch ?? '-'} | {nowMoto?.moto_name ?? 'Moto'}
-              </h1>
-              <p className={`${highVisibility ? 'text-xl md:text-2xl' : 'text-lg'} font-extrabold text-slate-200`}>{data?.event_name ?? 'Event'}</p>
-              <p className={`${highVisibility ? 'text-base md:text-lg' : 'text-sm'} font-semibold text-slate-300`}>
-                {data?.next_moto
-                  ? `Next: ${data.next_moto.category ?? '-'} | ${data.next_moto.batch ?? '-'} | ${data.next_moto.moto_label}`
-                  : 'Belum ada moto berikutnya'}
-              </p>
-              {announcingDifferentMoto && data?.moto ? (
-                <p className={`${highVisibility ? 'text-base md:text-lg' : 'text-sm'} font-bold text-amber-200`}>
-                  Result To Announce: {data.category ?? '-'} | {data.batch ?? '-'} | {data.moto.moto_name}
-                </p>
+    <div className="public-page public-editorial-page live-score-editorial-page">
+      <PublicTopbar theme="dark" />
+      <main className="public-main live-score-editorial-main">
+        <section className="public-hero live-score-editorial-hero !rounded-[24px] px-4 py-5 sm:px-6">
+          <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#f3c63d]">MC Control</p>
+              <h1 className="mt-1 text-3xl font-black uppercase text-[#fff8e8] sm:text-4xl">{selectedCategory?.label ?? 'Pilih kategori'}</h1>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link href={isCategoryPage ? `/mc/${eventId}` : '/mc'} className="rounded-full border border-white/25 px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-white transition-colors hover:bg-white/10">{isCategoryPage ? 'Semua Kategori' : 'Ganti Event'}</Link>
+              {nextCategory ? (
+                <button type="button" onClick={() => router.push(`/mc/${eventId}/${nextCategory.id}`)} className="rounded-full border border-[#f3c63d] px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-[#f3c63d] transition-colors hover:bg-[#f3c63d] hover:text-[#201008]">
+                  Next: {nextCategory.label}
+                </button>
               ) : null}
-              <p className={`${highVisibility ? 'text-base md:text-lg' : 'text-sm'} max-w-3xl font-semibold text-slate-200`}>
-                {mcCueText(nowMoto, data?.moto ?? null, data?.next_moto ?? null)}
-              </p>
-            </div>
-            <div className={`rounded-full border px-4 py-2 text-sm font-extrabold uppercase tracking-[0.12em] ${badge.className}`}>
-              {badge.label}
-            </div>
-          </div>
-        </section>
-
-        <section className="grid gap-4">
-          <article className="public-panel-light">
-            <div className="mb-4 flex items-start justify-between gap-3">
-              <div className="grid gap-1">
-                <div className="text-xs font-extrabold uppercase tracking-[0.18em] text-slate-500">Now Racing</div>
-                <h2 className={`${highVisibility ? 'text-2xl md:text-3xl' : 'text-xl'} font-black tracking-tight text-slate-900`}>
-                  {nowMoto?.moto_name ?? 'Belum ada moto'}
-                </h2>
-                <div className={`${highVisibility ? 'text-base md:text-lg' : 'text-sm'} font-bold text-slate-600`}>
-                  {nowCategory ?? '-'} | {nowBatch ?? '-'}
-                </div>
-              </div>
-              <div className="grid gap-2 text-right">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Cue</div>
-                  <div className={`${highVisibility ? 'text-base md:text-lg' : 'text-sm'} mt-1 font-extrabold text-slate-900`}>
-                    {readyToAnnounce ? 'Baca hasil' : nowMoto?.status === 'LIVE' ? 'Pandu race' : 'Panggil rider'}
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Kategori</div>
-                <div className={`${highVisibility ? 'text-lg md:text-2xl' : 'text-base md:text-xl'} mt-1 font-black text-slate-900`}>{nowCategory ?? '-'}</div>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Batch</div>
-                <div className={`${highVisibility ? 'text-lg md:text-2xl' : 'text-base md:text-xl'} mt-1 font-black text-slate-900`}>{nowBatch ?? '-'}</div>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Moto Berikutnya</div>
-                <div className={`${highVisibility ? 'text-lg md:text-2xl' : 'text-base md:text-xl'} mt-1 font-black text-slate-900`}>
-                  {data?.next_moto?.moto_label ?? '-'}
-                </div>
-              </div>
-            </div>
-          </article>
-        </section>
-
-        <section className="public-panel-light">
-          <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="grid gap-1">
-              <h2 className={`${highVisibility ? 'text-2xl md:text-3xl' : 'text-xl'} font-black tracking-tight text-slate-900`}>
-                {readyToAnnounce ? 'Result To Announce' : 'Status Rider / Hasil Sementara'}
-              </h2>
-              {announcingDifferentMoto && data?.moto ? (
-                <div className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">
-                  Moto hasil: {data.category ?? '-'} | {data.batch ?? '-'} | {data.moto.moto_name}
-                </div>
-              ) : null}
-            </div>
-            <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-              <button
-                type="button"
-                onClick={() => load()}
-                disabled={loading}
-                className="rounded-full border border-emerald-300 bg-emerald-50 px-4 py-2 text-xs font-extrabold uppercase tracking-[0.12em] text-emerald-700 shadow-sm transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {loading ? 'Memuat...' : 'Refresh Sekarang'}
-              </button>
-              <button
-                type="button"
-                onClick={toggleHighVisibility}
-                className={`rounded-full border px-3 py-1.5 text-xs font-extrabold uppercase tracking-[0.12em] transition-colors ${
-                  highVisibility
-                    ? 'border-amber-300 bg-amber-100 text-amber-900 hover:bg-amber-200'
-                    : 'border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200'
-                }`}
-              >
+              <button type="button" onClick={toggleHighVisibility} className="rounded-full border border-[#f3c63d] bg-[#f3c63d] px-3 py-2 text-xs font-black uppercase tracking-[0.1em] text-[#201008] transition-colors hover:bg-[#ffda5e]">
                 {highVisibility ? 'Mode Besar Aktif' : 'Mode Besar'}
               </button>
             </div>
           </div>
-
-          {loading && (
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm font-semibold text-slate-600">
-              Loading...
-            </div>
-          )}
-
-          {!loading && ranking.length === 0 && (
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm font-semibold text-slate-600">
-              Belum ada hasil.
-            </div>
-          )}
-
-          {!loading && ranking.length > 0 && (
-            <div className="grid gap-4">
-              <div className="grid gap-2">
-                <div className="table-mobile-hint hidden md:block">Geser kiri/kanan untuk lihat semua kolom.</div>
-                <div className="public-table-wrap hidden md:block">
-                  <table className="public-table" style={{ minWidth: highVisibility ? 1100 : 900 }}>
-                    <thead>
-                      <tr>
-                        {['Gate', 'Plate', 'Rider', 'Komunitas', 'Point', 'Penalty', 'Total', 'Rank', 'Status'].map((label) => (
-                          <th key={label}>{label}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {ranking.map((row, idx) => (
-                        <tr key={row.rider_id}>
-                          <td className={`${highVisibility ? 'text-lg md:text-2xl' : 'text-base md:text-xl'} font-extrabold text-slate-700`}>
-                            {row.gate_position ?? '-'}
-                          </td>
-                          <td className={`${highVisibility ? 'text-lg md:text-2xl' : 'text-base md:text-xl'} font-extrabold`}>{row.plate}</td>
-                          <td>
-                            <div className={`${highVisibility ? 'text-2xl md:text-3xl' : 'text-lg md:text-2xl'} font-black text-slate-900`}>{riderDisplayName(row)}</div>
-                            {row.rider_nickname?.trim() && (
-                              <div className={`${highVisibility ? 'text-sm md:text-base' : 'text-xs md:text-sm'} font-bold uppercase tracking-[0.12em] text-slate-500`}>
-                                {row.rider_name}
-                              </div>
-                            )}
-                          </td>
-                          <td className={`${highVisibility ? 'text-base md:text-xl' : 'text-sm md:text-lg'} font-extrabold text-slate-700`}>{row.club || '-'}</td>
-                          <td className={`${highVisibility ? 'text-2xl md:text-4xl' : 'text-xl md:text-3xl'} font-black text-sky-700`}>{row.base_point ?? '-'}</td>
-                          <td className={`${highVisibility ? 'text-2xl md:text-4xl' : 'text-xl md:text-3xl'} font-black text-amber-600`}>
-                            <div>{row.penalty_total ?? '-'}</div>
-                            <PenaltyBadges items={row.penalty_breakdown} compact />
-                          </td>
-                          <td className={`${highVisibility ? 'text-2xl md:text-4xl' : 'text-xl md:text-3xl'} font-black text-sky-700`}>{row.total_point ?? '-'}</td>
-                          <td className={`${highVisibility ? 'text-2xl md:text-3xl' : 'text-lg md:text-2xl'} font-black text-slate-900`}>
-                            {mcRankLabel(readyToAnnounce, idx)}
-                          </td>
-                          <td>
-                            {row.status !== 'FINISH' ? (
-                              <span
-                                className={`inline-flex rounded-full border px-3 py-1 text-xs font-extrabold uppercase tracking-[0.12em] ${resultStatusBadge(
-                                  row.status
-                                )}`}
-                              >
-                                {mcStatusLabel(row.status)}
-                              </span>
-                            ) : (
-                              <span className="inline-flex rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-extrabold uppercase tracking-[0.12em] text-emerald-700">
-                                Finish
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="grid gap-3 md:hidden">
-                  {ranking.map((row, idx) => (
-                    <article
-                      key={`mc-current-mobile-${row.rider_id}`}
-                      className={`rounded-[22px] border px-4 py-4 shadow-sm ${
-                        row.status === 'FINISH'
-                          ? 'border-emerald-200 bg-white'
-                          : row.status === 'READY'
-                            ? 'border-sky-200 bg-sky-50/60'
-                          : row.status === 'PENDING'
-                            ? 'border-slate-200 bg-white'
-                            : 'border-amber-200 bg-amber-50/60'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Current Rider</div>
-                          <div className="mt-1 text-xl font-black text-slate-900">
-                            Gate {row.gate_position ?? '-'} | {row.plate}
-                          </div>
-                        </div>
-                        <span
-                          className={`inline-flex rounded-full border px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.12em] ${resultStatusBadge(
-                            row.status
-                          )}`}
-                        >
-                          {mcStatusLabel(row.status)}
-                        </span>
-                      </div>
-                      <div className="mt-3">
-                        <div className="text-2xl font-black leading-tight text-slate-900">{riderDisplayName(row)}</div>
-                        {row.rider_nickname?.trim() ? (
-                          <div className="mt-1 text-xs font-black uppercase tracking-[0.12em] text-slate-500">{row.rider_name}</div>
-                        ) : null}
-                        <div className="mt-1 text-sm font-bold text-slate-600">{row.club || '-'}</div>
-                      </div>
-                      <div className="mt-4 grid grid-cols-4 gap-2">
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
-                          <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Point</div>
-                          <div className="mt-1 text-lg font-black text-sky-700">{row.base_point ?? '-'}</div>
-                        </div>
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
-                          <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Penalty</div>
-                          <div className="mt-1 text-lg font-black text-amber-600">{row.penalty_total ?? '-'}</div>
-                          <PenaltyBadges items={row.penalty_breakdown} compact />
-                        </div>
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
-                          <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Total</div>
-                          <div className="mt-1 text-lg font-black text-slate-900">{row.total_point ?? '-'}</div>
-                        </div>
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
-                          <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Rank</div>
-                          <div className="mt-1 text-lg font-black text-slate-900">{mcRankLabel(readyToAnnounce, idx)}</div>
-                        </div>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {error && <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-700">{error}</div>}
-
-          <div className="mt-3 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
-            Last updated: {lastUpdated ?? '-'}
-          </div>
         </section>
 
-        <section className="rounded-[24px] border border-slate-200 bg-slate-50 p-4 shadow-sm">
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <div>
-              <div className="text-xs font-extrabold uppercase tracking-[0.18em] text-slate-500">Call To Gate</div>
-              {data?.next_moto ? (
-                <div className="mt-1 text-xs font-black uppercase tracking-[0.14em] text-emerald-700">
-                  {data.next_moto.category ?? 'Kategori -'}
-                </div>
-              ) : null}
-              <div className={`${highVisibility ? 'text-2xl md:text-3xl' : 'text-xl'} font-black tracking-tight text-slate-900`}>
-                {data?.next_moto ? `${data.next_moto.batch ?? '-'} | ${data.next_moto.moto_label}` : 'Belum ada next moto'}
-              </div>
-            </div>
-            <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-extrabold uppercase tracking-[0.12em] text-slate-700">
-              Rider Prep
-            </div>
+        {!isCategoryPage ? <section className="rounded-[20px] border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="text-sm font-black uppercase tracking-[0.12em] text-slate-800">Kategori Event</h2>
+            <button type="button" onClick={() => void loadCategories()} className="text-xs font-black uppercase tracking-[0.1em] text-amber-700 hover:text-amber-900">Muat Ulang</button>
           </div>
-          {nextMotoRiders.length > 0 && (
-            <div className="mb-3 flex flex-wrap gap-2">
-              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-extrabold uppercase tracking-[0.12em] text-slate-700">
-                Total {nextMotoRiders.length}
-              </span>
-              <span className="rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-extrabold uppercase tracking-[0.12em] text-emerald-700">
-                Ready {nextMotoRiders.filter((row) => row.status === 'READY').length}
-              </span>
-              <span className="rounded-full border border-slate-300 bg-slate-100 px-3 py-1 text-xs font-extrabold uppercase tracking-[0.12em] text-slate-700">
-                Belum Dicek {nextMotoRiders.filter((row) => row.status === 'PENDING').length}
-              </span>
-              <span className="rounded-full border border-rose-300 bg-rose-50 px-3 py-1 text-xs font-extrabold uppercase tracking-[0.12em] text-rose-700">
-                Absent {nextMotoRiders.filter((row) => row.status === 'ABSENT').length}
-              </span>
-            </div>
-          )}
-          <div className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white md:block">
-            {nextMotoRiders.length === 0 ? (
-              <div className="p-3 text-sm font-semibold text-slate-600">
-                Belum ada rider next moto.
-              </div>
-            ) : (
-              <table className="w-full border-collapse text-sm">
-                <thead>
-                  <tr className="bg-slate-100 text-left text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
-                    <th className="w-20 px-3 py-3">Gate</th>
-                    <th className="w-24 px-3 py-3">Plate</th>
-                    <th className="px-3 py-3">Rider</th>
-                    <th className="px-3 py-3">Komunitas</th>
-                    <th className="w-32 px-3 py-3 text-right">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {nextMotoRiders.map((row) => (
-                    <tr key={`next-table-${row.rider_id}`} className="border-t border-slate-100">
-                      <td className="px-3 py-3 text-2xl font-black text-slate-900">{row.gate_position ?? '-'}</td>
-                      <td className="px-3 py-3 text-lg font-black text-slate-800">{row.plate}</td>
-                      <td className="px-3 py-3">
-                        <div className="font-black text-slate-900">{nextMotoRiderDisplayName(row)}</div>
-                        {row.rider_nickname?.trim() ? (
-                          <div className="mt-0.5 text-[11px] font-extrabold uppercase tracking-[0.1em] text-slate-500">
-                            {row.rider_name}
-                          </div>
-                        ) : null}
-                      </td>
-                      <td className="px-3 py-3 font-bold text-slate-600">{row.club || '-'}</td>
-                      <td className="px-3 py-3 text-right">
-                        <span
-                          className={`inline-flex rounded-full border px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.12em] ${nextMotoStatusBadge(
-                            row.status
-                          )}`}
-                        >
-                          {nextMotoStatusLabel(row.status)}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+          {loadingCategories ? <div className="py-6 text-center text-sm font-bold text-slate-500">Memuat kategori...</div> : null}
+          {!loadingCategories && categories.length === 0 ? <div className="py-6 text-center text-sm font-bold text-slate-500">Belum ada kategori aktif.</div> : null}
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {categories.map((category) => {
+              const selected = category.id === routeCategoryId
+              return (
+                <button
+                  key={category.id}
+                  type="button"
+                  onClick={() => router.push(`/mc/${eventId}/${category.id}`)}
+                  className={`min-h-16 rounded-xl border px-3 py-3 text-left transition-colors ${
+                    selected ? 'border-[#e95c18] bg-[#e95c18] text-white shadow-sm' : 'border-slate-200 bg-slate-50 text-slate-800 hover:border-amber-300 hover:bg-amber-50'
+                  }`}
+                >
+                  <span className="block text-sm font-black leading-tight">{category.label}</span>
+                  <span className={`mt-1 block text-[10px] font-bold uppercase tracking-[0.1em] ${selected ? 'text-white/75' : 'text-slate-500'}`}>Tampilkan hasil</span>
+                </button>
+              )
+            })}
           </div>
-          <div className="grid gap-2 md:hidden">
-            {nextMotoRiders.length === 0 && (
-              <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm font-semibold text-slate-600">
-                Belum ada rider next moto.
+        </section> : null}
+
+        {!isCategoryPage && !loadingCategories ? (
+          <section className="rounded-[20px] border border-dashed border-slate-300 bg-slate-50 px-5 py-12 text-center">
+            <h2 className="text-xl font-black text-slate-900">Pilih satu kategori</h2>
+            <p className="mt-2 text-sm font-semibold text-slate-600">Tabel batch dan stage akan tampil di sini.</p>
+          </section>
+        ) : null}
+
+        {selectedCategory ? (
+          <section className="grid gap-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 px-1">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-amber-700">Kategori Terpilih</p>
+                <h2 className={`${highVisibility ? 'text-3xl' : 'text-2xl'} font-black text-slate-900`}>{selectedCategory.label}</h2>
               </div>
-            )}
-            {nextMotoRiders.map((row) => (
-              <div
-                key={`next-${row.rider_id}`}
-                className="rounded-[22px] border border-slate-200 bg-white px-4 py-4 shadow-sm"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Call To Gate</div>
-                    <div className="mt-1 text-xl font-black text-slate-900">Gate {row.gate_position ?? '-'} | {row.plate}</div>
+              <div className="flex items-center gap-3">
+                {lastUpdated ? <span className="text-xs font-bold text-slate-500">Update {lastUpdated}</span> : null}
+                <button type="button" onClick={() => void loadScore()} disabled={loadingScore} className="rounded-full border border-slate-800 bg-slate-900 px-4 py-2 text-xs font-black uppercase tracking-[0.1em] text-white transition-colors hover:bg-slate-700 disabled:opacity-60">
+                  {loadingScore ? 'Memuat...' : 'Refresh'}
+                </button>
+              </div>
+            </div>
+
+            {loadingScore && !score ? <div className="rounded-[20px] border border-slate-200 bg-white py-12 text-center text-sm font-bold text-slate-500">Memuat tabel kategori...</div> : null}
+            {!loadingScore && batches.length === 0 && stages.length === 0 ? <div className="rounded-[20px] border border-slate-200 bg-white py-12 text-center text-sm font-bold text-slate-500">Belum ada batch atau stage untuk kategori ini.</div> : null}
+
+            {batches.map((batch) => (
+              <article key={batch.batch_index} className="overflow-hidden rounded-[20px] border border-slate-200 bg-white shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <h3 className={`${highVisibility ? 'text-xl' : 'text-lg'} font-black text-slate-900`}>Batch {batch.batch_index}</h3>
+                    <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-amber-800">Kualifikasi</span>
                   </div>
-                  <span
-                    className={`inline-flex rounded-full border px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.12em] ${nextMotoStatusBadge(
-                      row.status
-                    )}`}
-                  >
-                    {nextMotoStatusLabel(row.status)}
-                  </span>
-                </div>
-                {row.penalty_total ? (
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <span className="inline-flex rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.1em] text-amber-700">
-                      Penalty +{row.penalty_total}
-                    </span>
-                    <PenaltyBadges items={row.penalty_breakdown} />
-                  </div>
-                ) : null}
-                <div className="mt-3">
-                  <div className={`truncate ${highVisibility ? 'text-lg md:text-2xl' : 'text-lg'} font-black leading-tight text-slate-900`}>
-                    {nextMotoRiderDisplayName(row)}
-                  </div>
-                  {row.rider_nickname?.trim() ? (
-                    <div
-                      className={`truncate ${highVisibility ? 'text-sm md:text-lg' : 'text-xs md:text-sm'} mt-1 font-extrabold uppercase tracking-[0.08em] text-slate-700`}
-                    >
-                      {row.rider_name}
-                    </div>
-                  ) : null}
-                  <div className={`truncate ${highVisibility ? 'text-base md:text-lg' : 'text-sm md:text-base'} mt-1 font-bold text-slate-500`}>
-                    {row.club || '-'}
+                  <div className="flex flex-wrap items-center justify-end gap-1.5">
+                    {[batch.moto1_id, batch.moto2_id, batch.moto3_id].filter((id): id is string => Boolean(id)).map((motoId) => {
+                      const moto = motoStateById.get(motoId)
+                      return moto ? <span key={motoId} className={`rounded-full border px-2 py-1 text-[9px] font-black uppercase tracking-[0.08em] ${motoStatusClass(moto.status)}`}>{moto.moto_name.replace(/\s*-\s*batch\s*\d+/i, '')}: {moto.status}</span> : null
+                    })}
+                    <span className="ml-1 text-xs font-black uppercase tracking-[0.1em] text-slate-500">{batch.rows.length} Rider</span>
                   </div>
                 </div>
-              </div>
+                <CompactQualificationTable batch={batch} showMoto3={showMoto3} large={highVisibility} />
+              </article>
             ))}
-          </div>
-        </section>
+
+            {stages.map((stage) => (
+              <article key={stage.moto_id} className="overflow-hidden rounded-[20px] border border-[#513723] bg-white shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#513723] bg-[#29130a] px-4 py-3">
+                  <h3 className={`${highVisibility ? 'text-xl' : 'text-lg'} font-black uppercase text-[#fff8e8]`}>{stage.title}</h3>
+                  <div className="flex items-center gap-2">
+                    {motoStateById.get(stage.moto_id) ? <span className={`rounded-full border px-2 py-1 text-[9px] font-black uppercase tracking-[0.08em] ${motoStatusClass(motoStateById.get(stage.moto_id)!.status)}`}>{motoStateById.get(stage.moto_id)!.status}</span> : null}
+                    <span className="text-xs font-black uppercase tracking-[0.1em] text-[#f3c63d]">Advanced Stage</span>
+                  </div>
+                </div>
+                <CompactStageTable stage={stage} large={highVisibility} />
+              </article>
+            ))}
+          </section>
+        ) : null}
+
+        {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">{error}</div> : null}
       </main>
     </div>
   )

@@ -1,12 +1,15 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 export function useHighVisibility(storageKey: string) {
-  const [highVisibility, setHighVisibility] = useState(() => {
-    if (typeof window === 'undefined') return false
-    return window.localStorage.getItem(storageKey) === '1'
-  })
+  // Keep the server and first browser render identical. The saved preference
+  // is applied after hydration to avoid a localStorage-based mismatch.
+  const [highVisibility, setHighVisibility] = useState(false)
+
+  useEffect(() => {
+    setHighVisibility(window.localStorage.getItem(storageKey) === '1')
+  }, [storageKey])
 
   const toggleHighVisibility = useCallback(() => {
     setHighVisibility((current) => {
