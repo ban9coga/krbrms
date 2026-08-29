@@ -3,6 +3,11 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/src/lib/supabaseClient'
 
+const readAccessTokenCookie = () => {
+  const entry = document.cookie.split('; ').find((item) => item.startsWith('sb-access-token='))
+  return entry ? decodeURIComponent(entry.slice('sb-access-token='.length)) : null
+}
+
 export default function QuickPwaEntryPage() {
   const [message, setMessage] = useState('Menyiapkan panel crew...')
 
@@ -11,7 +16,7 @@ export default function QuickPwaEntryPage() {
 
     const openRoleHome = async () => {
       const { data } = await supabase.auth.getSession()
-      let accessToken = data.session?.access_token
+      let accessToken = data.session?.access_token ?? readAccessTokenCookie()
 
       if (!accessToken) {
         window.location.replace('/login?next=%2Fquick&crew=1')
@@ -28,7 +33,7 @@ export default function QuickPwaEntryPage() {
         })
         if (response.status === 401) {
           const { data: refreshed } = await supabase.auth.refreshSession()
-          accessToken = refreshed.session?.access_token
+          accessToken = refreshed.session?.access_token ?? null
           if (accessToken) {
             const secureCookie = window.location.protocol === 'https:' ? '; Secure' : ''
             const maxAge = refreshed.session?.expires_in ?? 3600

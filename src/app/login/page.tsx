@@ -91,14 +91,14 @@ export default function LoginPage() {
         access_token: accessToken,
         refresh_token: refreshToken,
       })
-      if (persistError || !persistedSession.session?.access_token) {
-        setLoading(false)
-        setErrorMessage('Login berhasil, tetapi sesi perangkat tidak dapat disimpan. Tutup lalu buka kembali aplikasi, kemudian coba login lagi.')
-        return
+      // Some standalone mobile browsers delay their storage bridge after a
+      // fresh install. Keep the valid server-issued token as a cookie fallback
+      // instead of blocking an otherwise successful crew login.
+      if (!persistError && persistedSession.session?.access_token) {
+        accessToken = persistedSession.session.access_token
+        refreshToken = persistedSession.session.refresh_token
+        expiresIn = persistedSession.session.expires_in ?? expiresIn
       }
-      accessToken = persistedSession.session.access_token
-      refreshToken = persistedSession.session.refresh_token
-      expiresIn = persistedSession.session.expires_in ?? expiresIn
     }
     if (accessToken) {
       const secureCookie = window.location.protocol === 'https:' ? '; Secure' : ''
