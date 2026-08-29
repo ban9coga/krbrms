@@ -6,9 +6,20 @@ export function useApiFetch() {
 
   const getToken = useCallback(async (forceRefresh = false) => {
     if (!forceRefresh && tokenRef.current) return tokenRef.current
+
+    if (forceRefresh) {
+      const { data } = await supabase.auth.refreshSession()
+      tokenRef.current = data.session?.access_token ?? null
+      if (tokenRef.current && typeof window !== 'undefined') {
+        const secureCookie = window.location.protocol === 'https:' ? '; Secure' : ''
+        const maxAge = data.session?.expires_in ?? 3600
+        document.cookie = `sb-access-token=${encodeURIComponent(tokenRef.current)}; Path=/; Max-Age=${maxAge}${secureCookie}; SameSite=Lax`
+      }
+      return tokenRef.current
+    }
+
     const { data } = await supabase.auth.getSession()
-    if (!data.session?.access_token) return null
-    tokenRef.current = data.session.access_token
+    tokenRef.current = data.session?.access_token ?? null
     return tokenRef.current
   }, [])
 

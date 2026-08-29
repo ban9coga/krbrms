@@ -11,7 +11,7 @@ export default function QuickPwaEntryPage() {
 
     const openRoleHome = async () => {
       const { data } = await supabase.auth.getSession()
-      const accessToken = data.session?.access_token
+      let accessToken = data.session?.access_token
 
       if (!accessToken) {
         window.location.replace('/login?next=%2Fquick&crew=1')
@@ -21,11 +21,25 @@ export default function QuickPwaEntryPage() {
       try {
         const controller = new AbortController()
         const timeout = window.setTimeout(() => controller.abort(), 10_000)
-        const response = await fetch('/api/auth/backoffice-access', {
+        let response = await fetch('/api/auth/backoffice-access', {
           headers: { Authorization: `Bearer ${accessToken}` },
           cache: 'no-store',
           signal: controller.signal,
         })
+        if (response.status === 401) {
+          const { data: refreshed } = await supabase.auth.refreshSession()
+          accessToken = refreshed.session?.access_token
+          if (accessToken) {
+            const secureCookie = window.location.protocol === 'https:' ? '; Secure' : ''
+            const maxAge = refreshed.session?.expires_in ?? 3600
+            document.cookie = `sb-access-token=${encodeURIComponent(accessToken)}; Path=/; Max-Age=${maxAge}${secureCookie}; SameSite=Lax`
+            response = await fetch('/api/auth/backoffice-access', {
+              headers: { Authorization: `Bearer ${accessToken}` },
+              cache: 'no-store',
+              signal: controller.signal,
+            })
+          }
+        }
         window.clearTimeout(timeout)
         const json = await response.json().catch(() => ({}))
         const home = typeof json?.data?.home === 'string' ? json.data.home : null
