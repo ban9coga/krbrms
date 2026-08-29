@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import LogoutButton from '@/src/components/LogoutButton'
+import { ThemeToggleSwitch } from '@/src/components/ThemeProvider'
 import { useApiFetch } from '@/src/hooks/useApiFetch'
 import { useEventRaceRealtime } from '@/src/hooks/useEventRaceRealtime'
 import { useHighVisibility } from '@/src/hooks/useHighVisibility'
@@ -145,8 +146,8 @@ function CompactQualificationTable({ batch, showMoto3, large }: { batch: Batch; 
           </tr>
         </thead>
         <tbody>
-          {batch.rows.map((row) => (
-            <tr key={row.rider_id} className="border-t border-slate-100">
+          {batch.rows.map((row, index) => (
+            <tr key={row.rider_id} className={`border-t-2 border-slate-200 transition-colors hover:bg-amber-50 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/80'}`}>
               <td className="px-3 py-2.5">
                 <div className="font-black text-slate-900">{riderDisplayName(row)}</div>
                 {hasDifferentNickname(row) && <div className="mt-0.5 text-[9px] font-bold text-slate-500">{row.name}</div>}
@@ -186,8 +187,8 @@ function CompactStageTable({ stage, large }: { stage: Stage; large: boolean }) {
           </tr>
         </thead>
         <tbody>
-          {stage.rows.map((row) => (
-            <tr key={row.rider_id} className="border-t border-slate-100">
+          {stage.rows.map((row, index) => (
+            <tr key={row.rider_id} className={`border-t-2 border-slate-200 transition-colors hover:bg-amber-50 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/80'}`}>
               <td className="px-3 py-2.5">
                 <div className="font-black text-slate-900">{riderDisplayName(row)}</div>
                 {hasDifferentNickname(row) && <div className="mt-0.5 text-[9px] font-bold text-slate-500">{row.name}</div>}
@@ -302,14 +303,17 @@ export default function McLivePage() {
   }, [router])
 
   return (
-    <div className="min-h-screen bg-[#f7f3ea] text-slate-900">
+    <div className="min-h-screen bg-[var(--app-bg)] text-[var(--app-text)]">
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex w-full max-w-[1440px] items-center justify-between gap-3 px-3 py-2.5 sm:px-5">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.14em] text-[#e95c18]">RacePushbike Crew</p>
             <p className="text-sm font-black text-slate-900">MC Control</p>
           </div>
-          <LogoutButton onClick={handleLogout} />
+          <div className="flex items-center gap-2">
+            <ThemeToggleSwitch />
+            <LogoutButton onClick={handleLogout} />
+          </div>
         </div>
       </header>
       <main className="mx-auto grid w-full max-w-[1440px] gap-4 px-3 py-3 sm:px-5 sm:py-5">
