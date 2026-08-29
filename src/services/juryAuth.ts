@@ -3,11 +3,12 @@
 import { adminClient, authClient } from '../lib/auth'
 import { normalizeAppRole } from '../lib/roles'
 import { LRUCache } from 'lru-cache'
+import type { User } from '@supabase/supabase-js'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 
-const userCache = new LRUCache<string, any>({ max: 500, ttl: 60000 })
+const userCache = new LRUCache<string, User>({ max: 500, ttl: 60000 })
 const rolesCache = new LRUCache<string, string[]>({ max: 500, ttl: 60000 })
 
 const getRole = (user: { user_metadata?: Record<string, unknown>; app_metadata?: Record<string, unknown> }) => {
@@ -59,6 +60,21 @@ const getScopedRoles = async (userId: string, eventId: string) => {
   return roles
 }
 
+const getAnyScopedRole = async (userId: string, allowedRoles: string[]) => {
+  const { data, error } = await adminClient
+    .from('user_event_roles')
+    .select('role')
+    .eq('user_id', userId)
+    .eq('is_active', true)
+
+  if (error || !data?.length) return null
+
+  return data
+    .map((row) => normalizeAppRole(typeof row.role === 'string' ? row.role : ''))
+    .filter((role) => Boolean(role) && allowedRoles.includes(role))
+    .sort((a, b) => roleWeight(a) - roleWeight(b))[0] ?? null
+}
+
 export async function getAccessibleEventIds(userId: string, allowed: string[]) {
   const scopedRoles = normalizeAllowedRoles(allowed)
   const { data, error } = await adminClient
@@ -96,15 +112,20 @@ export async function requireJury(req: Request, allowed: string[], eventId?: str
 
   const allowedRoles = normalizeAllowedRoles(allowed)
   const globalRole = normalizeAppRole(legacyMap(getRole(user)) ?? '')
-  let role = globalRole
+  let role: string | null = globalRole || null
   let eventRole: string | null = null
 
   if (eventId) {
     const scopedRoles = await getScopedRoles(user.id, eventId)
-    if (scopedRoles.length > 0) {
-      eventRole = scopedRoles[0]
+    const scopedRole = scopedRoles[0]
+    if (scopedRole) {
+      eventRole = scopedRole
       role = eventRole
     }
+  } else if (!role) {
+    // Crew accounts commonly receive their permission from an event assignment,
+    // not from immutable user metadata. The event list is the first Jury request.
+    role = await getAnyScopedRole(user.id, allowedRoles)
   }
 
   if (!role || !allowedRoles.includes(role)) return { ok: false as const, status: 403, error: 'Forbidden' }

@@ -87,10 +87,18 @@ export default function LoginPage() {
     }
 
     if (accessToken && refreshToken) {
-      await supabase.auth.setSession({
+      const { data: persistedSession, error: persistError } = await supabase.auth.setSession({
         access_token: accessToken,
         refresh_token: refreshToken,
       })
+      if (persistError || !persistedSession.session?.access_token) {
+        setLoading(false)
+        setErrorMessage('Login berhasil, tetapi sesi perangkat tidak dapat disimpan. Tutup lalu buka kembali aplikasi, kemudian coba login lagi.')
+        return
+      }
+      accessToken = persistedSession.session.access_token
+      refreshToken = persistedSession.session.refresh_token
+      expiresIn = persistedSession.session.expires_in ?? expiresIn
     }
     if (accessToken) {
       const secureCookie = window.location.protocol === 'https:' ? '; Secure' : ''
