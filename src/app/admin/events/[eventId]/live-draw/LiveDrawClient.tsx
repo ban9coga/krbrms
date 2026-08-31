@@ -274,6 +274,7 @@ export default function LiveDrawClient({
   const [deleteGuard, setDeleteGuard] = useState<LiveDrawGuard>({ canDelete: true, reason: null })
   const spinTimeoutRef = useRef<number | null>(null)
   const rollingIntervalRef = useRef<number | null>(null)
+  const skipNextCategoryLoadRef = useRef(false)
   const maxBatchRiders = useMemo(() => Math.max(4, Math.min(8, gatePositions || 8)), [gatePositions])
   const minimumManualBatchCount = useMemo(
     () => Math.max(1, Math.ceil(Math.max(0, riders.length) / maxBatchRiders)),
@@ -783,18 +784,25 @@ export default function LiveDrawClient({
   const loadCategories = async () => {
     setLoading(true)
     try {
-      await loadSettings()
-      const eventRes = await apiFetch(`/api/events/${eventId}`)
+      const [, eventRes, categoryRes] = await Promise.all([
+        loadSettings(),
+        apiFetch(`/api/events/${eventId}`),
+        fetch(`/api/events/${eventId}/categories`),
+      ])
       if (eventRes.res.ok) {
         setEventName(String(eventRes.json?.data?.name ?? 'Event'))
       }
-      const res = await fetch(`/api/events/${eventId}/categories`)
-      const json = await res.json()
+      const json = await categoryRes.json()
       const list = (json?.data ?? []) as CategoryItem[]
       const enabledCategories = list.filter((c) => c.enabled)
       setCategories(enabledCategories)
-      if (!selectedCategory && enabledCategories.length > 0) {
-        setSelectedCategory(enabledCategories[0].id)
+      const categoryToLoad = selectedCategory || enabledCategories[0]?.id
+      if (categoryToLoad) {
+        if (!selectedCategory) {
+          skipNextCategoryLoadRef.current = true
+          setSelectedCategory(categoryToLoad)
+        }
+        await loadRiders(categoryToLoad)
       }
     } finally {
       setLoading(false)
@@ -874,6 +882,10 @@ export default function LiveDrawClient({
 
   useEffect(() => {
     if (selectedCategory) {
+      if (skipNextCategoryLoadRef.current) {
+        skipNextCategoryLoadRef.current = false
+        return
+      }
       loadRiders(selectedCategory)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -947,7 +959,7 @@ export default function LiveDrawClient({
 
     const randomInRange = (min: number, max: number) => Math.random() * (max - min) + min;
 
-    const interval: any = setInterval(function () {
+    const interval: ReturnType<typeof setInterval> = setInterval(function () {
       const timeLeft = animationEnd - Date.now();
 
       if (timeLeft <= 0) {
@@ -2620,7 +2632,10 @@ export default function LiveDrawClient({
         >
           <div className="ld-results-panel__head">
             <div>
-              <div className="ld-kicker">Draw Result</div>
+              <div className="ld-results-panel__title-row">
+                <div className="ld-kicker">Draw Result</div>
+                <div className="ld-results-panel__category">{selectedCategoryLabel}</div>
+              </div>
               {categoryLocked && <div className="ld-results-panel__meta">{savedMotoBatches.length} batch tersimpan</div>}
             </div>
           </div>
@@ -2777,7 +2792,12 @@ export default function LiveDrawClient({
         </aside>
       </div>
 
-      {loading && <div className="ld-page-loading">Memuat data...</div>}
+      {loading && (
+        <div className="ld-page-loading" role="status" aria-live="polite">
+          <span className="ld-page-loading__spinner" aria-hidden="true" />
+          <span>Memuat data...</span>
+        </div>
+      )}
       <footer className="ld-powered-by">Powered by <strong>racepushbike.com</strong></footer>
 
       {saveState === 'saving' && !saveSuccessModal && (

@@ -230,6 +230,25 @@
   font-weight: 800;
 }
 
+.ld-results-panel__title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ld-results-panel__category {
+  min-width: 0;
+  padding-left: 10px;
+  border-left: 1px solid rgba(248, 221, 210, 0.45);
+  color: #f8ddd2 !important;
+  font-family: 'Inter', sans-serif;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
 .ld-recording-dot {
   display: inline-flex;
   align-items: center;
@@ -768,11 +787,31 @@
 }
 
 .ld-page-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   margin-top: 14px;
+  padding: 8px 11px;
+  border: 1px solid rgba(0, 240, 232, 0.34);
+  border-radius: 7px;
+  background: rgba(2, 8, 14, 0.78);
   color: #c3fffa;
   font-family: 'JetBrains Mono', monospace;
   font-size: 11px;
   font-weight: 800;
+}
+
+.ld-page-loading__spinner {
+  width: 13px;
+  height: 13px;
+  border: 2px solid rgba(195, 255, 250, 0.25);
+  border-top-color: #00f0e8;
+  border-radius: 50%;
+  animation: ld-page-loading-spin 0.7s linear infinite;
+}
+
+@keyframes ld-page-loading-spin {
+  to { transform: rotate(360deg); }
 }
 
 .ld-powered-by {
@@ -1658,6 +1697,15 @@
   border: 1px solid #765943 !important;
   background: transparent !important;
   color: #d7c1ad !important;
+}
+
+.ld-shell .ld-save-success-actions button:hover:not(:disabled),
+.ld-shell .ld-save-success-actions button:focus-visible:not(:disabled) {
+  border-color: #ffd65a !important;
+  background: #f7c940 !important;
+  color: #261406 !important;
+  box-shadow: 0 0 0 3px rgba(247, 201, 64, 0.22) !important;
+  outline: none;
 }
 
 /* ── Racing utility classes ── */
@@ -2546,15 +2594,19 @@
 }
 
 .ld-shell .ld-workspace-grid .ld-draw-stage--spin .ld-spin-draw-btn.is-redraw {
-  border-color: #d69b26 !important;
-  background: linear-gradient(135deg, #bb7516, #dc9e25) !important;
-  color: #241008 !important;
-  box-shadow: 0 5px 0 #70400b, 0 0 18px rgba(214, 155, 38, 0.28) !important;
+  border-color: #606870 !important;
+  background: linear-gradient(135deg, #2b3137, #41484f) !important;
+  color: #ffffff !important;
+  box-shadow: 0 5px 0 #15191d, 0 0 18px rgba(65, 72, 79, 0.25) !important;
+}
+
+.ld-shell .ld-workspace-grid .ld-draw-stage--spin .ld-spin-draw-btn.is-redraw span {
+  color: #ffffff !important;
 }
 
 .ld-shell .ld-workspace-grid .ld-draw-stage--spin .ld-spin-draw-btn.is-redraw:not(:disabled):hover {
-  background: linear-gradient(135deg, #cc861d, #e5ad35) !important;
-  box-shadow: 0 8px 0 #70400b, 0 0 28px rgba(229, 173, 53, 0.42) !important;
+  background: linear-gradient(135deg, #373f46, #505961) !important;
+  box-shadow: 0 8px 0 #15191d, 0 0 28px rgba(80, 89, 97, 0.35) !important;
 }
 
 .ld-shell .ld-workspace-grid .ld-draw-stage--spin .ld-spin-draw-btn:not(:disabled):hover {
