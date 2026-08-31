@@ -25,21 +25,11 @@ type RiderRow = {
 
 type MotoStatus = 'UPCOMING' | 'READY' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED'
 
-const resolveQualificationMotoCount = async (eventId: string, categoryId: string) => {
-  const { data } = await adminClient
-    .from('race_stage_config')
-    .select('qualification_moto_count')
-    .eq('event_id', eventId)
-    .eq('category_id', categoryId)
-    .maybeSingle()
-  return Math.max(2, Number(data?.qualification_moto_count ?? 2))
-}
-
 const loadDrawConfiguration = async (eventId: string, categoryId: string) => {
   const [{ data: config, error: configError }, { data: settings, error: settingsError }] = await Promise.all([
     adminClient
       .from('race_stage_config')
-      .select('draw_batch_mode, draw_batch_size, draw_batch_count, draw_custom_batch_sizes, draw_moto2_order')
+      .select('qualification_moto_count, draw_batch_mode, draw_batch_size, draw_batch_count, draw_custom_batch_sizes, draw_moto2_order')
       .eq('event_id', eventId)
       .eq('category_id', categoryId)
       .maybeSingle(),
@@ -60,6 +50,7 @@ const loadDrawConfiguration = async (eventId: string, categoryId: string) => {
   return {
     error: null,
     gatePositions: Math.max(1, Number(format.gate_positions ?? 8)),
+    qualificationMotoCount: Math.max(2, Number(config?.qualification_moto_count ?? 2)),
     drawMode: format.draw_mode === 'external_draw' ? 'external_draw' : 'internal_live_draw',
     config: normalizeDrawCategoryConfig({
       batch_mode: config?.draw_batch_mode,
@@ -72,28 +63,24 @@ const loadDrawConfiguration = async (eventId: string, categoryId: string) => {
 }
 
 const buildDeleteGuard = async (eventId: string, categoryId: string) => {
-  const { data: motos, error: motoError } = await adminClient
-    .from('motos')
-    .select('id, status')
-    .eq('event_id', eventId)
-    .eq('category_id', categoryId)
+  const [{ data: motos, error: motoError }, { data: stageRows, error: stageError }] = await Promise.all([
+    adminClient
+      .from('motos')
+      .select('id, status')
+      .eq('event_id', eventId)
+      .eq('category_id', categoryId),
+    adminClient
+      .from('race_stage_result')
+      .select('stage, final_class')
+      .eq('category_id', categoryId),
+  ])
 
-  if (motoError) {
-    return { error: motoError.message }
+  if (motoError || stageError) {
+    return { error: motoError?.message || stageError?.message || 'Gagal memeriksa status drawing.' }
   }
 
   const typedMotos = (motos ?? []) as Array<{ id: string; status?: MotoStatus | null }>
   const lockedCount = typedMotos.filter((moto) => String(moto.status ?? '').toUpperCase() === 'LOCKED').length
-
-  const { data: stageRows, error: stageError } = await adminClient
-    .from('race_stage_result')
-    .select('stage, final_class')
-    .eq('category_id', categoryId)
-
-  if (stageError) {
-    return { error: stageError.message }
-  }
-
   const typedStageRows = (stageRows ?? []) as Array<{ stage?: string | null; final_class?: string | null }>
   const hasFinalState = typedStageRows.some((row) => {
     const stage = String(row.stage ?? '').toUpperCase()
@@ -112,6 +99,7 @@ const buildDeleteGuard = async (eventId: string, categoryId: string) => {
     canDelete: !reason,
     deleteBlockReason: reason,
     lockedCount,
+    motoCount: typedMotos.length,
     hasFinalState,
   }
 }
@@ -251,31 +239,24 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const category = await loadCategory(eventId, categoryId)
   if (!category) return NextResponse.json({ error: 'Category not found' }, { status: 404 })
 
-  const { data: existingMotos, error: existingError } = await adminClient
-    .from('motos')
-    .select('id')
-    .eq('event_id', eventId)
-    .eq('category_id', categoryId)
-    .limit(1)
-  if (existingError) return NextResponse.json({ error: existingError.message }, { status: 400 })
-
-  const { data, error } = await loadRidersForCategory(eventId, category)
+  const [{ data, error }, deleteGuard, drawConfiguration] = await Promise.all([
+    loadRidersForCategory(eventId, category),
+    buildDeleteGuard(eventId, categoryId),
+    loadDrawConfiguration(eventId, categoryId),
+  ])
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-  const deleteGuard = await buildDeleteGuard(eventId, categoryId)
   if (deleteGuard.error) {
     return NextResponse.json({ error: deleteGuard.error }, { status: 400 })
   }
-  const qualificationMotoCount = await resolveQualificationMotoCount(eventId, categoryId)
-  const drawConfiguration = await loadDrawConfiguration(eventId, categoryId)
   if (drawConfiguration.error) return NextResponse.json({ error: drawConfiguration.error }, { status: 400 })
   return NextResponse.json({
     data,
-    has_motos: (existingMotos ?? []).length > 0,
+    has_motos: (deleteGuard.motoCount ?? 0) > 0,
     can_delete: deleteGuard.canDelete,
     delete_block_reason: deleteGuard.deleteBlockReason,
     locked_moto_count: deleteGuard.lockedCount,
     has_final_state: deleteGuard.hasFinalState,
-    qualification_moto_count: qualificationMotoCount,
+    qualification_moto_count: drawConfiguration.qualificationMotoCount,
     gate_positions: drawConfiguration.gatePositions,
     draw_config: drawConfiguration.config,
   })
@@ -306,9 +287,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
 
   const category = await loadCategory(eventId, categoryId)
   if (!category) return NextResponse.json({ error: 'Category not found' }, { status: 404 })
-  const { data: riders, error } = await loadRidersForCategory(eventId, category)
+  const [{ data: riders, error }, drawConfiguration] = await Promise.all([
+    loadRidersForCategory(eventId, category),
+    loadDrawConfiguration(eventId, categoryId),
+  ])
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-  const drawConfiguration = await loadDrawConfiguration(eventId, categoryId)
   if (drawConfiguration.error) return NextResponse.json({ error: drawConfiguration.error }, { status: 400 })
 
   const allowedIds = new Set((riders ?? []).map((r) => r.id))
