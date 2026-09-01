@@ -82,6 +82,7 @@ type EventFlags = {
 
 const isLockedStatus = (status?: string | null) => String(status ?? '').toUpperCase() === 'LOCKED'
 const isPrepMotoStatus = (status?: string | null) => isMotoUpcoming(status) || isMotoReady(status)
+const CHECKER_POLL_INTERVAL_MS = 5000
 
 const isCategoryAwaitingStageCompute = (list: MotoItem[], categoryId?: string | null) => {
   if (!categoryId) return false
@@ -674,7 +675,7 @@ export default function JCPage() {
         const prepMotoId = pickPrepMotoId(workflowMotos, selectedMotoIdRef.current, liveMotoId, allReadyDone)
         await refreshCheckerPollingState(prepMotoId, liveMotoId)
       })()
-    }, 15000)
+    }, CHECKER_POLL_INTERVAL_MS)
 
     return () => clearInterval(interval)
   }, [allReadyDone, eventId, isPageVisible, loadMotos, refreshCheckerPollingState])
@@ -1187,6 +1188,8 @@ export default function JCPage() {
           moto.id === selectedMotoId ? { ...moto, status, checker_prep_ready_at: new Date().toISOString() } : moto
         )
       )
+      // Keep the prep card in sync when this ready moto becomes live immediately.
+      await loadMotos(true)
       setWarningMessage(status === 'LIVE' ? 'Moto langsung LIVE karena moto sebelumnya sudah PROVISIONAL.' : 'Status prep rider saat ini dikunci.')
       setLastUpdated(new Date().toLocaleTimeString())
       setMotoReadyConfirmation({
