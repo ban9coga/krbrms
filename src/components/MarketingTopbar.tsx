@@ -9,10 +9,12 @@ import { supabase } from '@/src/lib/supabaseClient'
 import { ThemeToggleSwitch, useTheme } from './ThemeProvider'
 import PublicBottomBar from './PublicBottomBar'
 import LiveEntryButton from './LiveEntryButton'
+import LogoutButton from './LogoutButton'
 
 const navItems = [
   { href: '/', label: 'Home' },
   { href: '/jadwal-race-pushbike', label: 'Events' },
+  { href: '/insight', label: 'Insight' },
 ]
 
 type MarketingTopbarProps = {
@@ -28,6 +30,7 @@ const roleHome = (value: string | null) => {
   if (role === 'CHECKER') return '/jc'
   if (role === 'RACE_CONTROL') return '/race-control'
   if (role === 'MC') return '/mc'
+  if (role === 'DRAW_MANAGER') return '/draw'
   if (role === 'REGISTRATION_APPROVER') return '/admin/events'
   if (role === 'ADMIN' || role === 'SUPER_ADMIN') return '/admin'
   return '/dashboard'
@@ -189,17 +192,7 @@ export default function MarketingTopbar({
                     >
                       {panelLabel}
                     </Link>
-                    <button
-                      type="button"
-                      onClick={handleLogout}
-                      className={
-                        editorial
-                          ? 'rounded-full bg-[#1d0d07] px-5 py-2 text-sm font-bold text-white transition-colors hover:bg-[#ee4b16]'
-                          : 'rounded-full bg-amber-400 px-5 py-2 text-sm font-bold text-slate-900 transition-colors hover:bg-amber-300'
-                      }
-                    >
-                      Logout
-                    </button>
+                    <LogoutButton onClick={handleLogout} />
                   </>
                 ) : (
                   <Link

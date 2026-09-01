@@ -123,6 +123,7 @@ type EventSettingsResponse = {
       public_brand_name?: string | null
       registration_rider_photo_enabled?: boolean | null
       whatsapp_group_invite_url?: string | null
+      jersey_size_options?: string[] | null
     } | null
   } | null
 }
@@ -197,6 +198,7 @@ type ModalState =
   | { type: 'reject'; registration: RegistrationRow }
   | { type: 'delete'; registration: RegistrationRow }
   | { type: 'contact'; registration: RegistrationRow }
+  | { type: 'rider-edit'; registration: RegistrationRow; item: RegistrationItem }
   | { type: 'upclass'; registration: RegistrationRow; item: RegistrationItem }
   | null
 
@@ -211,6 +213,17 @@ type ContactFormState = {
 type UpclassFormState = {
   category_ids: string[]
   notes: string
+}
+type RiderEditFormState = {
+  rider_name: string
+  rider_nickname: string
+  date_of_birth: string
+  gender: 'BOY' | 'GIRL'
+  club: string
+  jersey_size: string
+  primary_category_id: string
+  plate_number: string
+  plate_suffix: string
 }
 
 const STATUS_OPTIONS: Array<{ value: 'ALL' | RegistrationStatus; label: string }> = [
@@ -419,6 +432,20 @@ const buildWhatsAppMessage = (
         'Masukkan nomor WhatsApp yang digunakan saat mendaftar.',
       ]
     : ['Kode registrasi belum tersedia. Silakan hubungi panitia.']
+  const attendanceInstructions =
+    registration.status === 'APPROVED' &&
+    registration.attendance_status !== 'ATTENDING' &&
+    registration.attendance_status !== 'NOT_ATTENDING' &&
+    !registration.checked_in_at
+      ? [
+          '',
+          'Konfirmasi kehadiran:',
+          '1. Buka link status & QR di atas.',
+          '2. Masukkan kode registrasi dan nomor WhatsApp yang digunakan saat mendaftar.',
+          '3. Saat panel Konfirmasi Kehadiran tersedia, pilih Saya Akan Hadir atau Tidak Hadir.',
+          'Mohon lakukan sebelum event dimulai.',
+        ]
+      : []
 
   if (kind === 'STATUS_ACCESS') {
     return [
@@ -431,6 +458,7 @@ const buildWhatsAppMessage = (
       `Konfirmasi kehadiran: ${getAttendanceLabel(registration)}`,
       getVenueStatusLabel(registration.checked_in_at, 'Sudah check-in', 'Belum check-in'),
       getVenueStatusLabel(registration.goodie_bag_collected_at, 'Goodie bag sudah diambil', 'Goodie bag belum diambil'),
+      ...attendanceInstructions,
       '',
       'Simpan kode atau QR tersebut untuk proses check-in di venue.',
       'Terima kasih.',
@@ -587,12 +615,25 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
     category_ids: [],
     notes: '',
   })
+  const [riderEditForm, setRiderEditForm] = useState<RiderEditFormState>({
+    rider_name: '',
+    rider_nickname: '',
+    date_of_birth: '',
+    gender: 'BOY',
+    club: '',
+    jersey_size: '',
+    primary_category_id: '',
+    plate_number: '',
+    plate_suffix: '',
+  })
+  const [riderEditConfirming, setRiderEditConfirming] = useState(false)
   const [showAttendanceSummary, setShowAttendanceSummary] = useState(false)
   const [showCategoryKpis, setShowCategoryKpis] = useState(false)
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
   const [actionMenuOpen, setActionMenuOpen] = useState<string | null>(null)
   const [roleKey, setRoleKey] = useState<string | null>(null)
   const [riderPhotoUploadEnabled, setRiderPhotoUploadEnabled] = useState(true)
+  const [jerseySizeOptions, setJerseySizeOptions] = useState<string[]>(['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'])
   const [whatsappGroupInviteUrl, setWhatsappGroupInviteUrl] = useState<string | null>(null)
   const [eventBranding, setEventBranding] = useState<EventBrandingState>({
     logoUrl: null,
@@ -816,6 +857,13 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
         const theme = settingsRes.data?.display_theme ?? {}
         const photoEnabled = businessSettings?.registration_rider_photo_enabled
         setRiderPhotoUploadEnabled(typeof photoEnabled === 'boolean' ? photoEnabled : true)
+        const configuredJerseySizes = Array.isArray(businessSettings?.jersey_size_options)
+          ? businessSettings.jersey_size_options
+              .map((size) => String(size).trim().toUpperCase())
+              .map((size) => (size === 'XXL' ? '2XL' : size))
+              .filter((size, index, values) => ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'].includes(size) && values.indexOf(size) === index)
+          : []
+        setJerseySizeOptions(configuredJerseySizes.length > 0 ? configuredJerseySizes : ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'])
         setWhatsappGroupInviteUrl(businessSettings?.whatsapp_group_invite_url?.trim() || null)
         setEventBranding({
           logoUrl:
@@ -831,6 +879,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
       } catch {
         if (!cancelled) {
           setRiderPhotoUploadEnabled(true)
+          setJerseySizeOptions(['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'])
           setWhatsappGroupInviteUrl(null)
           setEventBranding({
             logoUrl: null,
@@ -1062,6 +1111,24 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
     setFeedback(null)
   }
 
+  const openRiderEditModal = (registration: RegistrationRow, item: RegistrationItem) => {
+    setModal({ type: 'rider-edit', registration, item })
+    setModalNotes('')
+    setRiderEditForm({
+      rider_name: item.rider_name ?? '',
+      rider_nickname: item.rider_nickname ?? '',
+      date_of_birth: item.date_of_birth ?? '',
+      gender: item.gender,
+      club: item.club ?? '',
+      jersey_size: item.jersey_size ?? '',
+      primary_category_id: item.primary_category_id ?? '',
+      plate_number: item.requested_plate_number ?? '',
+      plate_suffix: item.requested_plate_suffix ?? '',
+    })
+    setRiderEditConfirming(false)
+    setFeedback(null)
+  }
+
   const closeModal = () => {
     if (savingKey) return
     setModal(null)
@@ -1076,6 +1143,18 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
       category_ids: [],
       notes: '',
     })
+    setRiderEditForm({
+      rider_name: '',
+      rider_nickname: '',
+      date_of_birth: '',
+      gender: 'BOY',
+      club: '',
+      jersey_size: '',
+      primary_category_id: '',
+      plate_number: '',
+      plate_suffix: '',
+    })
+    setRiderEditConfirming(false)
   }
 
   const approveRegistration = async (registration: RegistrationRow, notes: string) => {
@@ -1271,6 +1350,76 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
     }
   }
 
+  const getRiderEditChanges = (item: RegistrationItem) => {
+    const normalizedPlate = riderEditForm.plate_number.replace(/\D/g, '').slice(0, 3)
+    const normalizedSuffix = riderEditForm.plate_suffix.trim().toUpperCase()
+    const fields = [
+      ['Nama rider', item.rider_name, riderEditForm.rider_name.trim()],
+      ['Nama panggilan', item.rider_nickname ?? '', riderEditForm.rider_nickname.trim()],
+      ['Tanggal lahir', item.date_of_birth, riderEditForm.date_of_birth],
+      ['Gender', item.gender, riderEditForm.gender],
+      ['Club / komunitas', item.club ?? '', riderEditForm.club.trim()],
+      ['Ukuran jersey', item.jersey_size ?? '', riderEditForm.jersey_size],
+      ['Kategori utama', categoryMap.get(item.primary_category_id ?? '') ?? '-', categoryMap.get(riderEditForm.primary_category_id) ?? '-'],
+      ['Nomor plate', buildPlateDisplay(item.requested_plate_number ?? '', item.requested_plate_suffix ?? ''), buildPlateDisplay(normalizedPlate, normalizedSuffix)],
+    ] as Array<[string, string, string]>
+
+    return fields.filter(([, previous, next]) => previous !== next)
+  }
+
+  const updateRegistrationRider = async (registration: RegistrationRow, item: RegistrationItem) => {
+    const payload = {
+      ...riderEditForm,
+      rider_name: riderEditForm.rider_name.trim(),
+      rider_nickname: riderEditForm.rider_nickname.trim() || null,
+      date_of_birth: riderEditForm.date_of_birth.trim(),
+      club: riderEditForm.club.trim(),
+      jersey_size: riderEditForm.jersey_size.trim() || null,
+      plate_number: riderEditForm.plate_number.replace(/\D/g, '').slice(0, 3),
+      plate_suffix: riderEditForm.plate_suffix.trim().toUpperCase() || null,
+    }
+    if (!payload.rider_name || !payload.date_of_birth || !payload.club || !payload.primary_category_id || !payload.plate_number) {
+      setFeedback({ type: 'error', message: 'Lengkapi nama, tanggal lahir, club, kategori utama, dan nomor plate.' })
+      return
+    }
+
+    const savingId = `rider-edit:${item.id}`
+    setSavingKey(savingId)
+    try {
+      const response = await apiFetch<{ data?: Partial<RegistrationItem>; synced_to_rider?: boolean }>(
+        `/api/admin/events/${eventId}/registrations/${registration.id}/items/${item.id}`,
+        { method: 'PATCH', body: JSON.stringify(payload) }
+      )
+      const saved = response.data
+      if (saved) {
+        setRegistrations((prev) =>
+          prev.map((row) =>
+            row.id !== registration.id
+              ? row
+              : {
+                  ...row,
+                  registration_items: row.registration_items.map((entry) =>
+                    entry.id === item.id ? { ...entry, ...saved } : entry
+                  ),
+                }
+          )
+        )
+      }
+      setFeedback({
+        type: 'success',
+        message: response.synced_to_rider
+          ? `Data ${payload.rider_name} dan Rider resmi berhasil diperbarui.`
+          : `Data pendaftaran ${payload.rider_name} berhasil diperbarui.`,
+      })
+      setModal(null)
+      setRefreshTick((prev) => prev + 1)
+    } catch (err: unknown) {
+      setFeedback({ type: 'error', message: err instanceof Error ? err.message : 'Gagal memperbarui data rider.' })
+    } finally {
+      setSavingKey(null)
+    }
+  }
+
   const updatePaymentStatus = async (
     registration: RegistrationRow,
     payment: RegistrationPayment,
@@ -1356,6 +1505,19 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
     }
     if (modal.type === 'contact') {
       await updateRegistrationContact(modal.registration)
+      return
+    }
+    if (modal.type === 'rider-edit') {
+      const changes = getRiderEditChanges(modal.item)
+      if (changes.length === 0) {
+        setFeedback({ type: 'info', message: 'Tidak ada perubahan data untuk disimpan.' })
+        return
+      }
+      if (!riderEditConfirming) {
+        setRiderEditConfirming(true)
+        return
+      }
+      await updateRegistrationRider(modal.registration, modal.item)
       return
     }
     if (modal.type === 'upclass') {
@@ -3388,6 +3550,14 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                             </div>
 
                             <div className="mt-4 flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                disabled={savingKey === `rider-edit:${item.id}`}
+                                onClick={() => openRiderEditModal(registration, item)}
+                                className="admin-outline-button"
+                              >
+                                Edit Data Rider
+                              </button>
                               {registration.status === 'APPROVED' && (
                                 <button
                                   type="button"
@@ -3512,6 +3682,8 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                     ? 'Reject Registration'
                     : modal.type === 'contact'
                     ? 'Edit Kontak Wali'
+                    : modal.type === 'rider-edit'
+                    ? 'Edit Data Rider'
                     : modal.type === 'upclass'
                     ? 'Edit Upclass Rider'
                     : 'Delete Registration'}
@@ -3618,6 +3790,77 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
               </div>
             )}
 
+            {modal.type === 'rider-edit' && (
+              <div className="mt-5 grid gap-4">
+                <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm font-medium text-sky-900">
+                  {modal.registration.status === 'APPROVED'
+                    ? 'Perubahan ini juga memperbarui data Rider resmi. Kategori dan plate dikunci bila rider sudah masuk moto.'
+                    : 'Perubahan ini memperbarui data pendaftaran. Rider resmi baru dibuat saat pendaftaran di-approve.'}
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="grid gap-2 sm:col-span-2">
+                    <span className="text-sm font-black text-slate-900">Nama Rider *</span>
+                    <input value={riderEditForm.rider_name} onChange={(event) => setRiderEditForm((prev) => ({ ...prev, rider_name: event.target.value }))} className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none focus:border-slate-950" />
+                  </label>
+                  <label className="grid gap-2">
+                    <span className="text-sm font-black text-slate-900">Nama Panggilan</span>
+                    <input value={riderEditForm.rider_nickname} onChange={(event) => setRiderEditForm((prev) => ({ ...prev, rider_nickname: event.target.value }))} className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none focus:border-slate-950" />
+                  </label>
+                  <label className="grid gap-2">
+                    <span className="text-sm font-black text-slate-900">Ukuran Jersey</span>
+                    <select value={riderEditForm.jersey_size} onChange={(event) => setRiderEditForm((prev) => ({ ...prev, jersey_size: event.target.value }))} className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none focus:border-slate-950">
+                      <option value="">Belum dipilih</option>
+                      {jerseySizeOptions.map((size) => <option key={size} value={size}>{size}</option>)}
+                    </select>
+                  </label>
+                  <label className="grid gap-2">
+                    <span className="text-sm font-black text-slate-900">Tanggal Lahir *</span>
+                    <input type="date" value={riderEditForm.date_of_birth} onChange={(event) => setRiderEditForm((prev) => ({ ...prev, date_of_birth: event.target.value }))} className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none focus:border-slate-950" />
+                  </label>
+                  <label className="grid gap-2">
+                    <span className="text-sm font-black text-slate-900">Gender *</span>
+                    <select value={riderEditForm.gender} onChange={(event) => setRiderEditForm((prev) => ({ ...prev, gender: event.target.value as 'BOY' | 'GIRL' }))} className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none focus:border-slate-950">
+                      <option value="BOY">Boy</option>
+                      <option value="GIRL">Girl</option>
+                    </select>
+                  </label>
+                  <label className="grid gap-2 sm:col-span-2">
+                    <span className="text-sm font-black text-slate-900">Club / Komunitas Rider *</span>
+                    <input value={riderEditForm.club} onChange={(event) => setRiderEditForm((prev) => ({ ...prev, club: event.target.value }))} className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none focus:border-slate-950" />
+                  </label>
+                  <label className="grid gap-2 sm:col-span-2">
+                    <span className="text-sm font-black text-slate-900">Kategori Utama *</span>
+                    <select value={riderEditForm.primary_category_id} onChange={(event) => setRiderEditForm((prev) => ({ ...prev, primary_category_id: event.target.value }))} className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none focus:border-slate-950">
+                      <option value="">Pilih kategori</option>
+                      {categories.filter((category) => category.enabled !== false).map((category) => <option key={category.id} value={category.id}>{category.label}</option>)}
+                    </select>
+                  </label>
+                  <label className="grid gap-2">
+                    <span className="text-sm font-black text-slate-900">Nomor Plate *</span>
+                    <input inputMode="numeric" maxLength={3} value={riderEditForm.plate_number} onChange={(event) => setRiderEditForm((prev) => ({ ...prev, plate_number: event.target.value.replace(/\D/g, '').slice(0, 3) }))} className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none focus:border-slate-950" />
+                  </label>
+                  <label className="grid gap-2">
+                    <span className="text-sm font-black text-slate-900">Suffix Plate</span>
+                    <input maxLength={3} value={riderEditForm.plate_suffix} onChange={(event) => setRiderEditForm((prev) => ({ ...prev, plate_suffix: event.target.value.toUpperCase().replace(/[^A-Z]/g, '') }))} className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium uppercase text-slate-900 outline-none focus:border-slate-950" />
+                  </label>
+                </div>
+                {riderEditConfirming && (
+                  <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+                    <div className="font-black">Periksa ringkasan perubahan</div>
+                    <div className="mt-1 font-medium">Data berikut akan diperbarui{modal.registration.status === 'APPROVED' ? ' pada pendaftaran dan Rider resmi' : ''}.</div>
+                    <dl className="mt-3 grid gap-2">
+                      {getRiderEditChanges(modal.item).map(([label, previous, next]) => (
+                        <div key={label} className="grid gap-1 rounded-xl border border-amber-200 bg-white/70 px-3 py-2 sm:grid-cols-[150px_minmax(0,1fr)]">
+                          <dt className="font-black">{label}</dt>
+                          <dd className="font-semibold"><span className="text-slate-500">{previous || '-'}</span><span className="mx-2 text-amber-700">→</span><span>{next || '-'}</span></dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </div>
+                )}
+              </div>
+            )}
+
             {modal.type === 'upclass' && (
               <div className="mt-5 grid gap-4">
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-950">
@@ -3706,7 +3949,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                 disabled={Boolean(savingKey)}
                 onClick={handleModalConfirm}
                 className={
-                  modal.type === 'approve' || modal.type === 'contact' || modal.type === 'upclass'
+                  modal.type === 'approve' || modal.type === 'contact' || modal.type === 'rider-edit' || modal.type === 'upclass'
                     ? 'admin-success-button'
                     : 'admin-danger-button'
                 }
@@ -3717,6 +3960,10 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                   ? 'Reject Sekarang'
                   : modal.type === 'contact'
                   ? 'Simpan Kontak'
+                  : modal.type === 'rider-edit'
+                  ? riderEditConfirming
+                    ? 'Konfirmasi & Simpan'
+                    : 'Review Perubahan'
                   : modal.type === 'upclass'
                   ? 'Simpan Upclass'
                   : 'Delete Permanen'}
@@ -3728,5 +3975,3 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
     </div>
   )
 }
-
-

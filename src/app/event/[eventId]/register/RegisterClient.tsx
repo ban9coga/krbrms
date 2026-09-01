@@ -710,6 +710,11 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
       r.docKkUrl &&
       r.docKkUploadStatus === 'uploaded'
   )
+  const unresolvedPlateIndex = riders.findIndex((rider, index) => {
+    if (!rider.requestedPlateNumber.trim()) return false
+    const plateCheck = plateChecks[index] ?? initialPlateCheck()
+    return plateCheck.state !== 'available'
+  })
   const showTotal = Boolean(hasContact && ridersComplete)
   const hasMissingPrimaryCategory = riders.some((rider) => {
     const birthYear = getCompleteBirthYear(rider.dateOfBirth)
@@ -789,6 +794,14 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     }
     if (hasPrimaryCategorySlotFull || hasMissingPrimaryCategory || hasFullExtraCategory) {
       alert('Masih ada kategori rider yang belum valid atau kuotanya penuh.')
+      return
+    }
+    if (unresolvedPlateIndex >= 0) {
+      const plateCheck = plateChecks[unresolvedPlateIndex] ?? initialPlateCheck()
+      alert(
+        plateCheck.message ||
+          `Nomor plate rider #${unresolvedPlateIndex + 1} belum tersedia. Jika nomor utama sudah dipakai, tambahkan suffix/huruf sebelum lanjut.`
+      )
       return
     }
     goToStep(3)
@@ -1806,7 +1819,11 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                   <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto]">
                     <input
                       value={rider.requestedPlateNumber}
-                      onChange={(e) => updateRider(idx, { requestedPlateNumber: e.target.value })}
+                      onChange={(e) =>
+                        updateRider(idx, {
+                          requestedPlateNumber: e.target.value.replace(/\D/g, '').slice(0, 3),
+                        })
+                      }
                       placeholder="Nomor Plate (angka saja)"
                       inputMode="numeric"
                       maxLength={3}
@@ -1829,8 +1846,13 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                       <div className="grid gap-2 sm:grid-cols-[180px_1fr]">
                         <input
                           value={rider.requestedPlateSuffix}
-                          onChange={(e) => updateRider(idx, { requestedPlateSuffix: e.target.value })}
+                          onChange={(e) =>
+                            updateRider(idx, {
+                              requestedPlateSuffix: e.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 1),
+                            })
+                          }
                           placeholder="Huruf Tambahan"
+                          maxLength={1}
                           className={fieldClass}
                         />
                         <div className="flex flex-wrap gap-2">

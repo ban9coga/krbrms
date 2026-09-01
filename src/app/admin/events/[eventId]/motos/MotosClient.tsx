@@ -1,9 +1,10 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { compareMotoDisplayOrder, formatMotoDisplayName } from '../../../../../lib/motoDisplayOrder'
-import { supabase } from '@/src/lib/supabaseClient'
 import { useApiFetch } from '@/src/hooks/useApiFetch'
+import { useEventRaceRealtime } from '@/src/hooks/useEventRaceRealtime'
+import { usePageVisibility } from '@/src/lib/usePageVisibility'
 
 type CategoryItem = {
   id: string
@@ -40,10 +41,30 @@ type AdvancedSummaryItem = {
   }
 }
 
+type RaceResetPreview = {
+  event: { id: string; name: string; status: string }
+  advancedMotos: number
+  generatedQualificationMotos: number
+  results: number
+  penalties: number
+  safetyChecks: number
+  locks: number
+  stageResults: number
+}
+
 type StatusChip = {
   label: string
   tone: 'green' | 'blue' | 'amber' | 'slate'
 }
+
+type ComputeModalState = {
+  categoryName: string
+  actionLabel: string
+  status: 'loading' | 'success' | 'warning' | 'error'
+  message: string
+}
+
+type RaceDayFilter = 'ALL' | 'ACTION' | 'LIVE_READY' | 'PROVISIONAL' | 'LOCKED'
 
 function MotoListSkeleton() {
   return (
@@ -110,24 +131,8 @@ const safeFilename = (value: string) =>
 const timestampForFilename = () => new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '')
 
 const getAllowedMotoStatuses = (current: MotoItem['status']) => {
-  switch (current) {
-    case 'UPCOMING':
-      return ['UPCOMING', 'READY', 'LIVE'] as MotoItem['status'][]
-    case 'READY':
-      return ['UPCOMING', 'READY', 'LIVE'] as MotoItem['status'][]
-    case 'LIVE':
-      return ['UPCOMING', 'LIVE', 'PROVISIONAL'] as MotoItem['status'][]
-    case 'PROVISIONAL':
-      return ['UPCOMING', 'PROVISIONAL'] as MotoItem['status'][]
-    case 'PROTEST_REVIEW':
-      return ['PROTEST_REVIEW'] as MotoItem['status'][]
-    case 'LOCKED':
-      return ['LOCKED'] as MotoItem['status'][]
-    case 'FINISHED':
-      return ['FINISHED'] as MotoItem['status'][]
-    default:
-      return [current]
-  }
+  if (current === 'LOCKED' || current === 'PROTEST_REVIEW' || current === 'FINISHED') return [current]
+  return ['UPCOMING', 'READY', 'LIVE', 'PROVISIONAL'] as MotoItem['status'][]
 }
 
 const parseMotoBatch = (motoName: string) => {
@@ -158,6 +163,7 @@ const getCheckerPrepBadge = (moto: MotoItem) => {
 }
 
 export default function MotosClient({ eventId }: { eventId: string }) {
+  const isPageVisible = usePageVisibility()
   const [categories, setCategories] = useState<CategoryItem[]>([])
   const [motos, setMotos] = useState<MotoItem[]>([])
   const [gateOrdersByCategory, setGateOrdersByCategory] = useState<Record<string, GateMotoItem[]>>({})
@@ -176,6 +182,14 @@ export default function MotosClient({ eventId }: { eventId: string }) {
   const [advancedEnabledByCategory, setAdvancedEnabledByCategory] = useState<Record<string, boolean>>({})
   const [advancedSummaryByCategory, setAdvancedSummaryByCategory] = useState<Record<string, AdvancedSummaryItem>>({})
   const [computingCategoryId, setComputingCategoryId] = useState<string | null>(null)
+  const [computeModal, setComputeModal] = useState<ComputeModalState | null>(null)
+  const [raceResetPreview, setRaceResetPreview] = useState<RaceResetPreview | null>(null)
+  const [raceResetConfirmation, setRaceResetConfirmation] = useState('')
+  const [raceResetLoading, setRaceResetLoading] = useState(false)
+  const [raceResetSubmitting, setRaceResetSubmitting] = useState(false)
+  const [raceDayFilter, setRaceDayFilter] = useState<RaceDayFilter>('ACTION')
+  const [expandedCategoryIds, setExpandedCategoryIds] = useState<string[]>([])
+  const hasInitializedRaceDayView = useRef(false)
 
   const getErrorMessage = (err: unknown) => (err instanceof Error ? err.message : 'Request failed')
 
@@ -268,13 +282,24 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
 
+  const refreshFromRealtime = useCallback(() => {
+    if (loading || refreshing || computingCategoryId || raceResetLoading || raceResetSubmitting) return
+    void load('refresh', { includeAdvancedSummary: true })
+  }, [computingCategoryId, loading, raceResetLoading, raceResetSubmitting, refreshing]) // load intentionally reads current page state.
+
+  useEventRaceRealtime({
+    eventId,
+    enabled: isPageVisible,
+    onRaceStateChanged: refreshFromRealtime,
+  })
+
   useEffect(() => {
     if (!eventId) return
     if (!shouldPollMotos(eventStatus, autoRefreshEnabled)) return
     const interval = window.setInterval(() => {
       if (document.visibilityState === 'hidden') return
       void load('refresh', { includeAdvancedSummary: false })
-    }, 15000)
+    }, 50000)
     return () => window.clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId, eventStatus, autoRefreshEnabled])
@@ -340,9 +365,19 @@ export default function MotosClient({ eventId }: { eventId: string }) {
   const isCategoryComplete = useCallback(
     (categoryId: string) => {
       const list = motosByCategory.get(categoryId) ?? []
-      return list.length > 0 && list.every((moto) => moto.status === 'LOCKED')
+      if (list.length === 0) return false
+
+      // Advanced categories can temporarily have every current moto locked
+      // while the next bracket has not been computed yet. They are complete
+      // only after every generated Final is locked.
+      if (advancedEnabledByCategory[categoryId]) {
+        const finalMotos = list.filter((moto) => /^final\s+/i.test(moto.moto_name))
+        return finalMotos.length > 0 && finalMotos.every((moto) => moto.status === 'LOCKED')
+      }
+
+      return list.every((moto) => moto.status === 'LOCKED')
     },
-    [motosByCategory]
+    [advancedEnabledByCategory, motosByCategory]
   )
 
   const displayCategoriesSorted = useMemo(() => {
@@ -353,6 +388,59 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       return 0
     })
   }, [categoriesSorted, isCategoryComplete])
+
+  const raceDayOverview = useMemo(() => {
+    const live = motos.filter((moto) => moto.status === 'LIVE')
+    const ready = motos.filter((moto) => moto.status === 'READY')
+    const provisional = motos.filter((moto) => moto.status === 'PROVISIONAL' || moto.status === 'PROTEST_REVIEW')
+    const actionable = motos.filter((moto) => ['LIVE', 'READY', 'PROVISIONAL', 'PROTEST_REVIEW'].includes(moto.status))
+    return { live, ready, provisional, actionable }
+  }, [motos])
+
+  const raceDayActionCategoryIds = useMemo(() => {
+    const actionCategoryIds = new Set(raceDayOverview.actionable.map((moto) => moto.category_id))
+
+    Object.entries(advancedSummaryByCategory).forEach(([categoryId, summary]) => {
+      const readiness = summary.readiness
+      if (!advancedEnabledByCategory[categoryId] || !readiness.requiresQualification) return
+
+      const computeIsReady = !readiness.qualificationRun
+        ? readiness.canRunQualification
+        : readiness.canComputeAdvances &&
+          summary.motoCounts.final === 0 &&
+          (summary.motoCounts.repechage === 0 || readiness.repechageReady) &&
+          (summary.motoCounts.quarter === 0 || readiness.quarterReady) &&
+          (summary.motoCounts.semi === 0 || readiness.semiReady)
+
+      if (computeIsReady) actionCategoryIds.add(categoryId)
+    })
+
+    return actionCategoryIds
+  }, [advancedEnabledByCategory, advancedSummaryByCategory, raceDayOverview.actionable])
+
+  const filteredCategories = useMemo(() => {
+    if (raceDayFilter === 'ALL') return displayCategoriesSorted
+    return displayCategoriesSorted.filter((category) => {
+      const list = motosByCategory.get(category.id) ?? []
+      if (raceDayFilter === 'ACTION') return raceDayActionCategoryIds.has(category.id)
+      if (raceDayFilter === 'LIVE_READY') return list.some((moto) => moto.status === 'LIVE' || moto.status === 'READY')
+      if (raceDayFilter === 'PROVISIONAL') return list.some((moto) => moto.status === 'PROVISIONAL' || moto.status === 'PROTEST_REVIEW')
+      return list.length > 0 && list.every((moto) => moto.status === 'LOCKED')
+    })
+  }, [displayCategoriesSorted, motosByCategory, raceDayActionCategoryIds, raceDayFilter])
+
+  useEffect(() => {
+    if (hasInitializedRaceDayView.current || motos.length === 0) return
+    const activeCategoryIds = Array.from(
+      new Set(
+        motos
+          .filter((moto) => ['LIVE', 'READY', 'PROVISIONAL', 'PROTEST_REVIEW'].includes(moto.status))
+          .map((moto) => moto.category_id)
+      )
+    )
+    setExpandedCategoryIds(activeCategoryIds)
+    hasInitializedRaceDayView.current = true
+  }, [motos])
 
   useEffect(() => {
     const completedCategoryIds = categories
@@ -491,12 +579,17 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       if (status === 'LOCKED') {
         await handleLockMoto(motoId)
         return
-      } else {
-        await apiFetch(`/api/motos/${motoId}`, {
-          method: 'PATCH',
-          body: JSON.stringify({ status }),
-        })
       }
+
+      const ok = confirm(
+        `Ubah status ${formatMotoDisplayName(moto.moto_name)} dari ${moto.status} menjadi ${status}?\n\nGunakan override ini hanya bila alur lapangan memang perlu dikoreksi.`
+      )
+      if (!ok) return
+
+      await apiFetch(`/api/motos/${motoId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+      })
       await load()
     } catch (err: unknown) {
       alert(getErrorMessage(err))
@@ -517,7 +610,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     if (!moto) return
 
     const ok = confirm(
-      `Lock moto: ${formatMotoDisplayName(moto.moto_name)}?\n\nSetelah LOCKED, hasil dianggap final. Auto-live moto berikutnya sekarang dipicu saat hasil submit PROVISIONAL atau saat checker menekan Moto Ready.`
+      `Lock moto: ${formatMotoDisplayName(moto.moto_name)}?\n\nSetelah LOCKED, hasil dianggap final. Jika moto berikutnya sudah READY dari checker, sistem akan membuatnya LIVE sesuai urutan Moto Sequence.`
     )
     if (!ok) return
 
@@ -550,6 +643,38 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     }
   }
 
+  const openRaceReset = async () => {
+    setRaceResetLoading(true)
+    setRaceResetConfirmation('')
+    try {
+      const response = await apiFetch(`/api/admin/events/${eventId}/reset-race-data`)
+      setRaceResetPreview(response.data as RaceResetPreview)
+    } catch (err: unknown) {
+      alert(getErrorMessage(err))
+    } finally {
+      setRaceResetLoading(false)
+    }
+  }
+
+  const submitRaceReset = async () => {
+    if (raceResetConfirmation !== 'RESET RACE') return
+    setRaceResetSubmitting(true)
+    try {
+      const response = await apiFetch(`/api/admin/events/${eventId}/reset-race-data`, {
+        method: 'POST',
+        body: JSON.stringify({ confirmation: raceResetConfirmation }),
+      })
+      const summary = response.data as { motos_deleted?: number; results_deleted?: number }
+      setRaceResetPreview(null)
+      await load('refresh', { includeAdvancedSummary: true })
+      alert(`Data race dibersihkan. ${summary.motos_deleted ?? 0} moto hasil race dan ${summary.results_deleted ?? 0} hasil dihapus.`)
+    } catch (err: unknown) {
+      alert(getErrorMessage(err))
+    } finally {
+      setRaceResetSubmitting(false)
+    }
+  }
+
   const handleResetResults = async (motoId: string) => {
     const moto = motos.find((m) => m.id === motoId)
     if (!moto) return
@@ -564,6 +689,21 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       return
     }
 
+    const liveMotoInSameCategory = motos.find(
+      (candidate) =>
+        candidate.id !== moto.id &&
+        candidate.category_id === moto.category_id &&
+        String(candidate.status ?? '').toUpperCase() === 'LIVE'
+    )
+    let moveLiveMotoToReady = false
+    if (liveMotoInSameCategory) {
+      moveLiveMotoToReady = confirm(
+        `${formatMotoDisplayName(liveMotoInSameCategory.moto_name)} sedang LIVE.\n\n` +
+          `Agar tidak ada dua moto LIVE, moto tersebut akan dikembalikan ke READY sebelum ${formatMotoDisplayName(moto.moto_name)} di-reset. Lanjutkan?`
+      )
+      if (!moveLiveMotoToReady) return
+    }
+
     const ok = confirm(`Reset results untuk moto: ${formatMotoDisplayName(moto.moto_name)}?`)
     if (!ok) return
 
@@ -573,7 +713,10 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     try {
       await apiFetch(`/api/race-director/motos/${motoId}/reset-results`, {
         method: 'POST',
-        body: JSON.stringify({ reason: reason.trim() || 'Reset moto results' }),
+        body: JSON.stringify({
+          reason: reason.trim() || 'Reset moto results',
+          move_live_moto_to_ready: moveLiveMotoToReady,
+        }),
       })
       alert('Results berhasil direset!')
       await load()
@@ -586,6 +729,17 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     setHiddenCategoryIds((prev) =>
       prev.includes(categoryId) ? prev.filter((id) => id !== categoryId) : [...prev, categoryId]
     )
+  }
+
+  const toggleCategoryExpansion = (categoryId: string) => {
+    setExpandedCategoryIds((prev) =>
+      prev.includes(categoryId) ? prev.filter((id) => id !== categoryId) : [...prev, categoryId]
+    )
+  }
+
+  const focusCategory = (categoryId: string) => {
+    setExpandedCategoryIds((prev) => (prev.includes(categoryId) ? prev : [...prev, categoryId]))
+    window.setTimeout(() => document.getElementById(`moto-category-${categoryId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0)
   }
 
   const getComputeAction = (categoryId: string) => {
@@ -675,20 +829,42 @@ export default function MotosClient({ eventId }: { eventId: string }) {
           disabled: false,
         }
       }
-      if ((summary?.motoCounts?.quarter ?? 0) > 0 && readiness.quarterReady) {
-        return {
-          visible: true,
-          label: 'Compute Quarter Final -> Final',
-          description: 'Bentuk final classes dari hasil Quarter Final kategori ini.',
-          endpoint: 'advance' as const,
-          disabled: false,
-        }
-      }
+
+      // When Semi Final exists, QF has already been advanced. Prefer the latest
+      // source stage so the action label never offers an outdated QF compute.
       if ((summary?.motoCounts?.semi ?? 0) > 0 && readiness.semiReady) {
+        if ((summary?.motoCounts?.final ?? 0) > 0) {
+          return {
+            visible: true,
+            label: 'Final Sudah Dibentuk',
+            description: 'Moto Final sudah tersedia. Tidak ada compute stage lanjutan yang perlu dijalankan.',
+            endpoint: null as null | 'compute' | 'advance',
+            disabled: true,
+          }
+        }
         return {
           visible: true,
           label: 'Compute Semi Final -> Final',
           description: 'Bentuk final dari hasil Semi Final kategori ini.',
+          endpoint: 'advance' as const,
+          disabled: false,
+        }
+      }
+
+      if ((summary?.motoCounts?.quarter ?? 0) > 0 && readiness.quarterReady) {
+        if ((summary?.motoCounts?.final ?? 0) > 0) {
+          return {
+            visible: true,
+            label: 'Final Sudah Dibentuk',
+            description: 'Moto Final sudah tersedia. Tidak ada compute Quarter Final yang perlu dijalankan lagi.',
+            endpoint: null as null | 'compute' | 'advance',
+            disabled: true,
+          }
+        }
+        return {
+          visible: true,
+          label: 'Compute Quarter Final -> Final',
+          description: 'Bentuk final classes dari hasil Quarter Final kategori ini.',
           endpoint: 'advance' as const,
           disabled: false,
         }
@@ -712,20 +888,33 @@ export default function MotosClient({ eventId }: { eventId: string }) {
   }
 
   const handleComputeCategory = async (categoryId: string, endpoint: 'compute' | 'advance') => {
+    const categoryName = categoryLabel.get(categoryId) ?? 'Kategori ini'
+    const actionLabel = endpoint === 'compute' ? 'Run Qualification' : 'Compute Stage Berikutnya'
     try {
       setComputingCategoryId(categoryId)
+      setComputeModal({
+        categoryName,
+        actionLabel,
+        status: 'loading',
+        message: 'Membaca hasil, menghitung ranking, lalu menyusun moto stage berikutnya.',
+      })
       const res = await apiFetch(`/api/events/${eventId}/advanced-race/${endpoint}`, {
         method: 'POST',
         body: JSON.stringify({ category_id: categoryId }),
       })
       if (res?.warning) {
-        alert(res.warning)
+        setComputeModal({ categoryName, actionLabel, status: 'warning', message: res.warning })
       } else {
-        alert(endpoint === 'compute' ? 'Qualification berhasil dihitung.' : 'Stage berikutnya berhasil dihitung.')
+        setComputeModal({
+          categoryName,
+          actionLabel,
+          status: 'success',
+          message: endpoint === 'compute' ? 'Qualification berhasil dihitung.' : 'Stage berikutnya berhasil dihitung.',
+        })
       }
       await load('refresh', { includeAdvancedSummary: true })
     } catch (err: unknown) {
-      alert(getErrorMessage(err))
+      setComputeModal({ categoryName, actionLabel, status: 'error', message: getErrorMessage(err) })
     } finally {
       setComputingCategoryId(null)
     }
@@ -1071,6 +1260,17 @@ export default function MotosClient({ eventId }: { eventId: string }) {
           >
             {loading || refreshing ? 'Refreshing...' : 'Refresh Data'}
           </button>
+          {eventStatus === 'UPCOMING' && (
+            <button
+              type="button"
+              onClick={() => void openRaceReset()}
+              disabled={raceResetLoading}
+              className="admin-danger-button"
+              style={{ cursor: raceResetLoading ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap', opacity: raceResetLoading ? 0.6 : 1 }}
+            >
+              {raceResetLoading ? 'Memeriksa Data...' : 'Reset Data Race'}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => void handleExportMotoRidersWord()}
@@ -1143,8 +1343,73 @@ export default function MotosClient({ eventId }: { eventId: string }) {
         </div>
       )}
 
+      <section
+        className="no-print motos-race-day-panel"
+        style={{
+          marginTop: 14,
+          padding: 12,
+          borderRadius: 14,
+          border: '2px solid #1f2937',
+          background: '#fff7ed',
+          display: 'grid',
+          gap: 10,
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div>
+            <div style={{ fontWeight: 950, fontSize: 14 }}>Race Day Control</div>
+            <div style={{ fontSize: 12, color: '#475569', fontWeight: 700 }}>Pilih hanya kategori yang perlu dipantau sekarang.</div>
+          </div>
+          <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+            {([
+              ['ALL', 'Semua'],
+              ['ACTION', `Butuh Aksi ${raceDayActionCategoryIds.size}`],
+              ['LIVE_READY', `Live / Ready ${raceDayOverview.live.length + raceDayOverview.ready.length}`],
+              ['PROVISIONAL', `Provisional ${raceDayOverview.provisional.length}`],
+              ['LOCKED', 'Locked'],
+            ] as Array<[RaceDayFilter, string]>).map(([filter, label]) => (
+              <button
+                key={filter}
+                type="button"
+                onClick={() => setRaceDayFilter(filter)}
+                style={{
+                  padding: '6px 10px',
+                  borderRadius: 999,
+                  border: '1px solid #111',
+                  background: raceDayFilter === filter ? '#1f2937' : '#fff',
+                  color: raceDayFilter === filter ? '#fff' : '#111',
+                  fontSize: 12,
+                  fontWeight: 900,
+                  cursor: 'pointer',
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+        {(raceDayOverview.live[0] || raceDayOverview.ready[0] || raceDayOverview.provisional[0]) && (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {raceDayOverview.live.slice(0, 1).map((moto) => (
+              <button key={moto.id} type="button" onClick={() => focusCategory(moto.category_id)} className="motos-race-day-link">
+                LIVE: {formatMotoDisplayName(moto.moto_name)}
+              </button>
+            ))}
+            {raceDayOverview.ready.slice(0, 1).map((moto) => (
+              <button key={moto.id} type="button" onClick={() => focusCategory(moto.category_id)} className="motos-race-day-link">
+                NEXT READY: {formatMotoDisplayName(moto.moto_name)}
+              </button>
+            ))}
+            {raceDayOverview.provisional.slice(0, 1).map((moto) => (
+              <button key={moto.id} type="button" onClick={() => focusCategory(moto.category_id)} className="motos-race-day-link">
+                PERLU REVIEW: {formatMotoDisplayName(moto.moto_name)}
+              </button>
+            ))}
+          </div>
+        )}
+      </section>
 
-      <div style={{ marginTop: 16, display: 'grid', gap: 16 }}>
+      <div style={{ marginTop: 12, display: 'grid', gap: 10 }}>
         {loading && motos.length === 0 && (
           <div className="no-print">
             <MotoListSkeleton />
@@ -1157,10 +1422,17 @@ export default function MotosClient({ eventId }: { eventId: string }) {
           </div>
         )}
 
-        {displayCategoriesSorted.map((cat) => {
+        {!loading && motos.length > 0 && filteredCategories.length === 0 && (
+          <div style={{ padding: 14, borderRadius: 14, border: '1px dashed #94a3b8', background: '#fff', color: '#475569', fontWeight: 800 }}>
+            Tidak ada kategori dengan filter ini.
+          </div>
+        )}
+
+        {filteredCategories.map((cat) => {
           const list = motosByCategory.get(cat.id) ?? []
           if (list.length === 0) return null
           const isHidden = hiddenCategoryIds.includes(cat.id)
+          const isExpanded = expandedCategoryIds.includes(cat.id)
           const isComplete = isCategoryComplete(cat.id)
           const computeAction = getComputeAction(cat.id)
           const summary = advancedSummaryByCategory[cat.id]
@@ -1168,10 +1440,11 @@ export default function MotosClient({ eventId }: { eventId: string }) {
           return (
           <div
             key={cat.id}
+            id={`moto-category-${cat.id}`}
             className="moto-category-card"
             style={{
-              padding: 14,
-              borderRadius: 16,
+              padding: 12,
+              borderRadius: 14,
               border: '2px solid #111',
               background: '#fff',
               display: 'grid',
@@ -1235,6 +1508,24 @@ export default function MotosClient({ eventId }: { eventId: string }) {
               <div className="no-print motos-category-actions" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <button
                   type="button"
+                  onClick={() => toggleCategoryExpansion(cat.id)}
+                  style={{
+                    padding: '6px 10px',
+                    borderRadius: 999,
+                    border: '2px solid #111',
+                    background: isExpanded ? '#1f2937' : '#fff',
+                    color: isExpanded ? '#fff' : '#111',
+                    fontWeight: 900,
+                    fontSize: 12,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                  }}
+                  aria-expanded={isExpanded}
+                >
+                  {isExpanded ? 'Tutup' : 'Buka'}
+                </button>
+                <button
+                  type="button"
                   onClick={() =>
                     window.open(
                       `/event/${eventId}/live-score/${encodeURIComponent(cat.id)}`,
@@ -1272,23 +1563,23 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                 </button>
               </div>
             </div>
-            {isHidden ? null : (
+            {isHidden || !isExpanded ? null : (
               <div style={{ display: 'grid', gap: 8 }}>
                 {list.map((m) => (
                   <div
                     key={m.id}
                     className="moto-row-card"
                     style={{
-                      padding: 12,
-                      borderRadius: 14,
+                      padding: '9px 10px',
+                      borderRadius: 12,
                       border: '2px solid #111',
                       background: '#eaf7ee',
                       display: 'grid',
                       gridTemplateColumns: '1fr auto',
-                      gap: 10,
+                      gap: 8,
                     }}
                   >
-                    <div style={{ display: 'grid', gap: 6 }}>
+                    <div style={{ display: 'grid', gap: 4 }}>
                       <div style={{ fontWeight: 900 }}>
                         {m.moto_order}. {formatMotoDisplayName(m.moto_name)}
                       </div>
@@ -1387,7 +1678,6 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                         <button
                           type="button"
                           onClick={() => handleUnlockMoto(m.id)}
-                          disabled={eventStatus !== 'LIVE'}
                           className="motos-action-button"
                           style={{
                             padding: '8px 12px',
@@ -1395,7 +1685,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                             border: '2px solid #111',
                             background: '#e0f2fe',
                             fontWeight: 900,
-                            cursor: eventStatus === 'LIVE' ? 'pointer' : 'not-allowed',
+                            cursor: 'pointer',
                           }}
                         >
                           Unlock Moto
@@ -1640,14 +1930,124 @@ export default function MotosClient({ eventId }: { eventId: string }) {
           </section>
           ))}
       </div>
+      {computeModal && (
+        <div
+          className="no-print"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="compute-stage-title"
+          style={{ position: 'fixed', inset: 0, zIndex: 95, display: 'grid', placeItems: 'center', padding: 20, background: 'rgba(15, 23, 42, 0.58)' }}
+        >
+          <section style={{ width: 'min(440px, 100%)', borderRadius: 18, border: '2px solid #111', background: '#fff', padding: 20, boxShadow: '0 24px 70px rgba(15,23,42,.32)' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+              {computeModal.status === 'loading' ? (
+                <span className="motos-compute-spinner" aria-hidden="true" />
+              ) : (
+                <span
+                  aria-hidden="true"
+                  style={{ width: 34, height: 34, borderRadius: '50%', display: 'grid', placeItems: 'center', background: computeModal.status === 'success' ? '#dcfce7' : computeModal.status === 'warning' ? '#fef3c7' : '#fee2e2', color: computeModal.status === 'success' ? '#166534' : computeModal.status === 'warning' ? '#92400e' : '#991b1b', fontWeight: 950 }}
+                >
+                  {computeModal.status === 'success' ? 'OK' : '!'}
+                </span>
+              )}
+              <div style={{ display: 'grid', gap: 4 }}>
+                <p style={{ margin: 0, fontSize: 11, fontWeight: 950, letterSpacing: '.1em', color: '#64748b' }}>{computeModal.actionLabel.toUpperCase()}</p>
+                <h2 id="compute-stage-title" style={{ margin: 0, fontSize: 22, fontWeight: 950 }}>{computeModal.categoryName}</h2>
+              </div>
+            </div>
+            <p style={{ margin: '16px 0 0', color: '#334155', fontWeight: 700, lineHeight: 1.5 }}>{computeModal.message}</p>
+            {computeModal.status === 'loading' && (
+              <div style={{ marginTop: 16, display: 'grid', gap: 8, color: '#475569', fontSize: 12, fontWeight: 800 }}>
+                <span>1. Validasi hasil moto</span>
+                <span>2. Hitung rank dan tie-break</span>
+                <span>3. Susun rider, gate, dan moto berikutnya</span>
+              </div>
+            )}
+            {computeModal.status !== 'loading' && (
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 18 }}>
+                <button type="button" className="admin-primary-button" onClick={() => setComputeModal(null)}>Tutup</button>
+              </div>
+            )}
+          </section>
+        </div>
+      )}
+      {raceResetPreview && (
+        <div
+          className="no-print"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="race-reset-title"
+          style={{ position: 'fixed', inset: 0, zIndex: 90, display: 'grid', placeItems: 'center', padding: 20, background: 'rgba(15, 23, 42, 0.58)' }}
+        >
+          <section style={{ width: 'min(560px, 100%)', borderRadius: 18, border: '2px solid #991b1b', background: '#fff', padding: 20, boxShadow: '0 24px 70px rgba(15,23,42,.32)' }}>
+            <p style={{ margin: 0, color: '#b91c1c', fontSize: 11, fontWeight: 950, letterSpacing: '.12em' }}>DESTRUCTIVE ACTION</p>
+            <h2 id="race-reset-title" style={{ margin: '8px 0', fontSize: 24, fontWeight: 950 }}>Reset Data Race</h2>
+            <p style={{ margin: 0, color: '#475569', fontWeight: 700, lineHeight: 1.5 }}>
+              {raceResetPreview.event.name} akan kembali ke kondisi sebelum race. Rider, kategori, gate awal, dan konfigurasi tetap disimpan.
+            </p>
+            <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+              {[
+                ['Moto advanced', raceResetPreview.advancedMotos],
+                ['Moto 3 hasil generate', raceResetPreview.generatedQualificationMotos],
+                ['Hasil moto', raceResetPreview.results],
+                ['Stage result', raceResetPreview.stageResults],
+                ['Penalty', raceResetPreview.penalties],
+                ['Safety check', raceResetPreview.safetyChecks],
+                ['Lock moto', raceResetPreview.locks],
+              ].map(([label, value]) => (
+                <div key={String(label)} style={{ border: '1px solid #fecaca', borderRadius: 12, background: '#fff7f7', padding: '10px 12px' }}>
+                  <div style={{ color: '#7f1d1d', fontSize: 11, fontWeight: 900 }}>{label}</div>
+                  <div style={{ marginTop: 3, fontSize: 22, fontWeight: 950 }}>{value}</div>
+                </div>
+              ))}
+            </div>
+            <label style={{ display: 'grid', gap: 7, marginTop: 16, fontSize: 12, fontWeight: 900 }}>
+              Ketik <strong>RESET RACE</strong> untuk melanjutkan
+              <input value={raceResetConfirmation} onChange={(event) => setRaceResetConfirmation(event.target.value.toUpperCase())} className="motos-status-select" style={{ minHeight: 44, padding: '0 12px', fontWeight: 900 }} autoFocus />
+            </label>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18, flexWrap: 'wrap' }}>
+              <button type="button" className="admin-outline-button" onClick={() => setRaceResetPreview(null)} disabled={raceResetSubmitting}>Batal</button>
+              <button type="button" className="admin-danger-button" onClick={() => void submitRaceReset()} disabled={raceResetConfirmation !== 'RESET RACE' || raceResetSubmitting}>
+                {raceResetSubmitting ? 'Mereset Data...' : 'Reset Sekarang'}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
       <style>{`
+        .motos-compute-spinner {
+          width: 30px;
+          height: 30px;
+          border: 4px solid #dbeafe;
+          border-top-color: #2563eb;
+          border-radius: 50%;
+          flex: 0 0 auto;
+          animation: motos-compute-spin .8s linear infinite;
+        }
+        .motos-race-day-link {
+          padding: 7px 10px;
+          border: 1px solid #7c2d12;
+          border-radius: 999px;
+          background: #fff;
+          color: #7c2d12;
+          font-size: 12px;
+          font-weight: 900;
+          cursor: pointer;
+          white-space: nowrap;
+        }
+        .motos-race-day-link:hover {
+          background: #7c2d12;
+          color: #fff;
+        }
+        @keyframes motos-compute-spin { to { transform: rotate(360deg); } }
         @media (max-width: 860px) {
           .motos-print-root {
             max-width: none !important;
           }
           .motos-topbar,
           .motos-category-header,
-          .motos-rider-toggle {
+          .motos-rider-toggle,
+          .motos-race-day-panel {
             align-items: stretch !important;
             flex-direction: column !important;
           }
@@ -1717,4 +2117,3 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     </div>
   )
 }
-

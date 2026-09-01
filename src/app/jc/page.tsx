@@ -79,7 +79,7 @@ export default function JCSelectorPage() {
     setErrorMessage(null)
     try {
       const [motoRes, categoryRes] = await Promise.all([
-        apiFetch(`/api/motos?event_id=${eventId}`),
+        apiFetch(`/api/jury/events/${eventId}/moto-state`),
         apiFetch(`/api/events/${eventId}/categories`),
       ])
       const list = (motoRes.data ?? []) as MotoItem[]
@@ -104,7 +104,7 @@ export default function JCSelectorPage() {
     } finally {
       setLoading(false)
     }
-  }, [didAutoRedirect, eventId, pickNextMotoId, router, singleLiveEventId])
+  }, [apiFetch, didAutoRedirect, eventId, pickNextMotoId, router, singleLiveEventId])
 
   useEffect(() => {
     loadEvents()
@@ -118,7 +118,7 @@ export default function JCSelectorPage() {
     const timer = setInterval(() => {
       loadEvents()
       loadMotos()
-    }, 10000)
+    }, 15000)
     return () => clearInterval(timer)
   }, [loadEvents, loadMotos])
 

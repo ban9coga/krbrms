@@ -6,10 +6,13 @@ import { applyBestTeamSettingsNormalization } from '../../../lib/bestTeam'
 import type { BusinessSettings, EventItem } from '../../../lib/eventService'
 import { proxyBusinessSettingsMedia, toPublicMediaUrl, toPublicMediaUrls } from '../../../lib/publicMedia'
 import { serializeJsonLd, SITE_NAME, SITE_URL } from '../../../lib/structuredData'
+import { getPublicFinishedEventArchive } from '../../../services/publicFinishedEventArchive'
 
 export const revalidate = 30
 
 const loadInitialEvent = cache(async (eventId: string): Promise<EventItem | null> => {
+  const archive = await getPublicFinishedEventArchive(eventId)
+  if (archive) return archive.event
   const [{ data: eventRows, error: eventError }, { data: settingsRows }] = await Promise.all([
     adminClient
       .from('events')
@@ -164,7 +167,8 @@ export async function generateMetadata({ params }: { params: Promise<{ eventId: 
 
 export default async function EventDetailPage({ params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params
-  const initialEvent = await loadInitialEvent(eventId)
+  const initialArchive = await getPublicFinishedEventArchive(eventId)
+  const initialEvent = initialArchive?.event ?? await loadInitialEvent(eventId)
   const eventStructuredData = initialEvent ? buildEventStructuredData(initialEvent, eventId) : null
 
   return (
@@ -176,7 +180,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ ev
           dangerouslySetInnerHTML={{ __html: serializeJsonLd(eventStructuredData) }}
         />
       ) : null}
-      <EventDetailClient eventId={eventId} initialEvent={initialEvent} />
+      <EventDetailClient eventId={eventId} initialEvent={initialEvent} initialArchive={initialArchive} />
     </>
   )
 }

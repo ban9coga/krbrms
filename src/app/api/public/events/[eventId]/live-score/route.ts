@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../../lib/auth'
-import { formatMotoDisplayName } from '../../../../../../lib/motoDisplayOrder'
+import { compareMotoDisplayOrder, formatMotoDisplayName } from '../../../../../../lib/motoDisplayOrder'
 import { resolveBasePointForRaceResult, resolveNonFinishAutoPenalty } from '../../../../../../lib/nonFinishScoring'
 import { isMotoPublicVisible, isMotoReady, isMotoUpcoming } from '../../../../../../lib/motoStatus'
 import { formatStageAdvanceLabel } from '../../../../../../services/raceStageEngine'
@@ -30,6 +30,14 @@ type ResultRow = {
   rider_id: string
   finish_order: number | null
   result_status?: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | null
+  dnf_progress_percent?: number | null
+}
+
+type RiderParticipationHistory = {
+  dnsCount: number
+  dnfCount: number
+  dqCount: number
+  finishCount: number
 }
 
 type RiderRow = {
@@ -76,6 +84,15 @@ type QualificationCustomRuleRow = {
 }
 
 type StageCustomRuleRow = QualificationCustomRuleRow
+
+type EventSnapshotPayload = {
+  event?: { status?: string | null }
+  live_scores?: Record<string, unknown>
+}
+
+const FINISHED_ARCHIVE_CACHE_HEADERS = {
+  'Cache-Control': 'public, max-age=31536000, s-maxage=31536000, immutable',
+}
 
 type StageSeedRow = {
   rider_id: string
@@ -170,6 +187,30 @@ const getStageStatusSortOrder = (status: StageRow['status']) => {
   }
 }
 
+const compareNullableNumber = (a: number | null | undefined, b: number | null | undefined) =>
+  Number(a ?? Number.MAX_SAFE_INTEGER) - Number(b ?? Number.MAX_SAFE_INTEGER)
+
+const buildParticipationHistory = (rows: ResultRow[], excludedMotoIds: Set<string>) => {
+  const historyByRider = new Map<string, RiderParticipationHistory>()
+  rows.forEach((row) => {
+    if (excludedMotoIds.has(row.moto_id)) return
+    const history = historyByRider.get(row.rider_id) ?? { dnsCount: 0, dnfCount: 0, dqCount: 0, finishCount: 0 }
+    if (row.result_status === 'DNS') history.dnsCount += 1
+    else if (row.result_status === 'DNF') history.dnfCount += 1
+    else if (row.result_status === 'DQ') history.dqCount += 1
+    else if (row.result_status === 'FINISH') history.finishCount += 1
+    historyByRider.set(row.rider_id, history)
+  })
+  return historyByRider
+}
+
+const compareParticipationHistory = (a: RiderParticipationHistory, b: RiderParticipationHistory) => {
+  if (a.dnsCount !== b.dnsCount) return a.dnsCount - b.dnsCount
+  if (a.dnfCount !== b.dnfCount) return a.dnfCount - b.dnfCount
+  if (a.dqCount !== b.dqCount) return a.dqCount - b.dqCount
+  return b.finishCount - a.finishCount
+}
+
 const resolvePenaltyStagesForMoto = (name: string): Array<'QUARTER' | 'REPECHAGE' | 'SEMI' | 'FINAL' | 'ALL'> => {
   if (/^quarter final/i.test(name)) return ['QUARTER', 'ALL']
   if (/^repechage/i.test(name)) return ['REPECHAGE', 'ALL']
@@ -196,6 +237,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const includeUpcoming = ['1', 'true', 'yes'].includes(
     (searchParams.get('include_upcoming') ?? '').toLowerCase()
   )
+  const snapshotRefreshSecret = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
+  const forceArchiveRefresh =
+    snapshotRefreshSecret.length > 0 &&
+    req.headers.get('x-racepushbike-snapshot-refresh') === snapshotRefreshSecret
   const cacheHeaders = includeUpcoming
     ? { 'Cache-Control': 'no-store' }
     : { 'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=300' }
@@ -205,10 +250,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   let includePhotos = includePhotosParam === '1' || includePhotosParam === 'true'
   const shouldLoadPhotoSettings = includePhotosParam !== '0' && includePhotosParam !== 'false' && !includePhotos
 
-  const [categoryResult, settingsResult, pointOverrideResult, motoResult] = await Promise.all([
+  const [categoryResult, settingsResult, pointOverrideResult, featureFlagsResult, motoResult] = await Promise.all([
     adminClient
       .from('categories')
-      .select('id, event_id, label')
+      .select('id, event_id, label, events!inner(status)')
       .eq('id', categoryId)
       .maybeSingle(),
     shouldLoadPhotoSettings
@@ -227,6 +272,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       .eq('category_id', categoryId)
       .maybeSingle(),
     adminClient
+      .from('event_feature_flags')
+      .select('dnf_progress_enabled')
+      .eq('event_id', eventId)
+      .maybeSingle(),
+    adminClient
       .from('motos')
       .select('id, moto_name, moto_order, status, is_published')
       .eq('event_id', eventId)
@@ -237,6 +287,25 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const { data: category, error: catError } = categoryResult
   if (catError || !category || category.event_id !== eventId) {
     return NextResponse.json({ error: 'Category not found in event' }, { status: 404 })
+  }
+
+  const relatedEvent = Array.isArray(category.events) ? category.events[0] : category.events
+  const isFinishedEvent = relatedEvent?.status === 'FINISHED'
+  let snapshotPayload: EventSnapshotPayload | null = null
+  if (isFinishedEvent && !forceArchiveRefresh) {
+    const { data: snapshot, error: snapshotError } = await adminClient
+      .from('event_public_snapshots')
+      .select('payload')
+      .eq('event_id', eventId)
+      .maybeSingle()
+    if (snapshotError) return NextResponse.json({ error: snapshotError.message }, { status: 500 })
+    if (snapshot?.payload && typeof snapshot.payload === 'object') {
+      snapshotPayload = snapshot.payload as EventSnapshotPayload
+      const archivedScore = snapshotPayload.live_scores?.[categoryId]
+      if (archivedScore) {
+        return NextResponse.json({ data: archivedScore }, { headers: FINISHED_ARCHIVE_CACHE_HEADERS })
+      }
+    }
   }
 
   if (settingsResult.error) return NextResponse.json({ error: settingsResult.error.message }, { status: 400 })
@@ -253,6 +322,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   }
 
   const { data: pointOverrideConfig } = pointOverrideResult
+  const dnfProgressEnabled = featureFlagsResult.data?.dnf_progress_enabled === true
   const { data: motos, error: motoError } = motoResult
   if (motoError) return NextResponse.json({ error: motoError.message }, { status: 400 })
   const motoRows = ((motos ?? []) as MotoRow[]).filter((m) => {
@@ -285,7 +355,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       .order('created_at', { ascending: true }),
     adminClient
       .from('results')
-      .select('moto_id, rider_id, finish_order, result_status')
+      .select('moto_id, rider_id, finish_order, result_status, dnf_progress_percent')
       .in('moto_id', motoIds),
     adminClient
       .from('race_stage_result')
@@ -318,6 +388,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const { data: results, error: resultError } = resultResult
   if (resultError) return NextResponse.json({ error: resultError.message }, { status: 400 })
   const resultRows = (results ?? []) as ResultRow[]
+  const finalMotoIds = new Set(motoRows.filter((moto) => /^final\b/i.test(moto.moto_name)).map((moto) => moto.id))
+  const participationHistoryByRider = buildParticipationHistory(resultRows, finalMotoIds)
 
   const { data: stageSeedData, error: stageSeedError } = stageSeedResult
   if (stageSeedError) return NextResponse.json({ error: stageSeedError.message }, { status: 400 })
@@ -426,6 +498,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       const key = `${row.moto_id}:${row.rider_id}`
       const current = motoPenaltyMap.get(key) ?? 0
       motoPenaltyMap.set(key, current + amount)
+      continue
     }
     if (row.stage === 'MOTO') {
       const current = qualificationPenaltyMap.get(row.rider_id) ?? 0
@@ -481,6 +554,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const repechageStageRiderIds = new Set(stageSeedRows.filter((row) => row.stage === 'REPECHAGE').map((row) => row.rider_id))
   const semiStageRiderIds = new Set(stageSeedRows.filter((row) => row.stage === 'SEMI_FINAL').map((row) => row.rider_id))
 
+  const qualificationGateByRider = new Map<string, number>()
+  for (const moto of motoRows) {
+    const parsed = parseBatchKey(moto.moto_name)
+    if (!parsed || parsed.motoIndex !== 1) continue
+    for (const gate of gateRows.filter((row) => row.moto_id === moto.id)) {
+      qualificationGateByRider.set(gate.rider_id, gate.gate_position)
+    }
+  }
+
   const batches = batchEntries
     .map(([batchIndex, entry]) => {
       const moto1 = entry.moto1 as MotoRow
@@ -534,8 +616,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
           (moto2 ? moto2Result?.result_status === 'DQ' : false) ||
           (moto3 ? moto3Result?.result_status === 'DQ' : false)
             ? 'DQ'
+            // ABSENT is a Checker preparation state. Public results intentionally
+            // show its recorded scoring outcome, DNS, rather than the internal cue.
             : riderStatus === 'ABSENT' && hasRecordedResult
-              ? 'FINISHED'
+              ? 'DNS'
               : moto1Result && (!moto2 || moto2Result) && (!moto3 || moto3Result)
                 ? 'FINISHED'
                 : 'PENDING'
@@ -576,7 +660,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       })
       const rankMap = new Map(
         rankedRows
-          .filter((r) => r.total_point !== null)
+          // DQ does not receive points, but still needs a display rank at the bottom
+          // of the table so its final ordering is visible.
+          .filter((r) => r.total_point !== null || r.status === 'DQ')
           .map((r, idx) => ({ rider_id: r.rider_id, rank: idx + 1 }))
           .map((r) => [r.rider_id, r.rank])
       )
@@ -626,7 +712,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       return a.sequence_order - b.sequence_order
     })
 
-  const stageMotos = motoRows.filter((m) => !parseBatchKey(m.moto_name))
+  const stageMotos = motoRows
+    .filter((m) => !parseBatchKey(m.moto_name))
+    .sort(compareMotoDisplayOrder)
   const stageGroups: StageGroup[] = stageMotos.flatMap((moto) => {
     const gates = gateRows.filter((g) => g.moto_id === moto.id)
     const gateMap = new Map(gates.map((g) => [g.rider_id, g.gate_position]))
@@ -640,6 +728,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
           : /^semi final/i.test(moto.moto_name)
             ? 'SEMI_FINAL'
             : null
+    // A tied advanced-stage result is resolved from the rider's entry seed,
+    // not from the lane used in the current moto.
+    const directSeedRows =
+      stageSource === 'QUARTER_FINAL'
+        ? repechageStageResultRows
+        : stageSource === 'SEMI_FINAL'
+          ? [...repechageStageResultRows, ...quarterStageResultRows]
+          : []
+    const qualificationSeedByRider = new Map(qualificationStageSeedRows.map((row) => [row.rider_id, row]))
+    const directSeedByRider = new Map(directSeedRows.map((row) => [row.rider_id, row]))
     const validAssignedRiderIds = assignedRiderIds.filter((id) => riderMap.has(id))
     const validRiderIdsInMoto = riderIdsInMoto.filter((id) => riderMap.has(id))
 
@@ -687,12 +785,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     const collapsedGateMap = new Map<string, number>()
     validRiderIdsWithGates.forEach((r, idx) => collapsedGateMap.set(r.id, idx + 1))
     
-    const riderCount = validRiderIdsInMoto.length || null
+    const resultByRider = new Map(
+      resultRows.filter((row) => row.moto_id === moto.id).map((row) => [row.rider_id, row])
+    )
+    const riderCount = validRiderIdsInMoto.filter((riderId) => resultByRider.get(riderId)?.result_status !== 'DQ').length || null
 
     const stagePenaltyStages = resolvePenaltyStagesForMoto(moto.moto_name)
     const rows: StageRow[] = validRiderIdsInMoto.map((riderId) => {
       const rider = riderMap.get(riderId)
-      const res = resultRows.find((r) => r.moto_id === moto.id && r.rider_id === riderId) ?? null
+      const res = resultByRider.get(riderId) ?? null
       const status = (res?.result_status ?? 'PENDING') as StageRow['status']
       const manualPenaltyTotal = stagePenaltyStages.reduce((sum, stageKey) => {
         return sum + (stagePenaltyMap.get(`${riderId}:${stageKey}`) ?? 0)
@@ -700,8 +801,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       const autoPenaltyTotal = resolveNonFinishAutoPenalty(status, pointOverrideConfig ?? undefined)
       return {
         rider_id: riderId,
-        gate: gateMap.get(riderId) ?? null,
+        gate: status === 'DQ' ? null : collapsedGateMap.get(riderId) ?? null,
         name: rider?.name ?? '-',
+        rider_nickname: rider?.rider_nickname ?? null,
         no_plate: rider?.no_plate_display ?? '-',
         club: rider?.club ?? '-',
         ...(includePhotos ? { photo_thumbnail_url: rider?.photo_thumbnail_url ?? null } : {}),
@@ -712,22 +814,66 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       }
     })
 
+    const hasScoredStageResult = rows.some((row) => row.point !== null)
+    const pendingStarterCount = rows.filter((row) => row.status !== 'DQ').length
     const rankMap = new Map(
       [...rows]
-        .filter((row) => row.point !== null)
+        // Keep DQ unscored while assigning it the final display rank after DNS.
+        .filter((row) => row.point !== null || row.status === 'DQ')
         .sort((a, b) => {
           const aStatusOrder = getStageStatusSortOrder(a.status)
           const bStatusOrder = getStageStatusSortOrder(b.status)
           if (aStatusOrder !== bStatusOrder) return aStatusOrder - bStatusOrder
+          if (dnfProgressEnabled && a.status === 'DNF' && b.status === 'DNF') {
+            const progressDiff =
+              Number(resultByRider.get(b.rider_id)?.dnf_progress_percent ?? -1) -
+              Number(resultByRider.get(a.rider_id)?.dnf_progress_percent ?? -1)
+            if (progressDiff !== 0) return progressDiff
+          }
           const aPoint = (a.point ?? Number.MAX_SAFE_INTEGER) + (a.penalty_total ?? 0)
           const bPoint = (b.point ?? Number.MAX_SAFE_INTEGER) + (b.penalty_total ?? 0)
           if (aPoint !== bPoint) return aPoint - bPoint
+
+          if (/^final\b/i.test(moto.moto_name)) {
+            const historyDiff = compareParticipationHistory(
+              participationHistoryByRider.get(a.rider_id) ?? { dnsCount: 0, dnfCount: 0, dqCount: 0, finishCount: 0 },
+              participationHistoryByRider.get(b.rider_id) ?? { dnsCount: 0, dnfCount: 0, dqCount: 0, finishCount: 0 }
+            )
+            if (historyDiff !== 0) return historyDiff
+          }
+
+          const aDirectSeed = directSeedByRider.get(a.rider_id)
+          const bDirectSeed = directSeedByRider.get(b.rider_id)
+          const directRankDiff = compareNullableNumber(aDirectSeed?.position, bDirectSeed?.position)
+          if (directRankDiff !== 0) return directRankDiff
+          const directPointDiff = compareNullableNumber(aDirectSeed?.points, bDirectSeed?.points)
+          if (directPointDiff !== 0) return directPointDiff
+
+          const aQualificationSeed = qualificationSeedByRider.get(a.rider_id)
+          const bQualificationSeed = qualificationSeedByRider.get(b.rider_id)
+          const qualificationRankDiff = compareNullableNumber(aQualificationSeed?.position, bQualificationSeed?.position)
+          if (qualificationRankDiff !== 0) return qualificationRankDiff
+          const qualificationPointDiff = compareNullableNumber(aQualificationSeed?.points, bQualificationSeed?.points)
+          if (qualificationPointDiff !== 0) return qualificationPointDiff
+          const qualificationBatchDiff = compareNullableNumber(
+            aQualificationSeed?.batch_id ? stageBatchOrderById.get(aQualificationSeed.batch_id) : null,
+            bQualificationSeed?.batch_id ? stageBatchOrderById.get(bQualificationSeed.batch_id) : null
+          )
+          if (qualificationBatchDiff !== 0) return qualificationBatchDiff
+          const qualificationGateDiff = compareNullableNumber(
+            qualificationGateByRider.get(a.rider_id),
+            qualificationGateByRider.get(b.rider_id)
+          )
+          if (qualificationGateDiff !== 0) return qualificationGateDiff
+
           const aGate = a.gate ?? Number.MAX_SAFE_INTEGER
           const bGate = b.gate ?? Number.MAX_SAFE_INTEGER
           if (aGate !== bGate) return aGate - bGate
           return a.rider_id.localeCompare(b.rider_id)
         })
-        .map((row, index) => [row.rider_id, index + 1] as const)
+        // Before a final starts, DQ may be the only persisted result. It must
+        // remain an administrative last-place entry, not temporarily rank #1.
+        .map((row, index) => [row.rider_id, hasScoredStageResult ? index + 1 : pendingStarterCount + index + 1] as const)
     )
 
     rows.forEach((row) => {
@@ -759,25 +905,43 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       title: formatMotoDisplayName(moto.moto_name),
       moto_id: moto.id,
       rows: rows.sort((a, b) => {
-        const aRank = a.rank ?? Number.MAX_SAFE_INTEGER
-        const bRank = b.rank ?? Number.MAX_SAFE_INTEGER
-        if (aRank !== bRank) return aRank - bRank
+        // Sort by gate position first so display is 1,2,3,4,5,6,7,8
         const aGate = a.gate ?? Number.MAX_SAFE_INTEGER
         const bGate = b.gate ?? Number.MAX_SAFE_INTEGER
         if (aGate !== bGate) return aGate - bGate
+        const aRank = a.rank ?? Number.MAX_SAFE_INTEGER
+        const bRank = b.rank ?? Number.MAX_SAFE_INTEGER
+        if (aRank !== bRank) return aRank - bRank
         return a.name.localeCompare(b.name)
       }),
     }]
   })
 
-  return NextResponse.json(
-    {
-      data: {
-        category: category.label,
-        batches,
-        stages: stageGroups,
+  const liveScoreData = {
+    category: category.label,
+    batches,
+    stages: stageGroups,
+  }
+
+  // Historical archives created before live_scores existed are warmed once on
+  // first access. New snapshots are already complete when the event finishes.
+  if (isFinishedEvent && snapshotPayload) {
+    const updatedPayload = {
+      ...snapshotPayload,
+      live_scores: {
+        ...(snapshotPayload.live_scores ?? {}),
+        [categoryId]: liveScoreData,
       },
-    },
-    { headers: cacheHeaders }
+    }
+    const { error: archiveError } = await adminClient
+      .from('event_public_snapshots')
+      .update({ payload: updatedPayload })
+      .eq('event_id', eventId)
+    if (archiveError) console.error('Failed to warm finished live score archive:', archiveError.message)
+  }
+
+  return NextResponse.json(
+    { data: liveScoreData },
+    { headers: isFinishedEvent ? FINISHED_ARCHIVE_CACHE_HEADERS : cacheHeaders }
   )
 }

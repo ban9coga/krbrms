@@ -1,5 +1,5 @@
 const CACHE_NAME = 'racepushbike-shell-v1'
-const SHELL_URLS = ['/', '/quick/motos', '/icon.png', '/apple-icon.png']
+const SHELL_URLS = ['/', '/quick', '/icon.png', '/apple-icon.png']
 
 self.addEventListener('install', (event) => {
   event.waitUntil(

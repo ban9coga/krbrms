@@ -1,3 +1,5 @@
+import type { CertificateLayout } from './certificateLayout'
+
 export type EventStatus = 'UPCOMING' | 'LIVE' | 'FINISHED'
 
 export type EventSponsorTier = 'TITLE' | 'MAIN' | 'SUPPORT' | 'MEDIA' | 'COMMUNITY' | 'PARTNER'
@@ -42,31 +44,44 @@ export type BusinessSettings = {
   registration_qris_image_url?: string | null
   registration_jersey_size_chart_url?: string | null
   registration_rider_photo_enabled?: boolean | null
+  certificate_enabled?: boolean | null
+  certificate_participation_enabled?: boolean | null
+  certificate_template_url?: string | null
+  certificate_id_prefix?: string | null
+  certificate_achievement_enabled?: boolean | null
+  certificate_event_logo_url?: string | null
+  certificate_organizer_logo_url?: string | null
+  certificate_layout?: CertificateLayout | null
   jersey_size_options?: string[] | null
   public_contact_name?: string | null
   public_contact_phone?: string | null
   public_contact_email?: string | null
   public_instagram?: string | null
   event_owner_name?: string | null
+  event_owner_photo_url?: string | null
   event_owner_type?: 'COMMUNITY' | 'EO' | 'CLUB' | 'INTERNAL' | 'OTHER' | null
   event_owner_contact_name?: string | null
   event_owner_contact_phone?: string | null
   event_owner_contact_email?: string | null
   operating_committee_name?: string | null
   operating_committee_label?: string | null
+  operating_committee_photo_url?: string | null
   operating_committee_contact_name?: string | null
   operating_committee_contact_phone?: string | null
   operating_committee_contact_email?: string | null
   scoring_support_name?: string | null
   scoring_support_label?: string | null
+  scoring_support_photo_url?: string | null
   scoring_support_contact_name?: string | null
   scoring_support_contact_phone?: string | null
   scoring_support_contact_email?: string | null
   race_director_name?: string | null
+  race_director_photo_url?: string | null
   race_director_contact_name?: string | null
   race_director_contact_phone?: string | null
   race_director_contact_email?: string | null
   mc_name?: string | null
+  mc_photo_url?: string | null
   mc_contact_name?: string | null
   mc_contact_phone?: string | null
   mc_contact_email?: string | null
@@ -270,5 +285,3 @@ export const getMotoResults = async (motoId: string): Promise<LeaderboardRow[]> 
     penalty_total: row.penalty_total,
   }))
 }
-
-

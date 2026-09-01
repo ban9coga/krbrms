@@ -29,6 +29,7 @@ export type StageAdvance = {
 }
 
 export type FinalClass =
+  | 'EXPLORER'
   | 'ROOKIE'
   | 'BEGINNER'
   | 'NOVICE'
@@ -40,6 +41,7 @@ export type FinalClass =
   | 'ELITE'
 
 export type CustomSplitRule = {
+  sourceStage?: 'QUALIFICATION' | 'QUARTER_FINAL' | 'REPECHAGE' | 'SEMI_FINAL' | 'FINAL'
   rankFrom: number
   rankTo: number
   targetStage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'REPECHAGE' | 'FINAL'
@@ -73,9 +75,10 @@ export type SafetyResult = {
 export type PointResolver = (finishOrder: number | null) => number
 
 export const FINAL_CLASS_ORDER: FinalClass[] = [
+  'EXPLORER',
+  'ACADEMY',
   'BEGINNER',
   'AMATEUR',
-  'ACADEMY',
   'INTERMEDIATE',
   'ADVANCED',
   'ROOKIE',

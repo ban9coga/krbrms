@@ -19,15 +19,16 @@ type ParsedAdvancedMoto = {
 
 // Order untuk final class
 const FINAL_CLASS_ORDER_MAP: Record<string, number> = {
-  BEGINNER: 1,
-  AMATEUR: 2,
-  ACADEMY: 3,
-  INTERMEDIATE: 4,
-  ADVANCED: 5,
-  ROOKIE: 6,
-  PRO: 7,
-  NOVICE: 8,
-  ELITE: 9,
+  EXPLORER: 1,
+  ACADEMY: 2,
+  BEGINNER: 3,
+  AMATEUR: 4,
+  INTERMEDIATE: 5,
+  ADVANCED: 6,
+  ROOKIE: 7,
+  PRO: 8,
+  NOVICE: 9,
+  ELITE: 10,
 }
 
 export const parseMotoSequence = (name?: string | null): ParsedMoto | null => {

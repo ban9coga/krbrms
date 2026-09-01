@@ -65,15 +65,16 @@ export type LiveScoreData = {
 }
 
 const finalStageDisplayOrder: Record<string, number> = {
-  BEGINNER: 0,
-  AMATEUR: 1,
-  ACADEMY: 2,
-  INTERMEDIATE: 3,
-  ADVANCED: 4,
-  ROOKIE: 5,
-  PRO: 6,
-  NOVICE: 7,
-  ELITE: 8,
+  EXPLORER: 0,
+  ACADEMY: 1,
+  BEGINNER: 2,
+  AMATEUR: 3,
+  INTERMEDIATE: 4,
+  ADVANCED: 5,
+  ROOKIE: 6,
+  PRO: 7,
+  NOVICE: 8,
+  ELITE: 9,
 }
 
 const getStageGroupSortKey = (title: string) => {
@@ -152,6 +153,19 @@ const renderStagePointCell = (
   return point ?? '-'
 }
 
+const renderGateBadge = (gate: number | null) => {
+  if (gate === null) return '-'
+
+  return (
+    <span
+      aria-label={`Gate ${gate}`}
+      className="inline-flex h-7 min-w-7 items-center justify-center rounded-full border border-slate-300 bg-slate-100 px-1 text-[10px] font-black text-slate-800"
+    >
+      {gate}
+    </span>
+  )
+}
+
 const renderSortButtons = (
   sortMode: 'GATE' | 'RANK',
   setSortMode: (mode: 'GATE' | 'RANK') => void
@@ -174,16 +188,21 @@ const renderSortButtons = (
   </div>
 )
 
-const renderRefreshButton = (refresh: () => void, refreshing: boolean) => (
-  <button
+const renderRefreshButton = (refresh: () => void, refreshing: boolean, enabled: boolean) => {
+  if (!enabled) return null
+
+  return (
+    <button
     type="button"
     onClick={refresh}
-    disabled={refreshing}
+    disabled={refreshing || !enabled}
+    title={enabled ? 'Muat ulang hasil terbaru' : 'Hasil event selesai sudah diarsipkan'}
     className="live-score-editorial-refresh rounded-full border px-4 py-2 text-xs font-extrabold uppercase transition-colors disabled:cursor-not-allowed disabled:opacity-70"
   >
-    {refreshing ? 'Refreshing...' : 'Refresh'}
-  </button>
-)
+      {refreshing ? 'Refreshing...' : 'Refresh'}
+    </button>
+  )
+}
 
 
 type LiveScoreClientProps = {
@@ -255,10 +274,17 @@ export default function LiveScoreClient({
 
   useEffect(() => {
     if (!isLiveEvent) return
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void refresh()
+    }
     const interval = setInterval(() => {
-      refresh()
+      if (document.visibilityState === 'visible') void refresh()
     }, PUBLIC_LIVE_SCORE_REFRESH_INTERVAL_MS)
-    return () => clearInterval(interval)
+    document.addEventListener('visibilitychange', refreshWhenVisible)
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', refreshWhenVisible)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId, categoryId, isLiveEvent])
 
@@ -343,6 +369,11 @@ export default function LiveScoreClient({
               return a.name.localeCompare(b.name)
             }
 
+            // A pre-race DQ has an administrative last-place rank, while the
+            // active riders are still PENDING. Keep starters visible first.
+            if (a.status === 'PENDING' && b.status === 'DQ') return -1
+            if (a.status === 'DQ' && b.status === 'PENDING') return 1
+
             const aRank = a.rank ?? Number.MAX_SAFE_INTEGER
             const bRank = b.rank ?? Number.MAX_SAFE_INTEGER
             if (aRank !== bRank) return aRank - bRank
@@ -392,11 +423,11 @@ export default function LiveScoreClient({
               <p className="text-xs font-extrabold uppercase text-[#f3c63d]">
                 {publicBrandName || 'Live Score'}
               </p>
-              <h1 className="max-w-4xl text-3xl font-black text-[#fff8e8] sm:text-4xl lg:text-[3.2rem] lg:leading-none">
-                {publicEventTitle}
-              </h1>
-              <p className="text-sm font-semibold text-[#eadcca] sm:text-base">
+              <h1 className="max-w-4xl text-4xl font-black uppercase text-[#f3c63d] sm:text-5xl lg:text-[4rem] lg:leading-none">
                 {categoryLabel || 'Category'}
+              </h1>
+              <p className="max-w-3xl text-base font-bold text-[#fff8e8] sm:text-lg">
+                {publicEventTitle}
               </p>
               {(publicTagline || showOperatingCommittee || showScoringSupport || showMc) && (
                 <div className="grid gap-2">
@@ -445,14 +476,61 @@ export default function LiveScoreClient({
                   </span>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                  {renderRefreshButton(refresh, refreshing)}
+                  {renderRefreshButton(refresh, refreshing, isLiveEvent)}
                   {renderSortButtons(sortMode, setSortMode)}
                 </div>
               </div>
-              <div className="table-mobile-hint">
-                Geser kiri/kanan untuk lihat semua kolom.
+              <div className="md:hidden">
+                <div className="table-mobile-hint">Geser tabel ke samping untuk melihat seluruh hasil</div>
+                <div className="public-table-wrap">
+                  <table className="public-table min-w-[710px] text-[11px]">
+                    <thead>
+                      <tr>
+                        {[
+                          'Rider',
+                          'Gate M1',
+                          'Gate M2',
+                          ...(showMoto3 ? ['Gate M3'] : []),
+                          'Point M1',
+                          'Point M2',
+                          ...(showMoto3 ? ['Point M3'] : []),
+                          'Penalty',
+                          'Total',
+                          'Rank / Next',
+                        ].map((heading) => <th key={`mobile-${heading}`}>{heading}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {batch.rows.map((row) => (
+                        <tr key={`mobile-qualification-${row.rider_id}`}>
+                          <td className="min-w-[210px] whitespace-normal">
+                            <div className="live-score-rider-name text-[13px] font-black leading-tight">{row.name}</div>
+                            <div className="mt-1 text-[10px] font-extrabold text-amber-700">{row.no_plate}</div>
+                            <div className="mt-0.5 text-[10px] font-semibold leading-tight text-slate-600">{row.club || '-'}</div>
+                          </td>
+                          <td>{renderGateBadge(row.gate_moto1)}</td>
+                          <td>{renderGateBadge(row.gate_moto2)}</td>
+                          {showMoto3 && <td>{renderGateBadge(row.gate_moto3)}</td>}
+                          <td>{renderMotoResultCell(row.point_moto1, row.moto1_status)}</td>
+                          <td>{renderMotoResultCell(row.point_moto2, row.moto2_status)}</td>
+                          {showMoto3 && <td>{renderMotoResultCell(row.point_moto3, row.moto3_status)}</td>}
+                          <td className="font-extrabold text-amber-600">{row.penalty_total ?? '-'}</td>
+                          <td className="font-extrabold text-sky-700">{row.total_point ?? '-'}</td>
+                          <td className="text-center font-extrabold text-emerald-700">
+                            <div className="flex flex-col items-center gap-1">
+                              <span>{row.rank_point ?? '-'}</span>
+                              {(row.status === 'DQ' || row.status === 'PENDING') && <span className={`inline-flex w-fit rounded-full border px-1 py-0.5 text-[8px] font-black uppercase ${statusBadgeClass(row.status)}`}>{row.status}</span>}
+                              {showQualificationNextColumn && row.class_label && <span className="text-[9px] font-black uppercase leading-tight text-slate-600">{row.class_label}</span>}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-              <div className="public-table-wrap">
+              <div className="table-mobile-hint hidden md:block">Geser tabel ke samping untuk melihat seluruh hasil</div>
+              <div className="public-table-wrap hidden md:block">
                 <table className="public-table min-w-[940px] text-[11px] sm:text-xs md:text-sm">
                   <thead>
                     <tr>
@@ -526,17 +604,46 @@ export default function LiveScoreClient({
                 <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-lg font-black uppercase text-[#fff8e8]">{stage.title}</h2>
-                    <span className="live-score-editorial-stage-badge rounded-full border px-3 py-1 text-xs font-extrabold uppercase">
-                      Advanced Stage
-                    </span>
                   </div>
                   <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                    {renderRefreshButton(refresh, refreshing)}
+                    {renderRefreshButton(refresh, refreshing, isLiveEvent)}
                     {renderSortButtons(sortMode, setSortMode)}
                   </div>
                 </div>
-                <div className="table-mobile-hint">Geser kiri/kanan untuk lihat semua kolom.</div>
-                <div className="public-table-wrap">
+                <div className="md:hidden">
+                  <div className="table-mobile-hint">Geser tabel ke samping untuk melihat seluruh hasil</div>
+                  <div className="public-table-wrap">
+                    <table className="public-table min-w-[620px] text-[11px]">
+                      <thead>
+                        <tr>
+                          {['Rider', 'Gate', 'Point', 'Penalty', 'Rank / Next'].map((heading) => <th key={`mobile-stage-${heading}`}>{heading}</th>)}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {stage.rows.map((row) => (
+                          <tr key={`mobile-stage-${row.rider_id}`}>
+                            <td className="min-w-[210px] whitespace-normal">
+                              <div className="live-score-rider-name text-[13px] font-black leading-tight">{row.name}</div>
+                              <div className="mt-1 text-[10px] font-extrabold text-amber-700">{row.no_plate}</div>
+                              <div className="mt-0.5 text-[10px] font-semibold leading-tight text-slate-600">{row.club || '-'}</div>
+                            </td>
+                            <td>{renderGateBadge(row.gate)}</td>
+                            <td className="font-extrabold text-sky-700">{renderStagePointCell(row.point, row.status)}</td>
+                            <td className="font-extrabold text-amber-600">{row.penalty_total ?? '-'}</td>
+                            <td className="text-center font-extrabold text-emerald-700">
+                              <div className="flex flex-col items-center gap-1">
+                                <span>{row.rank ?? '-'}</span>
+                                {showStageNextColumn && row.next_class_label && <span className="text-[9px] font-black uppercase leading-tight text-slate-600">{row.next_class_label}</span>}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <div className="table-mobile-hint hidden md:block">Geser tabel ke samping untuk melihat seluruh hasil</div>
+                <div className="public-table-wrap hidden md:block">
                   <table className="public-table min-w-[680px] text-[11px] sm:text-xs md:text-sm">
                     <thead>
                       <tr>

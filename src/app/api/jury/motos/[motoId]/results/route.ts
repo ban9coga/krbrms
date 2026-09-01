@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../../lib/auth'
 import { assertMotoEditable, assertMotoNotUnderProtest } from '../../../../../../lib/motoLock'
-import { promoteNextMotoToLive } from '../../../../../../services/motoProgression'
 import { reseedSingleBatchMoto3FromMoto } from '../../../../../../services/moto3Reseed'
+import { promoteNextMotoToLive } from '../../../../../../services/motoProgression'
 import { upsertRiderParticipationStatuses } from '../../../../../../services/riderParticipationStatus'
 import { requireJury } from '../../../../../../services/juryAuth'
 
@@ -16,6 +16,8 @@ const isLockedMoto = async (motoId: string) => {
   return !!data
 }
 
+const needsMoto3Reseed = (motoName?: string | null) => /^moto\s*2\s*-\s*batch\s*1$/i.test(motoName ?? '')
+
 export async function GET(req: Request, { params }: { params: Promise<{ motoId: string }> }) {
   const { motoId } = await params
   const { data: moto } = await adminClient.from('motos').select('event_id').eq('id', motoId).maybeSingle()
@@ -23,7 +25,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ motoId: 
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
   const { data, error } = await adminClient
     .from('results')
-    .select('rider_id, finish_order, result_status')
+    .select('rider_id, finish_order, result_status, dnf_progress_percent')
     .eq('moto_id', motoId)
     .order('finish_order', { ascending: true, nullsFirst: false })
 
@@ -67,7 +69,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
 
   const { data: moto, error: motoError } = await adminClient
     .from('motos')
-    .select('id, event_id')
+    .select('id, event_id, moto_name')
     .eq('id', motoId)
     .maybeSingle()
 
@@ -75,13 +77,28 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
     return NextResponse.json({ error: 'Moto not found' }, { status: 404 })
   }
 
-  const payload = (results as Array<{ rider_id: string; finish_order?: number | null; result_status?: string }>).map((row) => ({
+  const payload = (results as Array<{ rider_id: string; finish_order?: number | null; result_status?: string; dnf_progress_percent?: number | null }>).map((row) => ({
     event_id: moto.event_id,
     moto_id: motoId,
     rider_id: row.rider_id,
     finish_order: row.finish_order ?? null,
     result_status: row.result_status ?? 'FINISH',
+    dnf_progress_percent: row.result_status === 'DNF' && row.dnf_progress_percent != null ? Number(row.dnf_progress_percent) : null,
   }))
+
+  const { data: flags } = await adminClient
+    .from('event_feature_flags')
+    .select('dnf_progress_enabled')
+    .eq('event_id', moto.event_id)
+    .maybeSingle()
+  if (flags?.dnf_progress_enabled) {
+    const invalidDnf = payload.find(
+      (row) =>
+        row.result_status === 'DNF' &&
+        (!Number.isFinite(row.dnf_progress_percent) || Number(row.dnf_progress_percent) < 0 || Number(row.dnf_progress_percent) > 100)
+    )
+    if (invalidDnf) return NextResponse.json({ error: 'DNF progress wajib diisi antara 0-100%.' }, { status: 400 })
+  }
 
   const { data: assigned, error: assignedError } = await adminClient
     .from('moto_riders')
@@ -141,12 +158,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
     .update({ status: 'PROVISIONAL', provisional_at: new Date().toISOString() })
     .eq('id', motoId)
 
-  const promotionResult = await promoteNextMotoToLive(moto.event_id, motoId)
-  const moto3Reseed = await reseedSingleBatchMoto3FromMoto(motoId)
+  const moto3Reseed = needsMoto3Reseed(moto.moto_name)
+    ? await reseedSingleBatchMoto3FromMoto(motoId)
+    : { ok: true as const, warning: null }
+  const nextMoto = await promoteNextMotoToLive(moto.event_id, motoId)
 
   return NextResponse.json({
     ok: true,
-    next_moto: promotionResult,
+    next_moto: nextMoto,
     warning: moto3Reseed.ok ? null : moto3Reseed.warning ?? 'Moto 3 gate reseed skipped.',
   })
 }

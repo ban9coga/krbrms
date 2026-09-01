@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { useEffect, useMemo, useState } from 'react'
 import StatusBadge from '../../../components/StatusBadge'
 import LoadingState from '../../../components/LoadingState'
@@ -18,6 +19,7 @@ import {
   type EventItem,
   type RiderCategory,
 } from '../../../lib/eventService'
+import type { PublicFinishedEventArchive } from '../../../services/publicFinishedEventArchive'
 
 const categoryCoverGradients = [
   'linear-gradient(140deg,#0f172a 0%,#1e293b 52%,#4f1d2f 100%)',
@@ -29,13 +31,15 @@ const categoryCoverGradients = [
 export default function EventDetailClient({
   eventId,
   initialEvent,
+  initialArchive,
 }: {
   eventId: string
   initialEvent: EventItem | null
+  initialArchive?: PublicFinishedEventArchive | null
 }) {
   const hideRegistrationAndVenueActions = eventId === '1d063c20-af89-4416-a578-cc06b824adc2'
   const [event, setEvent] = useState<EventItem | null>(initialEvent)
-  const [categories, setCategories] = useState<RiderCategory[]>([])
+  const [categories, setCategories] = useState<RiderCategory[]>(initialArchive?.categories ?? [])
   const [liveMotos, setLiveMotos] = useState<MotoItem[]>([])
   const [liveResults, setLiveResults] = useState<Record<string, LeaderboardRow[]>>({})
   const [liveLoading, setLiveLoading] = useState<Record<string, boolean>>({})
@@ -53,12 +57,36 @@ export default function EventDetailClient({
     >
   >({})
   const [stageLoading, setStageLoading] = useState<Record<string, boolean>>({})
-  const [riderTotal, setRiderTotal] = useState(0)
+  const [riderTotal, setRiderTotal] = useState(initialArchive?.riderTotal ?? 0)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     const load = async () => {
       setLoading(!initialEvent)
+      if (initialArchive) {
+        setEvent(initialArchive.event)
+        setCategories(initialArchive.categories)
+        setRiderTotal(initialArchive.riderTotal)
+        setLiveMotos([])
+        setLoading(false)
+        return
+      }
+      if (initialEvent?.status === 'FINISHED') {
+        try {
+          const archiveResponse = await fetch(`/api/public/events/${eventId}/snapshot`)
+          if (archiveResponse.ok) {
+            const archive = await archiveResponse.json()
+            const archiveData = archive.data ?? {}
+            setCategories((archiveData.categories ?? []).filter((category: RiderCategory) => category.enabled))
+            setRiderTotal(Number(archiveData.rider_total ?? 0))
+            setLiveMotos([])
+            setLoading(false)
+            return
+          }
+        } catch {
+          // Fall through to the existing live source while an older finished event has no archive yet.
+        }
+      }
       const [eventData, categoryData, riderData, motoRes] = await Promise.all([
         initialEvent ? Promise.resolve(initialEvent) : getEventById(eventId),
         getEventCategories(eventId),
@@ -74,7 +102,7 @@ export default function EventDetailClient({
       setLoading(false)
     }
     if (eventId) load()
-  }, [eventId, initialEvent])
+  }, [eventId, initialArchive, initialEvent])
 
   const totalFilledSlots = useMemo(
     () => categories.reduce((sum, category) => sum + Math.max(0, Number(category.filled ?? 0)), 0),
@@ -94,6 +122,8 @@ export default function EventDetailClient({
   const publicEventTitle = business?.public_event_title?.trim() || event?.name || 'Event Detail'
   const publicBrandName = business?.public_brand_name?.trim() || ''
   const publicTagline = business?.public_tagline?.trim() || ''
+  const hasDistinctPublicBrandName =
+    Boolean(publicBrandName) && publicBrandName.trim().toLocaleLowerCase() !== publicEventTitle.trim().toLocaleLowerCase()
   const showEventOwner = Boolean(business?.show_event_owner_publicly && business?.event_owner_name?.trim())
   const showOperatingCommittee = Boolean(
     business?.show_operating_committee_publicly &&
@@ -112,9 +142,24 @@ export default function EventDetailClient({
     business?.scoring_support_label?.trim() || business?.scoring_support_name?.trim() || ''
   const raceDirectorName = business?.race_director_name?.trim() || ''
   const mcName = business?.mc_name?.trim() || ''
+  const publicStaff = [
+    showEventOwner ? { role: 'Event Owner', name: eventOwnerName, photoUrl: business?.event_owner_photo_url?.trim() || '' } : null,
+    showOperatingCommittee
+      ? { role: 'Operating Committee', name: operatingCommitteeLabel, photoUrl: business?.operating_committee_photo_url?.trim() || '' }
+      : null,
+    showScoringSupport ? { role: 'Scoring Support', name: scoringSupportLabel, photoUrl: business?.scoring_support_photo_url?.trim() || '' } : null,
+    showRaceDirector ? { role: 'Race Director', name: raceDirectorName, photoUrl: business?.race_director_photo_url?.trim() || '' } : null,
+    showMc ? { role: 'MC / Announcer', name: mcName, photoUrl: business?.mc_photo_url?.trim() || '' } : null,
+  ].filter((staff): staff is { role: string; name: string; photoUrl: string } => staff !== null)
   const daysToEvent =
     eventDate ? Math.ceil((eventDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null
   const registrationOpen = event?.registration_open !== false
+  const canDownloadCertificate = Boolean(
+    event?.status === 'FINISHED' &&
+      business?.certificate_enabled &&
+      business?.certificate_template_url &&
+      (business?.certificate_participation_enabled !== false || business?.certificate_achievement_enabled)
+  )
   const isCategoryFull = (category: RiderCategory) => {
     if (category.is_full === true) return true
     if (typeof category.capacity !== 'number') return false
@@ -192,8 +237,7 @@ export default function EventDetailClient({
               <div className="relative z-10 grid gap-6">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="grid gap-2">
-                    <p className="text-xs font-extrabold uppercase text-[#f3c63d]">Event Detail</p>
-                    {publicBrandName && (
+                    {hasDistinctPublicBrandName && (
                       <p className="text-sm font-extrabold uppercase text-[#eadcca]">
                         {publicBrandName}
                       </p>
@@ -220,72 +264,58 @@ export default function EventDetailClient({
                         {formattedDate ?? '-'}
                       </span>
                     </div>
-                    {(showEventOwner || showOperatingCommittee || showScoringSupport || showRaceDirector || showMc) && (
-                      <div className="flex flex-wrap gap-2 text-xs font-extrabold uppercase tracking-[0.12em] text-slate-100">
-                        {showEventOwner && (
-                          <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
-                            Event Owner: {eventOwnerName}
-                          </span>
-                        )}
-                        {showOperatingCommittee && (
-                          <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
-                            Operating Committee: {operatingCommitteeLabel}
-                          </span>
-                        )}
-                        {showScoringSupport && (
-                          <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
-                            Scoring Support: {scoringSupportLabel}
-                          </span>
-                        )}
-                        {showRaceDirector && (
-                          <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
-                            Race Director: {raceDirectorName}
-                          </span>
-                        )}
-                        {showMc && (
-                          <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
-                            MC: {mcName}
-                          </span>
-                        )}
+                    {publicStaff.length > 0 && (
+                      <div className="grid max-w-6xl gap-2 pt-1">
+                        <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-[#c9b7a5]">Panitia & Official</p>
+                        <div className="flex flex-wrap gap-2 xl:flex-nowrap">
+                          {publicStaff.map((staff) => (
+                            <div key={staff.role} className="flex min-w-[220px] flex-1 items-center gap-3 rounded-xl border border-white/15 bg-white/5 px-3 py-2">
+                              {staff.photoUrl ? (
+                                <Image
+                                  src={staff.photoUrl}
+                                  alt={`Foto ${staff.name}`}
+                                  width={52}
+                                  height={52}
+                                  sizes="52px"
+                                  className="h-[52px] w-[52px] shrink-0 rounded-full border border-[#f3c63d]/60 object-cover"
+                                />
+                              ) : (
+                                <span className="grid h-[52px] w-[52px] shrink-0 place-items-center rounded-full border border-[#f3c63d]/60 bg-[#2a160d] text-sm font-black text-[#f3c63d]">
+                                  {staff.name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || '-'}
+                                </span>
+                              )}
+                              <span className="grid min-w-0 gap-0.5">
+                                <span className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[#c9b7a5]">{staff.role}</span>
+                                <span className="truncate text-sm font-extrabold text-[#fff8e8]">{staff.name}</span>
+                              </span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>
-                  <StatusBadge
-                    label={
-                      event.status === 'LIVE'
-                        ? 'Ongoing Event'
-                        : event.status === 'FINISHED'
-                        ? 'Completed Event'
-                        : 'Coming Soon'
-                    }
-                  />
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-2xl border border-[#705547] bg-[#2a160d] p-4 text-[#fff8e8]">
-                    <p className="text-xs font-bold uppercase text-[#c9b7a5]">Total Riders</p>
-                    <p className="mt-2 text-3xl font-black">{event.status === 'UPCOMING' ? '-' : totalFilledSlots}</p>
-                    <p className="mt-1 text-xs font-semibold text-[#c9b7a5]">
-                      {event.status === 'UPCOMING'
-                        ? 'Terkunci sampai LIVE'
-                        : `${riderTotal} rider${upclassSlotCount > 0 ? ` + ${upclassSlotCount} rider upclass` : ''}`}
-                    </p>
-                  </div>
-
-                  <div className="rounded-2xl border border-[#705547] bg-[#2a160d] p-4 text-[#fff8e8]">
-                    <p className="text-xs font-bold uppercase text-[#c9b7a5]">Total Categories</p>
-                    <p className="mt-2 text-3xl font-black">{categories.length}</p>
-                  </div>
-
-                  <div className="rounded-2xl border border-[#705547] bg-[#2a160d] p-4 text-[#fff8e8]">
-                    <p className="text-xs font-bold uppercase text-[#c9b7a5]">Countdown</p>
-                    <p className="mt-2 text-2xl font-black">
-                      {event.status === 'UPCOMING' && daysToEvent !== null
-                        ? `${Math.max(daysToEvent, 0)} hari lagi`
-                        : event.status === 'LIVE'
-                        ? 'Sedang berlangsung'
-                        : 'Selesai'}
-                    </p>
+                  <div className="grid justify-items-end gap-2">
+                    <StatusBadge
+                      label={
+                        event.status === 'LIVE'
+                          ? 'Ongoing Event'
+                          : event.status === 'FINISHED'
+                          ? 'Completed Event'
+                          : 'Coming Soon'
+                      }
+                    />
+                    {event.status === 'UPCOMING' && daysToEvent !== null && (
+                      <div className="rounded-full border border-[#705547] bg-[#2a160d] px-3 py-1.5 text-xs font-extrabold uppercase tracking-[0.1em] text-[#f3c63d]">
+                        {Math.max(daysToEvent, 0)} hari lagi
+                      </div>
+                    )}
+                    {event.status !== 'UPCOMING' && (
+                      <div className="inline-flex items-center gap-2 rounded-full border border-[#705547] bg-[#2a160d] px-3 py-1.5 text-xs font-bold text-[#eadcca]">
+                        <span className="uppercase tracking-[0.1em] text-[#c9b7a5]">Riders</span>
+                        <span className="text-base font-black text-[#fff8e8]">{totalFilledSlots}</span>
+                        {upclassSlotCount > 0 && <span className="text-[10px] text-[#c9b7a5]">{riderTotal} + {upclassSlotCount} upclass</span>}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -306,6 +336,14 @@ export default function EventDetailClient({
                       Daftar Sekarang
                     </Link>
                   )}
+                  {canDownloadCertificate && (
+                    <Link
+                      href={`/event/${event.id}/certificate`}
+                      className="inline-flex min-h-[54px] items-center rounded-full border border-[#f3c63d]/70 bg-[#2a160d] px-7 py-3 text-sm font-black uppercase text-[#f3c63d] transition-colors hover:bg-[#3e2113]"
+                    >
+                      Unduh E-Sertifikat
+                    </Link>
+                  )}
                 </div>
 
                 {event.status === 'UPCOMING' && !hideRegistrationAndVenueActions && !canRegister && (
@@ -319,29 +357,28 @@ export default function EventDetailClient({
               </div>
             </section>
 
-            <SponsorMarquee
-              businessSettings={business}
-              sponsorLogoUrls={sponsorLogoUrls}
-              placement="event_page"
-              title={business?.sponsor_section_title?.trim() || 'Official Sponsors'}
-              subtitle={
-                business?.sponsor_section_subtitle?.trim() ||
-                'Partner dan sponsor yang ikut mendukung event ini.'
-              }
-            />
-
             <section
               id="race-categories"
               className="rounded-[1.5rem] border border-[#4f372b] bg-[#1d0d07] px-4 py-5 text-[#fff8e8] shadow-[0_20px_40px_rgba(55,23,9,0.18)] sm:px-6"
             >
-              <div className="mb-4 flex items-center gap-2">
+              <div className="mb-4 grid gap-1">
                 <h2 className="text-2xl font-black tracking-tight text-white">Race Categories</h2>
-                {event.status === 'UPCOMING' && <StatusBadge label="Locked" />}
+                {event.status === 'UPCOMING' && (
+                  <p className="text-sm font-semibold text-[#c9b7a5]">Pilih kategori yang sesuai dengan tahun kelahiran rider.</p>
+                )}
               </div>
 
               {event.status === 'UPCOMING' ? (
-                <div className="rounded-2xl border border-dashed border-slate-600 bg-slate-950/40 p-4 text-sm font-semibold text-slate-300">
-                  Live results akan muncul saat event LIVE.
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {categoryCards.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-slate-600 bg-slate-950/40 p-4 text-sm font-semibold text-slate-300">
+                      Belum ada kategori yang dibuka.
+                    </div>
+                  ) : categoryCards.map((category) => (
+                    <article key={category.id} className="rounded-xl border border-[#705547] bg-[#2a160d] px-4 py-3">
+                      <h3 className="text-base font-black uppercase text-[#fff8e8]">{category.label}</h3>
+                    </article>
+                  ))}
                 </div>
               ) : (
                 <div className="grid gap-5">
@@ -510,11 +547,20 @@ export default function EventDetailClient({
               )}
             </section>
 
+            <SponsorMarquee
+              businessSettings={business}
+              sponsorLogoUrls={sponsorLogoUrls}
+              placement="event_page"
+              title={business?.sponsor_section_title?.trim() || 'Official Sponsors'}
+              subtitle={
+                business?.sponsor_section_subtitle?.trim() ||
+                'Partner dan sponsor yang ikut mendukung event ini.'
+              }
+            />
+
           </div>
         )}
       </main>
     </div>
   )
 }
-
-

@@ -3,8 +3,11 @@ import { adminClient, requireAdmin, requireBackoffice, verifyPasswordForAuthHead
 import { applyBestTeamSettingsNormalization } from '../../../../lib/bestTeam'
 import { cleanupEventMedia } from '../../../../lib/eventMediaCleanup'
 import { syncAdvancedRaceProgress } from '../../../../services/advancedRaceAuto'
+import { capturePublicEventSnapshot } from '../../../../services/publicEventSnapshot'
 import type { BusinessSettings } from '../../../../lib/eventService'
 import { proxyBusinessSettingsMedia, toPublicMediaUrl, toPublicMediaUrls } from '../../../../lib/publicMedia'
+import { revalidateTag } from 'next/cache'
+import { PUBLIC_FINISHED_EVENT_ARCHIVE_TAG } from '../../../../services/publicFinishedEventArchive'
 type DrawMode = 'internal_live_draw' | 'external_draw'
 type EventScope = 'PUBLIC' | 'INTERNAL'
 
@@ -194,6 +197,19 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ eventI
       console.warn('Advanced race auto failed', err)
     }
   }
+  if (status === 'FINISHED' && beforeRow?.status !== 'FINISHED') {
+    try {
+      await capturePublicEventSnapshot(eventId)
+      revalidateTag(PUBLIC_FINISHED_EVENT_ARCHIVE_TAG, 'max')
+    } catch (err) {
+      console.error('Failed to capture finished event public snapshot', err)
+      await adminClient.from('events').update({ status: beforeRow?.status ?? 'UPCOMING' }).eq('id', eventId)
+      return NextResponse.json(
+        { error: 'Arsip publik gagal dibuat. Status event dikembalikan agar dapat dicoba lagi.' },
+        { status: 500 }
+      )
+    }
+  }
   return NextResponse.json({
     data: {
       ...updatedEvent,
@@ -248,4 +264,3 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ event
     },
   })
 }
-

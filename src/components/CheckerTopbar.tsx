@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { formatAppRoleLabel, normalizeAppRole } from '../lib/roles'
 import { supabase } from '@/src/lib/supabaseClient'
+import LogoutButton from './LogoutButton'
 
 type CheckerTopbarProps = {
   title?: string
@@ -36,6 +37,11 @@ const displayName = (user: {
   return 'User'
 }
 
+const readAccessTokenCookie = () => {
+  const entry = document.cookie.split('; ').find((item) => item.startsWith('sb-access-token='))
+  return entry ? decodeURIComponent(entry.slice('sb-access-token='.length)) : null
+}
+
 export default function CheckerTopbar({ title = 'Checker Control' }: CheckerTopbarProps) {
   const router = useRouter()
   const [name, setName] = useState('User')
@@ -44,18 +50,39 @@ export default function CheckerTopbar({ title = 'Checker Control' }: CheckerTopb
   useEffect(() => {
     const loadUser = async () => {
       const { data } = await supabase.auth.getSession()
-      const user = data.session?.user
+      const token = data.session?.access_token ?? readAccessTokenCookie()
+      let user = data.session?.user ?? null
+      if (!user && token) {
+        const { data: tokenUserData } = await supabase.auth.getUser(token)
+        user = tokenUserData.user
+      }
       if (!user) return
       const meta = (user.user_metadata ?? {}) as Record<string, unknown>
       const appMeta = (user.app_metadata ?? {}) as Record<string, unknown>
-      const rawRole =
+      let rawRole =
         (typeof meta.role === 'string' ? meta.role : '') ||
         (typeof appMeta.role === 'string' ? appMeta.role : '') ||
         ''
+
+      if (token) {
+        try {
+          const accessResponse = await fetch('/api/auth/backoffice-access', {
+            headers: { Authorization: `Bearer ${token}` },
+            cache: 'no-store',
+          })
+          const accessJson = await accessResponse.json().catch(() => ({}))
+          if (accessResponse.ok && typeof accessJson?.data?.role === 'string') {
+            rawRole = accessJson.data.role
+          }
+        } catch {
+          // Keep the metadata role when the access lookup is temporarily offline.
+        }
+      }
+
       setName(displayName(user))
       setRoleKey(rawRole)
     }
-    loadUser()
+    void loadUser()
   }, [])
 
   const handleLogout = async () => {
@@ -89,13 +116,7 @@ export default function CheckerTopbar({ title = 'Checker Control' }: CheckerTopb
               <div className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-slate-500">{formatAppRoleLabel(roleKey)}</div>
               <div className="truncate text-sm font-bold text-slate-900">{name}</div>
             </div>
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="rounded-full bg-amber-400 px-4 py-2 text-sm font-bold text-slate-900 transition-colors hover:bg-amber-300"
-            >
-              Logout
-            </button>
+            <LogoutButton onClick={handleLogout} />
           </div>
         </div>
       </div>

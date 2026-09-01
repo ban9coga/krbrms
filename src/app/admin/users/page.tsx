@@ -10,6 +10,7 @@ type RoleType =
   | 'race_control'
   | 'super_admin'
   | 'REGISTRATION_APPROVER'
+  | 'DRAW_MANAGER'
   | 'CHECKER'
   | 'FINISHER'
   | 'RACE_DIRECTOR'
@@ -33,6 +34,7 @@ const buttonClass =
 export default function AdminUsersPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [crewCode, setCrewCode] = useState('')
   const [role, setRole] = useState<RoleType>('admin')
   const [loading, setLoading] = useState(false)
   const [isSuperAdmin, setIsSuperAdmin] = useState(false)
@@ -43,6 +45,8 @@ export default function AdminUsersPage() {
   const [total, setTotal] = useState(0)
   const [savingUserId, setSavingUserId] = useState<string | null>(null)
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null)
+  const [crewCodeDrafts, setCrewCodeDrafts] = useState<Record<string, string>>({})
+  const [pinDrafts, setPinDrafts] = useState<Record<string, string>>({})
 
   useEffect(() => {
     const checkRole = async () => {
@@ -101,7 +105,7 @@ export default function AdminUsersPage() {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ email, password, role }),
+      body: JSON.stringify({ email, password, crewCode, role }),
     })
 
     const result = await res.json().catch(() => ({}))
@@ -115,6 +119,7 @@ export default function AdminUsersPage() {
     alert('Akun berhasil dibuat.')
     setEmail('')
     setPassword('')
+    setCrewCode('')
     setRole('admin')
     await loadUsers(1)
     setPage(1)
@@ -166,10 +171,10 @@ export default function AdminUsersPage() {
           </label>
 
           <label className="grid gap-2">
-            <span className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">Password</span>
+            <span className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">Password / PIN</span>
             <input
               type="password"
-              placeholder="Minimal untuk operasional"
+              placeholder="PIN 6 digit untuk akun crew"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className={inputClass}
@@ -178,10 +183,24 @@ export default function AdminUsersPage() {
           </label>
 
           <label className="grid gap-2">
+            <span className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">Kode Crew</span>
+            <input
+              type="text"
+              placeholder="Contoh: CHECKER-01"
+              value={crewCode}
+              onChange={(e) => setCrewCode(e.target.value.toUpperCase().replace(/\s+/g, ''))}
+              className={inputClass}
+              maxLength={32}
+            />
+            <span className="text-xs font-semibold text-slate-500">Opsional untuk admin; bila diisi, akun memakai PIN enam digit untuk login crew.</span>
+          </label>
+
+          <label className="grid gap-2">
             <span className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">Role Global</span>
             <select value={role} onChange={(e) => setRole(e.target.value as RoleType)} className={inputClass}>
               <option value="admin">Operator Admin</option>
               <option value="REGISTRATION_APPROVER">Registration Approver</option>
+              <option value="DRAW_MANAGER">Drawing Manager</option>
               <option value="race_control">Race Control</option>
               <option value="CHECKER">Checker</option>
               <option value="FINISHER">Finisher</option>
@@ -235,6 +254,7 @@ export default function AdminUsersPage() {
               (typeof meta.role === 'string' ? meta.role : null) ||
               (typeof appMeta.role === 'string' ? appMeta.role : null) ||
               'viewer'
+            const currentCrewCode = typeof meta.crew_code === 'string' ? meta.crew_code : ''
 
             return (
               <article
@@ -254,7 +274,7 @@ export default function AdminUsersPage() {
                   </div>
                 </div>
 
-                <div className="grid gap-3 md:grid-cols-[minmax(0,220px)_auto_auto] md:items-end">
+                <div className="grid gap-3 md:grid-cols-[minmax(0,220px)_minmax(0,220px)_minmax(0,180px)_auto_auto] md:items-end">
                   <label className="grid gap-2">
                     <span className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">Role</span>
                     <select
@@ -277,12 +297,48 @@ export default function AdminUsersPage() {
                       <option value="super_admin">Central Admin</option>
                       <option value="admin">Operator Admin</option>
                       <option value="REGISTRATION_APPROVER">Registration Approver</option>
+                      <option value="DRAW_MANAGER">Drawing Manager</option>
                       <option value="race_control">Race Control</option>
                       <option value="CHECKER">Checker</option>
                       <option value="FINISHER">Finisher</option>
                       <option value="RACE_DIRECTOR">Race Director</option>
                       <option value="MC">MC</option>
                     </select>
+                  </label>
+
+                  <label className="grid gap-2">
+                    <span className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">PIN Baru</span>
+                    <input
+                      type="password"
+                      value={pinDrafts[u.id] ?? ''}
+                      onChange={(e) =>
+                        setPinDrafts((prev) => ({
+                          ...prev,
+                          [u.id]: e.target.value.replace(/\D/g, '').slice(0, 6),
+                        }))
+                      }
+                      placeholder="6 digit"
+                      className={inputClass}
+                      inputMode="numeric"
+                      maxLength={6}
+                    />
+                  </label>
+
+                  <label className="grid gap-2">
+                    <span className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">Kode Crew</span>
+                    <input
+                      type="text"
+                      value={crewCodeDrafts[u.id] ?? currentCrewCode}
+                      onChange={(e) =>
+                        setCrewCodeDrafts((prev) => ({
+                          ...prev,
+                          [u.id]: e.target.value.toUpperCase().replace(/\s+/g, ''),
+                        }))
+                      }
+                      placeholder="Tidak digunakan"
+                      className={inputClass}
+                      maxLength={32}
+                    />
                   </label>
 
                   <button
@@ -296,10 +352,15 @@ export default function AdminUsersPage() {
                         const res = await fetch(`/api/super-admin/users/${u.id}`, {
                           method: 'PATCH',
                           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                          body: JSON.stringify({ role: ((u.user_metadata as Record<string, unknown>)?.role ?? currentRole) as string }),
+                          body: JSON.stringify({
+                            role: ((u.user_metadata as Record<string, unknown>)?.role ?? currentRole) as string,
+                            crewCode: crewCodeDrafts[u.id] ?? currentCrewCode,
+                            password: pinDrafts[u.id] ?? '',
+                          }),
                         })
                         const json = await res.json().catch(() => ({}))
                         if (!res.ok) throw new Error(json?.error || 'Gagal update role')
+                        setPinDrafts((prev) => ({ ...prev, [u.id]: '' }))
                         await loadUsers(page)
                       } catch (err: unknown) {
                         alert(err instanceof Error ? err.message : 'Gagal update role')

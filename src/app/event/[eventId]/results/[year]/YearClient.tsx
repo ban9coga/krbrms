@@ -15,6 +15,7 @@ import {
   type MotoItem,
 } from '../../../../../lib/eventService'
 import { isMotoFinished, isMotoLive, isMotoUpcoming } from '../../../../../lib/motoStatus'
+import type { PublicFinishedEventArchive } from '../../../../../services/publicFinishedEventArchive'
 
 type CategoryStatus = 'UPCOMING' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED'
 
@@ -22,15 +23,45 @@ const normalize = (value: string) => value.toLowerCase()
 
 const statusOptions: Array<'ALL' | 'LIVE' | 'FINISHED'> = ['ALL', 'LIVE', 'FINISHED']
 
-export default function YearClient({ eventId, year }: { eventId: string; year: string }) {
-  const [event, setEvent] = useState<EventItem | null>(null)
-  const [categories, setCategories] = useState<(RiderCategory & { status: CategoryStatus })[]>([])
-  const [loading, setLoading] = useState(false)
+const withCategoryStatus = (base: RiderCategory[], motos: MotoItem[]) =>
+  base.map((category) => {
+    const categoryMotos = motos.filter((moto) => moto.category_id === category.id)
+    const hasLive = categoryMotos.some((moto) => isMotoLive(moto.status))
+    const hasFinished = categoryMotos.some((moto) => isMotoFinished(moto.status))
+    const hasUpcoming = categoryMotos.some((moto) => isMotoUpcoming(moto.status))
+    const status: CategoryStatus = hasLive
+      ? 'LIVE'
+      : hasFinished && hasUpcoming
+      ? 'LIVE'
+      : hasFinished
+      ? 'FINISHED'
+      : 'UPCOMING'
+    return { ...category, status }
+  })
+
+export default function YearClient({
+  eventId,
+  year,
+  initialArchive,
+}: {
+  eventId: string
+  year: string
+  initialArchive: PublicFinishedEventArchive | null
+}) {
+  const archivedCategories = initialArchive
+    ? initialArchive.categories.filter((category) => String(category.year) === year)
+    : []
+  const [event, setEvent] = useState<EventItem | null>(initialArchive?.event ?? null)
+  const [categories, setCategories] = useState<(RiderCategory & { status: CategoryStatus })[]>(
+    initialArchive ? withCategoryStatus(archivedCategories, initialArchive.motos) : []
+  )
+  const [loading, setLoading] = useState(!initialArchive)
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'LIVE' | 'FINISHED'>('ALL')
 
   useEffect(() => {
     const load = async () => {
+      if (initialArchive) return
       setLoading(true)
       const [eventData, base] = await Promise.all([getEventById(eventId), getCategoriesByYear(eventId, year)])
       const withStatus = await Promise.all(
@@ -54,7 +85,7 @@ export default function YearClient({ eventId, year }: { eventId: string; year: s
       setLoading(false)
     }
     if (eventId) load()
-  }, [eventId, year])
+  }, [eventId, initialArchive, year])
 
   const filtered = categories.filter((item) => {
     const matchesQuery = normalize(item.label).includes(normalize(query))

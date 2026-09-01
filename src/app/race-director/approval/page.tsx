@@ -5,6 +5,8 @@ import CheckerTopbar from '../../../components/CheckerTopbar'
 import { compareMotoSequence } from '../../../lib/motoSequence'
 import { supabase } from '@/src/lib/supabaseClient'
 import { useApiFetch } from '@/src/hooks/useApiFetch'
+import { useEventRaceRealtime } from '@/src/hooks/useEventRaceRealtime'
+import { usePageVisibility } from '@/src/lib/usePageVisibility'
 
 type StatusUpdate = {
   id: string
@@ -92,6 +94,7 @@ const normalizeRole = (value: string | null | undefined) => String(value ?? '').
 const getErrorMessage = (err: unknown) => (err instanceof Error ? err.message : 'Request failed')
 
 export default function RaceDirectorApprovalPage() {
+  const isPageVisible = usePageVisibility()
   const [eventId, setEventId] = useState('')
   const [events, setEvents] = useState<EventItem[]>([])
   const [categories, setCategories] = useState<CategoryItem[]>([])
@@ -268,14 +271,12 @@ export default function RaceDirectorApprovalPage() {
         setStatusUpdates(approvalRes.status_updates ?? [])
         setPenalties(approvalRes.penalties ?? [])
         setApprovalMode((modeRes.data?.approval_mode as 'AUTO' | 'DIRECTOR') ?? 'AUTO')
-        const motoJson = await motoRes.json()
-        setMotos(motoJson.data ?? [])
+        setMotos((motoRes.data ?? []) as MotoRow[])
         const lockList = (lockRes.data ?? []) as Array<{ moto_id: string }>
         const map: Record<string, boolean> = {}
         for (const row of lockList) map[row.moto_id] = true
         setLockedMap(map)
-        const catJson = await catRes.json()
-        setCategories((catJson.data ?? []) as CategoryItem[])
+        setCategories((catRes.data ?? []) as CategoryItem[])
         setGateStatus(gateRes.data ?? [])
         if (includeHeavy) {
           setAuditLogs(
@@ -307,23 +308,42 @@ export default function RaceDirectorApprovalPage() {
     [apiFetch, eventId, showNotice]
   )
 
+  const refreshFromRealtime = useCallback(() => {
+    if (
+      isFetchingRef.current ||
+      decisionSubmitting ||
+      addingPenalty ||
+      settingDq ||
+      Boolean(voidingPenaltyId)
+    ) {
+      return
+    }
+    void loadEventData({ silent: true, includeHeavy: false })
+  }, [addingPenalty, decisionSubmitting, loadEventData, settingDq, voidingPenaltyId])
+
+  useEventRaceRealtime({
+    eventId,
+    enabled: isPageVisible,
+    onRaceStateChanged: refreshFromRealtime,
+  })
+
   useEffect(() => {
     void loadEventData({ silent: false, includeHeavy: true, notifyOnError: true })
   }, [loadEventData])
 
   useEffect(() => {
-    if (!eventId) return
+    if (!eventId || !isPageVisible) return
     const lightTimer = setInterval(() => {
       void loadEventData({ silent: true, includeHeavy: false })
-    }, 15000)
+    }, 60000)
     const heavyTimer = setInterval(() => {
       void loadEventData({ silent: true, includeHeavy: true })
-    }, 20000)
+    }, 300000)
     return () => {
       clearInterval(lightTimer)
       clearInterval(heavyTimer)
     }
-  }, [eventId, loadEventData])
+  }, [eventId, isPageVisible, loadEventData])
 
   const categoriesSorted = useMemo(() => {
     return categories
@@ -796,6 +816,16 @@ export default function RaceDirectorApprovalPage() {
                 className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.1em] text-slate-800 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {refreshing ? 'Memuat...' : 'Segarkan'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (eventId) window.location.assign(`/admin/events/${eventId}/results`)
+                }}
+                disabled={!eventId}
+                className="inline-flex items-center justify-center rounded-xl border border-amber-400 bg-amber-300 px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.1em] text-amber-950 transition-colors hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Rekap Hasil
               </button>
               <div
                 className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-extrabold uppercase tracking-[0.12em] ${approvalMode === 'AUTO'

@@ -1,8 +1,11 @@
 import type { BusinessSettings, EventSponsor } from './eventService'
 
 const EVENT_LOGOS_BUCKET = 'event-logos'
+const EVENT_STAFF_BUCKET = 'event-staff'
 const PUBLIC_STORAGE_MARKER = `/storage/v1/object/public/${EVENT_LOGOS_BUCKET}/`
 const PROXY_PREFIX = `/api/media/${EVENT_LOGOS_BUCKET}/`
+const STAFF_STORAGE_MARKER = `/storage/v1/object/public/${EVENT_STAFF_BUCKET}/`
+const STAFF_PROXY_PREFIX = `/api/media/${EVENT_STAFF_BUCKET}/`
 
 const encodeStoragePath = (path: string) =>
   path
@@ -23,11 +26,14 @@ export const toPublicMediaUrl = (value: string | null | undefined): string | nul
 
   try {
     const url = new URL(raw)
-    const markerIndex = url.pathname.indexOf(PUBLIC_STORAGE_MARKER)
+    const isStaffPhoto = url.pathname.includes(STAFF_STORAGE_MARKER)
+    const marker = isStaffPhoto ? STAFF_STORAGE_MARKER : PUBLIC_STORAGE_MARKER
+    const proxyPrefix = isStaffPhoto ? STAFF_PROXY_PREFIX : PROXY_PREFIX
+    const markerIndex = url.pathname.indexOf(marker)
     if (markerIndex < 0) return raw
 
-    const path = decodeURIComponent(url.pathname.slice(markerIndex + PUBLIC_STORAGE_MARKER.length))
-    const proxied = `${PROXY_PREFIX}${encodeStoragePath(path)}`
+    const path = decodeURIComponent(url.pathname.slice(markerIndex + marker.length))
+    const proxied = `${proxyPrefix}${encodeStoragePath(path)}`
     return url.search ? `${proxied}${url.search}` : proxied
   } catch {
     return raw
@@ -51,5 +57,13 @@ export const proxyBusinessSettingsMedia = (settings: BusinessSettings): Business
   ...settings,
   registration_qris_image_url: toPublicMediaUrl(settings.registration_qris_image_url),
   registration_jersey_size_chart_url: toPublicMediaUrl(settings.registration_jersey_size_chart_url),
+  certificate_template_url: toPublicMediaUrl(settings.certificate_template_url),
+  certificate_event_logo_url: toPublicMediaUrl(settings.certificate_event_logo_url),
+  certificate_organizer_logo_url: toPublicMediaUrl(settings.certificate_organizer_logo_url),
+  event_owner_photo_url: toPublicMediaUrl(settings.event_owner_photo_url),
+  operating_committee_photo_url: toPublicMediaUrl(settings.operating_committee_photo_url),
+  scoring_support_photo_url: toPublicMediaUrl(settings.scoring_support_photo_url),
+  race_director_photo_url: toPublicMediaUrl(settings.race_director_photo_url),
+  mc_photo_url: toPublicMediaUrl(settings.mc_photo_url),
   sponsors: Array.isArray(settings.sponsors) ? settings.sponsors.map(proxySponsor) : settings.sponsors,
 })

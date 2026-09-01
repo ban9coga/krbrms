@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
-import { adminClient, requireAdmin } from '../../../../../lib/auth'
+import { adminClient, requireScopedEventWorkspace } from '../../../../../lib/auth'
 import { isMissingPrimaryCategoryColumnError } from '../../../../../lib/categoryAssignment'
+import { normalizeDrawCategoryConfig } from '../../../../../lib/drawConfig'
 
 type CategoryRow = {
   id: string
@@ -24,39 +25,62 @@ type RiderRow = {
 
 type MotoStatus = 'UPCOMING' | 'READY' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED'
 
-const resolveQualificationMotoCount = async (eventId: string, categoryId: string) => {
-  const { data } = await adminClient
-    .from('race_stage_config')
-    .select('qualification_moto_count')
-    .eq('event_id', eventId)
-    .eq('category_id', categoryId)
-    .maybeSingle()
-  return Math.max(2, Number(data?.qualification_moto_count ?? 2))
+const loadDrawConfiguration = async (eventId: string, categoryId: string) => {
+  const [{ data: config, error: configError }, { data: settings, error: settingsError }] = await Promise.all([
+    adminClient
+      .from('race_stage_config')
+      .select('qualification_moto_count, draw_batch_mode, draw_batch_size, draw_batch_count, draw_custom_batch_sizes, draw_moto2_order')
+      .eq('event_id', eventId)
+      .eq('category_id', categoryId)
+      .maybeSingle(),
+    adminClient
+      .from('event_settings')
+      .select('race_format_settings')
+      .eq('event_id', eventId)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ])
+
+  if (configError || settingsError) return { error: configError?.message || settingsError?.message || 'Gagal memuat konfigurasi drawing.' }
+  const format =
+    settings?.race_format_settings && typeof settings.race_format_settings === 'object' && !Array.isArray(settings.race_format_settings)
+      ? (settings.race_format_settings as Record<string, unknown>)
+      : {}
+  return {
+    error: null,
+    gatePositions: Math.max(1, Number(format.gate_positions ?? 8)),
+    qualificationMotoCount: Math.max(2, Number(config?.qualification_moto_count ?? 2)),
+    drawMode: format.draw_mode === 'external_draw' ? 'external_draw' : 'internal_live_draw',
+    config: normalizeDrawCategoryConfig({
+      batch_mode: config?.draw_batch_mode,
+      batch_size: config?.draw_batch_size,
+      batch_count: config?.draw_batch_count,
+      custom_batch_sizes: config?.draw_custom_batch_sizes,
+      moto2_order: config?.draw_moto2_order,
+    }),
+  }
 }
 
 const buildDeleteGuard = async (eventId: string, categoryId: string) => {
-  const { data: motos, error: motoError } = await adminClient
-    .from('motos')
-    .select('id, status')
-    .eq('event_id', eventId)
-    .eq('category_id', categoryId)
+  const [{ data: motos, error: motoError }, { data: stageRows, error: stageError }] = await Promise.all([
+    adminClient
+      .from('motos')
+      .select('id, status')
+      .eq('event_id', eventId)
+      .eq('category_id', categoryId),
+    adminClient
+      .from('race_stage_result')
+      .select('stage, final_class')
+      .eq('category_id', categoryId),
+  ])
 
-  if (motoError) {
-    return { error: motoError.message }
+  if (motoError || stageError) {
+    return { error: motoError?.message || stageError?.message || 'Gagal memeriksa status drawing.' }
   }
 
   const typedMotos = (motos ?? []) as Array<{ id: string; status?: MotoStatus | null }>
   const lockedCount = typedMotos.filter((moto) => String(moto.status ?? '').toUpperCase() === 'LOCKED').length
-
-  const { data: stageRows, error: stageError } = await adminClient
-    .from('race_stage_result')
-    .select('stage, final_class')
-    .eq('category_id', categoryId)
-
-  if (stageError) {
-    return { error: stageError.message }
-  }
-
   const typedStageRows = (stageRows ?? []) as Array<{ stage?: string | null; final_class?: string | null }>
   const hasFinalState = typedStageRows.some((row) => {
     const stage = String(row.stage ?? '').toUpperCase()
@@ -75,6 +99,7 @@ const buildDeleteGuard = async (eventId: string, categoryId: string) => {
     canDelete: !reason,
     deleteBlockReason: reason,
     lockedCount,
+    motoCount: typedMotos.length,
     hasFinalState,
   }
 }
@@ -87,6 +112,29 @@ const chunk = <T,>(items: T[], size: number) => {
     cursor += size
   }
   return batches
+}
+
+const buildBatchesByCount = <T,>(items: T[], batchCount: number) => {
+  const safeCount = Math.max(1, Math.min(items.length, batchCount))
+  const baseSize = Math.floor(items.length / safeCount)
+  const remainder = items.length % safeCount
+  let cursor = 0
+  return Array.from({ length: safeCount }, (_, index) => {
+    const size = baseSize + (index < remainder ? 1 : 0)
+    const batch = items.slice(cursor, cursor + size)
+    cursor += size
+    return batch
+  })
+}
+
+const buildBatchesBySizes = <T,>(items: T[], sizes: number[]) => {
+  if (sizes.reduce((total, size) => total + size, 0) !== items.length) return null
+  let cursor = 0
+  return sizes.map((size) => {
+    const batch = items.slice(cursor, cursor + size)
+    cursor += size
+    return batch
+  })
 }
 
 const flatten = <T,>(items: T[][]) => items.flat()
@@ -182,6 +230,8 @@ const loadRidersForCategory = async (eventId: string, category: CategoryRow) => 
 
 export async function GET(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params
+  const auth = await requireScopedEventWorkspace(req.headers.get('authorization'), eventId, ['DRAW_MANAGER'])
+  if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { searchParams } = new URL(req.url)
   const categoryId = searchParams.get('categoryId')
   if (!categoryId) return NextResponse.json({ error: 'categoryId required' }, { status: 400 })
@@ -189,34 +239,33 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const category = await loadCategory(eventId, categoryId)
   if (!category) return NextResponse.json({ error: 'Category not found' }, { status: 404 })
 
-  const { data: existingMotos, error: existingError } = await adminClient
-    .from('motos')
-    .select('id')
-    .eq('event_id', eventId)
-    .eq('category_id', categoryId)
-    .limit(1)
-  if (existingError) return NextResponse.json({ error: existingError.message }, { status: 400 })
-
-  const { data, error } = await loadRidersForCategory(eventId, category)
+  const [{ data, error }, deleteGuard, drawConfiguration] = await Promise.all([
+    loadRidersForCategory(eventId, category),
+    buildDeleteGuard(eventId, categoryId),
+    loadDrawConfiguration(eventId, categoryId),
+  ])
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-  const deleteGuard = await buildDeleteGuard(eventId, categoryId)
   if (deleteGuard.error) {
     return NextResponse.json({ error: deleteGuard.error }, { status: 400 })
   }
-  const qualificationMotoCount = await resolveQualificationMotoCount(eventId, categoryId)
+  if (drawConfiguration.error) return NextResponse.json({ error: drawConfiguration.error }, { status: 400 })
   return NextResponse.json({
     data,
-    has_motos: (existingMotos ?? []).length > 0,
+    has_motos: (deleteGuard.motoCount ?? 0) > 0,
     can_delete: deleteGuard.canDelete,
     delete_block_reason: deleteGuard.deleteBlockReason,
     locked_moto_count: deleteGuard.lockedCount,
     has_final_state: deleteGuard.hasFinalState,
-    qualification_moto_count: qualificationMotoCount,
+    qualification_moto_count: drawConfiguration.qualificationMotoCount,
+    gate_positions: drawConfiguration.gatePositions,
+    draw_config: drawConfiguration.config,
   })
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params
+  const auth = await requireScopedEventWorkspace(req.headers.get('authorization'), eventId, ['DRAW_MANAGER'])
+  if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const body = await req.json().catch(() => ({}))
   const categoryId = body?.category_id as string | undefined
   const riderIds = (body?.rider_ids ?? []) as string[]
@@ -238,8 +287,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
 
   const category = await loadCategory(eventId, categoryId)
   if (!category) return NextResponse.json({ error: 'Category not found' }, { status: 404 })
-  const { data: riders, error } = await loadRidersForCategory(eventId, category)
+  const [{ data: riders, error }, drawConfiguration] = await Promise.all([
+    loadRidersForCategory(eventId, category),
+    loadDrawConfiguration(eventId, categoryId),
+  ])
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  if (drawConfiguration.error) return NextResponse.json({ error: drawConfiguration.error }, { status: 400 })
 
   const allowedIds = new Set((riders ?? []).map((r) => r.id))
   const effectiveBatches = hasManualBatches ? riderBatches.filter((batch) => Array.isArray(batch) && batch.length > 0) : chunk(riderIds, batchSize)
@@ -283,23 +336,36 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     )
   }
 
-  const { data: lastOrderRow } = await adminClient
-    .from('motos')
-    .select('moto_order')
-    .eq('event_id', eventId)
-    .order('moto_order', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-
-  const baseOrder = lastOrderRow?.moto_order ?? 0
-  const batches = hasManualBatches ? effectiveBatches : chunk(riderIds, batchSize)
+  // The error response above has already returned, but keep this value concrete
+  // for TypeScript because loadDrawConfiguration has an error-result branch.
+  const gateCapacity = Math.max(1, Number(drawConfiguration.gatePositions ?? 8))
+  const configuredBatchSize = Math.max(
+    1,
+    Math.min(gateCapacity, drawConfiguration.config?.batch_size ?? gateCapacity)
+  )
+  const configuredBatches = (() => {
+    const config = drawConfiguration.config
+    if (!config || config.batch_mode === 'AUTO_BY_GATE') return chunk(riderIds, configuredBatchSize)
+    if (config.batch_mode === 'MANUAL_BATCH_COUNT') return buildBatchesByCount(riderIds, config.batch_count ?? 1)
+    return buildBatchesBySizes(riderIds, config.custom_batch_sizes)
+  })()
+  if (drawConfiguration.drawMode === 'internal_live_draw' && !configuredBatches) {
+    return NextResponse.json({ error: 'Pola batch pada Draw Settings tidak sama dengan jumlah rider kategori ini.' }, { status: 400 })
+  }
+  const batches =
+    drawConfiguration.drawMode === 'internal_live_draw'
+      ? (configuredBatches ?? [])
+      : hasManualBatches
+        ? effectiveBatches
+        : chunk(riderIds, batchSize)
+  const capacityLimit = drawConfiguration.drawMode === 'internal_live_draw' ? gateCapacity : batchSize
   const moto2Batches = hasManualMoto2Batches ? riderBatchesMoto2.filter((batch) => Array.isArray(batch) && batch.length > 0) : hasCustomMoto2 ? chunk(riderIdsMoto2, batchSize) : []
   const overCapacityBatches = batches
-    .map((batch, index) => (batch.length > batchSize ? index + 1 : null))
+    .map((batch, index) => (batch.length > capacityLimit ? index + 1 : null))
     .filter((value): value is number => value !== null)
   if (overCapacityBatches.length > 0) {
     return NextResponse.json(
-      { error: `Batch ${overCapacityBatches.join(', ')} melebihi kapasitas maksimal ${batchSize} rider` },
+      { error: `Batch ${overCapacityBatches.join(', ')} melebihi kapasitas maksimal ${capacityLimit} rider` },
       { status: 400 }
     )
   }
@@ -310,9 +376,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     for (let i = 0; i < batches.length; i += 1) {
       const moto1Batch = batches[i]
       const moto2Batch = moto2Batches[i] ?? []
-      if (moto2Batch.length > batchSize) {
+      if (moto2Batch.length > capacityLimit) {
         return NextResponse.json(
-          { error: `rider_ids_moto2 batch ${i + 1} melebihi kapasitas maksimal ${batchSize} rider` },
+          { error: `rider_ids_moto2 batch ${i + 1} melebihi kapasitas maksimal ${capacityLimit} rider` },
           { status: 400 }
         )
       }
@@ -324,96 +390,41 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       }
     }
   }
-  // Moto 3 is no longer created during draw setup.
-  // For single-batch categories, Moto 3 will be created after Moto 2 results are complete (via moto3Reseed service).
-  const motoCount = 2
-  const orderFor = (motoIndex: number, batchIndex: number) =>
-    baseOrder + (motoIndex - 1) * batches.length + batchIndex + 1
-  const motoRecords = batches.flatMap((_, idx) => [
-    {
-      event_id: eventId,
-      category_id: categoryId,
-      moto_name: `Moto 1 - Batch ${idx + 1}`,
-      moto_order: orderFor(1, idx),
-      status: 'UPCOMING',
-    },
-    {
-      event_id: eventId,
-      category_id: categoryId,
-      moto_name: `Moto 2 - Batch ${idx + 1}`,
-      moto_order: orderFor(2, idx),
-      status: 'UPCOMING',
-    },
-  ])
-
-  const { data: motoRows, error: motoError } = await adminClient
-    .from('motos')
-    .insert(motoRecords)
-    .select('id, moto_name, moto_order')
-
-  if (motoError || !motoRows) {
-    return NextResponse.json({ error: motoError?.message || 'Failed to create motos' }, { status: 400 })
-  }
-
-  const motoRowByName = new Map(
-    motoRows.map((row) => [String(row.moto_name ?? '').toLowerCase(), row])
-  )
-  const motoRiders: Array<{ moto_id: string; rider_id: string }> = []
-  const gatePositions: Array<{ moto_id: string; rider_id: string; gate_position: number }> = []
-
-  batches.forEach((batch, batchIndex) => {
-    const moto1 = motoRowByName.get(`moto 1 - batch ${batchIndex + 1}`.toLowerCase())
-    const moto2 = motoRowByName.get(`moto 2 - batch ${batchIndex + 1}`.toLowerCase())
-    if (!moto1 || !moto2) {
-      return
-    }
-    const moto2Order = hasManualMoto2Batches
-      ? (moto2Batches[batchIndex] ?? [])
-      : hasCustomMoto2
-        ? (moto2Batches[batchIndex] ?? [])
-        : [...batch].reverse()
-
-    batch.forEach((riderId, idx) => {
-      motoRiders.push({ moto_id: moto1.id, rider_id: riderId })
-      gatePositions.push({ moto_id: moto1.id, rider_id: riderId, gate_position: idx + 1 })
-    })
-
-    moto2Order.forEach((riderId, idx) => {
-      motoRiders.push({ moto_id: moto2.id, rider_id: riderId })
-      gatePositions.push({ moto_id: moto2.id, rider_id: riderId, gate_position: idx + 1 })
-    })
+  const finalizedMoto2Batches = batches.map((batch, batchIndex) => {
+    if (hasManualMoto2Batches || hasCustomMoto2) return moto2Batches[batchIndex] ?? []
+    return drawConfiguration.config?.moto2_order === 'SAME' ? [...batch] : [...batch].reverse()
   })
 
-  const expectedMotoCount = batches.length * motoCount
-  if (motoRiders.length !== effectiveRiderIds.length * motoCount || motoRows.length !== expectedMotoCount) {
-    return NextResponse.json({ error: 'Moto batch mapping failed while saving draw order' }, { status: 500 })
+  // The RPC uses one database transaction plus an event advisory lock. This
+  // avoids partially created motos and prevents simultaneous saves from two
+  // drawing devices from reusing the same moto order.
+  const { data: savedDraw, error: saveError } = await adminClient.rpc('save_live_draw_motos', {
+    p_event_id: eventId,
+    p_category_id: categoryId,
+    p_batches: batches,
+    p_moto2_batches: finalizedMoto2Batches,
+  })
+
+  if (saveError) {
+    const status = saveError.code === '23505' ? 409 : 400
+    return NextResponse.json({ error: saveError.message }, { status })
   }
 
-  const { error: riderError } = await adminClient.from('moto_riders').insert(motoRiders)
-  if (riderError) {
-    return NextResponse.json({ error: riderError.message }, { status: 400 })
-  }
-
-  if (gatePositions.length > 0) {
-    const { error: gateError } = await adminClient.from('moto_gate_positions').insert(gatePositions)
-    if (gateError) {
-      return NextResponse.json({ error: gateError.message }, { status: 400 })
-    }
-  }
+  const summary = Array.isArray(savedDraw) ? savedDraw[0] : savedDraw
 
   return NextResponse.json({
     data: {
-      batch_count: batches.length,
-      moto_count: motoRows.length,
-      gate_positions_saved: gatePositions.length > 0,
+      batch_count: Number(summary?.batch_count ?? batches.length),
+      moto_count: Number(summary?.moto_count ?? batches.length * 2),
+      gate_positions_saved: Number(summary?.gate_positions_saved ?? 0) > 0,
     },
   })
 }
 
 export async function DELETE(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
-  const auth = await requireAdmin(req.headers.get('authorization'))
-  if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { eventId } = await params
+  const auth = await requireScopedEventWorkspace(req.headers.get('authorization'), eventId, ['DRAW_MANAGER'])
+  if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const body = await req.json().catch(() => ({}))
   const categoryId = body?.category_id as string | undefined
   if (!categoryId) return NextResponse.json({ error: 'category_id required' }, { status: 400 })

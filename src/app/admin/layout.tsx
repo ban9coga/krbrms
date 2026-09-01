@@ -5,13 +5,14 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { ThemeToggleSwitch, useTheme } from '../../components/ThemeProvider'
+import LogoutButton from '../../components/LogoutButton'
 import { canAccessAdminWorkspace, formatAppRoleLabel, isRegistrationApproverRole, normalizeAppRole } from '../../lib/roles'
 import { supabase } from '@/src/lib/supabaseClient'
 
 type NavItem = {
   label: string
   href: string
-  icon: 'dashboard' | 'events' | 'users' | 'registrations' | 'riders' | 'categories' | 'draw' | 'motos' | 'sequence' | 'advanced' | 'customSplit' | 'schedule' | 'results' | 'penalties' | 'settings'
+  icon: 'dashboard' | 'events' | 'content' | 'users' | 'registrations' | 'riders' | 'categories' | 'draw' | 'drawSettings' | 'motos' | 'sequence' | 'advanced' | 'customSplit' | 'schedule' | 'results' | 'penalties' | 'settings'
 }
 
 const BRAND = {
@@ -22,12 +23,14 @@ const BRAND = {
 const GLOBAL_NAV: NavItem[] = [
   { label: 'Dashboard', href: '/admin', icon: 'dashboard' },
   { label: 'Events', href: '/admin/events', icon: 'events' },
+  { label: 'Content Studio', href: '/admin/content', icon: 'content' },
 ]
 
 const EVENT_NAV = (eventId: string): NavItem[] => [
   { label: 'Registrations', href: `/admin/events/${eventId}/registrations`, icon: 'registrations' },
   { label: 'Riders', href: `/admin/events/${eventId}/riders`, icon: 'riders' },
   { label: 'Categories', href: `/admin/events/${eventId}/categories`, icon: 'categories' },
+  { label: 'Draw Settings', href: `/admin/events/${eventId}/draw-settings`, icon: 'drawSettings' },
   { label: 'Draw Setup', href: `/admin/events/${eventId}/live-draw`, icon: 'draw' },
   { label: 'Motos', href: `/admin/events/${eventId}/motos`, icon: 'motos' },
   { label: 'Moto Sequence', href: `/admin/events/${eventId}/moto-sequence`, icon: 'sequence' },
@@ -85,7 +88,7 @@ const readCookieValue = (name: string) => {
 const isAllowedAdminPath = (role: string | null, pathname: string) => {
   if (!isRegistrationApproverRole(role)) return true
   if (pathname === '/admin' || pathname === '/admin/events') return true
-  return /^\/admin\/events\/[^/]+\/registrations(?:\/|$)/.test(pathname)
+  return /^\/admin\/events\/[^/]+\/(registrations|check-in)(?:\/|$)/.test(pathname)
 }
 
 function Icon({ type, active }: { type: NavItem['icon']; active: boolean }) {
@@ -103,6 +106,14 @@ function Icon({ type, active }: { type: NavItem['icon']; active: boolean }) {
     return (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={common}>
         <path d="M7 3v4M17 3v4M4 9h16M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  }
+  if (type === 'content') {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={common}>
+        <path d="M6 4h9l3 3v13H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M9 10h6M9 14h6M9 18h4" strokeLinecap="round" />
       </svg>
     )
   }
@@ -141,6 +152,14 @@ function Icon({ type, active }: { type: NavItem['icon']; active: boolean }) {
     return (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={common}>
         <path d="M12 4v16M6 8h12M7 12h10M9 16h6" strokeLinecap="round" />
+      </svg>
+    )
+  }
+  if (type === 'drawSettings') {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={common}>
+        <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.64 5.64l2.12 2.12M16.24 16.24l2.12 2.12M18.36 5.64l-2.12 2.12M7.76 16.24l-2.12 2.12" strokeLinecap="round" />
+        <circle cx="12" cy="12" r="3" />
       </svg>
     )
   }
@@ -330,7 +349,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       return actions
     }
 
-    const actions = [{ label: 'Events', href: '/admin/events' }]
+    const actions = [{ label: 'Events', href: '/admin/events' }, { label: 'Content Studio', href: '/admin/content' }]
     if ((userRole ?? '').toLowerCase() === 'super_admin') {
       actions.push({ label: 'Users', href: '/admin/users' })
     }
@@ -599,10 +618,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       className={`admin-theme-scope min-h-screen ${
         isDark
           ? 'bg-[radial-gradient(circle_at_top,#1e293b_0%,#020617_54%,#000000_100%)] text-slate-100'
-          : 'bg-[radial-gradient(circle_at_top,#fef3c7_0%,#f8fafc_34%,#eef2ff_100%)] text-slate-900'
+          : 'bg-[#f8eedb] text-[#1d0d07]'
       }`}
     >
-      <div className={`fixed inset-x-0 top-0 z-40 backdrop-blur-xl ${isDark ? 'border-b border-slate-800 bg-slate-950/82' : 'border-b border-white/70 bg-white/85'}`}>
+      <div className={`fixed inset-x-0 top-0 z-40 backdrop-blur-xl ${isDark ? 'border-b border-slate-800 bg-slate-950/82' : 'border-b border-[#dfd1c2] bg-[#fff8e8]/95'}`}>
         <div className="mx-auto flex h-18 max-w-[1800px] items-center gap-4 px-4 sm:px-6 lg:px-8">
           {isMobile && (
             <button type="button" onClick={() => setSidebarOpen(true)} className="admin-secondary-button shrink-0 px-3">
@@ -616,7 +635,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <div className="min-w-0 flex-1">
             <div className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Admin workspace</div>
             <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2">
-              <span className={`truncate text-lg font-black tracking-tight ${isDark ? 'text-slate-100' : 'text-slate-950'}`}>
+              <span className={`truncate text-lg font-black tracking-tight ${isDark ? 'text-slate-100' : 'text-[#1d0d07]'}`}>
                 {eventId ? eventMenuLabel : 'Control Dashboard'}
               </span>
             </div>
@@ -633,7 +652,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                       ? 'border-amber-300 bg-amber-100 text-amber-900'
                       : isDark
                         ? 'border-slate-700 bg-slate-900/80 text-slate-300 hover:bg-slate-800'
-                        : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-white'
+                        : 'border-[#d9ceb4] bg-[#fffaf0] text-[#5f5042] hover:bg-[#efe3c8]'
                   }`}
                 >
                   {action.label}
@@ -642,16 +661,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </div>
             <ThemeToggleSwitch />
             {!isMobile && (
-              <div className={`hidden max-w-[320px] rounded-full border px-4 py-2 text-right sm:block ${isDark ? 'border-slate-700 bg-slate-900/80' : 'border-slate-200 bg-slate-50'}`}>
+              <div className={`hidden max-w-[320px] rounded-full border px-4 py-2 text-right sm:block ${isDark ? 'border-slate-700 bg-slate-900/80' : 'border-[#d9ceb4] bg-[#fffaf0]'}`}>
                 <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">{formatAppRoleLabel(userRole)}</div>
-                <div className={`truncate text-sm font-semibold ${isDark ? 'text-slate-300' : 'text-slate-600'}`} title={userEmail ?? undefined}>
+                <div className={`truncate text-sm font-semibold ${isDark ? 'text-slate-300' : 'text-[#5f5042]'}`} title={userEmail ?? undefined}>
                   {userEmail ?? 'No email'}
                 </div>
               </div>
             )}
-            <button type="button" onClick={handleLogout} className="admin-outline-button">
-              Logout
-            </button>
+            <LogoutButton onClick={handleLogout} />
           </div>
         </div>
       </div>

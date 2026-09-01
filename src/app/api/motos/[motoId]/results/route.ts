@@ -2,8 +2,6 @@ import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../lib/auth'
 import { assertMotoEditable, assertMotoNotUnderProtest } from '../../../../../lib/motoLock'
 import { resolveBasePointForRaceResult, resolveNonFinishAutoPenalty } from '../../../../../lib/nonFinishScoring'
-import { syncAdvancedRaceProgress } from '../../../../../services/advancedRaceAuto'
-import { promoteNextMotoToLive } from '../../../../../services/motoProgression'
 import { upsertRiderParticipationStatuses } from '../../../../../services/riderParticipationStatus'
 
 export async function GET(_: Request, { params }: { params: Promise<{ motoId: string }> }) {
@@ -167,22 +165,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
     .update({ status: 'PROVISIONAL', provisional_at: new Date().toISOString() })
     .eq('id', motoId)
 
-  // Auto-progress AMS incrementally per batch, then finalize later stages only when their pools are fully ready.
-  if (moto?.event_id && moto?.category_id) {
-    const { data: cfg } = await adminClient
-      .from('race_stage_config')
-      .select('enabled')
-      .eq('event_id', moto.event_id)
-      .eq('category_id', moto.category_id)
-      .maybeSingle()
-
-    if (cfg?.enabled) {
-      await syncAdvancedRaceProgress(moto.event_id, moto.category_id)
-    }
-  }
-
-  const promotionResult = await promoteNextMotoToLive(moto.event_id, motoId)
-
-  return NextResponse.json({ ok: true, next_moto: promotionResult })
+  return NextResponse.json({
+    ok: true,
+    next_moto: { pending_lock: true, warning: 'Moto berikutnya akan LIVE setelah moto ini di-LOCKED.' },
+  })
 }
-

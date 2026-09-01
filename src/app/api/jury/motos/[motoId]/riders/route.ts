@@ -72,9 +72,12 @@ const orderRidersByStageSeeds = (
     }
   }
 
-  const seen = new Set(ordered)
+  // A rider can have more than one historical seed (for example Qualification
+  // and Repechage). Keep only the first applicable seed in the derived order.
+  const uniqueOrdered = Array.from(new Set(ordered))
+  const seen = new Set(uniqueOrdered)
   const leftovers = riderIds.filter((id) => !seen.has(id)).sort((a, b) => a.localeCompare(b))
-  return [...ordered, ...leftovers]
+  return [...uniqueOrdered, ...leftovers]
 }
 
 const deriveAdvancedGateOrder = async (
@@ -160,6 +163,17 @@ export async function GET(req: Request, { params }: { params: Promise<{ motoId: 
   const auth = await requireJury(req, ['CHECKER', 'FINISHER', 'RACE_DIRECTOR', 'ADMIN', 'super_admin'], moto?.event_id ?? null)
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
+  const { data: dqResults, error: dqError } = await adminClient
+    .from('results')
+    .select('dq_reason, riders(id, name, no_plate_display)')
+    .eq('moto_id', motoId)
+    .eq('result_status', 'DQ')
+  if (dqError) return NextResponse.json({ error: dqError.message }, { status: 400 })
+  const dq_riders = (dqResults ?? []).flatMap((row) => {
+    const rider = Array.isArray(row.riders) ? row.riders[0] : row.riders
+    return rider ? [{ ...rider, dq_reason: row.dq_reason ?? null }] : []
+  })
+
   const { data: gates, error: gateError } = await adminClient
     .from('moto_gate_positions')
     .select('rider_id, gate_position')
@@ -189,7 +203,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ motoId: 
       .filter(Boolean) as { rider: RiderRow; originalGate: number | null }[])
       .map(({ rider }, index) => ({ ...rider, gate_position: index + 1 }))
 
-    return NextResponse.json({ data })
+    return NextResponse.json({ data, dq_riders })
   }
 
   const { data: assignments, error: assignError } = await adminClient
@@ -223,5 +237,5 @@ export async function GET(req: Request, { params }: { params: Promise<{ motoId: 
     return { ...rider, gate_position: index + 1 }
   })
 
-  return NextResponse.json({ data })
+  return NextResponse.json({ data, dq_riders })
 }

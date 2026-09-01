@@ -43,136 +43,147 @@ const parseSafetyCheck = (input: SafetyCheckInput): SafetyCheckRow | null => {
   }
 }
 
-const syncSafetyPenalty = async ({
+const syncSafetyPenalties = async ({
   authUserId,
   eventId,
   motoId,
   motoStatus,
-  check,
+  checks,
 }: {
   authUserId: string | null
   eventId: string
   motoId: string
   motoStatus: string
-  check: SafetyCheckRow
+  checks: SafetyCheckRow[]
 }) => {
-  const { data: requirement, error: requirementError } = await adminClient
+  if (!checks.length || (!isMotoLive(motoStatus) && !isMotoReady(motoStatus) && !isMotoUpcoming(motoStatus))) return
+
+  const requirementIds = Array.from(new Set(checks.map((check) => check.requirement_id)))
+  const { data: requirements, error: requirementError } = await adminClient
     .from('event_safety_requirements')
     .select('id, label, penalty_code')
     .eq('event_id', eventId)
-    .eq('id', check.requirement_id)
-    .maybeSingle()
+    .in('id', requirementIds)
 
   if (requirementError) throw new Error(requirementError.message)
 
-  const noteTag = `AUTO_SAFETY_REQUIREMENT:${check.requirement_id}`
-  const shouldManagePenalty =
-    (isMotoLive(motoStatus) || isMotoReady(motoStatus) || isMotoUpcoming(motoStatus)) &&
-    typeof requirement?.penalty_code === 'string' &&
-    requirement.penalty_code.trim().length > 0
+  const requirementById = new Map((requirements ?? []).map((requirement) => [requirement.id, requirement]))
+  const ruleCodes = Array.from(
+    new Set(
+      checks
+        .map((check) => requirementById.get(check.requirement_id)?.penalty_code?.trim() ?? '')
+        .filter(Boolean)
+    )
+  )
+  if (!ruleCodes.length) return
 
-  if (!shouldManagePenalty) return
-
-  const ruleCode = requirement.penalty_code!.trim()
-  const { data: rule, error: ruleError } = await adminClient
+  const { data: rules, error: ruleError } = await adminClient
     .from('event_penalty_rules')
     .select('code, penalty_point, is_active, checker_enabled, applies_to_stage')
     .eq('event_id', eventId)
-    .eq('code', ruleCode)
-    .maybeSingle()
+    .in('code', ruleCodes)
 
   if (ruleError) throw new Error(ruleError.message)
+  const ruleByCode = new Map((rules ?? []).map((rule) => [rule.code, rule]))
+  const manageableChecks = checks.filter((check) => {
+    const ruleCode = requirementById.get(check.requirement_id)?.penalty_code?.trim()
+    const rule = ruleCode ? ruleByCode.get(ruleCode) : null
+    return Boolean(rule?.is_active && rule?.checker_enabled && (rule.applies_to_stage === 'ALL' || rule.applies_to_stage === 'MOTO'))
+  })
+  if (!manageableChecks.length) return
 
-  if (!rule?.is_active || !rule?.checker_enabled || (rule.applies_to_stage !== 'ALL' && rule.applies_to_stage !== 'MOTO')) {
-    return
-  }
-
+  const riderIds = Array.from(new Set(manageableChecks.map((check) => check.rider_id)))
+  const manageableRuleCodes = Array.from(
+    new Set(manageableChecks.map((check) => requirementById.get(check.requirement_id)?.penalty_code?.trim()).filter(Boolean))
+  )
   const { data: existingPenalties, error: existingPenaltyError } = await adminClient
     .from('rider_penalties')
-    .select('id')
+    .select('id, rider_id, rule_code, note')
     .eq('event_id', eventId)
     .eq('moto_id', motoId)
-    .eq('rider_id', check.rider_id)
     .eq('stage', 'MOTO')
-    .eq('rule_code', ruleCode)
-    .eq('note', noteTag)
+    .in('rider_id', riderIds)
+    .in('rule_code', manageableRuleCodes)
+    .like('note', 'AUTO_SAFETY_REQUIREMENT:%')
 
   if (existingPenaltyError) throw new Error(existingPenaltyError.message)
 
-  const existingPenaltyIds = (existingPenalties ?? []).map((row) => row.id)
+  const existingByKey = new Map(
+    (existingPenalties ?? []).map((penalty) => [`${penalty.rider_id}:${penalty.note}`, penalty])
+  )
+  const penaltiesToInsert = manageableChecks.flatMap((check) => {
+    if (check.is_checked) return []
+    const requirement = requirementById.get(check.requirement_id)
+    const ruleCode = requirement?.penalty_code?.trim()
+    const rule = ruleCode ? ruleByCode.get(ruleCode) : null
+    const note = `AUTO_SAFETY_REQUIREMENT:${check.requirement_id}`
+    if (!requirement || !ruleCode || !rule || existingByKey.has(`${check.rider_id}:${note}`)) return []
+    return [{ rider_id: check.rider_id, event_id: eventId, moto_id: motoId, stage: 'MOTO', rule_code: ruleCode, penalty_point: rule.penalty_point, note }]
+  })
+  const penaltyIdsToDelete = manageableChecks.flatMap((check) => {
+    if (!check.is_checked) return []
+    const penalty = existingByKey.get(`${check.rider_id}:AUTO_SAFETY_REQUIREMENT:${check.requirement_id}`)
+    return penalty ? [penalty.id] : []
+  })
 
-  if (!check.is_checked && existingPenaltyIds.length === 0) {
-    const { data: insertedPenalty, error: insertPenaltyError } = await adminClient
-      .from('rider_penalties')
-      .insert([
-        {
-          rider_id: check.rider_id,
-          event_id: eventId,
-          moto_id: motoId,
-          stage: 'MOTO',
-          rule_code: ruleCode,
-          penalty_point: rule.penalty_point,
-          note: noteTag,
-        },
-      ])
-      .select('id')
-      .single()
-
-    if (insertPenaltyError) throw new Error(insertPenaltyError.message)
-
-    if (insertedPenalty?.id) {
-      const now = new Date().toISOString()
-      const { error: approvalInsertError } = await adminClient
-        .from('rider_penalty_approvals')
-        .insert([
-          {
-            penalty_id: insertedPenalty.id,
-            approval_status: 'APPROVED',
-            approved_by: authUserId ?? 'SYSTEM',
-            approved_at: now,
-          },
-        ])
-
-      if (approvalInsertError) throw new Error(approvalInsertError.message)
-
-      await adminClient.from('audit_log').insert([
-        {
-          action_type: 'PENALTY_APPROVAL',
-          performed_by: authUserId ?? 'SYSTEM',
-          rider_id: check.rider_id,
-          moto_id: motoId,
-          event_id: eventId,
-          reason: `Auto safety penalty applied for ${requirement?.label ?? ruleCode}`,
-        },
-      ])
-    }
-  }
-
-  if (check.is_checked && existingPenaltyIds.length > 0) {
+  if (penaltyIdsToDelete.length > 0) {
     const { error: approvalDeleteError } = await adminClient
       .from('rider_penalty_approvals')
       .delete()
-      .in('penalty_id', existingPenaltyIds)
+      .in('penalty_id', penaltyIdsToDelete)
 
     if (approvalDeleteError) throw new Error(approvalDeleteError.message)
 
     const { error: penaltyDeleteError } = await adminClient
       .from('rider_penalties')
       .delete()
-      .in('id', existingPenaltyIds)
+      .in('id', penaltyIdsToDelete)
 
     if (penaltyDeleteError) throw new Error(penaltyDeleteError.message)
+    const deletedPenaltySet = new Set(penaltyIdsToDelete)
+    await adminClient.from('audit_log').insert(
+      (existingPenalties ?? [])
+        .filter((penalty) => deletedPenaltySet.has(penalty.id))
+        .map((penalty) => ({
+          action_type: 'PENALTY_VOID',
+          performed_by: authUserId ?? 'SYSTEM',
+          rider_id: penalty.rider_id,
+          moto_id: motoId,
+          event_id: eventId,
+          reason: 'Auto safety penalty removed',
+        }))
+    )
+  }
 
-    await adminClient.from('audit_log').insert([
-      {
-        action_type: 'PENALTY_VOID',
+  if (penaltiesToInsert.length > 0) {
+    const { data: insertedPenalties, error: insertPenaltyError } = await adminClient
+      .from('rider_penalties')
+      .insert(penaltiesToInsert)
+      .select('id, rider_id, rule_code, note')
+    if (insertPenaltyError) throw new Error(insertPenaltyError.message)
+
+    const now = new Date().toISOString()
+    const { error: approvalInsertError } = await adminClient.from('rider_penalty_approvals').insert(
+      (insertedPenalties ?? []).map((penalty) => ({
+        penalty_id: penalty.id,
+        approval_status: 'APPROVED',
+        approved_by: authUserId ?? 'SYSTEM',
+        approved_at: now,
+      }))
+    )
+    if (approvalInsertError) throw new Error(approvalInsertError.message)
+
+    const requirementLabelById = new Map((requirements ?? []).map((requirement) => [requirement.id, requirement.label]))
+    await adminClient.from('audit_log').insert(
+      (insertedPenalties ?? []).map((penalty) => ({
+        action_type: 'PENALTY_APPROVAL',
         performed_by: authUserId ?? 'SYSTEM',
-        rider_id: check.rider_id,
+        rider_id: penalty.rider_id,
         moto_id: motoId,
         event_id: eventId,
-        reason: `Auto safety penalty removed for ${requirement?.label ?? ruleCode}`,
-      },
-    ])
+        reason: `Auto safety penalty applied for ${requirementLabelById.get(penalty.note.replace('AUTO_SAFETY_REQUIREMENT:', '')) ?? penalty.rule_code}`,
+      }))
+    )
   }
 }
 
@@ -237,18 +248,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
-  for (const check of validChecks) {
-    try {
-      await syncSafetyPenalty({
-        authUserId: auth.user?.id ?? null,
-        eventId: moto.event_id,
-        motoId,
-        motoStatus: moto.status,
-        check,
-      })
-    } catch (err: unknown) {
-      return NextResponse.json({ error: err instanceof Error ? err.message : 'Failed to sync safety penalty' }, { status: 400 })
-    }
+  try {
+    await syncSafetyPenalties({
+      authUserId: auth.user?.id ?? null,
+      eventId: moto.event_id,
+      motoId,
+      motoStatus: moto.status,
+      checks: validChecks,
+    })
+  } catch (err: unknown) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Failed to sync safety penalty' }, { status: 400 })
   }
 
   return NextResponse.json({ ok: true, count: validChecks.length })

@@ -1,6 +1,7 @@
 import { MetadataRoute } from 'next'
 import { adminClient } from '../lib/auth'
 import { SITE_URL } from '../lib/structuredData'
+import { getPublishedInsightPosts } from '../lib/insight'
 
 type SitemapEntry = MetadataRoute.Sitemap[number]
 type SitemapChangeFrequency = NonNullable<SitemapEntry['changeFrequency']>
@@ -90,6 +91,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.85,
     },
     {
+      url: `${SITE_URL}/insight`,
+      lastModified: new Date(),
+      changeFrequency: 'weekly',
+      priority: 0.8,
+    },
+    {
       url: `${SITE_URL}/registration-status`,
       lastModified: new Date(),
       changeFrequency: 'weekly',
@@ -97,6 +104,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
   ]
 
-  const eventRoutes = await loadPublicEventRoutes()
-  return [...staticRoutes, ...eventRoutes]
+  const [eventRoutes, insightPosts] = await Promise.all([loadPublicEventRoutes(), getPublishedInsightPosts()])
+  const insightRoutes: SitemapEntry[] = insightPosts.map((post) => ({
+    url: `${SITE_URL}/insight/${post.slug}`,
+    lastModified: new Date(post.updated_at || post.published_at || post.created_at),
+    changeFrequency: 'monthly',
+    priority: 0.72,
+  }))
+
+  return [...staticRoutes, ...eventRoutes, ...insightRoutes]
 }

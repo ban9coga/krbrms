@@ -11,6 +11,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
   const { motoId } = await params
   const body = await req.json().catch(() => ({}))
   const reason = typeof body?.reason === 'string' && body.reason.trim() ? body.reason.trim() : 'Reset moto results'
+  const moveLiveMotoToReady = body?.move_live_moto_to_ready === true
 
   const { data: moto, error: motoError } = await adminClient
     .from('motos')
@@ -29,6 +30,29 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
   }
   if (currentStatus === 'PROTEST_REVIEW') {
     return NextResponse.json({ error: 'Moto sedang PROTEST_REVIEW. Selesaikan review dulu sebelum reset.' }, { status: 409 })
+  }
+
+  const { data: liveMotos, error: liveMotoError } = await adminClient
+    .from('motos')
+    .select('id, moto_name, category_id')
+    .eq('event_id', moto.event_id)
+    .eq('status', 'LIVE')
+    .neq('id', motoId)
+  if (liveMotoError) return NextResponse.json({ error: liveMotoError.message }, { status: 400 })
+
+  const sameCategoryLiveMotos = (liveMotos ?? []).filter((liveMoto) => liveMoto.category_id === moto.category_id)
+  const otherCategoryLiveMotos = (liveMotos ?? []).filter((liveMoto) => liveMoto.category_id !== moto.category_id)
+  if (otherCategoryLiveMotos.length > 0) {
+    return NextResponse.json(
+      { error: `Tidak bisa reset saat ${otherCategoryLiveMotos[0].moto_name} dari kategori lain masih LIVE.` },
+      { status: 409 }
+    )
+  }
+  if (sameCategoryLiveMotos.length > 0 && !moveLiveMotoToReady) {
+    return NextResponse.json(
+      { error: `${sameCategoryLiveMotos[0].moto_name} sedang LIVE. Konfirmasi penurunan ke READY sebelum reset.` },
+      { status: 409 }
+    )
   }
 
   const currentMotoName = String(moto.moto_name).toUpperCase()
@@ -146,6 +170,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
 
   if (targetStageValues.length > 0) {
     await adminClient.from('race_stage_result').delete().eq('category_id', moto.category_id).in('stage', targetStageValues)
+  }
+
+  if (sameCategoryLiveMotos.length > 0) {
+    const { error: readyError } = await adminClient
+      .from('motos')
+      .update({ status: 'READY', provisional_at: null })
+      .in('id', sameCategoryLiveMotos.map((liveMoto) => liveMoto.id))
+    if (readyError) return NextResponse.json({ error: readyError.message }, { status: 400 })
   }
 
   const { error: motoUpdateError } = await adminClient

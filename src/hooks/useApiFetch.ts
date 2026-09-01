@@ -1,14 +1,31 @@
 import { useCallback, useRef } from 'react'
 import { supabase } from '@/src/lib/supabaseClient'
 
+const readAccessTokenCookie = () => {
+  if (typeof document === 'undefined') return null
+  const entry = document.cookie.split('; ').find((item) => item.startsWith('sb-access-token='))
+  return entry ? decodeURIComponent(entry.slice('sb-access-token='.length)) : null
+}
+
 export function useApiFetch() {
   const tokenRef = useRef<string | null>(null)
 
   const getToken = useCallback(async (forceRefresh = false) => {
     if (!forceRefresh && tokenRef.current) return tokenRef.current
+
+    if (forceRefresh) {
+      const { data } = await supabase.auth.refreshSession()
+      tokenRef.current = data.session?.access_token ?? null
+      if (tokenRef.current && typeof window !== 'undefined') {
+        const secureCookie = window.location.protocol === 'https:' ? '; Secure' : ''
+        const maxAge = data.session?.expires_in ?? 3600
+        document.cookie = `sb-access-token=${encodeURIComponent(tokenRef.current)}; Path=/; Max-Age=${maxAge}${secureCookie}; SameSite=Lax`
+      }
+      return tokenRef.current
+    }
+
     const { data } = await supabase.auth.getSession()
-    if (!data.session?.access_token) return null
-    tokenRef.current = data.session.access_token
+    tokenRef.current = data.session?.access_token ?? readAccessTokenCookie()
     return tokenRef.current
   }, [])
 

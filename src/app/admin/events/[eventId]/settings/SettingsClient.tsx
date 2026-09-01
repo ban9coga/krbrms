@@ -18,6 +18,18 @@ import { supabase } from '@/src/lib/supabaseClient'
 import { useApiFetch } from '@/src/hooks/useApiFetch'
 import { ADVANCED_RACE_FINAL_CLASS_ORDER } from '../../../../../lib/advancedRaceDefaults'
 import type { BusinessSettings, CommunityShowcaseItem, EventSponsor, EventSponsorTier } from '../../../../../lib/eventService'
+import {
+  CERTIFICATE_IMAGE_ELEMENT_LABELS,
+  CERTIFICATE_FONT_LABELS,
+  CERTIFICATE_FONT_PREVIEW_FAMILIES,
+  CERTIFICATE_TEXT_ELEMENT_LABELS,
+  DEFAULT_CERTIFICATE_LAYOUT,
+  normalizeCertificateLayout,
+  type CertificateImageElement,
+  type CertificateFont,
+  type CertificateLayout,
+  type CertificateTextElement,
+} from '../../../../../lib/certificateLayout'
 
 type SettingsRow = {
   event_id: string
@@ -114,6 +126,15 @@ type CommunityLogoDraft = {
   is_active: boolean
 }
 
+type StaffPhotoField =
+  | 'business_event_owner_photo_url'
+  | 'business_operating_committee_photo_url'
+  | 'business_scoring_support_photo_url'
+  | 'business_race_director_photo_url'
+  | 'business_mc_photo_url'
+
+type StaffPhotoRole = 'event-owner' | 'operating-committee' | 'scoring-support' | 'race-director' | 'mc'
+
 function SettingsSectionSkeleton({ label = 'Memuat konfigurasi...' }: { label?: string }) {
   return (
     <div className="admin-card grid gap-4">
@@ -159,6 +180,144 @@ function AdminPreviewImage({
       sizes="(max-width: 640px) 100vw, 360px"
       style={{ display: 'block', width: '100%', height: 'auto', objectFit: 'contain', ...style }}
     />
+  )
+}
+
+function CertificateLayoutPreview({
+  templateUrl,
+  layout,
+  assets,
+}: {
+  templateUrl: string
+  layout: CertificateLayout
+  assets: Record<Exclude<CertificateImageElement, 'qr'>, string>
+}) {
+  const textValues: Record<CertificateTextElement, string> = {
+    name: 'NAMA PESERTA',
+    eventName: 'NAMA EVENT PUSHBIKE',
+    category: '2023-2024 MIX',
+    plate: '221',
+    achievement: 'PESERTA',
+    eventDate: '23 AGUSTUS 2026',
+    location: 'SAWAHLUNTO',
+    certificateCode: 'RPB-2026-PREVIEW',
+  }
+  const imageLabels: Record<CertificateImageElement, string> = {
+    qr: 'QR',
+    eventLogo: 'LOGO EVENT',
+    organizerLogo: 'LOGO PANITIA',
+  }
+
+  return (
+    <div style={{ width: '100%', maxWidth: 760, overflow: 'hidden', borderRadius: 14, border: '2px solid #111', background: '#fff', containerType: 'inline-size' }}>
+      <style>{`
+        @font-face { font-family: 'Certificate Montserrat Regular'; src: url('/fonts/certificates/Montserrat-Regular.ttf') format('truetype'); font-display: swap; }
+        @font-face { font-family: 'Certificate Montserrat ExtraBold'; src: url('/fonts/certificates/Montserrat-ExtraBold.ttf') format('truetype'); font-display: swap; }
+        @font-face { font-family: 'Certificate Anton'; src: url('/fonts/certificates/Anton-Regular.ttf') format('truetype'); font-display: swap; }
+      `}</style>
+      <div style={{ position: 'relative', width: '100%', aspectRatio: '1491 / 1055', overflow: 'hidden' }}>
+        <Image src={templateUrl} alt="Live preview template e-sertifikat" fill sizes="(max-width: 820px) 100vw, 760px" style={{ objectFit: 'cover' }} />
+        {(Object.keys(layout.text) as CertificateTextElement[]).map((key) => {
+          const position = layout.text[key]
+          return (
+            <span
+              key={key}
+              style={{
+                position: 'absolute',
+                zIndex: 2,
+                left: `${position.x}%`,
+                top: `${position.top}%`,
+                width: `${position.width}%`,
+                transform: 'translate(-50%, -100%)',
+                color: key === 'eventName' || key === 'certificateCode' ? '#d94908' : '#25130a',
+                fontSize: `${(position.fontSize / 1491) * 100}cqw`,
+                fontFamily: CERTIFICATE_FONT_PREVIEW_FAMILIES[position.font],
+                fontWeight: position.font === 'MONTSERRAT_EXTRA_BOLD' || position.font === 'ANTON' ? 900 : 700,
+                lineHeight: 1,
+                textAlign: 'center',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                pointerEvents: 'none',
+              }}
+            >
+              {textValues[key]}
+            </span>
+          )
+        })}
+        {(Object.keys(layout.image) as CertificateImageElement[]).map((key) => {
+          const position = layout.image[key]
+          const source = key === 'eventLogo' ? assets.eventLogo : key === 'organizerLogo' ? assets.organizerLogo : ''
+          return (
+            <div
+              key={key}
+              style={{
+                position: 'absolute',
+                zIndex: 3,
+                left: `${position.x}%`,
+                top: `${position.top}%`,
+                width: `${position.width}%`,
+                height: `${position.width}%`,
+                transform: 'translateX(-50%)',
+                display: 'grid',
+                placeItems: 'center',
+                overflow: 'hidden',
+                border: source ? 'none' : '1px dashed #9a3412',
+                color: '#9a3412',
+                fontSize: '1.35cqw',
+                fontWeight: 900,
+                textAlign: 'center',
+                background: source ? 'transparent' : 'rgba(255,255,255,.7)',
+                pointerEvents: 'none',
+              }}
+            >
+              {key === 'qr' ? <span style={{ display: 'grid', width: '70%', aspectRatio: '1', placeItems: 'center', background: '#111', color: '#fff', fontSize: '1.2cqw' }}>QR</span> : source ? <Image src={source} alt="" fill sizes="160px" style={{ objectFit: 'contain' }} /> : imageLabels[key]}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function StaffPhotoUpload({
+  label,
+  url,
+  uploading,
+  onUpload,
+}: {
+  label: string
+  url: string
+  uploading: boolean
+  onUpload: (file: File | null) => void
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+      {url ? (
+        <div style={{ width: 58, height: 58, overflow: 'hidden', borderRadius: '50%', border: '2px solid #111', background: '#fff' }}>
+          <AdminPreviewImage src={url} alt={`Foto ${label}`} width={58} height={58} style={{ height: 58, objectFit: 'cover' }} />
+        </div>
+      ) : (
+        <div style={{ width: 58, height: 58, display: 'grid', placeItems: 'center', borderRadius: '50%', border: '2px dashed #64748b', color: '#64748b', fontSize: 11, fontWeight: 900, textAlign: 'center' }}>
+          FOTO
+        </div>
+      )}
+      <label style={{ cursor: uploading ? 'wait' : 'pointer' }}>
+        <span style={{ display: 'inline-flex', padding: '9px 12px', borderRadius: 10, border: '2px solid #111', background: '#fff', fontSize: 12, fontWeight: 900 }}>
+          {uploading ? 'Mengunggah...' : url ? 'Ganti Foto' : `Upload Foto ${label}`}
+        </span>
+        <input
+          type="file"
+          accept="image/*"
+          disabled={uploading}
+          onChange={(event) => {
+            onUpload(event.target.files?.[0] ?? null)
+            event.currentTarget.value = ''
+          }}
+          style={{ display: 'none' }}
+        />
+      </label>
+    </div>
   )
 }
 
@@ -485,6 +644,9 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [row, setRow] = useState<SettingsRow | null>(null)
+  const [eventStatus, setEventStatus] = useState<string>('')
+  const [snapshotRefreshing, setSnapshotRefreshing] = useState(false)
+  const [snapshotNotice, setSnapshotNotice] = useState<string>('')
   const [advancedLoading, setAdvancedLoading] = useState(false)
   const [advancedSaving, setAdvancedSaving] = useState(false)
   const [advancedItems, setAdvancedItems] = useState<
@@ -527,7 +689,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     paymentRegistration: boolean
     eventStaff: boolean
   }>({
-    sponsors: true,
+    sponsors: false,
     communityShowcase: false,
     appearance: false,
     publicInfo: false,
@@ -539,10 +701,20 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
   const [initialForm, setInitialForm] = useState<string>('')
   const [logoUploading, setLogoUploading] = useState(false)
   const [logoError, setLogoError] = useState<string>('')
-  const [registrationMediaUploading, setRegistrationMediaUploading] = useState<'qris' | 'jersey-chart' | null>(null)
+  const [registrationMediaUploading, setRegistrationMediaUploading] = useState<
+    | 'qris'
+    | 'jersey-chart'
+    | 'certificate-template'
+    | 'certificate-event-logo'
+    | 'certificate-organizer-logo'
+    | null
+  >(null)
   const [registrationMediaError, setRegistrationMediaError] = useState<string>('')
+  const [registrationMediaSuccess, setRegistrationMediaSuccess] = useState<string>('')
   const [staffLoading, setStaffLoading] = useState(false)
   const [staffSaving, setStaffSaving] = useState(false)
+  const [staffPhotoUploadingField, setStaffPhotoUploadingField] = useState<StaffPhotoField | null>(null)
+  const [staffPhotoError, setStaffPhotoError] = useState('')
   const [staffAssignments, setStaffAssignments] = useState<EventStaffAssignmentRow[]>([])
   const [availableUsers, setAvailableUsers] = useState<EventStaffUserRow[]>([])
   const [staffSearch, setStaffSearch] = useState('')
@@ -595,15 +767,28 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     business_registration_qris_image_url: '',
     business_registration_jersey_size_chart_url: '',
     business_registration_rider_photo_enabled: true,
+    business_certificate_enabled: false,
+    business_certificate_participation_enabled: true,
+    business_certificate_template_url: '',
+    business_certificate_id_prefix: 'RPB',
+    business_certificate_achievement_enabled: false,
+    business_certificate_event_logo_url: '',
+    business_certificate_organizer_logo_url: '',
+    business_certificate_layout: DEFAULT_CERTIFICATE_LAYOUT as CertificateLayout,
     business_jersey_size_options: 'XS, S, M, L, XL, 2XL, 3XL',
     business_event_owner_name: '',
+    business_event_owner_photo_url: '',
     business_event_owner_type: 'COMMUNITY',
     business_operating_committee_name: '',
     business_operating_committee_label: '',
+    business_operating_committee_photo_url: '',
     business_scoring_support_name: '',
     business_scoring_support_label: '',
+    business_scoring_support_photo_url: '',
     business_race_director_name: '',
+    business_race_director_photo_url: '',
     business_mc_name: '',
+    business_mc_photo_url: '',
     business_central_control_enabled: true,
     business_requires_platform_approval: false,
     business_show_event_owner_publicly: false,
@@ -676,10 +861,81 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     return json?.url as string
   }
 
-  const uploadRegistrationMedia = async (file: File, kind: 'qris' | 'jersey-chart') => {
+  const uploadStaffPhoto = async (file: File, role: StaffPhotoRole) => {
     const { data } = await supabase.auth.getSession()
     const token = data.session?.access_token
     if (!token) throw new Error('Session expired. Silakan login ulang.')
+    const body = new FormData()
+    body.append('file', file)
+    body.append('role', role)
+    const res = await fetch(`/api/events/${eventId}/staff-photo`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body,
+    })
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(json?.error || 'Gagal upload foto staff.')
+    return json?.url as string
+  }
+
+  const handleStaffPhotoUpload = async (file: File | null, field: StaffPhotoField, role: StaffPhotoRole) => {
+    if (!file) return
+    setStaffPhotoUploadingField(field)
+    setStaffPhotoError('')
+    try {
+      const url = await uploadStaffPhoto(file, role)
+      setForm((prev) => ({ ...prev, [field]: url }))
+    } catch (err) {
+      setStaffPhotoError(err instanceof Error ? err.message : 'Gagal upload foto staff.')
+    } finally {
+      setStaffPhotoUploadingField(null)
+    }
+  }
+
+  const uploadRegistrationMedia = async (
+    file: File,
+    kind:
+      | 'qris'
+      | 'jersey-chart'
+      | 'certificate-template'
+      | 'certificate-event-logo'
+      | 'certificate-organizer-logo'
+      | 'certificate-race-director-signature'
+      | 'certificate-organizer-signature'
+  ) => {
+    const { data } = await supabase.auth.getSession()
+    const token = data.session?.access_token
+    if (!token) throw new Error('Session expired. Silakan login ulang.')
+
+    if (kind.startsWith('certificate-')) {
+      const targetResponse = await fetch(`/api/events/${eventId}/registration-media`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'create-certificate-upload',
+          kind,
+          file_name: file.name,
+        }),
+      })
+      const targetJson = await targetResponse.json().catch(() => ({}))
+      const target = targetJson?.data as { path?: string; token?: string; url?: string } | undefined
+      if (!targetResponse.ok || !target?.path || !target?.token || !target?.url) {
+        throw new Error(targetJson?.error || 'Gagal menyiapkan upload sertifikat.')
+      }
+
+      const { error } = await supabase.storage
+        .from('event-logos')
+        .uploadToSignedUrl(target.path, target.token, file, {
+          contentType: 'image/png',
+          cacheControl: '31536000',
+        })
+      if (error) throw new Error(error.message || 'Gagal mengunggah aset sertifikat.')
+      return target.url
+    }
+
     const body = new FormData()
     body.append('file', file)
     body.append('kind', kind)
@@ -713,9 +969,13 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     if (!eventId) return
     setLoading(true)
     try {
-      const res = await fetch(`/api/events/${eventId}/settings`)
+      const [res, eventResult] = await Promise.all([
+        fetch(`/api/events/${eventId}/settings`),
+        apiFetch(`/api/events/${eventId}`).catch(() => null),
+      ])
       const json = await res.json()
       const data = json.data as SettingsRow | null
+      setEventStatus(typeof eventResult?.data?.status === 'string' ? eventResult.data.status : '')
       setRow(data)
       if (data) {
         const scoring = (data.scoring_rules ?? {}) as Record<string, unknown>
@@ -781,26 +1041,52 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
             typeof business.registration_rider_photo_enabled === 'boolean'
               ? business.registration_rider_photo_enabled
               : true,
+          business_certificate_enabled: typeof business.certificate_enabled === 'boolean' ? business.certificate_enabled : false,
+          business_certificate_participation_enabled:
+            typeof business.certificate_participation_enabled === 'boolean' ? business.certificate_participation_enabled : true,
+          business_certificate_template_url:
+            typeof business.certificate_template_url === 'string' ? business.certificate_template_url : '',
+          business_certificate_id_prefix:
+            typeof business.certificate_id_prefix === 'string' && business.certificate_id_prefix.trim()
+              ? business.certificate_id_prefix.trim().toUpperCase()
+              : 'RPB',
+          business_certificate_achievement_enabled:
+            typeof business.certificate_achievement_enabled === 'boolean' ? business.certificate_achievement_enabled : false,
+          business_certificate_event_logo_url:
+            typeof business.certificate_event_logo_url === 'string' ? business.certificate_event_logo_url : '',
+          business_certificate_organizer_logo_url:
+            typeof business.certificate_organizer_logo_url === 'string' ? business.certificate_organizer_logo_url : '',
+          business_certificate_layout: normalizeCertificateLayout(business.certificate_layout),
           business_jersey_size_options:
             Array.isArray(business.jersey_size_options) && business.jersey_size_options.length > 0
               ? business.jersey_size_options.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).join(', ')
               : 'XS, S, M, L, XL, 2XL, 3XL',
           business_event_owner_name:
             typeof business.event_owner_name === 'string' ? business.event_owner_name : '',
+          business_event_owner_photo_url:
+            typeof business.event_owner_photo_url === 'string' ? business.event_owner_photo_url : '',
           business_event_owner_type:
             typeof business.event_owner_type === 'string' ? business.event_owner_type : 'COMMUNITY',
           business_operating_committee_name:
             typeof business.operating_committee_name === 'string' ? business.operating_committee_name : '',
           business_operating_committee_label:
             typeof business.operating_committee_label === 'string' ? business.operating_committee_label : '',
+          business_operating_committee_photo_url:
+            typeof business.operating_committee_photo_url === 'string' ? business.operating_committee_photo_url : '',
           business_scoring_support_name:
             typeof business.scoring_support_name === 'string' ? business.scoring_support_name : '',
           business_scoring_support_label:
             typeof business.scoring_support_label === 'string' ? business.scoring_support_label : '',
+          business_scoring_support_photo_url:
+            typeof business.scoring_support_photo_url === 'string' ? business.scoring_support_photo_url : '',
           business_race_director_name:
             typeof business.race_director_name === 'string' ? business.race_director_name : '',
+          business_race_director_photo_url:
+            typeof business.race_director_photo_url === 'string' ? business.race_director_photo_url : '',
           business_mc_name:
             typeof business.mc_name === 'string' ? business.mc_name : '',
+          business_mc_photo_url:
+            typeof business.mc_photo_url === 'string' ? business.mc_photo_url : '',
           business_central_control_enabled:
             typeof business.central_control_enabled === 'boolean' ? business.central_control_enabled : true,
           business_requires_platform_approval:
@@ -889,6 +1175,19 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     }
   }
 
+  const refreshPublicSnapshot = async () => {
+    setSnapshotRefreshing(true)
+    setSnapshotNotice('')
+    try {
+      await apiFetch(`/api/admin/events/${eventId}/public-snapshot`, { method: 'POST' })
+      setSnapshotNotice('Arsip publik berhasil diperbarui. Cache hasil final telah dibersihkan.')
+    } catch (error) {
+      setSnapshotNotice(error instanceof Error ? error.message : 'Gagal memperbarui arsip publik.')
+    } finally {
+      setSnapshotRefreshing(false)
+    }
+  }
+
   useEffect(() => {
     load()
     loadAdvanced()
@@ -925,15 +1224,36 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     )
   }
 
-  const handleRegistrationMediaUpload = async (file: File | null, kind: 'qris' | 'jersey-chart') => {
+  const handleRegistrationMediaUpload = async (
+    file: File | null,
+    kind:
+      | 'qris'
+      | 'jersey-chart'
+      | 'certificate-template'
+      | 'certificate-event-logo'
+      | 'certificate-organizer-logo'
+  ) => {
     if (!file) return
     setRegistrationMediaError('')
+    setRegistrationMediaSuccess('')
     if (!file.type.startsWith('image/')) {
       setRegistrationMediaError('Media registrasi harus berupa gambar.')
       return
     }
-    if (file.size > 2 * 1024 * 1024) {
-      setRegistrationMediaError('Media registrasi terlalu besar. Maksimal 2.0 MB.')
+    const certificateAsset = kind.startsWith('certificate-')
+    if (certificateAsset && file.type !== 'image/png') {
+      setRegistrationMediaError('Aset sertifikat harus berupa PNG.')
+      return
+    }
+    const maxBytes = kind === 'certificate-template' ? 10 * 1024 * 1024 : certificateAsset ? 3 * 1024 * 1024 : 2 * 1024 * 1024
+    if (file.size > maxBytes) {
+      setRegistrationMediaError(
+        kind === 'certificate-template'
+          ? 'Template sertifikat terlalu besar. Maksimal 10 MB.'
+          : certificateAsset
+            ? 'Aset sertifikat terlalu besar. Maksimal 3 MB.'
+            : 'Media registrasi terlalu besar. Maksimal 2.0 MB.'
+      )
       return
     }
     setRegistrationMediaUploading(kind)
@@ -943,8 +1263,19 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
         ...prev,
         ...(kind === 'qris'
           ? { business_registration_qris_image_url: url }
-          : { business_registration_jersey_size_chart_url: url }),
+          : kind === 'jersey-chart'
+            ? { business_registration_jersey_size_chart_url: url }
+            : kind === 'certificate-template'
+              ? { business_certificate_template_url: url }
+              : kind === 'certificate-event-logo'
+                ? { business_certificate_event_logo_url: url }
+              : { business_certificate_organizer_logo_url: url }),
       }))
+      setRegistrationMediaSuccess(
+        kind === 'certificate-template'
+          ? 'Template sertifikat berhasil diunggah. Klik Save Event Settings untuk menyimpannya ke event.'
+          : 'Media berhasil diunggah. Klik Save Event Settings untuk menyimpannya ke event.'
+      )
     } catch (err) {
       setRegistrationMediaError(err instanceof Error ? err.message : 'Gagal upload media registrasi.')
     } finally {
@@ -1417,19 +1748,32 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
       registration_qris_image_url: form.business_registration_qris_image_url.trim() || null,
       registration_jersey_size_chart_url: form.business_registration_jersey_size_chart_url.trim() || null,
       registration_rider_photo_enabled: Boolean(form.business_registration_rider_photo_enabled),
+      certificate_enabled: Boolean(form.business_certificate_enabled),
+      certificate_participation_enabled: Boolean(form.business_certificate_participation_enabled),
+      certificate_template_url: form.business_certificate_template_url.trim() || null,
+      certificate_id_prefix: form.business_certificate_id_prefix.trim().toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 12) || 'RPB',
+      certificate_achievement_enabled: Boolean(form.business_certificate_achievement_enabled),
+      certificate_event_logo_url: form.business_certificate_event_logo_url.trim() || null,
+      certificate_organizer_logo_url: form.business_certificate_organizer_logo_url.trim() || null,
+      certificate_layout: normalizeCertificateLayout(form.business_certificate_layout),
       jersey_size_options: form.business_jersey_size_options
         .split(',')
         .map((value) => value.trim().toUpperCase())
         .filter((value) => ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'].includes(value))
         .filter((value, index, array) => array.indexOf(value) === index),
       event_owner_name: form.business_event_owner_name.trim() || null,
+      event_owner_photo_url: form.business_event_owner_photo_url.trim() || null,
       event_owner_type: ownerType,
       operating_committee_name: form.business_operating_committee_name.trim() || null,
       operating_committee_label: form.business_operating_committee_label.trim() || null,
+      operating_committee_photo_url: form.business_operating_committee_photo_url.trim() || null,
       scoring_support_name: form.business_scoring_support_name.trim() || null,
       scoring_support_label: form.business_scoring_support_label.trim() || null,
+      scoring_support_photo_url: form.business_scoring_support_photo_url.trim() || null,
       race_director_name: form.business_race_director_name.trim() || null,
+      race_director_photo_url: form.business_race_director_photo_url.trim() || null,
       mc_name: form.business_mc_name.trim() || null,
+      mc_photo_url: form.business_mc_photo_url.trim() || null,
       central_control_enabled: Boolean(form.business_central_control_enabled),
       requires_platform_approval: Boolean(form.business_requires_platform_approval),
       show_event_owner_publicly: Boolean(form.business_show_event_owner_publicly),
@@ -1549,6 +1893,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     form.business_central_control_enabled ? 'aktif' : 'off'
   }`
   const appearanceSummary = 'Logo event + race format'
+  const hasOpenSettingsSection = Object.values(sections).some(Boolean)
   const filteredAvailableUsers = useMemo(() => {
     const keyword = staffSearch.trim().toLowerCase()
     if (!keyword) return availableUsers
@@ -1627,6 +1972,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
         </div>
       )}
 
+      {(loading || hasOpenSettingsSection) && (
       <div
         style={{
           marginTop: 16,
@@ -2331,6 +2677,53 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                     </span>
                   </div>
                 </div>
+                {eventStatus === 'FINISHED' && (
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'minmax(0, 1fr) auto',
+                      alignItems: 'center',
+                      gap: 14,
+                      marginTop: 12,
+                      padding: 14,
+                      border: '2px solid #111',
+                      borderRadius: 16,
+                      background: '#fff7d6',
+                    }}
+                  >
+                    <div style={{ display: 'grid', gap: 4 }}>
+                      <div style={{ fontSize: 12, fontWeight: 950, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                        Arsip Hasil Final
+                      </div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#4a3412' }}>
+                        Jika data event FINISHED dikoreksi, perbarui snapshot agar Live Score publik memakai hasil terbaru.
+                      </div>
+                      {snapshotNotice && (
+                        <div style={{ fontSize: 12, fontWeight: 850, color: snapshotNotice.startsWith('Arsip') ? '#047857' : '#b91c1c' }}>
+                          {snapshotNotice}
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={refreshPublicSnapshot}
+                      disabled={snapshotRefreshing}
+                      style={{
+                        minHeight: 42,
+                        padding: '10px 14px',
+                        borderRadius: 10,
+                        border: '2px solid #111',
+                        background: snapshotRefreshing ? '#d1d5db' : '#fbbf24',
+                        color: '#111',
+                        cursor: snapshotRefreshing ? 'wait' : 'pointer',
+                        fontWeight: 950,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {snapshotRefreshing ? 'Memperbarui...' : 'Refresh Public Snapshot'}
+                    </button>
+                  </div>
+                )}
                 <div style={{ display: 'grid', gap: 8, marginTop: 6 }}>
                   <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
                     Public Branding
@@ -2433,6 +2826,249 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                     </div>
                     <div style={{ fontSize: 12, color: '#334155', fontWeight: 700 }}>
                       Leaderboard Best Team akan dihitung dari hasil final resmi yang sudah masuk recap hasil akhir. Rider DQ otomatis tidak menambah point team.
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: sections.publicInfo ? 'grid' : 'none', gap: 8, marginTop: 6 }}>
+                  <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                    E-Sertifikat
+                  </div>
+                  <div style={{ display: 'grid', gap: 12, padding: 14, border: '2px solid #111', borderRadius: 16, background: '#f8fafc' }}>
+                    <ToggleSwitch
+                      checked={form.business_certificate_enabled}
+                      onChange={(checked) => setForm({ ...form, business_certificate_enabled: checked })}
+                      label="Aktifkan fitur e-sertifikat untuk event ini"
+                    />
+                    <div style={{ fontSize: 12, color: '#334155', fontWeight: 700, lineHeight: 1.5 }}>
+                      Sertifikat hanya dapat dibuka setelah event berstatus FINISHED. Wali rider memverifikasi nomor registrasi dan WhatsApp yang dipakai saat mendaftar.
+                    </div>
+                    <label style={{ display: 'grid', gap: 6, maxWidth: 260, fontSize: 12, fontWeight: 900 }}>
+                      Prefix Certificate ID
+                      <input
+                        value={form.business_certificate_id_prefix}
+                        maxLength={12}
+                        onChange={(event) =>
+                          setForm({
+                            ...form,
+                            business_certificate_id_prefix: event.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ''),
+                          })
+                        }
+                        placeholder="RPB"
+                        style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 900, textTransform: 'uppercase' }}
+                      />
+                      <span style={{ color: '#475569', fontWeight: 700 }}>
+                        Contoh ID: {form.business_certificate_id_prefix.trim() || 'RPB'}-2026-A1B2C3D4E5F6
+                      </span>
+                    </label>
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                      <a
+                        href="/templates/e-certificate-racepushbike-participation-base.png"
+                        download="template-e-sertifikat-partisipasi-racepushbike.png"
+                        style={{ fontWeight: 900, color: '#9a3412', textDecoration: 'underline' }}
+                      >
+                        Unduh template contoh
+                      </a>
+                      <label
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: '10px 14px',
+                          borderRadius: 12,
+                          border: '2px solid #111',
+                          background: '#fff',
+                          fontWeight: 900,
+                          cursor: registrationMediaUploading ? 'wait' : 'pointer',
+                        }}
+                      >
+                        {registrationMediaUploading === 'certificate-template' ? 'Mengunggah...' : 'Upload Template PNG'}
+                        <input
+                          type="file"
+                          accept="image/png"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0] ?? null
+                            void handleRegistrationMediaUpload(file, 'certificate-template')
+                            e.currentTarget.value = ''
+                          }}
+                          style={{ display: 'none' }}
+                        />
+                      </label>
+                      {form.business_certificate_template_url && (
+                        <a
+                          href={form.business_certificate_template_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{ fontWeight: 800, color: '#0f766e', textDecoration: 'underline' }}
+                        >
+                          Buka template
+                        </a>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#475569', fontWeight: 700 }}>
+                      Format PNG, maksimal 10 MB. Setelah upload, simpan Event Settings agar template digunakan publik.
+                    </div>
+                    {registrationMediaSuccess && (
+                      <div style={{ border: '1px solid #86efac', borderRadius: 10, background: '#f0fdf4', padding: '9px 11px', color: '#166534', fontSize: 12, fontWeight: 800 }}>
+                        {registrationMediaSuccess}
+                      </div>
+                    )}
+                    {registrationMediaError && (
+                      <div style={{ border: '1px solid #fca5a5', borderRadius: 10, background: '#fef2f2', padding: '9px 11px', color: '#b91c1c', fontSize: 12, fontWeight: 800 }}>
+                        Upload gagal: {registrationMediaError}
+                      </div>
+                    )}
+                    {form.business_certificate_template_url && (
+                      <CertificateLayoutPreview
+                        templateUrl={form.business_certificate_template_url}
+                        layout={normalizeCertificateLayout(form.business_certificate_layout)}
+                        assets={{
+                          eventLogo: form.business_certificate_event_logo_url,
+                          organizerLogo: form.business_certificate_organizer_logo_url,
+                        }}
+                      />
+                    )}
+                    <ToggleSwitch
+                      checked={form.business_certificate_participation_enabled}
+                      onChange={(checked) => setForm({ ...form, business_certificate_participation_enabled: checked })}
+                      label="Aktifkan sertifikat partisipasi"
+                    />
+                    <ToggleSwitch
+                      checked={form.business_certificate_achievement_enabled}
+                      onChange={(checked) => setForm({ ...form, business_certificate_achievement_enabled: checked })}
+                      label="Aktifkan sertifikat prestasi/rank final"
+                    />
+                    <div style={{ fontSize: 12, color: '#334155', fontWeight: 700, lineHeight: 1.5 }}>
+                      Sertifikat partisipasi tersedia untuk rider yang disetujui. Sertifikat prestasi hanya tersedia bila hasil FINAL resmi sudah terkunci. Kedua jenis dapat diaktifkan atau dinonaktifkan terpisah.
+                    </div>
+                    <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))' }}>
+                      {([
+                        ['certificate-event-logo', 'business_certificate_event_logo_url', 'Logo event'],
+                        ['certificate-organizer-logo', 'business_certificate_organizer_logo_url', 'Logo penyelenggara'],
+                      ] as const).map(([kind, field, label]) => (
+                        <div key={kind} style={{ display: 'grid', gap: 7, padding: 10, border: '1px solid #cbd5e1', borderRadius: 12, background: '#fff' }}>
+                          <div style={{ fontSize: 12, fontWeight: 900 }}>{label}</div>
+                          <label style={{ display: 'inline-flex', width: 'fit-content', padding: '8px 10px', borderRadius: 10, border: '1px solid #111', fontSize: 12, fontWeight: 900, cursor: registrationMediaUploading ? 'wait' : 'pointer' }}>
+                            {registrationMediaUploading === kind ? 'Mengunggah...' : 'Upload PNG'}
+                            <input
+                              type="file"
+                              accept="image/png"
+                              disabled={Boolean(registrationMediaUploading)}
+                              onChange={(event) => {
+                                const file = event.target.files?.[0] ?? null
+                                void handleRegistrationMediaUpload(file, kind)
+                                event.currentTarget.value = ''
+                              }}
+                              style={{ display: 'none' }}
+                            />
+                          </label>
+                          {form[field] && <span style={{ color: '#047857', fontSize: 11, fontWeight: 800 }}>PNG siap digunakan</span>}
+                        </div>
+                      ))}
+                    </div>
+                    <details style={{ border: '1px solid #cbd5e1', borderRadius: 12, padding: 12, background: '#fff' }}>
+                      <summary style={{ cursor: 'pointer', fontWeight: 900 }}>Atur posisi elemen pada template</summary>
+                      <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
+                        <div style={{ fontSize: 12, color: '#475569', fontWeight: 700 }}>Posisi memakai persen dari ukuran PNG. Nilai kiri/atas menentukan titik tengah elemen.</div>
+                        {(Object.keys(CERTIFICATE_TEXT_ELEMENT_LABELS) as CertificateTextElement[]).map((key) => {
+                          const position = form.business_certificate_layout.text[key]
+                          return (
+                          <div key={key} style={{ display: 'grid', gap: 9, padding: 12, border: '1px solid #d8dee8', borderRadius: 12, background: '#f8fafc' }}>
+                            <strong style={{ fontSize: 13, color: '#172033' }}>{CERTIFICATE_TEXT_ELEMENT_LABELS[key]}</strong>
+                            <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))' }}>
+                              {(['x', 'top', 'width', 'fontSize'] as const).map((field) => (
+                                <label key={field} style={{ display: 'grid', minWidth: 0, gap: 4, fontSize: 11, fontWeight: 800 }}>
+                                  {field === 'x' ? 'Kiri %' : field === 'top' ? 'Atas %' : field === 'width' ? 'Lebar %' : 'Font pt'}
+                                  <input
+                                    type="number"
+                                    value={position[field]}
+                                    onChange={(event) =>
+                                      setForm((previous) => ({
+                                        ...previous,
+                                        business_certificate_layout: {
+                                          ...previous.business_certificate_layout,
+                                          text: {
+                                            ...previous.business_certificate_layout.text,
+                                            [key]: { ...previous.business_certificate_layout.text[key], [field]: Number(event.target.value) },
+                                          },
+                                        },
+                                      }))
+                                    }
+                                    style={{ boxSizing: 'border-box', width: '100%', minWidth: 0, padding: '9px 10px', borderRadius: 8, border: '1px solid #64748b', fontWeight: 800 }}
+                                  />
+                                </label>
+                              ))}
+                              <label style={{ display: 'grid', minWidth: 0, gap: 4, fontSize: 11, fontWeight: 800 }}>
+                                Font
+                                <select
+                                  value={position.font}
+                                  onChange={(event) =>
+                                    setForm((previous) => ({
+                                      ...previous,
+                                      business_certificate_layout: {
+                                        ...previous.business_certificate_layout,
+                                        text: {
+                                          ...previous.business_certificate_layout.text,
+                                          [key]: {
+                                            ...previous.business_certificate_layout.text[key],
+                                            font: event.target.value as CertificateFont,
+                                          },
+                                        },
+                                      },
+                                    }))
+                                  }
+                                  style={{ boxSizing: 'border-box', width: '100%', minWidth: 0, padding: '9px 10px', borderRadius: 8, border: '1px solid #64748b', fontWeight: 800 }}
+                                >
+                                  {(Object.keys(CERTIFICATE_FONT_LABELS) as CertificateFont[]).map((font) => (
+                                    <option key={font} value={font}>{CERTIFICATE_FONT_LABELS[font]}</option>
+                                  ))}
+                                </select>
+                              </label>
+                            </div>
+                            </div>
+                          )
+                        })}
+                        {(Object.keys(CERTIFICATE_IMAGE_ELEMENT_LABELS) as CertificateImageElement[]).map((key) => {
+                          const position = form.business_certificate_layout.image[key]
+                          return (
+                            <div key={key} style={{ display: 'grid', gap: 9, padding: 12, border: '1px solid #d8dee8', borderRadius: 12, background: '#f8fafc' }}>
+                              <strong style={{ fontSize: 13, color: '#172033' }}>{CERTIFICATE_IMAGE_ELEMENT_LABELS[key]}</strong>
+                              <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))' }}>
+                              {(['x', 'top', 'width'] as const).map((field) => (
+                                <label key={field} style={{ display: 'grid', minWidth: 0, gap: 4, fontSize: 11, fontWeight: 800 }}>
+                                  {field === 'x' ? 'Kiri %' : field === 'top' ? 'Atas %' : 'Lebar %'}
+                                  <input
+                                    type="number"
+                                    value={position[field]}
+                                    onChange={(event) =>
+                                      setForm((previous) => ({
+                                        ...previous,
+                                        business_certificate_layout: {
+                                          ...previous.business_certificate_layout,
+                                          image: {
+                                            ...previous.business_certificate_layout.image,
+                                            [key]: { ...previous.business_certificate_layout.image[key], [field]: Number(event.target.value) },
+                                          },
+                                        },
+                                      }))
+                                    }
+                                    style={{ boxSizing: 'border-box', width: '100%', minWidth: 0, padding: '9px 10px', borderRadius: 8, border: '1px solid #64748b', fontWeight: 800 }}
+                                  />
+                                </label>
+                              ))}
+                              </div>
+                            </div>
+                          )
+                        })}
+                        <button type="button" onClick={() => setForm((previous) => ({ ...previous, business_certificate_layout: DEFAULT_CERTIFICATE_LAYOUT }))} style={{ width: 'fit-content', padding: '8px 12px', borderRadius: 10, border: '1px solid #111', background: '#fff', fontWeight: 900 }}>
+                          Kembalikan posisi bawaan
+                        </button>
+                      </div>
+                    </details>
+                    <Link href={`/admin/events/${eventId}/certificates`} style={{ width: 'fit-content', fontWeight: 900, color: '#0f766e', textDecoration: 'underline' }}>
+                      Kelola sertifikat yang sudah diterbitkan
+                    </Link>
+                    <div style={{ fontSize: 12, color: '#334155', fontWeight: 700 }}>
+                      Gunakan PNG lanskap beresolusi tinggi. Template contoh berukuran 1491 x 1055 px. Area dinamis hanya untuk data rider, event, hasil, QR verifikasi, Certificate ID, dan logo; nama serta tanda tangan pejabat harus sudah menyatu di template. Maksimal 10 MB.
                     </div>
                   </div>
                 </div>
@@ -2669,6 +3305,12 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                     onChange={(checked) => setForm({ ...form, business_show_event_owner_publicly: checked })}
                     label="Tampilkan event owner di halaman publik"
                   />
+                  <StaffPhotoUpload
+                    label="Event Owner"
+                    url={form.business_event_owner_photo_url}
+                    uploading={staffPhotoUploadingField === 'business_event_owner_photo_url'}
+                    onUpload={(file) => void handleStaffPhotoUpload(file, 'business_event_owner_photo_url', 'event-owner')}
+                  />
                 </div>
                 <div style={{ display: sections.publicInfo ? 'grid' : 'none', gap: 8, marginTop: 6 }}>
                   <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
@@ -2693,6 +3335,12 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                     }
                     label="Tampilkan operating committee di halaman publik"
                   />
+                  <StaffPhotoUpload
+                    label="Operating Committee"
+                    url={form.business_operating_committee_photo_url}
+                    uploading={staffPhotoUploadingField === 'business_operating_committee_photo_url'}
+                    onUpload={(file) => void handleStaffPhotoUpload(file, 'business_operating_committee_photo_url', 'operating-committee')}
+                  />
                 </div>
                 <div style={{ display: sections.publicInfo ? 'grid' : 'none', gap: 8, marginTop: 6 }}>
                   <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
@@ -2715,6 +3363,12 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                     onChange={(checked) => setForm({ ...form, business_show_scoring_support_publicly: checked })}
                     label="Tampilkan scoring support di halaman publik"
                   />
+                  <StaffPhotoUpload
+                    label="Scoring Support"
+                    url={form.business_scoring_support_photo_url}
+                    uploading={staffPhotoUploadingField === 'business_scoring_support_photo_url'}
+                    onUpload={(file) => void handleStaffPhotoUpload(file, 'business_scoring_support_photo_url', 'scoring-support')}
+                  />
                 </div>
                 <div style={{ display: sections.publicInfo ? 'grid' : 'none', gap: 8, marginTop: 6 }}>
                   <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
@@ -2730,6 +3384,12 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                     checked={form.business_show_race_director_publicly}
                     onChange={(checked) => setForm({ ...form, business_show_race_director_publicly: checked })}
                     label="Tampilkan Race Director di halaman publik"
+                  />
+                  <StaffPhotoUpload
+                    label="Race Director"
+                    url={form.business_race_director_photo_url}
+                    uploading={staffPhotoUploadingField === 'business_race_director_photo_url'}
+                    onUpload={(file) => void handleStaffPhotoUpload(file, 'business_race_director_photo_url', 'race-director')}
                   />
                 </div>
                 <div style={{ display: sections.publicInfo ? 'grid' : 'none', gap: 8, marginTop: 6 }}>
@@ -2747,7 +3407,18 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                     onChange={(checked) => setForm({ ...form, business_show_mc_publicly: checked })}
                     label="Tampilkan MC di halaman publik"
                   />
+                  <StaffPhotoUpload
+                    label="MC / Announcer"
+                    url={form.business_mc_photo_url}
+                    uploading={staffPhotoUploadingField === 'business_mc_photo_url'}
+                    onUpload={(file) => void handleStaffPhotoUpload(file, 'business_mc_photo_url', 'mc')}
+                  />
                 </div>
+                {staffPhotoError && (
+                  <div style={{ display: sections.publicInfo ? 'block' : 'none', marginTop: 8, color: '#b91c1c', fontSize: 12, fontWeight: 800 }}>
+                    {staffPhotoError}
+                  </div>
+                )}
                 <div style={{ display: sections.eventStaff ? 'grid' : 'none', gap: 8, marginTop: 6 }}>
                   <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
                     Central Control
@@ -2854,6 +3525,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                             <option value="SUPER_ADMIN">{formatAppRoleLabel('SUPER_ADMIN')}</option>
                             <option value="ADMIN">{formatAppRoleLabel('ADMIN')}</option>
                             <option value="REGISTRATION_APPROVER">{formatAppRoleLabel('REGISTRATION_APPROVER')}</option>
+                            <option value="DRAW_MANAGER">{formatAppRoleLabel('DRAW_MANAGER')}</option>
                             <option value="CHECKER">{formatAppRoleLabel('CHECKER')}</option>
                             <option value="FINISHER">{formatAppRoleLabel('FINISHER')}</option>
                             <option value="RACE_DIRECTOR">{formatAppRoleLabel('RACE_DIRECTOR')}</option>
@@ -3005,6 +3677,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
           </>
         )}
       </div>
+      )}
 
       {advancedOnly && (
         <div
@@ -3509,7 +4182,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
         </div>
       )}
 
-      {!advancedOnly && (
+      {!advancedOnly && (hasOpenSettingsSection || isDirty) && (
         <div
           style={{
             position: 'sticky',
@@ -3548,7 +4221,3 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     </div>
   )
 }
-
-
-
-

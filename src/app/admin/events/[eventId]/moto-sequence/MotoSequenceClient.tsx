@@ -135,6 +135,7 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [savingSequence, setSavingSequence] = useState(false)
+  const [savingCategoryOrder, setSavingCategoryOrder] = useState(false)
   const [eventStatus, setEventStatus] = useState<EventStatus | null>(null)
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true)
   const [motoOrderDirty, setMotoOrderDirty] = useState(false)
@@ -144,7 +145,11 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
   const [dragOverMotoId, setDragOverMotoId] = useState<string | null>(null)
   const [draggingBlockCategoryId, setDraggingBlockCategoryId] = useState<string | null>(null)
   const [dragOverBlockCategoryId, setDragOverBlockCategoryId] = useState<string | null>(null)
+  const [draggingCategoryId, setDraggingCategoryId] = useState<string | null>(null)
+  const [dragOverCategoryId, setDragOverCategoryId] = useState<string | null>(null)
   const motoOrderDirtyRef = useRef(false)
+  const categoryOrderSaveTimerRef = useRef<number | null>(null)
+  const categoryOrderVersionRef = useRef(0)
 
   const setMotoOrderDirtyValue = useCallback((dirty: boolean) => {
     motoOrderDirtyRef.current = dirty
@@ -226,24 +231,37 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
   )
 
   const saveCategorySequence = useCallback(
-    async (nextCategories: CategoryItem[]) => {
-      setSavingSequence(true)
+    async (nextCategories: CategoryItem[], version: number) => {
+      setSavingCategoryOrder(true)
       try {
         await apiFetch(`/api/events/${eventId}/categories/sequence`, {
           method: 'POST',
           body: JSON.stringify({ category_ids: nextCategories.map((category) => category.id) }),
         })
-        setCategories(
-          nextCategories.map((category, index) => ({
-            ...category,
-            sequence_order: index + 1,
-          }))
-        )
+        // A newer drag can happen while this request is in flight. The UI already
+        // holds that newer order, so do not overwrite it with an older response.
+        if (version !== categoryOrderVersionRef.current) return
+      } catch (error) {
+        console.error('Failed to save category sequence:', error)
+        if (version === categoryOrderVersionRef.current) await loadData('refresh')
       } finally {
-        setSavingSequence(false)
+        setSavingCategoryOrder(false)
       }
     },
-    [apiFetch, eventId]
+    [apiFetch, eventId, loadData]
+  )
+
+  const queueCategorySequenceSave = useCallback(
+    (nextCategories: CategoryItem[]) => {
+      categoryOrderVersionRef.current += 1
+      const version = categoryOrderVersionRef.current
+      if (categoryOrderSaveTimerRef.current !== null) window.clearTimeout(categoryOrderSaveTimerRef.current)
+      categoryOrderSaveTimerRef.current = window.setTimeout(() => {
+        categoryOrderSaveTimerRef.current = null
+        void saveCategorySequence(nextCategories, version)
+      }, 450)
+    },
+    [saveCategorySequence]
   )
 
   useEffect(() => {
@@ -251,12 +269,18 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
   }, [loadData])
 
   useEffect(() => {
+    return () => {
+      if (categoryOrderSaveTimerRef.current !== null) window.clearTimeout(categoryOrderSaveTimerRef.current)
+    }
+  }, [])
+
+  useEffect(() => {
     if (!eventId) return
     if (!shouldPollMotoSequence(eventStatus, autoRefreshEnabled)) return
     const interval = window.setInterval(() => {
       if (document.visibilityState === 'hidden') return
       void loadData('refresh')
-    }, 5000)
+    }, 50000)
     return () => window.clearInterval(interval)
   }, [autoRefreshEnabled, eventId, eventStatus, loadData])
 
@@ -301,7 +325,16 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
     return activeMotoSequence.find(isNextCandidate) ?? null
   }, [activeMotoSequence, currentMoto])
 
-  const moveCategory = async (categoryId: string, direction: -1 | 1) => {
+  const applyCategoryOrder = (nextCategories: CategoryItem[]) => {
+    const normalized = nextCategories.map((category, index) => ({
+      ...category,
+      sequence_order: index + 1,
+    }))
+    setCategories(normalized)
+    queueCategorySequenceSave(normalized)
+  }
+
+  const moveCategory = (categoryId: string, direction: -1 | 1) => {
     const ordered = [...categoriesSorted]
     const index = ordered.findIndex((category) => category.id === categoryId)
     const nextIndex = index + direction
@@ -309,18 +342,27 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
     const swapped = [...ordered]
     const [picked] = swapped.splice(index, 1)
     swapped.splice(nextIndex, 0, picked)
-    setCategories(
-      swapped.map((category, idx) => ({
-        ...category,
-        sequence_order: idx + 1,
-      }))
-    )
-    try {
-      await saveCategorySequence(swapped)
-    } catch (error) {
-      console.error('Failed to save category sequence:', error)
-      await loadData('refresh')
+    applyCategoryOrder(swapped)
+  }
+
+  const handleCategoryDrop = (targetCategoryId: string) => {
+    if (!draggingCategoryId || draggingCategoryId === targetCategoryId) {
+      setDraggingCategoryId(null)
+      setDragOverCategoryId(null)
+      return
     }
+
+    const ordered = [...categoriesSorted]
+    const sourceIndex = ordered.findIndex((category) => category.id === draggingCategoryId)
+    const targetIndex = ordered.findIndex((category) => category.id === targetCategoryId)
+    setDraggingCategoryId(null)
+    setDragOverCategoryId(null)
+    if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) return
+
+    const next = [...ordered]
+    const [picked] = next.splice(sourceIndex, 1)
+    next.splice(targetIndex, 0, picked)
+    applyCategoryOrder(next)
   }
 
   const applyDraftMotoOrder = useCallback(
@@ -1010,29 +1052,60 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
             fontWeight: 800,
           }}
         >
-          Urutan Kategori ini tidak mengubah queue moto yang sedang LIVE. Fungsinya untuk susunan kategori di area admin.
+          Geser kartu kategori untuk mengatur urutan tampilan publik. Perubahan disimpan otomatis di belakang layar dan tidak mengubah queue moto yang sedang LIVE.
+          {savingCategoryOrder ? <span style={{ marginLeft: '8px', color: '#64748b' }}>Tersimpan otomatis...</span> : null}
         </div>
         {categoriesSorted.map((category, index) => (
           <div
             key={category.id}
+            draggable
+            onDragStart={(event) => {
+              event.dataTransfer.effectAllowed = 'move'
+              event.dataTransfer.setData('text/plain', category.id)
+              setDraggingCategoryId(category.id)
+            }}
+            onDragOver={(event) => {
+              event.preventDefault()
+              event.dataTransfer.dropEffect = 'move'
+              if (dragOverCategoryId !== category.id) setDragOverCategoryId(category.id)
+            }}
+            onDragLeave={() => {
+              if (dragOverCategoryId === category.id) setDragOverCategoryId(null)
+            }}
+            onDrop={(event) => {
+              event.preventDefault()
+              handleCategoryDrop(category.id)
+            }}
+            onDragEnd={() => {
+              setDraggingCategoryId(null)
+              setDragOverCategoryId(null)
+            }}
             style={{
-              border: '1px solid #d1d5db',
+              border: dragOverCategoryId === category.id && draggingCategoryId !== category.id ? '2px solid #2563eb' : '1px solid #d1d5db',
               borderRadius: '12px',
               background: '#fff',
               padding: '12px',
               display: 'grid',
               gap: '8px',
+              cursor: 'grab',
+              opacity: draggingCategoryId === category.id ? 0.62 : 1,
+              transition: 'border-color 140ms ease, opacity 140ms ease',
             }}
           >
-            <div style={{ fontSize: '11px', fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6b7280' }}>
-              Urutan Kategori #{index + 1}
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', alignItems: 'center' }}>
+              <div style={{ fontSize: '11px', fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6b7280' }}>
+                Urutan Kategori #{index + 1}
+              </div>
+              <span style={{ fontSize: '14px', color: '#64748b', letterSpacing: '0.12em' }} title="Tarik untuk memindahkan" aria-label="Tarik untuk memindahkan">
+                ::
+              </span>
             </div>
             <div style={{ fontSize: '15px', fontWeight: 900 }}>{category.label}</div>
             <div style={{ display: 'flex', gap: '8px' }}>
               <button
                 type="button"
-                onClick={() => void moveCategory(category.id, -1)}
-                disabled={savingSequence || categoriesSorted[0]?.id === category.id}
+                onClick={() => moveCategory(category.id, -1)}
+                disabled={categoriesSorted[0]?.id === category.id}
                 title="Naikkan urutan kategori"
                 aria-label="Naikkan urutan kategori"
                 style={{
@@ -1045,16 +1118,16 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
                   display: 'inline-flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  cursor: savingSequence || categoriesSorted[0]?.id === category.id ? 'not-allowed' : 'pointer',
-                  opacity: savingSequence || categoriesSorted[0]?.id === category.id ? 0.5 : 1,
+                  cursor: categoriesSorted[0]?.id === category.id ? 'not-allowed' : 'pointer',
+                  opacity: categoriesSorted[0]?.id === category.id ? 0.5 : 1,
                 }}
               >
                 <DirectionIcon direction="up" />
               </button>
               <button
                 type="button"
-                onClick={() => void moveCategory(category.id, 1)}
-                disabled={savingSequence || categoriesSorted[categoriesSorted.length - 1]?.id === category.id}
+                onClick={() => moveCategory(category.id, 1)}
+                disabled={categoriesSorted[categoriesSorted.length - 1]?.id === category.id}
                 title="Turunkan urutan kategori"
                 aria-label="Turunkan urutan kategori"
                 style={{
@@ -1068,9 +1141,9 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
                   alignItems: 'center',
                   justifyContent: 'center',
                   cursor:
-                    savingSequence || categoriesSorted[categoriesSorted.length - 1]?.id === category.id ? 'not-allowed' : 'pointer',
+                    categoriesSorted[categoriesSorted.length - 1]?.id === category.id ? 'not-allowed' : 'pointer',
                   opacity:
-                    savingSequence || categoriesSorted[categoriesSorted.length - 1]?.id === category.id ? 0.5 : 1,
+                    categoriesSorted[categoriesSorted.length - 1]?.id === category.id ? 0.5 : 1,
                 }}
               >
                 <DirectionIcon direction="down" />

@@ -7,7 +7,7 @@ import MarketingTopbar from '../../components/MarketingTopbar'
 import { supabase } from '@/src/lib/supabaseClient'
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('')
+  const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
@@ -34,6 +34,7 @@ export default function LoginPage() {
     if (role === 'CHECKER') return '/jc'
     if (role === 'RACE_CONTROL') return '/race-control'
     if (role === 'MC') return '/mc'
+    if (role === 'DRAW_MANAGER') return '/draw'
     if (role === 'REGISTRATION_APPROVER') return '/admin/events'
     if (role === 'ADMIN' || role === 'SUPER_ADMIN') return '/admin'
     return '/dashboard'
@@ -43,26 +44,65 @@ export default function LoginPage() {
     e.preventDefault()
     setErrorMessage(null)
     setLoading(true)
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+    let accessToken = ''
+    let refreshToken = ''
+    let expiresIn = 3600
+    let loginError: string | null = null
+
+    const isEmailLogin = identifier.includes('@')
+
+    if (!isEmailLogin) {
+      try {
+        const response = await fetch('/api/auth/crew-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ crewCode: identifier, pin: password }),
+        })
+        const json = await response.json().catch(() => ({}))
+        if (!response.ok) {
+          loginError = typeof json?.error === 'string' ? json.error : 'Kode crew atau PIN salah.'
+        } else {
+          const session = json?.data?.session
+          accessToken = typeof session?.access_token === 'string' ? session.access_token : ''
+          refreshToken = typeof session?.refresh_token === 'string' ? session.refresh_token : ''
+          expiresIn = typeof session?.expires_in === 'number' ? session.expires_in : 3600
+          if (!accessToken || !refreshToken) loginError = 'Sesi login tidak tersedia. Coba lagi.'
+        }
+      } catch {
+        loginError = 'Login tidak dapat dihubungkan. Periksa koneksi lalu coba lagi.'
+      }
+    } else {
+      const { data, error } = await supabase.auth.signInWithPassword({ email: identifier, password })
+      loginError = error?.message ?? null
+      accessToken = data.session?.access_token ?? ''
+      refreshToken = data.session?.refresh_token ?? ''
+      expiresIn = data.session?.expires_in ?? 3600
+    }
+
     setLoading(false)
 
-    if (error) {
-      setErrorMessage('Login gagal: ' + error.message)
+    if (loginError) {
+      setErrorMessage('Login gagal: ' + loginError)
       return
     }
 
-    const accessToken = data.session?.access_token
-    const refreshToken = data.session?.refresh_token
     if (accessToken && refreshToken) {
-      await supabase.auth.setSession({
+      const { data: persistedSession, error: persistError } = await supabase.auth.setSession({
         access_token: accessToken,
         refresh_token: refreshToken,
       })
+      // Some standalone mobile browsers delay their storage bridge after a
+      // fresh install. Keep the valid server-issued token as a cookie fallback
+      // instead of blocking an otherwise successful crew login.
+      if (!persistError && persistedSession.session?.access_token) {
+        accessToken = persistedSession.session.access_token
+        refreshToken = persistedSession.session.refresh_token
+        expiresIn = persistedSession.session.expires_in ?? expiresIn
+      }
     }
     if (accessToken) {
-      const maxAge = data.session?.expires_in ?? 3600
       const secureCookie = window.location.protocol === 'https:' ? '; Secure' : ''
-      document.cookie = `sb-access-token=${encodeURIComponent(accessToken)}; Path=/; Max-Age=${maxAge}${secureCookie}; SameSite=Lax`
+      document.cookie = `sb-access-token=${encodeURIComponent(accessToken)}; Path=/; Max-Age=${expiresIn}${secureCookie}; SameSite=Lax`
     }
 
     if (accessToken) {
@@ -92,7 +132,8 @@ export default function LoginPage() {
       }
     }
 
-    const user = data.user
+    const { data: userData } = await supabase.auth.getUser()
+    const user = userData.user
     const meta = (user?.user_metadata ?? {}) as Record<string, unknown>
     const appMeta = (user?.app_metadata ?? {}) as Record<string, unknown>
     const role = (typeof meta.role === 'string' ? meta.role : '') || (typeof appMeta.role === 'string' ? appMeta.role : '') || ''
@@ -121,6 +162,7 @@ export default function LoginPage() {
               <span>Checker</span>
               <span>Finisher</span>
               <span>Race Director</span>
+              <span>Drawing Manager</span>
             </div>
           </div>
 
@@ -149,29 +191,38 @@ export default function LoginPage() {
             </p>
 
             <form onSubmit={handleLogin} className="login-editorial-form">
-              <label htmlFor="login-email">Email</label>
+              <label htmlFor="login-identifier">Email atau Kode Crew</label>
               <input
-                type="email"
-                placeholder="nama@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                name="email"
-                id="login-email"
+                type="text"
+                placeholder="nama@email.com atau kode crew"
+                value={identifier}
+                onChange={(e) => {
+                  setIdentifier(e.target.value)
+                  setErrorMessage(null)
+                }}
+                name="identifier"
+                id="login-identifier"
                 autoComplete="username"
+                autoCapitalize="none"
                 className="login-editorial-input"
                 required
               />
 
-              <label htmlFor="login-password">Password</label>
+              <p className="login-editorial-input-hint">
+                Gunakan email dan password untuk admin, atau kode crew dan PIN untuk petugas race.
+              </p>
+
+              <label htmlFor="login-password">Password atau PIN</label>
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="Masukkan password"
+                  placeholder="Masukkan password atau PIN"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   name="password"
                   id="login-password"
                   autoComplete="current-password"
+                  inputMode="text"
                   className="login-editorial-input w-full pr-20"
                   required
                 />
@@ -188,7 +239,7 @@ export default function LoginPage() {
               {errorMessage && <div className="login-editorial-error">{errorMessage}</div>}
 
               <button type="submit" disabled={loading} className="login-editorial-submit">
-                {loading ? 'Memproses...' : 'Login'}
+                {loading ? 'Memproses...' : 'Masuk Dashboard'}
               </button>
             </form>
           </div>

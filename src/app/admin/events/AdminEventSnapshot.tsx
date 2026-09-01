@@ -29,95 +29,31 @@ const toneClass: Record<SnapshotTone, string> = {
 }
 
 const STATUS_META: Record<EventStatus, { label: string; tone: SnapshotTone; weight: number }> = {
-  LIVE: {
-    label: 'Live',
-    tone: 'success',
-    weight: 0,
-  },
-  PROVISIONAL: {
-    label: 'Provisional',
-    tone: 'info',
-    weight: 1,
-  },
-  PROTEST_REVIEW: {
-    label: 'Protest Review',
-    tone: 'danger',
-    weight: 2,
-  },
-  UPCOMING: {
-    label: 'Upcoming',
-    tone: 'accent',
-    weight: 3,
-  },
-  FINISHED: {
-    label: 'Finished',
-    tone: 'neutral',
-    weight: 4,
-  },
-  LOCKED: {
-    label: 'Locked',
-    tone: 'neutral',
-    weight: 5,
-  },
+  LIVE: { label: 'Live', tone: 'success', weight: 0 },
+  PROVISIONAL: { label: 'Provisional', tone: 'info', weight: 1 },
+  PROTEST_REVIEW: { label: 'Protest Review', tone: 'danger', weight: 2 },
+  UPCOMING: { label: 'Upcoming', tone: 'accent', weight: 3 },
+  FINISHED: { label: 'Finished', tone: 'neutral', weight: 4 },
+  LOCKED: { label: 'Locked', tone: 'neutral', weight: 5 },
 }
 
 const formatDate = (value: string) =>
-  new Intl.DateTimeFormat('id-ID', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  }).format(new Date(`${value}T00:00:00`))
+  new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }).format(
+    new Date(`${value}T00:00:00`)
+  )
 
 const getEventTime = (value: string) => new Date(`${value}T00:00:00`).getTime()
 
-const formatRelativeDate = (value: string) => {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const eventDate = new Date(`${value}T00:00:00`)
-  const diffDays = Math.round((eventDate.getTime() - today.getTime()) / 86_400_000)
-
-  if (diffDays === 0) return 'Hari ini'
-  if (diffDays === 1) return 'Besok'
-  if (diffDays > 1) return `H-${diffDays}`
-  if (diffDays === -1) return 'Kemarin'
-  return `${Math.abs(diffDays)} hari lalu`
-}
-
 function SnapshotSkeleton() {
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
-      {Array.from({ length: 4 }).map((_, index) => (
-        <article key={index} className="admin-card grid gap-4">
-          <div className="flex items-center gap-2">
-            <div className="admin-skeleton h-7 w-24" />
-            <div className="admin-skeleton h-7 w-20" />
-          </div>
-          <div className="grid gap-2">
-            <div className="admin-skeleton h-7 w-3/4" />
-            <div className="admin-skeleton h-4 w-1/2" />
-          </div>
-          <div className="grid gap-2 sm:grid-cols-2">
-            <div className="admin-skeleton h-12" />
-            <div className="admin-skeleton h-12" />
-          </div>
-        </article>
-      ))}
+    <div className="grid gap-2">
+      {Array.from({ length: 4 }).map((_, index) => <div key={index} className="admin-skeleton h-20" />)}
     </div>
   )
 }
 
-function InfoPill({
-  label,
-  tone,
-}: {
-  label: string
-  tone: SnapshotTone
-}) {
-  return (
-    <span className={`admin-tone-badge ${toneClass[tone]}`}>
-      {label}
-    </span>
-  )
+function InfoPill({ label, tone }: { label: string; tone: SnapshotTone }) {
+  return <span className={`admin-tone-badge ${toneClass[tone]}`}>{label}</span>
 }
 
 export default function AdminEventSnapshot() {
@@ -125,7 +61,6 @@ export default function AdminEventSnapshot() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [roleKey, setRoleKey] = useState<string | null>(null)
-
   const isRegistrationApprover = isRegistrationApproverRole(roleKey)
 
   const loadEvents = useCallback(async () => {
@@ -134,14 +69,12 @@ export default function AdminEventSnapshot() {
     try {
       const { data } = await supabase.auth.getSession()
       const token = data.session?.access_token
-      const res = await fetch('/api/events', {
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(json?.error || 'Gagal memuat event')
+      const response = await fetch('/api/events', { headers: token ? { Authorization: `Bearer ${token}` } : undefined })
+      const json = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(json?.error || 'Gagal memuat event')
       setEvents(json.data ?? [])
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Gagal memuat event')
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : 'Gagal memuat event')
     } finally {
       setLoading(false)
     }
@@ -153,136 +86,89 @@ export default function AdminEventSnapshot() {
       const user = data.user
       const meta = (user?.user_metadata ?? {}) as Record<string, unknown>
       const appMeta = (user?.app_metadata ?? {}) as Record<string, unknown>
-      const metaRole = typeof meta.role === 'string' ? meta.role : null
-      const appRole = typeof appMeta.role === 'string' ? appMeta.role : null
-      setRoleKey(normalizeAppRole(metaRole || appRole || ''))
+      const role = (typeof meta.role === 'string' ? meta.role : null) || (typeof appMeta.role === 'string' ? appMeta.role : null)
+      setRoleKey(normalizeAppRole(role || ''))
     }
-
     void loadRole()
     void loadEvents()
   }, [loadEvents])
 
-  const summary = useMemo(() => {
-    const live = events.filter((event) => event.status === 'LIVE').length
-    const upcoming = events.filter((event) => event.status === 'UPCOMING').length
-    const registrationOpen = events.filter((event) => event.registration_open !== false).length
-
-    return { live, upcoming, registrationOpen }
-  }, [events])
-
-  const snapshotEvents = useMemo(() => {
-    return [...events]
-      .sort((a, b) => {
-        const statusWeight = STATUS_META[a.status].weight - STATUS_META[b.status].weight
-        if (statusWeight !== 0) return statusWeight
-
-        const aTime = getEventTime(a.event_date)
-        const bTime = getEventTime(b.event_date)
-        if (a.status === 'FINISHED' || a.status === 'LOCKED') return bTime - aTime
-        return aTime - bTime
-      })
-      .slice(0, 4)
-  }, [events])
+  const snapshotEvents = useMemo(
+    () =>
+      [...events]
+        .sort((a, b) => {
+          const statusWeight = STATUS_META[a.status].weight - STATUS_META[b.status].weight
+          if (statusWeight !== 0) return statusWeight
+          if (a.status === 'FINISHED' || a.status === 'LOCKED') return getEventTime(b.event_date) - getEventTime(a.event_date)
+          return getEventTime(a.event_date) - getEventTime(b.event_date)
+        })
+        .slice(0, 6),
+    [events]
+  )
 
   if (loading && events.length === 0) return <SnapshotSkeleton />
 
   return (
-    <div className="grid gap-5">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-wrap gap-2">
-          <InfoPill label={`${summary.live} live`} tone="success" />
-          <InfoPill label={`${summary.upcoming} upcoming`} tone="accent" />
-          <InfoPill label={`${summary.registrationOpen} reg open`} tone="info" />
-        </div>
+    <div className="grid gap-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="admin-muted text-sm font-semibold">
+          Menampilkan {snapshotEvents.length} event dengan prioritas LIVE, UPCOMING, lalu arsip terbaru.
+        </p>
         <button type="button" onClick={() => void loadEvents()} disabled={loading} className="admin-outline-button w-fit">
-          {loading ? 'Refreshing…' : 'Refresh Snapshot'}
+          {loading ? 'Memuat...' : 'Refresh'}
         </button>
       </div>
 
-      {error && (
-        <div className="admin-alert-danger">
-          {error}
-        </div>
-      )}
+      {error && <div className="admin-alert-danger">{error}</div>}
 
       {snapshotEvents.length > 0 ? (
-        <div className="grid gap-4 lg:grid-cols-2">
-          {snapshotEvents.map((event) => {
-            const statusMeta = STATUS_META[event.status]
-            const eventScope = event.event_scope === 'INTERNAL' ? 'INTERNAL' : 'PUBLIC'
-            const isPublic = event.is_public !== false
-            const registrationOpen = event.registration_open !== false
-
-            return (
-              <article key={event.id} className="admin-card grid gap-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <InfoPill label={statusMeta.label} tone={statusMeta.tone} />
-                  <InfoPill
-                    label={eventScope === 'INTERNAL' ? 'Internal' : 'Public'}
-                    tone={eventScope === 'INTERNAL' ? 'danger' : 'info'}
-                  />
-                  <InfoPill
-                    label={formatRelativeDate(event.event_date)}
-                    tone="neutral"
-                  />
-                </div>
-
-                <div className="grid gap-1">
-                  <h3 className="admin-heading line-clamp-2 text-xl">{event.name}</h3>
-                  <div className="admin-muted flex flex-wrap gap-x-3 gap-y-1 text-sm font-semibold">
-                    <span>{event.location || 'Lokasi belum diisi'}</span>
-                    <span>{formatDate(event.event_date)}</span>
-                  </div>
-                </div>
-
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <div className="admin-card-muted px-4 py-3">
-                    <div className="admin-kicker">Registrasi</div>
-                    <div className={`mt-1 text-sm font-black ${registrationOpen ? 'text-emerald-600' : 'text-rose-600'}`}>
-                      {registrationOpen ? 'Masih dibuka' : 'Sudah ditutup'}
-                    </div>
-                  </div>
-                  <div className="admin-card-muted px-4 py-3">
-                    <div className="admin-kicker">Public View</div>
-                    <div className={`mt-1 text-sm font-black ${isPublic ? 'text-emerald-600' : 'text-slate-500'}`}>
-                      {isPublic ? 'Tampil di publik' : 'Disembunyikan'}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  <Link href={`/admin/events/${event.id}/registrations`} className="admin-primary-button">
-                    Registrations
-                  </Link>
-                  {!isRegistrationApprover && (
-                    <Link href={`/admin/events/${event.id}/motos`} className="admin-outline-button">
-                      Motos
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+          <div className="hidden grid-cols-[minmax(0,1fr)_130px_110px_190px] gap-4 border-b border-slate-200 bg-slate-50 px-4 py-3 text-[11px] font-black uppercase tracking-[0.12em] text-slate-500 md:grid">
+            <span>Event</span>
+            <span>Status</span>
+            <span>Registrasi</span>
+            <span className="text-right">Aksi</span>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {snapshotEvents.map((event) => {
+              const statusMeta = STATUS_META[event.status]
+              const registrationOpen = event.registration_open !== false
+              const isPublic = event.is_public !== false
+              return (
+                <div key={event.id} className="grid gap-3 px-4 py-4 md:grid-cols-[minmax(0,1fr)_130px_110px_190px] md:items-center md:gap-4">
+                  <div className="min-w-0">
+                    <Link href={`/admin/events/${event.id}/registrations`} className="admin-heading block truncate text-base hover:text-amber-700">
+                      {event.name}
                     </Link>
-                  )}
-                  <Link href={`/event/${event.id}`} className="admin-outline-button">
-                    Public Page
-                  </Link>
+                    <div className="admin-muted mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs font-semibold">
+                      <span>{formatDate(event.event_date)}</span>
+                      <span>{event.location || 'Lokasi belum diisi'}</span>
+                      <span>{isPublic ? 'Public' : 'Hidden'}</span>
+                    </div>
+                  </div>
+                  <div><InfoPill label={statusMeta.label} tone={statusMeta.tone} /></div>
+                  <div className={`text-sm font-black ${registrationOpen ? 'text-emerald-600' : 'text-slate-500'}`}>
+                    {registrationOpen ? 'Dibuka' : 'Ditutup'}
+                  </div>
+                  <div className="flex flex-wrap gap-2 md:justify-end">
+                    <Link href={`/admin/events/${event.id}/registrations`} className="admin-primary-button px-3 py-2 text-xs">Registrations</Link>
+                    {!isRegistrationApprover && <Link href={`/admin/events/${event.id}/motos`} className="admin-outline-button px-3 py-2 text-xs">Motos</Link>}
+                  </div>
                 </div>
-              </article>
-            )
-          })}
+              )
+            })}
+          </div>
         </div>
       ) : (
         <div className="admin-card-muted py-8 text-center">
-          <div className="admin-heading text-lg">Belum ada event yang bisa ditampilkan.</div>
+          <div className="admin-heading text-lg">Belum ada event yang dapat ditampilkan.</div>
           <p className="admin-muted mt-2 text-sm font-semibold">Buka Event Workspace untuk membuat atau mengecek akses event.</p>
         </div>
       )}
 
       {events.length > snapshotEvents.length && (
-        <div className="admin-card-muted flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="admin-heading text-sm">{events.length - snapshotEvents.length} event lain tidak ditampilkan di snapshot.</div>
-            <div className="admin-muted mt-1 text-xs font-semibold">Dashboard hanya menampilkan event prioritas agar tetap ringan.</div>
-          </div>
-          <Link href="/admin/events" className="admin-outline-button w-fit">
-            Lihat Semua Event
-          </Link>
+        <div className="admin-muted text-xs font-semibold">
+          {events.length - snapshotEvents.length} event lain tidak ditampilkan agar dashboard tetap fokus.
         </div>
       )}
     </div>

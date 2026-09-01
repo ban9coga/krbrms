@@ -10,6 +10,8 @@ type FeatureFlags = {
   absent_enabled: boolean
   dns_enabled: boolean
   dnf_enabled: boolean
+  dnf_progress_enabled: boolean
+  dq_retains_final_classification: boolean
 }
 
 type PenaltyRule = {
@@ -30,6 +32,14 @@ type SafetyRequirement = {
   sort_order?: number | null
   penalty_code?: string | null
   icon_key?: string | null
+}
+
+type SafetyStandard = {
+  code: string
+  label: string
+  description: string
+  icon_key: string
+  sort_order: number
 }
 
 type RiderItem = {
@@ -88,6 +98,19 @@ const SAFETY_ICON_OPTIONS = [
   { key: 'shoes', icon: '👟', shortLabel: 'Sepatu' },
   { key: 'pants', icon: '🩳', shortLabel: 'Celana' },
 ]
+
+const SAFETY_STANDARD: SafetyStandard[] = [
+  { code: 'SAFETY_HELMET', label: 'Helm', description: 'Helm rider tidak sesuai ketentuan event.', icon_key: 'helmet', sort_order: 1 },
+  { code: 'SAFETY_GLOVES', label: 'Sarung tangan', description: 'Sarung tangan rider tidak sesuai ketentuan event.', icon_key: 'gloves', sort_order: 2 },
+  { code: 'SAFETY_ELBOW_PAD', label: 'Pelindung siku', description: 'Pelindung siku rider tidak sesuai ketentuan event.', icon_key: 'elbow', sort_order: 3 },
+  { code: 'SAFETY_KNEE_PAD', label: 'Pelindung lutut', description: 'Pelindung lutut rider tidak sesuai ketentuan event.', icon_key: 'knee', sort_order: 4 },
+  { code: 'SAFETY_JERSEY', label: 'Jersey', description: 'Jersey rider tidak sesuai ketentuan event.', icon_key: 'jersey', sort_order: 5 },
+  { code: 'SAFETY_SHOES', label: 'Sepatu', description: 'Sepatu rider tidak sesuai ketentuan event.', icon_key: 'shoes', sort_order: 6 },
+  { code: 'SAFETY_PANTS', label: 'Celana', description: 'Celana rider tidak sesuai ketentuan event.', icon_key: 'pants', sort_order: 7 },
+]
+
+const createStandardPointDraft = () =>
+  Object.fromEntries(SAFETY_STANDARD.map((item) => [item.code, '1'])) as Record<string, string>
 
 function getSafetyVisual(label: string, iconKey?: string | null) {
   if (iconKey) {
@@ -161,6 +184,7 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
   const [advancedItems, setAdvancedItems] = useState<AdvancedCategoryItem[]>([])
   const [expandedCategoryId, setExpandedCategoryId] = useState<string | null>(null)
   const [editingRequirementId, setEditingRequirementId] = useState<string | null>(null)
+  const [standardPointDraft, setStandardPointDraft] = useState<Record<string, string>>(createStandardPointDraft)
   const [nonFinishPenaltyDraft, setNonFinishPenaltyDraft] = useState({
     dnfAutoPenalty: String(DEFAULT_NON_FINISH_AUTO_PENALTY),
     dnsAutoPenalty: String(DEFAULT_NON_FINISH_AUTO_PENALTY),
@@ -228,9 +252,18 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
       const reqJson = reqRes
       const advancedJson = advancedRes
 
-      setFlags(flagJson.data ?? { penalty_enabled: false, absent_enabled: false, dns_enabled: false, dnf_enabled: false })
+      setFlags(flagJson.data ?? { penalty_enabled: false, absent_enabled: false, dns_enabled: false, dnf_enabled: false, dnf_progress_enabled: false, dq_retains_final_classification: false })
       setRules(ruleJson.data ?? [])
       setRequirements(reqJson.data ?? [])
+      setStandardPointDraft((previous) => {
+        const next = createStandardPointDraft()
+        for (const standard of SAFETY_STANDARD) {
+          const savedRule = (ruleJson.data ?? []).find((rule: PenaltyRule) => rule.code === standard.code)
+          if (savedRule) next[standard.code] = String(savedRule.penalty_point)
+          else if (previous[standard.code] !== undefined) next[standard.code] = previous[standard.code]
+        }
+        return next
+      })
       const advancedCategories = (advancedJson.data?.categories ?? []) as CategoryItem[]
       const advancedConfigs = (advancedJson.data?.configs ?? []) as AdvancedConfig[]
       const advancedConfigMap = new Map(advancedConfigs.map((config) => [config.category_id, config]))
@@ -404,6 +437,89 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
       setErrorMessage(null)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Gagal menghapus penalty rule.'
+      setErrorMessage(message)
+      alert(message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleApplySafetyStandard = async () => {
+    const invalidItem = SAFETY_STANDARD.find((item) => {
+      const points = Number(standardPointDraft[item.code])
+      return !Number.isFinite(points) || points < 1
+    })
+    if (invalidItem) {
+      alert(`Isi penalty point minimal 1 untuk ${invalidItem.label}.`)
+      return
+    }
+
+    setSaving(true)
+    try {
+      for (const standard of SAFETY_STANDARD) {
+        const points = Math.trunc(Number(standardPointDraft[standard.code]))
+        const existingRule = rules.find((rule) => rule.code === standard.code)
+
+        if (existingRule) {
+          await apiFetch(`/api/events/${eventId}/penalties/${existingRule.id}`, {
+            method: 'PATCH',
+            body: JSON.stringify({
+              ...existingRule,
+              description: standard.description,
+              penalty_point: points,
+              applies_to_stage: 'ALL',
+              is_active: true,
+              checker_enabled: true,
+            }),
+          })
+        } else {
+          await apiFetch(`/api/events/${eventId}/penalties`, {
+            method: 'POST',
+            body: JSON.stringify({
+              code: standard.code,
+              description: standard.description,
+              penalty_point: points,
+              applies_to_stage: 'ALL',
+              is_active: true,
+              checker_enabled: true,
+              rd_enabled: false,
+            }),
+          })
+        }
+
+        const existingRequirement = requirements.find(
+          (requirement) => requirement.penalty_code === standard.code || requirement.label.trim().toLowerCase() === standard.label.toLowerCase()
+        )
+        if (existingRequirement) {
+          await apiFetch(`/api/events/${eventId}/safety-requirements`, {
+            method: 'PATCH',
+            body: JSON.stringify({
+              id: existingRequirement.id,
+              label: standard.label,
+              is_required: true,
+              sort_order: standard.sort_order,
+              penalty_code: standard.code,
+              icon_key: standard.icon_key,
+            }),
+          })
+        } else {
+          await apiFetch(`/api/events/${eventId}/safety-requirements`, {
+            method: 'POST',
+            body: JSON.stringify({
+              label: standard.label,
+              is_required: true,
+              sort_order: standard.sort_order,
+              penalty_code: standard.code,
+              icon_key: standard.icon_key,
+            }),
+          })
+        }
+      }
+      await loadAll()
+      setErrorMessage(null)
+      alert('Safety standar berhasil diterapkan untuk event ini.')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Gagal menerapkan safety standar.'
       setErrorMessage(message)
       alert(message)
     } finally {
@@ -590,6 +706,8 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
                 absent_enabled: flags?.absent_enabled ?? false,
                 dns_enabled: flags?.dns_enabled ?? false,
                 dnf_enabled: flags?.dnf_enabled ?? false,
+                dnf_progress_enabled: flags?.dnf_progress_enabled ?? false,
+                dq_retains_final_classification: flags?.dq_retains_final_classification ?? false,
               })
             }
             label="Modul penalty aktif"
@@ -602,6 +720,8 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
                 absent_enabled: checked,
                 dns_enabled: flags?.dns_enabled ?? false,
                 dnf_enabled: flags?.dnf_enabled ?? false,
+                dnf_progress_enabled: flags?.dnf_progress_enabled ?? false,
+                dq_retains_final_classification: flags?.dq_retains_final_classification ?? false,
               })
             }
             label="Modul absent aktif"
@@ -614,6 +734,8 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
                 absent_enabled: flags?.absent_enabled ?? false,
                 dns_enabled: checked,
                 dnf_enabled: flags?.dnf_enabled ?? false,
+                dnf_progress_enabled: flags?.dnf_progress_enabled ?? false,
+                dq_retains_final_classification: flags?.dq_retains_final_classification ?? false,
               })
             }
             label="Modul DNS aktif"
@@ -626,14 +748,118 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
                 absent_enabled: flags?.absent_enabled ?? false,
                 dns_enabled: flags?.dns_enabled ?? false,
                 dnf_enabled: checked,
+                dnf_progress_enabled: flags?.dnf_progress_enabled ?? false,
+                dq_retains_final_classification: flags?.dq_retains_final_classification ?? false,
               })
             }
             label="Modul DNF aktif"
+          />
+          <ToggleSwitch
+            checked={flags?.dnf_progress_enabled ?? false}
+            onChange={(checked) =>
+              saveFlags({
+                penalty_enabled: flags?.penalty_enabled ?? false,
+                absent_enabled: flags?.absent_enabled ?? false,
+                dns_enabled: flags?.dns_enabled ?? false,
+                dnf_enabled: flags?.dnf_enabled ?? false,
+                dnf_progress_enabled: checked,
+                dq_retains_final_classification: flags?.dq_retains_final_classification ?? false,
+              })
+            }
+            label="DNF berdasarkan progres trek"
+          />
+          <ToggleSwitch
+            checked={flags?.dq_retains_final_classification ?? false}
+            onChange={(checked) =>
+              saveFlags({
+                penalty_enabled: flags?.penalty_enabled ?? false,
+                absent_enabled: flags?.absent_enabled ?? false,
+                dns_enabled: flags?.dns_enabled ?? false,
+                dnf_enabled: flags?.dnf_enabled ?? false,
+                dnf_progress_enabled: flags?.dnf_progress_enabled ?? false,
+                dq_retains_final_classification: checked,
+              })
+            }
+            label="DQ tetap masuk klasifikasi akhir"
           />
         </div>
         <div style={{ display: 'grid', gap: 6, fontSize: 12, fontWeight: 800, color: '#334155' }}>
           <div>DNS module: checker bisa menandai rider DNS. Nilai rider otomatis dihitung sebagai jumlah rider + 2.</div>
           <div>DNF module: finisher bisa menandai rider DNF. Nilai rider otomatis dihitung sebagai posisi terakhir.</div>
+          <div>DNF berdasarkan progres trek: Finisher mencatat 0-100%. DNF dengan progres lebih jauh mendapat urutan dan point lebih baik.</div>
+          <div>DQ tetap masuk klasifikasi akhir: rider DQ tetap diarahkan ke final class bawah sebagai non-starter tanpa gate dan tanpa input Finisher.</div>
+        </div>
+      </div>
+
+      <div
+        style={{
+          marginTop: 16,
+          background: '#fff8e6',
+          border: '2px solid #d97706',
+          borderRadius: 16,
+          padding: 16,
+          display: 'grid',
+          gap: 12,
+        }}
+      >
+        <div>
+          <div style={{ fontWeight: 950, fontSize: 18 }}>Safety Standar Event</div>
+          <div style={{ marginTop: 4, fontSize: 12, color: '#78350f', fontWeight: 700 }}>
+            Isi poinnya, lalu terapkan sekali. Sistem membuat rule checker dan checklist safety yang sudah saling terhubung. Tidak perlu input code atau mapping satu per satu di setiap event.
+          </div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10 }}>
+          {SAFETY_STANDARD.map((standard) => {
+            const savedRule = rules.find((rule) => rule.code === standard.code)
+            const visual = getSafetyVisual(standard.label, standard.icon_key)
+            return (
+              <label
+                key={standard.code}
+                style={{
+                  display: 'grid',
+                  gap: 6,
+                  padding: 12,
+                  border: '1px solid #f3c66a',
+                  borderRadius: 12,
+                  background: '#fff',
+                  cursor: 'text',
+                }}
+              >
+                <span style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
+                  <span style={{ fontWeight: 900 }}>{visual.icon} {standard.label}</span>
+                  {savedRule ? <span style={{ fontSize: 10, fontWeight: 900, color: '#15803d' }}>SUDAH AKTIF</span> : null}
+                </span>
+                <span style={{ fontSize: 11, color: '#57534e', fontWeight: 700 }}>{standard.description}</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <input
+                    type="number"
+                    min={1}
+                    inputMode="numeric"
+                    value={standardPointDraft[standard.code] ?? ''}
+                    onChange={(event) =>
+                      setStandardPointDraft((previous) => ({
+                        ...previous,
+                        [standard.code]: event.target.value.replace(/[^\d]/g, ''),
+                      }))
+                    }
+                    style={{ width: 76, padding: '8px 10px', borderRadius: 8, border: '1px solid #b45309', fontWeight: 900 }}
+                  />
+                  <span style={{ fontSize: 12, fontWeight: 900, color: '#78350f' }}>poin</span>
+                </span>
+              </label>
+            )
+          })}
+        </div>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          <button
+            type="button"
+            onClick={handleApplySafetyStandard}
+            disabled={saving}
+            style={{ padding: '10px 14px', borderRadius: 10, border: '2px solid #78350f', background: '#f59e0b', color: '#451a03', fontWeight: 950 }}
+          >
+            {saving ? 'Menyimpan standar...' : 'Terapkan / Perbarui Safety Standar'}
+          </button>
+          <span style={{ fontSize: 11, color: '#78350f', fontWeight: 800 }}>Rule lama dengan kode safety yang sama akan diperbarui, rule custom tidak diubah.</span>
         </div>
       </div>
 
@@ -648,7 +874,7 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
           gap: 10,
         }}
       >
-        <div style={{ fontWeight: 950, fontSize: 18 }}>Penalty Rules</div>
+        <div style={{ fontWeight: 950, fontSize: 18 }}>Custom Penalty Rules</div>
         <div style={{ display: 'grid', gap: 10 }}>
           <input
             placeholder="Code (unique)"
@@ -1260,4 +1486,3 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
     </div>
   )
 }
-

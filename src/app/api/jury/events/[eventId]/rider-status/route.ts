@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../../lib/auth'
 import { assertMotoEditable, assertMotoNotUnderProtest } from '../../../../../../lib/motoLock'
 import { isMotoLive, isMotoReady, isMotoUpcoming } from '../../../../../../lib/motoStatus'
+import {
+  buildRiderStatusSourceNote,
+  getRiderStatusActorLabel,
+  parseRiderStatusSourceNote,
+} from '../../../../../../lib/riderStatusSource'
 import { requireJury } from '../../../../../../services/juryAuth'
 import { upsertRiderParticipationStatuses } from '../../../../../../services/riderParticipationStatus'
 
@@ -72,7 +77,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
 
   let updatesQuery = adminClient
     .from('rider_status_updates')
-    .select('rider_id, proposed_status, approval_status, created_at, moto_id')
+    .select('rider_id, proposed_status, approval_status, created_at, moto_id, note')
     .eq('event_id', eventId)
     .order('created_at', { ascending: false })
   if (motoId) updatesQuery = updatesQuery.eq('moto_id', motoId)
@@ -95,18 +100,22 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       if (row.result_status === 'FINISH' || row.result_status === 'DNF') {
         approvedMap.set(row.rider_id, 'ACTIVE')
       }
-      if (row.result_status === 'DNS') {
+      // ABSENT creates a DNS result for scoring, but must remain ABSENT in
+      // operational screens so it is not offered again as a live DNS action.
+      if (row.result_status === 'DNS' && approvedMap.get(row.rider_id) !== 'ABSENT') {
         approvedMap.set(row.rider_id, 'DNS')
       }
     }
   }
 
-  const latestUpdate = new Map<string, { proposed_status: string; approval_status: string }>()
+  const latestUpdate = new Map<string, { proposed_status: string; approval_status: string; created_at: string; note?: string | null }>()
   for (const row of updates ?? []) {
     if (!latestUpdate.has(row.rider_id)) {
       latestUpdate.set(row.rider_id, {
         proposed_status: row.proposed_status,
         approval_status: row.approval_status,
+        created_at: row.created_at,
+        note: row.note,
       })
     }
   }
@@ -119,11 +128,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const data = Array.from(riderIds).map((rider_id) => {
     const update = latestUpdate.get(rider_id)
     const approved = approvedMap.get(rider_id)
+    const source = parseRiderStatusSourceNote(update?.note)
     return {
       rider_id,
       approval_status: update?.approval_status ?? (approved ? 'APPROVED' : 'NONE'),
       proposed_status: update?.proposed_status ?? approved ?? null,
       participation_status: approved ?? null,
+      status_source_role: source?.role ?? null,
+      status_source_label: source?.label ?? null,
+      status_updated_at: update?.created_at ?? null,
     }
   })
 
@@ -132,7 +145,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
 
 export async function POST(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params
-  const auth = await requireJury(req, ['CHECKER', 'RACE_DIRECTOR', 'ADMIN', 'super_admin'], eventId)
+  const auth = await requireJury(req, ['CHECKER', 'FINISHER', 'RACE_DIRECTOR', 'ADMIN', 'super_admin'], eventId)
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
   const body = await req.json()
   const rows: RiderStatusChangeInput[] = Array.isArray(body?.changes)
@@ -202,7 +215,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       return NextResponse.json({ error: 'DNS baru bisa dipakai saat moto sudah LIVE.' }, { status: 409 })
     }
     return NextResponse.json(
-      { error: 'Checker hanya bisa set READY/ABSENT saat UPCOMING/READY, dan READY/ABSENT/DNS saat LIVE.' },
+      { error: 'Jury hanya bisa set READY/ABSENT saat UPCOMING/READY, dan READY/ABSENT/DNS saat LIVE.' },
       { status: 409 }
     )
   }
@@ -219,6 +232,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     approval_status: shouldAutoApply(row.participation_status) ? 'APPROVED' : 'PENDING',
     approved_by: shouldAutoApply(row.participation_status) ? 'SYSTEM' : null,
     approved_at: shouldAutoApply(row.participation_status) ? new Date().toISOString() : null,
+    note: buildRiderStatusSourceNote({
+      role: auth.role,
+      label: getRiderStatusActorLabel(auth.user),
+    }),
   }))
 
   const { data, error } = await adminClient
@@ -258,6 +275,22 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       )
       if (dnsResultError) return NextResponse.json({ error: dnsResultError.message }, { status: 400 })
     }
+
+    // Changing a previously absent rider back to READY must also clear the DNS
+    // result that ABSENT created, otherwise Finisher still treats the rider as DNS.
+    const activeRiderIds = autoApplyRows
+      .filter((row) => row.participation_status === 'ACTIVE')
+      .map((row) => row.rider_id)
+    if (activeRiderIds.length > 0) {
+      const { error: clearDnsError } = await adminClient
+        .from('results')
+        .delete()
+        .eq('event_id', eventId)
+        .eq('moto_id', motoId)
+        .in('rider_id', activeRiderIds)
+        .eq('result_status', 'DNS')
+      if (clearDnsError) return NextResponse.json({ error: clearDnsError.message }, { status: 400 })
+    }
   }
 
     await adminClient.from('audit_log').insert(
@@ -273,7 +306,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
           : row.participation_status === 'ABSENT'
             ? 'ABSENT status applied with DNS scoring'
             : 'AUTO mode: status applied'
-        : 'Status update submitted',
+        : `Status update submitted by ${auth.role}`,
     }))
   )
 
@@ -282,7 +315,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
 
 export async function DELETE(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params
-  const auth = await requireJury(req, ['CHECKER', 'RACE_DIRECTOR', 'ADMIN', 'super_admin'], eventId)
+  const auth = await requireJury(req, ['CHECKER', 'FINISHER', 'RACE_DIRECTOR', 'ADMIN', 'super_admin'], eventId)
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
   if (auth.role === 'RACE_DIRECTOR') {
@@ -320,7 +353,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ event
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Moto under protest review.' }, { status: 409 })
   }
   if (!canCheckerUndoStatus(moto.status)) {
-    return NextResponse.json({ error: 'Checker hanya bisa undo status saat moto masih UPCOMING, READY, atau LIVE.' }, { status: 409 })
+    return NextResponse.json({ error: 'Jury hanya bisa undo status saat moto masih UPCOMING, READY, atau LIVE.' }, { status: 409 })
   }
 
   const { error: updateDeleteError } = await adminClient

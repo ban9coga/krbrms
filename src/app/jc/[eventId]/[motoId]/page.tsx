@@ -3,11 +3,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import CheckerTopbar from '../../../../components/CheckerTopbar'
+import LoadingState from '../../../../components/LoadingState'
 import { useHighVisibility } from '../../../../hooks/useHighVisibility'
 import { buildCategoryBaseOrder, compareMotoWorkflowSequence } from '../../../../lib/motoSequence'
 import { useApiFetch } from '@/src/hooks/useApiFetch'
 import { isMotoLive, isMotoReady, isMotoUpcoming } from '../../../../lib/motoStatus'
 import { usePageVisibility } from '../../../../lib/usePageVisibility'
+import { useEventRaceRealtime } from '@/src/hooks/useEventRaceRealtime'
 
 
 type CategoryItem = {
@@ -26,17 +28,49 @@ type MotoItem = {
   checker_prep_ready_at?: string | null
 }
 
+type MotoReadyConfirmation = {
+  categoryLabel: string
+  motoName: string
+  status: 'READY' | 'LIVE'
+}
+
+const getStageWaitCopy = (motoName: string, status: string) => {
+  if (status === 'PROTEST_REVIEW') {
+    return {
+      title: 'Menunggu Review Protes',
+      detail: 'Hasil stage ini sedang dalam review. Moto prep berikutnya muncul setelah review selesai.',
+    }
+  }
+  if (/^moto\s*\d+/i.test(motoName)) {
+    return { title: 'Menunggu Hasil Kualifikasi Dihitung', detail: 'Sistem sedang menghitung hasil kualifikasi dan menyusun babak berikutnya.' }
+  }
+  if (/^repechage/i.test(motoName)) {
+    return { title: 'Menunggu Hasil Repechage Dihitung', detail: 'Sistem sedang menentukan rider yang lanjut dari Repechage ke babak berikutnya.' }
+  }
+  if (/^quarter final/i.test(motoName)) {
+    return { title: 'Menunggu Hasil Quarter Final Dihitung', detail: 'Sistem sedang menentukan rider yang lanjut dari Quarter Final ke babak berikutnya.' }
+  }
+  if (/^semi final/i.test(motoName)) {
+    return { title: 'Menunggu Hasil Semi Final Dihitung', detail: 'Sistem sedang menentukan rider yang lanjut dari Semi Final ke final.' }
+  }
+  return { title: 'Menunggu Hasil Stage Dihitung', detail: 'Sistem sedang menyusun moto berikutnya untuk kategori ini.' }
+}
+
 type RiderItem = {
   id: string
   name: string
   no_plate_display: string
   gate_position?: number | null
+  dq_reason?: string | null
 }
 
 type StatusRow = {
   rider_id: string
   participation_status: 'ACTIVE' | 'DNS' | 'DNF' | 'ABSENT'
   registration_order: number
+  status_source_role?: string | null
+  status_source_label?: string | null
+  status_updated_at?: string | null
 }
 
 type EventFlags = {
@@ -49,6 +83,27 @@ type EventFlags = {
 const isLockedStatus = (status?: string | null) => String(status ?? '').toUpperCase() === 'LOCKED'
 const isPrepMotoStatus = (status?: string | null) => isMotoUpcoming(status) || isMotoReady(status)
 
+const isCategoryAwaitingStageCompute = (list: MotoItem[], categoryId?: string | null) => {
+  if (!categoryId) return false
+  const categoryMotos = list.filter((moto) => moto.category_id === categoryId)
+  const nonFinalMotos = categoryMotos.filter((moto) => !/^FINAL\s+/i.test(moto.moto_name))
+  if (nonFinalMotos.length === 0) return false
+
+  // A category is only allowed to release the workflow after at least one
+  // Final has been generated. Before that, locked Repechage/QF/Semi results
+  // still need a compute step and must not send Checker to another category.
+  const hasFinalMoto = categoryMotos.some((moto) => /^FINAL\s+/i.test(moto.moto_name))
+  if (hasFinalMoto) return false
+
+  const hasPrepOrActiveMoto = categoryMotos.some((moto) => {
+    const status = String(moto.status ?? '').toUpperCase()
+    return isPrepMotoStatus(status) || status === 'LIVE' || status === 'PROVISIONAL' || status === 'PROTEST_REVIEW'
+  })
+  if (hasPrepOrActiveMoto) return false
+
+  return nonFinalMotos.every((moto) => isLockedStatus(moto.status))
+}
+
 const isCategoryUnfinished = (list: MotoItem[], categoryId?: string | null) => {
   if (!categoryId) return false
   const categoryMotos = list.filter((m) => m.category_id === categoryId)
@@ -60,18 +115,19 @@ const isCategoryUnfinished = (list: MotoItem[], categoryId?: string | null) => {
   })
   if (hasActiveOrProvisional) return true
 
-  const hasCompletedFinal = categoryMotos.some((m) => {
-    const name = String(m.moto_name ?? '').toUpperCase()
-    const s = String(m.status ?? '').toUpperCase()
-    return name.includes('FINAL') && (s === 'FINISHED' || s === 'LOCKED')
-  })
+  if (isCategoryAwaitingStageCompute(list, categoryId)) return true
 
-  const hasUnfinishedMotos = categoryMotos.some((m) => {
+  return categoryMotos.some((m) => {
     const s = String(m.status ?? '').toUpperCase()
     return s !== 'LOCKED' && s !== 'FINISHED'
   })
+}
 
-  return !hasCompletedFinal && hasUnfinishedMotos
+const pickActiveWorkflowCategoryId = (list: MotoItem[]) => {
+  for (const moto of list) {
+    if (moto.category_id && isCategoryUnfinished(list, moto.category_id)) return moto.category_id
+  }
+  return null
 }
 
 const pickUpcomingMoto = (list: MotoItem[], anchorMoto?: MotoItem | null) => {
@@ -112,6 +168,29 @@ const pickPrepMotoId = (
     if (liveMoto && isCategoryUnfinished(list, liveMoto.category_id)) {
       return liveMoto.id
     }
+  }
+
+  // Stage motos are created with a high raw moto_order after compute. Keep the
+  // checker on the earliest unfinished category instead of retaining a prep
+  // moto from the next category that happened to be selected beforehand.
+  const activeCategoryId = pickActiveWorkflowCategoryId(list)
+  if (activeCategoryId) {
+    const currentMoto = list.find((m) => m.id === currentId)
+    if (
+      currentMoto?.category_id === activeCategoryId &&
+      !isLockedStatus(currentMoto.status) &&
+      isPrepMotoStatus(currentMoto.status) &&
+      !currentPrepFinalized
+    ) {
+      return currentId
+    }
+
+    const activePrepMoto = list.find(
+      (m) => m.category_id === activeCategoryId && !isLockedStatus(m.status) && isPrepMotoStatus(m.status)
+    )
+    if (activePrepMoto) return activePrepMoto.id
+
+    if (isCategoryAwaitingStageCompute(list, activeCategoryId)) return ''
   }
 
   if (currentId) {
@@ -191,6 +270,9 @@ const buildStatusMap = (
   statusList: Array<{
     rider_id: string
     proposed_status?: string | null
+    status_source_role?: string | null
+    status_source_label?: string | null
+    status_updated_at?: string | null
   }>
 ) => {
   const nextStatuses: Record<string, StatusRow> = {}
@@ -200,6 +282,9 @@ const buildStatusMap = (
         rider_id: row.rider_id,
         participation_status: row.proposed_status as StatusRow['participation_status'],
         registration_order: 0,
+        status_source_role: row.status_source_role ?? null,
+        status_source_label: row.status_source_label ?? null,
+        status_updated_at: row.status_updated_at ?? null,
       }
     }
   }
@@ -217,7 +302,9 @@ export default function JCPage() {
   const [categories, setCategories] = useState<CategoryItem[]>([])
   const [selectedMotoId, setSelectedMotoId] = useState(initialMotoId)
   const selectedMotoIdRef = useRef(initialMotoId)
+  const manualSelectRef = useRef(false)
   const [riders, setRiders] = useState<RiderItem[]>([])
+  const [prepDqRiders, setPrepDqRiders] = useState<RiderItem[]>([])
   const [statuses, setStatuses] = useState<Record<string, StatusRow>>({})
   const [incidentRiders, setIncidentRiders] = useState<RiderItem[]>([])
   const [incidentStatuses, setIncidentStatuses] = useState<Record<string, StatusRow>>({})
@@ -240,12 +327,15 @@ export default function JCPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [warningMessage, setWarningMessage] = useState<string | null>(null)
   const [allReadyDone, setAllReadyDone] = useState(false)
+  const [motoReadySaving, setMotoReadySaving] = useState(false)
+  const [motoReadyConfirmation, setMotoReadyConfirmation] = useState<MotoReadyConfirmation | null>(null)
   const [bulkReadyState, setBulkReadyState] = useState<{
     motoId: string
     changedStatuses: Record<string, StatusRow | null>
   } | null>(null)
   const [viewportWidth, setViewportWidth] = useState(1280)
   const { highVisibility, toggleHighVisibility } = useHighVisibility('jury-checker-high-visibility')
+  const localMutationRef = useRef(false)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -265,9 +355,6 @@ export default function JCPage() {
     [eventId]
   )
 
-  const incidentMoto = useMemo(() => motos.find((m) => isMotoLive(m.status)) ?? null, [motos])
-  const incidentMotoId = incidentMoto?.id ?? ''
-
   useEffect(() => {
     selectedMotoIdRef.current = selectedMotoId
     setRiders([])
@@ -277,10 +364,9 @@ export default function JCPage() {
 
   const loadStaticConfig = useCallback(async () => {
     if (!eventId) return
-    const [catRes, flagRes, safetyRes] = await Promise.all([
+    const [catRes, flagRes] = await Promise.all([
       fetch(`/api/events/${eventId}/categories`),
       apiFetch(`/api/jury/events/${eventId}/modules`),
-      apiFetch(`/api/jury/events/${eventId}/safety-requirements`),
     ])
     const catJson = await catRes.json()
     setCategories((catJson.data ?? []) as CategoryItem[])
@@ -292,13 +378,6 @@ export default function JCPage() {
         dnf_enabled: true,
       }
     )
-    const rawSafety = (safetyRes.data ?? []) as SafetyRequirement[]
-    const uniqueSafety = new Map<string, SafetyRequirement>()
-    for (const item of rawSafety) {
-      const key = item.label.trim().toLowerCase()
-      if (!uniqueSafety.has(key)) uniqueSafety.set(key, item)
-    }
-    setSafetyRequirements(Array.from(uniqueSafety.values()))
   }, [apiFetch, eventId])
 
   const loadMotos = useCallback(async (silent = false) => {
@@ -306,29 +385,39 @@ export default function JCPage() {
     if (!silent) setLoading(true)
     if (!silent) setErrorMessage(null)
     try {
-      const motoRes = await fetch(`/api/motos?event_id=${eventId}`)
-      const motoJson = await motoRes.json()
+      const motoJson = await apiFetch(`/api/jury/events/${eventId}/moto-state`)
 
       const rawMotos = (motoJson.data ?? []) as MotoItem[]
       const categoryBaseOrder = buildCategoryBaseOrder(rawMotos)
       const workflowMotos = [...rawMotos].sort((a, b) => compareMotoWorkflowSequence(a, b, categoryBaseOrder))
       setMotos(workflowMotos)
+
+      // Skip auto-navigation if user just manually selected a moto from dropdown
+      if (manualSelectRef.current) {
+        manualSelectRef.current = false
+        return workflowMotos
+      }
+
+      const currentSelectedMotoId = selectedMotoIdRef.current
       const liveMoto = workflowMotos.find((m) => isMotoLive(m.status))
-      const nextMotoId = pickPrepMotoId(workflowMotos, selectedMotoId, liveMoto?.id ?? null, allReadyDone)
-      if (nextMotoId && nextMotoId !== selectedMotoId) {
+      const nextMotoId = pickPrepMotoId(workflowMotos, currentSelectedMotoId, liveMoto?.id ?? null, allReadyDone)
+      if (nextMotoId && nextMotoId !== currentSelectedMotoId) {
         const nextMoto = workflowMotos.find((m) => m.id === nextMotoId)
+        selectedMotoIdRef.current = nextMotoId
         setSelectedMotoId(nextMotoId)
         setAllReadyDone(Boolean(nextMoto?.checker_prep_ready_at))
         setBulkReadyState(null)
         syncPrepMotoUrl(nextMotoId)
       }
-      if (nextMotoId && nextMotoId === selectedMotoId) {
+      if (nextMotoId && nextMotoId === currentSelectedMotoId) {
         const currentMoto = workflowMotos.find((m) => m.id === nextMotoId)
         setAllReadyDone(Boolean(currentMoto?.checker_prep_ready_at))
       }
-      if (!nextMotoId && selectedMotoId) {
+      if (!nextMotoId && currentSelectedMotoId) {
+        selectedMotoIdRef.current = ''
         setSelectedMotoId('')
         setRiders([])
+        setPrepDqRiders([])
         setStatuses({})
         setAllReadyDone(false)
         setBulkReadyState(null)
@@ -340,13 +429,16 @@ export default function JCPage() {
       if (!silent) setLoading(false)
     }
     return []
-  }, [allReadyDone, eventId, selectedMotoId, syncPrepMotoUrl])
+  }, [allReadyDone, apiFetch, eventId, syncPrepMotoUrl])
 
   useEffect(() => {
     void loadStaticConfig().catch((err: unknown) => {
       setErrorMessage(err instanceof Error ? err.message : 'Gagal memuat konfigurasi checker.')
     })
   }, [loadStaticConfig])
+
+  const incidentMoto = useMemo(() => motos.find((m) => isMotoLive(m.status)) ?? null, [motos])
+  const incidentMotoId = incidentMoto?.id ?? ''
 
   const loadMoto = useCallback(async (silent = false, preserveAllReadyDone = silent) => {
     const targetMotoId = selectedMotoIdRef.current
@@ -363,6 +455,10 @@ export default function JCPage() {
     try {
       const targetMoto = motos.find((m) => m.id === targetMotoId)
       const isMotoLocked = targetMoto ? targetMoto.status === 'LOCKED' : false
+      // Update allReadyDone based on the moto's actual checker_prep_ready_at state
+      if (targetMoto && !isMotoLocked) {
+        setAllReadyDone(Boolean(targetMoto.checker_prep_ready_at))
+      }
       
       const [riderRes, statusRes, safetyRes] = await Promise.all([
         apiFetch(`/api/jury/motos/${targetMotoId}/riders`),
@@ -380,7 +476,8 @@ export default function JCPage() {
         return
       }
       // Stable-reference update: only replace riders if data actually changed
-      const newRiders = (riderRes.data ?? []).slice(0, 8) as RiderItem[]
+      const newRiders = (riderRes.data ?? []) as RiderItem[]
+      setPrepDqRiders((riderRes.dq_riders ?? []) as RiderItem[])
       setRiders((prev) => {
         if (prev.length === newRiders.length && prev.every((r, i) => r.id === newRiders[i]?.id)) return prev
         return newRiders
@@ -389,6 +486,9 @@ export default function JCPage() {
       const statusList = (statusRes.data ?? []) as Array<{
         rider_id: string
         proposed_status?: string | null
+        status_source_role?: string | null
+        status_source_label?: string | null
+        status_updated_at?: string | null
       }>
       // Stable-reference update: only replace statuses if data actually changed
       const newStatuses = buildStatusMap(statusList)
@@ -397,7 +497,11 @@ export default function JCPage() {
         const nextKeys = Object.keys(newStatuses)
         if (prevKeys.length !== nextKeys.length) return newStatuses
         for (const key of nextKeys) {
-          if (prev[key]?.participation_status !== newStatuses[key]?.participation_status) return newStatuses
+          if (
+            prev[key]?.participation_status !== newStatuses[key]?.participation_status ||
+            prev[key]?.status_source_role !== newStatuses[key]?.status_source_role ||
+            prev[key]?.status_source_label !== newStatuses[key]?.status_source_label
+          ) return newStatuses
         }
         return prev
       })
@@ -464,11 +568,14 @@ export default function JCPage() {
         await loadMotos(true)
         return
       }
-      setIncidentRiders((riderRes.data ?? []).slice(0, 8))
+      setIncidentRiders((riderRes.data ?? []) as RiderItem[])
 
       const statusList = (statusRes.data ?? []) as Array<{
         rider_id: string
         proposed_status?: string | null
+        status_source_role?: string | null
+        status_source_label?: string | null
+        status_updated_at?: string | null
       }>
       setIncidentStatuses(buildStatusMap(statusList))
       setIncidentLastUpdated(new Date().toLocaleTimeString())
@@ -479,30 +586,98 @@ export default function JCPage() {
     }
   }, [apiFetch, eventId, incidentMotoId, loadMotos])
 
+  const refreshCheckerPollingState = useCallback(
+    async (prepMotoId: string, activeIncidentMotoId: string) => {
+      if (!eventId) return
+      const params = new URLSearchParams()
+      if (prepMotoId) params.set('prep_moto_id', prepMotoId)
+      if (activeIncidentMotoId) params.set('incident_moto_id', activeIncidentMotoId)
+      const response = await apiFetch(`/api/jury/events/${eventId}/checker-poll?${params.toString()}`)
+
+      if (prepMotoId && response.prep?.moto_id === prepMotoId && selectedMotoIdRef.current === prepMotoId) {
+        const nextStatuses = buildStatusMap(response.prep.statuses ?? [])
+        setStatuses(nextStatuses)
+
+        const checks = response.prep.checks ?? []
+        setSafetyChecks((previous) => {
+          const next = { ...previous }
+          for (const rider of riders) {
+            const riderChecks = { ...(next[rider.id] ?? {}) }
+            for (const requirement of safetyRequirements) {
+              if (typeof riderChecks[requirement.id] !== 'boolean') riderChecks[requirement.id] = true
+            }
+            next[rider.id] = riderChecks
+          }
+          for (const row of checks) {
+            next[row.rider_id] = { ...(next[row.rider_id] ?? {}), [row.requirement_id]: row.is_checked }
+          }
+          return next
+        })
+        setLastUpdated(new Date().toLocaleTimeString())
+      }
+
+      if (activeIncidentMotoId && response.incident?.moto_id === activeIncidentMotoId) {
+        setIncidentLocked(Boolean(response.incident.locked))
+        setIncidentStatuses(buildStatusMap(response.incident.statuses ?? []))
+        setIncidentLastUpdated(new Date().toLocaleTimeString())
+      }
+    },
+    [apiFetch, eventId, riders, safetyRequirements]
+  )
+
+  const refreshFromRealtime = useCallback(async () => {
+    if (saving || motoReadySaving || localMutationRef.current) return
+
+    try {
+      const workflowMotos = (await loadMotos(true)) ?? []
+      const liveMotoId = workflowMotos.find((moto) => isMotoLive(moto.status))?.id ?? ''
+      const prepMotoId = pickPrepMotoId(workflowMotos, selectedMotoIdRef.current, liveMotoId, allReadyDone)
+      await refreshCheckerPollingState(prepMotoId, liveMotoId)
+    } catch {
+      // The 15-second polling loop remains the fallback if Realtime fails.
+    }
+  }, [allReadyDone, loadMotos, motoReadySaving, refreshCheckerPollingState, saving])
+
+  useEventRaceRealtime({
+    eventId,
+    enabled: isPageVisible,
+    onRaceStateChanged: refreshFromRealtime,
+  })
+
   // Initial load — only runs once per moto selection
   useEffect(() => {
     if (!eventId) return
     initialLoadDone.current = false
-    void (async () => {
-      await loadMotos(false)
-      if (selectedMotoIdRef.current) await loadMoto(false, true)
-      if (incidentMotoId) await loadIncidentMoto(true)
+    void loadMotos(false).finally(() => {
       initialLoadDone.current = true
-    })()
+    })
+  }, [eventId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!eventId || !selectedMotoId) return
+    void loadMoto(false, true)
   }, [eventId, selectedMotoId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!eventId || !incidentMotoId) return
+    void loadIncidentMoto(true)
+  }, [eventId, incidentMotoId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Background polling — always silent, never shows Loading
   useEffect(() => {
     if (!eventId || !isPageVisible) return
 
     const interval = setInterval(() => {
-      void loadMotos(true)
-      if (selectedMotoIdRef.current) void loadMoto(true)
-      if (incidentMotoId) void loadIncidentMoto(true)
-    }, 10000)
+      void (async () => {
+        const workflowMotos = (await loadMotos(true)) ?? []
+        const liveMotoId = workflowMotos.find((moto) => isMotoLive(moto.status))?.id ?? ''
+        const prepMotoId = pickPrepMotoId(workflowMotos, selectedMotoIdRef.current, liveMotoId, allReadyDone)
+        await refreshCheckerPollingState(prepMotoId, liveMotoId)
+      })()
+    }, 15000)
 
     return () => clearInterval(interval)
-  }, [eventId, incidentMotoId, isPageVisible, loadMotos, loadMoto, loadIncidentMoto])
+  }, [allReadyDone, eventId, isPageVisible, loadMotos, refreshCheckerPollingState])
 
   useEffect(() => {
     setSafetyChecks((prev) => {
@@ -525,11 +700,27 @@ export default function JCPage() {
     return map
   }, [categories])
 
-  const selectableMotos = useMemo(
-    () => motos.filter((m) => !isLockedStatus(m.status) && isPrepMotoStatus(m.status)),
-    [motos]
-  )
   const selectedMoto = useMemo(() => motos.find((m) => m.id === selectedMotoId) ?? null, [motos, selectedMotoId])
+  const workflowPrepMotoId = useMemo(
+    () => pickPrepMotoId(motos, selectedMotoId, incidentMotoId, allReadyDone),
+    [allReadyDone, incidentMotoId, motos, selectedMotoId]
+  )
+  const workflowPrepMoto = useMemo(
+    () => motos.find((m) => m.id === workflowPrepMotoId) ?? null,
+    [motos, workflowPrepMotoId]
+  )
+  const selectableMotos = useMemo(
+    () =>
+      motos.filter(
+        (m) =>
+          !isLockedStatus(m.status) &&
+          isPrepMotoStatus(m.status) &&
+          // The dropdown follows the prep moto picked by workflow order, not merely the currently LIVE category.
+          // This releases the next category only after the current category is actually complete.
+          (workflowPrepMoto?.category_id ? m.category_id === workflowPrepMoto.category_id : true)
+      ),
+    [motos, workflowPrepMoto]
+  )
   const selectedMotoUpcoming = isMotoUpcoming(selectedMoto?.status)
   const selectedMotoReady = isMotoReady(selectedMoto?.status)
   const selectedMotoPreppable = !!selectedMoto && !isLockedStatus(selectedMoto.status) && (selectedMotoUpcoming || selectedMotoReady)
@@ -540,29 +731,36 @@ export default function JCPage() {
     return [selectedMoto, ...selectableMotos]
   }, [selectableMotos, selectedMoto, selectedMotoPreppable])
   const bulkReadyApplied = bulkReadyState?.motoId === selectedMotoId
-  const activeCategoryWaitingQualification = useMemo(() => {
-    const activeCategoryId = selectedMoto?.category_id ?? incidentMoto?.category_id ?? null
-    if (!activeCategoryId) return null
+  const activeCategoryWaitingStage = useMemo(() => {
+    // A workflow prep moto takes precedence over any completed category that
+    // is still eligible for a later compute. Otherwise an older category can
+    // hide the prep panel after the selector has already advanced.
+    if (workflowPrepMoto) return null
 
-    const categoryMotos = motos.filter((m) => m.category_id === activeCategoryId)
-    if (categoryMotos.length === 0) return null
+    const categoryIds = Array.from(new Set(motos.map((moto) => moto.category_id).filter(Boolean))) as string[]
+    for (const categoryId of categoryIds) {
+      const categoryMotos = motos.filter((moto) => moto.category_id === categoryId)
+      const hasPrepMoto = categoryMotos.some((moto) => !isLockedStatus(moto.status) && isPrepMotoStatus(moto.status))
+      if (hasPrepMoto) continue
 
-    const hasProvisionalOrLive = categoryMotos.some((m) => {
-      const s = String(m.status ?? '').toUpperCase()
-      return s === 'PROVISIONAL' || s === 'LIVE' || s === 'PROTEST_REVIEW'
-    })
+      const finalMotos = categoryMotos.filter((moto) => /^FINAL\s+/i.test(moto.moto_name))
+      if (finalMotos.length > 0 && finalMotos.every((moto) => isLockedStatus(moto.status))) continue
 
-    const hasPrepMotoInSameCategory = categoryMotos.some((m) => {
-      const s = String(m.status ?? '').toUpperCase()
-      return (s === 'UPCOMING' || s === 'READY') && !isLockedStatus(s)
-    })
+      const pendingMoto = categoryMotos.find((moto) => ['PROVISIONAL', 'PROTEST_REVIEW'].includes(String(moto.status ?? '').toUpperCase()))
+      const lastLockedNonFinalMoto = [...categoryMotos]
+        .reverse()
+        .find((moto) => isLockedStatus(moto.status) && !/^FINAL\s+/i.test(moto.moto_name))
+      const waitingMoto = pendingMoto ?? lastLockedNonFinalMoto
+      if (!waitingMoto) continue
 
-    if (hasProvisionalOrLive && !hasPrepMotoInSameCategory) {
-      return categoryLabel.get(activeCategoryId) ?? 'Kategori Terkait'
+      const status = String(waitingMoto.status ?? '').toUpperCase()
+      return {
+        categoryLabel: categoryLabel.get(categoryId) ?? 'Kategori Terkait',
+        ...getStageWaitCopy(waitingMoto.moto_name, status),
+      }
     }
-
     return null
-  }, [motos, selectedMoto, incidentMoto, categoryLabel])
+  }, [motos, categoryLabel, workflowPrepMoto])
   const incidentCategoryLabel = incidentMoto
     ? categoryLabel.get(incidentMoto.category_id ?? '') ?? 'Unknown Category'
     : 'Kategori'
@@ -614,6 +812,7 @@ export default function JCPage() {
   const incidentSummary = useMemo(() => {
     const total = incidentRiderList.length
     const dns = incidentRiderList.filter((r) => incidentStatuses[r.id]?.participation_status === 'DNS').length
+    const absent = incidentRiderList.filter((r) => incidentStatuses[r.id]?.participation_status === 'ABSENT').length
     const ready = incidentRiderList.filter((r) => {
       const status = incidentStatuses[r.id]?.participation_status
       return !status || status === 'ACTIVE'
@@ -621,8 +820,9 @@ export default function JCPage() {
     return {
       total,
       dns,
+      absent,
       ready,
-      remaining: Math.max(total - dns, 0),
+      remaining: Math.max(total - dns - absent, 0),
     }
   }, [incidentRiderList, incidentStatuses])
 
@@ -647,12 +847,6 @@ export default function JCPage() {
     [requiredSafety, safetyChecks]
   )
 
-  const activeCount = useMemo(() => {
-    return riderList.filter((r) => statuses[r.id]?.participation_status === 'ACTIVE').length
-  }, [riderList, statuses])
-  const warningCount = useMemo(() => {
-    return riderList.filter((r) => statuses[r.id]?.participation_status === 'ACTIVE' && !isSafetyOk(r.id)).length
-  }, [riderList, statuses, isSafetyOk])
   const allPrepReviewed = useMemo(() => {
     return (
       riders.length > 0 &&
@@ -781,6 +975,12 @@ export default function JCPage() {
     if (!incidentMotoId || incidentLocked) return
     const previousStatus = incidentStatuses[riderId]
     if (!previousStatus || previousStatus.participation_status !== 'DNS') return
+    if (previousStatus.status_source_role && previousStatus.status_source_role !== 'CHECKER') {
+      const confirmed = window.confirm(
+        `DNS ini ditetapkan oleh ${previousStatus.status_source_label || 'role lain'} (${previousStatus.status_source_role}).\n\nBatalkan DNS dan kembalikan rider ke status aktif?`
+      )
+      if (!confirmed) return
+    }
     setSaving(true)
     setWarningMessage(null)
     setErrorMessage(null)
@@ -835,6 +1035,7 @@ export default function JCPage() {
     setWarningMessage(null)
     setErrorMessage(null)
     try {
+      const requests: Array<Promise<unknown>> = []
       if (safetyRequirements.length > 0) {
         const checks: SafetyCheckPayload[] = targetRiders.flatMap((rider) =>
           safetyRequirements.map((item) => ({
@@ -843,10 +1044,12 @@ export default function JCPage() {
             is_checked: safetyChecks[rider.id]?.[item.id] === true,
           }))
         )
-        await apiFetch(`/api/jury/motos/${selectedMotoId}/safety-checks`, {
-          method: 'POST',
-          body: JSON.stringify({ checks }),
-        })
+        requests.push(
+          apiFetch(`/api/jury/motos/${selectedMotoId}/safety-checks`, {
+            method: 'POST',
+            body: JSON.stringify({ checks }),
+          })
+        )
       }
 
       const nextStatuses = targetRiders.reduce<Record<string, StatusRow>>((acc, rider, index) => {
@@ -864,19 +1067,20 @@ export default function JCPage() {
       }))
       setAllReadyDone(false)
 
-      await Promise.all(
-        targetRiders.map((rider, index) =>
-          apiFetch(`/api/jury/events/${eventId}/rider-status`, {
-            method: 'POST',
-            body: JSON.stringify({
+      requests.push(
+        apiFetch(`/api/jury/events/${eventId}/rider-status`, {
+          method: 'POST',
+          body: JSON.stringify({
+            changes: targetRiders.map((rider, index) => ({
               rider_id: rider.id,
               participation_status: 'ACTIVE',
               registration_order: rider.gate_position ?? rider.registration_order ?? index + 1,
               moto_id: selectedMotoId,
-            }),
-          })
-        )
+            })),
+          }),
+        })
       )
+      await Promise.all(requests)
 
       setBulkReadyState({ motoId: selectedMotoId, changedStatuses })
       setWarningMessage(`${targetRiders.length} rider di ${selectedMoto?.moto_name ?? 'moto ini'} ditandai READY. Kalau ada yang keliru, tekan Undo All Riders Ready.`)
@@ -969,20 +1173,33 @@ export default function JCPage() {
       setErrorMessage('Semua rider di moto ini harus dicek dulu. Tandai READY atau ABSENT sebelum tekan Moto Ready.')
       return
     }
+    setMotoReadySaving(true)
+    setSaving(true)
     setAllReadyDone(true)
+    setWarningMessage('Moto Ready sedang disimpan. Menunggu konfirmasi sistem...')
     try {
-      await apiFetch(`/api/jury/motos/${selectedMotoId}/prep-ready`, { method: 'POST' })
+      const response = (await apiFetch(`/api/jury/motos/${selectedMotoId}/prep-ready`, { method: 'POST' })) as {
+        next_moto?: { nextMotoId?: string; skipped?: boolean }
+      }
+      const status = response.next_moto?.nextMotoId === selectedMotoId && !response.next_moto?.skipped ? 'LIVE' : 'READY'
       setMotos((prev) =>
         prev.map((moto) =>
-          moto.id === selectedMotoId ? { ...moto, status: 'READY', checker_prep_ready_at: new Date().toISOString() } : moto
+          moto.id === selectedMotoId ? { ...moto, status, checker_prep_ready_at: new Date().toISOString() } : moto
         )
       )
-      setWarningMessage('Status prep rider saat ini dikunci. MC akan baca READY atau ABSENT sesuai hasil pengecekan checker.')
+      setWarningMessage(status === 'LIVE' ? 'Moto langsung LIVE karena moto sebelumnya sudah PROVISIONAL.' : 'Status prep rider saat ini dikunci.')
       setLastUpdated(new Date().toLocaleTimeString())
-      alert(`Moto Ready dikonfirmasi untuk ${selectedCategoryLabel} | ${selectedMoto?.moto_name ?? 'Moto'}`)
+      setMotoReadyConfirmation({
+        categoryLabel: selectedCategoryLabel,
+        motoName: selectedMoto?.moto_name ?? 'Moto',
+        status,
+      })
     } catch (err: unknown) {
       setAllReadyDone(false)
       setErrorMessage(err instanceof Error ? err.message : 'Gagal menyimpan Moto Ready.')
+    } finally {
+      setMotoReadySaving(false)
+      setSaving(false)
     }
   }
 
@@ -1006,9 +1223,10 @@ export default function JCPage() {
   const interactionDisabled = saving || bannerDisabled || locked
   const safetyInteractionDisabled = interactionDisabled || allReadyDone
   const readyDisabled = interactionDisabled
-  const absentDisabled = interactionDisabled || allReadyDone || !flags.absent_enabled
+  const absentDisabled = interactionDisabled || allReadyDone || bulkReadyApplied || !flags.absent_enabled
   const bulkReadyDisabled = interactionDisabled || allReadyDone || riderList.length === 0
   const canGateReady = riderList.length > 0 && allPrepReviewed
+  const motoReadyDisabled = interactionDisabled || !canGateReady || allReadyDone
   const incidentInteractionDisabled = saving || incidentLocked || !incidentMotoId
   const incidentDnsDisabled = incidentInteractionDisabled || !flags.dns_enabled
 
@@ -1025,21 +1243,20 @@ export default function JCPage() {
           gap: isMobileLayout ? 12 : 16,
         }}
       >
-        <div style={{ display: 'grid', gap: 8 }}>
+          <div style={{ display: 'grid', gap: 8 }}>
           <div className="jc-header-row" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <div style={{ fontSize: highVisibility ? (isCompactLayout ? 30 : 34) : isCompactLayout ? 24 : 28, fontWeight: 900 }}>
               Checker Gate Start
-            </div>
-            <div className="jc-summary-text" style={{ marginLeft: 'auto', fontWeight: 700, fontSize: isCompactLayout ? 12 : 14 }}>
-              Prep: {selectedCategoryLabel} - {selectedMoto?.moto_name ?? 'Belum ada moto prep'} | Ready: {activeCount}/{summary.total} | Belum Dicek: {summary.unchecked}
-              {warningCount > 0 ? ` | Warning: ${warningCount}` : ''}
             </div>
             <select
               value={selectedMotoId}
               onChange={(e) => {
                 const next = e.target.value
+                const targetMoto = motos.find((moto) => moto.id === next)
+                manualSelectRef.current = true
+                selectedMotoIdRef.current = next
                 setSelectedMotoId(next)
-                setAllReadyDone(false)
+                setAllReadyDone(Boolean(targetMoto?.checker_prep_ready_at))
                 setBulkReadyState(null)
                 syncPrepMotoUrl(next)
               }}
@@ -1105,7 +1322,7 @@ export default function JCPage() {
             </button>
           </div>
 
-          {activeCategoryWaitingQualification && (
+          {false && (
             <div
               style={{
                 padding: '12px 16px',
@@ -1124,7 +1341,7 @@ export default function JCPage() {
               <span style={{ fontSize: 22 }}>⏳</span>
               <div>
                 <div style={{ fontWeight: 900, fontSize: 15 }}>
-                  Menunggu Hasil Kualifikasi ({activeCategoryWaitingQualification})
+                  Menunggu hasil stage dihitung
                 </div>
                 <div style={{ fontSize: 13, fontWeight: 600, opacity: 0.9, marginTop: 2 }}>
                   Kualifikasi kategori ini baru disubmit / provisional. Sistem sedang menghitung hasil kualifikasi & penyusunan stage berikutnya. Moto kategori selanjutnya ditahan hingga kualifikasi kategori ini selesai.
@@ -1133,7 +1350,6 @@ export default function JCPage() {
             </div>
           )}
 
-          <div style={{ fontWeight: 700, color: '#333' }}>Safety checklist sebelum race start.</div>
           {!hasSafetyRequirements && (
             <div
               style={{
@@ -1269,6 +1485,18 @@ export default function JCPage() {
                 style={{
                   padding: '6px 12px',
                   borderRadius: 999,
+                  border: '2px solid #64748b',
+                  background: '#f1f5f9',
+                  color: '#334155',
+                  fontWeight: 900,
+                }}
+              >
+                ABSENT: {incidentSummary.absent}
+              </span>
+              <span
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 999,
                   border: '2px solid #1d4ed8',
                   background: '#dbeafe',
                   color: '#1e3a8a',
@@ -1280,69 +1508,43 @@ export default function JCPage() {
             </div>
           ) : null}
           {incidentMoto ? (
-            <div style={{ display: 'grid', gap: 10 }}>
+            <div
+              className="jc-incident-grid"
+              style={{ gap: isCompactLayout ? 8 : 10 }}
+            >
               {incidentRiderList.map((r) => {
-                const rawStatus = incidentStatuses[r.id]?.participation_status
+                const statusRow = incidentStatuses[r.id]
+                const rawStatus = statusRow?.participation_status
                 const statusLabel = !rawStatus ? 'READY/UNKNOWN' : rawStatus === 'ACTIVE' ? 'READY' : rawStatus
                 const isDns = rawStatus === 'DNS'
+                const isAbsent = rawStatus === 'ABSENT'
+                const isActionable = !isDns && !isAbsent
+                const sourceLabel = (isDns || isAbsent) && statusRow?.status_source_label
+                  ? `${statusLabel} oleh ${statusRow.status_source_label} (${statusRow.status_source_role})`
+                  : null
                 return (
-                  <div
+                  <button
                     key={`incident-${r.id}`}
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: isMobileLayout ? '1fr' : '1fr auto',
-                      gap: 12,
-                      alignItems: 'center',
-                      padding: isCompactLayout ? '10px 12px' : '12px 14px',
-                      borderRadius: 14,
-                      border: '2px solid #7f1d1d',
-                      background: '#fff',
-                    }}
+                    type="button"
+                    onClick={() =>
+                      isDns
+                        ? handleUndoIncidentDns(r.id)
+                        : isActionable
+                          ? handleIncidentDns(r.id, r.gate_position ?? r.registration_order ?? 0)
+                          : undefined
+                    }
+                    disabled={incidentDnsDisabled || isAbsent}
+                    aria-label={`${isDns ? 'Undo DNS' : isAbsent ? 'Rider absent' : 'Set DNS'} ${r.no_plate_display} ${r.name}`}
+                    className={`jc-incident-rider-btn ${isDns ? 'is-dns' : isAbsent ? 'is-absent' : 'is-actionable'} ${highVisibility ? 'is-large' : ''}`}
                   >
-                    <div style={{ display: 'grid', gap: 4 }}>
-                      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: highVisibility ? (isCompactLayout ? 24 : 28) : isCompactLayout ? 20 : 24, fontWeight: 950 }}>{r.no_plate_display}</span>
-                        <span style={{ fontWeight: 900 }}>{r.name}</span>
-                        <span style={{ fontSize: 12, fontWeight: 800, color: '#7f1d1d' }}>Gate #{r.gate_position ?? '-'}</span>
-                      </div>
-                      <div
-                        style={{
-                          width: 'fit-content',
-                          padding: '4px 10px',
-                          borderRadius: 999,
-                          border: '2px solid #111',
-                          background: isDns ? '#fee2e2' : '#ffe4e6',
-                          fontWeight: 900,
-                          fontSize: 12,
-                        }}
-                      >
-                        {statusLabel}
-                      </div>
-                    </div>
-                    <button
-                      className="jc-action-btn"
-                      type="button"
-                      onClick={() =>
-                        isDns
-                          ? handleUndoIncidentDns(r.id)
-                          : handleIncidentDns(r.id, r.gate_position ?? r.registration_order ?? 0)
-                      }
-                      disabled={incidentDnsDisabled}
-                      style={{
-                        padding: highVisibility ? '14px 16px' : '12px 14px',
-                        borderRadius: 999,
-                        border: `2px solid ${isDns ? '#1d4ed8' : '#c2410c'}`,
-                        background: isDns ? '#dbeafe' : '#ffedd5',
-                        color: isDns ? '#1e3a8a' : '#9a3412',
-                        fontWeight: 900,
-                        fontSize: highVisibility ? 16 : undefined,
-                        whiteSpace: 'nowrap',
-                        width: isMobileLayout ? '100%' : undefined,
-                      }}
-                    >
-                      {isDns ? 'UNDO DNS' : 'SET DNS'}
-                    </button>
-                  </div>
+                    <span className="jc-incident-rider-shadow" />
+                    <span className="jc-incident-rider-edge" />
+                    <span className="jc-incident-rider-front">
+                      <span className="jc-incident-rider-plate">{r.no_plate_display}</span>
+                    </span>
+                    {sourceLabel && <span className="sr-only">{sourceLabel}</span>}
+                    <span className="sr-only">Status {statusLabel}</span>
+                  </button>
                 )
               })}
             </div>
@@ -1391,47 +1593,82 @@ export default function JCPage() {
           </div>
         </div>
 
-        <div
-          style={{
-            display: 'grid',
-            gap: 6,
-            padding: isCompactLayout ? '10px 12px' : '12px 14px',
-            borderRadius: 14,
-            border: '2px solid #bbf7d0',
-            background: '#ffffff',
-          }}
-        >
-          <div style={{ fontSize: 11, color: '#166534', fontWeight: 900, letterSpacing: 1 }}>
-            MOTO PREP SAAT INI
+        {activeCategoryWaitingStage ? (
+          <div
+            role="status"
+            aria-live="polite"
+            style={{ display: 'grid', gap: 12, padding: isCompactLayout ? 14 : 18, borderRadius: 14, border: '2px solid #d97706', background: '#fff7ed' }}
+          >
+            <LoadingState label={activeCategoryWaitingStage.title} />
+            <div style={{ textAlign: 'center', color: '#92400e', fontWeight: 900 }}>
+              {activeCategoryWaitingStage.categoryLabel}
+            </div>
+            <div style={{ textAlign: 'center', color: '#78350f', fontSize: 13, fontWeight: 700, lineHeight: 1.45 }}>
+              {activeCategoryWaitingStage.detail}
+            </div>
           </div>
-          <div style={{ fontSize: highVisibility ? (isCompactLayout ? 22 : 26) : isCompactLayout ? 18 : 22, fontWeight: 950, color: '#111827' }}>
-            {selectedMoto?.moto_name ?? 'Belum ada moto prep'}
+        ) : (
+          <div
+            style={{
+              display: 'grid',
+              gap: 6,
+              padding: isCompactLayout ? '10px 12px' : '12px 14px',
+              borderRadius: 14,
+              border: '2px solid #bbf7d0',
+              background: '#ffffff',
+            }}
+          >
+            <div style={{ fontSize: highVisibility ? (isCompactLayout ? 22 : 26) : isCompactLayout ? 18 : 22, fontWeight: 950, color: '#111827' }}>
+              {selectedMoto?.moto_name ?? 'Belum ada moto prep'}
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              <span
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: 999,
+                  border: '1.5px solid #166534',
+                  background: '#f0fdf4',
+                  color: '#166534',
+                  fontSize: 12,
+                  fontWeight: 900,
+                }}
+              >
+                {selectedCategoryLabel}
+              </span>
+              <span style={{ fontSize: 12, color: '#475569', fontWeight: 800 }}>
+                {selectedMotoReady
+                  ? allReadyDone
+                    ? 'Moto sudah READY dan prep sudah dikonfirmasi.'
+                    : 'Moto sudah READY; checker masih bisa koreksi sebelum race berjalan.'
+                  : 'Moto ini masih fase prep sebelum start.'}
+              </span>
+            </div>
           </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-            <span
-              style={{
-                padding: '4px 10px',
-                borderRadius: 999,
-                border: '1.5px solid #166534',
-                background: '#f0fdf4',
-                color: '#166534',
-                fontSize: 12,
-                fontWeight: 900,
-              }}
-            >
-              {selectedCategoryLabel}
-            </span>
-            <span style={{ fontSize: 12, color: '#475569', fontWeight: 800 }}>
-              {selectedMotoReady
-                ? allReadyDone
-                  ? 'Moto sudah READY dan prep sudah dikonfirmasi.'
-                  : 'Moto sudah READY; checker masih bisa koreksi sebelum race berjalan.'
-                : 'Moto ini masih fase prep sebelum start.'}
-            </span>
-          </div>
-        </div>
+        )}
 
-        <div style={{ display: 'grid', gap: 10 }}>
+        {prepDqRiders.length > 0 && !activeCategoryWaitingStage && (
+          <div
+            style={{
+              display: 'grid',
+              gap: 8,
+              padding: isCompactLayout ? 10 : 12,
+              borderRadius: 12,
+              border: '2px solid #be123c',
+              background: '#fff1f2',
+            }}
+          >
+            <div style={{ color: '#9f1239', fontWeight: 950, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              Tidak Dapat Start - DQ
+            </div>
+            {prepDqRiders.map((rider) => (
+              <div key={rider.id} style={{ color: '#881337', fontWeight: 800, fontSize: 13 }}>
+                {rider.no_plate_display} - {rider.name}{rider.dq_reason ? `: ${rider.dq_reason}` : ''}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{ display: activeCategoryWaitingStage ? 'none' : 'grid', gap: 10 }}>
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -1449,7 +1686,7 @@ export default function JCPage() {
               className="jc-action-btn jc-primary"
               type="button"
               onClick={handleAllReady}
-              disabled={interactionDisabled || !canGateReady || allReadyDone}
+              disabled={motoReadyDisabled}
               style={{
                 padding: isCompactLayout ? '12px 16px' : '14px 18px',
                 borderRadius: 999,
@@ -1524,6 +1761,7 @@ export default function JCPage() {
             type="button"
             onClick={async () => {
               if (!selectedMotoId) return
+              localMutationRef.current = true
               setSafetyChecks((prev) => {
                 const next = { ...prev }
                 for (const rider of riderList) {
@@ -1541,11 +1779,15 @@ export default function JCPage() {
                   is_checked: true,
                 }))
               )
-              if (checks.length > 0) {
-                await apiFetch(`/api/jury/motos/${selectedMotoId}/safety-checks`, {
-                  method: 'POST',
-                  body: JSON.stringify({ checks }),
-                })
+              try {
+                if (checks.length > 0) {
+                  await apiFetch(`/api/jury/motos/${selectedMotoId}/safety-checks`, {
+                    method: 'POST',
+                    body: JSON.stringify({ checks }),
+                  })
+                }
+              } finally {
+                localMutationRef.current = false
               }
             }}
             disabled={safetyInteractionDisabled || !hasSafetyRequirements}
@@ -1623,9 +1865,9 @@ export default function JCPage() {
           </div>
         </div>
 
-        {loading && !initialLoadDone.current && <div style={{ fontWeight: 900 }}>Loading...</div>}
+        {!activeCategoryWaitingStage && loading && !initialLoadDone.current && <div style={{ fontWeight: 900 }}>Loading...</div>}
 
-        <div
+        {!activeCategoryWaitingStage && <div
           style={{
             display: 'grid',
             gap: 12,
@@ -1715,6 +1957,7 @@ export default function JCPage() {
                         type="button"
                         onClick={async () => {
                           const nextChecked = !checked
+                          localMutationRef.current = true
                           setSafetyChecks((prev) => ({
                             ...prev,
                             [r.id]: { ...(prev[r.id] ?? {}), [item.id]: nextChecked },
@@ -1734,6 +1977,8 @@ export default function JCPage() {
                               ...prev,
                               [r.id]: { ...(prev[r.id] ?? {}), [item.id]: checked },
                             }))
+                          } finally {
+                            localMutationRef.current = false
                           }
                         }}
                         disabled={safetyInteractionDisabled}
@@ -1778,7 +2023,7 @@ export default function JCPage() {
 
                 <div className="jc-status-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
                   <button
-                    className="jc-action-btn jc-primary"
+                    className={`jc-rider-action-btn ${isRiderReady ? 'is-ready' : isRiderAbsent ? 'is-muted' : safetyOk ? 'is-ready' : 'is-warning'}`}
                     type="button"
                     onClick={() =>
                       statuses[r.id]?.participation_status === 'ACTIVE'
@@ -1786,20 +2031,13 @@ export default function JCPage() {
                         : handleSaveStatus(r.id, 'ACTIVE', r.gate_position ?? 0)
                     }
                     disabled={readyDisabled || isRiderAbsent}
-                    style={{
-                      padding: highVisibility ? (isCompactLayout ? '12px 14px' : '14px 16px') : isCompactLayout ? '10px 12px' : '12px 14px',
-                      borderRadius: 999,
-                      border: '2px solid #1b5e20',
-                      background: isRiderReady ? '#dcfce7' : isRiderAbsent ? '#e5e7eb' : safetyOk ? '#2ecc71' : '#ffe9a8',
-                      color: '#111',
-                      fontWeight: 900,
-                      fontSize: highVisibility ? (isCompactLayout ? 14 : 16) : isCompactLayout ? 12 : undefined,
-                    }}
                   >
-                    {isRiderReady ? 'UNDO READY' : 'READY'}
+                    <span className="jc-rider-action-shadow" />
+                    <span className="jc-rider-action-edge" />
+                    <span className="jc-rider-action-front">{isRiderReady ? 'UNDO READY' : 'READY'}</span>
                   </button>
                   <button
-                    className="jc-action-btn"
+                    className={`jc-rider-action-btn ${isRiderAbsent ? 'is-absent' : isRiderReady ? 'is-muted' : 'is-danger'}`}
                     type="button"
                     onClick={() =>
                       isRiderAbsent
@@ -1807,23 +2045,16 @@ export default function JCPage() {
                         : handleSaveStatus(r.id, 'ABSENT', r.gate_position ?? 0)
                     }
                     disabled={absentDisabled || isRiderReady}
-                    style={{
-                      padding: highVisibility ? (isCompactLayout ? '12px 14px' : '14px 16px') : isCompactLayout ? '10px 12px' : '12px 14px',
-                      borderRadius: 999,
-                      border: '2px solid #b91c1c',
-                      background: isRiderAbsent ? '#fecaca' : isRiderReady ? '#e5e7eb' : '#fee2e2',
-                      color: '#7f1d1d',
-                      fontWeight: 900,
-                      fontSize: highVisibility ? (isCompactLayout ? 14 : 16) : isCompactLayout ? 12 : undefined,
-                    }}
                   >
-                    {isRiderAbsent ? 'UNDO ABSENT' : 'ABSENT'}
+                    <span className="jc-rider-action-shadow" />
+                    <span className="jc-rider-action-edge" />
+                    <span className="jc-rider-action-front">{isRiderAbsent ? 'UNDO ABSENT' : 'ABSENT'}</span>
                   </button>
                 </div>
               </div>
             )
           })}
-        </div>
+        </div>}
         </div>
       </div>
       <style jsx>{`
@@ -1855,6 +2086,195 @@ export default function JCPage() {
         .jc-page :global(.jc-action-btn:disabled) {
           opacity: 0.66;
           filter: saturate(0.75);
+        }
+
+        .jc-incident-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+        }
+
+        .jc-incident-rider-btn,
+        .jc-rider-action-btn {
+          position: relative;
+          border: 0;
+          padding: 0;
+          background: transparent;
+          cursor: pointer;
+          outline-offset: 4px;
+          -webkit-tap-highlight-color: transparent;
+          touch-action: manipulation;
+          user-select: none;
+        }
+
+        .jc-incident-rider-btn {
+          min-height: 98px;
+        }
+
+        .jc-incident-rider-btn.is-large {
+          min-height: 120px;
+        }
+
+        .jc-incident-rider-shadow,
+        .jc-incident-rider-edge,
+        .jc-rider-action-shadow,
+        .jc-rider-action-edge {
+          position: absolute;
+          inset: 0;
+          border-radius: 14px;
+          pointer-events: none;
+        }
+
+        .jc-incident-rider-shadow,
+        .jc-rider-action-shadow {
+          background: rgba(15, 23, 42, 0.24);
+          filter: blur(4px);
+          transform: translateY(5px);
+          transition: transform 120ms ease, filter 120ms ease;
+        }
+
+        .jc-incident-rider-edge {
+          background: linear-gradient(to left, #9a3412, #ea580c 12%, #ea580c 88%, #9a3412);
+        }
+
+        .jc-incident-rider-btn.is-dns .jc-incident-rider-edge {
+          background: linear-gradient(to left, #1e3a8a, #2563eb 12%, #2563eb 88%, #1e3a8a);
+        }
+
+        .jc-incident-rider-btn.is-absent .jc-incident-rider-edge {
+          background: linear-gradient(to left, #475569, #94a3b8 12%, #94a3b8 88%, #475569);
+        }
+
+        .jc-incident-rider-front {
+          position: relative;
+          display: grid;
+          min-height: 98px;
+          align-content: center;
+          justify-items: center;
+          gap: 5px;
+          padding: 9px;
+          border-radius: 14px;
+          background: #fb923c;
+          color: #431407;
+          box-shadow: inset 0 2px 3px rgba(255, 255, 255, 0.45), inset 0 -2px 3px rgba(0, 0, 0, 0.16);
+          text-shadow: 0 1px 1px rgba(255, 255, 255, 0.18);
+          transform: translateY(-6px);
+          transition: transform 110ms cubic-bezier(0.3, 0.7, 0.4, 1), background-color 150ms ease;
+        }
+
+        .jc-incident-rider-btn.is-large .jc-incident-rider-front {
+          min-height: 120px;
+        }
+
+        .jc-incident-rider-btn.is-dns .jc-incident-rider-front {
+          background: #60a5fa;
+          color: #172554;
+        }
+
+        .jc-incident-rider-btn.is-absent .jc-incident-rider-front {
+          background: #cbd5e1;
+          color: #334155;
+        }
+
+        .jc-incident-rider-plate {
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace;
+          font-size: 31px;
+          font-weight: 950;
+          line-height: 1;
+          letter-spacing: 0.04em;
+        }
+
+        .jc-incident-rider-btn.is-large .jc-incident-rider-plate {
+          font-size: 40px;
+        }
+
+        .jc-rider-action-btn {
+          min-height: 48px;
+        }
+
+        .jc-rider-action-edge {
+          background: linear-gradient(to left, #166534, #22c55e 12%, #22c55e 88%, #166534);
+        }
+
+        .jc-rider-action-front {
+          position: relative;
+          display: grid;
+          min-height: 48px;
+          place-items: center;
+          padding: 10px 12px;
+          border-radius: 14px;
+          background: #4ade80;
+          color: #052e16;
+          font-size: 12px;
+          font-weight: 950;
+          letter-spacing: 0.06em;
+          box-shadow: inset 0 2px 3px rgba(255, 255, 255, 0.45), inset 0 -2px 3px rgba(0, 0, 0, 0.16);
+          transform: translateY(-5px);
+          transition: transform 110ms cubic-bezier(0.3, 0.7, 0.4, 1), background-color 150ms ease;
+        }
+
+        .jc-rider-action-btn.is-warning .jc-rider-action-edge {
+          background: linear-gradient(to left, #a16207, #eab308 12%, #eab308 88%, #a16207);
+        }
+
+        .jc-rider-action-btn.is-warning .jc-rider-action-front {
+          background: #fde047;
+          color: #713f12;
+        }
+
+        .jc-rider-action-btn.is-danger .jc-rider-action-edge,
+        .jc-rider-action-btn.is-absent .jc-rider-action-edge {
+          background: linear-gradient(to left, #991b1b, #ef4444 12%, #ef4444 88%, #991b1b);
+        }
+
+        .jc-rider-action-btn.is-danger .jc-rider-action-front,
+        .jc-rider-action-btn.is-absent .jc-rider-action-front {
+          background: #fca5a5;
+          color: #7f1d1d;
+        }
+
+        .jc-rider-action-btn.is-muted .jc-rider-action-edge {
+          background: linear-gradient(to left, #64748b, #94a3b8 12%, #94a3b8 88%, #64748b);
+        }
+
+        .jc-rider-action-btn.is-muted .jc-rider-action-front {
+          background: #e2e8f0;
+          color: #64748b;
+        }
+
+        .jc-incident-rider-btn:hover:not(:disabled) .jc-incident-rider-front,
+        .jc-rider-action-btn:hover:not(:disabled) .jc-rider-action-front {
+          transform: translateY(-8px);
+        }
+
+        .jc-incident-rider-btn:hover:not(:disabled) .jc-incident-rider-shadow,
+        .jc-rider-action-btn:hover:not(:disabled) .jc-rider-action-shadow {
+          transform: translateY(7px);
+          filter: blur(6px);
+        }
+
+        .jc-incident-rider-btn:active:not(:disabled) .jc-incident-rider-front,
+        .jc-rider-action-btn:active:not(:disabled) .jc-rider-action-front {
+          transform: translateY(-1px);
+          transition-duration: 45ms;
+        }
+
+        .jc-incident-rider-btn:active:not(:disabled) .jc-incident-rider-shadow,
+        .jc-rider-action-btn:active:not(:disabled) .jc-rider-action-shadow {
+          transform: translateY(2px);
+          filter: blur(2px);
+          transition-duration: 45ms;
+        }
+
+        .jc-incident-rider-btn:focus-visible,
+        .jc-rider-action-btn:focus-visible {
+          outline: 3px solid #38bdf8;
+          border-radius: 14px;
+        }
+
+        .jc-incident-rider-btn:disabled,
+        .jc-rider-action-btn:disabled {
+          cursor: not-allowed;
+          opacity: 0.56;
         }
 
         .jc-page :global(.jc-action-btn.jc-primary:not(:disabled)) {
@@ -1893,7 +2313,69 @@ export default function JCPage() {
           }
         }
       `}</style>
+      {motoReadySaving && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 70,
+            display: 'grid',
+            placeItems: 'center',
+            padding: 20,
+            background: 'rgba(15, 23, 42, 0.52)',
+            backdropFilter: 'blur(3px)',
+          }}
+        >
+          <div style={{ width: 'min(100%, 360px)', display: 'grid', gap: 12 }}>
+            <LoadingState label="Mengonfirmasi Moto Ready..." />
+            <div style={{ color: '#fff', fontWeight: 800, textAlign: 'center', fontSize: 14 }}>
+              Menyimpan status rider dan mengecek alur race berikutnya.
+            </div>
+          </div>
+        </div>
+      )}
+      {motoReadyConfirmation && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="moto-ready-confirmation-title"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 71,
+            display: 'grid',
+            placeItems: 'center',
+            padding: 20,
+            background: 'rgba(15, 23, 42, 0.58)',
+            backdropFilter: 'blur(3px)',
+          }}
+        >
+          <div style={{ width: 'min(100%, 420px)', borderRadius: 20, border: '3px solid #166534', background: '#f0fdf4', padding: 24, boxShadow: '0 20px 50px rgba(15, 23, 42, 0.35)', textAlign: 'center' }}>
+            <div aria-hidden="true" style={{ width: 62, height: 62, margin: '0 auto 14px', display: 'grid', placeItems: 'center', borderRadius: '50%', background: '#22c55e', color: '#fff', fontSize: 36, fontWeight: 900 }}>
+              ✓
+            </div>
+            <div id="moto-ready-confirmation-title" style={{ fontSize: 22, fontWeight: 950, color: '#14532d' }}>
+              Moto Ready Terkonfirmasi
+            </div>
+            <div style={{ marginTop: 8, color: '#1f2937', fontWeight: 800 }}>
+              {motoReadyConfirmation.categoryLabel} | {motoReadyConfirmation.motoName}
+            </div>
+            <div style={{ margin: '14px auto 20px', display: 'inline-flex', borderRadius: 999, border: '2px solid #166534', padding: '6px 12px', color: '#14532d', background: '#dcfce7', fontWeight: 950, fontSize: 13 }}>
+              STATUS: {motoReadyConfirmation.status}
+            </div>
+            <button
+              type="button"
+              className="jc-action-btn jc-primary"
+              onClick={() => setMotoReadyConfirmation(null)}
+              style={{ width: '100%', padding: '13px 18px', borderRadius: 12, border: '2px solid #14532d', background: '#166534', color: '#fff', fontWeight: 950, fontSize: 16 }}
+            >
+              Tutup
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
-
