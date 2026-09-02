@@ -105,6 +105,7 @@ export type BusinessSettings = {
   best_team_scope?: 'ALL_FINALS' | 'FINAL_ELITE' | null
   best_team_point_rules?: Array<{ rank: number; points: number }> | null
   best_team_club_aliases?: Array<{ source: string; target: string }> | null
+  best_team_tiebreak_overrides?: Array<{ team_name: string; score: number }> | null
   sponsors?: EventSponsor[] | null
 }
 
