@@ -12,6 +12,11 @@ export type BestTeamClubAlias = {
   target: string
 }
 
+export type BestTeamTiebreakOverride = {
+  team_name: string
+  score: number
+}
+
 export type BestTeamStageRow = {
   rider_id: string
   name?: string | null
@@ -49,6 +54,8 @@ export type BestTeamLeaderboardRow = {
   team_name: string
   total_points: number
   wins: number
+  seconds: number
+  thirds: number
   podiums: number
   rider_count: number
   entries: BestTeamEntry[]
@@ -60,6 +67,7 @@ export type BestTeamConfig = {
   scope: BestTeamScope
   point_rules: BestTeamPointRule[]
   club_aliases: BestTeamClubAlias[]
+  tiebreak_overrides: BestTeamTiebreakOverride[]
 }
 
 export const DEFAULT_BEST_TEAM_POINT_RULES: BestTeamPointRule[] = [
@@ -112,6 +120,19 @@ export const normalizeBestTeamClubAliases = (value: unknown): BestTeamClubAlias[
     .filter((item, index, array) => array.findIndex((entry) => normalizeKey(entry.source) === normalizeKey(item.source)) === index)
 }
 
+export const normalizeBestTeamTiebreakOverrides = (value: unknown): BestTeamTiebreakOverride[] => {
+  if (!Array.isArray(value)) return []
+  return value
+    .map((item) => {
+      const team_name = typeof (item as { team_name?: unknown })?.team_name === 'string' ? normalizeWhitespace((item as { team_name: string }).team_name) : ''
+      const score = Number((item as { score?: unknown })?.score)
+      if (!team_name || !Number.isFinite(score)) return null
+      return { team_name, score: Math.floor(score) }
+    })
+    .filter((item): item is BestTeamTiebreakOverride => item !== null)
+    .filter((item, index, array) => array.findIndex((entry) => normalizeKey(entry.team_name) === normalizeKey(item.team_name)) === index)
+}
+
 export const normalizeBestTeamConfig = (settings: BusinessSettings | null | undefined): BestTeamConfig => {
   const source = settings ?? {}
   return {
@@ -120,6 +141,7 @@ export const normalizeBestTeamConfig = (settings: BusinessSettings | null | unde
     scope: normalizeBestTeamScope(source.best_team_scope),
     point_rules: normalizeBestTeamPointRules(source.best_team_point_rules),
     club_aliases: normalizeBestTeamClubAliases(source.best_team_club_aliases),
+    tiebreak_overrides: normalizeBestTeamTiebreakOverrides(source.best_team_tiebreak_overrides),
   }
 }
 
@@ -132,6 +154,7 @@ export const applyBestTeamSettingsNormalization = (settings: BusinessSettings): 
     best_team_scope: normalized.scope,
     best_team_point_rules: normalized.point_rules,
     best_team_club_aliases: normalized.club_aliases,
+    best_team_tiebreak_overrides: normalized.tiebreak_overrides,
   }
 }
 
@@ -175,6 +198,8 @@ export const computeBestTeamLeaderboard = (
             team_name: teamName,
             total_points: 0,
             wins: 0,
+            seconds: 0,
+            thirds: 0,
             podiums: 0,
             rider_count: 0,
             entries: [],
@@ -182,6 +207,8 @@ export const computeBestTeamLeaderboard = (
 
         existing.total_points += awardedPoints
         existing.wins += rank === 1 ? 1 : 0
+        existing.seconds += rank === 2 ? 1 : 0
+        existing.thirds += rank === 3 ? 1 : 0
         existing.podiums += rank <= 3 ? 1 : 0
         existing.rider_count += 1
         existing.entries.push({
@@ -201,11 +228,20 @@ export const computeBestTeamLeaderboard = (
     }
   }
 
+  const overrideMap = new Map<string, number>(
+    config.tiebreak_overrides.map((item) => [normalizeKey(item.team_name), item.score])
+  )
+
   return Array.from(teams.values()).sort((a, b) => {
-    if (b.total_points !== a.total_points) return b.total_points - a.total_points
     if (b.wins !== a.wins) return b.wins - a.wins
+    if (b.seconds !== a.seconds) return b.seconds - a.seconds
+    if (b.thirds !== a.thirds) return b.thirds - a.thirds
     if (b.podiums !== a.podiums) return b.podiums - a.podiums
-    if (b.rider_count !== a.rider_count) return b.rider_count - a.rider_count
-    return a.team_name.localeCompare(b.team_name)
+    
+    const scoreA = overrideMap.get(normalizeKey(a.team_name)) ?? 0
+    const scoreB = overrideMap.get(normalizeKey(b.team_name)) ?? 0
+    if (scoreB !== scoreA) return scoreB - scoreA
+    
+    return 0
   })
 }

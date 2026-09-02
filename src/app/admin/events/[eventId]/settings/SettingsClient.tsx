@@ -10,8 +10,10 @@ import {
   normalizeBestTeamClubAliases,
   normalizeBestTeamPointRules,
   normalizeBestTeamScope,
+  normalizeBestTeamTiebreakOverrides,
   type BestTeamClubAlias,
   type BestTeamPointRule,
+  type BestTeamTiebreakOverride,
 } from '../../../../../lib/bestTeam'
 import { formatAppRoleLabel } from '../../../../../lib/roles'
 import { supabase } from '@/src/lib/supabaseClient'
@@ -382,6 +384,33 @@ const parseBestTeamClubAliasesText = (value: string): { aliases: BestTeamClubAli
 
   return {
     aliases: normalizeBestTeamClubAliases(rawAliases),
+    invalidLines,
+  }
+}
+
+const formatBestTeamTiebreakOverridesText = (overrides: Array<{ team_name: string; score: number }> | null | undefined) =>
+  (overrides ?? []).map((item) => `${item.team_name} = ${item.score}`).join('\n')
+
+const parseBestTeamTiebreakOverridesText = (value: string): { overrides: BestTeamTiebreakOverride[]; invalidLines: string[] } => {
+  const invalidLines: string[] = []
+  const rawOverrides: BestTeamTiebreakOverride[] = []
+
+  for (const line of value.split(/\r?\n/)) {
+    const trimmed = line.trim()
+    if (!trimmed) continue
+    const match = trimmed.match(/^(.+?)\s*=\s*(-?\d+)$/)
+    if (!match) {
+      invalidLines.push(trimmed)
+      continue
+    }
+    rawOverrides.push({
+      team_name: match[1],
+      score: Number(match[2]),
+    })
+  }
+
+  return {
+    overrides: normalizeBestTeamTiebreakOverrides(rawOverrides),
     invalidLines,
   }
 }
@@ -801,6 +830,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     business_best_team_scope: 'ALL_FINALS',
     business_best_team_point_rules: formatBestTeamPointRulesText(DEFAULT_BEST_TEAM_POINT_RULES),
     business_best_team_club_aliases: '',
+    business_best_team_tiebreak_overrides: '',
     race_moto_per_batch: '3',
     race_gate_positions: '8',
     race_qualification_enabled: true,
@@ -1111,6 +1141,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
             normalizeBestTeamScope(business.best_team_scope),
           business_best_team_point_rules: formatBestTeamPointRulesText(business.best_team_point_rules),
           business_best_team_club_aliases: formatBestTeamClubAliasesText(business.best_team_club_aliases),
+          business_best_team_tiebreak_overrides: formatBestTeamTiebreakOverridesText(business.best_team_tiebreak_overrides),
           race_moto_per_batch:
             typeof format.moto_per_batch === 'number' ? String(format.moto_per_batch) : '3',
           race_gate_positions:
@@ -1728,6 +1759,11 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
       alert(`Format alias club Best Team tidak valid:\n${bestTeamClubAliasesResult.invalidLines.join('\n')}\n\nGunakan format club asli => nama team skor`)
       return
     }
+    const bestTeamTiebreakOverridesResult = parseBestTeamTiebreakOverridesText(form.business_best_team_tiebreak_overrides)
+    if (bestTeamTiebreakOverridesResult.invalidLines.length > 0) {
+      alert(`Format Manual Tiebreak tidak valid:\n${bestTeamTiebreakOverridesResult.invalidLines.join('\n')}\n\nGunakan format: Nama Tim = Skor`)
+      return
+    }
     const existingBusinessSettings =
       row?.business_settings && typeof row.business_settings === 'object' && !Array.isArray(row.business_settings)
         ? (row.business_settings as BusinessSettings)
@@ -1786,6 +1822,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
       best_team_scope: bestTeamScope,
       best_team_point_rules: bestTeamPointRulesResult.rules,
       best_team_club_aliases: bestTeamClubAliasesResult.aliases,
+      best_team_tiebreak_overrides: bestTeamTiebreakOverridesResult.overrides,
       sponsor_section_enabled: Boolean(sponsorSectionEnabled),
       sponsor_section_title: sponsorSectionTitle.trim() || null,
       sponsor_section_subtitle: sponsorSectionSubtitle.trim() || null,
@@ -2821,6 +2858,19 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                         />
                         <div style={{ fontSize: 12, color: '#334155', fontWeight: 700 }}>
                           Pakai ini kalau nama club rider gabungan, join, atau penulisannya tidak konsisten. Format: club asli =&gt; nama team skor
+                        </div>
+                      </div>
+                      <div style={{ display: 'grid', gap: 6 }}>
+                        <div style={{ fontWeight: 900 }}>Manual Tiebreak Overrides</div>
+                        <textarea
+                          rows={8}
+                          placeholder={'XBC Malang = 2\nKota Arang = 1'}
+                          value={form.business_best_team_tiebreak_overrides}
+                          onChange={(e) => setForm({ ...form, business_best_team_tiebreak_overrides: e.target.value })}
+                          style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800, resize: 'vertical' }}
+                        />
+                        <div style={{ fontSize: 12, color: '#334155', fontWeight: 700 }}>
+                          Tiebreak manual ditentukan panitia saat perolehan juara seri. Format: Nama Tim = Poin Tiebreak
                         </div>
                       </div>
                     </div>

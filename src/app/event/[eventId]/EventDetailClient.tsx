@@ -59,6 +59,20 @@ export default function EventDetailClient({
   const [stageLoading, setStageLoading] = useState<Record<string, boolean>>({})
   const [riderTotal, setRiderTotal] = useState(initialArchive?.riderTotal ?? 0)
   const [loading, setLoading] = useState(false)
+  const [bestTeam, setBestTeam] = useState<{
+    enabled: boolean
+    label: string
+    scope: string
+    rows: Array<{
+      team_name: string
+      total_points: number
+      wins: number
+      seconds: number
+      thirds: number
+      podiums: number
+      rider_count: number
+    }>
+  } | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -81,17 +95,24 @@ export default function EventDetailClient({
             setRiderTotal(Number(archiveData.rider_total ?? 0))
             setLiveMotos([])
             setLoading(false)
+            fetch(`/api/public/events/${eventId}/best-team`)
+              .then((res) => res.json())
+              .then((json) => {
+                if (json?.data?.enabled) setBestTeam(json.data)
+              })
+              .catch(() => {})
             return
           }
         } catch {
           // Fall through to the existing live source while an older finished event has no archive yet.
         }
       }
-      const [eventData, categoryData, riderData, motoRes] = await Promise.all([
+      const [eventData, categoryData, riderData, motoRes, bestTeamRes] = await Promise.all([
         initialEvent ? Promise.resolve(initialEvent) : getEventById(eventId),
         getEventCategories(eventId),
         getRidersByEvent(eventId, 1, 1),
         fetch(`/api/motos?event_id=${eventId}`),
+        fetch(`/api/public/events/${eventId}/best-team`),
       ])
       setEvent(eventData)
       setCategories(categoryData.filter((c) => c.enabled))
@@ -99,6 +120,10 @@ export default function EventDetailClient({
       const motoJson = await motoRes.json()
       const motos = (motoJson.data ?? []) as MotoItem[]
       setLiveMotos(motos.filter((m) => m.status === 'LIVE'))
+      const bestTeamJson = await bestTeamRes.json().catch(() => null)
+      if (bestTeamJson?.data?.enabled) {
+        setBestTeam(bestTeamJson.data)
+      }
       setLoading(false)
     }
     if (eventId) load()
@@ -546,6 +571,52 @@ export default function EventDetailClient({
                 </div>
               )}
             </section>
+
+            {bestTeam?.enabled && bestTeam.rows.length > 0 && (
+              <section
+                id="best-team"
+                className="rounded-[1.5rem] border border-[#d4af37]/40 bg-gradient-to-b from-[#2a160d] to-[#1d0d07] px-4 py-5 text-[#fff8e8] shadow-[0_20px_40px_rgba(212,175,55,0.1)] sm:px-6"
+              >
+                <div className="mb-4 grid gap-1">
+                  <h2 className="text-2xl font-black tracking-tight text-[#f3c63d]">
+                    Leaderboard {bestTeam.label || 'Juara Umum'}
+                  </h2>
+                  <p className="text-sm font-semibold text-[#c9b7a5]">
+                    Peringkat 10 besar klasemen berdasarkan perolehan poin dan medali.
+                  </p>
+                </div>
+                <div className="grid gap-3">
+                  {bestTeam.rows.slice(0, 10).map((row, idx) => (
+                    <div
+                      key={row.team_name}
+                      className="flex items-center justify-between gap-4 rounded-xl border border-[#705547] bg-[#1d0d07]/60 px-4 py-3"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-full text-lg font-black ${idx === 0 ? 'bg-yellow-400 text-yellow-950 shadow-[0_0_15px_rgba(250,204,21,0.5)]' : idx === 1 ? 'bg-slate-300 text-slate-800' : idx === 2 ? 'bg-amber-700 text-amber-100' : 'bg-[#3e2113] text-[#eadcca]'}`}>
+                          {idx + 1}
+                        </div>
+                        <div>
+                          <h3 className="text-base font-bold text-[#fff8e8] md:text-lg">{row.team_name}</h3>
+                          <div className="flex flex-wrap items-center gap-1.5 text-xs font-semibold text-[#c9b7a5] md:gap-2">
+                            <span>{row.rider_count} Rider</span>
+                            <span className="hidden md:inline">•</span>
+                            <span className="flex items-center gap-1">
+                              <span className="text-yellow-400">🥇 {row.wins}</span>
+                              <span className="text-slate-300">🥈 {row.seconds}</span>
+                              <span className="text-amber-600">🥉 {row.thirds}</span>
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xl font-black text-[#f3c63d] md:text-2xl">{row.total_points}</div>
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-[#c9b7a5]">Poin</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
 
             <SponsorMarquee
               businessSettings={business}

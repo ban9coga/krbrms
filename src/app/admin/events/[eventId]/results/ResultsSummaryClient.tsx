@@ -103,6 +103,8 @@ type BestTeamRow = {
   team_name: string
   total_points: number
   wins: number
+  seconds: number
+  thirds: number
   podiums: number
   rider_count: number
   entries: BestTeamEntry[]
@@ -414,12 +416,14 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
         ['Lokasi', eventMeta?.location ?? '-'],
         ['Tanggal', eventMeta?.event_date ?? '-'],
         [],
-        ['Rank Team', 'Team', 'Total Point', 'Wins', 'Podium', 'Jumlah Rider Final'],
+        ['Rank Team', 'Team', 'Total Point', 'Juara 1', 'Juara 2', 'Juara 3', 'Total Podium', 'Jumlah Rider Final'],
         ...bestTeam.rows.map((row, index) => [
           index + 1,
           row.team_name,
           row.total_points,
           row.wins,
+          row.seconds,
+          row.thirds,
           row.podiums,
           row.rider_count,
         ]),
@@ -431,6 +435,8 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
         { wch: 12 },
         { wch: 10 },
         { wch: 10 },
+        { wch: 10 },
+        { wch: 14 },
         { wch: 18 },
       ]
       XLSX.utils.book_append_sheet(workbook, worksheet, uniqueSheetName(workbook, bestTeam.label, 'Best Team'))
@@ -908,7 +914,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
                 <table className="table-striped" style={{ width: '100%', borderCollapse: 'collapse', minWidth: 720 }}>
                   <thead>
                     <tr style={{ background: '#e2e8f0', textAlign: 'left' }}>
-                      {['Rank', 'Team', 'Total', 'Wins', 'Podium', 'Rider Final', 'Detail'].map((header) => (
+                      {['Rank', 'Team', 'Total Point', 'Juara 1', 'Juara 2', 'Juara 3', 'Total Podium', 'Rider Final', 'Detail'].map((header) => (
                         <th key={header} style={{ padding: 8, borderBottom: '2px solid #111', fontWeight: 900 }}>
                           {header}
                         </th>
@@ -922,6 +928,8 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
                         <td style={{ padding: 8, fontWeight: 900 }}>{row.team_name}</td>
                         <td style={{ padding: 8, fontWeight: 900 }}>{row.total_points}</td>
                         <td style={{ padding: 8 }}>{row.wins}</td>
+                        <td style={{ padding: 8 }}>{row.seconds}</td>
+                        <td style={{ padding: 8 }}>{row.thirds}</td>
                         <td style={{ padding: 8 }}>{row.podiums}</td>
                         <td style={{ padding: 8 }}>{row.rider_count}</td>
                         <td style={{ padding: 8 }}>
@@ -1216,8 +1224,10 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
                   <th>Rank Team</th>
                   <th>Nama Team</th>
                   <th>Total Point</th>
-                  <th>Wins</th>
-                  <th>Podium</th>
+                  <th>Juara 1</th>
+                  <th>Juara 2</th>
+                  <th>Juara 3</th>
+                  <th>Total Podium</th>
                   <th>Rider Final</th>
                 </tr>
               </thead>
@@ -1228,6 +1238,8 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
                     <td>{row.team_name}</td>
                     <td>{row.total_points}</td>
                     <td>{row.wins}</td>
+                    <td>{row.seconds}</td>
+                    <td>{row.thirds}</td>
                     <td>{row.podiums}</td>
                     <td>{row.rider_count}</td>
                   </tr>
