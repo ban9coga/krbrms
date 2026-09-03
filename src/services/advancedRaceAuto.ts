@@ -1740,13 +1740,14 @@ const rankStageRidersWithTieBreak = (
 ): RankedRow[] =>
   [...rows]
     .sort((a, b) => {
+      if (a.points !== b.points) return a.points - b.points
+
       const qualityDiff = stageResultQuality(a.resultStatus) - stageResultQuality(b.resultStatus)
       if (qualityDiff !== 0) return qualityDiff
       if (dnfProgressEnabled && a.resultStatus === 'DNF' && b.resultStatus === 'DNF') {
         const progressDiff = Number(b.dnfProgressPercent ?? -1) - Number(a.dnfProgressPercent ?? -1)
         if (progressDiff !== 0) return progressDiff
       }
-      if (a.points !== b.points) return a.points - b.points
 
       const aSeed = seedByRider.get(a.riderId)
       const bSeed = seedByRider.get(b.riderId)
@@ -2390,14 +2391,16 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
     const rankedEntries = [...entries]
       .map((entry) => ({ ...entry, source: finalSourceSeedForRider(entry.riderId) }))
       .sort((a, b) => {
+        const pointDiff = a.point - b.point
+        if (pointDiff !== 0) return pointDiff
+        
         const statusDiff = finalResultQuality(a.resultStatus) - finalResultQuality(b.resultStatus)
         if (statusDiff !== 0) return statusDiff
         if (dnfProgressEnabled && a.resultStatus === 'DNF' && b.resultStatus === 'DNF') {
           const progressDiff = Number(b.dnfProgressPercent ?? -1) - Number(a.dnfProgressPercent ?? -1)
           if (progressDiff !== 0) return progressDiff
         }
-        const pointDiff = a.point - b.point
-        if (pointDiff !== 0) return pointDiff
+        
         const historyDiff = compareParticipationHistory(
           participationHistoryByRider.get(a.riderId) ?? { dnsCount: 0, dnfCount: 0, dqCount: 0, finishCount: 0 },
           participationHistoryByRider.get(b.riderId) ?? { dnsCount: 0, dnfCount: 0, dqCount: 0, finishCount: 0 }
