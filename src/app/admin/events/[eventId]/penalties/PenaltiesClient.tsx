@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import ToggleSwitch from '../../../../../components/ToggleSwitch'
-import { DEFAULT_NON_FINISH_AUTO_PENALTY } from '../../../../../lib/nonFinishScoring'
+import { DEFAULT_DNF_AUTO_PENALTY, DEFAULT_DNS_AUTO_PENALTY } from '../../../../../lib/nonFinishScoring'
 import { supabase } from '@/src/lib/supabaseClient'
 
 type FeatureFlags = {
@@ -170,8 +170,8 @@ const buildEventWidePenaltyDraft = (configs: AdvancedConfig[]) => {
   const dnfValues = configs.map((config) => config.dnf_point_override).filter((value) => value != null)
   const dnsValues = configs.map((config) => config.dns_point_override).filter((value) => value != null)
   return {
-    dnfAutoPenalty: String(dnfValues[0] ?? DEFAULT_NON_FINISH_AUTO_PENALTY),
-    dnsAutoPenalty: String(dnsValues[0] ?? DEFAULT_NON_FINISH_AUTO_PENALTY),
+    dnfAutoPenalty: String(dnfValues[0] ?? DEFAULT_DNF_AUTO_PENALTY),
+    dnsAutoPenalty: String(dnsValues[0] ?? DEFAULT_DNS_AUTO_PENALTY),
   }
 }
 
@@ -186,8 +186,8 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
   const [editingRequirementId, setEditingRequirementId] = useState<string | null>(null)
   const [standardPointDraft, setStandardPointDraft] = useState<Record<string, string>>(createStandardPointDraft)
   const [nonFinishPenaltyDraft, setNonFinishPenaltyDraft] = useState({
-    dnfAutoPenalty: String(DEFAULT_NON_FINISH_AUTO_PENALTY),
-    dnsAutoPenalty: String(DEFAULT_NON_FINISH_AUTO_PENALTY),
+    dnfAutoPenalty: String(DEFAULT_DNF_AUTO_PENALTY),
+    dnsAutoPenalty: String(DEFAULT_DNS_AUTO_PENALTY),
   })
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -1328,7 +1328,7 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
               />
             </div>
             <div style={{ fontSize: 11, color: '#475569', fontWeight: 700 }}>
-              Kosongkan field kalau mau pakai default sistem {DEFAULT_NON_FINISH_AUTO_PENALTY}. Save sekali akan menyamakan semua kategori event ini.
+              Kosongkan field kalau mau pakai default sistem (DNF: {DEFAULT_DNF_AUTO_PENALTY}, DNS: {DEFAULT_DNS_AUTO_PENALTY}). Save sekali akan menyamakan semua kategori event ini.
             </div>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               <button
