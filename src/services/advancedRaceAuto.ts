@@ -332,12 +332,14 @@ const sortSeedRows = (
   [...rows].sort((a, b) => {
     const positionDiff = (a.position ?? 9999) - (b.position ?? 9999)
     if (positionDiff !== 0) return positionDiff
+    // Points tiebreaker: rider with lower total points seeds ahead (better performance)
+    const pointsDiff = (a.points ?? 9999) - (b.points ?? 9999)
+    if (pointsDiff !== 0) return pointsDiff
+    // Batch order tiebreaker: only applies when rank AND points are equal
     const batchDiff =
       (a.batch_id ? batchOrderById[a.batch_id] ?? 9999 : 9999) -
       (b.batch_id ? batchOrderById[b.batch_id] ?? 9999 : 9999)
     if (batchDiff !== 0) return batchDiff
-    const pointsDiff = (a.points ?? 9999) - (b.points ?? 9999)
-    if (pointsDiff !== 0) return pointsDiff
     const gateDiff =
       (gateBySeedRowKey.get(seedRowKey(a)) ?? Number.MAX_SAFE_INTEGER) -
       (gateBySeedRowKey.get(seedRowKey(b)) ?? Number.MAX_SAFE_INTEGER)
@@ -1740,13 +1742,14 @@ const rankStageRidersWithTieBreak = (
 ): RankedRow[] =>
   [...rows]
     .sort((a, b) => {
+      if (a.points !== b.points) return a.points - b.points
+
       const qualityDiff = stageResultQuality(a.resultStatus) - stageResultQuality(b.resultStatus)
       if (qualityDiff !== 0) return qualityDiff
       if (dnfProgressEnabled && a.resultStatus === 'DNF' && b.resultStatus === 'DNF') {
         const progressDiff = Number(b.dnfProgressPercent ?? -1) - Number(a.dnfProgressPercent ?? -1)
         if (progressDiff !== 0) return progressDiff
       }
-      if (a.points !== b.points) return a.points - b.points
 
       const aSeed = seedByRider.get(a.riderId)
       const bSeed = seedByRider.get(b.riderId)
@@ -2390,15 +2393,15 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
     const rankedEntries = [...entries]
       .map((entry) => ({ ...entry, source: finalSourceSeedForRider(entry.riderId) }))
       .sort((a, b) => {
+        const pointDiff = a.point - b.point
+        if (pointDiff !== 0) return pointDiff
+        
         const statusDiff = finalResultQuality(a.resultStatus) - finalResultQuality(b.resultStatus)
         if (statusDiff !== 0) return statusDiff
         if (dnfProgressEnabled && a.resultStatus === 'DNF' && b.resultStatus === 'DNF') {
           const progressDiff = Number(b.dnfProgressPercent ?? -1) - Number(a.dnfProgressPercent ?? -1)
           if (progressDiff !== 0) return progressDiff
         }
-        
-        const pointDiff = a.point - b.point
-        if (pointDiff !== 0) return pointDiff
         
         const historyDiff = compareParticipationHistory(
           participationHistoryByRider.get(a.riderId) ?? { dnsCount: 0, dnfCount: 0, dqCount: 0, finishCount: 0 },
