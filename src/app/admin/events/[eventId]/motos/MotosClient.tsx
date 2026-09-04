@@ -643,6 +643,25 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     }
   }
 
+  const handleDeleteMoto = async (motoId: string) => {
+    const moto = motos.find((m) => m.id === motoId)
+    if (!moto) return
+
+    const ok = confirm(
+      `Delete moto: ${formatMotoDisplayName(moto.moto_name)}?\n\nWARNING: This will permanently delete this moto and all its results and gate assignments. Use this to reset incorrect Repechage or Final motos.`
+    )
+    if (!ok) return
+
+    try {
+      await apiFetch(`/api/internal/events/${eventId}/motos/${motoId}`, {
+        method: 'DELETE',
+      })
+      await load()
+    } catch (err: unknown) {
+      alert(getErrorMessage(err))
+    }
+  }
+
   const openRaceReset = async () => {
     setRaceResetLoading(true)
     setRaceResetConfirmation('')
@@ -1715,6 +1734,22 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                         }}
                       >
                         Open Public Result
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteMoto(m.id)}
+                        className="motos-action-button"
+                        style={{
+                          padding: '8px 12px',
+                          borderRadius: 999,
+                          border: '2px solid #ef4444',
+                          background: '#fee2e2',
+                          color: '#b91c1c',
+                          fontWeight: 900,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Delete Moto
                       </button>
                     </div>
                   </div>
