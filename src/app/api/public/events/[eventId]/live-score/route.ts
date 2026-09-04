@@ -168,8 +168,8 @@ const orderRidersByStageSeeds = (
   return [...uniqueOrdered, ...leftovers]
 }
 
-const pointForMotoResult = (res: ResultRow | null, riderCount: number | null) => {
-  return resolveBasePointForRaceResult(res?.result_status ?? null, res?.finish_order ?? null, riderCount)
+const pointForMotoResult = (res: ResultRow | null, riderCount: number | null, dnsCount: number = 0) => {
+  return resolveBasePointForRaceResult(res?.result_status ?? null, res?.finish_order ?? null, riderCount, dnsCount)
 }
 
 const getStageStatusSortOrder = (status: StageRow['status']) => {
@@ -589,9 +589,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         const riderCount2 = gate2Map.size || null
         const riderCount3 = gate3Map.size || null
         const riderStatus = statusMap.get(`${moto1.id}:${riderId}`) ?? 'ACTIVE'
-        const point1 = pointForMotoResult(moto1Result ?? null, riderCount1)
-        const point2 = pointForMotoResult(moto2Result ?? null, riderCount2)
-        const point3 = pointForMotoResult(moto3Result ?? null, riderCount3)
+        const dnsCount1 = moto1 ? resultRows.filter((r) => r.moto_id === moto1.id && (r.result_status === 'DNS' || r.result_status === 'ABSENT')).length : 0
+        const dnsCount2 = moto2 ? resultRows.filter((r) => r.moto_id === moto2.id && (r.result_status === 'DNS' || r.result_status === 'ABSENT')).length : 0
+        const dnsCount3 = moto3 ? resultRows.filter((r) => r.moto_id === moto3.id && (r.result_status === 'DNS' || r.result_status === 'ABSENT')).length : 0
+        
+        const point1 = pointForMotoResult(moto1Result ?? null, riderCount1, dnsCount1)
+        const point2 = pointForMotoResult(moto2Result ?? null, riderCount2, dnsCount2)
+        const point3 = pointForMotoResult(moto3Result ?? null, riderCount3, dnsCount3)
         const hasRecordedResult = Boolean(moto1Result || moto2Result || moto3Result)
         const basePoint = [point1, point2, point3].filter((v) => v !== null).length
           ? [point1, point2, point3].reduce<number>((acc, v) => acc + (v ?? 0), 0)
@@ -799,6 +803,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         return sum + (stagePenaltyMap.get(`${riderId}:${stageKey}`) ?? 0)
       }, 0) + (motoPenaltyMap.get(`${moto.id}:${riderId}`) ?? 0)
       const autoPenaltyTotal = resolveNonFinishAutoPenalty(status, pointOverrideConfig ?? undefined)
+      const dnsCount = resultRows.filter((r) => r.moto_id === moto.id && (r.result_status === 'DNS' || r.result_status === 'ABSENT')).length
+
       return {
         rider_id: riderId,
         gate: status === 'DQ' ? null : collapsedGateMap.get(riderId) ?? null,
@@ -807,7 +813,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         no_plate: rider?.no_plate_display ?? '-',
         club: rider?.club ?? '-',
         ...(includePhotos ? { photo_thumbnail_url: rider?.photo_thumbnail_url ?? null } : {}),
-        point: pointForMotoResult(res, riderCount),
+        point: pointForMotoResult(res, riderCount, dnsCount),
         penalty_total: manualPenaltyTotal + autoPenaltyTotal || null,
         rank: null,
         status,

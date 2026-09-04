@@ -449,6 +449,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     .eq('category_id', rankingMoto.category_id)
     .maybeSingle()
 
+  const dnsCount = (results ?? []).filter((r) => r.result_status === 'DNS' || r.result_status === 'ABSENT').length
+
   const ranking: McRankingRow[] = riderIds.map((riderId) => {
     const row = resultMap.get(riderId)
     const rider = riderMap.get(riderId)
@@ -459,7 +461,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         : row?.result_status ??
           (participationStatus === 'ACTIVE' ? 'READY' : 'PENDING')
     ) as 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'READY' | 'PENDING' | 'ABSENT'
-    const basePoint = resolveBasePointForRaceResult(status, row?.finish_order ?? null, lastPosition)
+    const basePoint = resolveBasePointForRaceResult(status, row?.finish_order ?? null, lastPosition, dnsCount)
     const penalty = (penaltyMap.get(riderId) ?? 0) + resolveNonFinishAutoPenalty(status, pointOverrideConfig ?? undefined)
     const total = basePoint !== null ? basePoint + penalty : null
     return {

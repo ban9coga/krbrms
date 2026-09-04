@@ -30,12 +30,19 @@ export const resolveNonFinishAutoPenalty = (
 export const resolveBasePointForRaceResult = (
   status: string | null | undefined,
   finishOrder: number | null | undefined,
-  riderCount: number | null
+  riderCount: number | null,
+  dnsCount: number = 0
 ) => {
   const normalized = String(status ?? 'FINISH').toUpperCase()
   if (normalized === 'DQ') return null
   if (normalized === 'DNF' && finishOrder != null) return finishOrder
-  if (normalized === 'DNF' || normalized === 'DNS' || normalized === 'ABSENT') {
+  
+  if (normalized === 'DNF') {
+    const starters = riderCount ? riderCount - dnsCount : null
+    return resolveLastPlaceBasePoint(starters)
+  }
+  
+  if (normalized === 'DNS' || normalized === 'ABSENT') {
     return resolveLastPlaceBasePoint(riderCount)
   }
   return finishOrder ?? null
@@ -45,9 +52,10 @@ export const resolveTotalPointForRaceResult = (
   status: string | null | undefined,
   finishOrder: number | null | undefined,
   riderCount: number | null,
-  config?: NonFinishPenaltyConfig
+  config?: NonFinishPenaltyConfig,
+  dnsCount: number = 0
 ) => {
-  const basePoint = resolveBasePointForRaceResult(status, finishOrder, riderCount)
+  const basePoint = resolveBasePointForRaceResult(status, finishOrder, riderCount, dnsCount)
   if (basePoint === null) return null
   return basePoint + resolveNonFinishAutoPenalty(status, config)
 }

@@ -65,13 +65,15 @@ export async function GET(_: Request, { params }: { params: Promise<{ motoId: st
           .maybeSingle()
       : { data: null }
 
+  const dnsCount = (data ?? []).filter((r) => r.result_status === 'DNS' || r.result_status === 'ABSENT').length
+
   const enriched = (data ?? []).map((row) => {
     const rider =
       Array.isArray(row.riders) ? row.riders[0] : row.riders
     const riderId = rider?.id
     const penalty_total = riderId ? penaltyMap.get(riderId) ?? 0 : 0
     const status = (row.result_status ?? 'FINISH') as 'FINISH' | 'DNF' | 'DNS' | 'DQ'
-    const basePoint = resolveBasePointForRaceResult(status, row.finish_order ?? null, lastPosition)
+    const basePoint = resolveBasePointForRaceResult(status, row.finish_order ?? null, lastPosition, dnsCount)
     const autoPenalty = resolveNonFinishAutoPenalty(status, pointOverrideConfig ?? undefined)
     const totalPenalty = penalty_total + autoPenalty
     const total_point = basePoint !== null ? basePoint + totalPenalty : null
