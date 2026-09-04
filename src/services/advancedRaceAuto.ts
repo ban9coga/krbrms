@@ -407,6 +407,7 @@ const buildQualificationSeedRowsFromCurrentResults = (
             (row.moto_id === moto1.id && penaltyMaps
               ? manualQualificationPenaltyForRider(row.rider_id, motoIds, penaltyMaps)
               : 0),
+          resultStatus: row.result_status,
         }))
       return { batchId: moto1.id, riders, finishes }
     })

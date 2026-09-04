@@ -3,12 +3,13 @@ export type NonFinishPenaltyConfig = {
   dns_point_override?: number | null
 }
 
-export const DEFAULT_NON_FINISH_AUTO_PENALTY = 9
+export const DEFAULT_DNF_AUTO_PENALTY = 8
+export const DEFAULT_DNS_AUTO_PENALTY = 9
 
-const normalizePenaltyValue = (value: number | null | undefined) => {
-  if (value == null) return DEFAULT_NON_FINISH_AUTO_PENALTY
+const normalizePenaltyValue = (value: number | null | undefined, defaultValue: number) => {
+  if (value == null) return defaultValue
   const parsed = Number(value)
-  if (!Number.isFinite(parsed) || parsed < 0) return DEFAULT_NON_FINISH_AUTO_PENALTY
+  if (!Number.isFinite(parsed) || parsed < 0) return defaultValue
   return parsed
 }
 
@@ -22,8 +23,8 @@ export const resolveNonFinishAutoPenalty = (
   config?: NonFinishPenaltyConfig
 ) => {
   const normalized = String(status ?? '').toUpperCase()
-  if (normalized === 'DNF') return normalizePenaltyValue(config?.dnf_point_override)
-  if (normalized === 'DNS' || normalized === 'ABSENT') return normalizePenaltyValue(config?.dns_point_override)
+  if (normalized === 'DNF') return normalizePenaltyValue(config?.dnf_point_override, DEFAULT_DNF_AUTO_PENALTY)
+  if (normalized === 'DNS' || normalized === 'ABSENT') return normalizePenaltyValue(config?.dns_point_override, DEFAULT_DNS_AUTO_PENALTY)
   return 0
 }
 

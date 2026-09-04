@@ -7,6 +7,7 @@ export type RiderFinish = {
   riderId: string
   motoIndex: number
   finishOrder: number | null
+  resultStatus?: string | null
 }
 
 export type BatchInput = {
@@ -308,12 +309,26 @@ export function computeQualification(
 
     const maxMotoIndex = batch.finishes.reduce((max, finish) => Math.max(max, finish.motoIndex ?? 0), 0)
     for (const riderId of batch.riders) {
+      const riderFinishes = batch.finishes.filter((finish) => finish.riderId === riderId)
+      
       const finishByMoto = new Map(
-        batch.finishes
-          .filter((finish) => finish.riderId === riderId)
-          .map((finish) => [finish.motoIndex, pointResolver(finish.finishOrder)])
+        riderFinishes.map((finish) => [finish.motoIndex, pointResolver(finish.finishOrder)])
       )
-      const tieBreakers: number[] = []
+
+      // Quality scoring: 0 for FINISH, 1 for DNF, 2 for DNS/ABSENT, 3 for DQ, 4 for others
+      const getQualityScore = (status?: string | null) => {
+        const norm = String(status ?? '').toUpperCase()
+        if (norm === 'FINISH') return 0
+        if (norm === 'DNF') return 1
+        if (norm === 'DNS' || norm === 'ABSENT') return 2
+        if (norm === 'DQ') return 3
+        if (norm === '') return 0 // Treat empty as FINISH for backward compatibility
+        return 4
+      }
+      
+      const totalQualityScore = riderFinishes.reduce((sum, finish) => sum + getQualityScore(finish.resultStatus), 0)
+      
+      const tieBreakers: number[] = [totalQualityScore] // Push quality score first
       for (let motoIndex = maxMotoIndex; motoIndex >= 1; motoIndex -= 1) {
         tieBreakers.push(finishByMoto.get(motoIndex) ?? 9999)
       }
