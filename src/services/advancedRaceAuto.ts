@@ -904,6 +904,7 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
             (row.moto_id === moto1.id
               ? manualQualificationPenaltyForRider(row.rider_id, batchMotoIds, penaltyMaps)
               : 0),
+          resultStatus: row.result_status,
         }))
       return { batchId: moto1.id, batchIndex, riders, finishes }
     })
