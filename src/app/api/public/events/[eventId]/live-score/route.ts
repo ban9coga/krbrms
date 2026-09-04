@@ -821,6 +821,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         // Keep DQ unscored while assigning it the final display rank after DNS.
         .filter((row) => row.point !== null || row.status === 'DQ')
         .sort((a, b) => {
+          const aPoint = (a.point ?? Number.MAX_SAFE_INTEGER) + (a.penalty_total ?? 0)
+          const bPoint = (b.point ?? Number.MAX_SAFE_INTEGER) + (b.penalty_total ?? 0)
+          if (aPoint !== bPoint) return aPoint - bPoint
+
           const aStatusOrder = getStageStatusSortOrder(a.status)
           const bStatusOrder = getStageStatusSortOrder(b.status)
           if (aStatusOrder !== bStatusOrder) return aStatusOrder - bStatusOrder
@@ -830,9 +834,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
               Number(resultByRider.get(a.rider_id)?.dnf_progress_percent ?? -1)
             if (progressDiff !== 0) return progressDiff
           }
-          const aPoint = (a.point ?? Number.MAX_SAFE_INTEGER) + (a.penalty_total ?? 0)
-          const bPoint = (b.point ?? Number.MAX_SAFE_INTEGER) + (b.penalty_total ?? 0)
-          if (aPoint !== bPoint) return aPoint - bPoint
 
           if (/^final\b/i.test(moto.moto_name)) {
             const historyDiff = compareParticipationHistory(

@@ -364,21 +364,23 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   if (comparisonRider) {
     const selectedResult = resultByRider.get(riderId)
     const compareResult = resultByRider.get(comparisonRider.rider_id)
-    const statusDiff = addCriterion('Status hasil', rider.status, comparisonRider.status, statusQuality(rider.status) - statusQuality(comparisonRider.status))
-    if (statusDiff !== 0) decidingRule = 'Status hasil'
+    const ownTotal = Number(rider.point ?? 0) + Number(rider.penalty_total ?? 0)
+    const otherTotal = Number(comparisonRider.point ?? 0) + Number(comparisonRider.penalty_total ?? 0)
+    if (!decidingRule) {
+      const pointDiff = addCriterion('Total poin termasuk penalty', ownTotal, otherTotal, ownTotal - otherTotal)
+      if (pointDiff !== 0) decidingRule = 'Total poin termasuk penalty'
+    }
+
+    if (!decidingRule) {
+      const statusDiff = addCriterion('Status hasil', rider.status, comparisonRider.status, statusQuality(rider.status) - statusQuality(comparisonRider.status))
+      if (statusDiff !== 0) decidingRule = 'Status hasil'
+    }
 
     if (!decidingRule && dnfProgressEnabled && rider.status === 'DNF' && comparisonRider.status === 'DNF') {
       const ownProgress = Number(selectedResult?.dnf_progress_percent ?? -1)
       const otherProgress = Number(compareResult?.dnf_progress_percent ?? -1)
       const progressDiff = addCriterion('Progress DNF', `${ownProgress}%`, `${otherProgress}%`, otherProgress - ownProgress)
       if (progressDiff !== 0) decidingRule = 'Progress DNF'
-    }
-
-    const ownTotal = Number(rider.point ?? 0) + Number(rider.penalty_total ?? 0)
-    const otherTotal = Number(comparisonRider.point ?? 0) + Number(comparisonRider.penalty_total ?? 0)
-    if (!decidingRule) {
-      const pointDiff = addCriterion('Total poin termasuk penalty', ownTotal, otherTotal, ownTotal - otherTotal)
-      if (pointDiff !== 0) decidingRule = 'Total poin termasuk penalty'
     }
 
     const historyRows = (allResults ?? []).filter((row) => row.moto_id !== motoId) as Array<{
