@@ -65,7 +65,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ motoId: st
           .maybeSingle()
       : { data: null }
 
-  const dnsCount = (data ?? []).filter((r) => r.result_status === 'DNS' || r.result_status === 'ABSENT').length
+  const dnsCount = (data ?? []).filter((r) => r.result_status === 'DNS').length
 
   const enriched = (data ?? []).map((row) => {
     const rider =

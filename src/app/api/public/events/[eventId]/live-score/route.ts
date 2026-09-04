@@ -589,9 +589,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         const riderCount2 = gate2Map.size || null
         const riderCount3 = gate3Map.size || null
         const riderStatus = statusMap.get(`${moto1.id}:${riderId}`) ?? 'ACTIVE'
-        const dnsCount1 = moto1 ? resultRows.filter((r) => r.moto_id === moto1.id && (r.result_status === 'DNS' || r.result_status === 'ABSENT')).length : 0
-        const dnsCount2 = moto2 ? resultRows.filter((r) => r.moto_id === moto2.id && (r.result_status === 'DNS' || r.result_status === 'ABSENT')).length : 0
-        const dnsCount3 = moto3 ? resultRows.filter((r) => r.moto_id === moto3.id && (r.result_status === 'DNS' || r.result_status === 'ABSENT')).length : 0
+        const dnsCount1 = moto1 ? resultRows.filter((r) => r.moto_id === moto1.id && r.result_status === 'DNS').length : 0
+        const dnsCount2 = moto2 ? resultRows.filter((r) => r.moto_id === moto2.id && r.result_status === 'DNS').length : 0
+        const dnsCount3 = moto3 ? resultRows.filter((r) => r.moto_id === moto3.id && r.result_status === 'DNS').length : 0
         
         const point1 = pointForMotoResult(moto1Result ?? null, riderCount1, dnsCount1)
         const point2 = pointForMotoResult(moto2Result ?? null, riderCount2, dnsCount2)
@@ -803,7 +803,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         return sum + (stagePenaltyMap.get(`${riderId}:${stageKey}`) ?? 0)
       }, 0) + (motoPenaltyMap.get(`${moto.id}:${riderId}`) ?? 0)
       const autoPenaltyTotal = resolveNonFinishAutoPenalty(status, pointOverrideConfig ?? undefined)
-      const dnsCount = resultRows.filter((r) => r.moto_id === moto.id && (r.result_status === 'DNS' || r.result_status === 'ABSENT')).length
+      const dnsCount = resultRows.filter((r) => r.moto_id === moto.id && r.result_status === 'DNS').length
 
       return {
         rider_id: riderId,

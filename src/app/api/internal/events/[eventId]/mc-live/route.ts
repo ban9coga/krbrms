@@ -449,7 +449,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     .eq('category_id', rankingMoto.category_id)
     .maybeSingle()
 
-  const dnsCount = (results ?? []).filter((r) => r.result_status === 'DNS' || r.result_status === 'ABSENT').length
+  const dnsCount = (results ?? []).filter((r) => r.result_status === 'DNS').length
 
   const ranking: McRankingRow[] = riderIds.map((riderId) => {
     const row = resultMap.get(riderId)
