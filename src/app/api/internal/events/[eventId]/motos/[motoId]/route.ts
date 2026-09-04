@@ -3,8 +3,9 @@ import { createClient } from '@supabase/supabase-js'
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { eventId: string; motoId: string } }
+  { params }: { params: Promise<{ eventId: string; motoId: string }> }
 ) {
+  const { eventId, motoId } = await params
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -22,8 +23,8 @@ export async function DELETE(
     const { data: moto, error: motoError } = await supabase
       .from('motos')
       .select('id')
-      .eq('id', params.motoId)
-      .eq('event_id', params.eventId)
+      .eq('id', motoId)
+      .eq('event_id', eventId)
       .single()
 
     if (motoError || !moto) {
@@ -37,7 +38,7 @@ export async function DELETE(
     const { error: resultsError } = await supabase
       .from('results')
       .delete()
-      .eq('moto_id', params.motoId)
+      .eq('moto_id', motoId)
     
     if (resultsError) throw resultsError
 
@@ -45,7 +46,7 @@ export async function DELETE(
     const { error: motoRidersError } = await supabase
       .from('moto_riders')
       .delete()
-      .eq('moto_id', params.motoId)
+      .eq('moto_id', motoId)
       
     if (motoRidersError) throw motoRidersError
 
@@ -53,7 +54,7 @@ export async function DELETE(
     const { error: deleteMotoError } = await supabase
       .from('motos')
       .delete()
-      .eq('id', params.motoId)
+      .eq('id', motoId)
 
     if (deleteMotoError) throw deleteMotoError
 
