@@ -820,6 +820,16 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     }
 
     if (readiness.canComputeAdvances) {
+      if ((summary?.motoCounts?.final ?? 0) > 0) {
+        return {
+          visible: true,
+          label: 'Final Sudah Dibentuk',
+          description: 'Moto Final sudah tersedia. Tidak ada compute stage lanjutan yang perlu dijalankan.',
+          endpoint: null as null | 'compute' | 'advance',
+          disabled: true,
+        }
+      }
+
       if ((summary?.motoCounts?.repechage ?? 0) > 0 && readiness.repechageReady && !readiness.quarterReady) {
         return {
           visible: true,
@@ -833,15 +843,6 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       // When Semi Final exists, QF has already been advanced. Prefer the latest
       // source stage so the action label never offers an outdated QF compute.
       if ((summary?.motoCounts?.semi ?? 0) > 0 && readiness.semiReady) {
-        if ((summary?.motoCounts?.final ?? 0) > 0) {
-          return {
-            visible: true,
-            label: 'Final Sudah Dibentuk',
-            description: 'Moto Final sudah tersedia. Tidak ada compute stage lanjutan yang perlu dijalankan.',
-            endpoint: null as null | 'compute' | 'advance',
-            disabled: true,
-          }
-        }
         return {
           visible: true,
           label: 'Compute Semi Final -> Final',
@@ -852,15 +853,6 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       }
 
       if ((summary?.motoCounts?.quarter ?? 0) > 0 && readiness.quarterReady) {
-        if ((summary?.motoCounts?.final ?? 0) > 0) {
-          return {
-            visible: true,
-            label: 'Final Sudah Dibentuk',
-            description: 'Moto Final sudah tersedia. Tidak ada compute Quarter Final yang perlu dijalankan lagi.',
-            endpoint: null as null | 'compute' | 'advance',
-            disabled: true,
-          }
-        }
         return {
           visible: true,
           label: 'Compute Quarter Final -> Final',
@@ -869,6 +861,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
           disabled: false,
         }
       }
+      
       return {
         visible: true,
         label: 'Compute Stage Berikutnya',
