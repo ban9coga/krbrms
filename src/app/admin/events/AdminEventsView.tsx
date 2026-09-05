@@ -436,6 +436,11 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
             </div>
 
             <div className="flex flex-wrap gap-2">
+              {!isRegistrationApprover && (
+                <Link href={`/admin/events/${event.id}/checklist`} className="event-card-nav-button">
+                  Checklist
+                </Link>
+              )}
               <Link href={`/admin/events/${event.id}/registrations`} className="event-card-nav-button">
                 Registrations
               </Link>

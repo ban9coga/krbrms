@@ -12,7 +12,7 @@ import { supabase } from '@/src/lib/supabaseClient'
 type NavItem = {
   label: string
   href: string
-  icon: 'dashboard' | 'events' | 'content' | 'users' | 'registrations' | 'riders' | 'categories' | 'draw' | 'drawSettings' | 'motos' | 'sequence' | 'advanced' | 'customSplit' | 'schedule' | 'results' | 'penalties' | 'settings'
+  icon: 'dashboard' | 'events' | 'content' | 'users' | 'registrations' | 'riders' | 'categories' | 'draw' | 'drawSettings' | 'motos' | 'sequence' | 'advanced' | 'customSplit' | 'schedule' | 'results' | 'penalties' | 'settings' | 'checklist'
 }
 
 const BRAND = {
@@ -27,6 +27,7 @@ const GLOBAL_NAV: NavItem[] = [
 ]
 
 const EVENT_NAV = (eventId: string): NavItem[] => [
+  { label: 'Setup Checklist', href: `/admin/events/${eventId}/checklist`, icon: 'checklist' },
   { label: 'Registrations', href: `/admin/events/${eventId}/registrations`, icon: 'registrations' },
   { label: 'Riders', href: `/admin/events/${eventId}/riders`, icon: 'riders' },
   { label: 'Categories', href: `/admin/events/${eventId}/categories`, icon: 'categories' },

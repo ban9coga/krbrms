@@ -1442,7 +1442,7 @@ export default function RaceDirectorApprovalPage() {
                         {list.map((m) => {
                           const status = (m.status ?? '').toUpperCase()
                           const isLocked = status === 'LOCKED'
-                          const canUnlock = isLocked && role === 'SUPER_ADMIN'
+                          const canUnlock = isLocked && (role === 'SUPER_ADMIN' || role === 'RACE_DIRECTOR')
                           const canLock = status === 'PROVISIONAL' || status === 'PROTEST_REVIEW'
                           const showLockDisabled = status === 'UPCOMING'
                           return (

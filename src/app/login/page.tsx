@@ -25,6 +25,8 @@ export default function LoginPage() {
     const upper = value.toUpperCase()
     if (upper === 'JURY_START') return 'CHECKER'
     if (upper === 'JURY_FINISH') return 'FINISHER'
+    if (upper === 'RACE-DIRECTOR') return 'RACE_DIRECTOR'
+    if (upper === 'RACE-CONTROL') return 'RACE_CONTROL'
     return upper
   }
 
