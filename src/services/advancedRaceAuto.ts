@@ -1621,17 +1621,7 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
     }
   }
 
-  const finalClassCreateOrder = Array.from(new Set([
-    ...resolved.finalClasses,
-    ...FINAL_CLASS_ORDER
-  ])).sort((a, b) => {
-    const idxA = FINAL_CLASS_ORDER.indexOf(a as any)
-    const idxB = FINAL_CLASS_ORDER.indexOf(b as any)
-    if (idxA === -1 && idxB === -1) return 0
-    if (idxA === -1) return 1
-    if (idxB === -1) return -1
-    return idxA - idxB
-  })
+  const finalClassCreateOrder = resolved.finalClasses
   const finalsToCreate = shouldDeferFinalsUntilStageReady
     ? []
     : finalClassCreateOrder.filter((key) => (finals[key] ?? []).length > 0 && !existingFinalClasses.has(key))
