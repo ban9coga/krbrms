@@ -9,9 +9,9 @@ export type AdvancedRaceDefaultConfig = {
 
 export const ADVANCED_RACE_FINAL_CLASS_ORDER = [
   'EXPLORER',
-  'ACADEMY',
-  'BEGINNER',
   'AMATEUR',
+  'BEGINNER',
+  'ACADEMY',
   'INTERMEDIATE',
   'ADVANCED',
   'ROOKIE',
