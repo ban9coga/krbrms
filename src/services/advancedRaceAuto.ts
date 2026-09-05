@@ -1621,8 +1621,10 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
     }
   }
 
-  const finalClassCreateOrder =
-    resolved.finalClasses.length > 0 ? resolved.finalClasses : FINAL_CLASS_ORDER
+  const finalClassCreateOrder = [
+    ...resolved.finalClasses,
+    ...FINAL_CLASS_ORDER.filter(c => !resolved.finalClasses.includes(c))
+  ]
   const finalsToCreate = shouldDeferFinalsUntilStageReady
     ? []
     : finalClassCreateOrder.filter((key) => (finals[key] ?? []).length > 0 && !existingFinalClasses.has(key))
