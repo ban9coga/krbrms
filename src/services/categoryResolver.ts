@@ -214,14 +214,23 @@ export async function resolveCategoryConfig(categoryId: string, override?: Resol
       const total = totalRiders
       const defaults = resolveDefaultAdvancedRaceConfig(total, gateSize)
 
+      // Use final_classes from event_settings.race_format_settings if available,
+      // rather than the auto-mapped default (which slices based on rider count).
+      const eventFinalClasses = normalizeFinalClassList(
+        raceFormatSettings.final_classes,
+        [] // empty fallback — don't auto-fill if not set
+      )
+
       return {
         categoryId,
         eventId,
         totalRiders: total,
         stages: defaults.stages,
-        finalClasses: defaults.finalClasses,
+        finalClasses: eventFinalClasses.length > 0 ? eventFinalClasses : defaults.finalClasses,
         source: 'default',
-        warning: 'No rule matched. Using default auto mapping.',
+        warning: eventFinalClasses.length > 0
+          ? 'No rule matched. Using event Race Format final classes.'
+          : 'No rule matched. Using default auto mapping.',
       }
     }
 
