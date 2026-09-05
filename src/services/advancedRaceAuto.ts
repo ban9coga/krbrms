@@ -1621,9 +1621,11 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
     }
   }
 
+  const finalClassCreateOrder =
+    resolved.finalClasses.length > 0 ? resolved.finalClasses : FINAL_CLASS_ORDER
   const finalsToCreate = shouldDeferFinalsUntilStageReady
     ? []
-    : FINAL_CLASS_ORDER.filter((key) => (finals[key] ?? []).length > 0 && !existingFinalClasses.has(key))
+    : finalClassCreateOrder.filter((key) => (finals[key] ?? []).length > 0 && !existingFinalClasses.has(key))
   if (finalsToCreate.length > 0) {
     const { data: motoRows, error: motoError } = await adminClient
       .from('motos')
