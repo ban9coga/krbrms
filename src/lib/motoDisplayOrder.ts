@@ -6,7 +6,7 @@ type MotoLike = {
   category_id?: string | null
 }
 
-const FINAL_MOTO_DISPLAY_ORDER: Record<string, number> = {
+export const FINAL_MOTO_DISPLAY_ORDER: Record<string, number> = {
   EXPLORER: 0,
   AMATEUR: 1,
   BEGINNER: 2,

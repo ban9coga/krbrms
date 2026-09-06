@@ -7,6 +7,7 @@ import EmptyState from '../../../../../components/EmptyState'
 import LoadingState from '../../../../../components/LoadingState'
 import PublicTopbar from '../../../../../components/PublicTopbar'
 import { type EventItem, type RiderCategory } from '../../../../../lib/eventService'
+import { FINAL_MOTO_DISPLAY_ORDER } from '../../../../../lib/motoDisplayOrder'
 
 type Row = {
   rider_id: string
@@ -64,18 +65,7 @@ export type LiveScoreData = {
   stages?: StageGroup[]
 }
 
-const finalStageDisplayOrder: Record<string, number> = {
-  EXPLORER: 0,
-  AMATEUR: 1,
-  BEGINNER: 2,
-  ACADEMY: 3,
-  INTERMEDIATE: 4,
-  ADVANCED: 5,
-  ROOKIE: 6,
-  PRO: 7,
-  NOVICE: 8,
-  ELITE: 9,
-}
+const finalStageDisplayOrder = FINAL_MOTO_DISPLAY_ORDER
 
 const getStageGroupSortKey = (title: string) => {
   const normalized = title.trim().toUpperCase()
