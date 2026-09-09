@@ -1344,9 +1344,8 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
     // A later compute may recalculate a Repechage placement, but it must never append
     // a new QF batch and change the bracket that has already been raced.
     if (pendingQuarter.length > 0 && !quarterFinalAlreadyFinalized) {
-      const groups =
-        distributeCarryOverHeats(pendingQuarter, qualificationRows, seedBatchOrderById, quarterMaxRiders, gateBySeedRowKey) ??
-        distributeSeededHeats(pendingQuarter, quarterMaxRiders)
+      // Always use snake seeding for fair gate distribution across all heats.
+      const groups = distributeSeededHeats(pendingQuarter, quarterMaxRiders)
       const startIndex = existingQuarterMotos.length
       groups.forEach((_, idx) => {
         newMotos.push({
@@ -1387,16 +1386,8 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
 
     const pendingRepechage = repechageRiders.filter((id) => !assignedRepechage.has(id))
     if (pendingRepechage.length > 0) {
-      const groups =
-        distributeCarryOverHeats(
-          pendingRepechage,
-          stageSeedRows.filter((row) =>
-            row.stage === 'QUALIFICATION' || row.stage === 'QUARTER_FINAL' || row.stage === 'SEMI_FINAL'
-          ),
-          seedBatchOrderById,
-          repechageMaxRiders,
-          gateBySeedRowKey
-        ) ?? distributeSeededHeats(pendingRepechage, repechageMaxRiders)
+      // Always use snake seeding for fair gate distribution across all heats.
+      const groups = distributeSeededHeats(pendingRepechage, repechageMaxRiders)
       const startIndex = existingRepechageMotos.length
       const { data: motoRows, error: motoError } = await adminClient
         .from('motos')
@@ -1421,14 +1412,8 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
   const semiSourceReady = resolved.stages.enableQuarterFinal ? readiness.quarterReady : readiness.qualificationReady
   const semiExists = await safeMotoNameExists(eventId, categoryId, 'Semi Final')
   if (semiSourceReady && !semiExists && semiRiders.length > 0 && !shouldDeferSemiUntilRepechage) {
-    const groups =
-      distributeCarryOverHeats(
-        semiRiders,
-        [...quarterResultRows, ...repechageResultRows, ...qualificationRows],
-        seedBatchOrderById,
-        semiMaxRiders,
-        gateBySeedRowKey
-      ) ?? distributeSeededHeats(semiRiders, semiMaxRiders)
+    // Always use snake seeding for fair gate distribution across all heats.
+    const groups = distributeSeededHeats(semiRiders, semiMaxRiders)
     const { data: motoRows, error: motoError } = await adminClient
       .from('motos')
       .insert(
