@@ -283,7 +283,7 @@ export default function JuryFinishPage() {
     [motos]
   )
 
-  const applyFinisherPollData = useCallback((data: FinisherPollData, targetMoto: MotoItem | null) => {
+  const applyFinisherPollData = useCallback((data: FinisherPollData, targetMoto: MotoItem | null, preserveLocalResults = false) => {
     const existingResults = data.results ?? []
     const finishFromServer = [...existingResults]
       .filter((r) => r.result_status === 'FINISH' && r.finish_order != null)
@@ -344,12 +344,14 @@ export default function JuryFinishPage() {
       badgeMap[row.rider_id] = items
     }
 
-    setActions([])
-    setHasSubmitted(!isMotoLive(targetMoto?.status) && existingResults.length > 0)
-    setFinishOrder(finishFromServer.filter((riderId) => !blockedRiderIds.has(riderId)))
-    setDnfRiders(dnfFromServer.filter((riderId) => !blockedRiderIds.has(riderId)))
+    if (!preserveLocalResults) {
+      setActions([])
+      setHasSubmitted(!isMotoLive(targetMoto?.status) && existingResults.length > 0)
+      setFinishOrder(finishFromServer.filter((riderId) => !blockedRiderIds.has(riderId)))
+      setDnfRiders(dnfFromServer.filter((riderId) => !blockedRiderIds.has(riderId)))
+      setDnfProgressByRider(dnfProgressMap)
+    }
     setDqRiders(dqFromServer)
-    setDnfProgressByRider(dnfProgressMap)
     setParticipationByRider(statusMap)
     setStatusSourceByRider(sourceMap)
     setPenaltiesByRider(penaltyMap)
@@ -406,7 +408,7 @@ export default function JuryFinishPage() {
   const refreshFinisherPollingState = useCallback(async (motoId: string, targetMoto: MotoItem | null) => {
     if (!eventId || !motoId) return
     const response = await apiFetch(`/api/jury/events/${eventId}/finisher-poll?moto_id=${motoId}`)
-    applyFinisherPollData((response.data ?? {}) as FinisherPollData, targetMoto)
+    applyFinisherPollData((response.data ?? {}) as FinisherPollData, targetMoto, localEditingRef.current)
   }, [apiFetch, applyFinisherPollData, eventId])
 
   // Consolidated polling loop with page visibility awareness.
@@ -414,21 +416,17 @@ export default function JuryFinishPage() {
   const isPageVisible = usePageVisibility()
 
   const refreshFromRealtime = useCallback(async () => {
-    if (localEditingRef.current) return
-
     try {
       const state = await refreshMotoState()
-      if (!state?.selectedMotoId || localEditingRef.current) return
+      if (!state?.selectedMotoId) return
 
       const targetMoto = state.motos.find((m) => m.id === state.selectedMotoId) ?? null
       const [ridersResponse, pollResponse] = await Promise.all([
         apiFetch(`/api/jury/motos/${state.selectedMotoId}/riders`),
         apiFetch(`/api/jury/events/${eventId}/finisher-poll?moto_id=${state.selectedMotoId}`),
       ])
-      if (localEditingRef.current) return
-
       setRiders((ridersResponse.data ?? []) as RiderItem[])
-      applyFinisherPollData((pollResponse.data ?? {}) as FinisherPollData, targetMoto)
+      applyFinisherPollData((pollResponse.data ?? {}) as FinisherPollData, targetMoto, localEditingRef.current)
     } catch {
       // The periodic poll remains the fallback when Realtime is unavailable.
     }
@@ -447,7 +445,7 @@ export default function JuryFinishPage() {
     if (!isPageVisible) return
 
     const interval = window.setInterval(() => {
-      if (pressedId || actions.length > 0 || saving) return
+      if (pressedId || saving) return
       void (async () => {
         try {
           const state = await refreshMotoState()
@@ -464,7 +462,7 @@ export default function JuryFinishPage() {
       })()
     }, 15000)
     return () => window.clearInterval(interval)
-  }, [eventId, selectedMotoId, isPageVisible, hasSubmitted, pressedId, actions.length, saving, loadAll, loadRiders, refreshFinisherPollingState, refreshMotoState])
+  }, [eventId, selectedMotoId, isPageVisible, hasSubmitted, pressedId, saving, loadAll, loadRiders, refreshFinisherPollingState, refreshMotoState])
 
   const availableRiders = useMemo(() => {
     const finished = new Set(finishOrder)
