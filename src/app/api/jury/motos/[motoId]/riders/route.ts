@@ -174,6 +174,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ motoId: 
     return rider ? [{ ...rider, dq_reason: row.dq_reason ?? null }] : []
   })
   const dqRiderIds = new Set(dq_riders.map((rider) => rider.id))
+  const dqReasonByRiderId = new Map(dq_riders.map((rider) => [rider.id, rider.dq_reason]))
 
   const { data: gates, error: gateError } = await adminClient
     .from('moto_gate_positions')
@@ -203,7 +204,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ motoId: 
         return { rider, originalGate: g.gate_position }
       })
       .filter(Boolean) as { rider: RiderRow; originalGate: number | null }[])
-      .map(({ rider }, index) => ({ ...rider, gate_position: index + 1 }))
+      .map(({ rider }, index) => ({
+        ...rider,
+        gate_position: index + 1,
+        is_disqualified: dqRiderIds.has(rider.id),
+        dq_reason: dqReasonByRiderId.get(rider.id) ?? null,
+      }))
 
     return NextResponse.json({ data, dq_riders })
   }
@@ -233,10 +239,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ motoId: 
     ? await deriveAdvancedGateOrder(moto.event_id, moto.category_id, moto.moto_name, assignedRiderIds)
     : assignedRiderIds
 
-  const validRiderIds = orderedRiderIds.filter((id) => riderMap.has(id) && !dqRiderIds.has(id))
+  const validRiderIds = orderedRiderIds.filter((id) => riderMap.has(id))
   const data = validRiderIds.map((riderId, index) => {
     const rider = riderMap.get(riderId)!
-    return { ...rider, gate_position: index + 1 }
+    return {
+      ...rider,
+      gate_position: index + 1,
+      is_disqualified: dqRiderIds.has(rider.id),
+      dq_reason: dqReasonByRiderId.get(rider.id) ?? null,
+    }
   })
 
   return NextResponse.json({ data, dq_riders })

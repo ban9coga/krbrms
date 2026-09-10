@@ -62,6 +62,7 @@ type RiderItem = {
   no_plate_display: string
   gate_position?: number | null
   dq_reason?: string | null
+  is_disqualified?: boolean
 }
 
 type StatusRow = {
@@ -305,7 +306,6 @@ export default function JCPage() {
   const selectedMotoIdRef = useRef(initialMotoId)
   const manualSelectRef = useRef(false)
   const [riders, setRiders] = useState<RiderItem[]>([])
-  const [prepDqRiders, setPrepDqRiders] = useState<RiderItem[]>([])
   const [statuses, setStatuses] = useState<Record<string, StatusRow>>({})
   const [incidentRiders, setIncidentRiders] = useState<RiderItem[]>([])
   const [incidentStatuses, setIncidentStatuses] = useState<Record<string, StatusRow>>({})
@@ -418,7 +418,6 @@ export default function JCPage() {
         selectedMotoIdRef.current = ''
         setSelectedMotoId('')
         setRiders([])
-        setPrepDqRiders([])
         setStatuses({})
         setAllReadyDone(false)
         setBulkReadyState(null)
@@ -478,7 +477,6 @@ export default function JCPage() {
       }
       // Stable-reference update: only replace riders if data actually changed
       const newRiders = (riderRes.data ?? []) as RiderItem[]
-      setPrepDqRiders((riderRes.dq_riders ?? []) as RiderItem[])
       setRiders((prev) => {
         if (prev.length === newRiders.length && prev.every((r, i) => r.id === newRiders[i]?.id)) return prev
         return newRiders
@@ -828,8 +826,9 @@ export default function JCPage() {
   }, [incidentRiderList, incidentStatuses])
 
   const summary = useMemo(() => {
-    const s = { total: riderList.length, active: 0, absent: 0, unchecked: 0 }
-    for (const r of riderList) {
+    const actionableRiders = riderList.filter((rider) => !rider.is_disqualified)
+    const s = { total: actionableRiders.length, active: 0, absent: 0, unchecked: 0 }
+    for (const r of actionableRiders) {
       const status = statuses[r.id]?.participation_status
       if (status === 'ABSENT') s.absent += 1
       else if (status === 'ACTIVE') s.active += 1
@@ -850,8 +849,8 @@ export default function JCPage() {
 
   const allPrepReviewed = useMemo(() => {
     return (
-      riders.length > 0 &&
-      riders.every((r) => {
+      riders.some((r) => !r.is_disqualified) &&
+      riders.filter((r) => !r.is_disqualified).every((r) => {
         const status = statuses[r.id]?.participation_status
         return status === 'ACTIVE' || status === 'ABSENT'
       })
@@ -862,6 +861,7 @@ export default function JCPage() {
     if (!selectedMotoId) return
     if (!selectedMotoPreppable || locked) return
     if (status === 'ABSENT' && !flags.absent_enabled) return
+    if (riders.some((rider) => rider.id === riderId && rider.is_disqualified)) return
     const previousStatus = statuses[riderId]
     setSaving(true)
     setWarningMessage(null)
@@ -1017,6 +1017,7 @@ export default function JCPage() {
     if (riderList.length === 0) return
 
     const targetRiders = riderList.filter((rider) => {
+      if (rider.is_disqualified) return false
       const status = statuses[rider.id]?.participation_status
       return status !== 'ACTIVE' && status !== 'ABSENT'
     })
@@ -1227,8 +1228,9 @@ export default function JCPage() {
   const safetyInteractionDisabled = interactionDisabled || allReadyDone
   const readyDisabled = interactionDisabled
   const absentDisabled = interactionDisabled || allReadyDone || bulkReadyApplied || !flags.absent_enabled
-  const bulkReadyDisabled = interactionDisabled || allReadyDone || riderList.length === 0
-  const canGateReady = riderList.length > 0 && allPrepReviewed
+  const actionableRiderCount = riderList.filter((rider) => !rider.is_disqualified).length
+  const bulkReadyDisabled = interactionDisabled || allReadyDone || actionableRiderCount === 0
+  const canGateReady = actionableRiderCount > 0 && allPrepReviewed
   const motoReadyDisabled = interactionDisabled || !canGateReady || allReadyDone
   const incidentInteractionDisabled = saving || incidentLocked || !incidentMotoId
   const incidentDnsDisabled = incidentInteractionDisabled || !flags.dns_enabled
@@ -1649,28 +1651,6 @@ export default function JCPage() {
           </div>
         )}
 
-        {prepDqRiders.length > 0 && !activeCategoryWaitingStage && (
-          <div
-            style={{
-              display: 'grid',
-              gap: 8,
-              padding: isCompactLayout ? 10 : 12,
-              borderRadius: 12,
-              border: '2px solid #be123c',
-              background: '#fff1f2',
-            }}
-          >
-            <div style={{ color: '#9f1239', fontWeight: 950, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-              Tidak Dapat Start - DQ
-            </div>
-            {prepDqRiders.map((rider) => (
-              <div key={rider.id} style={{ color: '#881337', fontWeight: 800, fontSize: 13 }}>
-                {rider.no_plate_display} - {rider.name}{rider.dq_reason ? `: ${rider.dq_reason}` : ''}
-              </div>
-            ))}
-          </div>
-        )}
-
         <div style={{ display: activeCategoryWaitingStage ? 'none' : 'grid', gap: 10 }}>
           <input
             value={query}
@@ -1767,7 +1747,7 @@ export default function JCPage() {
               localMutationRef.current = true
               setSafetyChecks((prev) => {
                 const next = { ...prev }
-                for (const rider of riderList) {
+                for (const rider of riderList.filter((item) => !item.is_disqualified)) {
                   const current = next[rider.id] ?? {}
                   const updated: Record<string, boolean> = { ...current }
                   for (const item of safetyRequirements) updated[item.id] = true
@@ -1775,7 +1755,7 @@ export default function JCPage() {
                 }
                 return next
               })
-              const checks: SafetyCheckPayload[] = riderList.flatMap((rider) =>
+              const checks: SafetyCheckPayload[] = riderList.filter((rider) => !rider.is_disqualified).flatMap((rider) =>
                 safetyRequirements.map((item) => ({
                   rider_id: rider.id,
                   requirement_id: item.id,
@@ -1883,11 +1863,14 @@ export default function JCPage() {
             const rawStatus = statuses[r.id]?.participation_status
             const currentStatus = rawStatus ?? 'UNSET'
             const hasStatus = typeof rawStatus === 'string'
+            const isRiderDq = r.is_disqualified === true
             const isRiderReady = currentStatus === 'ACTIVE'
             const isRiderAbsent = currentStatus === 'ABSENT'
-            const safetyOk = isSafetyOk(r.id)
+            const safetyOk = !isRiderDq && isSafetyOk(r.id)
             const statusBadge =
-              !hasStatus
+              isRiderDq
+                ? '#ffe4e6'
+                : !hasStatus
                 ? '#e5e7eb'
                 : isRiderAbsent
                 ? '#fee2e2'
@@ -1924,6 +1907,7 @@ export default function JCPage() {
                       {r.no_plate_display}
                     </div>
                     <div style={{ fontSize: highVisibility ? (isCompactLayout ? 16 : 18) : isCompactLayout ? 14 : 15, fontWeight: 800, marginTop: 4 }}>{r.name}</div>
+                    {isRiderDq && r.dq_reason && <div style={{ marginTop: 4, color: '#9f1239', fontSize: 12, fontWeight: 800 }}>DQ: {r.dq_reason}</div>}
                   </div>
                   <div style={{ textAlign: isMobileLayout ? 'left' : 'right' }}>
                     <div style={{ fontSize: highVisibility ? 14 : 12, fontWeight: 800 }}>Gate #{r.gate_position ?? '-'}</div>
@@ -1938,7 +1922,9 @@ export default function JCPage() {
                         fontSize: highVisibility ? 12 : 11,
                       }}
                     >
-                      {!hasStatus
+                      {isRiderDq
+                        ? 'DQ'
+                        : !hasStatus
                         ? 'UNCHECKED'
                         : isRiderReady && safetyOk
                         ? 'READY'
@@ -1984,7 +1970,7 @@ export default function JCPage() {
                             localMutationRef.current = false
                           }
                         }}
-                        disabled={safetyInteractionDisabled}
+                        disabled={safetyInteractionDisabled || isRiderDq}
                         style={{
                           padding: highVisibility ? '12px 10px' : '10px 8px',
                           borderRadius: 12,
@@ -2033,7 +2019,7 @@ export default function JCPage() {
                         ? handleUndoReady(r.id)
                         : handleSaveStatus(r.id, 'ACTIVE', r.gate_position ?? 0)
                     }
-                    disabled={readyDisabled || isRiderAbsent}
+                    disabled={readyDisabled || isRiderAbsent || isRiderDq}
                   >
                     <span className="jc-rider-action-shadow" />
                     <span className="jc-rider-action-edge" />
@@ -2047,7 +2033,7 @@ export default function JCPage() {
                         ? handleSaveStatus(r.id, 'ACTIVE', r.gate_position ?? 0)
                         : handleSaveStatus(r.id, 'ABSENT', r.gate_position ?? 0)
                     }
-                    disabled={absentDisabled || isRiderReady}
+                    disabled={absentDisabled || isRiderReady || isRiderDq}
                   >
                     <span className="jc-rider-action-shadow" />
                     <span className="jc-rider-action-edge" />

@@ -226,6 +226,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     )
   }
 
+  const { data: dqRows, error: dqError } = await adminClient
+    .from('results')
+    .select('rider_id')
+    .eq('moto_id', motoId)
+    .eq('result_status', 'DQ')
+  if (dqError) return NextResponse.json({ error: dqError.message }, { status: 400 })
+  const dqRiderIds = new Set((dqRows ?? []).map((row) => row.rider_id))
+  if (typedRows.some((row) => dqRiderIds.has(row.rider_id))) {
+    return NextResponse.json({ error: 'Rider DQ tidak dapat diubah statusnya. Batalkan DQ melalui Race Director bila diperlukan.' }, { status: 409 })
+  }
+
   const shouldAutoApply = (participation_status: string) =>
     approvalMode === 'AUTO' || participation_status === 'ACTIVE' || participation_status === 'DNS' || participation_status === 'ABSENT'
   const insertRows = typedRows.map((row) => ({

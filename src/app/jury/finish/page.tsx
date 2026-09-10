@@ -38,6 +38,7 @@ type RiderItem = {
   name: string
   no_plate_display: string
   gate_position?: number
+  is_disqualified?: boolean
 }
 
 type Action =
@@ -381,7 +382,7 @@ export default function JuryFinishPage() {
       apiFetch(`/api/jury/events/${eventId}/finisher-poll?moto_id=${targetMotoId}`),
     ])
     if (!force && localEditingRef.current) return
-    setRiders((res.data ?? []) as RiderItem[])
+    setRiders(((res.data ?? []) as RiderItem[]).filter((rider) => !rider.is_disqualified))
     applyFinisherPollData((pollRes.data ?? {}) as FinisherPollData, targetMoto)
   }, [apiFetch, applyFinisherPollData, eventId, selectedMotoId])
 
@@ -425,7 +426,7 @@ export default function JuryFinishPage() {
         apiFetch(`/api/jury/motos/${state.selectedMotoId}/riders`),
         apiFetch(`/api/jury/events/${eventId}/finisher-poll?moto_id=${state.selectedMotoId}`),
       ])
-      setRiders((ridersResponse.data ?? []) as RiderItem[])
+      setRiders(((ridersResponse.data ?? []) as RiderItem[]).filter((rider) => !rider.is_disqualified))
       applyFinisherPollData((pollResponse.data ?? {}) as FinisherPollData, targetMoto, localEditingRef.current)
     } catch {
       // The periodic poll remains the fallback when Realtime is unavailable.
