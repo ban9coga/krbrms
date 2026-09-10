@@ -173,6 +173,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ motoId: 
     const rider = Array.isArray(row.riders) ? row.riders[0] : row.riders
     return rider ? [{ ...rider, dq_reason: row.dq_reason ?? null }] : []
   })
+  const dqRiderIds = new Set(dq_riders.map((rider) => rider.id))
 
   const { data: gates, error: gateError } = await adminClient
     .from('moto_gate_positions')
@@ -196,6 +197,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ motoId: 
 
     const data = (gates
       .map((g) => {
+        if (dqRiderIds.has(g.rider_id)) return null
         const rider = riderMap.get(g.rider_id)
         if (!rider) return null
         return { rider, originalGate: g.gate_position }
@@ -231,7 +233,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ motoId: 
     ? await deriveAdvancedGateOrder(moto.event_id, moto.category_id, moto.moto_name, assignedRiderIds)
     : assignedRiderIds
 
-  const validRiderIds = orderedRiderIds.filter((id) => riderMap.has(id))
+  const validRiderIds = orderedRiderIds.filter((id) => riderMap.has(id) && !dqRiderIds.has(id))
   const data = validRiderIds.map((riderId, index) => {
     const rider = riderMap.get(riderId)!
     return { ...rider, gate_position: index + 1 }

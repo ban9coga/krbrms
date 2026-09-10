@@ -118,6 +118,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
     return NextResponse.json({ error: 'Rider not assigned to moto' }, { status: 400 })
   }
 
+  // A pre-race DQ is a Race Director decision. Reject stale or forged
+  // Finisher submissions so they cannot replace the DQ result with FINISH/DNF.
+  const { data: dqRows, error: dqError } = await adminClient
+    .from('results')
+    .select('rider_id')
+    .eq('moto_id', motoId)
+    .eq('result_status', 'DQ')
+  if (dqError) return NextResponse.json({ error: dqError.message }, { status: 400 })
+  const dqRiderIds = new Set((dqRows ?? []).map((row) => row.rider_id))
+  if (payload.some((row) => dqRiderIds.has(row.rider_id))) {
+    return NextResponse.json({ error: 'Rider DQ tidak dapat diinput hasil race. Batalkan DQ melalui Race Director bila diperlukan.' }, { status: 409 })
+  }
+
   if (auth.role === 'CHECKER') {
     const invalid = payload.some(
       (row) => row.result_status !== 'DNS' || row.finish_order !== null
