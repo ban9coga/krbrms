@@ -518,13 +518,12 @@ export default function JCPage() {
         is_checked: boolean
       }>
       if (requirements.length > 0) setSafetyRequirements(requirements)
-      setSafetyChecks((prev) => {
-        const next = { ...prev }
+      setSafetyChecks(() => {
+        const next: Record<string, Record<string, boolean>> = {}
         for (const rider of (riderRes.data ?? []) as RiderItem[]) {
-          const current = next[rider.id] ?? {}
-          const updated: Record<string, boolean> = { ...current }
+          const updated: Record<string, boolean> = {}
           for (const item of requirements) {
-            if (typeof updated[item.id] !== 'boolean') updated[item.id] = true
+            updated[item.id] = true
           }
           next[rider.id] = updated
         }
@@ -598,12 +597,12 @@ export default function JCPage() {
         setStatuses(nextStatuses)
 
         const checks = response.prep.checks ?? []
-        setSafetyChecks((previous) => {
-          const next = { ...previous }
+        setSafetyChecks(() => {
+          const next: Record<string, Record<string, boolean>> = {}
           for (const rider of riders) {
-            const riderChecks = { ...(next[rider.id] ?? {}) }
+            const riderChecks: Record<string, boolean> = {}
             for (const requirement of safetyRequirements) {
-              if (typeof riderChecks[requirement.id] !== 'boolean') riderChecks[requirement.id] = true
+              riderChecks[requirement.id] = true
             }
             next[rider.id] = riderChecks
           }
@@ -677,21 +676,6 @@ export default function JCPage() {
 
     return () => clearInterval(interval)
   }, [allReadyDone, eventId, isPageVisible, loadMotos, refreshCheckerPollingState])
-
-  useEffect(() => {
-    setSafetyChecks((prev) => {
-      const next = { ...prev }
-      for (const rider of riders) {
-        const current = next[rider.id] ?? {}
-        const updated: Record<string, boolean> = { ...current }
-        for (const item of safetyRequirements) {
-          if (typeof updated[item.id] !== 'boolean') updated[item.id] = true
-        }
-        next[rider.id] = updated
-      }
-      return next
-    })
-  }, [riders, safetyRequirements])
 
   const categoryLabel = useMemo(() => {
     const map = new Map<string, string>()
