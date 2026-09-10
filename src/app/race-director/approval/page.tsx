@@ -179,6 +179,7 @@ export default function RaceDirectorApprovalPage() {
     scope: 'ALL',
   })
   const [settingEventDq, setSettingEventDq] = useState(false)
+  const [cancellingEventDq, setCancellingEventDq] = useState(false)
   const [penaltyReviewCategoryId, setPenaltyReviewCategoryId] = useState('')
   const [penaltyReviewMotoId, setPenaltyReviewMotoId] = useState('')
   const [approvedMotoPenalties, setApprovedMotoPenalties] = useState<ApprovedMotoPenaltyRow[]>([])
@@ -794,12 +795,53 @@ export default function RaceDirectorApprovalPage() {
       const refreshed = await loadEventData()
       showNotice(
         refreshed ? 'success' : 'error',
-        refreshed ? `Berhasil set DQ. ${res.motosAffected} moto terdampak.` : 'DQ tersimpan, refresh gagal.'
+        refreshed
+          ? `Rider ${riderName} telah di-DQ pada ${scopeLabel}. ${res.motosAffected} moto terdampak.`
+          : 'DQ tersimpan, refresh gagal.'
       )
     } catch (err: unknown) {
       showNotice('error', getErrorMessage(err))
     } finally {
       setSettingEventDq(false)
+    }
+  }
+
+  const handleCancelEventDq = async () => {
+    if (!eventId || !eventDqForm.riderId) {
+      showNotice('error', 'Pilih rider yang DQ-nya akan dibatalkan.')
+      return
+    }
+    if (eventDqForm.scope === 'CATEGORY' && !eventDqForm.categoryId) {
+      showNotice('error', 'Pilih kategori atau gunakan scope Semua Kategori.')
+      return
+    }
+
+    const riderName = riderMap[eventDqForm.riderId]?.name ?? 'rider ini'
+    const scopeLabel = eventDqForm.scope === 'CATEGORY' ? 'kategori yang dipilih' : 'seluruh event'
+    if (!window.confirm(`Batalkan DQ ${riderName} dari ${scopeLabel}? Hasil finish sebelum DQ harus dicek dan diinput ulang bila diperlukan.`)) {
+      return
+    }
+
+    try {
+      setCancellingEventDq(true)
+      const query = eventDqForm.scope === 'CATEGORY' && eventDqForm.categoryId
+        ? `?categoryId=${encodeURIComponent(eventDqForm.categoryId)}`
+        : ''
+      const res = await apiFetch(
+        `/api/race-director/events/${eventId}/riders/${eventDqForm.riderId}/disqualify${query}`,
+        { method: 'DELETE' }
+      )
+      const refreshed = await loadEventData({ silent: true, includeHeavy: true })
+      showNotice(
+        refreshed ? 'success' : 'error',
+        refreshed
+          ? `DQ ${riderName} dibatalkan pada ${res.motosAffected} moto. Periksa hasil finish rider.`
+          : 'DQ dibatalkan, refresh gagal.'
+      )
+    } catch (err: unknown) {
+      showNotice('error', getErrorMessage(err))
+    } finally {
+      setCancellingEventDq(false)
     }
   }
 
@@ -1088,7 +1130,7 @@ export default function RaceDirectorApprovalPage() {
           </section>
 
           <section className="public-panel-light">
-            <div style={{ fontWeight: 900, fontSize: 18 }}>DQ Seluruh Event</div>
+            <div style={{ fontWeight: 900, fontSize: 18 }}>Diskualifikasi Event</div>
             <div style={{ marginTop: 6, fontSize: 13, fontWeight: 700, color: '#475569' }}>
               Diskualifikasi rider dari seluruh event.
             </div>
@@ -1153,10 +1195,18 @@ export default function RaceDirectorApprovalPage() {
                   style={{ width: '100%', minHeight: 60 }}
                 />
               </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={handleCancelEventDq}
+                  disabled={cancellingEventDq || settingEventDq || !eventId || !eventDqForm.riderId || (eventDqForm.scope === 'CATEGORY' && !eventDqForm.categoryId)}
+                  className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.1em] text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {cancellingEventDq ? 'Membatalkan...' : 'Cancel DQ'}
+                </button>
                 <button
                   onClick={handleSetEventDq}
-                  disabled={settingEventDq || !eventId || !eventDqForm.riderId || (eventDqForm.scope === 'CATEGORY' && !eventDqForm.categoryId)}
+                  disabled={settingEventDq || cancellingEventDq || !eventId || !eventDqForm.riderId || (eventDqForm.scope === 'CATEGORY' && !eventDqForm.categoryId)}
                   className="inline-flex items-center justify-center rounded-xl border border-red-300 bg-red-100 px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.1em] text-red-800 transition-colors hover:bg-red-200 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {settingEventDq ? 'Menyimpan...' : 'Set DQ Seluruh Event'}
