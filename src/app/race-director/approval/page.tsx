@@ -90,6 +90,13 @@ type DqFormState = {
   reason: string
 }
 
+type EventDqFormState = {
+  riderId: string
+  categoryId: string
+  reason: string
+  scope: 'ALL' | 'CATEGORY'
+}
+
 const normalizeRole = (value: string | null | undefined) => String(value ?? '').trim().toUpperCase()
 const getErrorMessage = (err: unknown) => (err instanceof Error ? err.message : 'Request failed')
 
@@ -164,6 +171,14 @@ export default function RaceDirectorApprovalPage() {
   })
   const [dqCategoryRiders, setDqCategoryRiders] = useState<RiderItem[]>([])
   const [settingDq, setSettingDq] = useState(false)
+
+  const [eventDqForm, setEventDqForm] = useState<EventDqFormState>({
+    riderId: '',
+    categoryId: '',
+    reason: '',
+    scope: 'ALL',
+  })
+  const [settingEventDq, setSettingEventDq] = useState(false)
   const [penaltyReviewCategoryId, setPenaltyReviewCategoryId] = useState('')
   const [penaltyReviewMotoId, setPenaltyReviewMotoId] = useState('')
   const [approvedMotoPenalties, setApprovedMotoPenalties] = useState<ApprovedMotoPenaltyRow[]>([])
@@ -735,6 +750,61 @@ export default function RaceDirectorApprovalPage() {
     }
   }
 
+  const handleEventDqFormChange = <K extends keyof EventDqFormState>(key: K, value: EventDqFormState[K]) => {
+    setEventDqForm((prev) => {
+      const next = { ...prev, [key]: value }
+      if (key === 'scope' && value === 'ALL') next.categoryId = ''
+      return next
+    })
+  }
+
+  const handleSetEventDq = async () => {
+    if (!eventId || !eventDqForm.riderId) {
+      showNotice('error', 'Event dan Rider wajib dipilih.')
+      return
+    }
+    if (eventDqForm.scope === 'CATEGORY' && !eventDqForm.categoryId) {
+      showNotice('error', 'Pilih kategori atau gunakan scope Semua Kategori.')
+      return
+    }
+    if (!eventDqForm.reason.trim()) {
+      showNotice('error', 'Alasan DQ event-wide wajib diisi.')
+      return
+    }
+    const rider = riderMap[eventDqForm.riderId]
+    const riderName = rider ? rider.name : 'Rider'
+    const scopeLabel = eventDqForm.scope === 'CATEGORY' ? 'kategori yang dipilih' : 'SEMUA KATEGORI'
+    const confirmMsg = `Anda akan men-DQ ${riderName} dari ${scopeLabel} di event ini. Semua hasil moto rider ini akan di-override menjadi DQ. Lanjutkan?`
+    if (!window.confirm(confirmMsg)) return
+
+    try {
+      setSettingEventDq(true)
+      const payload: Record<string, string> = { reason: eventDqForm.reason.trim() }
+      if (eventDqForm.scope === 'CATEGORY' && eventDqForm.categoryId) {
+        payload.categoryId = eventDqForm.categoryId
+      }
+      
+      const res = await apiFetch(`/api/race-director/events/${eventId}/riders/${eventDqForm.riderId}/disqualify`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      })
+      if (!res.ok) throw new Error(res.error || 'Gagal set DQ event-wide.')
+
+      setEventDqForm({ riderId: '', categoryId: '', reason: '', scope: 'ALL' })
+      const refreshed = await loadEventData()
+      showNotice(
+        refreshed ? 'success' : 'error',
+        refreshed ? `Berhasil set DQ. ${res.motosAffected} moto terdampak.` : 'DQ tersimpan, refresh gagal.'
+      )
+    } catch (err: unknown) {
+      showNotice('error', getErrorMessage(err))
+    } finally {
+      setSettingEventDq(false)
+    }
+  }
+
+
+
   const getApprovedPenaltyRider = (penalty: ApprovedMotoPenaltyRow) => {
     const rider = Array.isArray(penalty.riders) ? penalty.riders[0] : penalty.riders
     return rider ?? riderMap[penalty.rider_id] ?? null
@@ -1012,6 +1082,84 @@ export default function RaceDirectorApprovalPage() {
                   className="inline-flex items-center justify-center rounded-xl border border-red-300 bg-red-100 px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.1em] text-red-800 transition-colors hover:bg-red-200 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {settingDq ? 'Menyimpan...' : 'Set DQ'}
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section className="public-panel-light">
+            <div style={{ fontWeight: 900, fontSize: 18 }}>DQ Seluruh Event</div>
+            <div style={{ marginTop: 6, fontSize: 13, fontWeight: 700, color: '#475569' }}>
+              Diskualifikasi rider dari seluruh event.
+            </div>
+            <div style={{ marginTop: 12, display: 'grid', gap: 12 }}>
+              <div className="rd-form-grid" style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+                <div style={{ display: 'grid', gap: 6 }}>
+                  <label style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Scope DQ</label>
+                  <select
+                    value={eventDqForm.scope}
+                    onChange={(e) => handleEventDqFormChange('scope', e.target.value as 'ALL' | 'CATEGORY')}
+                    className="public-filter"
+                  >
+                    <option value="ALL">Semua Kategori (Event-Wide)</option>
+                    <option value="CATEGORY">Per Kategori Spesifik</option>
+                  </select>
+                </div>
+                
+                <div style={{ display: 'grid', gap: 6 }}>
+                  <label style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Rider</label>
+                  <select
+                    value={eventDqForm.riderId}
+                    onChange={(e) => handleEventDqFormChange('riderId', e.target.value)}
+                    className="public-filter"
+                  >
+                    <option value="">Cari dan pilih rider</option>
+                    {Object.values(riderMap)
+                      .sort((a, b) => a.name.localeCompare(b.name))
+                      .map((rider) => (
+                        <option key={rider.id} value={rider.id}>
+                          {rider.no_plate_display ? `#${rider.no_plate_display}` : ''} {rider.name}
+                        </option>
+                    ))}
+                  </select>
+                </div>
+
+                {eventDqForm.scope === 'CATEGORY' && (
+                  <div style={{ display: 'grid', gap: 6 }}>
+                    <label style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Pilih Kategori</label>
+                    <select
+                      value={eventDqForm.categoryId}
+                      onChange={(e) => handleEventDqFormChange('categoryId', e.target.value)}
+                      className="public-filter"
+                    >
+                      <option value="">Pilih kategori spesifik</option>
+                      {categoriesSorted.map((cat) => (
+                        <option key={cat.id} value={cat.id}>
+                          {cat.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+              <div style={{ display: 'grid', gap: 6 }}>
+                <label style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Alasan DQ (Wajib)</label>
+                <textarea
+                  value={eventDqForm.reason}
+                  onChange={(e) => handleEventDqFormChange('reason', e.target.value)}
+                  className="public-filter"
+                  placeholder="Contoh: Manipulasi umur / data diri"
+                  rows={2}
+                  style={{ width: '100%', minHeight: 60 }}
+                />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
+                <button
+                  onClick={handleSetEventDq}
+                  disabled={settingEventDq || !eventId || !eventDqForm.riderId || (eventDqForm.scope === 'CATEGORY' && !eventDqForm.categoryId)}
+                  className="inline-flex items-center justify-center rounded-xl border border-red-300 bg-red-100 px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.1em] text-red-800 transition-colors hover:bg-red-200 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {settingEventDq ? 'Menyimpan...' : 'Set DQ Seluruh Event'}
                 </button>
               </div>
             </div>
