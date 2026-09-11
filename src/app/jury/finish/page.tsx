@@ -164,6 +164,7 @@ export default function JuryFinishPage() {
   const actionsCountRef = useRef(0)
   const localEditingRef = useRef(false)
   const selectedMotoLiveRef = useRef({ id: '', live: false })
+  const realtimeRefreshVersionRef = useRef(0)
 
   useEffect(() => {
     pressedIdRef.current = pressedId
@@ -416,17 +417,30 @@ export default function JuryFinishPage() {
   // Keeps the active race fresh with only moto-state plus one combined Finisher poll.
   const isPageVisible = usePageVisibility()
 
-  const refreshFromRealtime = useCallback(async () => {
+  const refreshFromRealtime = useCallback(async (signal: { moto_id?: string | null }) => {
+    const refreshVersion = ++realtimeRefreshVersionRef.current
     try {
       const state = await refreshMotoState()
-      if (!state?.selectedMotoId) return
+      if (!state?.selectedMotoId || refreshVersion !== realtimeRefreshVersionRef.current) return
+
+      const selectedMotoChanged = state.selectedMotoId !== selectedMotoId
+      const signalAffectsSelectedMoto = !signal.moto_id || signal.moto_id === state.selectedMotoId
+
+      // Prep changes for another moto only need the selector state. Reloading this
+      // grid on every event broadcast causes visible button flicker during a race.
+      if (!selectedMotoChanged && !signalAffectsSelectedMoto) return
 
       const targetMoto = state.motos.find((m) => m.id === state.selectedMotoId) ?? null
+      const reloadRiders = selectedMotoChanged || !localEditingRef.current
       const [ridersResponse, pollResponse] = await Promise.all([
-        apiFetch(`/api/jury/motos/${state.selectedMotoId}/riders`),
+        reloadRiders ? apiFetch(`/api/jury/motos/${state.selectedMotoId}/riders`) : Promise.resolve(null),
         apiFetch(`/api/jury/events/${eventId}/finisher-poll?moto_id=${state.selectedMotoId}`),
       ])
-      setRiders(((ridersResponse.data ?? []) as RiderItem[]).filter((rider) => !rider.is_disqualified))
+      if (refreshVersion !== realtimeRefreshVersionRef.current) return
+
+      if (ridersResponse) {
+        setRiders(((ridersResponse.data ?? []) as RiderItem[]).filter((rider) => !rider.is_disqualified))
+      }
       applyFinisherPollData((pollResponse.data ?? {}) as FinisherPollData, targetMoto, localEditingRef.current)
     } catch {
       // The periodic poll remains the fallback when Realtime is unavailable.
