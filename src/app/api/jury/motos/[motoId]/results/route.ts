@@ -18,6 +18,13 @@ const isLockedMoto = async (motoId: string) => {
 
 const needsMoto3Reseed = (motoName?: string | null) => /^moto\s*2\s*-\s*batch\s*1$/i.test(motoName ?? '')
 
+type ExistingResult = {
+  rider_id: string
+  finish_order: number | null
+  result_status: string | null
+  dnf_progress_percent: number | null
+}
+
 export async function GET(req: Request, { params }: { params: Promise<{ motoId: string }> }) {
   const { motoId } = await params
   const { data: moto } = await adminClient.from('motos').select('event_id').eq('id', motoId).maybeSingle()
@@ -35,29 +42,18 @@ export async function GET(req: Request, { params }: { params: Promise<{ motoId: 
 
 export async function POST(req: Request, { params }: { params: Promise<{ motoId: string }> }) {
   const { motoId } = await params
-  const { data: scopedMoto } = await adminClient.from('motos').select('event_id').eq('id', motoId).maybeSingle()
-  const auth = await requireJury(req, ['FINISHER', 'CHECKER', 'RACE_DIRECTOR', 'ADMIN', 'super_admin'], scopedMoto?.event_id ?? null)
+  const { data: moto, error: motoError } = await adminClient
+    .from('motos')
+    .select('id, event_id, moto_name, status')
+    .eq('id', motoId)
+    .maybeSingle()
+  const auth = await requireJury(req, ['FINISHER', 'CHECKER', 'RACE_DIRECTOR', 'ADMIN', 'super_admin'], moto?.event_id ?? null)
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
   if (auth.role === 'RACE_DIRECTOR') {
     return NextResponse.json({ error: 'Read-only for RACE_DIRECTOR' }, { status: 403 })
   }
-  if (await isLockedMoto(motoId)) {
-    try {
-      assertMotoEditable('locked')
-    } catch (err: unknown) {
-      return NextResponse.json({ error: err instanceof Error ? err.message : 'Moto locked.' }, { status: 409 })
-    }
-  }
-  const { data: motoStatusRow, error: statusError } = await adminClient
-    .from('motos')
-    .select('status')
-    .eq('id', motoId)
-    .maybeSingle()
-  if (statusError) return NextResponse.json({ error: statusError.message }, { status: 400 })
-  try {
-    assertMotoNotUnderProtest((motoStatusRow as { status?: string | null })?.status ?? null)
-  } catch (err: unknown) {
-    return NextResponse.json({ error: err instanceof Error ? err.message : 'Moto under protest review.' }, { status: 409 })
+  if (motoError || !moto?.event_id) {
+    return NextResponse.json({ error: 'Moto not found' }, { status: 404 })
   }
 
   const body = await req.json()
@@ -67,14 +63,39 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
     return NextResponse.json({ error: 'results required' }, { status: 400 })
   }
 
-  const { data: moto, error: motoError } = await adminClient
-    .from('motos')
-    .select('id, event_id, moto_name')
-    .eq('id', motoId)
-    .maybeSingle()
+  const [isLocked, flagsResult, assignedResult, existingResultsResult, activeStatusesResult] = await Promise.all([
+    isLockedMoto(motoId),
+    adminClient
+      .from('event_feature_flags')
+      .select('dnf_progress_enabled')
+      .eq('event_id', moto.event_id)
+      .maybeSingle(),
+    adminClient
+      .from('moto_riders')
+      .select('rider_id')
+      .eq('moto_id', motoId),
+    adminClient
+      .from('results')
+      .select('rider_id, finish_order, result_status, dnf_progress_percent')
+      .eq('moto_id', motoId),
+    adminClient
+      .from('rider_participation_status')
+      .select('rider_id, participation_status')
+      .eq('event_id', moto.event_id)
+      .eq('moto_id', motoId),
+  ])
 
-  if (motoError || !moto?.event_id) {
-    return NextResponse.json({ error: 'Moto not found' }, { status: 404 })
+  if (isLocked) {
+    try {
+      assertMotoEditable('locked')
+    } catch (err: unknown) {
+      return NextResponse.json({ error: err instanceof Error ? err.message : 'Moto locked.' }, { status: 409 })
+    }
+  }
+  try {
+    assertMotoNotUnderProtest(moto.status)
+  } catch (err: unknown) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Moto under protest review.' }, { status: 409 })
   }
 
   const payload = (results as Array<{ rider_id: string; finish_order?: number | null; result_status?: string; dnf_progress_percent?: number | null }>).map((row) => ({
@@ -86,11 +107,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
     dnf_progress_percent: row.result_status === 'DNF' && row.dnf_progress_percent != null ? Number(row.dnf_progress_percent) : null,
   }))
 
-  const { data: flags } = await adminClient
-    .from('event_feature_flags')
-    .select('dnf_progress_enabled')
-    .eq('event_id', moto.event_id)
-    .maybeSingle()
+  if (flagsResult.error) return NextResponse.json({ error: flagsResult.error.message }, { status: 400 })
+  const flags = flagsResult.data
   if (flags?.dnf_progress_enabled) {
     const invalidDnf = payload.find(
       (row) =>
@@ -100,10 +118,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
     if (invalidDnf) return NextResponse.json({ error: 'DNF progress wajib diisi antara 0-100%.' }, { status: 400 })
   }
 
-  const { data: assigned, error: assignedError } = await adminClient
-    .from('moto_riders')
-    .select('rider_id')
-    .eq('moto_id', motoId)
+  const { data: assigned, error: assignedError } = assignedResult
 
   if (assignedError) {
     return NextResponse.json({ error: assignedError.message }, { status: 400 })
@@ -120,13 +135,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
 
   // A pre-race DQ is a Race Director decision. Reject stale or forged
   // Finisher submissions so they cannot replace the DQ result with FINISH/DNF.
-  const { data: dqRows, error: dqError } = await adminClient
-    .from('results')
-    .select('rider_id')
-    .eq('moto_id', motoId)
-    .eq('result_status', 'DQ')
-  if (dqError) return NextResponse.json({ error: dqError.message }, { status: 400 })
-  const dqRiderIds = new Set((dqRows ?? []).map((row) => row.rider_id))
+  const { data: existingResults, error: existingResultsError } = existingResultsResult
+  if (existingResultsError) return NextResponse.json({ error: existingResultsError.message }, { status: 400 })
+  const existingResultRows = (existingResults ?? []) as ExistingResult[]
+  const dqRiderIds = new Set(existingResultRows.filter((row) => row.result_status === 'DQ').map((row) => row.rider_id))
   if (payload.some((row) => dqRiderIds.has(row.rider_id))) {
     return NextResponse.json({ error: 'Rider DQ tidak dapat diinput hasil race. Batalkan DQ melalui Race Director bila diperlukan.' }, { status: 409 })
   }
@@ -149,8 +161,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
     return NextResponse.json({ error: 'Duplicate finish_order in this moto' }, { status: 400 })
   }
 
-  const { error } = await adminClient.from('results').upsert(payload, { onConflict: 'moto_id,rider_id' })
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  const existingResultsByRider = new Map(existingResultRows.map((row) => [row.rider_id, row]))
+  const changedResults = payload.filter((row) => {
+    const existing = existingResultsByRider.get(row.rider_id)
+    return (
+      !existing ||
+      existing.finish_order !== row.finish_order ||
+      existing.result_status !== row.result_status ||
+      existing.dnf_progress_percent !== row.dnf_progress_percent
+    )
+  })
+  if (changedResults.length > 0) {
+    const { error } = await adminClient.from('results').upsert(changedResults, { onConflict: 'moto_id,rider_id' })
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  }
 
   const activeRows = payload
     .filter((row) => row.result_status === 'FINISH' || row.result_status === 'DNF')
@@ -161,15 +185,22 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
       participation_status: 'ACTIVE',
       registration_order: row.finish_order ?? 0,
     }))
-  if (activeRows.length > 0) {
-    const { error: activeStatusError } = await upsertRiderParticipationStatuses(activeRows)
-    if (activeStatusError) return NextResponse.json({ error: activeStatusError.message }, { status: 400 })
-  }
-
-  await adminClient
-    .from('motos')
-    .update({ status: 'PROVISIONAL', provisional_at: new Date().toISOString() })
-    .eq('id', motoId)
+  if (activeStatusesResult.error) return NextResponse.json({ error: activeStatusesResult.error.message }, { status: 400 })
+  const activeStatusByRider = new Map(
+    (activeStatusesResult.data ?? []).map((row) => [row.rider_id, row.participation_status])
+  )
+  const changedActiveRows = activeRows.filter(
+    (row) => activeStatusByRider.get(row.rider_id) !== 'ACTIVE'
+  )
+  const [activeStatusResult, motoUpdateResult] = await Promise.all([
+    changedActiveRows.length > 0 ? upsertRiderParticipationStatuses(changedActiveRows) : Promise.resolve({ error: null }),
+    adminClient
+      .from('motos')
+      .update({ status: 'PROVISIONAL', provisional_at: new Date().toISOString() })
+      .eq('id', motoId),
+  ])
+  if (activeStatusResult.error) return NextResponse.json({ error: activeStatusResult.error.message }, { status: 400 })
+  if (motoUpdateResult.error) return NextResponse.json({ error: motoUpdateResult.error.message }, { status: 400 })
 
   const moto3Reseed = needsMoto3Reseed(moto.moto_name)
     ? await reseedSingleBatchMoto3FromMoto(motoId)
