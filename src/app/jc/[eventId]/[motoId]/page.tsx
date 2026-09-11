@@ -821,6 +821,16 @@ export default function JCPage() {
     return s
   }, [riderList, statuses])
 
+  const bulkReadyTargetCount = useMemo(
+    () =>
+      riderList.filter((rider) => {
+        if (rider.is_disqualified) return false
+        const status = statuses[rider.id]?.participation_status
+        return status !== 'ACTIVE' && status !== 'ABSENT'
+      }).length,
+    [riderList, statuses]
+  )
+
   const requiredSafety = useMemo(
     () => safetyRequirements.filter((r) => r.is_required !== false),
     [safetyRequirements]
@@ -1213,7 +1223,8 @@ export default function JCPage() {
   const readyDisabled = interactionDisabled
   const absentDisabled = interactionDisabled || allReadyDone || bulkReadyApplied || !flags.absent_enabled
   const actionableRiderCount = riderList.filter((rider) => !rider.is_disqualified).length
-  const bulkReadyDisabled = interactionDisabled || allReadyDone || actionableRiderCount === 0
+  const bulkReadyDisabled =
+    interactionDisabled || allReadyDone || (!bulkReadyApplied && bulkReadyTargetCount === 0)
   const canGateReady = actionableRiderCount > 0 && allPrepReviewed
   const motoReadyDisabled = interactionDisabled || !canGateReady || allReadyDone
   const incidentInteractionDisabled = saving || incidentLocked || !incidentMotoId
@@ -1683,7 +1694,11 @@ export default function JCPage() {
                 boxShadow: bulkReadyApplied ? '0 4px 0 #b91c1c' : '0 4px 0 #4d7c0f',
               }}
             >
-              {bulkReadyApplied ? 'Undo All Riders Ready' : 'All Riders Ready'}
+              {bulkReadyApplied
+                ? 'Undo All Riders Ready'
+                : bulkReadyTargetCount === 0
+                  ? 'Semua Rider Dicek'
+                  : 'All Riders Ready'}
             </button>
           </div>
           {!allPrepReviewed && (
@@ -1850,12 +1865,18 @@ export default function JCPage() {
             const isRiderDq = r.is_disqualified === true
             const isRiderReady = currentStatus === 'ACTIVE'
             const isRiderAbsent = currentStatus === 'ABSENT'
+            const isBulkReadyRider =
+              bulkReadyApplied &&
+              Boolean(bulkReadyState) &&
+              Object.prototype.hasOwnProperty.call(bulkReadyState.changedStatuses, r.id)
             const safetyOk = !isRiderDq && isSafetyOk(r.id)
             const statusBadge =
               isRiderDq
                 ? '#ffe4e6'
                 : !hasStatus
                 ? '#e5e7eb'
+                : isBulkReadyRider
+                ? '#fecaca'
                 : isRiderAbsent
                 ? '#fee2e2'
                 : isRiderReady && safetyOk
@@ -1910,6 +1931,8 @@ export default function JCPage() {
                         ? 'DQ'
                         : !hasStatus
                         ? 'UNCHECKED'
+                        : isBulkReadyRider
+                        ? 'BULK READY'
                         : isRiderReady && safetyOk
                         ? 'READY'
                         : isRiderReady
@@ -1996,7 +2019,7 @@ export default function JCPage() {
 
                 <div className="jc-status-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
                   <button
-                    className={`jc-rider-action-btn ${isRiderReady ? 'is-ready' : isRiderAbsent ? 'is-muted' : safetyOk ? 'is-ready' : 'is-warning'}`}
+                    className={`jc-rider-action-btn ${isBulkReadyRider ? 'is-bulk-ready' : isRiderReady ? 'is-ready' : isRiderAbsent ? 'is-muted' : safetyOk ? 'is-ready' : 'is-warning'}`}
                     type="button"
                     onClick={() =>
                       statuses[r.id]?.participation_status === 'ACTIVE'
@@ -2007,7 +2030,9 @@ export default function JCPage() {
                   >
                     <span className="jc-rider-action-shadow" />
                     <span className="jc-rider-action-edge" />
-                    <span className="jc-rider-action-front">{isRiderReady ? 'UNDO READY' : 'READY'}</span>
+                    <span className="jc-rider-action-front">
+                      {isBulkReadyRider ? 'UNDO BULK READY' : isRiderReady ? 'UNDO READY' : 'READY'}
+                    </span>
                   </button>
                   <button
                     className={`jc-rider-action-btn ${isRiderAbsent ? 'is-absent' : isRiderReady ? 'is-muted' : 'is-danger'}`}
@@ -2192,6 +2217,15 @@ export default function JCPage() {
         .jc-rider-action-btn.is-warning .jc-rider-action-front {
           background: #fde047;
           color: #713f12;
+        }
+
+        .jc-rider-action-btn.is-bulk-ready .jc-rider-action-edge {
+          background: linear-gradient(to left, #991b1b, #dc2626 12%, #dc2626 88%, #991b1b);
+        }
+
+        .jc-rider-action-btn.is-bulk-ready .jc-rider-action-front {
+          background: #ef4444;
+          color: #fff;
         }
 
         .jc-rider-action-btn.is-danger .jc-rider-action-edge,
