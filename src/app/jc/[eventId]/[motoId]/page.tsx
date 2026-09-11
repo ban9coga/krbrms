@@ -330,10 +330,7 @@ export default function JCPage() {
   const [allReadyDone, setAllReadyDone] = useState(false)
   const [motoReadySaving, setMotoReadySaving] = useState(false)
   const [motoReadyConfirmation, setMotoReadyConfirmation] = useState<MotoReadyConfirmation | null>(null)
-  const [bulkReadyState, setBulkReadyState] = useState<{
-    motoId: string
-    changedStatuses: Record<string, StatusRow | null>
-  } | null>(null)
+  
   const [viewportWidth, setViewportWidth] = useState(1280)
   const { highVisibility, toggleHighVisibility } = useHighVisibility('jury-checker-high-visibility')
   const localMutationRef = useRef(false)
@@ -407,7 +404,7 @@ export default function JCPage() {
         selectedMotoIdRef.current = nextMotoId
         setSelectedMotoId(nextMotoId)
         setAllReadyDone(Boolean(nextMoto?.checker_prep_ready_at))
-        setBulkReadyState(null)
+        
         syncPrepMotoUrl(nextMotoId)
       }
       if (nextMotoId && nextMotoId === currentSelectedMotoId) {
@@ -420,7 +417,7 @@ export default function JCPage() {
         setRiders([])
         setStatuses({})
         setAllReadyDone(false)
-        setBulkReadyState(null)
+        
       }
       return workflowMotos
     } catch (err: unknown) {
@@ -713,7 +710,6 @@ export default function JCPage() {
     }
     return [selectedMoto, ...selectableMotos]
   }, [selectableMotos, selectedMoto, selectedMotoPreppable])
-  const bulkReadyApplied = bulkReadyState?.motoId === selectedMotoId
   const activeCategoryWaitingStage = useMemo(() => {
     // A workflow prep moto takes precedence over any completed category that
     // is still eligible for a later compute. Otherwise an older category can
@@ -907,7 +903,7 @@ export default function JCPage() {
         return next
       })
       setAllReadyDone(false)
-      setBulkReadyState(null)
+      
       await apiFetch(`/api/jury/events/${eventId}/rider-status?rider_id=${encodeURIComponent(riderId)}&moto_id=${encodeURIComponent(selectedMotoId)}`, {
         method: 'DELETE',
       })
@@ -1022,11 +1018,6 @@ export default function JCPage() {
       return
     }
 
-    const changedStatuses = targetRiders.reduce<Record<string, StatusRow | null>>((acc, rider) => {
-      acc[rider.id] = statuses[rider.id] ?? null
-      return acc
-    }, {})
-
     setSaving(true)
     setWarningMessage(null)
     setErrorMessage(null)
@@ -1078,20 +1069,15 @@ export default function JCPage() {
       )
       await Promise.all(requests)
 
-      setBulkReadyState({ motoId: selectedMotoId, changedStatuses })
-      setWarningMessage(`${targetRiders.length} rider di ${selectedMoto?.moto_name ?? 'moto ini'} ditandai READY. Kalau ada yang keliru, tekan Undo All Riders Ready.`)
+      setWarningMessage(`${targetRiders.length} rider di ${selectedMoto?.moto_name ?? 'moto ini'} ditandai READY. Kalau ada yang keliru, tekan UNDO READY pada rider terkait.`)
       setLastUpdated(new Date().toLocaleTimeString())
     } catch (err: unknown) {
-      const restoredStatuses = Object.entries(changedStatuses).reduce<Record<string, StatusRow>>((acc, [riderId, row]) => {
-        if (row) acc[riderId] = row
-        return acc
-      }, {})
       setStatuses((prev) => {
         const next = { ...prev }
         for (const riderId of targetRiders.map((rider) => rider.id)) {
           delete next[riderId]
         }
-        return { ...next, ...restoredStatuses }
+        return next
       })
       setErrorMessage(err instanceof Error ? err.message : 'Gagal set semua rider READY.')
       await loadMoto(true)
@@ -1100,65 +1086,7 @@ export default function JCPage() {
     }
   }
 
-  const handleUndoAllRidersReady = async () => {
-    if (!selectedMotoId || !bulkReadyApplied || !bulkReadyState) return
-    if (!selectedMotoPreppable || locked) return
-
-    const changedStatuses = bulkReadyState.changedStatuses
-    const changedRiderIds = Object.keys(changedStatuses)
-    if (changedRiderIds.length === 0) {
-      setBulkReadyState(null)
-      return
-    }
-
-    setSaving(true)
-    setWarningMessage(null)
-    setErrorMessage(null)
-    try {
-      const restoredStatuses = Object.entries(changedStatuses).reduce<Record<string, StatusRow>>((acc, [riderId, row]) => {
-        if (row) acc[riderId] = row
-        return acc
-      }, {})
-      setStatuses((prev) => {
-        const next = { ...prev }
-        for (const riderId of changedRiderIds) {
-          delete next[riderId]
-        }
-        return { ...next, ...restoredStatuses }
-      })
-      setAllReadyDone(false)
-
-      await Promise.all(
-        changedRiderIds.map((riderId) => {
-          const previous = changedStatuses[riderId] ?? null
-          if (!previous) {
-            return apiFetch(
-              `/api/jury/events/${eventId}/rider-status?rider_id=${encodeURIComponent(riderId)}&moto_id=${encodeURIComponent(selectedMotoId)}`,
-              { method: 'DELETE' }
-            )
-          }
-          return apiFetch(`/api/jury/events/${eventId}/rider-status`, {
-            method: 'POST',
-            body: JSON.stringify({
-              rider_id: riderId,
-              participation_status: previous.participation_status,
-              registration_order: previous.registration_order,
-              moto_id: selectedMotoId,
-            }),
-          })
-        })
-      )
-
-      setBulkReadyState(null)
-      setWarningMessage('All Riders Ready dibatalkan. Status rider dikembalikan ke kondisi sebelum mass ready.')
-      setLastUpdated(new Date().toLocaleTimeString())
-    } catch (err: unknown) {
-      setErrorMessage(err instanceof Error ? err.message : 'Gagal undo All Riders Ready.')
-      await loadMoto(true)
-    } finally {
-      setSaving(false)
-    }
-  }
+  
 
   const handleAllReady = async () => {
     if (!selectedMotoId) return
@@ -1221,10 +1149,9 @@ export default function JCPage() {
   const interactionDisabled = saving || bannerDisabled || locked
   const safetyInteractionDisabled = interactionDisabled || allReadyDone
   const readyDisabled = interactionDisabled
-  const absentDisabled = interactionDisabled || allReadyDone || bulkReadyApplied || !flags.absent_enabled
+  const absentDisabled = interactionDisabled || allReadyDone || !flags.absent_enabled
   const actionableRiderCount = riderList.filter((rider) => !rider.is_disqualified).length
-  const bulkReadyDisabled =
-    interactionDisabled || allReadyDone || (!bulkReadyApplied && bulkReadyTargetCount === 0)
+  const bulkReadyDisabled = interactionDisabled || allReadyDone || bulkReadyTargetCount === 0
   const canGateReady = actionableRiderCount > 0 && allPrepReviewed
   const motoReadyDisabled = interactionDisabled || !canGateReady || allReadyDone
   const incidentInteractionDisabled = saving || incidentLocked || !incidentMotoId
@@ -1257,7 +1184,7 @@ export default function JCPage() {
                 selectedMotoIdRef.current = next
                 setSelectedMotoId(next)
                 setAllReadyDone(Boolean(targetMoto?.checker_prep_ready_at))
-                setBulkReadyState(null)
+                
                 syncPrepMotoUrl(next)
               }}
               className="jc-moto-select"
@@ -1681,24 +1608,20 @@ export default function JCPage() {
             <button
               className="jc-action-btn jc-primary"
               type="button"
-              onClick={bulkReadyApplied ? handleUndoAllRidersReady : handleAllRidersReady}
+              onClick={handleAllRidersReady}
               disabled={bulkReadyDisabled}
               style={{
                 padding: isCompactLayout ? '12px 16px' : '12px 18px',
                 borderRadius: 999,
-                border: bulkReadyApplied ? '2px solid #b91c1c' : '2px solid #365314',
-                background: bulkReadyApplied ? '#fee2e2' : 'linear-gradient(180deg, #bef264 0%, #84cc16 100%)',
-                color: bulkReadyApplied ? '#7f1d1d' : '#1a2e05',
+                border: '2px solid #365314',
+                background: 'linear-gradient(180deg, #bef264 0%, #84cc16 100%)',
+                color: '#1a2e05',
                 fontWeight: 900,
                 fontSize: highVisibility ? (isCompactLayout ? 18 : 22) : isCompactLayout ? 16 : 18,
-                boxShadow: bulkReadyApplied ? '0 4px 0 #b91c1c' : '0 4px 0 #4d7c0f',
+                boxShadow: '0 4px 0 #4d7c0f',
               }}
             >
-              {bulkReadyApplied
-                ? 'Undo All Riders Ready'
-                : bulkReadyTargetCount === 0
-                  ? 'Semua Rider Dicek'
-                  : 'All Riders Ready'}
+              {bulkReadyTargetCount === 0 ? 'Semua Rider Dicek' : 'All Riders Ready'}
             </button>
           </div>
           {!allPrepReviewed && (
@@ -1865,18 +1788,12 @@ export default function JCPage() {
             const isRiderDq = r.is_disqualified === true
             const isRiderReady = currentStatus === 'ACTIVE'
             const isRiderAbsent = currentStatus === 'ABSENT'
-            const isBulkReadyRider =
-              bulkReadyApplied &&
-              Boolean(bulkReadyState) &&
-              Object.prototype.hasOwnProperty.call(bulkReadyState.changedStatuses, r.id)
             const safetyOk = !isRiderDq && isSafetyOk(r.id)
             const statusBadge =
               isRiderDq
                 ? '#ffe4e6'
                 : !hasStatus
                 ? '#e5e7eb'
-                : isBulkReadyRider
-                ? '#fecaca'
                 : isRiderAbsent
                 ? '#fee2e2'
                 : isRiderReady && safetyOk
@@ -1931,8 +1848,6 @@ export default function JCPage() {
                         ? 'DQ'
                         : !hasStatus
                         ? 'UNCHECKED'
-                        : isBulkReadyRider
-                        ? 'BULK READY'
                         : isRiderReady && safetyOk
                         ? 'READY'
                         : isRiderReady
@@ -2019,7 +1934,7 @@ export default function JCPage() {
 
                 <div className="jc-status-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
                   <button
-                    className={`jc-rider-action-btn ${isBulkReadyRider ? 'is-bulk-ready' : isRiderReady ? 'is-ready' : isRiderAbsent ? 'is-muted' : safetyOk ? 'is-ready' : 'is-warning'}`}
+                    className={`jc-rider-action-btn ${isRiderReady ? 'is-undo-ready' : isRiderAbsent ? 'is-muted' : safetyOk ? 'is-ready' : 'is-warning'}`}
                     type="button"
                     onClick={() =>
                       statuses[r.id]?.participation_status === 'ACTIVE'
@@ -2031,7 +1946,7 @@ export default function JCPage() {
                     <span className="jc-rider-action-shadow" />
                     <span className="jc-rider-action-edge" />
                     <span className="jc-rider-action-front">
-                      {isBulkReadyRider ? 'UNDO BULK READY' : isRiderReady ? 'UNDO READY' : 'READY'}
+                      {isRiderReady ? 'UNDO READY' : 'READY'}
                     </span>
                   </button>
                   <button
@@ -2219,11 +2134,11 @@ export default function JCPage() {
           color: #713f12;
         }
 
-        .jc-rider-action-btn.is-bulk-ready .jc-rider-action-edge {
+        .jc-rider-action-btn.is-undo-ready .jc-rider-action-edge {
           background: linear-gradient(to left, #991b1b, #dc2626 12%, #dc2626 88%, #991b1b);
         }
 
-        .jc-rider-action-btn.is-bulk-ready .jc-rider-action-front {
+        .jc-rider-action-btn.is-undo-ready .jc-rider-action-front {
           background: #ef4444;
           color: #fff;
         }
