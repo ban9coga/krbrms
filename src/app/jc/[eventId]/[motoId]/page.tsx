@@ -1148,7 +1148,7 @@ export default function JCPage() {
   const bannerDisabled = !selectedMotoPreppable
   const interactionDisabled = saving || bannerDisabled || locked
   const safetyInteractionDisabled = interactionDisabled || allReadyDone
-  const readyDisabled = interactionDisabled
+  const readyDisabled = interactionDisabled || allReadyDone
   const absentDisabled = interactionDisabled || allReadyDone || !flags.absent_enabled
   const actionableRiderCount = riderList.filter((rider) => !rider.is_disqualified).length
   const bulkReadyDisabled = interactionDisabled || allReadyDone || bulkReadyTargetCount === 0
@@ -1652,10 +1652,11 @@ export default function JCPage() {
                 style={{
                   padding: '10px 14px',
                   borderRadius: 999,
-                  border: '2px solid #b91c1c',
-                  background: '#fee2e2',
-                  color: '#7f1d1d',
+                  border: '2px solid #991b1b',
+                  background: 'linear-gradient(180deg, #ef4444 0%, #dc2626 100%)',
+                  color: '#fff',
                   fontWeight: 900,
+                  boxShadow: '0 4px 0 #991b1b',
                 }}
               >
                 Edit Prep
