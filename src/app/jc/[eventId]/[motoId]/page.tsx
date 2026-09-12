@@ -1505,12 +1505,13 @@ export default function JCPage() {
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           <div
             style={{
-              padding: '6px 12px',
+              padding: '3px 8px',
               borderRadius: 999,
               border: '2px solid #166534',
               background: '#dcfce7',
               color: '#166534',
               fontWeight: 900,
+              fontSize: 10,
             }}
           >
             NEXT MOTO PREP
@@ -1545,18 +1546,18 @@ export default function JCPage() {
               background: '#ffffff',
             }}
           >
-            <div style={{ fontSize: highVisibility ? (isCompactLayout ? 22 : 26) : isCompactLayout ? 18 : 22, fontWeight: 950, color: '#111827' }}>
+            <div style={{ fontSize: highVisibility ? (isCompactLayout ? 26 : 32) : isCompactLayout ? 24 : 30, fontWeight: 950, color: '#111827', textTransform: 'uppercase' }}>
               {selectedMoto?.moto_name ?? 'Belum ada moto prep'}
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
               <span
                 style={{
-                  padding: '4px 10px',
+                  padding: '6px 14px',
                   borderRadius: 999,
-                  border: '1.5px solid #166534',
+                  border: '2px solid #166534',
                   background: '#f0fdf4',
                   color: '#166534',
-                  fontSize: 12,
+                  fontSize: 16,
                   fontWeight: 900,
                 }}
               >
@@ -1706,63 +1707,39 @@ export default function JCPage() {
           >
             MARK ALL SAFETY OK
           </button>
-          <div style={{ display: 'grid', gridTemplateColumns: prepSummaryColumns, gap: 8 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             <span
               style={{
-                padding: '6px 12px',
-                borderRadius: 999,
-                border: '2px solid #111',
-                background: flags.dns_enabled ? '#dcfce7' : '#fee2e2',
-                color: flags.dns_enabled ? '#166534' : '#991b1b',
-                fontWeight: 900,
-              }}
-            >
-              DNS {flags.dns_enabled ? 'ON' : 'OFF'}
-            </span>
-            <span
-              style={{
-                padding: '6px 12px',
-                borderRadius: 999,
-                border: '2px solid #111',
-                background: flags.dnf_enabled ? '#dcfce7' : '#fee2e2',
-                color: flags.dnf_enabled ? '#166534' : '#991b1b',
-                fontWeight: 900,
-              }}
-            >
-              DNF {flags.dnf_enabled ? 'ON' : 'OFF'}
-            </span>
-            <span style={{ padding: '6px 12px', borderRadius: 999, border: '2px solid #111', fontWeight: 900 }}>
-              Total: {summary.total}
-            </span>
-            <span
-              style={{
-                padding: '6px 12px',
+                padding: '4px 10px',
                 borderRadius: 999,
                 border: '2px solid #111',
                 background: '#dcfce7',
                 fontWeight: 900,
+                fontSize: 12,
               }}
             >
               READY: {summary.active}
             </span>
             <span
               style={{
-                padding: '6px 12px',
+                padding: '4px 10px',
                 borderRadius: 999,
                 border: '2px solid #111',
                 background: '#e5e7eb',
                 fontWeight: 900,
+                fontSize: 12,
               }}
             >
               BELUM DICEK: {summary.unchecked}
             </span>
             <span
               style={{
-                padding: '6px 12px',
+                padding: '4px 10px',
                 borderRadius: 999,
                 border: '2px solid #111',
                 background: '#fee2e2',
                 fontWeight: 900,
+                fontSize: 12,
               }}
             >
               ABSENT: {summary.absent}
