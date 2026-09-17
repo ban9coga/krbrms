@@ -479,6 +479,22 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     void loadRole()
   }, [pathname, router])
 
+  // Re-check role when session changes in another tab (e.g. logout + login as different role)
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        setAuthorized(false)
+        setAuthChecked(true)
+        router.replace('/login')
+      } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+        // Force role re-check by resetting auth state
+        setAuthChecked(false)
+        setAuthorized(false)
+      }
+    })
+    return () => subscription.unsubscribe()
+  }, [router])
+
   useEffect(() => {
     if (!authorized) return
 
