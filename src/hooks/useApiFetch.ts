@@ -52,6 +52,7 @@ export function useApiFetch() {
       
       if (!res.ok) {
         if (res.status === 401) {
+          if (typeof window !== 'undefined') window.location.href = '/login'
           throw new Error('Session login habis. Silakan login ulang.')
         }
         throw new Error(json?.error || 'Request failed')
