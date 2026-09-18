@@ -318,6 +318,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [authorized, setAuthorized] = useState(false)
   const [authChecked, setAuthChecked] = useState(false)
+  const [authRefreshTick, setAuthRefreshTick] = useState(0)
 
   const eventId = useMemo(() => extractEventId(pathname), [pathname])
   const eventNav = useMemo(() => {
@@ -479,7 +480,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
 
     void loadRole()
-  }, [pathname, router])
+  }, [pathname, router, authRefreshTick])
 
   // Re-check role when session changes in another tab (e.g. logout + login as different role)
   useEffect(() => {
@@ -489,9 +490,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         setAuthChecked(true)
         router.replace('/login')
       } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
-        // Force role re-check by resetting auth state
+        // Force role re-check by resetting auth state and triggering loadRole
         setAuthChecked(false)
         setAuthorized(false)
+        setAuthRefreshTick((t) => t + 1)
       }
     })
     return () => subscription.unsubscribe()
