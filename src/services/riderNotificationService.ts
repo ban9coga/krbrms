@@ -10,63 +10,84 @@ export type NotifyResult = {
 }
 
 /**
- * Dispatches RIDER_MOTO_CONFIRMED push notifications to guardians of riders
- * confirmed in a moto that just transitioned to READY status.
+ * Dispatches RIDER_MOTO_PREP_CALL push notifications to guardians of riders
+ * in the NEXT scheduled moto, triggered when the CURRENT moto transitions to READY.
  *
- * Hard boundary:
- * - Only runs when moto status is 'READY' and checker_prep_ready_at is present.
- * - Sourced 100% from database assignment tables (motos, moto_gate_positions, moto_riders, riders).
- * - Idempotency key: RIDER_MOTO_CONFIRMED:${event_id}:${rider_id}:${moto_id}:${checker_prep_ready_at}
+ * Cascade / domino logic:
+ * - Moto N transitions to READY  →  notify walis of Moto N+1 to head to waiting zone.
  * - Side-effect only: never throws or disrupts race flow.
+ * - Sourced 100% from database tables (motos, moto_gate_positions, moto_riders, riders).
+ * - Idempotency key: RIDER_MOTO_CONFIRMED:${event_id}:${rider_id}:${target_moto_id}:TRIGGERED_BY_${triggering_moto_id}:${checker_prep_ready_at}
  */
 export async function notifyRiderMotoConfirmed(motoId: string): Promise<NotifyResult> {
   try {
-    // 1. Fetch moto state
-    const { data: moto, error: motoError } = await adminClient
+    // 1. Fetch triggering moto state
+    const { data: triggeringMoto, error: motoError } = await adminClient
       .from('motos')
-      .select('id, event_id, category_id, moto_name, status, checker_prep_ready_at')
+      .select('id, event_id, moto_order, status, checker_prep_ready_at')
       .eq('id', motoId)
       .maybeSingle()
 
-    if (motoError || !moto) {
+    if (motoError || !triggeringMoto) {
       return {
         ok: false,
         processedCount: 0,
         sentCount: 0,
         failedCount: 0,
-        warning: motoError?.message || 'Moto not found',
+        warning: motoError?.message || 'Triggering moto not found',
       }
     }
 
     // 2. Hard boundary check: Must be READY and have checker_prep_ready_at timestamp
-    const normalizedStatus = String(moto.status ?? '').toUpperCase()
-    if (normalizedStatus !== 'READY' || !moto.checker_prep_ready_at) {
+    const normalizedStatus = String(triggeringMoto.status ?? '').toUpperCase()
+    if (normalizedStatus !== 'READY' || !triggeringMoto.checker_prep_ready_at) {
       return {
         ok: false,
         processedCount: 0,
         sentCount: 0,
         failedCount: 0,
-        warning: `Moto status is ${moto.status} (expected READY with checker_prep_ready_at). Notification skipped.`,
+        warning: `Moto status is ${triggeringMoto.status} (expected READY with checker_prep_ready_at). Notification skipped.`,
       }
     }
 
-    // 3. Fetch confirmed riders, gate positions, and disqualifications
+    // 2.5 Fetch the TARGET moto (the next moto in the event schedule)
+    const { data: moto, error: targetError } = await adminClient
+      .from('motos')
+      .select('id, event_id, category_id, moto_name, status')
+      .eq('event_id', triggeringMoto.event_id)
+      .gt('moto_order', triggeringMoto.moto_order)
+      .in('status', ['UPCOMING', 'READY']) // Next moto might be UPCOMING or already READY in weird edge cases
+      .order('moto_order', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+
+    if (targetError || !moto) {
+      return {
+        ok: true, // Graceful exit, end of schedule
+        processedCount: 0,
+        sentCount: 0,
+        failedCount: 0,
+        warning: 'No next moto found to notify (end of schedule).',
+      }
+    }
+
+    // 3. Fetch confirmed riders, gate positions, and disqualifications for the TARGET moto
     const [{ data: gateRows, error: gateError }, { data: assignmentRows, error: assignError }, { data: dqRows }] =
       await Promise.all([
         adminClient
           .from('moto_gate_positions')
           .select('rider_id, gate_position')
-          .eq('moto_id', motoId)
+          .eq('moto_id', moto.id)
           .order('gate_position', { ascending: true }),
         adminClient
           .from('moto_riders')
           .select('rider_id, created_at')
-          .eq('moto_id', motoId)
+          .eq('moto_id', moto.id)
           .order('created_at', { ascending: true }),
         adminClient
           .from('results')
           .select('rider_id')
-          .eq('moto_id', motoId)
+          .eq('moto_id', moto.id)
           .eq('result_status', 'DQ'),
       ])
 
@@ -158,12 +179,12 @@ export async function notifyRiderMotoConfirmed(motoId: string): Promise<NotifyRe
       const plateText = rider?.no_plate_display ? ` (#${rider.no_plate_display})` : ''
       const motoName = moto.moto_name?.trim() || 'Moto'
 
-      // Idempotency key per rider & confirmation cycle
-      const idempotencyKey = `RIDER_MOTO_CONFIRMED:${moto.event_id}:${assignment.riderId}:${moto.id}:${moto.checker_prep_ready_at}`
+      // Idempotency key per rider & confirmation cycle (includes triggering moto ID to ensure uniqueness)
+      const idempotencyKey = `RIDER_MOTO_CONFIRMED:${moto.event_id}:${assignment.riderId}:${moto.id}:TRIGGERED_BY_${triggeringMoto.id}:${triggeringMoto.checker_prep_ready_at}`
 
       const payload: PushPayload = {
-        title: 'RacePushBike - Panggilan Gate',
-        body: `${riderName}${plateText} siap di ${motoName}, Gate ${assignment.gate}.`,
+        title: '📢 RacePushBike - Segera ke Area Persiapan',
+        body: `${riderName}${plateText} akan segera dipanggil ke ${motoName}. Harap menuju Area Persiapan sekarang.`,
         icon: '/icon.png',
         data: {
           url: publicUrl,
