@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from 'react'
 import EmptyState from '../../../../../components/EmptyState'
 import LoadingState from '../../../../../components/LoadingState'
 import PublicTopbar from '../../../../../components/PublicTopbar'
+import RiderNotificationButton from '../../../../../components/RiderNotificationButton'
 import { type EventItem, type RiderCategory } from '../../../../../lib/eventService'
 import { FINAL_MOTO_DISPLAY_ORDER } from '../../../../../lib/motoDisplayOrder'
 
@@ -494,7 +495,10 @@ export default function LiveScoreClient({
                       {batch.rows.map((row) => (
                         <tr key={`mobile-qualification-${row.rider_id}`}>
                           <td className="min-w-[210px] whitespace-normal">
-                            <div className="live-score-rider-name text-[13px] font-black leading-tight">{row.name}</div>
+                            <div className="flex items-center justify-between gap-1.5">
+                              <div className="live-score-rider-name text-[13px] font-black leading-tight">{row.name}</div>
+                              <RiderNotificationButton eventId={eventId} riderId={row.rider_id} riderName={row.name} riderPlate={row.no_plate} />
+                            </div>
                             <div className="mt-1 text-[10px] font-extrabold text-amber-700">{row.no_plate}</div>
                             <div className="mt-0.5 text-[10px] font-semibold leading-tight text-slate-600">{row.club || '-'}</div>
                           </td>
@@ -553,7 +557,12 @@ export default function LiveScoreClient({
                         <td>{row.gate_moto2 ?? '-'}</td>
                         {showMoto3 && <td>{row.gate_moto3 ?? '-'}</td>}
                         {showRiderPhotos && <td>{riderPhotoCell(row.name, row.no_plate, row.photo_thumbnail_url)}</td>}
-                        <td className="live-score-rider-name whitespace-nowrap font-extrabold">{row.name}</td>
+                        <td className="live-score-rider-name whitespace-nowrap font-extrabold">
+                          <div className="flex items-center gap-2">
+                            <span>{row.name}</span>
+                            <RiderNotificationButton eventId={eventId} riderId={row.rider_id} riderName={row.name} riderPlate={row.no_plate} />
+                          </div>
+                        </td>
                         <td>{row.no_plate}</td>
                         <td className="whitespace-nowrap">{row.club || '-'}</td>
                         <td>{renderMotoResultCell(row.point_moto1, row.moto1_status)}</td>
@@ -613,7 +622,10 @@ export default function LiveScoreClient({
                         {stage.rows.map((row) => (
                           <tr key={`mobile-stage-${row.rider_id}`}>
                             <td className="min-w-[210px] whitespace-normal">
-                              <div className="live-score-rider-name text-[13px] font-black leading-tight">{row.name}</div>
+                              <div className="flex items-center justify-between gap-1.5">
+                                <div className="live-score-rider-name text-[13px] font-black leading-tight">{row.name}</div>
+                                <RiderNotificationButton eventId={eventId} riderId={row.rider_id} riderName={row.name} riderPlate={row.no_plate} />
+                              </div>
                               <div className="mt-1 text-[10px] font-extrabold text-amber-700">{row.no_plate}</div>
                               <div className="mt-0.5 text-[10px] font-semibold leading-tight text-slate-600">{row.club || '-'}</div>
                             </td>
@@ -649,7 +661,12 @@ export default function LiveScoreClient({
                         <tr key={row.rider_id}>
                           <td>{row.gate ?? '-'}</td>
                           {showRiderPhotos && <td>{riderPhotoCell(row.name, row.no_plate, row.photo_thumbnail_url)}</td>}
-                          <td className="live-score-rider-name whitespace-nowrap font-extrabold">{row.name}</td>
+                          <td className="live-score-rider-name whitespace-nowrap font-extrabold">
+                            <div className="flex items-center gap-2">
+                              <span>{row.name}</span>
+                              <RiderNotificationButton eventId={eventId} riderId={row.rider_id} riderName={row.name} riderPlate={row.no_plate} />
+                            </div>
+                          </td>
                           <td>{row.no_plate}</td>
                           <td className="whitespace-nowrap">{row.club || '-'}</td>
                           <td className="font-extrabold text-sky-700">{renderStagePointCell(row.point, row.status)}</td>

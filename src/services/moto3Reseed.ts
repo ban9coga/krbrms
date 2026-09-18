@@ -88,11 +88,17 @@ export async function reseedSingleBatchMoto3FromMoto(motoId: string) {
     return { ok: true as const }
   }
 
-  if (moto3 && String(moto3.status ?? '').toUpperCase() === 'LOCKED') {
-    return { ok: false as const, warning: 'Moto 3 masih LOCKED. Unlock dulu sebelum reseed gate.' }
-  }
-  if (moto3 && String(moto3.status ?? '').toUpperCase() === 'PROTEST_REVIEW') {
-    return { ok: false as const, warning: 'Moto 3 sedang PROTEST_REVIEW. Selesaikan review dulu sebelum reseed gate.' }
+  if (moto3) {
+    const status = String(moto3.status ?? '').toUpperCase()
+    if (status === 'READY' || status === 'LIVE') {
+      return { ok: false as const, warning: `Moto 3 sudah ${status}. Kembalikan ke UPCOMING sebelum reseed gate.` }
+    }
+    if (status === 'LOCKED') {
+      return { ok: false as const, warning: 'Moto 3 masih LOCKED. Unlock dulu sebelum reseed gate.' }
+    }
+    if (status === 'PROTEST_REVIEW') {
+      return { ok: false as const, warning: 'Moto 3 sedang PROTEST_REVIEW. Selesaikan review dulu sebelum reseed gate.' }
+    }
   }
 
   const { data: assignedRows, error: assignedError } = await adminClient

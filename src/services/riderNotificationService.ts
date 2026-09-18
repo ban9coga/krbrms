@@ -1,0 +1,277 @@
+import { adminClient } from '../lib/auth'
+import { sendPushNotification, type PushPayload } from '../lib/pushNotifier'
+
+export type NotifyResult = {
+  ok: boolean
+  processedCount: number
+  sentCount: number
+  failedCount: number
+  warning?: string
+}
+
+/**
+ * Dispatches RIDER_MOTO_CONFIRMED push notifications to guardians of riders
+ * confirmed in a moto that just transitioned to READY status.
+ *
+ * Hard boundary:
+ * - Only runs when moto status is 'READY' and checker_prep_ready_at is present.
+ * - Sourced 100% from database assignment tables (motos, moto_gate_positions, moto_riders, riders).
+ * - Idempotency key: RIDER_MOTO_CONFIRMED:${event_id}:${rider_id}:${moto_id}:${checker_prep_ready_at}
+ * - Side-effect only: never throws or disrupts race flow.
+ */
+export async function notifyRiderMotoConfirmed(motoId: string): Promise<NotifyResult> {
+  try {
+    // 1. Fetch moto state
+    const { data: moto, error: motoError } = await adminClient
+      .from('motos')
+      .select('id, event_id, category_id, moto_name, status, checker_prep_ready_at')
+      .eq('id', motoId)
+      .maybeSingle()
+
+    if (motoError || !moto) {
+      return {
+        ok: false,
+        processedCount: 0,
+        sentCount: 0,
+        failedCount: 0,
+        warning: motoError?.message || 'Moto not found',
+      }
+    }
+
+    // 2. Hard boundary check: Must be READY and have checker_prep_ready_at timestamp
+    const normalizedStatus = String(moto.status ?? '').toUpperCase()
+    if (normalizedStatus !== 'READY' || !moto.checker_prep_ready_at) {
+      return {
+        ok: false,
+        processedCount: 0,
+        sentCount: 0,
+        failedCount: 0,
+        warning: `Moto status is ${moto.status} (expected READY with checker_prep_ready_at). Notification skipped.`,
+      }
+    }
+
+    // 3. Fetch confirmed riders, gate positions, and disqualifications
+    const [{ data: gateRows, error: gateError }, { data: assignmentRows, error: assignError }, { data: dqRows }] =
+      await Promise.all([
+        adminClient
+          .from('moto_gate_positions')
+          .select('rider_id, gate_position')
+          .eq('moto_id', motoId)
+          .order('gate_position', { ascending: true }),
+        adminClient
+          .from('moto_riders')
+          .select('rider_id, created_at')
+          .eq('moto_id', motoId)
+          .order('created_at', { ascending: true }),
+        adminClient
+          .from('results')
+          .select('rider_id')
+          .eq('moto_id', motoId)
+          .eq('result_status', 'DQ'),
+      ])
+
+    if (gateError) console.warn('Could not read moto_gate_positions:', gateError.message)
+    if (assignError) console.warn('Could not read moto_riders:', assignError.message)
+
+    const dqRiderIds = new Set((dqRows ?? []).map((r) => r.rider_id))
+
+    type ConfirmedAssignment = { riderId: string; gate: number }
+    let confirmedAssignments: ConfirmedAssignment[] = []
+
+    if (gateRows && gateRows.length > 0) {
+      confirmedAssignments = gateRows
+        .filter((g) => !dqRiderIds.has(g.rider_id))
+        .map((g, idx) => ({
+          riderId: g.rider_id,
+          gate: Number(g.gate_position ?? idx + 1),
+        }))
+    } else if (assignmentRows && assignmentRows.length > 0) {
+      confirmedAssignments = assignmentRows
+        .filter((a) => !dqRiderIds.has(a.rider_id))
+        .map((a, idx) => ({
+          riderId: a.rider_id,
+          gate: idx + 1,
+        }))
+    }
+
+    if (confirmedAssignments.length === 0) {
+      return {
+        ok: true,
+        processedCount: 0,
+        sentCount: 0,
+        failedCount: 0,
+        warning: 'No confirmed riders found in moto.',
+      }
+    }
+
+    // 4. Fetch rider profile details (name, plate)
+    const riderIds = confirmedAssignments.map((a) => a.riderId)
+    const { data: riders, error: riderError } = await adminClient
+      .from('riders')
+      .select('id, name, no_plate_display')
+      .in('id', riderIds)
+
+    if (riderError) console.warn('Could not read riders:', riderError.message)
+    const riderMap = new Map((riders ?? []).map((r) => [r.id, r]))
+
+    // 5. Query active subscriptions scoped by event_id + riderIds
+    const { data: subscriptions, error: subError } = await adminClient
+      .from('push_subscriptions')
+      .select('id, rider_id, endpoint, p256dh, auth')
+      .eq('event_id', moto.event_id)
+      .in('rider_id', riderIds)
+
+    if (subError) {
+      console.error('Failed to query push subscriptions:', subError.message)
+      return { ok: false, processedCount: 0, sentCount: 0, failedCount: 0, warning: subError.message }
+    }
+
+    if (!subscriptions || subscriptions.length === 0) {
+      // Test A: Rider without subscription succeeds cleanly without error
+      return { ok: true, processedCount: 0, sentCount: 0, failedCount: 0 }
+    }
+
+    // Group subscriptions by rider_id (supports multiple devices/guardians per rider)
+    const subsByRider = new Map<string, typeof subscriptions>()
+    for (const sub of subscriptions) {
+      const list = subsByRider.get(sub.rider_id) ?? []
+      list.push(sub)
+      subsByRider.set(sub.rider_id, list)
+    }
+
+    // Existing public route URL
+    const publicUrl = moto.category_id
+      ? `/event/${moto.event_id}/live-score/${moto.category_id}`
+      : `/event/${moto.event_id}`
+
+    let processedCount = 0
+    let sentCount = 0
+    let failedCount = 0
+
+    // 6. Process each confirmed rider independently (MULTIPLE RIDERS)
+    for (const assignment of confirmedAssignments) {
+      const subs = subsByRider.get(assignment.riderId)
+      if (!subs || subs.length === 0) continue
+
+      const rider = riderMap.get(assignment.riderId)
+      const riderName = rider?.name?.trim() || 'Rider'
+      const plateText = rider?.no_plate_display ? ` (#${rider.no_plate_display})` : ''
+      const motoName = moto.moto_name?.trim() || 'Moto'
+
+      // Idempotency key per rider & confirmation cycle
+      const idempotencyKey = `RIDER_MOTO_CONFIRMED:${moto.event_id}:${assignment.riderId}:${moto.id}:${moto.checker_prep_ready_at}`
+
+      const payload: PushPayload = {
+        title: 'RacePushBike - Panggilan Gate',
+        body: `${riderName}${plateText} siap di ${motoName}, Gate ${assignment.gate}.`,
+        icon: '/icon.png',
+        data: {
+          url: publicUrl,
+          eventId: moto.event_id,
+          riderId: assignment.riderId,
+          motoId: moto.id,
+          gate: assignment.gate,
+        },
+      }
+
+      // Process each subscription for this rider (MULTIPLE SUBSCRIPTIONS)
+      for (const sub of subs) {
+        processedCount++
+
+        // Insert pending log to enforce idempotency via unique(idempotency_key, subscription_id)
+        const { data: logRow, error: logInsertError } = await adminClient
+          .from('push_notification_log')
+          .insert({
+            event_id: moto.event_id,
+            rider_id: assignment.riderId,
+            subscription_id: sub.id,
+            event_type: 'RIDER_MOTO_CONFIRMED',
+            idempotency_key: idempotencyKey,
+            status: 'PENDING',
+            attempt_count: 1,
+            last_attempted_at: new Date().toISOString(),
+          })
+          .select('id')
+          .maybeSingle()
+
+        if (logInsertError) {
+          // Check for duplicate violation (PostgreSQL 23505 or constraint message)
+          if (
+            logInsertError.code === '23505' ||
+            logInsertError.message.includes('unique') ||
+            logInsertError.message.includes('idempotency')
+          ) {
+            // Already handled for this cycle and subscription, skip duplicate safely
+            continue
+          }
+          console.error('Push notification log insert error:', logInsertError.message)
+          failedCount++
+          continue
+        }
+
+        if (!logRow?.id) continue
+
+        // Send push notification via web-push
+        const pushResult = await sendPushNotification(
+          {
+            endpoint: sub.endpoint,
+            keys: {
+              p256dh: sub.p256dh,
+              auth: sub.auth,
+            },
+          },
+          payload
+        )
+
+        if (pushResult.ok) {
+          sentCount++
+          await adminClient
+            .from('push_notification_log')
+            .update({
+              status: 'SENT',
+              sent_at: new Date().toISOString(),
+            })
+            .eq('id', logRow.id)
+
+          await adminClient
+            .from('push_subscriptions')
+            .update({ last_used_at: new Date().toISOString() })
+            .eq('id', sub.id)
+        } else {
+          failedCount++
+          if (pushResult.error === 'GONE') {
+            // HTTP 404/410: Clean up dead subscription
+            await adminClient.from('push_subscriptions').delete().eq('id', sub.id)
+            await adminClient
+              .from('push_notification_log')
+              .update({
+                status: 'FAILED',
+                error_message: 'Subscription expired or unregistered (HTTP 410/404). Cleaned up.',
+              })
+              .eq('id', logRow.id)
+          } else {
+            // Temporary failure (network, 5xx, 429)
+            await adminClient
+              .from('push_notification_log')
+              .update({
+                status: 'FAILED',
+                error_message: pushResult.error || 'Push delivery failed',
+              })
+              .eq('id', logRow.id)
+          }
+        }
+      }
+    }
+
+    return { ok: true, processedCount, sentCount, failedCount }
+  } catch (err: unknown) {
+    console.error('Unexpected error in notifyRiderMotoConfirmed:', err instanceof Error ? err.message : err)
+    return {
+      ok: false,
+      processedCount: 0,
+      sentCount: 0,
+      failedCount: 0,
+      warning: err instanceof Error ? err.message : 'Unexpected push notification error',
+    }
+  }
+}

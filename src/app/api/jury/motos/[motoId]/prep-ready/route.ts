@@ -4,6 +4,7 @@ import { assertMotoEditable, assertMotoNotUnderProtest } from '../../../../../..
 import { isMotoReady, isMotoUpcoming } from '../../../../../../lib/motoStatus'
 import { requireJury } from '../../../../../../services/juryAuth'
 import { promoteReadyMotoAfterPreviousProvisional } from '../../../../../../services/motoProgression'
+import { notifyRiderMotoConfirmed } from '../../../../../../services/riderNotificationService'
 
 const getMoto = async (motoId: string) => {
   const { data, error } = await adminClient
@@ -49,6 +50,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   const promotionResult = await promoteReadyMotoAfterPreviousProvisional(moto.event_id, motoId)
+
+  // Side effect only: Dispatch RIDER_MOTO_CONFIRMED push notification to subscribed guardians
+  try {
+    await notifyRiderMotoConfirmed(motoId)
+  } catch (pushErr) {
+    console.error('Non-blocking push notification error:', pushErr)
+  }
+
   return NextResponse.json({ ok: true, data, next_moto: promotionResult })
 }
 

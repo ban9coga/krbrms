@@ -524,7 +524,7 @@ const normalizeEditableAdvancedStageGates = async (eventId: string, categoryId: 
   const editableMotos = (motos ?? []).filter((moto) => {
     const isAdvanced = /^(?:repechage|quarter final|semi final|final\s+)/i.test(moto.moto_name)
     const status = String(moto.status ?? '').toUpperCase()
-    return isAdvanced && ['UPCOMING', 'READY'].includes(status)
+    return isAdvanced && status === 'UPCOMING'
   })
   if (editableMotos.length === 0) return null
 
