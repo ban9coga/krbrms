@@ -380,17 +380,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     const loadRole = async () => {
-      const [{ data: userData }, { data: sessionData }] = await Promise.all([
-        supabase.auth.getUser(),
-        supabase.auth.getSession(),
-      ])
-      let user = userData.user
+      // Fix Supabase GoTrue lock deadlock: avoid Promise.all for auth methods
+      // as they share the same internal mutex which causes cross-tab hangs.
+      const { data: sessionData } = await supabase.auth.getSession()
+      
       const cookieToken = readCookieValue('sb-access-token')
       const token = sessionData.session?.access_token ?? cookieToken
+      let user = sessionData.session?.user ?? null
 
-      if (!user && cookieToken) {
-        const { data: cookieUserData } = await supabase.auth.getUser(cookieToken)
-        user = cookieUserData.user
+      if (!user) {
+        const { data: userData } = cookieToken 
+          ? await supabase.auth.getUser(cookieToken)
+          : await supabase.auth.getUser()
+        user = userData.user
       }
 
       if (!user) {
