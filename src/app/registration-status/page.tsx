@@ -3,9 +3,11 @@
 import Image from 'next/image'
 import { useEffect, useState } from 'react'
 import PublicTopbar from '../../components/PublicTopbar'
+import RiderNotificationButton from '../../components/RiderNotificationButton'
 import { buildQrCodeUrl } from '../../lib/publicLinks'
 
 type RegistrationStatusData = {
+  event_id: string
   registration_code: string
   contact_name: string
   community_name: string | null
@@ -22,6 +24,7 @@ type RegistrationStatusData = {
   event_date: string | null
   payment_status: 'NO_PAYMENT' | 'PENDING' | 'APPROVED' | 'REJECTED'
   riders: Array<{
+    rider_id: string | null
     name: string
     nickname: string | null
     plate: string
@@ -314,6 +317,16 @@ export default function RegistrationStatusPage() {
                       </div>
                       {rider.goodie_bag_collected_at && (
                         <div className="mt-1 text-xs font-bold text-[#8a5700]">Goodie bag sudah diambil</div>
+                      )}
+                      {rider.rider_id && (
+                        <div className="mt-3">
+                          <RiderNotificationButton
+                            eventId={result.event_id}
+                            riderId={rider.rider_id}
+                            riderName={rider.name}
+                            riderPlate={rider.plate}
+                          />
+                        </div>
                       )}
                     </div>
                     <span className="rounded-full border border-[#d9c9ae] bg-[#efe2c7] px-3 py-1 text-xs font-black">

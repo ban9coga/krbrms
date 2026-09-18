@@ -37,6 +37,7 @@ type PublicRegistrationRow = {
     | Array<{ name: string | null; event_date: string; status: string }>
     | null
   registration_items: Array<{
+    rider_id: string | null
     rider_name: string
     rider_nickname: string | null
     requested_plate_number: string | null
@@ -51,10 +52,10 @@ type PublicRegistrationRow = {
 }
 
 const BASE_REGISTRATION_SELECT =
-  'event_id, registration_code, contact_name, contact_phone, community_name, total_amount, status, created_at, events(name, event_date, status), registration_items(rider_name, rider_nickname, requested_plate_number, requested_plate_suffix, status, categories!registration_items_primary_category_id_fkey(label)), registration_payments(status)'
+  'event_id, registration_code, contact_name, contact_phone, community_name, total_amount, status, created_at, events(name, event_date, status), registration_items(rider_id, rider_name, rider_nickname, requested_plate_number, requested_plate_suffix, status, categories!registration_items_primary_category_id_fkey(label)), registration_payments(status)'
 
 const FULL_REGISTRATION_SELECT =
-  'event_id, registration_code, contact_name, contact_phone, community_name, total_amount, status, created_at, attendance_status, attendance_confirmed_at, checked_in_at, goodie_bag_collected_at, events(name, event_date, status), registration_items(rider_name, rider_nickname, requested_plate_number, requested_plate_suffix, status, venue_status, checked_in_at, goodie_bag_collected_at, categories!registration_items_primary_category_id_fkey(label)), registration_payments(status)'
+  'event_id, registration_code, contact_name, contact_phone, community_name, total_amount, status, created_at, attendance_status, attendance_confirmed_at, checked_in_at, goodie_bag_collected_at, events(name, event_date, status), registration_items(rider_id, rider_name, rider_nickname, requested_plate_number, requested_plate_suffix, status, venue_status, checked_in_at, goodie_bag_collected_at, categories!registration_items_primary_category_id_fkey(label)), registration_payments(status)'
 
 const isMissingRegistrationCodeError = (message: string) => /registration_code/i.test(message)
 
@@ -209,6 +210,7 @@ async function handlePost(req: Request, skipRateLimit = false) {
 
   return NextResponse.json({
     data: {
+      event_id: registration.event_id,
       registration_code: registration.registration_code,
       contact_name: registration.contact_name,
       community_name: registration.community_name,
@@ -224,6 +226,7 @@ async function handlePost(req: Request, skipRateLimit = false) {
       event_date: event?.event_date ?? null,
       payment_status: paymentStatus,
       riders: (registration.registration_items ?? []).map((item) => ({
+        rider_id: item.rider_id ?? null,
         name: item.rider_name,
         nickname: item.rider_nickname,
         plate: `${item.requested_plate_number ?? ''}${item.requested_plate_suffix ?? ''}` || '-',
@@ -263,7 +266,7 @@ export async function PATCH(req: Request) {
   const { data, error } = await adminClient
     .from('registrations')
     .select(
-      'id, event_id, registration_code, contact_name, contact_phone, community_name, total_amount, status, created_at, attendance_status, attendance_confirmed_at, checked_in_at, goodie_bag_collected_at, events(name, event_date, status), registration_items(rider_name, rider_nickname, requested_plate_number, requested_plate_suffix, status, categories!registration_items_primary_category_id_fkey(label)), registration_payments(status)'
+      'id, event_id, registration_code, contact_name, contact_phone, community_name, total_amount, status, created_at, attendance_status, attendance_confirmed_at, checked_in_at, goodie_bag_collected_at, events(name, event_date, status), registration_items(rider_id, rider_name, rider_nickname, requested_plate_number, requested_plate_suffix, status, categories!registration_items_primary_category_id_fkey(label)), registration_payments(status)'
     )
     .eq('registration_code', registrationCode)
     .maybeSingle()
