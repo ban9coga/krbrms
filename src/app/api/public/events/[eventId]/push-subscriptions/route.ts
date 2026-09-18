@@ -8,6 +8,41 @@ const PUSH_SUB_LIMIT = {
   windowMs: 60 * 1000,
 }
 
+const PUSH_CHECK_LIMIT = {
+  key: 'public-push-check',
+  limit: 60,
+  windowMs: 60 * 1000,
+}
+
+export async function GET(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  const limited = await rateLimit(req, PUSH_CHECK_LIMIT)
+  if (!limited.ok) return limited.response
+
+  const { eventId } = await params
+  const url = new URL(req.url)
+  const riderId = url.searchParams.get('rider_id')
+  const endpoint = url.searchParams.get('endpoint')
+
+  if (!riderId || !endpoint) {
+    return NextResponse.json({ error: 'Missing rider_id or endpoint.' }, { status: 400 })
+  }
+
+  const { data, error } = await adminClient
+    .from('push_subscriptions')
+    .select('id')
+    .eq('event_id', eventId)
+    .eq('rider_id', riderId)
+    .eq('endpoint', endpoint)
+    .maybeSingle()
+
+  if (error) {
+    return NextResponse.json({ error: 'Failed to check subscription.' }, { status: 500 })
+  }
+
+  return NextResponse.json({ subscribed: !!data })
+}
+
+
 export async function POST(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const limited = await rateLimit(req, PUSH_SUB_LIMIT)
   if (!limited.ok) return limited.response

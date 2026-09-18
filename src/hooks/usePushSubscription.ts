@@ -19,9 +19,26 @@ export function usePushSubscription(eventId: string, riderId: string) {
     try {
       const registration = await navigator.serviceWorker.ready
       const subscription = await registration.pushManager.getSubscription()
-      setIsSubscribed(!!subscription)
+      if (!subscription) {
+        setIsSubscribed(false)
+        return
+      }
+
+      // Verify with server if this specific rider is subscribed to this endpoint
+      const url = new URL(`/api/public/events/${eventId}/push-subscriptions`, window.location.origin)
+      url.searchParams.set('rider_id', riderId)
+      url.searchParams.set('endpoint', subscription.endpoint)
+      
+      const res = await fetch(url.toString())
+      if (res.ok) {
+        const json = await res.json()
+        setIsSubscribed(!!json.subscribed)
+      } else {
+        setIsSubscribed(false)
+      }
     } catch (err) {
       console.error('Failed to check push subscription:', err)
+      setIsSubscribed(false)
     }
   }
 
