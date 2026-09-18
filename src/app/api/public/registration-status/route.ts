@@ -37,9 +37,10 @@ type PublicRegistrationRow = {
     | Array<{ name: string | null; event_date: string; status: string }>
     | null
   registration_items: Array<{
-    rider_id: string | null
     rider_name: string
     rider_nickname: string | null
+    date_of_birth?: string | null
+    gender?: string | null
     requested_plate_number: string | null
     requested_plate_suffix: string | null
     status: string
@@ -52,10 +53,10 @@ type PublicRegistrationRow = {
 }
 
 const BASE_REGISTRATION_SELECT =
-  'event_id, registration_code, contact_name, contact_phone, community_name, total_amount, status, created_at, events(name, event_date, status), registration_items(rider_id, rider_name, rider_nickname, requested_plate_number, requested_plate_suffix, status, categories!registration_items_primary_category_id_fkey(label)), registration_payments(status)'
+  'event_id, registration_code, contact_name, contact_phone, community_name, total_amount, status, created_at, events(name, event_date, status), registration_items(rider_name, rider_nickname, date_of_birth, gender, requested_plate_number, requested_plate_suffix, status, categories!registration_items_primary_category_id_fkey(label)), registration_payments(status)'
 
 const FULL_REGISTRATION_SELECT =
-  'event_id, registration_code, contact_name, contact_phone, community_name, total_amount, status, created_at, attendance_status, attendance_confirmed_at, checked_in_at, goodie_bag_collected_at, events(name, event_date, status), registration_items(rider_id, rider_name, rider_nickname, requested_plate_number, requested_plate_suffix, status, venue_status, checked_in_at, goodie_bag_collected_at, categories!registration_items_primary_category_id_fkey(label)), registration_payments(status)'
+  'event_id, registration_code, contact_name, contact_phone, community_name, total_amount, status, created_at, attendance_status, attendance_confirmed_at, checked_in_at, goodie_bag_collected_at, events(name, event_date, status), registration_items(rider_name, rider_nickname, date_of_birth, gender, requested_plate_number, requested_plate_suffix, status, venue_status, checked_in_at, goodie_bag_collected_at, categories!registration_items_primary_category_id_fkey(label)), registration_payments(status)'
 
 const isMissingRegistrationCodeError = (message: string) => /registration_code/i.test(message)
 
@@ -208,6 +209,29 @@ async function handlePost(req: Request, skipRateLimit = false) {
         ? 'PENDING'
         : 'NO_PAYMENT'
 
+  // Lookup official rider_id from the riders table by matching name+dob+gender+event_id
+  // (registration_items does not have a rider_id column; linkage is by data matching)
+  const items = registration.registration_items ?? []
+  const riderIdMap = new Map<string, string | null>()
+  if (items.length > 0) {
+    const names = items.map((item) => item.rider_name)
+    const { data: riderRows } = await adminClient
+      .from('riders')
+      .select('id, name, date_of_birth, gender')
+      .eq('event_id', registration.event_id)
+      .in('name', names)
+    const riderList = riderRows ?? []
+    for (const item of items) {
+      const match = riderList.find(
+        (r) =>
+          r.name === item.rider_name &&
+          (!item.date_of_birth || r.date_of_birth === item.date_of_birth) &&
+          (!item.gender || r.gender === item.gender)
+      )
+      riderIdMap.set(item.rider_name, match?.id ?? null)
+    }
+  }
+
   return NextResponse.json({
     data: {
       event_id: registration.event_id,
@@ -225,8 +249,8 @@ async function handlePost(req: Request, skipRateLimit = false) {
       event_name: event?.name ?? 'Event',
       event_date: event?.event_date ?? null,
       payment_status: paymentStatus,
-      riders: (registration.registration_items ?? []).map((item) => ({
-        rider_id: item.rider_id ?? null,
+      riders: items.map((item) => ({
+        rider_id: riderIdMap.get(item.rider_name) ?? null,
         name: item.rider_name,
         nickname: item.rider_nickname,
         plate: `${item.requested_plate_number ?? ''}${item.requested_plate_suffix ?? ''}` || '-',
