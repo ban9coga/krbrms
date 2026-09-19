@@ -165,6 +165,10 @@ export default function JuryFinishPage() {
   const localEditingRef = useRef(false)
   const selectedMotoLiveRef = useRef({ id: '', live: false })
   const realtimeRefreshVersionRef = useRef(0)
+  // Stays true from the moment of a successful submit until the next moto
+  // is loaded by the realtime handler. Prevents applyFinisherPollData from
+  // wiping the UI during the brief server-side propagation gap.
+  const justSubmittedRef = useRef(false)
 
   useEffect(() => {
     pressedIdRef.current = pressedId
@@ -441,7 +445,14 @@ export default function JuryFinishPage() {
       if (ridersResponse) {
         setRiders(((ridersResponse.data ?? []) as RiderItem[]).filter((rider) => !rider.is_disqualified))
       }
-      applyFinisherPollData((pollResponse.data ?? {}) as FinisherPollData, targetMoto, selectedMotoChanged ? false : localEditingRef.current)
+      // If the user just submitted a result but the moto hasn't changed yet
+      // (server propagation gap), preserve the local state so the grid
+      // doesn't flash empty before switching to the next moto.
+      const preserveLocalForNow = selectedMotoChanged
+        ? false
+        : localEditingRef.current || justSubmittedRef.current
+      if (selectedMotoChanged) justSubmittedRef.current = false
+      applyFinisherPollData((pollResponse.data ?? {}) as FinisherPollData, targetMoto, preserveLocalForNow)
     } catch {
       // The periodic poll remains the fallback when Realtime is unavailable.
     }
@@ -739,6 +750,9 @@ export default function JuryFinishPage() {
         message: error instanceof Error ? error.message : 'Submit result gagal.',
       })
     } finally {
+      // Flag that a submit just happened so refreshFromRealtime skips
+      // the UI reset until the next moto is confirmed loaded.
+      justSubmittedRef.current = true
       localEditingRef.current = false
       setSaving(false)
     }
