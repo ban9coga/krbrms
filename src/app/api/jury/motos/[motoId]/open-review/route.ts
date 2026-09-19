@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../../lib/auth'
 import { requireJury } from '../../../../../../services/juryAuth'
+import { broadcastRaceState } from '../../../../../../lib/broadcastRaceState'
 
 export async function POST(req: Request, { params }: { params: Promise<{ motoId: string }> }) {
   const { motoId } = await params
@@ -27,6 +28,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
     .eq('id', motoId)
 
   if (updateError) return NextResponse.json({ error: updateError.message }, { status: 400 })
-
+  void broadcastRaceState(moto.event_id, motoId)
   return NextResponse.json({ ok: true })
 }

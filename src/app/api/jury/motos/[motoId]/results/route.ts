@@ -5,6 +5,7 @@ import { reseedSingleBatchMoto3FromMoto } from '../../../../../../services/moto3
 import { promoteNextMotoToLive } from '../../../../../../services/motoProgression'
 import { upsertRiderParticipationStatuses } from '../../../../../../services/riderParticipationStatus'
 import { requireJury } from '../../../../../../services/juryAuth'
+import { broadcastRaceState } from '../../../../../../lib/broadcastRaceState'
 
 const isLockedMoto = async (motoId: string) => {
   const { data } = await adminClient
@@ -202,6 +203,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
   if (activeStatusResult.error) return NextResponse.json({ error: activeStatusResult.error.message }, { status: 400 })
   if (motoUpdateResult.error) return NextResponse.json({ error: motoUpdateResult.error.message }, { status: 400 })
 
+  void broadcastRaceState(moto.event_id, motoId)
   const moto3Reseed = needsMoto3Reseed(moto.moto_name)
     ? await reseedSingleBatchMoto3FromMoto(motoId)
     : { ok: true as const, warning: null }
@@ -247,5 +249,6 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ motoI
     .update({ status: 'LIVE', provisional_at: null })
     .eq('id', motoId)
 
+  void broadcastRaceState(scopedMoto?.event_id ?? '', motoId)
   return NextResponse.json({ ok: true })
 }

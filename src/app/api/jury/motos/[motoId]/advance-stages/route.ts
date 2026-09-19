@@ -3,6 +3,7 @@ import { adminClient } from '../../../../../../lib/auth'
 import { assertMotoEditable, assertMotoNotUnderProtest } from '../../../../../../lib/motoLock'
 import { requireJury } from '../../../../../../services/juryAuth'
 import { syncAdvancedRaceProgress } from '../../../../../../services/advancedRaceAuto'
+import { broadcastRaceState } from '../../../../../../lib/broadcastRaceState'
 
 export async function POST(req: Request, { params }: { params: Promise<{ motoId: string }> }) {
   const { motoId } = await params
@@ -32,5 +33,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
     return NextResponse.json({ warning: result.warning ?? 'Advanced race skipped.' }, { status: 200 })
   }
 
+  void broadcastRaceState(moto.event_id, motoId)
   return NextResponse.json({ ok: true })
 }
