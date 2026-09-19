@@ -490,9 +490,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         setAuthChecked(true)
         router.replace('/login')
       } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
-        // Force role re-check by resetting auth state and triggering loadRole
-        setAuthChecked(false)
-        setAuthorized(false)
+        // Silently re-verify role. Only flash the loading screen for SIGNED_IN
+        // or when not yet authorized. TOKEN_REFRESHED while already authorized
+        // must not reset authChecked/authorized to avoid the loading flash on
+        // every tab switch (Supabase fires TOKEN_REFRESHED on tab focus).
+        if (event === 'SIGNED_IN') {
+          setAuthChecked(false)
+          setAuthorized(false)
+        }
         setAuthRefreshTick((t) => t + 1)
       }
     })
