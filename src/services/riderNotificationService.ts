@@ -299,9 +299,10 @@ export async function notifyRiderMotoConfirmed(motoId: string): Promise<NotifyRe
 
 export type StagePlacement = {
   riderId: string
-  motoId: string
+  motoId?: string | null
   motoName: string
-  gate: number | null
+  gate?: number | null
+  isDeferred?: boolean
 }
 
 /**
@@ -375,13 +376,25 @@ export async function notifyRidersStageAdvanced(
       const motoName = placement.motoName?.trim() || 'Babak Selanjutnya'
       const gateText = placement.gate != null ? `, Gate ${placement.gate}` : ''
 
-      const idempotencyKey = `RIDER_STAGE_ADVANCED:${eventId}:${placement.riderId}:${placement.motoId}`
+      // Clean motoName for idempotency key (e.g. "Final A" -> "FINAL_A", "Semi Final - Batch 1" -> "SEMI_FINAL")
+      const baseMotoName = motoName.split('-')[0].trim()
+      const safeMotoName = baseMotoName.toUpperCase().replace(/\s+/g, '_')
+      const idempotencyKey = `RIDER_STAGE_ADVANCED:${eventId}:${placement.riderId}:${safeMotoName}`
+
+      let bodyText = `${riderName}${plateText} masuk ke ${motoName}${gateText}.`
+      if (placement.isDeferred) {
+        if (/QF|Quarter/i.test(motoName)) {
+          bodyText = `Selamat ${riderName}${plateText} lolos ke babak ${motoName}. Selalu pantau Live Score, hasil/gate akan muncul setelah babak repechage selesai.`
+        } else if (/Final/i.test(motoName)) {
+          bodyText = `Selamat ${riderName}${plateText} lolos ke ${motoName}. Selalu pantau Live Score untuk info gate-nya, hasil akan muncul ketika semua stage selesai.`
+        }
+      }
 
       const payload: PushPayload = {
         title: '🌟 RacePushBike - Lolos Babak Selanjutnya',
-        body: `${riderName}${plateText} masuk ke ${motoName}${gateText}.`,
+        body: bodyText,
         icon: '/icon.png',
-        data: { url: publicUrl, eventId, riderId: placement.riderId, motoId: placement.motoId },
+        data: { url: publicUrl, eventId, riderId: placement.riderId, motoId: placement.motoId || '' },
       }
 
       for (const sub of subs) {

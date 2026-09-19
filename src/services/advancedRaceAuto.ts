@@ -1674,6 +1674,20 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
         gate: gateByRiderMoto.get(`${r.moto_id}:${r.rider_id}`) ?? null,
       }))
 
+      // --- DEFERRED STAGE ADVANCEMENT NOTIFICATIONS ---
+      if (shouldDeferQuarterUntilRepechage && quarterRiders.length > 0) {
+        quarterRiders.forEach(riderId => placements.push({ riderId, motoName: 'Quarter Final', isDeferred: true }))
+      }
+      if (shouldDeferSemiUntilRepechage && semiRiders.length > 0) {
+        semiRiders.forEach(riderId => placements.push({ riderId, motoName: 'Semi Final', isDeferred: true }))
+      }
+      if (shouldDeferFinalsUntilStageReady) {
+        for (const finalClass of Object.keys(finals)) {
+          const finalRiders = finals[finalClass] || []
+          finalRiders.forEach(riderId => placements.push({ riderId, motoName: `Final ${finalClass}`, isDeferred: true }))
+        }
+      }
+
       await notifyRidersStageAdvanced(eventId, placements)
     } catch (pushErr) {
       console.error('Non-blocking stage advance push error:', pushErr)
