@@ -65,11 +65,11 @@ export default function RiderNotificationButton({
         }
         aria-label={isSubscribed ? 'Notifikasi aktif' : 'Aktifkan notifikasi'}
         className={`
-          inline-flex items-center justify-center w-7 h-7 rounded-full text-base
+          inline-flex items-center justify-center
           transition-all duration-200 disabled:opacity-50 select-none
           ${isSubscribed
-            ? 'bg-amber-400/20 border-2 border-amber-400 text-amber-300 shadow-[0_0_8px_rgba(251,191,36,0.4)]'
-            : 'bg-transparent border-2 border-orange-500/60 text-orange-400 hover:border-orange-400 hover:bg-orange-500/10'
+            ? 'w-7 h-7 rounded-full bg-amber-400/20 border-2 border-amber-400 text-amber-300 shadow-[0_0_8px_rgba(251,191,36,0.4)]'
+            : 'w-6 h-6 text-orange-400 hover:text-orange-300 hover:scale-110'
           }
         `}
       >
