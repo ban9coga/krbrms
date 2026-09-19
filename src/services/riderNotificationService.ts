@@ -1,4 +1,4 @@
-import { adminClient } from '../lib/auth'
+﻿import { adminClient } from '../lib/auth'
 import { sendPushNotification, type PushPayload } from '../lib/pushNotifier'
 
 export type NotifyResult = {
@@ -14,7 +14,7 @@ export type NotifyResult = {
  * in the NEXT scheduled moto, triggered when the CURRENT moto transitions to READY.
  *
  * Cascade / domino logic:
- * - Moto N transitions to READY  →  notify walis of Moto N+1 to head to waiting zone.
+ * - Moto N transitions to READY  â†’  notify walis of Moto N+1 to head to waiting zone.
  * - Side-effect only: never throws or disrupts race flow.
  * - Sourced 100% from database tables (motos, moto_gate_positions, moto_riders, riders).
  * - Idempotency key: RIDER_MOTO_CONFIRMED:${event_id}:${rider_id}:${target_moto_id}:TRIGGERED_BY_${triggering_moto_id}:${checker_prep_ready_at}
@@ -183,7 +183,7 @@ export async function notifyRiderMotoConfirmed(motoId: string): Promise<NotifyRe
       const idempotencyKey = `RIDER_MOTO_CONFIRMED:${moto.event_id}:${assignment.riderId}:${moto.id}:TRIGGERED_BY_${triggeringMoto.id}:${triggeringMoto.checker_prep_ready_at}`
 
       const payload: PushPayload = {
-        title: '📢 RacePushBike - Segera ke Area Persiapan',
+        title: 'ðŸ“¢ RacePushBike - Segera ke Area Persiapan',
         body: `${riderName}${plateText} akan segera dipanggil ke ${motoName}. Harap menuju Area Persiapan sekarang.`,
         icon: '/icon.png',
         data: {
@@ -294,5 +294,146 @@ export async function notifyRiderMotoConfirmed(motoId: string): Promise<NotifyRe
       failedCount: 0,
       warning: err instanceof Error ? err.message : 'Unexpected push notification error',
     }
+  }
+}
+
+export type StagePlacement = {
+  riderId: string
+  motoId: string
+  motoName: string
+  gate: number | null
+}
+
+/**
+ * Dispatches RIDER_STAGE_ADVANCED push notifications to guardians of riders
+ * who have just been placed into the next stage bracket (Repechage, Quarter Final,
+ * Semi-Final, Final A/B/C, etc.) after a stage concludes and is locked.
+ *
+ * Applies to all stage transitions:
+ * - Qualification -> Repechage / Quarter Final / Semi-Final
+ * - Repechage -> Quarter Final
+ * - Quarter Final -> Semi-Final
+ * - Semi-Final -> Final (A / B / C / etc.)
+ *
+ * Side-effect only: never throws or disrupts race flow.
+ * Idempotency key: RIDER_STAGE_ADVANCED:${event_id}:${ider_id}:${moto_id}
+ */
+export async function notifyRidersStageAdvanced(
+  eventId: string,
+  placements: StagePlacement[]
+): Promise<NotifyResult> {
+  if (!placements || placements.length === 0) {
+    return { ok: true, processedCount: 0, sentCount: 0, failedCount: 0 }
+  }
+
+  try {
+    const riderIds = [...new Set(placements.map((p) => p.riderId))]
+
+    const { data: riders, error: riderError } = await adminClient
+      .from('riders')
+      .select('id, name, no_plate_display')
+      .in('id', riderIds)
+
+    if (riderError) console.warn('Could not read riders for stage advance notify:', riderError.message)
+    const riderMap = new Map((riders ?? []).map((r) => [r.id, r]))
+
+    const { data: subscriptions, error: subError } = await adminClient
+      .from('push_subscriptions')
+      .select('id, rider_id, endpoint, p256dh, auth')
+      .eq('event_id', eventId)
+      .in('rider_id', riderIds)
+
+    if (subError) {
+      console.error('Failed to query push subscriptions for stage advance:', subError.message)
+      return { ok: false, processedCount: 0, sentCount: 0, failedCount: 0, warning: subError.message }
+    }
+
+    if (!subscriptions || subscriptions.length === 0) {
+      return { ok: true, processedCount: 0, sentCount: 0, failedCount: 0 }
+    }
+
+    const subsByRider = new Map<string, typeof subscriptions>()
+    for (const sub of subscriptions) {
+      const list = subsByRider.get(sub.rider_id) ?? []
+      list.push(sub)
+      subsByRider.set(sub.rider_id, list)
+    }
+
+    const publicUrl = `/event/${eventId}`
+
+    let processedCount = 0
+    let sentCount = 0
+    let failedCount = 0
+
+    for (const placement of placements) {
+      const subs = subsByRider.get(placement.riderId)
+      if (!subs || subs.length === 0) continue
+
+      const rider = riderMap.get(placement.riderId)
+      const riderName = rider?.name?.trim() || 'Rider'
+      const plateText = rider?.no_plate_display ? ` (#${rider.no_plate_display})` : ''
+      const motoName = placement.motoName?.trim() || 'Babak Selanjutnya'
+      const gateText = placement.gate != null ? `, Gate ${placement.gate}` : ''
+
+      const idempotencyKey = `RIDER_STAGE_ADVANCED:${eventId}:${placement.riderId}:${placement.motoId}`
+
+      const payload: PushPayload = {
+        title: '🌟 RacePushBike - Lolos Babak Selanjutnya',
+        body: `${plateText} masuk ke ${motoName}${gateText}.`,
+        icon: '/icon.png',
+        data: { url: publicUrl, eventId, riderId: placement.riderId, motoId: placement.motoId },
+      }
+
+      for (const sub of subs) {
+        processedCount++
+        const { data: logRow, error: logInsertError } = await adminClient
+          .from('push_notification_log')
+          .insert({
+            event_id: eventId,
+            rider_id: placement.riderId,
+            subscription_id: sub.id,
+            event_type: 'RIDER_STAGE_ADVANCED',
+            idempotency_key: idempotencyKey,
+            status: 'PENDING',
+            attempt_count: 1,
+            last_attempted_at: new Date().toISOString(),
+          })
+          .select('id')
+          .maybeSingle()
+
+        if (logInsertError) {
+          if (logInsertError.code === '23505' || logInsertError.message.includes('unique') || logInsertError.message.includes('idempotency')) {
+            continue
+          }
+          failedCount++
+          continue
+        }
+        if (!logRow?.id) continue
+
+        const pushResult = await sendPushNotification(
+          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+          payload
+        )
+
+        if (pushResult.ok) {
+          sentCount++
+          await adminClient.from('push_notification_log').update({ status: 'SENT', sent_at: new Date().toISOString() }).eq('id', logRow.id)
+          await adminClient.from('push_subscriptions').update({ last_used_at: new Date().toISOString() }).eq('id', sub.id)
+        } else {
+          failedCount++
+          if (pushResult.error === 'GONE') {
+            await adminClient.from('push_subscriptions').delete().eq('id', sub.id)
+            await adminClient.from('push_notification_log').update({ status: 'FAILED', error_message: 'Subscription expired (HTTP 410/404). Cleaned up.' }).eq('id', logRow.id)
+          } else {
+            await adminClient.from('push_notification_log').update({ status: 'FAILED', error_message: pushResult.error || 'Push delivery failed' }).eq('id', logRow.id)
+          }
+        }
+      }
+    }
+
+    return { ok: true, processedCount, sentCount, failedCount }
+  } catch (err: unknown) {
+    console.error('Unexpected error in notifyRidersStageAdvanced:', err instanceof Error ? err.message : err)
+    return { ok: false, processedCount: 0, sentCount: 0, failedCount: 0, warning: err instanceof Error ? err.message : 'Unexpected push notification error' }
   }
 }

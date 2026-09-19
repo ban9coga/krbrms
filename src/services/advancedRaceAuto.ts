@@ -2,6 +2,7 @@
 
 import { adminClient } from '../lib/auth'
 import { normalizeFinalClassValue } from '../lib/advancedRaceDefaults'
+import { notifyRidersStageAdvanced, type StagePlacement } from './riderNotificationService'
 import { resolveCategoryConfig } from './categoryResolver'
 import { assertMotoNotUnderProtest } from '../lib/motoLock'
 import { resolveTotalPointForRaceResult, type NonFinishPenaltyConfig } from '../lib/nonFinishScoring'
@@ -1648,6 +1649,35 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
   if (gateTableReady && uniqueNewGatePositions.length > 0) {
     const { error: gateError } = await adminClient.from('moto_gate_positions').insert(uniqueNewGatePositions)
     if (gateError) return { ok: false, warning: gateError.message }
+  }
+
+  // Side-effect only: notify walis about stage advancement
+  if (uniqueNewMotoRiders.length > 0) {
+    try {
+      // Build gate lookup from what we just inserted
+      const gateByRiderMoto = new Map<string, number>()
+      for (const g of uniqueNewGatePositions) {
+        gateByRiderMoto.set(`${g.moto_id}:${g.rider_id}`, Number(g.gate_position))
+      }
+      // Fetch moto names for the target motos
+      const targetMotoIds = [...new Set(uniqueNewMotoRiders.map((r) => r.moto_id))]
+      const { data: targetMotos } = await adminClient
+        .from('motos')
+        .select('id, moto_name')
+        .in('id', targetMotoIds)
+      const motoNameById = new Map((targetMotos ?? []).map((m) => [m.id, m.moto_name]))
+
+      const placements: StagePlacement[] = uniqueNewMotoRiders.map((r) => ({
+        riderId: r.rider_id,
+        motoId: r.moto_id,
+        motoName: motoNameById.get(r.moto_id) ?? 'Babak Selanjutnya',
+        gate: gateByRiderMoto.get(`${r.moto_id}:${r.rider_id}`) ?? null,
+      }))
+
+      await notifyRidersStageAdvanced(eventId, placements)
+    } catch (pushErr) {
+      console.error('Non-blocking stage advance push error:', pushErr)
+    }
   }
 
   if (dqRetainsFinalClassification && finalsToCreate.length > 0) {
