@@ -441,7 +441,7 @@ export default function JuryFinishPage() {
       if (ridersResponse) {
         setRiders(((ridersResponse.data ?? []) as RiderItem[]).filter((rider) => !rider.is_disqualified))
       }
-      applyFinisherPollData((pollResponse.data ?? {}) as FinisherPollData, targetMoto, localEditingRef.current)
+      applyFinisherPollData((pollResponse.data ?? {}) as FinisherPollData, targetMoto, selectedMotoChanged ? false : localEditingRef.current)
     } catch {
       // The periodic poll remains the fallback when Realtime is unavailable.
     }
@@ -725,6 +725,7 @@ export default function JuryFinishPage() {
         })
       }
       setHasSubmitted(true)
+      setActions([])
       setMotos((prev) =>
         prev.map((m) => (m.id === selectedMoto.id ? { ...m, status: 'PROVISIONAL' } : m))
       )
