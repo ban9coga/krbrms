@@ -379,7 +379,7 @@ export async function notifyRidersStageAdvanced(
 
       const payload: PushPayload = {
         title: '🌟 RacePushBike - Lolos Babak Selanjutnya',
-        body: `${plateText} masuk ke ${motoName}${gateText}.`,
+        body: `${riderName}${plateText} masuk ke ${motoName}${gateText}.`,
         icon: '/icon.png',
         data: { url: publicUrl, eventId, riderId: placement.riderId, motoId: placement.motoId },
       }
