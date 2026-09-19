@@ -1,4 +1,4 @@
-﻿import { adminClient } from '../lib/auth'
+import { adminClient } from '../lib/auth'
 import { sendPushNotification, type PushPayload } from '../lib/pushNotifier'
 
 export type NotifyResult = {
@@ -183,8 +183,8 @@ export async function notifyRiderMotoConfirmed(motoId: string): Promise<NotifyRe
       const idempotencyKey = `RIDER_MOTO_CONFIRMED:${moto.event_id}:${assignment.riderId}:${moto.id}:TRIGGERED_BY_${triggeringMoto.id}:${triggeringMoto.checker_prep_ready_at}`
 
       const payload: PushPayload = {
-        title: 'ðŸ“¢ RacePushBike - Segera ke Area Persiapan',
-        body: `${riderName}${plateText} akan segera dipanggil ke ${motoName}. Harap menuju Area Persiapan sekarang.`,
+        title: '📢 Segera Ke Waiting Zone',
+        body: `${riderName}${plateText} segera ke waiting zone Sekarang karena ${motoName} akan segera dimulai.`,
         icon: '/icon.png',
         data: {
           url: publicUrl,
