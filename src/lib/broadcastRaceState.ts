@@ -1,7 +1,7 @@
-﻿import { adminClient } from './auth'
+import { adminClient } from './auth'
 
 /**
- * Broadcasts a `race_state_changed` event on the private Supabase Realtime channel
+ * Broadcasts a race_state_changed event on the private Supabase Realtime channel
  * for an event. All jury/checker tabs subscribed to that channel will receive this
  * and immediately re-fetch fresh data without waiting for the 15-second polling interval.
  *
@@ -13,7 +13,7 @@ export async function broadcastRaceState(
   motoId?: string | null
 ): Promise<void> {
   try {
-    const channel = adminClient.channel(ace:event:, {
+    const channel = adminClient.channel(`race:event:${eventId}`, {
       config: { private: true },
     })
     await channel.send({
