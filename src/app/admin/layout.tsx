@@ -3,7 +3,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { ThemeToggleSwitch, useTheme } from '../../components/ThemeProvider'
 import LogoutButton from '../../components/LogoutButton'
 import { canAccessAdminWorkspace, formatAppRoleLabel, isRegistrationApproverRole, normalizeAppRole } from '../../lib/roles'
@@ -319,6 +319,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [authorized, setAuthorized] = useState(false)
   const [authChecked, setAuthChecked] = useState(false)
   const [authRefreshTick, setAuthRefreshTick] = useState(0)
+  const authorizedRef = useRef(false)
 
   const eventId = useMemo(() => extractEventId(pathname), [pathname])
   const eventNav = useMemo(() => {
@@ -437,6 +438,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               return
             }
 
+            authorizedRef.current = true
             setAuthorized(true)
             setAuthChecked(true)
             return
@@ -475,6 +477,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         return
       }
 
+      authorizedRef.current = true
       setAuthorized(true)
       setAuthChecked(true)
     }
@@ -490,14 +493,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         setAuthChecked(true)
         router.replace('/login')
       } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
-        // Silently re-verify role. Only flash the loading screen for SIGNED_IN
-        // or when not yet authorized. TOKEN_REFRESHED while already authorized
-        // must not reset authChecked/authorized to avoid the loading flash on
-        // every tab switch (Supabase fires TOKEN_REFRESHED on tab focus).
-        if (event === 'SIGNED_IN') {
-          setAuthChecked(false)
-          setAuthorized(false)
-        }
+        // TOKEN_REFRESHED fires every time a tab regains focus (Supabase behavior).
+        // Skip entirely when already authorized: role has not changed, no re-verify needed.
+        if (event === 'TOKEN_REFRESHED' && authorizedRef.current) return
+        setAuthChecked(false)
+        setAuthorized(false)
+        authorizedRef.current = false
         setAuthRefreshTick((t) => t + 1)
       }
     })
