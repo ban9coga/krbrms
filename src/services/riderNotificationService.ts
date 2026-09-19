@@ -38,15 +38,15 @@ export async function notifyRiderMotoConfirmed(motoId: string): Promise<NotifyRe
       }
     }
 
-    // 2. Hard boundary check: Must be READY and have checker_prep_ready_at timestamp
+    // 2. Hard boundary check: Must be READY (or auto-promoted to LIVE) and have checker_prep_ready_at timestamp
     const normalizedStatus = String(triggeringMoto.status ?? '').toUpperCase()
-    if (normalizedStatus !== 'READY' || !triggeringMoto.checker_prep_ready_at) {
+    if (!['READY', 'LIVE'].includes(normalizedStatus) || !triggeringMoto.checker_prep_ready_at) {
       return {
         ok: false,
         processedCount: 0,
         sentCount: 0,
         failedCount: 0,
-        warning: `Moto status is ${triggeringMoto.status} (expected READY with checker_prep_ready_at). Notification skipped.`,
+        warning: `Moto status is ${triggeringMoto.status} (expected READY/LIVE with checker_prep_ready_at). Notification skipped.`,
       }
     }
 
