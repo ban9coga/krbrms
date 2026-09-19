@@ -22,53 +22,92 @@ export default function RiderNotificationButton({
     eventId,
     riderId
   )
-  const [feedback, setFeedback] = useState<string | null>(null)
+  const [confirming, setConfirming] = useState<'subscribe' | 'unsubscribe' | null>(null)
 
   if (!isSupported) return null
 
-  const handleToggle = async (e: React.MouseEvent) => {
+  const handleBellClick = (e: React.MouseEvent) => {
     e.stopPropagation()
-    setFeedback(null)
-
+    if (isLoading) return
     if (isSubscribed) {
-      if (confirm(`Matikan notifikasi panggilan gate untuk ${riderName}?`)) {
-        await unsubscribe()
-        setFeedback('Notifikasi dimatikan')
-        setTimeout(() => setFeedback(null), 3000)
-      }
+      setConfirming('unsubscribe')
     } else {
-      await subscribe()
-      setFeedback('Notifikasi gate aktif!')
-      setTimeout(() => setFeedback(null), 4000)
+      setConfirming('subscribe')
     }
+  }
+
+  const handleConfirm = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (confirming === 'subscribe') {
+      await subscribe()
+    } else if (confirming === 'unsubscribe') {
+      await unsubscribe()
+    }
+    setConfirming(null)
+  }
+
+  const handleCancel = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setConfirming(null)
   }
 
   return (
     <div className={`inline-flex items-center gap-1.5 ${className}`}>
+      {/* Bell icon button */}
       <button
         type="button"
         disabled={isLoading}
-        onClick={handleToggle}
+        onClick={handleBellClick}
         title={
           isSubscribed
-            ? `Notifikasi gate aktif untuk ${riderName} (#${riderPlate || '-'}). Klik untuk matikan.`
+            ? `Notifikasi aktif untuk ${riderName} (#${riderPlate || '-'}). Klik untuk matikan.`
             : `Aktifkan notifikasi panggilan gate untuk ${riderName} (#${riderPlate || '-'})`
         }
-        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold transition-colors ${
-          isSubscribed
-            ? 'bg-amber-500/20 text-amber-300 border border-amber-400/40 hover:bg-amber-500/30'
-            : 'bg-white/10 text-slate-300 border border-white/20 hover:bg-white/20 hover:text-white'
-        } disabled:opacity-50`}
+        aria-label={isSubscribed ? 'Notifikasi aktif' : 'Aktifkan notifikasi'}
+        className={`
+          inline-flex items-center justify-center w-7 h-7 rounded-full text-base
+          transition-all duration-200 disabled:opacity-50 select-none
+          ${isSubscribed
+            ? 'bg-amber-400/20 border-2 border-amber-400 text-amber-300 shadow-[0_0_8px_rgba(251,191,36,0.4)]'
+            : 'bg-transparent border-2 border-orange-500/60 text-orange-400 hover:border-orange-400 hover:bg-orange-500/10'
+          }
+        `}
       >
-        <span className="text-[11px] leading-none">{isSubscribed ? '🔔' : '🔕'}</span>
-        <span>{isLoading ? '...' : isSubscribed ? 'Notif Aktif' : 'Pantau Gate'}</span>
+        {isLoading ? (
+          <span className="text-[10px] leading-none animate-pulse">⏳</span>
+        ) : (
+          <span className="text-[14px] leading-none">🔔</span>
+        )}
       </button>
 
-      {feedback && (
-        <span className="text-[9px] font-semibold text-emerald-400 animate-fade-in">
-          {feedback}
-        </span>
+      {/* Inline confirmation dialog */}
+      {confirming && (
+        <div
+          className="inline-flex items-center gap-1.5 bg-slate-800/90 border border-white/10 rounded-full px-2 py-0.5 animate-fade-in"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <span className="text-[10px] text-slate-200 whitespace-nowrap">
+            {confirming === 'subscribe'
+              ? `Aktifkan notifikasi rider ini?`
+              : `Matikan notifikasi rider ini?`}
+          </span>
+          <button
+            type="button"
+            onClick={handleConfirm}
+            className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300 px-1 py-0.5 rounded hover:bg-emerald-500/10 transition-colors"
+          >
+            Ya
+          </button>
+          <button
+            type="button"
+            onClick={handleCancel}
+            className="text-[10px] font-bold text-slate-400 hover:text-slate-200 px-1 py-0.5 rounded hover:bg-white/10 transition-colors"
+          >
+            Tidak
+          </button>
+        </div>
       )}
+
       {error && (
         <span className="text-[9px] font-semibold text-rose-400">
           {error}
