@@ -480,7 +480,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
 
     void loadRole()
-  }, [pathname, router, authRefreshTick])
+  }, [router, authRefreshTick])
 
   // Re-check role when session changes in another tab (e.g. logout + login as different role)
   useEffect(() => {
@@ -498,6 +498,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     })
     return () => subscription.unsubscribe()
   }, [router])
+
+  // Guard path access when navigating (no full re-check, role already loaded)
+  useEffect(() => {
+    if (!authChecked || !userRole) return
+    if (!isAllowedAdminPath(userRole, pathname)) {
+      router.replace(roleHome(userRole))
+    }
+  }, [authChecked, pathname, router, userRole])
 
   useEffect(() => {
     if (!authorized) return
