@@ -5,13 +5,23 @@ import { useState, useEffect } from 'react'
 export function usePushSubscription(eventId: string, riderId: string) {
   const [isSubscribed, setIsSubscribed] = useState(false)
   const [isSupported, setIsSupported] = useState(false)
+  const [isIOSBrowser, setIsIOSBrowser] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window) {
-      setIsSupported(true)
-      checkSubscription()
+    if (typeof window !== 'undefined') {
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+      const isStandalone = window.matchMedia('(display-mode: standalone)').matches || ('standalone' in navigator && (navigator as any).standalone)
+      
+      if (isIOS && !isStandalone) {
+        setIsIOSBrowser(true)
+      }
+
+      if ('serviceWorker' in navigator && 'PushManager' in window) {
+        setIsSupported(true)
+        checkSubscription()
+      }
     }
   }, [])
 
@@ -139,6 +149,7 @@ export function usePushSubscription(eventId: string, riderId: string) {
 
   return {
     isSupported,
+    isIOSBrowser,
     isSubscribed,
     isLoading,
     error,
