@@ -58,7 +58,7 @@ export function usePushSubscription(eventId: string, riderId: string) {
     setIsLoading(true)
     try {
       if (Notification.permission === 'denied') {
-        throw new Error('Push notifications are blocked. Please enable them in your browser settings.')
+        throw new Error('Izin notifikasi ditolak. Silakan izinkan melalui pengaturan browser.')
       }
 
       const registration = await navigator.serviceWorker.ready
@@ -67,7 +67,7 @@ export function usePushSubscription(eventId: string, riderId: string) {
       if (!subscription) {
         const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
         if (!vapidPublicKey) {
-          throw new Error('VAPID public key is not configured.')
+          throw new Error('Konfigurasi VAPID key tidak ditemukan.')
         }
 
         subscription = await registration.pushManager.subscribe({
@@ -88,13 +88,18 @@ export function usePushSubscription(eventId: string, riderId: string) {
 
       if (!res.ok) {
         const data = await res.json()
-        throw new Error(data.error || 'Failed to save subscription on server.')
+        throw new Error(data.error || 'Gagal menyimpan notifikasi ke server.')
       }
 
       setIsSubscribed(true)
     } catch (err: any) {
       console.error('Subscription error:', err)
-      setError(err.message || 'An error occurred while subscribing.')
+      const msg = err.message || ''
+      if (msg.includes('denied') || msg.includes('NotAllowedError')) {
+        setError('Izin ditolak. Anda harus mengizinkan notifikasi di pop-up browser.')
+      } else {
+        setError(msg || 'Terjadi kesalahan saat mengaktifkan notifikasi.')
+      }
     } finally {
       setIsLoading(false)
     }
@@ -126,7 +131,7 @@ export function usePushSubscription(eventId: string, riderId: string) {
       setIsSubscribed(false)
     } catch (err: any) {
       console.error('Unsubscribe error:', err)
-      setError(err.message || 'An error occurred while unsubscribing.')
+      setError(err.message || 'Terjadi kesalahan saat mematikan notifikasi.')
     } finally {
       setIsLoading(false)
     }
