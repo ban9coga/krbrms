@@ -493,9 +493,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         setAuthChecked(true)
         router.replace('/login')
       } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
-        // TOKEN_REFRESHED fires every time a tab regains focus (Supabase behavior).
-        // Skip entirely when already authorized: role has not changed, no re-verify needed.
-        if (event === 'TOKEN_REFRESHED' && authorizedRef.current) return
+        if (authorizedRef.current) {
+          // If already authorized, never flash the loading screen.
+          // Just silently re-verify in the background.
+          setAuthRefreshTick((t) => t + 1)
+          return
+        }
+        
         setAuthChecked(false)
         setAuthorized(false)
         authorizedRef.current = false
