@@ -28,7 +28,7 @@ export default function RiderNotificationButton({
 
   const handleBellClick = (e: React.MouseEvent) => {
     e.stopPropagation()
-    if (!isSupported && isIOSBrowser) {
+    if (isIOSBrowser) {
       setConfirming('ios_instruction')
       return
     }
@@ -95,7 +95,7 @@ export default function RiderNotificationButton({
             <div className="flex flex-col gap-2 w-full">
               <span className="text-[11px] leading-snug text-slate-200">
                 <strong className="text-amber-400">Khusus iPhone:</strong><br/>
-                Tekan tombol Bagikan (Share) di bawah layar lalu pilih <strong>"Add to Home Screen" (Tambahkan ke Layar Utama)</strong> untuk mengaktifkan notifikasi.
+                Tekan tombol Bagikan (Share) di bawah layar lalu pilih <strong>&quot;Add to Home Screen&quot; (Tambahkan ke Layar Utama)</strong> untuk mengaktifkan notifikasi.
               </span>
               <button
                 type="button"

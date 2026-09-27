@@ -379,7 +379,8 @@ export async function notifyRidersStageAdvanced(
       // Clean motoName for idempotency key (e.g. "Final A" -> "FINAL_A", "Semi Final - Batch 1" -> "SEMI_FINAL")
       const baseMotoName = motoName.split('-')[0].trim()
       const safeMotoName = baseMotoName.toUpperCase().replace(/\s+/g, '_')
-      const idempotencyKey = `RIDER_STAGE_ADVANCED:${eventId}:${placement.riderId}:${safeMotoName}`
+      const placementKey = placement.isDeferred ? 'DEFERRED' : `MOTO:${placement.motoId ?? safeMotoName}`
+      const idempotencyKey = `RIDER_STAGE_ADVANCED:${eventId}:${placement.riderId}:${safeMotoName}:${placementKey}`
 
       let bodyText = `${riderName}${plateText} masuk ke ${motoName}${gateText}.`
       if (placement.isDeferred) {

@@ -456,7 +456,7 @@ export default function JuryFinishPage() {
     } catch {
       // The periodic poll remains the fallback when Realtime is unavailable.
     }
-  }, [apiFetch, applyFinisherPollData, eventId, refreshMotoState])
+  }, [apiFetch, applyFinisherPollData, eventId, refreshMotoState, selectedMotoId])
 
   useEventRaceRealtime({
     eventId,
@@ -734,6 +734,7 @@ export default function JuryFinishPage() {
             })),
           }),
         })
+        justSubmittedRef.current = true
       }
       setHasSubmitted(true)
       setActions([])
@@ -750,9 +751,6 @@ export default function JuryFinishPage() {
         message: error instanceof Error ? error.message : 'Submit result gagal.',
       })
     } finally {
-      // Flag that a submit just happened so refreshFromRealtime skips
-      // the UI reset until the next moto is confirmed loaded.
-      justSubmittedRef.current = true
       localEditingRef.current = false
       setSaving(false)
     }
