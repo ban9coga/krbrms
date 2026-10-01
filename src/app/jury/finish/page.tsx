@@ -45,6 +45,8 @@ type Action =
   | { type: 'finish'; riderId: string; position: number }
   | { type: 'dnf'; riderId: string }
 
+type ResultSyncState = 'saving' | 'saved' | 'error'
+
 type EventFlags = {
   penalty_enabled: boolean
   absent_enabled: boolean
@@ -116,6 +118,32 @@ const PenaltyBadges = ({ items }: { items?: PenaltyBadgeItem[] }) => {
   )
 }
 
+function ResultSyncBadge({ status, onRetry }: { status?: ResultSyncState; onRetry: () => void }) {
+  if (!status) return null
+  if (status === 'error') {
+    return (
+      <button
+        type="button"
+        onClick={onRetry}
+        className="min-h-9 rounded-md border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11px] font-bold text-rose-700 hover:bg-rose-100"
+      >
+        Gagal simpan · Coba lagi
+      </button>
+    )
+  }
+  return (
+    <span
+      role="status"
+      className={`rounded-md border px-2 py-1 text-[10px] font-bold ${status === 'saving'
+          ? 'border-slate-200 bg-slate-50 text-slate-500'
+          : 'border-teal-200 bg-teal-50 text-teal-800'
+        }`}
+    >
+      {status === 'saving' ? 'Menyimpan...' : 'Tersimpan'}
+    </span>
+  )
+}
+
 export default function JuryFinishPage() {
   const apiFetch = useApiFetch()
   const [events, setEvents] = useState<EventItem[]>([])
@@ -127,6 +155,7 @@ export default function JuryFinishPage() {
   const [role, setRole] = useState<string | null>(null)
   const [motoLocked, setMotoLocked] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [resultSyncByRider, setResultSyncByRider] = useState<Record<string, ResultSyncState>>({})
   const [refreshingSelector, setRefreshingSelector] = useState(false)
   const [hasSubmitted, setHasSubmitted] = useState(false)
   const [pressedId, setPressedId] = useState<string | null>(null)
@@ -159,6 +188,7 @@ export default function JuryFinishPage() {
   const pressTimers = useRef<Record<string, ReturnType<typeof setTimeout> | null>>({})
   const longPressFired = useRef<Record<string, boolean>>({})
   const motosRef = useRef<MotoItem[]>([])
+  const selectedMotoIdRef = useRef(selectedMotoId)
   const pressedIdRef = useRef<string | null>(null)
   const savingRef = useRef(false)
   const actionsCountRef = useRef(0)
@@ -185,6 +215,8 @@ export default function JuryFinishPage() {
   useEffect(() => {
     motosRef.current = motos
   }, [motos])
+
+  selectedMotoIdRef.current = selectedMotoId
 
   useEffect(() => {
     localEditingRef.current = Boolean(pressedId || saving || actions.length > 0)
@@ -356,6 +388,11 @@ export default function JuryFinishPage() {
       setFinishOrder(finishFromServer.filter((riderId) => !blockedRiderIds.has(riderId)))
       setDnfRiders(dnfFromServer.filter((riderId) => !blockedRiderIds.has(riderId)))
       setDnfProgressByRider(dnfProgressMap)
+      setResultSyncByRider(Object.fromEntries(
+        existingResults
+          .filter((row) => row.result_status === 'FINISH' || row.result_status === 'DNF')
+          .map((row) => [row.rider_id, 'saved' as const])
+      ))
     }
     setDqRiders(dqFromServer)
     setParticipationByRider(statusMap)
@@ -374,6 +411,7 @@ export default function JuryFinishPage() {
       setDnfRiders([])
       setDnfProgressByRider({})
       setActions([])
+      setResultSyncByRider({})
       setPenaltiesByRider({})
       setPenaltyBadgesByRider({})
       setParticipationByRider({})
@@ -519,8 +557,11 @@ export default function JuryFinishPage() {
     return completed.size
   }, [dnfRiders, dnsRiders, finishOrder])
   const allRidersHaveResult = riders.length > 0 && completedRiderCount >= riders.length
+  const pendingResultWrites = Object.values(resultSyncByRider).includes('saving')
+  const lastAction = actions[actions.length - 1]
+  const undoPending = Boolean(lastAction && resultSyncByRider[lastAction.riderId] === 'saving')
   const submitDisabled =
-    hasSubmitted || saving || role === 'RACE_DIRECTOR' || motoLocked || !selectedMotoLive || !allRidersHaveResult
+    hasSubmitted || saving || pendingResultWrites || role === 'RACE_DIRECTOR' || motoLocked || !selectedMotoLive || !allRidersHaveResult
 
   const vibrate = () => {
     if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
@@ -534,8 +575,8 @@ export default function JuryFinishPage() {
     status: 'FINISH' | 'DNF',
     dnfProgressPercent: number | null = null
   ) => {
-    if (!selectedMoto) return
-    await supabase.from('results').upsert(
+    if (!selectedMoto) throw new Error('Pilih moto sebelum menyimpan hasil.')
+    const { error } = await supabase.from('results').upsert(
       {
         event_id: eventId,
         moto_id: selectedMoto.id,
@@ -546,6 +587,29 @@ export default function JuryFinishPage() {
       },
       { onConflict: 'moto_id,rider_id' }
     )
+    if (error) throw error
+  }
+
+  const persistResult = async (riderId: string, position: number | null, status: 'FINISH' | 'DNF', progress: number | null = null) => {
+    const targetMotoId = selectedMoto?.id
+    if (!targetMotoId) return
+    setResultSyncByRider((prev) => ({ ...prev, [riderId]: 'saving' }))
+    try {
+      await syncToSupabase(riderId, position, status, progress)
+      if (selectedMotoIdRef.current === targetMotoId) {
+        setResultSyncByRider((prev) => ({ ...prev, [riderId]: 'saved' }))
+      }
+    } catch {
+      if (selectedMotoIdRef.current === targetMotoId) {
+        setResultSyncByRider((prev) => ({ ...prev, [riderId]: 'error' }))
+      }
+    }
+  }
+
+  const retryResultSync = (riderId: string) => {
+    const dnf = dnfRiders.includes(riderId)
+    const position = dnf ? null : finishOrder.indexOf(riderId) + 1
+    void persistResult(riderId, position, dnf ? 'DNF' : 'FINISH', dnf ? dnfProgressByRider[riderId] ?? null : null)
   }
 
   const removeFromSupabase = async (riderId: string) => {
@@ -561,7 +625,7 @@ export default function JuryFinishPage() {
     setFinishOrder((prev) => [...prev, riderId])
     setActions((prev) => [...prev, { type: 'finish', riderId, position }])
     vibrate()
-    syncToSupabase(riderId, position, 'FINISH')
+    void persistResult(riderId, position, 'FINISH')
   }
 
   const saveDNF = (riderId: string, progressPercent: number | null) => {
@@ -572,7 +636,7 @@ export default function JuryFinishPage() {
     if (progressPercent != null) setDnfProgressByRider((prev) => ({ ...prev, [riderId]: progressPercent }))
     setActions((prev) => [...prev, { type: 'dnf', riderId }])
     vibrate()
-    void syncToSupabase(riderId, null, 'DNF', progressPercent)
+    void persistResult(riderId, null, 'DNF', progressPercent)
   }
 
   const handleDNF = (riderId: string) => {
@@ -685,6 +749,11 @@ export default function JuryFinishPage() {
       })
     }
     vibrate()
+    setResultSyncByRider((prev) => {
+      const next = { ...prev }
+      delete next[last.riderId]
+      return next
+    })
     removeFromSupabase(last.riderId)
   }
 
@@ -735,6 +804,10 @@ export default function JuryFinishPage() {
           }),
         })
         justSubmittedRef.current = true
+        setResultSyncByRider((prev) => ({
+          ...prev,
+          ...Object.fromEntries(payload.map((row) => [row.rider_id, 'saved' as const])),
+        }))
       }
       setHasSubmitted(true)
       setActions([])
@@ -814,17 +887,15 @@ export default function JuryFinishPage() {
     <div className="public-page">
       <CheckerTopbar title="Jury Finish Panel" />
       <main className="public-main max-w-[1500px] pb-36">
-        <section className="public-hero">
-          <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-amber-400/15 blur-3xl" />
-          <div className="pointer-events-none absolute -top-24 right-0 h-72 w-72 rounded-full bg-sky-400/15 blur-3xl" />
+        <section className="jf-hero">
           <div className="relative z-10 grid gap-3">
-            <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-amber-300">Jury Finish</p>
-            <div className="rounded-[22px] border border-emerald-300/30 bg-emerald-300/10 px-5 py-4 shadow-[0_0_28px_rgba(52,211,153,0.12)]">
-              <div className="text-xs font-extrabold uppercase tracking-[0.18em] text-emerald-200">Kategori Aktif</div>
-              <div className={`${highVisibility ? 'text-4xl md:text-6xl' : 'text-3xl md:text-5xl'} mt-2 font-black tracking-tight text-white`}>
+            <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Jury Finish</p>
+            <div className="jf-active-category">
+              <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-teal-800">Kategori aktif</div>
+              <div className={`${highVisibility ? 'text-4xl md:text-6xl' : 'text-3xl md:text-5xl'} mt-2 font-black text-slate-950`}>
                 {selectedCategoryLabel ?? 'Pilih Moto'}
               </div>
-              <div className={`${highVisibility ? 'text-base sm:text-lg' : 'text-sm sm:text-base'} mt-2 font-semibold text-slate-200`}>
+              <div className={`${highVisibility ? 'text-base sm:text-lg' : 'text-sm sm:text-base'} mt-2 font-semibold text-slate-600`}>
                 {selectedMoto?.moto_name ?? 'Belum ada moto dipilih'} |{' '}
                 {flags.dnf_enabled
                   ? 'Tap rider untuk finish, tahan 800ms untuk DNF.'
@@ -834,7 +905,7 @@ export default function JuryFinishPage() {
           </div>
         </section>
 
-        <section className="public-panel-light">
+        <section className="jf-panel">
           <div className="grid gap-3 md:grid-cols-2">
             <div className="grid gap-2">
               <label className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">Event LIVE</label>
@@ -946,7 +1017,7 @@ export default function JuryFinishPage() {
         </section>
 
         <div className="layout-grid">
-          <section className="public-panel-light">
+          <section className="jf-panel">
             <div className="mb-3 text-xs font-extrabold uppercase tracking-[0.15em] text-slate-500">Input Grid</div>
             <div className="input-grid">
               {availableRiders.map((r) => {
@@ -999,16 +1070,16 @@ export default function JuryFinishPage() {
               >
                 <span>Hasil rider</span>
                 <strong>{completedRiderCount}/{riders.length}</strong>
-                <em>{allRidersHaveResult ? 'Siap disubmit' : `${Math.max(riders.length - completedRiderCount, 0)} belum masuk hasil`}</em>
+                <em>{pendingResultWrites ? 'Menyimpan input rider...' : allRidersHaveResult ? 'Siap disubmit' : `${Math.max(riders.length - completedRiderCount, 0)} belum masuk hasil`}</em>
               </div>
               <div className="mt-3 flex items-center justify-between gap-3">
                 <button
                   type="button"
                   onClick={handleUndo}
-                  disabled={actions.length === 0 || hasSubmitted || motoLocked}
+                  disabled={actions.length === 0 || hasSubmitted || motoLocked || undoPending}
                   className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-extrabold uppercase tracking-[0.1em] text-slate-800 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  Undo Terakhir
+                  {undoPending ? 'Menunggu simpan...' : 'Undo Terakhir'}
                 </button>
                 <button
                   type="button"
@@ -1016,7 +1087,7 @@ export default function JuryFinishPage() {
                   disabled={submitDisabled}
                   className="w-full rounded-xl border border-emerald-300 bg-emerald-500 px-4 py-3 text-sm font-extrabold uppercase tracking-[0.1em] text-white transition-colors hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {saving ? 'Submitting...' : 'Submit Result'}
+                  {saving ? 'Submitting...' : pendingResultWrites ? 'Menyimpan input...' : 'Submit Result'}
                 </button>
               </div>
             </div>
@@ -1066,7 +1137,7 @@ export default function JuryFinishPage() {
             </details>
           </section>
 
-          <aside className="public-panel-light">
+          <aside className="jf-panel">
             <div className="mb-3 text-xs font-extrabold uppercase tracking-[0.15em] text-slate-500">Live Result</div>
             <div className="grid gap-3">
               <div className="rounded-xl border border-slate-200 bg-white p-3">
@@ -1077,10 +1148,13 @@ export default function JuryFinishPage() {
                     const penalty = penaltiesByRider[f.id] ?? 0
                     const penaltyBadges = penaltyBadgesByRider[f.id] ?? []
                     return (
-                      <div key={f.id} className={`${highVisibility ? 'text-base' : 'text-sm'} font-semibold text-slate-700`}>
-                        {f.position}. {rider?.no_plate_display} - {rider?.name}
-                        {penalty ? ` (+${penalty})` : ''}
-                        <PenaltyBadges items={penaltyBadges} />
+                      <div key={f.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 py-1.5 last:border-0">
+                        <div className={`${highVisibility ? 'text-base' : 'text-sm'} font-semibold text-slate-700`}>
+                          {f.position}. {rider?.no_plate_display} - {rider?.name}
+                          {penalty ? ` (+${penalty})` : ''}
+                          <PenaltyBadges items={penaltyBadges} />
+                        </div>
+                        <ResultSyncBadge status={resultSyncByRider[f.id]} onRetry={() => retryResultSync(f.id)} />
                       </div>
                     )
                   })}
@@ -1096,11 +1170,14 @@ export default function JuryFinishPage() {
                     const penalty = penaltiesByRider[id] ?? 0
                     const penaltyBadges = penaltyBadgesByRider[id] ?? []
                     return (
-                      <div key={id} className={`${highVisibility ? 'text-base' : 'text-sm'} font-semibold text-amber-700`}>
-                        {rider?.no_plate_display} - {rider?.name}
-                        {flags.dnf_progress_enabled && dnfProgressByRider[id] != null ? ` (${dnfProgressByRider[id]}%)` : ''}
-                        {penalty ? ` (+${penalty})` : ''}
-                        <PenaltyBadges items={penaltyBadges} />
+                      <div key={id} className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 py-1.5 last:border-0">
+                        <div className={`${highVisibility ? 'text-base' : 'text-sm'} font-semibold text-amber-700`}>
+                          {rider?.no_plate_display} - {rider?.name}
+                          {flags.dnf_progress_enabled && dnfProgressByRider[id] != null ? ` (${dnfProgressByRider[id]}%)` : ''}
+                          {penalty ? ` (+${penalty})` : ''}
+                          <PenaltyBadges items={penaltyBadges} />
+                        </div>
+                        <ResultSyncBadge status={resultSyncByRider[id]} onRetry={() => retryResultSync(id)} />
                       </div>
                     )
                   })}
@@ -1567,8 +1644,86 @@ export default function JuryFinishPage() {
         }
         @media (prefers-reduced-motion: reduce) {
           .finisher-rider-front,
-          .finisher-rider-shadow {
+          .finisher-rider-shadow,
+          .finisher-refresh-icon {
             transition: none;
+            animation-duration: 0.01ms;
+          }
+        }
+        .jf-hero,
+        .jf-panel {
+          min-width: 0;
+          border: 1px solid var(--panel-border);
+          border-radius: 16px;
+          background: var(--panel-bg);
+          box-shadow: none;
+        }
+        .jf-hero {
+          padding: 20px 24px;
+        }
+        .jf-active-category {
+          border: 1px solid #dbe4e8;
+          border-left: 4px solid #0f766e;
+          border-radius: 10px;
+          background: #f8fafc;
+          padding: 14px 18px;
+        }
+        .jf-panel {
+          padding: 16px;
+        }
+        .finisher-refresh-shadow,
+        .finisher-rider-shadow {
+          display: none;
+        }
+        .finisher-refresh-edge,
+        .finisher-rider-edge {
+          border: 1px solid #115e59;
+          border-radius: 10px;
+          background: #115e59;
+        }
+        .finisher-refresh-front {
+          border: 1px solid #0f766e;
+          border-radius: 10px;
+          background: #0f766e;
+          box-shadow: none;
+          text-shadow: none;
+          transform: none;
+          transition: background-color 120ms ease;
+        }
+        .finisher-refresh-btn:hover:not(:disabled) .finisher-refresh-front,
+        .finisher-rider-btn:hover:not(:disabled) .finisher-rider-front {
+          background: #0d9488;
+          transform: none;
+        }
+        .finisher-refresh-btn.is-pressed .finisher-refresh-front,
+        .finisher-refresh-btn:active:not(:disabled) .finisher-refresh-front,
+        .finisher-rider-btn.is-pressed .finisher-rider-front,
+        .finisher-rider-btn:active:not(:disabled) .finisher-rider-front {
+          background: #115e59;
+          transform: none;
+        }
+        .finisher-rider-front {
+          border: 1px solid #0f766e;
+          border-radius: 12px;
+          background: #0f766e;
+          box-shadow: none;
+          text-shadow: none;
+          transform: none;
+          transition: background-color 120ms ease;
+        }
+        .finisher-rider-cue {
+          border-color: rgba(255, 255, 255, 0.6);
+          background: rgba(15, 23, 42, 0.14);
+        }
+        .finisher-rider-btn:focus-visible,
+        .finisher-refresh-btn:focus-visible {
+          outline-color: #0f766e;
+        }
+        @media (max-width: 640px) {
+          .jf-hero,
+          .jf-panel {
+            border-radius: 12px;
+            padding: 14px;
           }
         }
       `}</style>
