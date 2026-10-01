@@ -749,7 +749,7 @@ export default function JCPage() {
   const hasSafetyRequirements = safetyRequirements.length > 0
   const isCompactLayout = viewportWidth <= 960
   const isMobileLayout = viewportWidth <= 640
-  const safetyGridColumns = isMobileLayout ? 'repeat(3, minmax(0, 1fr))' : 'repeat(4, minmax(0, 1fr))'
+  const safetyGridColumns = isMobileLayout ? 'repeat(3, minmax(0, 1fr))' : 'repeat(5, minmax(0, 1fr))'
   const prepActionColumns = isMobileLayout ? '1fr' : 'repeat(2, minmax(0, 1fr))'
   const prepSummaryColumns = isMobileLayout ? 'repeat(2, minmax(0, 1fr))' : 'repeat(3, minmax(0, 1fr))'
 
@@ -1158,7 +1158,7 @@ export default function JCPage() {
   const incidentDnsDisabled = incidentInteractionDisabled || !flags.dns_enabled
 
   return (
-    <div className="jc-page" style={{ minHeight: '100vh', background: '#fff6da', color: '#111' }}>
+    <div className="jc-page" style={{ minHeight: '100vh', background: '#f3f5f7', color: '#17202b' }}>
       <CheckerTopbar title="Checker Panel" />
       <div
         className="jc-container"
@@ -1171,8 +1171,8 @@ export default function JCPage() {
         }}
       >
           <div style={{ display: 'grid', gap: 8 }}>
-          <div className="jc-header-row" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ fontSize: highVisibility ? (isCompactLayout ? 30 : 34) : isCompactLayout ? 24 : 28, fontWeight: 900 }}>
+          <div className="jc-header-row">
+            <div className="jc-header-title" style={{ fontSize: highVisibility ? (isCompactLayout ? 30 : 34) : isCompactLayout ? 24 : 28, fontWeight: 900 }}>
               Checker Gate Start
             </div>
             <select
@@ -1190,8 +1190,8 @@ export default function JCPage() {
               className="jc-moto-select"
               style={{
                 padding: '12px 16px',
-                borderRadius: 16,
-                border: '2px solid #111',
+                borderRadius: 8,
+                border: '1px solid #cbd5e1',
                 background: '#fff',
                 fontWeight: 900,
                 width: isCompactLayout ? '100%' : undefined,
@@ -1206,63 +1206,63 @@ export default function JCPage() {
                 </option>
                 ))}
             </select>
-            <button
-              type="button"
-              onClick={async () => {
-                const refreshedMotos = (await loadMotos(false)) ?? []
-                const liveMoto = refreshedMotos.find((m) => isMotoLive(m.status))
-                const nextMotoId = pickPrepMotoId(refreshedMotos, selectedMotoId, liveMoto?.id ?? null, allReadyDone)
-                if (nextMotoId && nextMotoId !== selectedMotoId) return
-                await loadMoto(false, true)
-                await loadIncidentMoto(true)
-              }}
-              disabled={loading || saving}
-              style={{
-                padding: '10px 14px',
-                borderRadius: 16,
-                border: '2px solid #111',
-                background: '#dcfce7',
-                fontWeight: 900,
-                cursor: loading || saving ? 'not-allowed' : 'pointer',
-                opacity: loading || saving ? 0.6 : 1,
-                whiteSpace: 'nowrap',
-                width: isMobileLayout ? '100%' : undefined,
-              }}
-            >
-              Refresh Checker
-            </button>
-            <button
-              type="button"
-              onClick={toggleHighVisibility}
-              style={{
-                padding: '10px 14px',
-                borderRadius: 16,
-                border: '2px solid #111',
-                background: highVisibility ? '#fef3c7' : '#fff',
-                color: '#111',
-                fontWeight: 900,
-                whiteSpace: 'nowrap',
-                width: isMobileLayout ? '100%' : undefined,
-              }}
-            >
-              {highVisibility ? 'Mode Besar Aktif' : 'Mode Besar'}
-            </button>
+            <div className="jc-header-actions">
+              <button
+                type="button"
+                onClick={async () => {
+                  const refreshedMotos = (await loadMotos(false)) ?? []
+                  const liveMoto = refreshedMotos.find((m) => isMotoLive(m.status))
+                  const nextMotoId = pickPrepMotoId(refreshedMotos, selectedMotoId, liveMoto?.id ?? null, allReadyDone)
+                  if (nextMotoId && nextMotoId !== selectedMotoId) return
+                  await loadMoto(false, true)
+                  await loadIncidentMoto(true)
+                }}
+                disabled={loading || saving}
+                style={{
+                  padding: '10px 14px',
+                  borderRadius: 8,
+                  border: '1px solid #bbf7d0',
+                  background: '#f0fdf4',
+                  fontWeight: 900,
+                  cursor: loading || saving ? 'not-allowed' : 'pointer',
+                  opacity: loading || saving ? 0.6 : 1,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Refresh Checker
+              </button>
+              <button
+                type="button"
+                onClick={toggleHighVisibility}
+                style={{
+                  padding: '10px 14px',
+                  borderRadius: 8,
+                  border: '1px solid #cbd5e1',
+                  background: highVisibility ? '#fffbeb' : '#fff',
+                  color: '#17202b',
+                  fontWeight: 900,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {highVisibility ? 'Mode Besar Aktif' : 'Mode Besar'}
+              </button>
+            </div>
           </div>
 
           {false && (
             <div
               style={{
                 padding: '12px 16px',
-                borderRadius: 14,
-                border: '2px solid #f59e0b',
-                background: '#fffbe8',
+                borderRadius: 8,
+                border: '1px solid #fcd34d',
+                background: '#fffbeb',
                 color: '#92400e',
                 fontWeight: 800,
                 fontSize: 14,
                 display: 'flex',
                 alignItems: 'center',
                 gap: 12,
-                boxShadow: '0 2px 8px rgba(245, 158, 11, 0.15)',
+                boxShadow: 'none',
               }}
             >
               <span style={{ fontSize: 22 }}>⏳</span>
@@ -1297,10 +1297,10 @@ export default function JCPage() {
           <div
             style={{
               padding: '10px 14px',
-              borderRadius: 12,
-              border: '2px solid #b91c1c',
-              background: '#fee2e2',
-              color: '#7f1d1d',
+              borderRadius: 8,
+              border: '1px solid #fecaca',
+              background: '#fef2f2',
+              color: '#991b1b',
               fontWeight: 800,
             }}
           >
@@ -1311,10 +1311,10 @@ export default function JCPage() {
           <div
             style={{
               padding: '10px 14px',
-              borderRadius: 12,
-              border: '2px solid #b91c1c',
-              background: '#fee2e2',
-              color: '#7f1d1d',
+              borderRadius: 8,
+              border: '1px solid #fecaca',
+              background: '#fef2f2',
+              color: '#991b1b',
               fontWeight: 800,
             }}
           >
@@ -1325,9 +1325,9 @@ export default function JCPage() {
           <div
             style={{
               padding: '10px 14px',
-              borderRadius: 12,
-              border: '2px solid #f59e0b',
-              background: '#fef3c7',
+              borderRadius: 8,
+              border: '1px solid #fcd34d',
+              background: '#fffbeb',
               color: '#92400e',
               fontWeight: 800,
             }}
@@ -1337,19 +1337,20 @@ export default function JCPage() {
         )}
 
         <div
+          className={`jc-incident-panel ${incidentMoto ? 'is-live' : 'is-waiting'}`}
           style={{
             display: 'grid',
             gap: incidentMoto ? (isCompactLayout ? 10 : 12) : 8,
-            padding: incidentMoto ? (isCompactLayout ? 14 : 18) : isCompactLayout ? 12 : 14,
-            borderRadius: 20,
-            border: '3px solid #7f1d1d',
-            background: 'linear-gradient(180deg, #fff1f2 0%, #ffe4e6 100%)',
-            boxShadow: isCompactLayout ? '0 6px 0 #7f1d1d' : '0 10px 0 #7f1d1d',
+            padding: incidentMoto ? (isCompactLayout ? 14 : 18) : '8px 12px',
+            borderRadius: 8,
+            border: incidentMoto ? '1px solid #fca5a5' : '1px solid #e2e8f0',
+            background: incidentMoto ? '#fff7f7' : '#fff',
+            boxShadow: 'none',
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
             <div>
-              <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: '0.08em', color: '#9f1239' }}>CURRENT MOTO INCIDENT</div>
+              <div style={{ fontSize: 12, fontWeight: 800, color: '#991b1b' }}>CURRENT MOTO INCIDENT</div>
               <div style={{ fontSize: highVisibility ? (isCompactLayout ? 22 : 24) : isCompactLayout ? 18 : 20, fontWeight: 900 }}>
                 {incidentMoto ? `${incidentCategoryLabel} - ${incidentMoto.moto_name}` : 'Belum ada moto LIVE'}
               </div>
@@ -1357,26 +1358,28 @@ export default function JCPage() {
             <div
               style={{
                 padding: '6px 12px',
-                borderRadius: 999,
-                border: '2px solid #7f1d1d',
-                background: incidentMoto ? '#be123c' : '#ffe4e6',
-                color: incidentMoto ? '#fff' : '#881337',
+                borderRadius: 6,
+                border: '1px solid #fca5a5',
+                background: incidentMoto ? '#b91c1c' : '#fef2f2',
+                color: incidentMoto ? '#fff' : '#991b1b',
                 fontWeight: 900,
               }}
             >
               {incidentMoto ? 'URGENT LIVE' : 'WAITING LIVE'}
             </div>
           </div>
-          <div style={{ fontSize: 12, color: '#881337', fontWeight: 700 }}>
-            Last updated LIVE: {incidentLastUpdated ?? '-'}
-          </div>
+          {incidentMoto && (
+            <div style={{ fontSize: 12, color: '#7f1d1d', fontWeight: 700 }}>
+              Last updated LIVE: {incidentLastUpdated ?? '-'}
+            </div>
+          )}
           {incidentMoto ? (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               <span
                 style={{
-                  padding: '6px 12px',
-                  borderRadius: 999,
-                  border: '2px solid #7f1d1d',
+                  padding: '6px 10px',
+                  borderRadius: 6,
+                  border: '1px solid #fecaca',
                   background: '#fff',
                   color: '#881337',
                   fontWeight: 900,
@@ -1386,11 +1389,11 @@ export default function JCPage() {
               </span>
               <span
                 style={{
-                  padding: '6px 12px',
-                  borderRadius: 999,
-                  border: '2px solid #7f1d1d',
-                  background: '#ffe4e6',
-                  color: '#881337',
+                  padding: '6px 10px',
+                  borderRadius: 6,
+                  border: '1px solid #fecaca',
+                  background: '#fef2f2',
+                  color: '#991b1b',
                   fontWeight: 900,
                 }}
               >
@@ -1398,10 +1401,10 @@ export default function JCPage() {
               </span>
               <span
                 style={{
-                  padding: '6px 12px',
-                  borderRadius: 999,
-                  border: '2px solid #c2410c',
-                  background: '#ffedd5',
+                  padding: '6px 10px',
+                  borderRadius: 6,
+                  border: '1px solid #fed7aa',
+                  background: '#fff7ed',
                   color: '#9a3412',
                   fontWeight: 900,
                 }}
@@ -1410,9 +1413,9 @@ export default function JCPage() {
               </span>
               <span
                 style={{
-                  padding: '6px 12px',
-                  borderRadius: 999,
-                  border: '2px solid #64748b',
+                  padding: '6px 10px',
+                  borderRadius: 6,
+                  border: '1px solid #cbd5e1',
                   background: '#f1f5f9',
                   color: '#334155',
                   fontWeight: 900,
@@ -1422,10 +1425,10 @@ export default function JCPage() {
               </span>
               <span
                 style={{
-                  padding: '6px 12px',
-                  borderRadius: 999,
-                  border: '2px solid #1d4ed8',
-                  background: '#dbeafe',
+                  padding: '6px 10px',
+                  borderRadius: 6,
+                  border: '1px solid #bfdbfe',
+                  background: '#eff6ff',
                   color: '#1e3a8a',
                   fontWeight: 900,
                 }}
@@ -1475,20 +1478,7 @@ export default function JCPage() {
                 )
               })}
             </div>
-          ) : (
-            <div
-              style={{
-                padding: isCompactLayout ? '10px 12px' : '12px 14px',
-                borderRadius: 12,
-                border: '2px dashed #be123c',
-                color: '#881337',
-                fontWeight: 800,
-                background: '#fff',
-              }}
-            >
-              Belum ada moto LIVE yang perlu incident handling.
-            </div>
-          )}
+          ) : null}
         </div>
 
         <div
@@ -1496,19 +1486,19 @@ export default function JCPage() {
             display: 'grid',
             gap: isCompactLayout ? 10 : 12,
             padding: isCompactLayout ? 14 : 16,
-            borderRadius: 18,
-            border: '2px solid #166534',
-            background: 'linear-gradient(180deg, #f0fdf4 0%, #ffffff 100%)',
-            boxShadow: isCompactLayout ? '0 4px 0 #166534' : '0 5px 0 #166534',
+            borderRadius: 8,
+            border: '1px solid #d7dee7',
+            background: '#fff',
+            boxShadow: 'none',
           }}
         >
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           <div
             style={{
               padding: '3px 8px',
-              borderRadius: 999,
-              border: '2px solid #166534',
-              background: '#dcfce7',
+              borderRadius: 6,
+              border: '1px solid #bbf7d0',
+              background: '#f0fdf4',
               color: '#166534',
               fontWeight: 900,
               fontSize: 10,
@@ -1525,7 +1515,7 @@ export default function JCPage() {
           <div
             role="status"
             aria-live="polite"
-            style={{ display: 'grid', gap: 12, padding: isCompactLayout ? 14 : 18, borderRadius: 14, border: '2px solid #d97706', background: '#fff7ed' }}
+            style={{ display: 'grid', gap: 12, padding: isCompactLayout ? 14 : 18, borderRadius: 8, border: '1px solid #fed7aa', background: '#fff7ed' }}
           >
             <LoadingState label={activeCategoryWaitingStage.title} />
             <div style={{ textAlign: 'center', color: '#92400e', fontWeight: 900 }}>
@@ -1541,9 +1531,9 @@ export default function JCPage() {
               display: 'grid',
               gap: 6,
               padding: isCompactLayout ? '10px 12px' : '12px 14px',
-              borderRadius: 14,
-              border: '2px solid #bbf7d0',
-              background: '#ffffff',
+              borderRadius: 8,
+              border: '1px solid #e2e8f0',
+              background: '#f8fafc',
             }}
           >
             <div style={{ fontSize: highVisibility ? (isCompactLayout ? 26 : 32) : isCompactLayout ? 24 : 30, fontWeight: 950, color: '#111827', textTransform: 'uppercase' }}>
@@ -1552,9 +1542,9 @@ export default function JCPage() {
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
               <span
                 style={{
-                  padding: '6px 14px',
-                  borderRadius: 999,
-                  border: '2px solid #166534',
+                  padding: '6px 10px',
+                  borderRadius: 6,
+                  border: '1px solid #bbf7d0',
                   background: '#f0fdf4',
                   color: '#166534',
                   fontSize: 16,
@@ -1581,27 +1571,27 @@ export default function JCPage() {
             placeholder="Cari nama / plate / gate..."
             style={{
               padding: '12px 14px',
-              borderRadius: 16,
-              border: '2px solid #111',
+              borderRadius: 8,
+              border: '1px solid #cbd5e1',
               background: '#fff',
               fontWeight: 800,
             }}
           />
           <div style={{ display: 'grid', gridTemplateColumns: prepActionColumns, gap: 8 }}>
             <button
-              className="jc-action-btn jc-primary"
+              className={`jc-action-btn ${allPrepReviewed ? 'jc-primary' : 'jc-secondary'}`}
               type="button"
               onClick={handleAllReady}
               disabled={motoReadyDisabled}
               style={{
                 padding: isCompactLayout ? '12px 16px' : '14px 18px',
-                borderRadius: 999,
-                border: allReadyDone ? '2px solid #15803d' : '2px solid #1d4ed8',
-                background: allReadyDone ? '#dcfce7' : 'linear-gradient(180deg, #60a5fa 0%, #2563eb 100%)',
-                color: allReadyDone ? '#14532d' : '#fff',
+                borderRadius: 8,
+                border: allReadyDone ? '1px solid #86efac' : allPrepReviewed ? '1px solid #166534' : '1px solid #cbd5e1',
+                background: allReadyDone ? '#f0fdf4' : allPrepReviewed ? '#166534' : '#e2e8f0',
+                color: allReadyDone ? '#166534' : allPrepReviewed ? '#fff' : '#475569',
                 fontWeight: 900,
-                fontSize: highVisibility ? (isCompactLayout ? 20 : 24) : isCompactLayout ? 18 : 20,
-                boxShadow: allReadyDone ? '0 4px 0 #15803d' : '0 5px 0 #1e40af',
+                fontSize: highVisibility ? (isCompactLayout ? 18 : 22) : isCompactLayout ? 16 : 18,
+                boxShadow: 'none',
               }}
             >
               {allReadyDone ? 'Prep Selesai' : 'Moto Ready'}
@@ -1613,13 +1603,13 @@ export default function JCPage() {
               disabled={bulkReadyDisabled}
               style={{
                 padding: isCompactLayout ? '12px 16px' : '12px 18px',
-                borderRadius: 999,
-                border: '2px solid #365314',
-                background: 'linear-gradient(180deg, #bef264 0%, #84cc16 100%)',
-                color: '#1a2e05',
+                borderRadius: 8,
+                border: '1px solid #15803d',
+                background: '#15803d',
+                color: '#fff',
                 fontWeight: 900,
                 fontSize: highVisibility ? (isCompactLayout ? 18 : 22) : isCompactLayout ? 16 : 18,
-                boxShadow: '0 4px 0 #4d7c0f',
+                boxShadow: 'none',
               }}
             >
               {bulkReadyTargetCount === 0 ? 'Semua Rider Dicek' : 'All Riders Ready'}
@@ -1629,19 +1619,19 @@ export default function JCPage() {
             <div
               style={{
                 padding: '10px 14px',
-                borderRadius: 12,
-                border: '2px solid #f59e0b',
-                background: '#fff7ed',
+                borderRadius: 8,
+                border: '1px solid #fcd34d',
+                background: '#fffbeb',
                 color: '#9a3412',
                 fontWeight: 800,
               }}
             >
-              Masih ada {summary.unchecked} rider berstatus <strong>Belum Dicek</strong>. Tandai READY atau ABSENT satu-satu dulu sebelum konfirmasi Moto Ready.
+              Masih ada {summary.unchecked} rider belum ditandai. Periksa tiap rider; gunakan All Riders Ready jika semua hadir dan safety gear lengkap.
             </div>
           )}
           {allReadyDone && (
             <div style={{ display: 'grid', gap: 8 }}>
-              <div style={{ padding: '12px 14px', borderRadius: 12, background: '#dcfce7', fontWeight: 900, textAlign: 'center' }}>
+              <div style={{ padding: '12px 14px', borderRadius: 8, border: '1px solid #bbf7d0', background: '#f0fdf4', fontWeight: 800, textAlign: 'center' }}>
                 Prep moto ini sudah selesai. Gunakan Edit Prep kalau checker perlu koreksi sebelum race berjalan.
               </div>
               <button
@@ -1651,100 +1641,105 @@ export default function JCPage() {
                 disabled={saving || bannerDisabled || locked}
                 style={{
                   padding: '10px 14px',
-                  borderRadius: 999,
-                  border: '2px solid #991b1b',
-                  background: 'linear-gradient(180deg, #ef4444 0%, #dc2626 100%)',
+                  borderRadius: 8,
+                  border: '1px solid #b91c1c',
+                  background: '#b91c1c',
                   color: '#fff',
                   fontWeight: 900,
-                  boxShadow: '0 4px 0 #991b1b',
+                  boxShadow: 'none',
                 }}
               >
                 Edit Prep
               </button>
             </div>
           )}
-          <button
-            className="jc-action-btn"
-            type="button"
-            onClick={async () => {
-              if (!selectedMotoId) return
-              localMutationRef.current = true
-              setSafetyChecks((prev) => {
-                const next = { ...prev }
-                for (const rider of riderList.filter((item) => !item.is_disqualified)) {
-                  const current = next[rider.id] ?? {}
-                  const updated: Record<string, boolean> = { ...current }
-                  for (const item of safetyRequirements) updated[item.id] = true
-                  next[rider.id] = updated
+          <div className="jc-safety-toolbar">
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              <span
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: 6,
+                  border: '1px solid #bbf7d0',
+                  background: '#f0fdf4',
+                  fontWeight: 900,
+                  fontSize: 12,
+                }}
+              >
+                READY: {summary.active}
+              </span>
+              <span
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: 6,
+                  border: '1px solid #cbd5e1',
+                  background: '#f1f5f9',
+                  fontWeight: 900,
+                  fontSize: 12,
+                }}
+              >
+                BELUM DICEK: {summary.unchecked}
+              </span>
+              <span
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: 6,
+                  border: '1px solid #fecaca',
+                  background: '#fef2f2',
+                  fontWeight: 900,
+                  fontSize: 12,
+                }}
+              >
+                ABSENT: {summary.absent}
+              </span>
+            </div>
+            <button
+              className="jc-action-btn jc-safety-bulk-action"
+              type="button"
+              onClick={async () => {
+                if (!selectedMotoId) return
+                localMutationRef.current = true
+                setSafetyChecks((prev) => {
+                  const next = { ...prev }
+                  for (const rider of riderList.filter((item) => !item.is_disqualified)) {
+                    const current = next[rider.id] ?? {}
+                    const updated: Record<string, boolean> = { ...current }
+                    for (const item of safetyRequirements) updated[item.id] = true
+                    next[rider.id] = updated
+                  }
+                  return next
+                })
+                const checks: SafetyCheckPayload[] = riderList.filter((rider) => !rider.is_disqualified).flatMap((rider) =>
+                  safetyRequirements.map((item) => ({
+                    rider_id: rider.id,
+                    requirement_id: item.id,
+                    is_checked: true,
+                  }))
+                )
+                try {
+                  if (checks.length > 0) {
+                    await apiFetch(`/api/jury/motos/${selectedMotoId}/safety-checks`, {
+                      method: 'POST',
+                      body: JSON.stringify({ checks }),
+                    })
+                  }
+                } finally {
+                  localMutationRef.current = false
                 }
-                return next
-              })
-              const checks: SafetyCheckPayload[] = riderList.filter((rider) => !rider.is_disqualified).flatMap((rider) =>
-                safetyRequirements.map((item) => ({
-                  rider_id: rider.id,
-                  requirement_id: item.id,
-                  is_checked: true,
-                }))
-              )
-              try {
-                if (checks.length > 0) {
-                  await apiFetch(`/api/jury/motos/${selectedMotoId}/safety-checks`, {
-                    method: 'POST',
-                    body: JSON.stringify({ checks }),
-                  })
-                }
-              } finally {
-                localMutationRef.current = false
-              }
-            }}
-            disabled={safetyInteractionDisabled || !hasSafetyRequirements}
-            style={{
-              padding: '10px 14px',
-              borderRadius: 999,
-              border: '2px solid #111',
-              background: '#fff',
-              fontWeight: 900,
-            }}
-          >
-            MARK ALL SAFETY OK
-          </button>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            <span
+              }}
+              disabled={safetyInteractionDisabled || !hasSafetyRequirements}
               style={{
-                padding: '4px 10px',
-                borderRadius: 999,
-                border: '2px solid #111',
-                background: '#dcfce7',
-                fontWeight: 900,
+                padding: '8px 12px',
+                borderRadius: 8,
+                border: '1px solid #64748b',
+                background: '#fff',
                 fontSize: 12,
+                fontWeight: 900,
+                whiteSpace: 'nowrap',
+                boxShadow: 'none',
               }}
             >
-              READY: {summary.active}
-            </span>
-            <span
-              style={{
-                padding: '4px 10px',
-                borderRadius: 999,
-                border: '2px solid #111',
-                background: '#e5e7eb',
-                fontWeight: 900,
-                fontSize: 12,
-              }}
-            >
-              BELUM DICEK: {summary.unchecked}
-            </span>
-            <span
-              style={{
-                padding: '4px 10px',
-                borderRadius: 999,
-                border: '2px solid #111',
-                background: '#fee2e2',
-                fontWeight: 900,
-                fontSize: 12,
-              }}
-            >
-              ABSENT: {summary.absent}
-            </span>
+              MARK ALL SAFETY OK
+            </button>
           </div>
         </div>
 
@@ -1754,9 +1749,6 @@ export default function JCPage() {
           style={{
             display: 'grid',
             gap: 12,
-            maxHeight: isCompactLayout ? '62vh' : '70vh',
-            overflowY: 'auto',
-            paddingRight: isMobileLayout ? 0 : 6,
           }}
         >
           {filteredRiders.map((r) => {
@@ -1785,12 +1777,12 @@ export default function JCPage() {
                 key={r.id}
                 style={{
                   padding: isCompactLayout ? 12 : 14,
-                  borderRadius: 14,
-                  border: '2px solid #111',
-                  background: 'linear-gradient(180deg, #ffffff 0%, #f7f7f7 100%)',
+                  borderRadius: 8,
+                  border: '1px solid #d7dee7',
+                  background: '#fff',
                   display: 'grid',
                   gap: isCompactLayout ? 8 : 10,
-                  boxShadow: isCompactLayout ? '0 4px 0 #111' : '0 6px 0 #111',
+                  boxShadow: 'none',
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: isMobileLayout ? 'flex-start' : 'center', gap: 10, flexWrap: isMobileLayout ? 'wrap' : 'nowrap' }}>
@@ -1800,7 +1792,6 @@ export default function JCPage() {
                         fontSize: highVisibility ? (isCompactLayout ? 34 : 42) : isCompactLayout ? 28 : 34,
                         lineHeight: 1,
                         fontWeight: 950,
-                        letterSpacing: '0.04em',
                         fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace',
                       }}
                     >
@@ -1815,8 +1806,8 @@ export default function JCPage() {
                       style={{
                         marginTop: 4,
                         padding: '4px 10px',
-                        borderRadius: 999,
-                        border: '2px solid #111',
+                        borderRadius: 6,
+                        border: '1px solid #cbd5e1',
                         background: statusBadge,
                         fontWeight: 900,
                         fontSize: highVisibility ? 12 : 11,
@@ -1835,15 +1826,20 @@ export default function JCPage() {
                   </div>
                 </div>
 
+                <div className="jc-safety-legend" aria-label="Status safety gear">
+                  Safety gear: <span>hijau = lengkap</span>, abu-abu = belum lengkap.
+                </div>
                 <div className="jc-safety-grid" style={{ display: 'grid', gridTemplateColumns: safetyGridColumns, gap: 8 }}>
                   {safetyRequirements.map((item) => {
                     const checked = safetyChecks[r.id]?.[item.id] === true
                     const visual = getSafetyVisual(item.label, item.icon_key)
                     return (
                       <button
-                        className="jc-action-btn"
+                        className="jc-action-btn jc-safety-toggle"
                         key={item.id}
                         type="button"
+                        aria-pressed={checked}
+                        aria-label={`${visual.shortLabel}: ${checked ? 'safety gear lengkap' : 'safety gear belum lengkap'}`}
                         onClick={async () => {
                           const nextChecked = !checked
                           localMutationRef.current = true
@@ -1873,16 +1869,17 @@ export default function JCPage() {
                         disabled={safetyInteractionDisabled || isRiderDq}
                         style={{
                           padding: highVisibility ? '12px 10px' : '10px 8px',
-                          borderRadius: 12,
-                          border: '2px solid #111',
-                          background: checked ? '#2ecc71' : '#e5e7eb',
-                          color: checked ? '#fff' : '#111',
+                          borderRadius: 8,
+                          border: checked ? '1px solid #15803d' : '1px solid #cbd5e1',
+                          background: checked ? '#15803d' : '#f1f5f9',
+                          color: checked ? '#fff' : '#334155',
                           fontWeight: 900,
                           display: 'grid',
                           gap: 4,
                           justifyItems: 'center',
                           alignContent: 'center',
                           minHeight: highVisibility ? (isCompactLayout ? 72 : 88) : isCompactLayout ? 58 : 74,
+                          boxShadow: 'none',
                         }}
                         title={item.label}
                       >
@@ -1903,7 +1900,7 @@ export default function JCPage() {
                             wordBreak: 'break-word',
                           }}
                         >
-                          {visual.shortLabel}
+                          {checked ? 'OK ' : ''}{visual.shortLabel}
                         </span>
                       </button>
                     )
@@ -1952,25 +1949,23 @@ export default function JCPage() {
         .jc-page :global(.jc-action-btn) {
           transition:
             transform 120ms ease,
-            box-shadow 180ms ease,
-            filter 180ms ease,
+            box-shadow 120ms ease,
+            background-color 120ms ease,
             opacity 180ms ease;
-          will-change: transform;
         }
 
         .jc-page :global(.jc-action-btn:hover:not(:disabled)) {
           transform: translateY(-1px);
-          box-shadow: 0 6px 14px rgba(15, 23, 42, 0.22);
-          filter: brightness(1.03);
+          box-shadow: 0 2px 5px rgba(15, 23, 42, 0.12);
         }
 
         .jc-page :global(.jc-action-btn:active:not(:disabled)) {
-          transform: translateY(1px) scale(0.98);
-          box-shadow: 0 2px 6px rgba(15, 23, 42, 0.16);
+          transform: scale(0.99);
+          box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
         }
 
         .jc-page :global(.jc-action-btn:focus-visible) {
-          outline: 3px solid #38bdf8;
+          outline: 2px solid #c2410c;
           outline-offset: 2px;
         }
 
@@ -1982,6 +1977,49 @@ export default function JCPage() {
         .jc-incident-grid {
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+        }
+
+        .jc-header-row {
+          display: grid;
+          grid-template-areas: 'title moto actions';
+          grid-template-columns: minmax(max-content, auto) minmax(220px, 1fr) auto;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .jc-header-title {
+          grid-area: title;
+          white-space: nowrap;
+        }
+
+        .jc-moto-select {
+          grid-area: moto;
+          min-width: 0;
+        }
+
+        .jc-header-actions {
+          grid-area: actions;
+          display: flex;
+          gap: 8px;
+        }
+
+        .jc-safety-legend {
+          color: #334155;
+          font-size: 12px;
+          font-weight: 700;
+        }
+
+        .jc-safety-legend span {
+          color: #15803d;
+          font-weight: 900;
+        }
+
+        .jc-safety-toolbar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+          flex-wrap: wrap;
         }
 
         .jc-incident-rider-btn,
@@ -2009,47 +2047,41 @@ export default function JCPage() {
         .jc-incident-rider-edge,
         .jc-rider-action-shadow,
         .jc-rider-action-edge {
-          position: absolute;
-          inset: 0;
-          border-radius: 14px;
-          pointer-events: none;
+          display: none;
         }
 
-        .jc-incident-rider-shadow,
-        .jc-rider-action-shadow {
-          background: rgba(15, 23, 42, 0.24);
-          filter: blur(4px);
-          transform: translateY(5px);
-          transition: transform 120ms ease, filter 120ms ease;
+        .jc-incident-rider-front,
+        .jc-rider-action-front {
+          position: absolute;
+          inset: 0;
+          display: grid;
+          place-items: center;
+          border-radius: 8px;
+          pointer-events: none;
+          transform: none;
+          box-shadow: none;
+          text-shadow: none;
+          transition: background-color 120ms ease, color 120ms ease;
         }
 
         .jc-incident-rider-edge {
-          background: linear-gradient(to left, #9a3412, #ea580c 12%, #ea580c 88%, #9a3412);
+          display: none;
         }
 
         .jc-incident-rider-btn.is-dns .jc-incident-rider-edge {
-          background: linear-gradient(to left, #1e3a8a, #2563eb 12%, #2563eb 88%, #1e3a8a);
+          display: none;
         }
 
         .jc-incident-rider-btn.is-absent .jc-incident-rider-edge {
-          background: linear-gradient(to left, #475569, #94a3b8 12%, #94a3b8 88%, #475569);
+          display: none;
         }
 
         .jc-incident-rider-front {
-          position: relative;
-          display: grid;
           min-height: 98px;
-          align-content: center;
-          justify-items: center;
-          gap: 5px;
           padding: 9px;
-          border-radius: 14px;
-          background: #fb923c;
-          color: #431407;
-          box-shadow: inset 0 2px 3px rgba(255, 255, 255, 0.45), inset 0 -2px 3px rgba(0, 0, 0, 0.16);
-          text-shadow: 0 1px 1px rgba(255, 255, 255, 0.18);
-          transform: translateY(-6px);
-          transition: transform 110ms cubic-bezier(0.3, 0.7, 0.4, 1), background-color 150ms ease;
+          border: 1px solid #fed7aa;
+          background: #fff7ed;
+          color: #9a3412;
         }
 
         .jc-incident-rider-btn.is-large .jc-incident-rider-front {
@@ -2057,13 +2089,15 @@ export default function JCPage() {
         }
 
         .jc-incident-rider-btn.is-dns .jc-incident-rider-front {
-          background: #60a5fa;
-          color: #172554;
+          border-color: #fca5a5;
+          background: #fef2f2;
+          color: #991b1b;
         }
 
         .jc-incident-rider-btn.is-absent .jc-incident-rider-front {
-          background: #cbd5e1;
-          color: #334155;
+          border-color: #cbd5e1;
+          background: #f1f5f9;
+          color: #475569;
         }
 
         .jc-incident-rider-plate {
@@ -2083,92 +2117,75 @@ export default function JCPage() {
         }
 
         .jc-rider-action-edge {
-          background: linear-gradient(to left, #166534, #22c55e 12%, #22c55e 88%, #166534);
+          display: none;
         }
 
         .jc-rider-action-front {
-          position: relative;
-          display: grid;
           min-height: 48px;
-          place-items: center;
           padding: 10px 12px;
-          border-radius: 14px;
-          background: #4ade80;
-          color: #052e16;
+          border: 1px solid #15803d;
+          background: #15803d;
+          color: #fff;
           font-size: 12px;
           font-weight: 950;
-          letter-spacing: 0.06em;
-          box-shadow: inset 0 2px 3px rgba(255, 255, 255, 0.45), inset 0 -2px 3px rgba(0, 0, 0, 0.16);
-          transform: translateY(-5px);
-          transition: transform 110ms cubic-bezier(0.3, 0.7, 0.4, 1), background-color 150ms ease;
         }
 
         .jc-rider-action-btn.is-warning .jc-rider-action-edge {
-          background: linear-gradient(to left, #a16207, #eab308 12%, #eab308 88%, #a16207);
+          display: none;
         }
 
         .jc-rider-action-btn.is-warning .jc-rider-action-front {
-          background: #fde047;
-          color: #713f12;
+          border-color: #fcd34d;
+          background: #fffbeb;
+          color: #92400e;
         }
 
         .jc-rider-action-btn.is-undo-ready .jc-rider-action-edge {
-          background: linear-gradient(to left, #991b1b, #dc2626 12%, #dc2626 88%, #991b1b);
+          display: none;
         }
 
         .jc-rider-action-btn.is-undo-ready .jc-rider-action-front {
-          background: #ef4444;
+          border-color: #b91c1c;
+          background: #b91c1c;
           color: #fff;
         }
 
         .jc-rider-action-btn.is-danger .jc-rider-action-edge,
         .jc-rider-action-btn.is-absent .jc-rider-action-edge {
-          background: linear-gradient(to left, #991b1b, #ef4444 12%, #ef4444 88%, #991b1b);
+          display: none;
         }
 
         .jc-rider-action-btn.is-danger .jc-rider-action-front,
         .jc-rider-action-btn.is-absent .jc-rider-action-front {
-          background: #fca5a5;
-          color: #7f1d1d;
+          border-color: #b91c1c;
+          background: #b91c1c;
+          color: #fff;
         }
 
         .jc-rider-action-btn.is-muted .jc-rider-action-edge {
-          background: linear-gradient(to left, #64748b, #94a3b8 12%, #94a3b8 88%, #64748b);
+          display: none;
         }
 
         .jc-rider-action-btn.is-muted .jc-rider-action-front {
-          background: #e2e8f0;
+          border-color: #cbd5e1;
+          background: #f1f5f9;
           color: #64748b;
         }
 
         .jc-incident-rider-btn:hover:not(:disabled) .jc-incident-rider-front,
         .jc-rider-action-btn:hover:not(:disabled) .jc-rider-action-front {
-          transform: translateY(-8px);
-        }
-
-        .jc-incident-rider-btn:hover:not(:disabled) .jc-incident-rider-shadow,
-        .jc-rider-action-btn:hover:not(:disabled) .jc-rider-action-shadow {
-          transform: translateY(7px);
-          filter: blur(6px);
+          filter: brightness(0.97);
         }
 
         .jc-incident-rider-btn:active:not(:disabled) .jc-incident-rider-front,
         .jc-rider-action-btn:active:not(:disabled) .jc-rider-action-front {
-          transform: translateY(-1px);
-          transition-duration: 45ms;
-        }
-
-        .jc-incident-rider-btn:active:not(:disabled) .jc-incident-rider-shadow,
-        .jc-rider-action-btn:active:not(:disabled) .jc-rider-action-shadow {
-          transform: translateY(2px);
-          filter: blur(2px);
-          transition-duration: 45ms;
+          filter: brightness(0.92);
         }
 
         .jc-incident-rider-btn:focus-visible,
         .jc-rider-action-btn:focus-visible {
-          outline: 3px solid #38bdf8;
-          border-radius: 14px;
+          outline: 2px solid #c2410c;
+          border-radius: 8px;
         }
 
         .jc-incident-rider-btn:disabled,
@@ -2177,17 +2194,23 @@ export default function JCPage() {
           opacity: 0.56;
         }
 
-        .jc-page :global(.jc-action-btn.jc-primary:not(:disabled)) {
-          animation: jc-pulse 1.9s ease-in-out infinite;
-        }
-
-        @keyframes jc-pulse {
-          0%,
-          100% {
-            box-shadow: 0 0 0 0 rgba(46, 204, 113, 0);
+        @media (max-width: 1100px) {
+          .jc-header-row {
+            grid-template-areas:
+              'title title'
+              'moto moto'
+              'actions actions';
+            grid-template-columns: minmax(0, 1fr);
+            gap: 8px;
           }
-          50% {
-            box-shadow: 0 0 0 8px rgba(46, 204, 113, 0.18);
+
+          .jc-header-actions {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+
+          .jc-header-actions button {
+            width: 100%;
           }
         }
 
@@ -2196,10 +2219,6 @@ export default function JCPage() {
             padding: 12px;
             gap: 12px;
           }
-          .jc-header-row {
-            flex-direction: column;
-            align-items: flex-start;
-          }
           .jc-summary-text {
             margin-left: 0 !important;
             width: 100%;
@@ -2207,7 +2226,6 @@ export default function JCPage() {
           .jc-moto-select {
             width: 100%;
           }
-          .jc-safety-grid,
           .jc-status-grid {
             grid-template-columns: 1fr;
           }
@@ -2252,8 +2270,8 @@ export default function JCPage() {
             backdropFilter: 'blur(3px)',
           }}
         >
-          <div style={{ width: 'min(100%, 420px)', borderRadius: 20, border: '3px solid #166534', background: '#f0fdf4', padding: 24, boxShadow: '0 20px 50px rgba(15, 23, 42, 0.35)', textAlign: 'center' }}>
-            <div aria-hidden="true" style={{ width: 62, height: 62, margin: '0 auto 14px', display: 'grid', placeItems: 'center', borderRadius: '50%', background: '#22c55e', color: '#fff', fontSize: 36, fontWeight: 900 }}>
+          <div style={{ width: 'min(100%, 420px)', borderRadius: 8, border: '1px solid #bbf7d0', background: '#fff', padding: 24, boxShadow: '0 8px 24px rgba(15, 23, 42, 0.14)', textAlign: 'center' }}>
+            <div aria-hidden="true" style={{ width: 62, height: 62, margin: '0 auto 14px', display: 'grid', placeItems: 'center', borderRadius: '50%', background: '#15803d', color: '#fff', fontSize: 36, fontWeight: 900 }}>
               ✓
             </div>
             <div id="moto-ready-confirmation-title" style={{ fontSize: 22, fontWeight: 950, color: '#14532d' }}>
@@ -2262,14 +2280,14 @@ export default function JCPage() {
             <div style={{ marginTop: 8, color: '#1f2937', fontWeight: 800 }}>
               {motoReadyConfirmation.categoryLabel} | {motoReadyConfirmation.motoName}
             </div>
-            <div style={{ margin: '14px auto 20px', display: 'inline-flex', borderRadius: 999, border: '2px solid #166534', padding: '6px 12px', color: '#14532d', background: '#dcfce7', fontWeight: 950, fontSize: 13 }}>
+            <div style={{ margin: '14px auto 20px', display: 'inline-flex', borderRadius: 6, border: '1px solid #bbf7d0', padding: '6px 12px', color: '#14532d', background: '#f0fdf4', fontWeight: 900, fontSize: 13 }}>
               STATUS: {motoReadyConfirmation.status}
             </div>
             <button
               type="button"
               className="jc-action-btn jc-primary"
               onClick={() => setMotoReadyConfirmation(null)}
-              style={{ width: '100%', padding: '13px 18px', borderRadius: 12, border: '2px solid #14532d', background: '#166534', color: '#fff', fontWeight: 950, fontSize: 16 }}
+              style={{ width: '100%', padding: '13px 18px', borderRadius: 8, border: '1px solid #15803d', background: '#15803d', color: '#fff', fontWeight: 900, fontSize: 16 }}
             >
               Tutup
             </button>
