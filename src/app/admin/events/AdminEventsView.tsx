@@ -111,6 +111,8 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
   const [canCreate, setCanCreate] = useState(false)
   const [roleKey, setRoleKey] = useState<string | null>(null)
   const [showCreateForm, setShowCreateForm] = useState(false)
+  const [editingEvent, setEditingEvent] = useState<EventItem | null>(null)
+  const [editForm, setEditForm] = useState({ name: '', location: '', event_date: '' })
   const [feedback, setFeedback] = useState<FeedbackState>(null)
   const [actionKey, setActionKey] = useState<string | null>(null)
   const [form, setForm] = useState({
@@ -175,8 +177,10 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
         await task()
         await loadEvents()
         setFeedback({ type: 'success', message: successMessage })
+        return true
       } catch (err: unknown) {
         setFeedback({ type: 'error', message: getErrorMessage(err) })
+        return false
       } finally {
         setActionKey(null)
       }
@@ -221,28 +225,37 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
     }
   }
 
-  const handleEdit = async (event: EventItem) => {
-    const nextName = window.prompt('Nama event', event.name)
-    if (!nextName || !nextName.trim()) return
-    const nextLocation = window.prompt('Lokasi', event.location ?? '')
-    if (nextLocation === null) return
-    const nextDate = window.prompt('Tanggal (YYYY-MM-DD)', event.event_date)
-    if (!nextDate || !nextDate.trim()) return
+  const handleEdit = (event: EventItem) => {
+    setEditingEvent(event)
+    setEditForm({
+      name: event.name,
+      location: event.location ?? '',
+      event_date: event.event_date.slice(0, 10),
+    })
+  }
 
-    await runEventAction(
+  const handleSaveEdit = async () => {
+    if (!editingEvent) return
+    if (!editForm.name.trim() || !editForm.event_date) {
+      setFeedback({ type: 'error', message: 'Nama event dan tanggal event wajib diisi.' })
+      return
+    }
+    const event = editingEvent
+    const saved = await runEventAction(
       `edit-${event.id}`,
       async () => {
         await apiFetch(`/api/events/${event.id}`, {
           method: 'PATCH',
           body: JSON.stringify({
-            name: nextName.trim(),
-            location: nextLocation.trim() || null,
-            event_date: nextDate.trim(),
+            name: editForm.name.trim(),
+            location: editForm.location.trim() || null,
+            event_date: editForm.event_date,
           }),
         })
       },
       `Event "${event.name}" berhasil diperbarui.`
     )
+    if (saved) setEditingEvent(null)
   }
 
   const handleDelete = async (event: EventItem) => {
@@ -607,6 +620,73 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
           }`}
         >
           {feedback.message}
+        </div>
+      )}
+
+      {editingEvent && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && actionKey !== `edit-${editingEvent.id}`) setEditingEvent(null)
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-event-title"
+            className="admin-surface w-full max-w-xl p-5 sm:p-7"
+          >
+            <div className="mb-5">
+              <div className="admin-kicker">Pengaturan event</div>
+              <h2 id="edit-event-title" className="admin-heading mt-1 text-2xl">Edit informasi event</h2>
+            </div>
+            <div className="grid gap-4">
+              <label className="grid gap-2">
+                <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Nama event</span>
+                <input
+                  autoFocus
+                  value={editForm.name}
+                  onChange={(event) => setEditForm((prev) => ({ ...prev, name: event.target.value }))}
+                  className={fieldClass}
+                />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Lokasi</span>
+                <input
+                  value={editForm.location}
+                  onChange={(event) => setEditForm((prev) => ({ ...prev, location: event.target.value }))}
+                  className={fieldClass}
+                />
+              </label>
+              <label className="grid gap-2">
+                <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Tanggal event</span>
+                <input
+                  type="date"
+                  value={editForm.event_date}
+                  onChange={(event) => setEditForm((prev) => ({ ...prev, event_date: event.target.value }))}
+                  className={fieldClass}
+                />
+              </label>
+              <div className="mt-2 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => setEditingEvent(null)}
+                  disabled={actionKey === `edit-${editingEvent.id}`}
+                  className={subtleButtonClass}
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleSaveEdit()}
+                  disabled={actionKey === `edit-${editingEvent.id}`}
+                  className={primaryButtonClass}
+                >
+                  {actionKey === `edit-${editingEvent.id}` ? 'Menyimpan...' : 'Simpan perubahan'}
+                </button>
+              </div>
+            </div>
+          </section>
         </div>
       )}
 
