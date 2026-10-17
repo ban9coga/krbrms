@@ -86,13 +86,13 @@ const isPrepMotoStatus = (status?: string | null) => isMotoUpcoming(status) || i
 const CHECKER_POLL_INTERVAL_MS = 5000
 
 const getMotoSequenceGroup = (motoName: string) => {
-  const qualification = motoName.match(/^moto\s*(\d+)\s*-\s*batch\s*\d+/i)
+  const qualification = motoName.match(/moto\s*(\d+)\s*-\s*batch\s*\d+/i)
   if (qualification) return `QUALIFICATION:${qualification[1]}`
 
-  const heat = motoName.match(/^(repechage|quarter\s*final|semi\s*final)\s*-\s*(?:batch|heat)\s*(\d+)/i)
+  const heat = motoName.match(/(repechage|quarter\s*final|semi\s*final)\s*-\s*(?:batch|heat)\s*(\d+)/i)
   if (heat) return `${heat[1].replace(/\s+/g, '_').toUpperCase()}:${heat[2]}`
 
-  const final = motoName.match(/^final\s+(.+)$/i)
+  const final = motoName.match(/final\s+([\w-]+)/i)
   if (final) return `FINAL:${final[1].trim().toUpperCase()}`
 
   return null
@@ -724,23 +724,6 @@ export default function JCPage() {
       ),
     [motos]
   )
-  const hasMedleySequence = useMemo(() => {
-    let activeGroup: string | null = null
-    let activeCategoryIds = new Set<string>()
-    const orderedMotos = [...motos].sort(compareMotoSequence)
-    for (const moto of orderedMotos) {
-      const group = /^moto\s*\d+\s*-\s*batch\s*\d+/i.test(moto.moto_name)
-        ? getMotoSequenceGroup(moto.moto_name)
-        : null
-      if (group !== activeGroup) {
-        if (activeCategoryIds.size > 1) return true
-        activeGroup = group
-        activeCategoryIds = new Set<string>()
-      }
-      if (group && moto.category_id) activeCategoryIds.add(moto.category_id)
-    }
-    return activeCategoryIds.size > 1
-  }, [motos])
   const allPrepSelectOptions = useMemo(
     () => [...selectableMotos].sort(compareMotoSequence),
     [selectableMotos]
@@ -748,15 +731,26 @@ export default function JCPage() {
   const selectedMotoUpcoming = isMotoUpcoming(selectedMoto?.status)
   const selectedMotoReady = isMotoReady(selectedMoto?.status)
   const selectedMotoPreppable = !!selectedMoto && !isLockedStatus(selectedMoto.status) && (selectedMotoUpcoming || selectedMotoReady)
+  const activeSequenceMoto = selectedMotoPreppable ? selectedMoto : workflowPrepMoto ?? selectedMoto
   const prepSelectOptions = useMemo(() => {
     const options = !selectedMoto || !selectedMotoPreppable || selectableMotos.some((m) => m.id === selectedMoto.id)
       ? allPrepSelectOptions
       : [selectedMoto, ...allPrepSelectOptions]
-    const activeGroup = getMotoSequenceGroup((selectedMoto ?? workflowPrepMoto)?.moto_name ?? '')
-    if (!hasMedleySequence || !activeGroup) return options
-    const activeGroupOptions = options.filter((moto) => getMotoSequenceGroup(moto.moto_name) === activeGroup)
-    return activeGroupOptions.length > 0 ? activeGroupOptions : options
-  }, [allPrepSelectOptions, hasMedleySequence, selectableMotos, selectedMoto, selectedMotoPreppable, workflowPrepMoto])
+    const activeGroup = getMotoSequenceGroup(activeSequenceMoto?.moto_name ?? '')
+    const sequenceOptions = activeGroup
+      ? options.filter((moto) => getMotoSequenceGroup(moto.moto_name) === activeGroup)
+      : []
+    if (sequenceOptions.length > 0) return sequenceOptions
+
+    const activeCategoryId = activeSequenceMoto?.category_id
+    if (activeCategoryId) {
+      const sameCategoryOptions = options.filter((moto) => moto.category_id === activeCategoryId)
+      if (sameCategoryOptions.length > 0) return sameCategoryOptions
+    }
+
+    return activeSequenceMoto ? options.filter((moto) => moto.id === activeSequenceMoto.id) : []
+  }, [activeSequenceMoto, allPrepSelectOptions, selectableMotos, selectedMoto, selectedMotoPreppable])
+  const hasOtherMotoOptions = allPrepSelectOptions.some((moto) => !prepSelectOptions.some((visibleMoto) => visibleMoto.id === moto.id))
   const searchedMotoOptions = useMemo(() => {
     const normalizedQuery = motoPickerQuery.trim().toLowerCase()
     if (!normalizedQuery) return allPrepSelectOptions
@@ -1267,7 +1261,7 @@ export default function JCPage() {
                 ))}
             </select>
             <div className="jc-header-actions">
-              {hasMedleySequence && (
+              {hasOtherMotoOptions && (
                 <button
                   type="button"
                   onClick={() => setMotoPickerOpen(true)}
