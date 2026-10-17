@@ -1172,10 +1172,8 @@ export default function JCPage() {
       >
           <div style={{ display: 'grid', gap: 8 }}>
           <div className="jc-header-row">
-            <div className="jc-header-title" style={{ fontSize: highVisibility ? (isCompactLayout ? 30 : 34) : isCompactLayout ? 24 : 28, fontWeight: 900 }}>
-              Checker Gate Start
-            </div>
             <select
+              aria-label="Pilih moto untuk pemeriksaan gate start"
               value={selectedMotoId}
               onChange={(e) => {
                 const next = e.target.value
@@ -1981,15 +1979,10 @@ export default function JCPage() {
 
         .jc-header-row {
           display: grid;
-          grid-template-areas: 'title moto actions';
-          grid-template-columns: minmax(max-content, auto) minmax(220px, 1fr) auto;
+          grid-template-areas: 'moto actions';
+          grid-template-columns: minmax(220px, 1fr) auto;
           align-items: center;
           gap: 12px;
-        }
-
-        .jc-header-title {
-          grid-area: title;
-          white-space: nowrap;
         }
 
         .jc-moto-select {
@@ -2197,9 +2190,8 @@ export default function JCPage() {
         @media (max-width: 1100px) {
           .jc-header-row {
             grid-template-areas:
-              'title title'
-              'moto moto'
-              'actions actions';
+              'moto'
+              'actions';
             grid-template-columns: minmax(0, 1fr);
             gap: 8px;
           }
