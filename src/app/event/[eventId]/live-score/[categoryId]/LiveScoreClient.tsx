@@ -157,6 +157,22 @@ const renderGateBadge = (gate: number | null) => {
   )
 }
 
+const renderRankBadge = (rank: number | null) => {
+  const podiumStyle = rank === 1
+    ? 'border-amber-500 bg-amber-300 text-amber-950'
+    : rank === 2
+      ? 'border-slate-400 bg-slate-200 text-slate-800'
+      : rank === 3
+        ? 'border-orange-500 bg-orange-300 text-orange-950'
+        : 'border-slate-300 bg-slate-100 text-slate-800'
+
+  return (
+    <span className={`inline-flex size-7 shrink-0 items-center justify-center rounded-full border-2 text-xs font-black leading-none ${podiumStyle}`}>
+      {rank ?? '-'}
+    </span>
+  )
+}
+
 const renderSortButtons = (
   sortMode: 'GATE' | 'RANK',
   setSortMode: (mode: 'GATE' | 'RANK') => void
@@ -510,9 +526,9 @@ export default function LiveScoreClient({
                           {showMoto3 && <td>{renderMotoResultCell(row.point_moto3, row.moto3_status)}</td>}
                           <td className="font-extrabold text-amber-600">{row.penalty_total ?? '-'}</td>
                           <td className="font-extrabold text-sky-700">{row.total_point ?? '-'}</td>
-                          <td className="text-center font-extrabold text-emerald-700">
+                          <td className="text-center">
                             <div className="flex flex-col items-center gap-1">
-                              <span>{row.rank_point ?? '-'}</span>
+                              {renderRankBadge(row.rank_point)}
                               {(row.status === 'DQ' || row.status === 'PENDING') && <span className={`inline-flex w-fit rounded-full border px-1 py-0.5 text-[8px] font-black uppercase ${statusBadgeClass(row.status)}`}>{row.status}</span>}
                               {showQualificationNextColumn && row.class_label && <span className="text-[9px] font-black uppercase leading-tight text-slate-600">{row.class_label}</span>}
                             </div>
@@ -570,9 +586,9 @@ export default function LiveScoreClient({
                         {showMoto3 && <td>{renderMotoResultCell(row.point_moto3, row.moto3_status)}</td>}
                         <td className="font-extrabold text-amber-600">{row.penalty_total ?? '-'}</td>
                         <td className="font-extrabold text-sky-700">{row.total_point ?? '-'}</td>
-                        <td className="font-extrabold text-emerald-700">
-                          <div className="flex flex-col gap-1">
-                            <span>{row.rank_point ?? '-'}</span>
+                        <td className="text-center">
+                          <div className="flex flex-col items-center gap-1">
+                            {renderRankBadge(row.rank_point)}
                             {(row.status === 'DQ' || row.status === 'PENDING') && (
                               <span
                                 className={`inline-flex w-fit rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] ${statusBadgeClass(row.status)}`}
@@ -632,9 +648,9 @@ export default function LiveScoreClient({
                             <td>{renderGateBadge(row.gate)}</td>
                             <td className="font-extrabold text-sky-700">{renderStagePointCell(row.point, row.status)}</td>
                             <td className="font-extrabold text-amber-600">{row.penalty_total ?? '-'}</td>
-                            <td className="text-center font-extrabold text-emerald-700">
+                            <td className="text-center">
                               <div className="flex flex-col items-center gap-1">
-                                <span>{row.rank ?? '-'}</span>
+                                {renderRankBadge(row.rank)}
                                 {showStageNextColumn && row.next_class_label && <span className="text-[9px] font-black uppercase leading-tight text-slate-600">{row.next_class_label}</span>}
                               </div>
                             </td>
@@ -671,8 +687,8 @@ export default function LiveScoreClient({
                           <td className="whitespace-nowrap">{row.club || '-'}</td>
                           <td className="font-extrabold text-sky-700">{renderStagePointCell(row.point, row.status)}</td>
                           <td className="font-extrabold text-amber-600">{row.penalty_total ?? '-'}</td>
-                          <td className="whitespace-nowrap font-extrabold text-emerald-700">
-                            <span>{row.rank ?? '-'}</span>
+                          <td className="whitespace-nowrap text-center">
+                            {renderRankBadge(row.rank)}
                           </td>
                           {showStageNextColumn && <td className="whitespace-nowrap">{row.next_class_label || '-'}</td>}
                         </tr>
