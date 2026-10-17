@@ -6,187 +6,198 @@ export type ChecklistStatus = 'done' | 'warning' | 'todo'
 
 export type ChecklistItem = {
   key: string
+  step: number
   label: string
   description: string
   status: ChecklistStatus
   href: string
-  detail?: string
+  detail: string
+  required: boolean
+  action: string
 }
 
 export async function getEventSetupChecklist(eventId: string): Promise<ChecklistItem[]> {
   const [
     { data: event },
     { data: settings },
-    { count: enabledCatCount },
+    { data: categories },
     { count: registrationCount },
-    { count: penaltyCount },
-    { data: catRules },
+    { data: riders },
+    { data: riderExtraCategories },
+    { count: penaltyRuleCount },
+    { data: crewRoles },
+    { data: motos },
   ] = await Promise.all([
-    adminClient.from('events').select('name, location, event_date, is_public').eq('id', eventId).single(),
-    adminClient.from('event_settings').select('race_format_settings').eq('event_id', eventId).single(),
-    adminClient
-      .from('categories')
-      .select('*', { count: 'exact', head: true })
-      .eq('event_id', eventId)
-      .eq('enabled', true),
-    adminClient
-      .from('registrations')
-      .select('*', { count: 'exact', head: true })
-      .eq('event_id', eventId),
-    adminClient
-      .from('rider_penalties')
-      .select('*', { count: 'exact', head: true })
-      .eq('event_id', eventId),
-    adminClient
-      .from('categories')
-      .select('id')
-      .eq('event_id', eventId)
-      .eq('enabled', true),
+    adminClient.from('events').select('name, location, event_date, is_public').eq('id', eventId).maybeSingle(),
+    adminClient.from('event_settings').select('race_format_settings').eq('event_id', eventId).maybeSingle(),
+    adminClient.from('categories').select('id, year, year_min, year_max, gender').eq('event_id', eventId).eq('enabled', true),
+    adminClient.from('registrations').select('id', { count: 'exact', head: true }).eq('event_id', eventId),
+    adminClient.from('riders').select('id, primary_category_id, birth_year, gender').eq('event_id', eventId),
+    adminClient.from('rider_extra_categories').select('rider_id, category_id').eq('event_id', eventId),
+    adminClient.from('event_penalty_rules').select('id', { count: 'exact', head: true }).eq('event_id', eventId).eq('is_active', true),
+    adminClient.from('user_event_roles').select('role').eq('event_id', eventId).eq('is_active', true),
+    adminClient.from('motos').select('id, category_id, moto_name').eq('event_id', eventId),
   ])
 
-  // Check race_category_rule per enabled category
-  let categoriesWithRules = 0
-  let categoriesWithFinalClasses = 0
-  const totalEnabledCats = enabledCatCount ?? 0
+  const enabledCategories = categories ?? []
+  const categoryIds = enabledCategories.map((category) => category.id)
+  const riderRows = riders ?? []
+  const motoRows = motos ?? []
+  const format = (settings?.race_format_settings ?? {}) as Record<string, unknown>
+  const hasDrawMode = typeof format.draw_mode === 'string' && format.draw_mode.trim().length > 0
+  const hasGateCount = typeof format.gate_positions === 'number' && format.gate_positions > 0
+  const configuredFinalClasses = Array.isArray(format.final_classes) ? format.final_classes : []
+  const moto1Rows = motoRows.filter((moto) => /^Moto 1\b/i.test(moto.moto_name))
 
-  if (catRules && catRules.length > 0) {
-    const catIds = catRules.map((c) => c.id)
+  let ruleCategoryIds = new Set<string>()
+  let categoryRuleDetails = new Map<string, { finalClasses: boolean }>()
+  if (categoryIds.length > 0) {
     const { data: rules } = await adminClient
       .from('race_category_rule')
       .select('category_id, enabled_final_classes')
-      .in('category_id', catIds)
-
-    if (rules) {
-      const rulesByCat = new Map(rules.map((r) => [r.category_id, r]))
-      categoriesWithRules = catIds.filter((id) => rulesByCat.has(id)).length
-      categoriesWithFinalClasses = catIds.filter((id) => {
-        const rule = rulesByCat.get(id)
-        if (!rule) return false
-        const fc = rule.enabled_final_classes
-        return Array.isArray(fc) ? fc.length > 0 : typeof fc === 'string' && fc.trim().length > 0
-      }).length
-    }
+      .in('category_id', categoryIds)
+    categoryRuleDetails = new Map(
+      (rules ?? []).map((rule) => [rule.category_id, {
+        finalClasses: Array.isArray(rule.enabled_final_classes)
+          ? rule.enabled_final_classes.length > 0
+          : typeof rule.enabled_final_classes === 'string' && rule.enabled_final_classes.trim().length > 0,
+      }])
+    )
+    ruleCategoryIds = new Set(categoryRuleDetails.keys())
   }
 
-  const raceFormatSettings = (settings?.race_format_settings ?? {}) as Record<string, unknown>
-  const hasFinalClasses = Array.isArray(raceFormatSettings.final_classes)
-    ? (raceFormatSettings.final_classes as string[]).length > 0
-    : false
-  const hasDrawMode = typeof raceFormatSettings.draw_mode === 'string' && raceFormatSettings.draw_mode.trim().length > 0
-  const hasGatePositions = typeof raceFormatSettings.gate_positions === 'number' && raceFormatSettings.gate_positions > 0
+  let assignedPairs = new Set<string>()
+  let gatedPairs = new Set<string>()
+  if (moto1Rows.length > 0) {
+    const motoCategoryById = new Map(moto1Rows.map((moto) => [moto.id, moto.category_id]))
+    const motoIds = moto1Rows.map((moto) => moto.id)
+    const [{ data: placements }, { data: gateRows }] = await Promise.all([
+      adminClient.from('moto_riders').select('moto_id, rider_id').in('moto_id', motoIds),
+      adminClient.from('moto_gate_positions').select('moto_id, rider_id').in('moto_id', motoIds),
+    ])
+    assignedPairs = new Set((placements ?? []).flatMap((placement) => {
+      const categoryId = motoCategoryById.get(placement.moto_id)
+      return categoryId ? [`${categoryId}:${placement.rider_id}`] : []
+    }))
+    gatedPairs = new Set((gateRows ?? []).flatMap((placement) => {
+      const categoryId = motoCategoryById.get(placement.moto_id)
+      return categoryId ? [`${categoryId}:${placement.rider_id}`] : []
+    }))
+  }
 
-  const items: ChecklistItem[] = []
+  const expectedPairs = new Set<string>()
+  for (const rider of riderRows) {
+    if (rider.primary_category_id && categoryIds.includes(rider.primary_category_id)) {
+      expectedPairs.add(`${rider.primary_category_id}:${rider.id}`)
+      continue
+    }
+    if (rider.primary_category_id) continue
+    for (const category of enabledCategories) {
+      const minYear = category.year_min ?? category.year
+      const maxYear = category.year_max ?? category.year
+      const matchesYear = rider.birth_year >= minYear && rider.birth_year <= maxYear
+      const matchesGender = category.gender === 'MIX' || rider.gender === category.gender
+      if (matchesYear && matchesGender) expectedPairs.add(`${category.id}:${rider.id}`)
+    }
+  }
+  for (const extra of riderExtraCategories ?? []) {
+    if (categoryIds.includes(extra.category_id)) expectedPairs.add(`${extra.category_id}:${extra.rider_id}`)
+  }
+  const assignedCount = [...expectedPairs].filter((pair) => assignedPairs.has(pair)).length
+  const gateCount = [...expectedPairs].filter((pair) => gatedPairs.has(pair)).length
+  const allExpectedDrawn = expectedPairs.size > 0 && assignedCount === expectedPairs.size && gateCount === expectedPairs.size
+  const roleSet = new Set((crewRoles ?? []).map((row) => String(row.role).toUpperCase()))
+  const hasRaceCrew = ['CHECKER', 'FINISHER', 'RACE_DIRECTOR', 'RACE_CONTROL'].some((role) => roleSet.has(role))
+  const hasRaceFormatFallback = configuredFinalClasses.length > 0
+  const rulesComplete = categoryIds.length > 0 && categoryIds.every((id) => ruleCategoryIds.has(id) || hasRaceFormatFallback)
+  const ruleCount = categoryIds.filter((id) => ruleCategoryIds.has(id)).length
 
-  // 1. Info Event
-  const infoOk = !!(event?.location && event?.event_date)
-  items.push({
-    key: 'event_info',
-    label: 'Informasi Event',
-    description: 'Nama, lokasi, dan tanggal event sudah terisi',
-    status: infoOk ? 'done' : 'todo',
-    href: `/admin/events/${eventId}/settings`,
-    detail: !event?.location
-      ? 'Lokasi belum diisi'
-      : !event?.event_date
-        ? 'Tanggal belum diisi'
-        : undefined,
-  })
-
-  // 2. Kategori aktif
-  const catOk = totalEnabledCats > 0
-  items.push({
-    key: 'categories',
-    label: 'Kategori Aktif',
-    description: 'Minimal 1 kategori telah diaktifkan',
-    status: catOk ? 'done' : 'todo',
-    href: `/admin/events/${eventId}/settings`,
-    detail: catOk ? `${totalEnabledCats} kategori aktif` : 'Belum ada kategori yang diaktifkan',
-  })
-
-  // 3. Race Format (draw mode & gate)
-  const raceFormatOk = hasDrawMode && hasGatePositions
-  items.push({
-    key: 'race_format',
-    label: 'Race Format',
-    description: 'Draw mode dan jumlah gate sudah dikonfigurasi',
-    status: raceFormatOk ? 'done' : !hasDrawMode && !hasGatePositions ? 'todo' : 'warning',
-    href: `/admin/events/${eventId}/settings`,
-    detail: !hasDrawMode
-      ? 'Draw mode belum dipilih'
-      : !hasGatePositions
-        ? 'Jumlah gate belum diisi'
-        : `Draw: ${raceFormatSettings.draw_mode}, Gate: ${raceFormatSettings.gate_positions}`,
-  })
-
-  // 4. Final Class Rules (dari event settings race_format_settings.final_classes)
-  const finalClassOk = hasFinalClasses
-  const finalClassList = Array.isArray(raceFormatSettings.final_classes)
-    ? (raceFormatSettings.final_classes as string[]).join(', ')
-    : ''
-  items.push({
-    key: 'final_classes',
-    label: 'Final Class Rules',
-    description: 'Urutan dan daftar Final Class sudah dikonfigurasi di Race Format',
-    status: finalClassOk ? 'done' : 'todo',
-    href: `/admin/events/${eventId}/settings`,
-    detail: finalClassOk
-      ? `${(raceFormatSettings.final_classes as string[]).length} kelas: ${finalClassList}`
-      : 'Final class belum dikonfigurasi di Race Format',
-  })
-
-  // 5. Race Category Rule per kategori
-  const ruleCoverage =
-    totalEnabledCats === 0
-      ? 'done'
-      : categoriesWithRules === totalEnabledCats
-        ? 'done'
-        : categoriesWithRules > 0
-          ? 'warning'
-          : 'todo'
-  items.push({
-    key: 'category_rules',
-    label: 'Race Category Rules',
-    description: 'Setiap kategori aktif memiliki aturan race (stages & final classes)',
-    status: ruleCoverage as ChecklistStatus,
-    href: `/admin/events/${eventId}/advanced-race`,
-    detail:
-      totalEnabledCats === 0
-        ? 'Belum ada kategori aktif'
-        : `${categoriesWithRules}/${totalEnabledCats} kategori sudah dikonfigurasi`,
-  })
-
-  // 6. Registrasi
-  const regOk = (registrationCount ?? 0) > 0
-  items.push({
-    key: 'registrations',
-    label: 'Data Registrasi',
-    description: 'Minimal 1 rider sudah terdaftar di event ini',
-    status: regOk ? 'done' : 'todo',
-    href: `/admin/events/${eventId}/registrations`,
-    detail: regOk ? `${registrationCount} registrasi` : 'Belum ada registrasi',
-  })
-
-  // 7. Penalties (optional — warning if none, not todo)
-  const hasPenalties = (penaltyCount ?? 0) > 0
-  items.push({
-    key: 'penalties',
-    label: 'Penalti Rider',
-    description: 'Data penalti rider di event ini (opsional)',
-    status: hasPenalties ? 'done' : 'warning',
-    href: `/admin/events/${eventId}/penalties`,
-    detail: hasPenalties ? `${penaltyCount} penalti tercatat` : 'Belum ada penalti (opsional)',
-  })
-
-  // 8. Event dipublikasi
-  const isPublic = event?.is_public === true
-  items.push({
-    key: 'published',
-    label: 'Event Dipublikasi',
-    description: 'Event sudah dipublikasi dan terlihat oleh publik',
-    status: isPublic ? 'done' : 'warning',
-    href: `/admin/events/${eventId}/settings`,
-    detail: isPublic ? 'Event sudah publik' : 'Event masih tersembunyi dari publik',
-  })
+  const items: ChecklistItem[] = [
+    {
+      key: 'event_info', step: 1, label: 'Informasi event',
+      description: 'Pastikan lokasi dan tanggal event benar.',
+      status: event?.location && event?.event_date ? 'done' : 'todo',
+      href: `/admin/events/${eventId}/settings`,
+      detail: !event?.location ? 'Lokasi belum diisi' : !event?.event_date ? 'Tanggal belum diisi' : `${event.location} - ${event.event_date}`,
+      required: true, action: 'Lengkapi event',
+    },
+    {
+      key: 'categories', step: 2, label: 'Kategori lomba',
+      description: 'Aktifkan kategori yang akan dipakai di event.',
+      status: enabledCategories.length > 0 ? 'done' : 'todo',
+      href: `/admin/events/${eventId}/categories`,
+      detail: enabledCategories.length ? `${enabledCategories.length} kategori aktif` : 'Belum ada kategori aktif',
+      required: true, action: 'Atur kategori',
+    },
+    {
+      key: 'riders', step: 3, label: 'Data rider',
+      description: 'Setujui pendaftaran atau masukkan rider sebelum drawing.',
+      status: riderRows.length > 0 ? 'done' : registrationCount ? 'warning' : 'todo',
+      href: `/admin/events/${eventId}/registrations`,
+      detail: riderRows.length ? `${riderRows.length} rider siap dikelola${registrationCount ? ` - ${registrationCount} pendaftaran` : ''}` : registrationCount ? `${registrationCount} pendaftaran masuk, belum ada rider di data event` : 'Belum ada rider atau pendaftaran',
+      required: true, action: 'Kelola pendaftaran',
+    },
+    {
+      key: 'race_format', step: 4, label: 'Format race',
+      description: 'Tentukan mode drawing dan jumlah gate.',
+      status: hasDrawMode && hasGateCount ? 'done' : !hasDrawMode && !hasGateCount ? 'todo' : 'warning',
+      href: `/admin/events/${eventId}/draw-settings`,
+      detail: hasDrawMode && hasGateCount ? `${format.draw_mode === 'external_draw' ? 'External draw' : 'Live draw'} - ${format.gate_positions} gate` : !hasDrawMode ? 'Mode drawing belum dipilih' : 'Jumlah gate belum dikonfigurasi',
+      required: true, action: 'Atur format',
+    },
+    {
+      key: 'category_rules', step: 5, label: 'Aturan race kategori',
+      description: 'Periksa aturan stage untuk setiap kategori aktif.',
+      status: rulesComplete ? 'done' : ruleCount > 0 ? 'warning' : 'todo',
+      href: `/admin/events/${eventId}/advanced-race`,
+      detail: !categoryIds.length
+        ? 'Tambahkan kategori terlebih dahulu'
+        : hasRaceFormatFallback && ruleCount < categoryIds.length
+          ? `${ruleCount}/${categoryIds.length} aturan khusus; kategori lainnya memakai fallback ${configuredFinalClasses.length} Final Class dari Race Format`
+          : `${ruleCount}/${categoryIds.length} kategori memiliki aturan khusus`,
+      required: true, action: 'Periksa aturan race',
+    },
+    {
+      key: 'drawing', step: 6, label: 'Drawing batch & gate',
+      description: 'Buat batch Moto 1 dan pastikan rider mendapat gate.',
+      status: allExpectedDrawn ? 'done' : assignedCount > 0 ? 'warning' : 'todo',
+      href: `/admin/events/${eventId}/live-draw`,
+      detail: expectedPairs.size ? `${assignedCount}/${expectedPairs.size} penempatan - ${gateCount}/${expectedPairs.size} gate terisi` : moto1Rows.length ? 'Belum ada rider aktif yang cocok dengan kategori drawing' : 'Moto 1 belum dibuat',
+      required: true, action: 'Buka drawing',
+    },
+    {
+      key: 'crew', step: 7, label: 'Akun crew race',
+      description: 'Assign petugas checker, finisher, atau race director.',
+      status: hasRaceCrew ? 'done' : 'warning',
+      href: `/admin/events/${eventId}/settings`,
+      detail: hasRaceCrew ? 'Petugas race sudah ditugaskan' : 'Belum ada role petugas race (bisa ditambahkan nanti)',
+      required: false, action: 'Kelola crew',
+    },
+    {
+      key: 'final_classes', step: 8, label: 'Final class',
+      description: 'Konfigurasi pembagian kelas final bila format event memakainya.',
+      status: configuredFinalClasses.length > 0 || categoryIds.some((id) => categoryRuleDetails.get(id)?.finalClasses) ? 'done' : 'warning',
+      href: `/admin/events/${eventId}/custom-final-split`,
+      detail: configuredFinalClasses.length ? `${configuredFinalClasses.length} kelas final dikonfigurasi` : 'Belum dikonfigurasi (sesuaikan dengan format event)',
+      required: false, action: 'Atur final class',
+    },
+    {
+      key: 'penalties', step: 9, label: 'Penalti',
+      description: 'Isi standar penalti jika event menggunakan penalti khusus.',
+      status: (penaltyRuleCount ?? 0) > 0 ? 'done' : 'warning',
+      href: `/admin/events/${eventId}/penalties`,
+      detail: (penaltyRuleCount ?? 0) > 0 ? `${penaltyRuleCount} rule penalti aktif` : 'Belum ada rule penalti aktif (opsional)',
+      required: false, action: 'Atur penalti',
+    },
+    {
+      key: 'published', step: 10, label: 'Publikasi event',
+      description: 'Atur visibilitas bila event perlu tampil di halaman publik.',
+      status: event?.is_public ? 'done' : 'warning',
+      href: `/admin/events/${eventId}/settings`,
+      detail: event?.is_public ? 'Event tampil untuk publik' : 'Event masih internal / tersembunyi',
+      required: false, action: 'Atur publikasi',
+    },
+  ]
 
   return items
 }
