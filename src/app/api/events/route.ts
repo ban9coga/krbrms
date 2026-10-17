@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { adminClient, getAccessibleEventIds, requireAdmin, requireBackoffice } from '../../../lib/auth'
+import { adminClient, authClient, getAccessibleEventIds, requireBackoffice } from '../../../lib/auth'
+import { normalizeAppRole } from '../../../lib/roles'
 
 type DrawMode = 'internal_live_draw' | 'external_draw'
 type EventScope = 'PUBLIC' | 'INTERNAL'
@@ -33,7 +34,7 @@ export async function GET(req: Request) {
   if (!auth.ok) {
     query = query.eq('is_public', true)
   } else if (auth.role !== 'SUPER_ADMIN') {
-    const accessibleEventIds = await getAccessibleEventIds(auth.user.id, ['ADMIN', 'SUPER_ADMIN', 'REGISTRATION_APPROVER'])
+    const accessibleEventIds = await getAccessibleEventIds(auth.user.id, ['ADMIN', 'SUPER_ADMIN', 'REGISTRATION_APPROVER', 'RC_ADMIN'])
     if (accessibleEventIds.length === 0) {
       return NextResponse.json({ data: [] })
     }
@@ -82,10 +83,19 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const auth = await requireAdmin(req.headers.get('authorization'))
-  if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (auth.role !== 'SUPER_ADMIN') {
-    return NextResponse.json({ error: 'Only super admin can create events' }, { status: 403 })
+  const authHeader = req.headers.get('authorization')
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : null
+  if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { data: authData, error: authError } = await authClient.auth.getUser(token)
+  if (authError || !authData.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const metadata = (authData.user.user_metadata ?? {}) as Record<string, unknown>
+  const appMetadata = (authData.user.app_metadata ?? {}) as Record<string, unknown>
+  const appRole = normalizeAppRole(typeof appMetadata.role === 'string' ? appMetadata.role : '')
+  const creatorRole = appRole === 'RC_ADMIN'
+    ? appRole
+    : normalizeAppRole(typeof metadata.role === 'string' ? metadata.role : appRole)
+  if (creatorRole !== 'SUPER_ADMIN' && creatorRole !== 'RC_ADMIN') {
+    return NextResponse.json({ error: 'Hanya Central Admin atau RC Admin yang dapat membuat event.' }, { status: 403 })
   }
   const body = await req.json()
   const { name, location, event_date, status = 'UPCOMING', is_public, draw_mode, event_scope } = body ?? {}
@@ -114,7 +124,22 @@ export async function POST(req: Request) {
   )
 
   if (settingsError) {
+    await adminClient.from('events').delete().eq('id', data.id)
     return NextResponse.json({ error: settingsError.message }, { status: 400 })
+  }
+
+  if (creatorRole === 'RC_ADMIN') {
+    const { error: assignmentError } = await adminClient.from('user_event_roles').insert({
+      user_id: authData.user.id,
+      event_id: data.id,
+      role: 'RC_ADMIN',
+      is_active: true,
+      assigned_by: authData.user.id,
+    })
+    if (assignmentError) {
+      await adminClient.from('events').delete().eq('id', data.id)
+      return NextResponse.json({ error: assignmentError.message }, { status: 400 })
+    }
   }
 
   return NextResponse.json({ data: { ...data, draw_mode: drawMode, event_scope: eventScope } })

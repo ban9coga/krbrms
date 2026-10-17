@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import ToggleSwitch from '../../../components/ToggleSwitch'
 import { isRegistrationApproverRole, normalizeAppRole } from '../../../lib/roles'
@@ -102,6 +103,7 @@ function EventBadge({ label, tone }: { label: string; tone: EventTone }) {
 }
 
 export default function AdminEventsView({ showCreate = true }: AdminEventsViewProps) {
+  const router = useRouter()
   const [events, setEvents] = useState<EventItem[]>([])
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL')
@@ -113,6 +115,9 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [editingEvent, setEditingEvent] = useState<EventItem | null>(null)
   const [editForm, setEditForm] = useState({ name: '', location: '', event_date: '' })
+  const [deletingEvent, setDeletingEvent] = useState<EventItem | null>(null)
+  const [deleteForm, setDeleteForm] = useState({ name: '', password: '' })
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<FeedbackState>(null)
   const [actionKey, setActionKey] = useState<string | null>(null)
   const [form, setForm] = useState({
@@ -206,7 +211,7 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
         event_scope: form.visibility,
         draw_mode: form.draw_mode,
       }
-      await apiFetch('/api/events', { method: 'POST', body: JSON.stringify(payload) })
+      const created = await apiFetch('/api/events', { method: 'POST', body: JSON.stringify(payload) })
       setForm({
         name: '',
         location: '',
@@ -218,6 +223,7 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
       setShowCreateForm(false)
       await loadEvents()
       setFeedback({ type: 'success', message: 'Event baru berhasil dibuat.' })
+      if (created?.data?.id) router.push(`/admin/events/${created.data.id}/checklist`)
     } catch (err: unknown) {
       setFeedback({ type: 'error', message: getErrorMessage(err) })
     } finally {
@@ -259,33 +265,51 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
   }
 
   const handleDelete = async (event: EventItem) => {
-    if (!window.confirm(`Hapus event "${event.name}"? Semua data terkait akan ikut terhapus.`)) return
-    const confirmationName = window.prompt(`Ketik ulang nama event untuk konfirmasi:\n${event.name}`, '')
-    if (confirmationName === null) return
-    if (confirmationName.trim() !== event.name) {
-      setFeedback({ type: 'error', message: 'Nama event konfirmasi tidak cocok. Event tidak dihapus.' })
+    setFeedback(null)
+    setDeleteError(null)
+    setDeleteForm({ name: '', password: '' })
+    setDeletingEvent(event)
+  }
+
+  const closeDeleteDialog = () => {
+    setDeletingEvent(null)
+    setDeleteForm({ name: '', password: '' })
+    setDeleteError(null)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!deletingEvent) return
+    if (deleteForm.name.trim() !== deletingEvent.name) {
+      setDeleteError('Nama event belum cocok. Periksa kembali penulisannya.')
       return
     }
-    const confirmationPassword = window.prompt('Masukkan password Central Admin untuk menghapus event ini.', '')
-    if (confirmationPassword === null) return
-    if (!confirmationPassword) {
-      setFeedback({ type: 'error', message: 'Password Central Admin wajib diisi untuk hapus event.' })
+    if (!deleteForm.password) {
+      setDeleteError('Password Central Admin wajib diisi.')
       return
     }
 
-    await runEventAction(
-      `delete-${event.id}`,
-      async () => {
-        await apiFetch(`/api/events/${event.id}`, {
+    const event = deletingEvent
+    const key = `delete-${event.id}`
+    setActionKey(key)
+    setDeleteError(null)
+    setFeedback(null)
+    try {
+      await apiFetch(`/api/events/${event.id}`, {
           method: 'DELETE',
           body: JSON.stringify({
-            confirmation_name: confirmationName.trim(),
-            confirmation_password: confirmationPassword,
+            confirmation_name: deleteForm.name.trim(),
+            confirmation_password: deleteForm.password,
           }),
-        })
-      },
-      `Event "${event.name}" berhasil dihapus.`
-    )
+      })
+      await loadEvents()
+      setDeletingEvent(null)
+      setDeleteForm({ name: '', password: '' })
+      setFeedback({ type: 'success', message: `Event "${event.name}" berhasil dihapus.` })
+    } catch (err: unknown) {
+      setDeleteError(getErrorMessage(err))
+    } finally {
+      setActionKey(null)
+    }
   }
 
   const handleStatus = async (event: EventItem, status: EventItem['status']) => {
@@ -620,6 +644,115 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
           }`}
         >
           {feedback.message}
+        </div>
+      )}
+
+      {deletingEvent && (
+        <div
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/65 p-4 backdrop-blur-sm"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && actionKey !== `delete-${deletingEvent.id}`) {
+              closeDeleteDialog()
+            }
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape' && actionKey !== `delete-${deletingEvent.id}`) closeDeleteDialog()
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-event-title"
+            aria-describedby="delete-event-description"
+            className="admin-surface w-full max-w-lg overflow-hidden shadow-2xl"
+          >
+            <div className="border-b border-red-200 bg-red-50 px-5 py-5 sm:px-7">
+              <div className="flex items-start gap-4">
+                <div aria-hidden="true" className="grid size-11 shrink-0 place-items-center rounded-full bg-red-100 text-xl font-black text-red-700">
+                  !
+                </div>
+                <div>
+                  <div className="admin-kicker text-red-700">Tindakan permanen</div>
+                  <h2 id="delete-event-title" className="admin-heading mt-1 text-2xl">Hapus event?</h2>
+                  <p id="delete-event-description" className="mt-2 text-sm font-semibold leading-6 text-slate-700">
+                    Event dan seluruh data terkait akan dihapus permanen. Tindakan ini tidak dapat dibatalkan.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <form
+              className="grid gap-4 p-5 sm:p-7"
+              onSubmit={(event) => {
+                event.preventDefault()
+                void handleConfirmDelete()
+              }}
+            >
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div className="admin-kicker">Event yang akan dihapus</div>
+                <div className="mt-1 break-words text-base font-black text-slate-950">{deletingEvent.name}</div>
+                <div className="mt-1 text-sm font-semibold text-slate-600">
+                  {deletingEvent.location || 'Lokasi belum diisi'} · {formatDate(deletingEvent.event_date)}
+                </div>
+              </div>
+
+              <label className="grid gap-2">
+                <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-600">Ketik nama event untuk konfirmasi</span>
+                <input
+                  autoFocus
+                  autoComplete="off"
+                  value={deleteForm.name}
+                  onChange={(event) => {
+                    setDeleteForm((prev) => ({ ...prev, name: event.target.value }))
+                    setDeleteError(null)
+                  }}
+                  className={fieldClass}
+                  disabled={actionKey === `delete-${deletingEvent.id}`}
+                  placeholder={deletingEvent.name}
+                />
+              </label>
+
+              <label className="grid gap-2">
+                <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-600">Password Central Admin</span>
+                <input
+                  type="password"
+                  autoComplete="current-password"
+                  value={deleteForm.password}
+                  onChange={(event) => {
+                    setDeleteForm((prev) => ({ ...prev, password: event.target.value }))
+                    setDeleteError(null)
+                  }}
+                  className={fieldClass}
+                  disabled={actionKey === `delete-${deletingEvent.id}`}
+                  placeholder="Masukkan password untuk verifikasi"
+                />
+              </label>
+
+              {deleteError && (
+                <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-800">
+                  {deleteError}
+                </p>
+              )}
+
+              <div className="mt-1 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={closeDeleteDialog}
+                  disabled={actionKey === `delete-${deletingEvent.id}`}
+                  className={subtleButtonClass}
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={actionKey === `delete-${deletingEvent.id}` || deleteForm.name.trim() !== deletingEvent.name || !deleteForm.password}
+                  className="inline-flex min-h-11 items-center justify-center rounded-xl border border-red-800 bg-red-700 px-5 py-3 text-sm font-black text-white transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {actionKey === `delete-${deletingEvent.id}` ? 'Menghapus event...' : 'Hapus permanen'}
+                </button>
+              </div>
+            </form>
+          </section>
         </div>
       )}
 

@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server'
-import { adminClient, requireBackoffice } from '../../../../../../lib/auth'
+import { adminClient, requireRegistrationManager } from '../../../../../../lib/auth'
 import { normalizePlateNumber, normalizePlateSuffix, suggestPlateSuffix } from '../../../../../../lib/plate'
 
 export async function GET(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params
-  const auth = await requireBackoffice(req.headers.get('authorization'), eventId)
+  const auth = await requireRegistrationManager(req.headers.get('authorization'), eventId)
   if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { searchParams } = new URL(req.url)

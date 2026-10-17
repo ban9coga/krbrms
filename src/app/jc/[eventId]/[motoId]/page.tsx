@@ -1613,20 +1613,6 @@ export default function JCPage() {
               {bulkReadyTargetCount === 0 ? 'Semua Rider Dicek' : 'All Riders Ready'}
             </button>
           </div>
-          {!allPrepReviewed && (
-            <div
-              style={{
-                padding: '10px 14px',
-                borderRadius: 8,
-                border: '1px solid #fcd34d',
-                background: '#fffbeb',
-                color: '#9a3412',
-                fontWeight: 800,
-              }}
-            >
-              Masih ada {summary.unchecked} rider belum ditandai. Periksa tiap rider; gunakan All Riders Ready jika semua hadir dan safety gear lengkap.
-            </div>
-          )}
           {allReadyDone && (
             <div style={{ display: 'grid', gap: 8 }}>
               <div style={{ padding: '12px 14px', borderRadius: 8, border: '1px solid #bbf7d0', background: '#f0fdf4', fontWeight: 800, textAlign: 'center' }}>

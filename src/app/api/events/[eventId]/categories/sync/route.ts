@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { adminClient, requireAdmin } from '../../../../../../lib/auth'
+import { adminClient, requireAdmin, requireScopedEventWorkspace } from '../../../../../../lib/auth'
 
 const toCategory = (birthYear: number, gender: 'BOY' | 'GIRL') => {
   const isU2017 = birthYear === 2017
@@ -10,10 +10,10 @@ const toCategory = (birthYear: number, gender: 'BOY' | 'GIRL') => {
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
-  const auth = await requireAdmin(req.headers.get('authorization'))
-  if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
   const { eventId } = await params
+  const auth = await requireAdmin(req.headers.get('authorization'), eventId)
+  const rcAuth = auth.ok ? auth : await requireScopedEventWorkspace(req.headers.get('authorization'), eventId, ['RC_ADMIN'])
+  if (!rcAuth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { data: riders, error: riderError } = await adminClient
     .from('riders')

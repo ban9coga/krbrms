@@ -8,6 +8,7 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 const getRoleFromUser = (user: { user_metadata?: Record<string, unknown>; app_metadata?: Record<string, unknown> }) => {
   const meta = (user.user_metadata ?? {}) as Record<string, unknown>
   const appMeta = (user.app_metadata ?? {}) as Record<string, unknown>
+  if (String(appMeta.role ?? '').toUpperCase() === 'RC_ADMIN') return 'RC_ADMIN'
   return (typeof meta.role === 'string' ? meta.role : null) || (typeof appMeta.role === 'string' ? appMeta.role : null)
 }
 
@@ -76,8 +77,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ userId
   if (crewCode) userMetadata.crew_code = crewCode
   else delete userMetadata.crew_code
 
+  const existingAppMetadata = (targetUser.user.app_metadata ?? {}) as Record<string, unknown>
+  const appMetadata: Record<string, unknown> = { ...existingAppMetadata }
+  if (String(body.role).toUpperCase() === 'RC_ADMIN') appMetadata.role = 'RC_ADMIN'
+  else if (String(existingAppMetadata.role ?? '').toUpperCase() === 'RC_ADMIN') delete appMetadata.role
+
   const { data, error } = await adminClient.auth.admin.updateUserById(userId, {
     user_metadata: userMetadata,
+    app_metadata: appMetadata,
     ...(nextPassword ? { password: nextPassword } : {}),
   })
 

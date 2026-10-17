@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const PROTECTED_PATHS = ['/admin', '/scoring', '/race-control', '/super-admin', '/jury', '/race-director', '/jc', '/mc', '/draw']
+const PROTECTED_PATHS = ['/admin', '/rc-admin', '/scoring', '/race-control', '/super-admin', '/jury', '/race-director', '/jc', '/mc', '/draw']
 
 const ROLE_GUARDS: Record<string, string[]> = {
   '/admin/users': ['SUPER_ADMIN'],
   '/admin': ['ADMIN', 'SUPER_ADMIN', 'REGISTRATION_APPROVER'],
+  '/rc-admin': ['RC_ADMIN'],
   '/jc': ['CHECKER', 'RACE_DIRECTOR', 'SUPER_ADMIN'],
   '/scoring': ['CHECKER', 'FINISHER', 'RACE_DIRECTOR', 'SUPER_ADMIN'],
   '/jury/start': ['CHECKER', 'RACE_DIRECTOR', 'SUPER_ADMIN'],
@@ -76,9 +77,11 @@ export function proxy(req: NextRequest) {
   }
 
   const payload = decodeJwt(token)
+  const appRole = payload?.app_metadata?.role || ''
   const rawRole =
+    (String(appRole).toUpperCase() === 'RC_ADMIN' ? appRole : null) ||
     payload?.user_metadata?.role ||
-    payload?.app_metadata?.role ||
+    appRole ||
     payload?.role ||
     ''
   const normalizedRole = String(rawRole).trim()
@@ -97,6 +100,7 @@ export function proxy(req: NextRequest) {
     if (currentRole === 'FINISHER') return '/jury/finish'
     if (currentRole === 'CHECKER') return '/jc'
     if (currentRole === 'REGISTRATION_APPROVER') return '/admin/events'
+    if (currentRole === 'RC_ADMIN') return '/rc-admin'
     if (currentRole === 'SUPER_ADMIN' || currentRole === 'ADMIN') return '/admin'
     if (currentRole === 'RACE_CONTROL') return '/race-control'
     if (currentRole === 'MC') return '/mc'
@@ -119,6 +123,7 @@ export function proxy(req: NextRequest) {
 export const config = {
   matcher: [
     '/admin/:path*',
+    '/rc-admin/:path*',
     '/scoring/:path*',
     '/race-control/:path*',
     '/super-admin/:path*',

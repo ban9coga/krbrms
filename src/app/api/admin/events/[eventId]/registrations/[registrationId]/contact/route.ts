@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { adminClient, requireBackoffice } from '../../../../../../../../lib/auth'
+import { adminClient, requireRegistrationManager } from '../../../../../../../../lib/auth'
 
 const CONTACT_SELECT = 'id, event_id, contact_name, contact_phone, contact_email, community_name'
 
@@ -17,7 +17,7 @@ export async function PATCH(
   { params }: { params: Promise<{ eventId: string; registrationId: string }> }
 ) {
   const { eventId, registrationId } = await params
-  const auth = await requireBackoffice(req.headers.get('authorization'), eventId)
+  const auth = await requireRegistrationManager(req.headers.get('authorization'), eventId)
   if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json().catch(() => null)
@@ -89,4 +89,3 @@ export async function PATCH(
 
   return NextResponse.json({ ok: true, data, changed: true })
 }
-

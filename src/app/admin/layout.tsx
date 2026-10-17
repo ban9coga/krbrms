@@ -63,6 +63,7 @@ const roleHome = (role: string | null) => {
   if (normalized === 'RACE_CONTROL') return '/race-control'
   if (normalized === 'MC') return '/mc'
   if (normalized === 'REGISTRATION_APPROVER') return '/admin/events'
+  if (normalized === 'RC_ADMIN') return '/rc-admin'
   if (normalized === 'ADMIN' || normalized === 'SUPER_ADMIN') return '/admin'
   return '/login'
 }
@@ -87,6 +88,7 @@ const readCookieValue = (name: string) => {
 }
 
 const isAllowedAdminPath = (role: string | null, pathname: string) => {
+  if (normalizeAppRole(role) === 'RC_ADMIN') return false
   if (!isRegistrationApproverRole(role)) return true
   if (pathname === '/admin' || pathname === '/admin/events') return true
   return /^\/admin\/events\/[^/]+\/(registrations|check-in)(?:\/|$)/.test(pathname)

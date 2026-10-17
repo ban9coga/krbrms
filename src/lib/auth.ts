@@ -22,13 +22,14 @@ type AuthFailure = { ok: false }
 const roleWeight = (role: string) => {
   if (role === 'SUPER_ADMIN') return 0
   if (role === 'ADMIN') return 1
-  if (role === 'REGISTRATION_APPROVER') return 2
-  if (role === 'DRAW_MANAGER') return 3
-  if (role === 'RACE_DIRECTOR') return 4
-  if (role === 'RACE_CONTROL') return 5
-  if (role === 'CHECKER') return 6
-  if (role === 'FINISHER') return 7
-  if (role === 'MC') return 8
+  if (role === 'RC_ADMIN') return 2
+  if (role === 'REGISTRATION_APPROVER') return 3
+  if (role === 'DRAW_MANAGER') return 4
+  if (role === 'RACE_DIRECTOR') return 5
+  if (role === 'RACE_CONTROL') return 6
+  if (role === 'CHECKER') return 7
+  if (role === 'FINISHER') return 8
+  if (role === 'MC') return 9
   return 99
 }
 
@@ -53,6 +54,7 @@ export const verifyPasswordForAuthHeader = async (authHeader: string | null | un
 const getGlobalRole = (user: AuthUser) => {
   const meta = (user.user_metadata ?? {}) as Record<string, unknown>
   const appMeta = (user.app_metadata ?? {}) as Record<string, unknown>
+  if (normalizeAppRole(typeof appMeta.role === 'string' ? appMeta.role : '') === 'RC_ADMIN') return 'RC_ADMIN'
   const role =
     (typeof meta.role === 'string' ? meta.role : null) ||
     (typeof appMeta.role === 'string' ? appMeta.role : null)
@@ -183,6 +185,16 @@ export const requireBackoffice = async (
   const scopedRole = await getAnyAllowedEventRole(user.id, allowedRoles)
   if (!scopedRole) return { ok: false }
   return { ok: true, user, role: scopedRole, eventRole: scopedRole }
+}
+
+// Keep RC Admin permission scoped to event registration workflows only.
+export const requireRegistrationManager = async (
+  authHeader: string | null | undefined,
+  eventId: string
+): Promise<AuthSuccess | AuthFailure> => {
+  const backoffice = await requireBackoffice(authHeader, eventId)
+  if (backoffice.ok) return backoffice
+  return requireScopedEventWorkspace(authHeader, eventId, ['RC_ADMIN'])
 }
 
 export const requireEventRole = async (

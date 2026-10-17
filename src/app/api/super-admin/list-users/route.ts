@@ -19,6 +19,9 @@ export async function GET(req: Request) {
 
   const meta = (userData.user.user_metadata ?? {}) as Record<string, unknown>
   const appMeta = (userData.user.app_metadata ?? {}) as Record<string, unknown>
+  if (String(appMeta.role ?? '').toUpperCase() === 'RC_ADMIN') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
   const role =
     (typeof meta.role === 'string' ? meta.role : null) ||
     (typeof appMeta.role === 'string' ? appMeta.role : null)

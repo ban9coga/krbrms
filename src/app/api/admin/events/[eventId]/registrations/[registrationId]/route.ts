@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { adminClient, requireAdmin, requireBackoffice } from '../../../../../../../lib/auth'
+import { adminClient, requireAdmin, requireRegistrationManager } from '../../../../../../../lib/auth'
 import {
   isMissingPrimaryCategoryColumnError,
   missingPrimaryCategoryMigrationMessage,
@@ -470,7 +470,7 @@ export async function GET(
   { params }: { params: Promise<{ eventId: string; registrationId: string }> }
 ) {
   const { eventId, registrationId } = await params
-  const auth = await requireBackoffice(req.headers.get('authorization'), eventId)
+  const auth = await requireRegistrationManager(req.headers.get('authorization'), eventId)
   if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { data, error } = await adminClient
@@ -529,7 +529,7 @@ export async function PATCH(
   { params }: { params: Promise<{ eventId: string; registrationId: string }> }
 ) {
   const { eventId, registrationId } = await params
-  const auth = await requireBackoffice(req.headers.get('authorization'), eventId)
+  const auth = await requireRegistrationManager(req.headers.get('authorization'), eventId)
   if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const body = await req.json().catch(() => null)
   if (!body) return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })

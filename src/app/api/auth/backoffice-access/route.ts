@@ -5,13 +5,14 @@ import { normalizeAppRole } from '../../../../lib/roles'
 const roleWeight = (role: string) => {
   if (role === 'SUPER_ADMIN') return 0
   if (role === 'ADMIN') return 1
-  if (role === 'REGISTRATION_APPROVER') return 2
-  if (role === 'DRAW_MANAGER') return 3
-  if (role === 'RACE_DIRECTOR') return 4
-  if (role === 'RACE_CONTROL') return 5
-  if (role === 'CHECKER') return 6
-  if (role === 'FINISHER') return 7
-  if (role === 'MC') return 8
+  if (role === 'RC_ADMIN') return 2
+  if (role === 'REGISTRATION_APPROVER') return 3
+  if (role === 'DRAW_MANAGER') return 4
+  if (role === 'RACE_DIRECTOR') return 5
+  if (role === 'RACE_CONTROL') return 6
+  if (role === 'CHECKER') return 7
+  if (role === 'FINISHER') return 8
+  if (role === 'MC') return 9
   return 99
 }
 
@@ -25,12 +26,14 @@ const getHomePath = (role: string, eventIds: string[]) => {
   if (role === 'REGISTRATION_APPROVER') {
     return eventIds.length === 1 ? `/admin/events/${eventIds[0]}/registrations` : '/admin/events'
   }
+  if (role === 'RC_ADMIN') return '/rc-admin'
   return '/admin'
 }
 
 const getGlobalRole = (user: { user_metadata?: unknown; app_metadata?: unknown }) => {
   const userMetadata = (user.user_metadata ?? {}) as Record<string, unknown>
   const appMetadata = (user.app_metadata ?? {}) as Record<string, unknown>
+  if (normalizeAppRole(typeof appMetadata.role === 'string' ? appMetadata.role : '') === 'RC_ADMIN') return 'RC_ADMIN'
   return normalizeAppRole(
     typeof userMetadata.role === 'string'
       ? userMetadata.role
@@ -56,6 +59,9 @@ export async function GET(req: Request) {
   const globalRole = getGlobalRole(user)
   if (globalRole === 'SUPER_ADMIN' || globalRole === 'ADMIN') {
     return NextResponse.json({ data: { ok: true, role: globalRole, home: '/admin' } })
+  }
+  if (globalRole === 'RC_ADMIN') {
+    return NextResponse.json({ data: { ok: true, role: globalRole, home: '/rc-admin' } })
   }
 
   const { data: assignments, error: assignmentsError } = await adminClient

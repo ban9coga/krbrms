@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { adminClient, requireAdmin } from '../../../../../../lib/auth'
+import { adminClient, requireAdmin, requireScopedEventWorkspace } from '../../../../../../lib/auth'
 import { normalizeFinalClassList, resolveDefaultAdvancedRaceConfig } from '../../../../../../lib/advancedRaceDefaults'
 
 type RuleInput = {
@@ -44,12 +44,17 @@ export async function GET(_: Request, { params }: { params: Promise<{ eventId: s
 export async function POST(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params
   const auth = await requireAdmin(req.headers.get('authorization'), eventId)
-  if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const rcAuth = auth.ok ? auth : await requireScopedEventWorkspace(req.headers.get('authorization'), eventId, ['RC_ADMIN'])
+  if (!rcAuth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const body = await req.json().catch(() => ({}))
   const category_id = body?.category_id as string | undefined
   const rules = (body?.rules ?? []) as RuleInput[]
   if (!category_id) return NextResponse.json({ error: 'category_id required' }, { status: 400 })
   if (!Array.isArray(rules)) return NextResponse.json({ error: 'rules must be array' }, { status: 400 })
+  const thresholds = rules.map((rule) => Number(rule?.min_riders))
+  if (thresholds.some((value) => !Number.isInteger(value) || value < 1) || new Set(thresholds).size !== thresholds.length) {
+    return NextResponse.json({ error: 'Each min_riders must be a unique positive integer' }, { status: 400 })
+  }
 
   const { data: category, error: catError } = await adminClient
     .from('categories')

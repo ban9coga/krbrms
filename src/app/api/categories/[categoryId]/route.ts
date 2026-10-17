@@ -1,12 +1,16 @@
 import { NextResponse } from 'next/server'
-import { adminClient, requireAdmin } from '../../../../lib/auth'
+import { adminClient, requireAdmin, requireScopedEventWorkspace } from '../../../../lib/auth'
 
 const CATEGORY_RETURN_SELECT = 'id, event_id, year, year_min, year_max, capacity, gender, label, enabled, sequence_order'
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ categoryId: string }> }) {
-  const auth = await requireAdmin(req.headers.get('authorization'))
-  if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { categoryId } = await params
+  const { data: existingCategory, error: categoryError } = await adminClient
+    .from('categories').select('event_id').eq('id', categoryId).maybeSingle()
+  if (categoryError || !existingCategory) return NextResponse.json({ error: 'Category not found' }, { status: 404 })
+  const auth = await requireAdmin(req.headers.get('authorization'), existingCategory.event_id)
+  const rcAuth = auth.ok ? auth : await requireScopedEventWorkspace(req.headers.get('authorization'), existingCategory.event_id, ['RC_ADMIN'])
+  if (!rcAuth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const body = await req.json()
   const { enabled, year_min, year_max, label, capacity, gender } = body ?? {}
   if (year_min != null && year_max != null && Number(year_min) > Number(year_max)) {

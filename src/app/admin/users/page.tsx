@@ -6,6 +6,7 @@ import { supabase } from '@/src/lib/supabaseClient'
 
 type RoleType =
   | 'admin'
+  | 'RC_ADMIN'
   | 'jury'
   | 'race_control'
   | 'super_admin'
@@ -199,6 +200,7 @@ export default function AdminUsersPage() {
             <span className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">Role Global</span>
             <select value={role} onChange={(e) => setRole(e.target.value as RoleType)} className={inputClass}>
               <option value="admin">Operator Admin</option>
+              <option value="RC_ADMIN">RC Admin Komunitas</option>
               <option value="REGISTRATION_APPROVER">Registration Approver</option>
               <option value="DRAW_MANAGER">Drawing Manager</option>
               <option value="race_control">Race Control</option>
@@ -296,6 +298,7 @@ export default function AdminUsersPage() {
                     >
                       <option value="super_admin">Central Admin</option>
                       <option value="admin">Operator Admin</option>
+                      <option value="RC_ADMIN">RC Admin Komunitas</option>
                       <option value="REGISTRATION_APPROVER">Registration Approver</option>
                       <option value="DRAW_MANAGER">Drawing Manager</option>
                       <option value="race_control">Race Control</option>

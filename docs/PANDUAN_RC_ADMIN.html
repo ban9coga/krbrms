@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Panduan RC Admin RacePushbike</title>
+  <style>
+    :root { --ink: #21120c; --muted: #62544d; --orange: #a94318; --yellow: #f2c438; --teal: #147c71; --line: #dfd7cc; --paper: #fffdf8; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #e9e5df; color: var(--ink); font: 10pt/1.48 "Aptos", "Segoe UI", Arial, sans-serif; }
+    .page { width: 210mm; min-height: 297mm; margin: 12px auto; padding: 17mm 18mm 18mm; background: var(--paper); position: relative; box-shadow: 0 2px 14px #0002; page-break-after: always; }
+    .page:last-child { page-break-after: auto; }
+    .running { display:flex; justify-content:space-between; padding-bottom: 4mm; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 8pt; font-weight: 700; text-transform: uppercase; }
+    .footer { position:absolute; left:18mm; right:18mm; bottom:9mm; display:flex; justify-content:space-between; padding-top:3mm; border-top:1px solid var(--line); color:var(--muted); font-size:8pt; }
+    .eyebrow { margin: 0 0 2mm; color:var(--orange); font-size:8pt; font-weight:900; text-transform:uppercase; }
+    h1,h2,h3,p { margin-top:0; }
+    h1 { max-width:155mm; margin:7mm 0 4mm; font-size:31pt; line-height:1.02; }
+    h2 { margin:7mm 0 3mm; padding-bottom:2mm; border-bottom:2px solid var(--yellow); font-size:17pt; line-height:1.15; }
+    h3 { margin:4mm 0 1.5mm; color:var(--teal); font-size:11pt; }
+    p { margin-bottom:2.5mm; }
+    .lead { max-width:145mm; color:var(--muted); font-size:13pt; line-height:1.42; }
+    .hero { margin-top:25mm; padding:12mm; border-radius:5px; color:#fff8ef; background:#25130c; border-bottom:5px solid var(--yellow); }
+    .hero .eyebrow { color:#f5ca3d; }
+    .hero h1 { margin:5mm 0; color:#fff8ef; }
+    .hero .lead { color:#eadbd1; }
+    .meta { display:flex; gap:8mm; margin-top:12mm; color:#efe5da; font-size:9pt; }
+    .meta strong { display:block; color:#f5ca3d; font-size:8pt; text-transform:uppercase; }
+    .callout { margin:3mm 0; padding:3mm 4mm; border-left:4px solid var(--teal); background:#edf7f3; }
+    .warning { border-left-color:#c04b26; background:#fff0e8; }
+    .steps { list-style:none; counter-reset:step; margin:2mm 0 4mm; padding:0; }
+    .steps li { counter-increment:step; position:relative; margin:0 0 3mm; padding:0 0 0 10mm; }
+    .steps li::before { content:counter(step); position:absolute; left:0; top:0; display:grid; place-items:center; width:7mm; height:7mm; border-radius:50%; color:#fff; background:var(--teal); font-size:9pt; font-weight:900; }
+    .check { margin:2mm 0; padding:0; list-style:none; }
+    .check li { position:relative; margin:1.7mm 0; padding-left:7mm; }
+    .check li::before { content:""; position:absolute; top:1mm; left:0; width:3.4mm; height:3.4mm; border:1px solid var(--teal); border-radius:2px; }
+    .tag { display:inline-block; padding:1mm 2.5mm; border-radius:12px; background:#f8edc5; color:#533a03; font-size:8pt; font-weight:800; }
+    .small { color:var(--muted); font-size:8.5pt; }
+    .two { display:grid; grid-template-columns:1fr 1fr; gap:5mm; }
+    .panel { padding:4mm; border:1px solid var(--line); border-radius:4px; }
+    .panel h3 { margin-top:0; }
+    .flow { display:flex; flex-wrap:wrap; gap:2mm; margin:3mm 0; }
+    .flow span { padding:2mm 3mm; border:1px solid var(--line); border-radius:3px; background:#fff; font-size:8.5pt; font-weight:800; }
+    .flow b { align-self:center; color:var(--orange); }
+    code { padding:.4mm 1mm; border-radius:2px; background:#f2eee8; font:8.5pt Consolas, monospace; }
+    @page { size:A4; margin:0; }
+    @media print {
+      body { background:#fff; }
+      .page { width:210mm; min-height:297mm; margin:0; box-shadow:none; break-after:page; }
+      .page:last-child { break-after:auto; }
+    }
+    @media screen {
+      body[data-page="1"] .page:not(:nth-child(1)) { display:none; }
+      body[data-page="2"] .page:not(:nth-child(2)), body[data-page="3"] .page:not(:nth-child(3)),
+      body[data-page="4"] .page:not(:nth-child(4)), body[data-page="5"] .page:not(:nth-child(5)),
+      body[data-page="6"] .page:not(:nth-child(6)) { display:none; }
+      body[data-page] .page { margin:0 auto; box-shadow:none; }
+    }
+  </style>
+</head>
+<body>
+  <section class="page">
+    <div class="running"><span>RacePushbike.com</span><span>Panduan operasional komunitas</span></div>
+    <div class="hero">
+      <p class="eyebrow">Panduan RC Admin</p>
+      <h1>Kelola event<br>dari persiapan sampai race day</h1>
+      <p class="lead">Panduan untuk central admin dan admin komunitas dalam menyiapkan event, mengelola pendaftaran, dan menjalankan uji coba dengan pembagian akses yang benar.</p>
+      <div class="meta"><div><strong>Versi panduan</strong>3 Oktober 2026</div><div><strong>Untuk</strong>Central Admin &amp; RC Admin</div><div><strong>Lingkungan</strong>Event uji coba</div></div>
+    </div>
+    <div class="callout warning" style="margin-top:9mm"><strong>Status fitur penting:</strong> RC Admin saat ini dapat membuat event, mengatur kategori dan aturan race, serta mengelola pendaftaran. Menu drawing batch dan pengoperasian race day belum dipindahkan ke workspace RC Admin. Sampai bagian itu tersedia, central admin/operator dan crew yang ditugaskan masih menjalankan drawing dan race day dari workspace yang sudah ada.</div>
+    <h2>Alur singkat</h2>
+    <div class="flow"><span>Central Admin siapkan akses</span><b>›</b><span>RC Admin buat event</span><b>›</b><span>Kategori &amp; aturan</span><b>›</b><span>Pendaftaran &amp; approval</span><b>›</b><span>Handoff drawing</span><b>›</b><span>Race day &amp; hasil</span></div>
+    <p class="small">Gunakan event salinan atau event khusus testing. Jangan menguji alur race pada event aktif yang sedang dipakai peserta.</p>
+    <div class="footer"><span>Panduan RC Admin</span><span>RacePushbike.com · 2026</span></div>
+  </section>
+
+  <section class="page">
+    <div class="running"><span>01 · Persiapan akses</span><span>Central Admin</span></div>
+    <h2>Bagian A · Tugas Central Admin</h2>
+    <p>Central Admin menyiapkan akun, memastikan role tersimpan dengan benar, dan memberi akses hanya ke event yang dimiliki komunitas.</p>
+    <ol class="steps">
+      <li><strong>Pastikan migrasi role sudah diterapkan.</strong> Database harus menerima role <code>RC_ADMIN</code> pada <code>user_event_roles</code>. Migration <code>2026-10-02_add_rc_admin_scoped_role.sql</code> sudah dijalankan pada environment yang akan dites.</li>
+      <li><strong>Buat akun komunitas khusus.</strong> Dari halaman Super Admin, buat user dengan role <code>RC_ADMIN</code>. Jangan beri role <code>ADMIN</code>; role itu membuka workspace operator yang lebih luas.</li>
+      <li><strong>Tentukan kepemilikan event.</strong> Disarankan RC Admin membuat event sendiri setelah login. Sistem akan mengaitkan pembuat dengan event. Jika central admin membuat event untuk komunitas, tambahkan assignment aktif <code>RC_ADMIN</code> pada event tersebut.</li>
+      <li><strong>Catat akun uji.</strong> Simpan email/kode login dan PIN/password melalui jalur aman. Jangan masukkan kredensial ke dokumen yang dibagikan ke umum.</li>
+    </ol>
+    <div class="callout"><strong>Hasil yang diharapkan:</strong> user login dan diarahkan ke <code>/rc-admin</code>, hanya melihat event yang ditugaskan, dan tidak mendapat akses ke <code>/admin</code>.</div>
+    <h3>Uji batas akses</h3>
+    <ul class="check">
+      <li>RC Admin bisa membuka workspace dan melihat event miliknya.</li>
+      <li>RC Admin tidak dapat membuka workspace admin pusat dengan mengetik URL langsung.</li>
+      <li>Event milik komunitas lain tidak tampil dan endpoint event lain menolak akses.</li>
+      <li>Central Admin tetap bisa masuk ke Super Admin dan membantu semua event sesuai role pusatnya.</li>
+    </ul>
+    <div class="callout warning"><strong>Jangan membagikan role central admin kepada komunitas.</strong> Jika RC Admin gagal membuka event sendiri, periksa assignment aktif dan role; jangan mengubahnya menjadi <code>ADMIN</code> sebagai jalan pintas.</div>
+    <h2>Bagian B · Buat event sebagai RC Admin</h2>
+    <ol class="steps">
+      <li>Login memakai akun RC Admin; buka <code>/rc-admin</code>.</li>
+      <li>Pilih <strong>Buat event</strong>, isi nama event, tanggal, dan lokasi, lalu lanjutkan.</li>
+      <li>Pastikan event baru muncul pada daftar event dan statusnya sesuai jadwal.</li>
+      <li>Buka event untuk melihat ringkasan kesiapan dan tahapan setup.</li>
+    </ol>
+    <div class="footer"><span>Persiapan akses dan event</span><span>RacePushbike.com · 2026</span></div>
+  </section>
+
+  <section class="page">
+    <div class="running"><span>02 · Setup event</span><span>RC Admin</span></div>
+    <h2>Bagian C · Kategori dan aturan race</h2>
+    <div class="two">
+      <div class="panel"><h3>1. Kategori event</h3><ol class="steps">
+        <li>Dari ringkasan event, pilih <strong>Kategori event</strong>.</li>
+        <li>Gunakan sinkronisasi dari data rider bila roster sudah masuk; atau buat kategori secara manual.</li>
+        <li>Periksa rentang tahun lahir, gender, nama kategori, kapasitas, dan status aktif.</li>
+        <li>Pastikan tidak ada kategori ganda atau kategori yang salah rentang sebelum pendaftaran dibuka.</li>
+      </ol></div>
+      <div class="panel"><h3>2. Aturan race</h3><ol class="steps">
+        <li>Pilih <strong>Aturan race</strong>, lalu pilih kategori.</li>
+        <li>Aktifkan multi-stage jika kategori memakai babak lanjutan.</li>
+        <li>Atur jumlah maksimal rider per race dan jumlah moto kualifikasi.</li>
+        <li>Isi batas rider repechage/QF/SF bila diperlukan; kosongkan untuk memakai default sistem.</li>
+        <li>Ambang rider dimasukkan sebagai angka positif dipisahkan koma, misalnya <code>8, 16, 24</code>.</li>
+        <li>Isi override poin DNS/DNF hanya jika aturan event berbeda dari default.</li>
+        <li>Simpan, lalu pilih kembali kategori untuk memastikan nilai tetap tersimpan.</li>
+      </ol></div>
+    </div>
+    <div class="callout warning"><strong>Uji sebelum pendaftaran ramai:</strong> ambang jumlah rider menentukan format stage default yang dihitung sistem. Jangan mengira kolom ambang sebagai jumlah rider yang didaftarkan. Minta Race Director memeriksa rancangan aturan sebelum kategori dipakai.</div>
+    <div class="footer"><span>Kategori dan aturan race</span><span>RacePushbike.com · 2026</span></div>
+  </section>
+
+  <section class="page">
+    <div class="running"><span>03 · Pendaftaran</span><span>RC Admin</span></div>
+    <h2>Bagian D · Buka dan review pendaftaran</h2>
+    <ol class="steps">
+      <li>Bagikan halaman publik event/jadwal kepada peserta. Lakukan satu pendaftaran dummy terlebih dahulu dengan kontak dan rider uji.</li>
+      <li>Dari ringkasan event RC Admin, buka <strong>Pendaftaran rider</strong>.</li>
+      <li>Periksa data wali, nama rider, tanggal lahir, gender, komunitas, kategori, dokumen, dan bukti pembayaran.</li>
+      <li>Jika ada kesalahan, minta koreksi sebelum menyetujui. Pastikan nomor plate tidak bentrok; sistem akan memeriksa ketersediaan dan memberi opsi suffix bila diperlukan.</li>
+      <li>Setujui pembayaran dan pendaftaran sesuai kebijakan event. Saat approve, periksa bahwa rider terbentuk pada roster dengan kategori dan plate yang benar.</li>
+      <li>Untuk pendaftaran tidak valid, reject dengan catatan yang jelas agar wali tahu apa yang harus diperbaiki.</li>
+    </ol>
+    <p><strong>Catatan operasional:</strong> halaman ini memakai workflow review yang sama dengan sistem pendaftaran yang sudah ada. RC Admin tidak memperoleh tombol hapus permanen pendaftaran; tindakan itu tetap dibatasi untuk admin pusat.</p>
+    <div class="callout"><strong>Titik kontrol sebelum drawing:</strong> jumlah rider yang disetujui cocok dengan roster; kategori dan plate benar; tidak ada pembayaran/dokumen yang masih menunggu keputusan tanpa tindak lanjut.</div>
+    <div class="footer"><span>Pendaftaran rider</span><span>RacePushbike.com · 2026</span></div>
+  </section>
+
+  <section class="page">
+    <div class="running"><span>03 · Drawing &amp; race day</span><span>Handoff saat ini</span></div>
+    <h2>Bagian E · Handoff ke drawing</h2>
+    <p>Drawing batch belum tersedia sebagai menu RC Admin. Untuk uji coba saat ini, central admin/operator melanjutkan pekerjaan melalui workspace drawing yang sudah digunakan sistem.</p>
+    <ol class="steps">
+      <li>RC Admin menyatakan roster final dan kategori siap. Jangan mulai drawing jika approval masih berubah-ubah.</li>
+      <li>Central admin/operator membuka event pada workspace drawing yang sesuai, lalu memastikan kategori/rider yang dipilih benar.</li>
+      <li>Tetapkan jumlah gate, pembagian batch/moto, dan mode drawing sesuai regulasi event.</li>
+      <li>Jalankan preview dan pemeriksaan distribusi. Untuk manual draw, pastikan semua rider masuk tepat satu kali dan setiap batch tidak melebihi kapasitas gate.</li>
+      <li>Simpan hasil drawing dan cek kembali moto, batch, gate, kategori, serta nama rider sebelum dipublikasikan.</li>
+    </ol>
+    <div class="callout warning"><strong>Handoff bukan akses sementara ke /admin.</strong> RC Admin tetap memakai portal RC. Central admin/operator melakukan drawing hingga drawing manager khusus tersedia di portal komunitas.</div>
+    <h2>Bagian F · Checklist race day</h2>
+    <ul class="check">
+      <li>Pastikan daftar moto dan urutan race sudah diumumkan ke crew.</li>
+      <li>Checker memeriksa rider dan safety gear per moto; catat READY/ABSENT dan pelanggaran pada moto yang tepat.</li>
+      <li>Finisher memasukkan urutan finish dan mengirim hasil setelah race selesai.</li>
+      <li>Ikuti urutan event: selesaikan semua batch Moto 1 sebelum beralih ke Moto 2 batch pertama, kecuali format event secara resmi menetapkan lain.</li>
+      <li>Race Director menangani protes, DNS/DNF, penalty, safety review, dan keputusan tie-break berdasarkan aturan event.</li>
+      <li>Jangan membuat stage berikutnya sebelum hasil stage sebelumnya diverifikasi dan dikunci sesuai alur sistem.</li>
+      <li>Setelah seluruh race beres, verifikasi hasil final, klasemen, dan e-certificate sebelum memberi pengumuman publik.</li>
+    </ul>
+    <p class="small">Role crew seperti checker, finisher, dan Race Director memakai panel masing-masing. Jangan berbagi satu akun untuk beberapa petugas ketika sedang mengetes realtime.</p>
+    <div class="footer"><span>Drawing dan race day</span><span>RacePushbike.com · 2026</span></div>
+  </section>
+
+  <section class="page">
+    <div class="running"><span>05 · Uji coba</span><span>Checklist akhir</span></div>
+    <h2>Bagian G · Uji coba end-to-end</h2>
+    <div class="two">
+      <div class="panel"><h3>Lulus jika</h3><ul class="check">
+        <li>RC Admin hanya melihat event yang ditugaskan.</li>
+        <li>Perubahan kategori/rules tersimpan dan muncul setelah dimuat ulang.</li>
+        <li>Registration review dapat approve/reject dan hasilnya tercermin di roster.</li>
+        <li>Central admin/operator dapat meneruskan roster ke drawing tanpa duplikasi rider.</li>
+      </ul></div>
+      <div class="panel"><h3>Hentikan tes jika</h3><ul class="check">
+        <li>Event salah, kategori salah, atau jumlah rider tidak cocok.</li>
+        <li>Plate duplikat atau rider tampil di kategori yang keliru.</li>
+        <li>Aturan stage belum disepakati Race Director.</li>
+        <li>Hasil moto berubah setelah dikunci tanpa alasan dan audit.</li>
+      </ul></div>
+    </div>
+    <p class="small" style="margin-top:5mm"><strong>Status panduan:</strong> ditulis berdasarkan kemampuan portal per 3 Oktober 2026. Drawing batch dan race-day operation khusus RC Admin adalah tahap pengembangan berikutnya; panduan ini menandai handoff secara eksplisit agar operator tidak mencari menu yang belum tersedia.</p>
+    <div class="footer"><span>Checklist dan status fitur</span><span>RacePushbike.com · 2026</span></div>
+  </section>
+  <script>
+    const previewPage = location.hash.match(/page=(\d+)/)?.[1]
+    if (previewPage) document.body.dataset.page = previewPage
+  </script>
+</body>
+</html>

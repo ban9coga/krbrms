@@ -2756,12 +2756,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <Link
-              href={`/admin/events/${eventId}/check-in`}
-              className="admin-primary-button"
-            >
-              Check-in & Goodie Bag
-            </Link>
+            <Link href={`/admin/events/${eventId}/check-in`} className="admin-primary-button">Check-in & Goodie Bag</Link>
             <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
               Menampilkan <span className="font-black text-slate-950">{registrations.length}</span> dari{' '}
               <span className="font-black text-slate-950">{meta.total}</span> pendaftaran
@@ -2962,12 +2957,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
             >
               {showAttendanceSummary ? 'Sembunyikan Rekap' : 'Tampilkan Rekap'}
             </button>
-            <Link
-              href={`/admin/events/${eventId}/check-in`}
-              className="admin-outline-button w-fit"
-            >
-              Buka Check-in
-            </Link>
+            <Link href={`/admin/events/${eventId}/check-in`} className="admin-outline-button w-fit">Buka Check-in</Link>
           </div>
         </div>
 

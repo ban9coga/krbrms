@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { adminClient, requireBackoffice } from '../../../../../../../../../lib/auth'
+import { adminClient, requireRegistrationManager } from '../../../../../../../../../lib/auth'
 import {
   sendRegistrationPaymentRejectionEmail,
   type RegistrationEmailResult,
@@ -15,7 +15,7 @@ export async function PATCH(
   { params }: { params: Promise<{ eventId: string; registrationId: string; paymentId: string }> }
 ) {
   const { eventId, registrationId, paymentId } = await params
-  const auth = await requireBackoffice(req.headers.get('authorization'), eventId)
+  const auth = await requireRegistrationManager(req.headers.get('authorization'), eventId)
   if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json().catch(() => null)
@@ -77,4 +77,3 @@ export async function PATCH(
 
   return NextResponse.json({ data, email })
 }
-
