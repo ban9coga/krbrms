@@ -1,7 +1,9 @@
 type MotoLike = {
+  id?: string
   moto_name?: string | null
   moto_order?: number | null
   category_id?: string | null
+  status?: string | null
 }
 
 type ParsedMoto = {
@@ -206,4 +208,38 @@ export const compareMotoSequence = (a: MotoLike, b: MotoLike) => {
 
   // Fallback: compare by moto_order
   return (ao ?? 0) - (bo ?? 0)
+}
+
+const isRaceMotoComplete = (status?: string | null) =>
+  ['LOCKED', 'FINISHED', 'PROVISIONAL'].includes(String(status ?? '').toUpperCase())
+
+const isQualificationMoto = (moto: MotoLike) => parseAdvancedMoto(moto.moto_name)?.stage === 'QUALIFICATION'
+
+// Generated advancement motos are appended to moto_order, but become the next
+// workflow step once their category's earlier motos are submitted or complete.
+export const pickNextMotoInWorkflow = <T extends MotoLike & { id: string }>(rows: T[], anchorMoto?: T | null) => {
+  const candidates = rows.filter((row) => ['UPCOMING', 'READY'].includes(String(row.status ?? '').toUpperCase()))
+  const releasedAdvancement = candidates.filter((candidate) => {
+    if (isQualificationMoto(candidate) || !candidate.category_id) return false
+    return !rows.some((row) =>
+      row.category_id === candidate.category_id &&
+      row.id !== candidate.id &&
+      typeof row.moto_order === 'number' &&
+      typeof candidate.moto_order === 'number' &&
+      row.moto_order < candidate.moto_order &&
+      !isRaceMotoComplete(row.status)
+    )
+  })
+
+  if (releasedAdvancement.length > 0) {
+    const categoryBaseOrder = buildCategoryBaseOrder(rows)
+    return [...releasedAdvancement].sort((a, b) =>
+      compareMotoWorkflowSequence(a, b, categoryBaseOrder)
+    )[0] ?? null
+  }
+
+  if (!anchorMoto) return candidates[0] ?? null
+  const anchorIndex = rows.findIndex((row) => row.id === anchorMoto.id)
+  const afterAnchor = anchorIndex >= 0 ? rows.slice(anchorIndex + 1) : rows
+  return afterAnchor.find((row) => candidates.some((candidate) => candidate.id === row.id)) ?? candidates[0] ?? null
 }

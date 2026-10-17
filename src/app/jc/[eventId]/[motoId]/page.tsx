@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import CheckerTopbar from '../../../../components/CheckerTopbar'
 import LoadingState from '../../../../components/LoadingState'
 import { useHighVisibility } from '../../../../hooks/useHighVisibility'
-import { compareMotoSequence } from '../../../../lib/motoSequence'
+import { compareMotoSequence, pickNextMotoInWorkflow } from '../../../../lib/motoSequence'
 import { useApiFetch } from '@/src/hooks/useApiFetch'
 import { isMotoLive, isMotoReady, isMotoUpcoming } from '../../../../lib/motoStatus'
 import { usePageVisibility } from '../../../../lib/usePageVisibility'
@@ -126,12 +126,7 @@ const isCategoryUnfinished = (list: MotoItem[], categoryId?: string | null) => {
 }
 
 const pickUpcomingMoto = (list: MotoItem[], anchorMoto?: MotoItem | null) => {
-  const selectableUpcoming = list.filter((m) => !isLockedStatus(m.status) && isPrepMotoStatus(m.status))
-  if (!anchorMoto) return selectableUpcoming[0] ?? null
-
-  const anchorIndex = list.findIndex((m) => m.id === anchorMoto.id)
-  const afterAnchor = anchorIndex >= 0 ? list.slice(anchorIndex + 1) : list
-  return afterAnchor.find((m) => !isLockedStatus(m.status) && isPrepMotoStatus(m.status)) ?? selectableUpcoming[0] ?? null
+  return pickNextMotoInWorkflow(list, anchorMoto)
 }
 
 const pickPrepMotoId = (

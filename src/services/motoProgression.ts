@@ -1,7 +1,7 @@
 'use server'
 
 import { adminClient } from '../lib/auth'
-import { compareMotoSequence } from '../lib/motoSequence'
+import { compareMotoSequence, pickNextMotoInWorkflow } from '../lib/motoSequence'
 import { syncAdvancedRaceProgressAfterLockedStage } from './advancedRaceAuto'
 
 type MotoQueueRow = {
@@ -23,16 +23,10 @@ const isLegacyPreparedMoto = (row: MotoQueueRow) =>
 const isPromotableMoto = (row: MotoQueueRow) => isReadyMoto(row) || isLegacyPreparedMoto(row)
 const isNextCandidateMoto = (row: MotoQueueRow) => isReadyMoto(row) || isUpcomingMoto(row)
 const pickNextMotoToPromote = (rows: MotoQueueRow[], currentMoto: MotoQueueRow) => {
-  const currentIndex = rows.findIndex((row) => row.id === currentMoto.id)
-  if (currentIndex < 0) return { nextMoto: null, warning: 'Current moto not found in event sequence.' }
-
-  const afterCurrent = rows.slice(currentIndex + 1)
-  const nextMoto =
-    afterCurrent.find(isNextCandidateMoto) ??
-    rows.find(isNextCandidateMoto) ??
-    null
-
-  return { nextMoto, warning: null }
+  if (!rows.some((row) => row.id === currentMoto.id)) {
+    return { nextMoto: null, warning: 'Current moto not found in event sequence.' }
+  }
+  return { nextMoto: pickNextMotoInWorkflow(rows, currentMoto), warning: null }
 }
 
 const loadWorkflowMotos = async (eventId: string) => {
