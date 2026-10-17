@@ -210,24 +210,28 @@ export const compareMotoSequence = (a: MotoLike, b: MotoLike) => {
   return (ao ?? 0) - (bo ?? 0)
 }
 
-const isRaceMotoComplete = (status?: string | null) =>
-  ['LOCKED', 'FINISHED', 'PROVISIONAL'].includes(String(status ?? '').toUpperCase())
+const isPastForNextPrep = (status?: string | null) =>
+  ['LOCKED', 'FINISHED', 'PROVISIONAL', 'LIVE'].includes(String(status ?? '').toUpperCase())
 
 const isQualificationMoto = (moto: MotoLike) => parseAdvancedMoto(moto.moto_name)?.stage === 'QUALIFICATION'
+export const isAdvancementMoto = (moto: MotoLike) => {
+  const parsed = parseAdvancedMoto(moto.moto_name)
+  return parsed != null && parsed.stage !== 'QUALIFICATION'
+}
 
 // Generated advancement motos are appended to moto_order, but become the next
 // workflow step once their category's earlier motos are submitted or complete.
 export const pickNextMotoInWorkflow = <T extends MotoLike & { id: string }>(rows: T[], anchorMoto?: T | null) => {
   const candidates = rows.filter((row) => ['UPCOMING', 'READY'].includes(String(row.status ?? '').toUpperCase()))
   const releasedAdvancement = candidates.filter((candidate) => {
-    if (isQualificationMoto(candidate) || !candidate.category_id) return false
+    if (!isAdvancementMoto(candidate) || !candidate.category_id) return false
     return !rows.some((row) =>
       row.category_id === candidate.category_id &&
       row.id !== candidate.id &&
       typeof row.moto_order === 'number' &&
       typeof candidate.moto_order === 'number' &&
       row.moto_order < candidate.moto_order &&
-      !isRaceMotoComplete(row.status)
+      !isPastForNextPrep(row.status)
     )
   })
 

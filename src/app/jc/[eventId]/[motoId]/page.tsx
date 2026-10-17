@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import CheckerTopbar from '../../../../components/CheckerTopbar'
 import LoadingState from '../../../../components/LoadingState'
 import { useHighVisibility } from '../../../../hooks/useHighVisibility'
-import { compareMotoSequence, pickNextMotoInWorkflow } from '../../../../lib/motoSequence'
+import { compareMotoSequence, isAdvancementMoto, pickNextMotoInWorkflow } from '../../../../lib/motoSequence'
 import { useApiFetch } from '@/src/hooks/useApiFetch'
 import { isMotoLive, isMotoReady, isMotoUpcoming } from '../../../../lib/motoStatus'
 import { usePageVisibility } from '../../../../lib/usePageVisibility'
@@ -135,8 +135,11 @@ const pickPrepMotoId = (
   liveMotoId?: string | null,
   currentPrepFinalized = false
 ) => {
+  const liveMoto = list.find((m) => m.id === liveMotoId) ?? null
+  const releasedStage = pickUpcomingMoto(list, liveMoto)
+  if (releasedStage && isAdvancementMoto(releasedStage)) return releasedStage.id
+
   if (liveMotoId) {
-    const liveMoto = list.find((m) => m.id === liveMotoId)
     const nextAfterLive = pickUpcomingMoto(list, liveMoto)
     if (nextAfterLive) return nextAfterLive.id
     if (liveMoto && isCategoryUnfinished(list, liveMoto.category_id)) {
@@ -382,10 +385,21 @@ export default function JCPage() {
       const workflowMotos = [...rawMotos].sort(compareMotoSequence)
       setMotos(workflowMotos)
 
+      const liveMoto = workflowMotos.find((moto) => isMotoLive(moto.status)) ?? null
+      const nextWorkflowMoto = pickNextMotoInWorkflow(workflowMotos, liveMoto)
       const manuallySelectedMoto = manualSelectedMotoIdRef.current
         ? workflowMotos.find((moto) => moto.id === manualSelectedMotoIdRef.current)
         : null
-      if (manuallySelectedMoto && isPrepMotoStatus(manuallySelectedMoto.status) && !isLockedStatus(manuallySelectedMoto.status)) {
+      const releasedStageOverridesManual =
+        !!nextWorkflowMoto &&
+        isAdvancementMoto(nextWorkflowMoto) &&
+        nextWorkflowMoto.id !== manuallySelectedMoto?.id
+      if (
+        manuallySelectedMoto &&
+        isPrepMotoStatus(manuallySelectedMoto.status) &&
+        !isLockedStatus(manuallySelectedMoto.status) &&
+        !releasedStageOverridesManual
+      ) {
         if (selectedMotoIdRef.current !== manuallySelectedMoto.id) {
           selectedMotoIdRef.current = manuallySelectedMoto.id
           setSelectedMotoId(manuallySelectedMoto.id)
@@ -397,7 +411,6 @@ export default function JCPage() {
       manualSelectedMotoIdRef.current = null
 
       const currentSelectedMotoId = selectedMotoIdRef.current
-      const liveMoto = workflowMotos.find((m) => isMotoLive(m.status))
       const nextMotoId = pickPrepMotoId(workflowMotos, currentSelectedMotoId, liveMoto?.id ?? null, allReadyDone)
       if (nextMotoId && nextMotoId !== currentSelectedMotoId) {
         const nextMoto = workflowMotos.find((m) => m.id === nextMotoId)
@@ -706,10 +719,15 @@ export default function JCPage() {
       ),
     [motos]
   )
-  const allPrepSelectOptions = useMemo(
-    () => [...selectableMotos].sort(compareMotoSequence),
-    [selectableMotos]
+  const nextWorkflowMoto = useMemo(
+    () => pickNextMotoInWorkflow(motos, motos.find((moto) => isMotoLive(moto.status)) ?? null),
+    [motos]
   )
+  const allPrepSelectOptions = useMemo(() => {
+    const sortedMotos = [...selectableMotos].sort(compareMotoSequence)
+    if (!nextWorkflowMoto || !sortedMotos.some((moto) => moto.id === nextWorkflowMoto.id)) return sortedMotos
+    return [nextWorkflowMoto, ...sortedMotos.filter((moto) => moto.id !== nextWorkflowMoto.id)]
+  }, [nextWorkflowMoto, selectableMotos])
   const selectedMotoUpcoming = isMotoUpcoming(selectedMoto?.status)
   const selectedMotoReady = isMotoReady(selectedMoto?.status)
   const selectedMotoPreppable = !!selectedMoto && !isLockedStatus(selectedMoto.status) && (selectedMotoUpcoming || selectedMotoReady)
