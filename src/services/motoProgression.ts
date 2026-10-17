@@ -128,17 +128,39 @@ export async function promoteNextMotoToLive(eventId: string, currentMotoId: stri
   if (!currentMoto) return { ok: false as const, warning: 'Moto saat ini tidak ditemukan.' }
 
   const currentIndex = loaded.rows.findIndex((row) => row.id === currentMotoId)
-  const hasNextMotoInQueue = loaded.rows
+  const hasNextMotoInCategory = loaded.rows
     .slice(currentIndex + 1)
-    .some(isNextCandidateMoto)
+    .some((row) => row.category_id === currentMoto.category_id && isNextCandidateMoto(row))
 
-  // Lock the current moto to compute its next stage only when no queued moto remains.
-  if (isProvisionalMoto(currentMoto) && !hasNextMotoInQueue) {
+  // Another category must not keep the last moto in this category provisional.
+  if (isProvisionalMoto(currentMoto) && !hasNextMotoInCategory) {
     const autoLock = await autoLockProvisionalMoto(eventId, currentMotoId)
+    if (!autoLock.ok) {
+      return { ok: false as const, skipped: true as const, warning: autoLock.warning, auto_lock: autoLock }
+    }
+
+    const refreshed = await loadWorkflowMotos(eventId)
+    if (!refreshed.rows) {
+      return { ok: false as const, skipped: true as const, warning: refreshed.warning ?? 'Gagal memuat urutan moto.', auto_lock: autoLock }
+    }
+    const refreshedCurrent = refreshed.rows.find((row) => row.id === currentMotoId)
+    if (!refreshedCurrent) {
+      return { ok: false as const, skipped: true as const, warning: 'Moto saat ini tidak ditemukan setelah auto-lock.', auto_lock: autoLock }
+    }
+    const { nextMoto, warning } = pickNextMotoToPromote(refreshed.rows, refreshedCurrent)
+    if (warning) return { ok: false as const, skipped: true as const, warning, auto_lock: autoLock }
+    if (!nextMoto) {
+      return {
+        ok: true as const,
+        skipped: true as const,
+        warning: autoLock.warning ?? 'Moto terakhir kategori dikunci.',
+        auto_lock: autoLock,
+      }
+    }
+
+    const promotion = await promoteReadyMoto(eventId, refreshed.rows, nextMoto)
     return {
-      ok: autoLock.ok,
-      skipped: true as const,
-      warning: autoLock.warning ?? 'Moto terakhir pada stage dikunci untuk menjalankan compute stage berikutnya.',
+      ...promotion,
       auto_lock: autoLock,
     }
   }
