@@ -85,19 +85,6 @@ const isLockedStatus = (status?: string | null) => String(status ?? '').toUpperC
 const isPrepMotoStatus = (status?: string | null) => isMotoUpcoming(status) || isMotoReady(status)
 const CHECKER_POLL_INTERVAL_MS = 5000
 
-const getMotoSequenceGroup = (motoName: string) => {
-  const qualification = motoName.match(/moto\s*(\d+)\s*-\s*batch\s*\d+/i)
-  if (qualification) return `QUALIFICATION:${qualification[1]}`
-
-  const heat = motoName.match(/(repechage|quarter\s*final|semi\s*final)\s*-\s*(?:batch|heat)\s*(\d+)/i)
-  if (heat) return `${heat[1].replace(/\s+/g, '_').toUpperCase()}:${heat[2]}`
-
-  const final = motoName.match(/final\s+([\w-]+)/i)
-  if (final) return `FINAL:${final[1].trim().toUpperCase()}`
-
-  return null
-}
-
 const isCategoryAwaitingStageCompute = (list: MotoItem[], categoryId?: string | null) => {
   if (!categoryId) return false
   const categoryMotos = list.filter((moto) => moto.category_id === categoryId)
@@ -736,12 +723,6 @@ export default function JCPage() {
     const options = !selectedMoto || !selectedMotoPreppable || selectableMotos.some((m) => m.id === selectedMoto.id)
       ? allPrepSelectOptions
       : [selectedMoto, ...allPrepSelectOptions]
-    const activeGroup = getMotoSequenceGroup(activeSequenceMoto?.moto_name ?? '')
-    const sequenceOptions = activeGroup
-      ? options.filter((moto) => getMotoSequenceGroup(moto.moto_name) === activeGroup)
-      : []
-    if (sequenceOptions.length > 0) return sequenceOptions
-
     const activeCategoryId = activeSequenceMoto?.category_id
     if (activeCategoryId) {
       const sameCategoryOptions = options.filter((moto) => moto.category_id === activeCategoryId)
