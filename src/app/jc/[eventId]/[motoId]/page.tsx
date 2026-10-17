@@ -85,6 +85,19 @@ const isLockedStatus = (status?: string | null) => String(status ?? '').toUpperC
 const isPrepMotoStatus = (status?: string | null) => isMotoUpcoming(status) || isMotoReady(status)
 const CHECKER_POLL_INTERVAL_MS = 5000
 
+const getMotoSequenceGroup = (motoName: string) => {
+  const qualification = motoName.match(/^moto\s*(\d+)\s*-\s*batch\s*\d+/i)
+  if (qualification) return `QUALIFICATION:${qualification[1]}`
+
+  const heat = motoName.match(/^(repechage|quarter\s*final|semi\s*final)\s*-\s*(?:batch|heat)\s*(\d+)/i)
+  if (heat) return `${heat[1].replace(/\s+/g, '_').toUpperCase()}:${heat[2]}`
+
+  const final = motoName.match(/^final\s+(.+)$/i)
+  if (final) return `FINAL:${final[1].trim().toUpperCase()}`
+
+  return null
+}
+
 const isCategoryAwaitingStageCompute = (list: MotoItem[], categoryId?: string | null) => {
   if (!categoryId) return false
   const categoryMotos = list.filter((moto) => moto.category_id === categoryId)
@@ -295,6 +308,8 @@ export default function JCPage() {
   const [locked, setLocked] = useState(false)
   const [incidentLocked, setIncidentLocked] = useState(false)
   const [query, setQuery] = useState('')
+  const [motoPickerOpen, setMotoPickerOpen] = useState(false)
+  const [motoPickerQuery, setMotoPickerQuery] = useState('')
   const [lastUpdated, setLastUpdated] = useState<string | null>(null)
   const [incidentLastUpdated, setIncidentLastUpdated] = useState<string | null>(null)
   const [safetyRequirements, setSafetyRequirements] = useState<SafetyRequirement[]>([])
@@ -709,15 +724,57 @@ export default function JCPage() {
       ),
     [motos]
   )
+  const hasMedleySequence = useMemo(() => {
+    let activeGroup: string | null = null
+    let activeCategoryIds = new Set<string>()
+    const orderedMotos = [...motos].sort(compareMotoSequence)
+    for (const moto of orderedMotos) {
+      const group = /^moto\s*\d+\s*-\s*batch\s*\d+/i.test(moto.moto_name)
+        ? getMotoSequenceGroup(moto.moto_name)
+        : null
+      if (group !== activeGroup) {
+        if (activeCategoryIds.size > 1) return true
+        activeGroup = group
+        activeCategoryIds = new Set<string>()
+      }
+      if (group && moto.category_id) activeCategoryIds.add(moto.category_id)
+    }
+    return activeCategoryIds.size > 1
+  }, [motos])
+  const allPrepSelectOptions = useMemo(
+    () => [...selectableMotos].sort(compareMotoSequence),
+    [selectableMotos]
+  )
   const selectedMotoUpcoming = isMotoUpcoming(selectedMoto?.status)
   const selectedMotoReady = isMotoReady(selectedMoto?.status)
   const selectedMotoPreppable = !!selectedMoto && !isLockedStatus(selectedMoto.status) && (selectedMotoUpcoming || selectedMotoReady)
   const prepSelectOptions = useMemo(() => {
-    if (!selectedMoto || !selectedMotoPreppable || selectableMotos.some((m) => m.id === selectedMoto.id)) {
-      return selectableMotos
-    }
-    return [selectedMoto, ...selectableMotos]
-  }, [selectableMotos, selectedMoto, selectedMotoPreppable])
+    const options = !selectedMoto || !selectedMotoPreppable || selectableMotos.some((m) => m.id === selectedMoto.id)
+      ? allPrepSelectOptions
+      : [selectedMoto, ...allPrepSelectOptions]
+    const activeGroup = getMotoSequenceGroup((selectedMoto ?? workflowPrepMoto)?.moto_name ?? '')
+    if (!hasMedleySequence || !activeGroup) return options
+    const activeGroupOptions = options.filter((moto) => getMotoSequenceGroup(moto.moto_name) === activeGroup)
+    return activeGroupOptions.length > 0 ? activeGroupOptions : options
+  }, [allPrepSelectOptions, hasMedleySequence, selectableMotos, selectedMoto, selectedMotoPreppable, workflowPrepMoto])
+  const searchedMotoOptions = useMemo(() => {
+    const normalizedQuery = motoPickerQuery.trim().toLowerCase()
+    if (!normalizedQuery) return allPrepSelectOptions
+    return allPrepSelectOptions.filter((moto) =>
+      `${moto.moto_name} ${categoryLabel.get(moto.category_id ?? '') ?? ''} ${moto.moto_order}`.toLowerCase().includes(normalizedQuery)
+    )
+  }, [allPrepSelectOptions, categoryLabel, motoPickerQuery])
+
+  const selectPrepMoto = (nextMotoId: string) => {
+    const targetMoto = motos.find((moto) => moto.id === nextMotoId)
+    manualSelectedMotoIdRef.current = nextMotoId
+    selectedMotoIdRef.current = nextMotoId
+    setSelectedMotoId(nextMotoId)
+    setAllReadyDone(Boolean(targetMoto?.checker_prep_ready_at))
+    syncPrepMotoUrl(nextMotoId)
+    setMotoPickerOpen(false)
+    setMotoPickerQuery('')
+  }
   const activeCategoryWaitingStage = useMemo(() => {
     // A workflow prep moto takes precedence over any completed category that
     // is still eligible for a later compute. Otherwise an older category can
@@ -1188,14 +1245,7 @@ export default function JCPage() {
               aria-label="Pilih moto untuk pemeriksaan gate start"
               value={selectedMotoId}
               onChange={(e) => {
-                const next = e.target.value
-                const targetMoto = motos.find((moto) => moto.id === next)
-                manualSelectedMotoIdRef.current = next
-                selectedMotoIdRef.current = next
-                setSelectedMotoId(next)
-                setAllReadyDone(Boolean(targetMoto?.checker_prep_ready_at))
-                
-                syncPrepMotoUrl(next)
+                selectPrepMoto(e.target.value)
               }}
               className="jc-moto-select"
               style={{
@@ -1217,6 +1267,23 @@ export default function JCPage() {
                 ))}
             </select>
             <div className="jc-header-actions">
+              {hasMedleySequence && (
+                <button
+                  type="button"
+                  onClick={() => setMotoPickerOpen(true)}
+                  style={{
+                    padding: '10px 14px',
+                    borderRadius: 8,
+                    border: '1px solid #cbd5e1',
+                    background: '#fff',
+                    fontWeight: 900,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Pilih Moto Lain
+                </button>
+              )}
               <button
                 type="button"
                 onClick={async () => {
@@ -2289,6 +2356,105 @@ export default function JCPage() {
               Tutup
             </button>
           </div>
+        </div>
+      )}
+      {motoPickerOpen && (
+        <div
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setMotoPickerOpen(false)
+          }}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 72,
+            display: 'grid',
+            placeItems: 'center',
+            padding: 16,
+            background: 'rgba(15, 23, 42, 0.58)',
+            backdropFilter: 'blur(3px)',
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="checker-moto-picker-title"
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') setMotoPickerOpen(false)
+            }}
+            style={{
+              width: 'min(100%, 560px)',
+              maxHeight: 'min(84vh, 720px)',
+              display: 'grid',
+              gridTemplateRows: 'auto auto minmax(0, 1fr)',
+              gap: 12,
+              padding: 18,
+              border: '1px solid #cbd5e1',
+              borderRadius: 10,
+              background: '#fff',
+              boxShadow: '0 18px 48px rgba(15, 23, 42, 0.25)',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+              <div>
+                <h2 id="checker-moto-picker-title" style={{ margin: 0, fontSize: 18, fontWeight: 950 }}>Pilih Moto Lain</h2>
+                <div style={{ marginTop: 3, color: '#64748b', fontSize: 12, fontWeight: 700 }}>
+                  {allPrepSelectOptions.length} moto belum terkunci
+                </div>
+              </div>
+              <button
+                type="button"
+                aria-label="Tutup pilihan moto"
+                onClick={() => setMotoPickerOpen(false)}
+                style={{ width: 36, height: 36, border: '1px solid #cbd5e1', borderRadius: 8, background: '#fff', fontSize: 20, fontWeight: 800 }}
+              >
+                ×
+              </button>
+            </div>
+            <input
+              type="search"
+              autoFocus
+              value={motoPickerQuery}
+              onChange={(event) => setMotoPickerQuery(event.target.value)}
+              placeholder="Cari moto atau kategori..."
+              aria-label="Cari moto atau kategori"
+              style={{ width: '100%', minHeight: 42, padding: '9px 12px', border: '1px solid #cbd5e1', borderRadius: 8, background: '#fff', color: '#17202b', fontWeight: 700 }}
+            />
+            <div style={{ overflowY: 'auto', display: 'grid', alignContent: 'start', gap: 6, minHeight: 0 }}>
+              {searchedMotoOptions.map((moto) => (
+                <button
+                  key={moto.id}
+                  type="button"
+                  onClick={() => selectPrepMoto(moto.id)}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: 12,
+                    width: '100%',
+                    padding: '10px 12px',
+                    border: moto.id === selectedMotoId ? '1px solid #15803d' : '1px solid #d7dee7',
+                    borderRadius: 8,
+                    background: moto.id === selectedMotoId ? '#f0fdf4' : '#fff',
+                    color: '#17202b',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <span style={{ minWidth: 0 }}>
+                    <span style={{ display: 'block', fontWeight: 900 }}>{moto.moto_order}. {moto.moto_name}</span>
+                    <span style={{ display: 'block', marginTop: 2, color: '#64748b', fontSize: 12, fontWeight: 700 }}>
+                      {categoryLabel.get(moto.category_id ?? '') ?? 'Kategori'}
+                    </span>
+                  </span>
+                  <span style={{ flexShrink: 0, color: isMotoReady(moto.status) ? '#15803d' : '#a16207', fontSize: 11, fontWeight: 900 }}>
+                    {isMotoReady(moto.status) ? 'READY' : 'UPCOMING'}
+                  </span>
+                </button>
+              ))}
+              {searchedMotoOptions.length === 0 && <div style={{ padding: 18, color: '#64748b', textAlign: 'center', fontWeight: 700 }}>Moto tidak ditemukan.</div>}
+            </div>
+          </section>
         </div>
       )}
     </div>

@@ -190,6 +190,9 @@ export default function MotosClient({ eventId }: { eventId: string }) {
   const [raceDayFilter, setRaceDayFilter] = useState<RaceDayFilter>('ACTION')
   const [expandedCategoryIds, setExpandedCategoryIds] = useState<string[]>([])
   const hasInitializedRaceDayView = useRef(false)
+  const loadInFlightRef = useRef(false)
+  const queuedRefreshRef = useRef(false)
+  const queuedRefreshSummaryRef = useRef(false)
 
   const getErrorMessage = (err: unknown) => (err instanceof Error ? err.message : 'Request failed')
 
@@ -234,6 +237,12 @@ export default function MotosClient({ eventId }: { eventId: string }) {
   ) => {
     if (!eventId) return
     const includeAdvancedSummary = options.includeAdvancedSummary ?? true
+    if (loadInFlightRef.current) {
+      queuedRefreshRef.current = true
+      queuedRefreshSummaryRef.current ||= includeAdvancedSummary
+      return
+    }
+    loadInFlightRef.current = true
     if (mode === 'initial' && !hasLoadedOnce) setLoading(true)
     else setRefreshing(true)
     try {
@@ -271,9 +280,16 @@ export default function MotosClient({ eventId }: { eventId: string }) {
         await loadGateOrders(categoryIds, { force: mode === 'refresh' })
       }
     } finally {
+      loadInFlightRef.current = false
       setLoading(false)
       setRefreshing(false)
       setHasLoadedOnce(true)
+      if (queuedRefreshRef.current) {
+        const includeQueuedSummary = queuedRefreshSummaryRef.current
+        queuedRefreshRef.current = false
+        queuedRefreshSummaryRef.current = false
+        queueMicrotask(() => void load('refresh', { includeAdvancedSummary: includeQueuedSummary }))
+      }
     }
   }
 
@@ -283,9 +299,11 @@ export default function MotosClient({ eventId }: { eventId: string }) {
   }, [eventId])
 
   const refreshFromRealtime = useCallback(() => {
-    if (loading || refreshing || computingCategoryId || raceResetLoading || raceResetSubmitting) return
+    if (computingCategoryId || raceResetLoading || raceResetSubmitting) return
     void load('refresh', { includeAdvancedSummary: true })
-  }, [computingCategoryId, loading, raceResetLoading, raceResetSubmitting, refreshing]) // load intentionally reads current page state.
+    // load intentionally reads current page state; the realtime hook always receives this latest callback.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [computingCategoryId, raceResetLoading, raceResetSubmitting])
 
   useEventRaceRealtime({
     eventId,
