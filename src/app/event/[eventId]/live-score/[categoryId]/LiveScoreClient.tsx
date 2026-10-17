@@ -487,7 +487,7 @@ export default function LiveScoreClient({
                   {renderSortButtons(sortMode, setSortMode)}
                 </div>
               </div>
-              <div className="md:hidden">
+              <div className="lg:hidden">
                 <div className="table-mobile-hint">Geser tabel ke samping untuk melihat seluruh hasil</div>
                 <div className="public-table-wrap">
                   <table className="public-table min-w-[710px] text-[11px]">
@@ -539,8 +539,8 @@ export default function LiveScoreClient({
                   </table>
                 </div>
               </div>
-              <div className="table-mobile-hint hidden md:block">Geser tabel ke samping untuk melihat seluruh hasil</div>
-              <div className="public-table-wrap hidden md:block">
+              <div className="table-mobile-hint hidden lg:block">Geser tabel ke samping untuk melihat seluruh hasil</div>
+              <div className="public-table-wrap hidden lg:block">
                 <table className="public-table min-w-[940px] text-[11px] sm:text-xs md:text-sm">
                   <thead>
                     <tr>
@@ -625,7 +625,7 @@ export default function LiveScoreClient({
                     {renderSortButtons(sortMode, setSortMode)}
                   </div>
                 </div>
-                <div className="md:hidden">
+                <div className="lg:hidden">
                   <div className="table-mobile-hint">Geser tabel ke samping untuk melihat seluruh hasil</div>
                   <div className="public-table-wrap">
                     <table className="public-table min-w-[620px] text-[11px]">
@@ -660,8 +660,8 @@ export default function LiveScoreClient({
                     </table>
                   </div>
                 </div>
-                <div className="table-mobile-hint hidden md:block">Geser tabel ke samping untuk melihat seluruh hasil</div>
-                <div className="public-table-wrap hidden md:block">
+                <div className="table-mobile-hint hidden lg:block">Geser tabel ke samping untuk melihat seluruh hasil</div>
+                <div className="public-table-wrap hidden lg:block">
                   <table className="public-table min-w-[680px] text-[11px] sm:text-xs md:text-sm">
                     <thead>
                       <tr>

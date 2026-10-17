@@ -156,7 +156,7 @@ export default function PublicTopbar({}: PublicTopbarProps) {
             </Link>
 
             <nav
-              className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-1 rounded-full border border-[#d9ceb4] bg-[#fff8e8] p-1 text-sm font-bold text-[#2a160d] shadow-sm md:flex"
+              className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-1 rounded-full border border-[#d9ceb4] bg-[#fff8e8] p-1 text-sm font-bold text-[#2a160d] shadow-sm lg:flex"
             >
               {navItems.map((item) => {
                 const baseHref = item.href.split('#')[0]
@@ -210,7 +210,7 @@ export default function PublicTopbar({}: PublicTopbarProps) {
           </div>
 
           <nav
-            className="mt-3 flex items-center justify-center gap-4 text-sm font-semibold text-[#2a160d] md:hidden"
+            className="mt-3 flex items-center justify-center gap-4 overflow-x-auto whitespace-nowrap text-xs font-semibold text-[#2a160d] sm:text-sm lg:hidden"
           >
             {navItems.map((item) => {
               const baseHref = item.href.split('#')[0]
