@@ -179,6 +179,26 @@ type SafetyCheckPayload = {
   is_checked: boolean
 }
 
+type PendingSafetyCheck = { isChecked: boolean; version: number }
+
+function overlayPendingSafetyChecks(
+  checks: Record<string, Record<string, boolean>>,
+  pending: Map<string, Map<string, PendingSafetyCheck>>
+) {
+  let next = checks
+  for (const [riderId, requirements] of pending) {
+    let riderChecks = next[riderId]
+    for (const [requirementId, value] of requirements) {
+      if (riderChecks?.[requirementId] === value.isChecked) continue
+      if (next === checks) next = { ...checks }
+      if (riderChecks === next[riderId]) riderChecks = { ...(riderChecks ?? {}) }
+      riderChecks[requirementId] = value.isChecked
+      next[riderId] = riderChecks
+    }
+  }
+  return next
+}
+
 const SAFETY_ICON_OPTIONS = [
   { key: 'helmet', icon: '⛑', shortLabel: 'Helm' },
   { key: 'gloves', icon: '🧤', shortLabel: 'Gloves' },
@@ -288,6 +308,28 @@ export default function JCPage() {
   const [viewportWidth, setViewportWidth] = useState(1280)
   const { highVisibility, toggleHighVisibility } = useHighVisibility('jury-checker-high-visibility')
   const localMutationRef = useRef(false)
+  const safetyMutationVersionRef = useRef(0)
+  const pendingSafetyChecksRef = useRef<Map<string, Map<string, PendingSafetyCheck>>>(new Map())
+
+  const beginSafetyMutation = (checks: SafetyCheckPayload[]) => {
+    const version = ++safetyMutationVersionRef.current
+    for (const check of checks) {
+      const riderChecks = pendingSafetyChecksRef.current.get(check.rider_id) ?? new Map<string, PendingSafetyCheck>()
+      riderChecks.set(check.requirement_id, { isChecked: check.is_checked, version })
+      pendingSafetyChecksRef.current.set(check.rider_id, riderChecks)
+    }
+    return version
+  }
+
+  const finishSafetyMutation = (checks: SafetyCheckPayload[], version: number) => {
+    for (const check of checks) {
+      const riderChecks = pendingSafetyChecksRef.current.get(check.rider_id)
+      if (riderChecks?.get(check.requirement_id)?.version !== version) continue
+      riderChecks.delete(check.requirement_id)
+      if (riderChecks.size === 0) pendingSafetyChecksRef.current.delete(check.rider_id)
+    }
+    safetyMutationVersionRef.current += 1
+  }
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -400,6 +442,7 @@ export default function JCPage() {
 
   const loadMoto = useCallback(async (silent = false, preserveAllReadyDone = silent) => {
     const targetMotoId = selectedMotoIdRef.current
+    const safetyReadVersion = safetyMutationVersionRef.current
     if (!targetMotoId || !eventId) {
       setLocked(false)
       setRiders([])
@@ -476,7 +519,10 @@ export default function JCPage() {
         is_checked: boolean
       }>
       if (requirements.length > 0) setSafetyRequirements(requirements)
-      setSafetyChecks(() => {
+      setSafetyChecks((previous) => {
+        if (safetyReadVersion !== safetyMutationVersionRef.current) {
+          return overlayPendingSafetyChecks(previous, pendingSafetyChecksRef.current)
+        }
         const next: Record<string, Record<string, boolean>> = {}
         for (const rider of (riderRes.data ?? []) as RiderItem[]) {
           const updated: Record<string, boolean> = {}
@@ -489,7 +535,7 @@ export default function JCPage() {
           const current = next[row.rider_id] ?? {}
           next[row.rider_id] = { ...current, [row.requirement_id]: row.is_checked }
         }
-        return next
+        return overlayPendingSafetyChecks(next, pendingSafetyChecksRef.current)
       })
       setLastUpdated(new Date().toLocaleTimeString())
     } catch (err: unknown) {
@@ -545,6 +591,7 @@ export default function JCPage() {
   const refreshCheckerPollingState = useCallback(
     async (prepMotoId: string, activeIncidentMotoId: string) => {
       if (!eventId) return
+      const safetyReadVersion = safetyMutationVersionRef.current
       const params = new URLSearchParams()
       if (prepMotoId) params.set('prep_moto_id', prepMotoId)
       if (activeIncidentMotoId) params.set('incident_moto_id', activeIncidentMotoId)
@@ -555,7 +602,10 @@ export default function JCPage() {
         setStatuses(nextStatuses)
 
         const checks = response.prep.checks ?? []
-        setSafetyChecks(() => {
+        setSafetyChecks((previous) => {
+          if (safetyReadVersion !== safetyMutationVersionRef.current) {
+            return overlayPendingSafetyChecks(previous, pendingSafetyChecksRef.current)
+          }
           const next: Record<string, Record<string, boolean>> = {}
           for (const rider of riders) {
             const riderChecks: Record<string, boolean> = {}
@@ -567,7 +617,7 @@ export default function JCPage() {
           for (const row of checks) {
             next[row.rider_id] = { ...(next[row.rider_id] ?? {}), [row.requirement_id]: row.is_checked }
           }
-          return next
+          return overlayPendingSafetyChecks(next, pendingSafetyChecksRef.current)
         })
         setLastUpdated(new Date().toLocaleTimeString())
       }
@@ -979,20 +1029,23 @@ export default function JCPage() {
     setSaving(true)
     setWarningMessage(null)
     setErrorMessage(null)
+    let safetyChecksToSave: SafetyCheckPayload[] = []
+    let safetyMutationVersion: number | null = null
     try {
       const requests: Array<Promise<unknown>> = []
       if (safetyRequirements.length > 0) {
-        const checks: SafetyCheckPayload[] = targetRiders.flatMap((rider) =>
+        safetyChecksToSave = targetRiders.flatMap((rider) =>
           safetyRequirements.map((item) => ({
             rider_id: rider.id,
             requirement_id: item.id,
             is_checked: safetyChecks[rider.id]?.[item.id] === true,
           }))
         )
+        safetyMutationVersion = beginSafetyMutation(safetyChecksToSave)
         requests.push(
           apiFetch(`/api/jury/motos/${selectedMotoId}/safety-checks`, {
             method: 'POST',
-            body: JSON.stringify({ checks }),
+            body: JSON.stringify({ checks: safetyChecksToSave }),
           })
         )
       }
@@ -1040,6 +1093,7 @@ export default function JCPage() {
       setErrorMessage(err instanceof Error ? err.message : 'Gagal set semua rider READY.')
       await loadMoto(true)
     } finally {
+      if (safetyMutationVersion !== null) finishSafetyMutation(safetyChecksToSave, safetyMutationVersion)
       setSaving(false)
     }
   }
@@ -1639,6 +1693,14 @@ export default function JCPage() {
               type="button"
               onClick={async () => {
                 if (!selectedMotoId) return
+                const checks: SafetyCheckPayload[] = riderList.filter((rider) => !rider.is_disqualified).flatMap((rider) =>
+                  safetyRequirements.map((item) => ({
+                    rider_id: rider.id,
+                    requirement_id: item.id,
+                    is_checked: true,
+                  }))
+                )
+                const mutationVersion = beginSafetyMutation(checks)
                 localMutationRef.current = true
                 setSafetyChecks((prev) => {
                   const next = { ...prev }
@@ -1650,13 +1712,6 @@ export default function JCPage() {
                   }
                   return next
                 })
-                const checks: SafetyCheckPayload[] = riderList.filter((rider) => !rider.is_disqualified).flatMap((rider) =>
-                  safetyRequirements.map((item) => ({
-                    rider_id: rider.id,
-                    requirement_id: item.id,
-                    is_checked: true,
-                  }))
-                )
                 try {
                   if (checks.length > 0) {
                     await apiFetch(`/api/jury/motos/${selectedMotoId}/safety-checks`, {
@@ -1665,6 +1720,7 @@ export default function JCPage() {
                     })
                   }
                 } finally {
+                  finishSafetyMutation(checks, mutationVersion)
                   localMutationRef.current = false
                 }
               }}
@@ -1784,6 +1840,12 @@ export default function JCPage() {
                         aria-label={`${visual.shortLabel}: ${checked ? 'safety gear lengkap' : 'safety gear belum lengkap'}`}
                         onClick={async () => {
                           const nextChecked = !checked
+                          const checkPayload: SafetyCheckPayload = {
+                            rider_id: r.id,
+                            requirement_id: item.id,
+                            is_checked: nextChecked,
+                          }
+                          const mutationVersion = beginSafetyMutation([checkPayload])
                           localMutationRef.current = true
                           setSafetyChecks((prev) => ({
                             ...prev,
@@ -1792,19 +1854,18 @@ export default function JCPage() {
                           try {
                             await apiFetch(`/api/jury/motos/${selectedMotoId}/safety-checks`, {
                               method: 'POST',
-                              body: JSON.stringify({
-                                rider_id: r.id,
-                                requirement_id: item.id,
-                                is_checked: nextChecked,
-                              }),
+                              body: JSON.stringify(checkPayload),
                             })
                           } catch {
-                            // revert on failure
-                            setSafetyChecks((prev) => ({
-                              ...prev,
-                              [r.id]: { ...(prev[r.id] ?? {}), [item.id]: checked },
-                            }))
+                            const currentMutation = pendingSafetyChecksRef.current.get(r.id)?.get(item.id)
+                            if (currentMutation?.version === mutationVersion) {
+                              setSafetyChecks((prev) => ({
+                                ...prev,
+                                [r.id]: { ...(prev[r.id] ?? {}), [item.id]: checked },
+                              }))
+                            }
                           } finally {
+                            finishSafetyMutation([checkPayload], mutationVersion)
                             localMutationRef.current = false
                           }
                         }}
