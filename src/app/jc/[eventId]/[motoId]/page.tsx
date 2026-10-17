@@ -258,7 +258,7 @@ export default function JCPage() {
   const [categories, setCategories] = useState<CategoryItem[]>([])
   const [selectedMotoId, setSelectedMotoId] = useState(initialMotoId)
   const selectedMotoIdRef = useRef(initialMotoId)
-  const manualSelectRef = useRef(false)
+  const manualSelectedMotoIdRef = useRef<string | null>(null)
   const [riders, setRiders] = useState<RiderItem[]>([])
   const [statuses, setStatuses] = useState<Record<string, StatusRow>>({})
   const [incidentRiders, setIncidentRiders] = useState<RiderItem[]>([])
@@ -343,11 +343,19 @@ export default function JCPage() {
       const workflowMotos = [...rawMotos].sort(compareMotoSequence)
       setMotos(workflowMotos)
 
-      // Skip auto-navigation if user just manually selected a moto from dropdown
-      if (manualSelectRef.current) {
-        manualSelectRef.current = false
+      const manuallySelectedMoto = manualSelectedMotoIdRef.current
+        ? workflowMotos.find((moto) => moto.id === manualSelectedMotoIdRef.current)
+        : null
+      if (manuallySelectedMoto && isPrepMotoStatus(manuallySelectedMoto.status) && !isLockedStatus(manuallySelectedMoto.status)) {
+        if (selectedMotoIdRef.current !== manuallySelectedMoto.id) {
+          selectedMotoIdRef.current = manuallySelectedMoto.id
+          setSelectedMotoId(manuallySelectedMoto.id)
+          syncPrepMotoUrl(manuallySelectedMoto.id)
+        }
+        setAllReadyDone(Boolean(manuallySelectedMoto.checker_prep_ready_at))
         return workflowMotos
       }
+      manualSelectedMotoIdRef.current = null
 
       const currentSelectedMotoId = selectedMotoIdRef.current
       const liveMoto = workflowMotos.find((m) => isMotoLive(m.status))
@@ -579,7 +587,7 @@ export default function JCPage() {
     try {
       const workflowMotos = (await loadMotos(true)) ?? []
       const liveMotoId = workflowMotos.find((moto) => isMotoLive(moto.status))?.id ?? ''
-      const prepMotoId = pickPrepMotoId(workflowMotos, selectedMotoIdRef.current, liveMotoId, allReadyDone)
+      const prepMotoId = manualSelectedMotoIdRef.current ?? pickPrepMotoId(workflowMotos, selectedMotoIdRef.current, liveMotoId, allReadyDone)
       await refreshCheckerPollingState(prepMotoId, liveMotoId)
     } catch {
       // The 15-second polling loop remains the fallback if Realtime fails.
@@ -619,7 +627,7 @@ export default function JCPage() {
       void (async () => {
         const workflowMotos = (await loadMotos(true)) ?? []
         const liveMotoId = workflowMotos.find((moto) => isMotoLive(moto.status))?.id ?? ''
-        const prepMotoId = pickPrepMotoId(workflowMotos, selectedMotoIdRef.current, liveMotoId, allReadyDone)
+        const prepMotoId = manualSelectedMotoIdRef.current ?? pickPrepMotoId(workflowMotos, selectedMotoIdRef.current, liveMotoId, allReadyDone)
         await refreshCheckerPollingState(prepMotoId, liveMotoId)
       })()
     }, CHECKER_POLL_INTERVAL_MS)
@@ -1128,7 +1136,7 @@ export default function JCPage() {
               onChange={(e) => {
                 const next = e.target.value
                 const targetMoto = motos.find((moto) => moto.id === next)
-                manualSelectRef.current = true
+                manualSelectedMotoIdRef.current = next
                 selectedMotoIdRef.current = next
                 setSelectedMotoId(next)
                 setAllReadyDone(Boolean(targetMoto?.checker_prep_ready_at))
@@ -1160,7 +1168,7 @@ export default function JCPage() {
                 onClick={async () => {
                   const refreshedMotos = (await loadMotos(false)) ?? []
                   const liveMoto = refreshedMotos.find((m) => isMotoLive(m.status))
-                  const nextMotoId = pickPrepMotoId(refreshedMotos, selectedMotoId, liveMoto?.id ?? null, allReadyDone)
+                  const nextMotoId = manualSelectedMotoIdRef.current ?? pickPrepMotoId(refreshedMotos, selectedMotoId, liveMoto?.id ?? null, allReadyDone)
                   if (nextMotoId && nextMotoId !== selectedMotoId) return
                   await loadMoto(false, true)
                   await loadIncidentMoto(true)
