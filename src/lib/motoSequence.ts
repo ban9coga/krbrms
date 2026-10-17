@@ -231,6 +231,16 @@ export const pickNextMotoInWorkflow = <T extends MotoLike & { id: string }>(rows
     )
   })
 
+  const anchorIsAdvancement = anchorMoto && !isQualificationMoto(anchorMoto)
+  if (anchorIsAdvancement && anchorMoto.category_id) {
+    const anchorIndex = rows.findIndex((row) => row.id === anchorMoto.id)
+    const nextSameCategoryAdvancement = releasedAdvancement.find((candidate) => {
+      const candidateIndex = rows.findIndex((row) => row.id === candidate.id)
+      return candidate.category_id === anchorMoto.category_id && candidateIndex > anchorIndex
+    })
+    if (nextSameCategoryAdvancement) return nextSameCategoryAdvancement
+  }
+
   if (releasedAdvancement.length > 0) {
     const categoryBaseOrder = buildCategoryBaseOrder(rows)
     return [...releasedAdvancement].sort((a, b) =>
