@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import CheckerTopbar from '../../../../components/CheckerTopbar'
 import LoadingState from '../../../../components/LoadingState'
 import { useHighVisibility } from '../../../../hooks/useHighVisibility'
-import { buildCategoryBaseOrder, compareMotoWorkflowSequence } from '../../../../lib/motoSequence'
+import { compareMotoSequence } from '../../../../lib/motoSequence'
 import { useApiFetch } from '@/src/hooks/useApiFetch'
 import { isMotoLive, isMotoReady, isMotoUpcoming } from '../../../../lib/motoStatus'
 import { usePageVisibility } from '../../../../lib/usePageVisibility'
@@ -125,36 +125,13 @@ const isCategoryUnfinished = (list: MotoItem[], categoryId?: string | null) => {
   })
 }
 
-const pickActiveWorkflowCategoryId = (list: MotoItem[]) => {
-  for (const moto of list) {
-    if (moto.category_id && isCategoryUnfinished(list, moto.category_id)) return moto.category_id
-  }
-  return null
-}
-
 const pickUpcomingMoto = (list: MotoItem[], anchorMoto?: MotoItem | null) => {
   const selectableUpcoming = list.filter((m) => !isLockedStatus(m.status) && isPrepMotoStatus(m.status))
   if (!anchorMoto) return selectableUpcoming[0] ?? null
 
   const anchorIndex = list.findIndex((m) => m.id === anchorMoto.id)
   const afterAnchor = anchorIndex >= 0 ? list.slice(anchorIndex + 1) : list
-  const sameCategory = (m: MotoItem) => Boolean(anchorMoto.category_id) && m.category_id === anchorMoto.category_id
-
-  const sameCategoryNext =
-    afterAnchor.find((m) => sameCategory(m) && !isLockedStatus(m.status) && isPrepMotoStatus(m.status)) ??
-    selectableUpcoming.find(sameCategory)
-
-  if (sameCategoryNext) return sameCategoryNext
-
-  if (isCategoryUnfinished(list, anchorMoto.category_id)) {
-    return null
-  }
-
-  return (
-    afterAnchor.find((m) => !isLockedStatus(m.status) && isPrepMotoStatus(m.status)) ??
-    selectableUpcoming[0] ??
-    null
-  )
+  return afterAnchor.find((m) => !isLockedStatus(m.status) && isPrepMotoStatus(m.status)) ?? selectableUpcoming[0] ?? null
 }
 
 const pickPrepMotoId = (
@@ -172,38 +149,15 @@ const pickPrepMotoId = (
     }
   }
 
-  // Stage motos are created with a high raw moto_order after compute. Keep the
-  // checker on the earliest unfinished category instead of retaining a prep
-  // moto from the next category that happened to be selected beforehand.
-  const activeCategoryId = pickActiveWorkflowCategoryId(list)
-  if (activeCategoryId) {
-    const currentMoto = list.find((m) => m.id === currentId)
-    if (
-      currentMoto?.category_id === activeCategoryId &&
-      !isLockedStatus(currentMoto.status) &&
-      isPrepMotoStatus(currentMoto.status) &&
-      !currentPrepFinalized
-    ) {
-      return currentId
-    }
-
-    const activePrepMoto = list.find(
-      (m) => m.category_id === activeCategoryId && !isLockedStatus(m.status) && isPrepMotoStatus(m.status)
-    )
-    if (activePrepMoto) return activePrepMoto.id
-
-    if (isCategoryAwaitingStageCompute(list, activeCategoryId)) return ''
-  }
-
   if (currentId) {
     const currentMoto = list.find((m) => m.id === currentId)
     if (currentMoto) {
       if (!isLockedStatus(currentMoto.status) && isPrepMotoStatus(currentMoto.status) && !currentPrepFinalized) {
         return currentId
       }
-      if (isCategoryUnfinished(list, currentMoto.category_id)) {
-        return currentId
-      }
+      const nextMoto = pickUpcomingMoto(list, currentMoto)
+      if (nextMoto) return nextMoto.id
+      if (isCategoryUnfinished(list, currentMoto.category_id) || isCategoryAwaitingStageCompute(list, currentMoto.category_id)) return currentId
     }
   }
 
@@ -386,8 +340,7 @@ export default function JCPage() {
       const motoJson = await apiFetch(`/api/jury/events/${eventId}/moto-state`)
 
       const rawMotos = (motoJson.data ?? []) as MotoItem[]
-      const categoryBaseOrder = buildCategoryBaseOrder(rawMotos)
-      const workflowMotos = [...rawMotos].sort((a, b) => compareMotoWorkflowSequence(a, b, categoryBaseOrder))
+      const workflowMotos = [...rawMotos].sort(compareMotoSequence)
       setMotos(workflowMotos)
 
       // Skip auto-navigation if user just manually selected a moto from dropdown
@@ -694,12 +647,9 @@ export default function JCPage() {
       motos.filter(
         (m) =>
           !isLockedStatus(m.status) &&
-          isPrepMotoStatus(m.status) &&
-          // The dropdown follows the prep moto picked by workflow order, not merely the currently LIVE category.
-          // This releases the next category only after the current category is actually complete.
-          (workflowPrepMoto?.category_id ? m.category_id === workflowPrepMoto.category_id : true)
+          isPrepMotoStatus(m.status)
       ),
-    [motos, workflowPrepMoto]
+    [motos]
   )
   const selectedMotoUpcoming = isMotoUpcoming(selectedMoto?.status)
   const selectedMotoReady = isMotoReady(selectedMoto?.status)

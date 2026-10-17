@@ -1,7 +1,7 @@
 'use server'
 
 import { adminClient } from '../lib/auth'
-import { buildCategoryBaseOrder, compareMotoWorkflowSequence } from '../lib/motoSequence'
+import { compareMotoSequence } from '../lib/motoSequence'
 import { syncAdvancedRaceProgressAfterLockedStage } from './advancedRaceAuto'
 
 type MotoQueueRow = {
@@ -27,14 +27,9 @@ const pickNextMotoToPromote = (rows: MotoQueueRow[], currentMoto: MotoQueueRow) 
   if (currentIndex < 0) return { nextMoto: null, warning: 'Current moto not found in event sequence.' }
 
   const afterCurrent = rows.slice(currentIndex + 1)
-  const sameCategory = (row: MotoQueueRow) => row.category_id === currentMoto.category_id
-  // A category must finish its own newly generated stage before the queue moves
-  // to another category. Stage motos receive a high raw moto_order on creation,
-  // so raw global order alone would incorrectly skip them.
   const nextMoto =
-    afterCurrent.find((row) => sameCategory(row) && isNextCandidateMoto(row)) ??
-    rows.find((row) => sameCategory(row) && isNextCandidateMoto(row)) ??
     afterCurrent.find(isNextCandidateMoto) ??
+    rows.find(isNextCandidateMoto) ??
     null
 
   return { nextMoto, warning: null }
@@ -50,9 +45,8 @@ const loadWorkflowMotos = async (eventId: string) => {
   if (error) return { rows: null, warning: error.message }
 
   const rows = (eventMotos ?? []) as MotoQueueRow[]
-  const categoryBaseOrder = buildCategoryBaseOrder(rows)
   return {
-    rows: [...rows].sort((a, b) => compareMotoWorkflowSequence(a, b, categoryBaseOrder)),
+    rows: [...rows].sort(compareMotoSequence),
     warning: null,
   }
 }
@@ -134,14 +128,12 @@ export async function promoteNextMotoToLive(eventId: string, currentMotoId: stri
   if (!currentMoto) return { ok: false as const, warning: 'Moto saat ini tidak ditemukan.' }
 
   const currentIndex = loaded.rows.findIndex((row) => row.id === currentMotoId)
-  const hasNextMotoInSameCategory = loaded.rows
+  const hasNextMotoInQueue = loaded.rows
     .slice(currentIndex + 1)
-    .some((row) => row.category_id === currentMoto.category_id && isNextCandidateMoto(row))
+    .some(isNextCandidateMoto)
 
-  // Do not jump to another category when this category has reached the end of
-  // its currently generated stage. Locking here unlocks the stage computation
-  // that creates Repechage/QF/Semi/Final motos for the same category.
-  if (isProvisionalMoto(currentMoto) && !hasNextMotoInSameCategory) {
+  // Lock the current moto to compute its next stage only when no queued moto remains.
+  if (isProvisionalMoto(currentMoto) && !hasNextMotoInQueue) {
     const autoLock = await autoLockProvisionalMoto(eventId, currentMotoId)
     return {
       ok: autoLock.ok,
