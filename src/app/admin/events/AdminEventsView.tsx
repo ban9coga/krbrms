@@ -487,6 +487,16 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
                 </Link>
               )}
               {!isRegistrationApprover && (
+                <Link href={`/admin/events/${event.id}/motos`} className="event-card-nav-button">
+                  Motos
+                </Link>
+              )}
+              {!isRegistrationApprover && (
+                <Link href={`/admin/events/${event.id}/moto-sequence`} className="event-card-nav-button">
+                  Moto Sequence
+                </Link>
+              )}
+              {!isRegistrationApprover && (
                 <Link href={`/admin/events/${event.id}/settings`} className="event-card-nav-button">
                   Settings
                 </Link>
