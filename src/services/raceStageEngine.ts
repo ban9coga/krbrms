@@ -2,12 +2,18 @@ import {
   resolveQuarterEnabledQualificationLowerClasses,
   resolveSemiEnabledQualificationLowerClasses,
 } from '../lib/advancedRaceDefaults'
+import {
+  compareQualificationTieBreakData,
+  createQualificationTieBreakData,
+  type QualificationTieBreakData,
+} from '../lib/qualificationRanking'
 
 export type RiderFinish = {
   riderId: string
   motoIndex: number
   finishOrder: number | null
   resultStatus?: string | null
+  dnfProgressPercent?: number | null
 }
 
 export type BatchInput = {
@@ -21,6 +27,7 @@ export type RankedRider = {
   points: number
   rank: number
   tieBreakers?: number[]
+  qualificationTieBreak?: QualificationTieBreakData
 }
 
 export type StageAdvance = {
@@ -126,43 +133,37 @@ const defaultPointResolver: PointResolver = (finishOrder) => {
   return finishOrder
 }
 
-const compareTieBreakers = (a: number[] = [], b: number[] = []) => {
-  const length = Math.max(a.length, b.length)
-  for (let index = 0; index < length; index += 1) {
-    const av = a[index] ?? 9999
-    const bv = b[index] ?? 9999
-    if (av !== bv) return av - bv
-  }
-  return 0
-}
-
 const rankByPoints = (
   scores: Record<string, number>,
-  tieBreakersByRider?: Record<string, number[]>
+  tieBreakDataByRider?: Record<string, QualificationTieBreakData>,
+  tieBreakOptions: { dnfProgressEnabled?: boolean; motoIndexes: number[] } = { motoIndexes: [] }
 ): RankedRider[] => {
   const rows = Object.entries(scores)
-    .map(([riderId, points]) => ({ riderId, points, tieBreakers: tieBreakersByRider?.[riderId] ?? [] }))
+    .map(([riderId, points]) => ({ riderId, points, qualificationTieBreak: tieBreakDataByRider?.[riderId] }))
     .sort((a, b) => {
       if (a.points !== b.points) return a.points - b.points
-      const tieDiff = compareTieBreakers(a.tieBreakers, b.tieBreakers)
+      const tieDiff = compareQualificationTieBreakData(a.qualificationTieBreak, b.qualificationTieBreak, tieBreakOptions)
       if (tieDiff !== 0) return tieDiff
       return a.riderId.localeCompare(b.riderId)
     })
 
   let currentRank = 0
   let lastPoints: number | null = null
-  let lastTieBreakers: number[] | null = null
+  let lastTieBreakData: QualificationTieBreakData | undefined
   return rows.map((row, idx) => {
     if (
       lastPoints === null ||
       row.points !== lastPoints ||
-      compareTieBreakers(row.tieBreakers, lastTieBreakers ?? []) !== 0
+      compareQualificationTieBreakData(row.qualificationTieBreak, lastTieBreakData, tieBreakOptions) !== 0
     ) {
       currentRank = idx + 1
       lastPoints = row.points
-      lastTieBreakers = row.tieBreakers
+      lastTieBreakData = row.qualificationTieBreak
     }
-    return { ...row, rank: currentRank }
+    const tieBreakers = tieBreakOptions.motoIndexes.map(
+      (motoIndex) => row.qualificationTieBreak?.motoResults.find((result) => result.motoIndex === motoIndex)?.points ?? Number.MAX_SAFE_INTEGER
+    )
+    return { ...row, tieBreakers, rank: currentRank }
   })
 }
 
@@ -292,6 +293,8 @@ export function computeQualification(
     singleBatchFinalElite?: boolean
     quarterEnabledFinalClasses?: string[]
     semiEnabledFinalClasses?: string[]
+    dnfProgressEnabled?: boolean
+    qualificationMotoCount?: number
   }
 ): { batchRanks: Record<string, RankedRider[]>; advances: StageAdvance[] } {
   const advances: StageAdvance[] = []
@@ -299,7 +302,7 @@ export function computeQualification(
 
   for (const batch of batches) {
     const scoreMap: Record<string, number> = {}
-    const tieBreakersByRider: Record<string, number[]> = {}
+    const tieBreakDataByRider: Record<string, QualificationTieBreakData> = {}
     for (const riderId of batch.riders) scoreMap[riderId] = 0
 
     for (const finish of batch.finishes) {
@@ -307,35 +310,28 @@ export function computeQualification(
       scoreMap[finish.riderId] += pointResolver(finish.finishOrder)
     }
 
-    const maxMotoIndex = batch.finishes.reduce((max, finish) => Math.max(max, finish.motoIndex ?? 0), 0)
     for (const riderId of batch.riders) {
       const riderFinishes = batch.finishes.filter((finish) => finish.riderId === riderId)
       
-      const finishByMoto = new Map(
-        riderFinishes.map((finish) => [finish.motoIndex, pointResolver(finish.finishOrder)])
+      tieBreakDataByRider[riderId] = createQualificationTieBreakData(
+        riderFinishes.map((finish) => ({
+          motoIndex: finish.motoIndex,
+          points: pointResolver(finish.finishOrder),
+          resultStatus: finish.resultStatus,
+          dnfProgressPercent: finish.dnfProgressPercent,
+        }))
       )
-
-      // Quality scoring: 0 for FINISH, 1 for DNF, 2 for DNS/ABSENT, 3 for DQ, 4 for others
-      const getQualityScore = (status?: string | null) => {
-        const norm = String(status ?? '').toUpperCase()
-        if (norm === 'FINISH') return 0
-        if (norm === 'DNF') return 1
-        if (norm === 'DNS' || norm === 'ABSENT') return 2
-        if (norm === 'DQ') return 3
-        if (norm === '') return 0 // Treat empty as FINISH for backward compatibility
-        return 4
-      }
-      
-      const totalQualityScore = riderFinishes.reduce((sum, finish) => sum + getQualityScore(finish.resultStatus), 0)
-      
-      const tieBreakers: number[] = [totalQualityScore] // Push quality score first
-      for (let motoIndex = maxMotoIndex; motoIndex >= 1; motoIndex -= 1) {
-        tieBreakers.push(finishByMoto.get(motoIndex) ?? 9999)
-      }
-      tieBreakersByRider[riderId] = tieBreakers
     }
 
-    const ranked = rankByPoints(scoreMap, tieBreakersByRider)
+    const maxMotoIndex = batch.finishes.reduce((max, finish) => Math.max(max, finish.motoIndex), 0)
+    const qualificationMotoCount = options?.qualificationMotoCount ?? maxMotoIndex
+    const motoIndexes = qualificationMotoCount >= 3
+      ? [3]
+      : Array.from(new Set(batch.finishes.map((finish) => finish.motoIndex))).sort((a, b) => b - a)
+    const ranked = rankByPoints(scoreMap, tieBreakDataByRider, {
+      dnfProgressEnabled: options?.dnfProgressEnabled,
+      motoIndexes,
+    })
     batchRanks[batch.batchId] = ranked
     advances.push(...computeQualificationAdvancesFromRanks(ranked, primaryAdvance, customRules, options))
   }

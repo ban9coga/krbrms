@@ -21,8 +21,24 @@ type QualificationRow = {
   point_moto1: number | null
   point_moto2: number | null
   point_moto3: number | null
+  moto1_status?: string
+  moto2_status?: string
+  moto3_status?: string
+  qualification_ranking_total?: number | null
+  qualification_tiebreak_points?: {
+    moto1: number | null
+    moto2: number | null
+    moto3: number | null
+  }
   penalty_total: number | null
   total_point: number | null
+}
+type QualificationBatch = {
+  batch_index: number
+  moto1_id?: string | null
+  moto2_id?: string | null
+  moto3_id?: string | null
+  rows: QualificationRow[]
 }
 type StageSeed = {
   rider_id: string
@@ -62,6 +78,23 @@ const statusQuality = (status: string) => {
   if (status === 'DNS') return 2
   if (status === 'DQ') return 3
   return 4
+}
+
+const qualificationPointsForMoto = (row: QualificationRow, motoIndex: number) => {
+  if (row.qualification_tiebreak_points) {
+    if (motoIndex === 1) return row.qualification_tiebreak_points.moto1
+    if (motoIndex === 2) return row.qualification_tiebreak_points.moto2
+    return row.qualification_tiebreak_points.moto3
+  }
+  if (motoIndex === 1) return row.point_moto1
+  if (motoIndex === 2) return row.point_moto2
+  return row.point_moto3
+}
+
+const qualificationStatusForMoto = (row: QualificationRow, motoIndex: number) => {
+  if (motoIndex === 1) return row.moto1_status ?? 'FINISH'
+  if (motoIndex === 2) return row.moto2_status ?? 'FINISH'
+  return row.moto3_status ?? 'FINISH'
 }
 
 const formatValue = (value: string | number | null | undefined) => (value == null ? '-' : String(value))
@@ -107,6 +140,12 @@ const formatRankConclusion = ({
     'Poin Moto 3': 'poin Moto 3 dipakai sebagai pembanding berikutnya',
     'Poin Moto 2': 'poin Moto 2 dipakai sebagai pembanding berikutnya',
     'Poin Moto 1': 'poin Moto 1 dipakai sebagai pembanding terakhir',
+    'Status Moto 3': 'status Moto 3 lebih baik (FINISH > DNF > DNS > DQ)',
+    'Status Moto 2': 'status Moto 2 lebih baik (FINISH > DNF > DNS > DQ)',
+    'Status Moto 1': 'status Moto 1 lebih baik (FINISH > DNF > DNS > DQ)',
+    'Progress DNF Moto 3': 'keduanya DNF dan progres Moto 3 yang lebih jauh diprioritaskan',
+    'Progress DNF Moto 2': 'keduanya DNF dan progres Moto 2 yang lebih jauh diprioritaskan',
+    'Progress DNF Moto 1': 'keduanya DNF dan progres Moto 1 yang lebih jauh diprioritaskan',
   }
   return `${riderName} berada di Rank #${riderRank}, setelah ${comparisonName} di Rank #${comparisonRank}, karena ${ruleText[decidingRule] ?? decidingRule.toLowerCase()}${valueText}.`
 }
@@ -151,7 +190,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const scoreResponse = await getLiveScore(new Request(scoreUrl), { params: Promise.resolve({ eventId }) })
   if (!scoreResponse.ok) return NextResponse.json({ error: 'Hasil stage tidak dapat dimuat.' }, { status: 400 })
   const scorePayload = (await scoreResponse.json()) as {
-    data?: { stages?: StageGroup[]; batches?: Array<{ batch_index: number; rows: QualificationRow[] }> }
+    data?: { stages?: StageGroup[]; batches?: QualificationBatch[] }
   }
 
   if (batchIndex) {
@@ -164,17 +203,82 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     const comparisonRider = batch.rows.find((row) => row.rank_point === riderRank - 1) ?? null
     const criteria: Array<{ label: string; rider: string; comparator: string; resolved: boolean }> = []
     let decidingRule: string | null = null
-    const addCriterion = (label: string, own: number | null, other: number | null) => {
-      const diff = Number(own ?? Number.MAX_SAFE_INTEGER) - Number(other ?? Number.MAX_SAFE_INTEGER)
+    const addCriterion = (label: string, own: string | number | null, other: string | number | null, diffOverride?: number) => {
+      const diff = diffOverride ?? Number(own ?? Number.MAX_SAFE_INTEGER) - Number(other ?? Number.MAX_SAFE_INTEGER)
       criteria.push({ label, rider: formatValue(own), comparator: comparisonRider ? formatValue(other) : '-', resolved: diff !== 0 })
       if (!decidingRule && diff !== 0) decidingRule = label
     }
 
+    const qualificationBatches = scorePayload.data?.batches ?? []
+    const singleBatchMoto3Complete =
+      qualificationBatches.length === 1 &&
+      batch.rows.length > 0 &&
+      batch.rows.every((row) => row.moto3_status && row.moto3_status !== 'PENDING')
+    const tieBreakMotoIndexes = singleBatchMoto3Complete ? [3] : [2, 1]
+    const qualificationMotoIdByIndex: Record<number, string | null | undefined> = {
+      1: batch.moto1_id,
+      2: batch.moto2_id,
+      3: batch.moto3_id,
+    }
+    const tieBreakMotoIds = tieBreakMotoIndexes
+      .map((index) => qualificationMotoIdByIndex[index])
+      .filter((id): id is string => Boolean(id))
+    const { data: qualificationFeatureFlags, error: qualificationFeatureFlagsError } = await adminClient
+      .from('event_feature_flags')
+      .select('dnf_progress_enabled')
+      .eq('event_id', eventId)
+      .maybeSingle()
+    if (qualificationFeatureFlagsError) {
+      return NextResponse.json({ error: qualificationFeatureFlagsError.message }, { status: 400 })
+    }
+    const qualificationDnfProgressEnabled = qualificationFeatureFlags?.dnf_progress_enabled === true
+    const dnfProgressByMotoAndRider = new Map<string, number | null>()
+    if (comparisonRider && qualificationDnfProgressEnabled && tieBreakMotoIds.length > 0) {
+      const { data: tieBreakResults, error: tieBreakResultsError } = await adminClient
+        .from('results')
+        .select('moto_id, rider_id, result_status, dnf_progress_percent')
+        .in('moto_id', tieBreakMotoIds)
+        .in('rider_id', [riderId, comparisonRider.rider_id])
+      if (tieBreakResultsError) return NextResponse.json({ error: tieBreakResultsError.message }, { status: 400 })
+      for (const result of tieBreakResults ?? []) {
+        dnfProgressByMotoAndRider.set(`${result.moto_id}:${result.rider_id}`, result.dnf_progress_percent)
+      }
+    }
+
     if (comparisonRider) {
-      addCriterion('Total poin termasuk penalty', rider.total_point, comparisonRider.total_point)
-      if (!decidingRule) addCriterion('Poin Moto 3', rider.point_moto3, comparisonRider.point_moto3)
-      if (!decidingRule) addCriterion('Poin Moto 2', rider.point_moto2, comparisonRider.point_moto2)
-      if (!decidingRule) addCriterion('Poin Moto 1', rider.point_moto1, comparisonRider.point_moto1)
+      const ownQualificationTotal = rider.qualification_ranking_total ?? rider.total_point
+      const otherQualificationTotal = comparisonRider.qualification_ranking_total ?? comparisonRider.total_point
+      addCriterion('Total poin termasuk penalty', ownQualificationTotal, otherQualificationTotal)
+      if (!decidingRule) {
+        for (const motoIndex of tieBreakMotoIndexes) {
+          const ownPoints = qualificationPointsForMoto(rider, motoIndex)
+          const otherPoints = qualificationPointsForMoto(comparisonRider, motoIndex)
+          addCriterion(`Poin Moto ${motoIndex}`, ownPoints, otherPoints)
+          if (ownPoints !== otherPoints) break
+
+          const ownStatus = qualificationStatusForMoto(rider, motoIndex)
+          const otherStatus = qualificationStatusForMoto(comparisonRider, motoIndex)
+          const statusLabel = `Status Moto ${motoIndex}`
+          const statusDiff = statusQuality(ownStatus) - statusQuality(otherStatus)
+          addCriterion(statusLabel, ownStatus, otherStatus, statusDiff)
+          if (statusDiff !== 0) break
+
+          if (qualificationDnfProgressEnabled && ownStatus === 'DNF' && otherStatus === 'DNF') {
+            const motoId = qualificationMotoIdByIndex[motoIndex]
+            const ownProgress = motoId ? dnfProgressByMotoAndRider.get(`${motoId}:${riderId}`) ?? null : null
+            const otherProgress = motoId
+              ? dnfProgressByMotoAndRider.get(`${motoId}:${comparisonRider.rider_id}`) ?? null
+              : null
+            addCriterion(
+              `Progress DNF Moto ${motoIndex}`,
+              ownProgress == null ? null : `${ownProgress}%`,
+              otherProgress == null ? null : `${otherProgress}%`,
+              Number(otherProgress ?? -1) - Number(ownProgress ?? -1)
+            )
+          }
+          if (decidingRule) break
+        }
+      }
     }
 
     const decidingCriterion = criteria.find((criterion) => criterion.label === decidingRule)
@@ -196,12 +300,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
             current: true,
           },
         ] satisfies JourneyEntry[],
-        history_note: 'Pada kualifikasi, rank ditentukan dari total poin dan urutan poin tiap moto dalam batch yang sama.',
+        history_note: singleBatchMoto3Complete
+          ? 'Satu batch: setelah total poin seri, pembanding hanya hasil Moto 3. Status dan progres DNF Moto 1/2 tidak mengubah urutan ini.'
+          : 'Beberapa batch atau Moto 3 belum lengkap: setelah total poin seri, pembanding berurutan Moto 2 lalu Moto 1.',
         tiebreak_order: [
           'Total poin termasuk penalty: angka lebih kecil lebih baik',
-          'Poin Moto 3',
-          'Poin Moto 2',
-          'Poin Moto 1',
+          ...tieBreakMotoIndexes.flatMap((motoIndex) => [
+            `Poin Moto ${motoIndex}`,
+            `Status Moto ${motoIndex}: FINISH > DNF > DNS > DQ jika poin moto sama`,
+            ...(qualificationDnfProgressEnabled ? [`Jika sama-sama DNF di Moto ${motoIndex}: progres lebih jauh lebih baik`] : []),
+          ]),
           'Jika tetap sama: urutan teknis untuk menjaga slot stage stabil',
         ],
         criteria,
@@ -457,9 +565,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
           : `Riwayat sebelum final ditampilkan sebagai konteks, tetapi rank ini sudah ditentukan lebih dahulu oleh ${decidingRule ?? 'urutan teknis'}.`
         : 'Riwayat stage ditampilkan untuk menjelaskan jalur rider menuju babak ini. Rank pada stage ini tetap ditentukan oleh hasil stage yang sedang dibuka.',
       tiebreak_order: [
+        'Total poin termasuk penalty: angka lebih kecil lebih baik',
         'Status hasil: FINISH > DNF > DNS > DQ',
         ...(dnfProgressEnabled ? ['Jika sama-sama DNF: progress yang lebih jauh lebih baik'] : []),
-        'Total poin termasuk penalty: angka lebih kecil lebih baik',
         ...(isFinal ? ['Untuk Final: riwayat DNS lebih sedikit, lalu DNF lebih sedikit, lalu FINISH lebih banyak'] : []),
         ...(isFinal ? ['Untuk Final: stage sumber yang lebih lanjut diprioritaskan (Semi Final, QF, Repechage, Kualifikasi)'] : []),
         'Rank stage sumber yang lebih kecil lebih baik',

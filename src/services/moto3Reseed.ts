@@ -1,5 +1,6 @@
 import { adminClient } from '../lib/auth'
 import { resolveTotalPointForRaceResult, type NonFinishPenaltyConfig } from '../lib/nonFinishScoring'
+import { compareQualificationMotoTieBreak } from '../lib/qualificationRanking'
 
 type MotoLookupRow = {
   id: string
@@ -20,6 +21,7 @@ type MotoResultRow = {
   rider_id: string
   finish_order: number | null
   result_status?: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | null
+  dnf_progress_percent?: number | null
 }
 
 export const parseMotoBatchKey = (name: string) => {
@@ -28,9 +30,14 @@ export const parseMotoBatchKey = (name: string) => {
   return { motoIndex: Number(match[1]), batchIndex: Number(match[2]) }
 }
 
-const pointForRaceResult = (row: MotoResultRow | null | undefined, riderCount: number, config?: NonFinishPenaltyConfig) => {
+const pointForRaceResult = (
+  row: MotoResultRow | null | undefined,
+  riderCount: number,
+  config?: NonFinishPenaltyConfig,
+  dnsCount = 0
+) => {
   if (!row) return null
-  return resolveTotalPointForRaceResult(row.result_status ?? 'FINISH', row.finish_order, riderCount, config)
+  return resolveTotalPointForRaceResult(row.result_status ?? 'FINISH', row.finish_order, riderCount, config, dnsCount)
 }
 
 export async function reseedSingleBatchMoto3FromMoto(motoId: string) {
@@ -50,6 +57,14 @@ export async function reseedSingleBatchMoto3FromMoto(motoId: string) {
     .eq('event_id', currentMoto.event_id)
     .eq('category_id', currentMoto.category_id)
     .maybeSingle()
+
+  const { data: featureFlags, error: featureFlagsError } = await adminClient
+    .from('event_feature_flags')
+    .select('dnf_progress_enabled')
+    .eq('event_id', currentMoto.event_id)
+    .maybeSingle()
+  if (featureFlagsError) return { ok: false as const, warning: featureFlagsError.message }
+  const dnfProgressEnabled = featureFlags?.dnf_progress_enabled === true
 
   const { data: categoryMotos, error: categoryMotoError } = await adminClient
     .from('motos')
@@ -115,9 +130,37 @@ export async function reseedSingleBatchMoto3FromMoto(motoId: string) {
     .map((row) => row.rider_id)
   if (moto1Riders.length === 0) return { ok: true as const }
 
+  const qualificationMotoIds = [moto1.id, moto2.id, ...(moto3 ? [moto3.id] : [])]
+  const { data: penaltyRows, error: penaltyError } = await adminClient
+    .from('rider_penalties')
+    .select('rider_id, moto_id, penalty_point, stage, rider_penalty_approvals!inner(approval_status)')
+    .eq('event_id', currentMoto.event_id)
+    .eq('rider_penalty_approvals.approval_status', 'APPROVED')
+    .in('rider_id', moto1Riders)
+  if (penaltyError) return { ok: false as const, warning: penaltyError.message }
+
+  const manualQualificationPenaltyByRider = new Map<string, number>()
+  const motoSpecificPenaltyByRider = new Map<string, number>()
+  for (const penalty of penaltyRows ?? []) {
+    const amount = Number(penalty.penalty_point ?? 0)
+    if (!Number.isFinite(amount) || amount <= 0) continue
+    if (penalty.moto_id) {
+      if (!qualificationMotoIds.includes(penalty.moto_id)) continue
+      motoSpecificPenaltyByRider.set(
+        penalty.rider_id,
+        (motoSpecificPenaltyByRider.get(penalty.rider_id) ?? 0) + amount
+      )
+    } else if (penalty.stage === 'MOTO') {
+      manualQualificationPenaltyByRider.set(
+        penalty.rider_id,
+        (manualQualificationPenaltyByRider.get(penalty.rider_id) ?? 0) + amount
+      )
+    }
+  }
+
   const { data: resultRows, error: resultError } = await adminClient
     .from('results')
-    .select('moto_id, rider_id, finish_order, result_status')
+    .select('moto_id, rider_id, finish_order, result_status, dnf_progress_percent')
     .in('moto_id', [moto1.id, moto2.id])
 
   if (resultError) {
@@ -131,6 +174,13 @@ export async function reseedSingleBatchMoto3FromMoto(motoId: string) {
     ((resultRows ?? []) as MotoResultRow[]).map((row) => [`${row.moto_id}:${row.rider_id}`, row] as const)
   )
 
+  const moto1DnsCount = ((resultRows ?? []) as MotoResultRow[]).filter(
+    (row) => row.moto_id === moto1.id && row.result_status === 'DNS'
+  ).length
+  const moto2DnsCount = ((resultRows ?? []) as MotoResultRow[]).filter(
+    (row) => row.moto_id === moto2.id && row.result_status === 'DNS'
+  ).length
+
   const riderCount = moto1Riders.length
   const moto2Complete = moto1Riders.every(
     (riderId) => moto2RiderSet.has(riderId) && resultsByKey.has(`${moto2.id}:${riderId}`)
@@ -143,19 +193,38 @@ export async function reseedSingleBatchMoto3FromMoto(motoId: string) {
     .map((riderId) => {
       const moto1Result = resultsByKey.get(`${moto1.id}:${riderId}`)
       const moto2Result = resultsByKey.get(`${moto2.id}:${riderId}`)
-      const moto1Points = pointForRaceResult(moto1Result, riderCount, stageConfig ?? undefined) ?? 9999
-      const moto2Points = pointForRaceResult(moto2Result, riderCount, stageConfig ?? undefined) ?? 9999
+      const moto1BasePoints = pointForRaceResult(moto1Result, riderCount, stageConfig ?? undefined, moto1DnsCount) ?? 9999
+      const moto2Points = pointForRaceResult(moto2Result, riderCount, stageConfig ?? undefined, moto2DnsCount) ?? 9999
+      const motoSpecificPenalty = motoSpecificPenaltyByRider.get(riderId) ?? 0
+      const manualQualificationPenalty = motoSpecificPenalty > 0
+        ? motoSpecificPenalty
+        : manualQualificationPenaltyByRider.get(riderId) ?? 0
+      const moto1Points = moto1BasePoints + manualQualificationPenalty
       return {
         riderId,
         totalPoints: moto1Points + moto2Points,
         moto2Points,
         moto1Points,
+        moto1Status: moto1Result?.result_status,
+        moto1DnfProgressPercent: moto1Result?.dnf_progress_percent,
+        moto2Status: moto2Result?.result_status,
+        moto2DnfProgressPercent: moto2Result?.dnf_progress_percent,
       }
     })
     .sort((a, b) => {
       if (a.totalPoints !== b.totalPoints) return a.totalPoints - b.totalPoints
-      if (a.moto2Points !== b.moto2Points) return a.moto2Points - b.moto2Points
-      if (a.moto1Points !== b.moto1Points) return a.moto1Points - b.moto1Points
+      const moto2TieDiff = compareQualificationMotoTieBreak(
+        { motoIndex: 2, points: a.moto2Points, resultStatus: a.moto2Status, dnfProgressPercent: a.moto2DnfProgressPercent },
+        { motoIndex: 2, points: b.moto2Points, resultStatus: b.moto2Status, dnfProgressPercent: b.moto2DnfProgressPercent },
+        dnfProgressEnabled
+      )
+      if (moto2TieDiff !== 0) return moto2TieDiff
+      const moto1TieDiff = compareQualificationMotoTieBreak(
+        { motoIndex: 1, points: a.moto1Points, resultStatus: a.moto1Status, dnfProgressPercent: a.moto1DnfProgressPercent },
+        { motoIndex: 1, points: b.moto1Points, resultStatus: b.moto1Status, dnfProgressPercent: b.moto1DnfProgressPercent },
+        dnfProgressEnabled
+      )
+      if (moto1TieDiff !== 0) return moto1TieDiff
       return a.riderId.localeCompare(b.riderId)
     })
 
