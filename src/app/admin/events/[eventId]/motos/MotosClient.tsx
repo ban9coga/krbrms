@@ -1272,15 +1272,15 @@ export default function MotosClient({ eventId }: { eventId: string }) {
         <div className="motos-global-actions" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <button
             type="button"
-            onClick={() => setAutoRefreshEnabled((value) => {
-              const nextValue = !value
+            onClick={() => {
+              const nextValue = !autoRefreshEnabled
+              setAutoRefreshEnabled(nextValue)
               try {
                 window.localStorage.setItem(`motos:auto-refresh:${eventId}`, String(nextValue))
               } catch {
                 // Keep the current-tab preference if browser storage is unavailable.
               }
-              return nextValue
-            })}
+            }}
             disabled={autoRefreshPreferenceLoadedFor !== eventId}
             className={isAutoRefreshActive ? 'admin-primary-button' : 'admin-outline-button'}
             style={{
