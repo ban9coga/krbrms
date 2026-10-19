@@ -179,6 +179,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
   const [eventStatus, setEventStatus] = useState<'UPCOMING' | 'READY' | 'LIVE' | 'FINISHED' | 'PROVISIONAL' | 'PROTEST_REVIEW' | 'LOCKED' | null>(null)
   const [eventName, setEventName] = useState('Event')
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true)
+  const [autoRefreshPreferenceLoadedFor, setAutoRefreshPreferenceLoadedFor] = useState('')
   const [advancedEnabledByCategory, setAdvancedEnabledByCategory] = useState<Record<string, boolean>>({})
   const [advancedSummaryByCategory, setAdvancedSummaryByCategory] = useState<Record<string, AdvancedSummaryItem>>({})
   const [computingCategoryId, setComputingCategoryId] = useState<string | null>(null)
@@ -298,6 +299,16 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId])
 
+  useEffect(() => {
+    if (!eventId) return
+    try {
+      setAutoRefreshEnabled(window.localStorage.getItem(`motos:auto-refresh:${eventId}`) !== 'false')
+    } catch {
+      setAutoRefreshEnabled(true)
+    }
+    setAutoRefreshPreferenceLoadedFor(eventId)
+  }, [eventId])
+
   const refreshFromRealtime = useCallback(() => {
     if (computingCategoryId || raceResetLoading || raceResetSubmitting) return
     void load('refresh', { includeAdvancedSummary: true })
@@ -312,7 +323,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
   })
 
   useEffect(() => {
-    if (!eventId) return
+    if (!eventId || autoRefreshPreferenceLoadedFor !== eventId) return
     if (!shouldPollMotos(eventStatus, autoRefreshEnabled)) return
     const interval = window.setInterval(() => {
       if (document.visibilityState === 'hidden') return
@@ -320,7 +331,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     }, 50000)
     return () => window.clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [eventId, eventStatus, autoRefreshEnabled])
+  }, [autoRefreshPreferenceLoadedFor, eventId, eventStatus, autoRefreshEnabled])
 
   const categoryLabel = useMemo(() => {
     const map = new Map<string, string>()
@@ -1261,13 +1272,23 @@ export default function MotosClient({ eventId }: { eventId: string }) {
         <div className="motos-global-actions" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <button
             type="button"
-            onClick={() => setAutoRefreshEnabled((value) => !value)}
+            onClick={() => setAutoRefreshEnabled((value) => {
+              const nextValue = !value
+              try {
+                window.localStorage.setItem(`motos:auto-refresh:${eventId}`, String(nextValue))
+              } catch {
+                // Keep the current-tab preference if browser storage is unavailable.
+              }
+              return nextValue
+            })}
+            disabled={autoRefreshPreferenceLoadedFor !== eventId}
             className={isAutoRefreshActive ? 'admin-primary-button' : 'admin-outline-button'}
             style={{
-              cursor: 'pointer',
+              cursor: autoRefreshPreferenceLoadedFor === eventId ? 'pointer' : 'wait',
               whiteSpace: 'nowrap',
               background: isAutoRefreshActive ? '#16a34a' : undefined,
               borderColor: isAutoRefreshActive ? '#14532d' : undefined,
+              opacity: autoRefreshPreferenceLoadedFor === eventId ? 1 : 0.6,
             }}
             title={
               eventStatus === 'LIVE'
