@@ -2333,6 +2333,27 @@ html[data-theme='dark'] .setting-toggle-control:has(input:checked) .setting-togg
   background: rgba(255, 250, 240, 0.12);
 }
 
+.homepage-editorial-live-score-cta {
+  border-color: #f4c63d;
+  animation: homepage-live-score-cta-pulse 1.8s ease-out infinite;
+}
+
+.homepage-editorial-live-score-cta:hover,
+.homepage-editorial-live-score-cta:focus-visible {
+  animation-play-state: paused;
+}
+
+@keyframes homepage-live-score-cta-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(244, 198, 61, 0.32);
+  }
+
+  65% {
+    box-shadow: 0 0 0 7px rgba(244, 198, 61, 0.04);
+  }
+}
+
 .homepage-editorial-stats {
   display: grid;
   width: min(100%, 690px);
@@ -2658,6 +2679,10 @@ html[data-theme='dark'] .setting-toggle-control:has(input:checked) .setting-togg
 
   .homepage-editorial-action {
     transition: none;
+  }
+
+  .homepage-editorial-live-score-cta {
+    animation: none;
   }
 }
 

@@ -5,22 +5,7 @@ import { usePathname } from 'next/navigation'
 
 export default function FloatingLiveScoreButton({ hasLiveEvent }: { hasLiveEvent: boolean }) {
   const pathname = usePathname()
-  const isPublicRoute =
-    pathname === '/' ||
-    pathname.startsWith('/event/') ||
-    pathname === '/live-results' ||
-    pathname.startsWith('/live-results/') ||
-    pathname.startsWith('/jadwal-race-pushbike') ||
-    pathname.startsWith('/registration-status') ||
-    pathname.startsWith('/scoring')
-
-  if (!hasLiveEvent || !isPublicRoute) {
-    return null
-  }
-
-  if (pathname === '/live-results' || pathname.startsWith('/live-results/')) {
-    return null
-  }
+  if (!hasLiveEvent || pathname !== '/') return null
 
   return (
     <Link
