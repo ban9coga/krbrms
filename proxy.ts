@@ -18,6 +18,34 @@ const ROLE_GUARDS: Record<string, string[]> = {
   '/draw': ['DRAW_MANAGER', 'ADMIN', 'SUPER_ADMIN'],
 }
 
+const normalizeRole = (value: unknown) => String(value ?? '').trim().toUpperCase().replace(/-/g, '_')
+
+const hasActiveScopedRole = async (userId: string, allowedRoles: string[]) => {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!supabaseUrl || !serviceRoleKey || !userId) return false
+
+  try {
+    const url = new URL('/rest/v1/user_event_roles', supabaseUrl)
+    url.searchParams.set('select', 'role')
+    url.searchParams.set('user_id', `eq.${userId}`)
+    url.searchParams.set('is_active', 'eq.true')
+    const response = await fetch(url, {
+      headers: {
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${serviceRoleKey}`,
+      },
+      cache: 'no-store',
+    })
+    if (!response.ok) return false
+
+    const assignments = (await response.json()) as Array<{ role?: unknown }>
+    return assignments.some((assignment) => allowedRoles.includes(normalizeRole(assignment.role)))
+  } catch {
+    return false
+  }
+}
+
 const tryParseJson = (value: string) => {
   try {
     return JSON.parse(value)
@@ -63,7 +91,7 @@ const decodeJwt = (token: string) => {
   }
 }
 
-export function proxy(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl
   const needsAuth = PROTECTED_PATHS.some((path) => pathname.startsWith(path))
 
@@ -84,13 +112,8 @@ export function proxy(req: NextRequest) {
     appRole ||
     payload?.role ||
     ''
-  const normalizedRole = String(rawRole).trim()
-  const role =
-    normalizedRole === 'jury_start' || normalizedRole === 'JURY_START'
-      ? 'CHECKER'
-      : normalizedRole === 'jury_finish' || normalizedRole === 'JURY_FINISH'
-        ? 'FINISHER'
-        : normalizedRole.toUpperCase()
+  const normalizedRole = normalizeRole(rawRole)
+  const role = normalizedRole === 'JURY_START' ? 'CHECKER' : normalizedRole === 'JURY_FINISH' ? 'FINISHER' : normalizedRole
 
   const guardPath = Object.keys(ROLE_GUARDS)
     .sort((a, b) => b.length - a.length)
@@ -110,7 +133,9 @@ export function proxy(req: NextRequest) {
 
   if (guardPath) {
     const allowedRoles = ROLE_GUARDS[guardPath]
-    if (!allowedRoles.includes(role)) {
+    const hasClaimRole = allowedRoles.includes(role)
+    const hasScopedRole = !hasClaimRole && await hasActiveScopedRole(String(payload?.sub ?? ''), allowedRoles)
+    if (!hasClaimRole && !hasScopedRole) {
       const redirectUrl = req.nextUrl.clone()
       redirectUrl.pathname = defaultRoute(role)
       return NextResponse.redirect(redirectUrl)

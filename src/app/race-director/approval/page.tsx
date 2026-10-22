@@ -226,13 +226,19 @@ export default function RaceDirectorApprovalPage() {
       const { data } = await supabase.auth.getUser()
       const meta = (data.user?.user_metadata ?? {}) as Record<string, unknown>
       const appMeta = (data.user?.app_metadata ?? {}) as Record<string, unknown>
-      const r =
+      let r =
         (typeof meta.role === 'string' ? meta.role : null) ||
         (typeof appMeta.role === 'string' ? appMeta.role : null)
+      try {
+        const access = await apiFetch('/api/auth/backoffice-access')
+        if (typeof access?.data?.role === 'string') r = access.data.role
+      } catch {
+        // Keep JWT metadata as a fallback if role resolution is temporarily unavailable.
+      }
       setRole(normalizeRole(r))
     }
-    loadRole()
-  }, [])
+    void loadRole()
+  }, [apiFetch])
 
   const loadEventData = useCallback(
     async ({
