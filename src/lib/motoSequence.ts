@@ -219,18 +219,63 @@ export const isAdvancementMoto = (moto: MotoLike) => {
   return parsed != null && parsed.stage !== 'QUALIFICATION'
 }
 
-// Hold advancement motos behind event-wide stage barriers. Qualification must
-// finish across all categories before any advancement stage can run; then each
-// advancement stage completes before the next stage becomes eligible.
+const getCompletedDirectFinalCategoryIds = <T extends MotoLike>(rows: T[]) => {
+  const categoryIds = new Set(
+    rows.filter(isQualificationMoto).map((moto) => moto.category_id).filter((id): id is string => Boolean(id))
+  )
+
+  return new Set([...categoryIds].filter((categoryId) => {
+    const categoryQualifications = rows.filter((moto) => moto.category_id === categoryId && isQualificationMoto(moto))
+    if (categoryQualifications.length === 0 || !categoryQualifications.every((moto) => isStageFinalized(moto.status))) return false
+
+    const categoryAdvancements = rows.filter((moto) => moto.category_id === categoryId && isAdvancementMoto(moto))
+    return categoryAdvancements.some((moto) => parseAdvancedMoto(moto.moto_name)?.stage === 'FINAL') &&
+      categoryAdvancements.every((moto) => parseAdvancedMoto(moto.moto_name)?.stage === 'FINAL')
+  }))
+}
+
+// Hold advancement stages behind event-wide barriers, except direct finals:
+// those become eligible right after their own category's qualifications finish.
+// The remaining advancement stages still wait for all qualifications, then
+// complete in stage order across the event.
 export const getEligibleMotosInWorkflow = <T extends MotoLike>(rows: T[]) => {
   const candidates = rows.filter((row) => ['UPCOMING', 'READY'].includes(String(row.status ?? '').toUpperCase()))
   const qualificationMotos = rows.filter(isQualificationMoto)
   const qualificationsComplete = qualificationMotos.every((moto) => isStageFinalized(moto.status))
 
-  // Keep event's qualification Moto Sequence intact, even when one category's
-  // generated finals are already available.
+  // Preserve the event's interleaved qualification sequence, then place a
+  // completed category's direct finals immediately after its last qualifier.
   if (!qualificationsComplete) {
-    return candidates.filter(isQualificationMoto)
+    const directFinalCategoryIds = getCompletedDirectFinalCategoryIds(rows)
+    const eligible = candidates.filter((moto) =>
+      isQualificationMoto(moto) ||
+      (directFinalCategoryIds.has(moto.category_id ?? '') && parseAdvancedMoto(moto.moto_name)?.stage === 'FINAL')
+    )
+    if (directFinalCategoryIds.size === 0) return eligible
+
+    const lastQualificationByCategory = new Map<string, T>()
+    for (const moto of qualificationMotos) {
+      if (!moto.category_id) continue
+      const current = lastQualificationByCategory.get(moto.category_id)
+      if (!current || compareMotoSequence(current, moto) < 0) lastQualificationByCategory.set(moto.category_id, moto)
+    }
+
+    const eligibleSet = new Set(eligible)
+    const insertedDirectFinals = new Set(
+      eligible.filter((moto) => parseAdvancedMoto(moto.moto_name)?.stage === 'FINAL')
+    )
+    const ordered: T[] = []
+    for (const moto of rows) {
+      if (eligibleSet.has(moto) && !insertedDirectFinals.has(moto)) ordered.push(moto)
+      const categoryId = moto.category_id
+      if (!categoryId || !directFinalCategoryIds.has(categoryId) || lastQualificationByCategory.get(categoryId) !== moto) continue
+      ordered.push(
+        ...eligible
+          .filter((candidate) => candidate.category_id === categoryId && parseAdvancedMoto(candidate.moto_name)?.stage === 'FINAL')
+          .sort((a, b) => compareMotoWorkflowSequence(a, b, buildCategoryBaseOrder(rows)))
+      )
+    }
+    return ordered
   }
 
   const unfinishedAdvancement = rows.filter((moto) => isAdvancementMoto(moto) && !isStageFinalized(moto.status))
@@ -272,6 +317,20 @@ export const pickNextMotoInWorkflow = <T extends MotoLike & { id: string }>(rows
       return candidate.category_id === anchorMoto.category_id && candidateIndex > anchorIndex
     })
     if (nextSameCategoryStage) return nextSameCategoryStage
+  }
+
+  if (anchorMoto && isQualificationMoto(anchorMoto) && anchorMoto.category_id) {
+    const directFinalCategoryIds = getCompletedDirectFinalCategoryIds(rows)
+    const lastQualification = rows
+      .filter((moto) => moto.category_id === anchorMoto.category_id && isQualificationMoto(moto))
+      .sort(compareMotoSequence)
+      .at(-1)
+    if (lastQualification?.id === anchorMoto.id && directFinalCategoryIds.has(anchorMoto.category_id)) {
+      const nextDirectFinal = candidates.find(
+        (candidate) => candidate.category_id === anchorMoto.category_id && parseAdvancedMoto(candidate.moto_name)?.stage === 'FINAL'
+      )
+      if (nextDirectFinal) return nextDirectFinal
+    }
   }
 
   if (!anchorMoto) return candidates[0] ?? null
