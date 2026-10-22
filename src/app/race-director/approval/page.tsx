@@ -405,7 +405,7 @@ export default function RaceDirectorApprovalPage() {
         return
       }
       try {
-        const res = await apiFetch(`/api/events/${eventId}/penalties`)
+        const res = await apiFetch(`/api/race-director/events/${eventId}/penalties`)
         setPenaltyRules(((res.data ?? []) as PenaltyRuleItem[]).filter((rule) => rule.is_active !== false))
       } catch (err: unknown) {
         showNotice('error', getErrorMessage(err))

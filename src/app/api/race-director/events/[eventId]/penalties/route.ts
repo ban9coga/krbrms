@@ -1,0 +1,20 @@
+import { NextResponse } from 'next/server'
+import { adminClient } from '../../../../../../lib/auth'
+import { requireJury } from '../../../../../../services/juryAuth'
+
+export async function GET(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  const { eventId } = await params
+  const auth = await requireJury(req, ['RACE_DIRECTOR', 'SUPER_ADMIN'], eventId)
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+  const { data, error } = await adminClient
+    .from('event_penalty_rules')
+    .select('id, event_id, code, description, penalty_point, applies_to_stage, is_active, rd_enabled')
+    .eq('event_id', eventId)
+    .eq('is_active', true)
+    .eq('rd_enabled', true)
+    .order('code', { ascending: true })
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  return NextResponse.json({ data: data ?? [] })
+}
