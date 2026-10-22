@@ -56,9 +56,8 @@ export default function MarketingTopbar({
   const isLoggedIn = Boolean(userEmail || roleKey)
 
   useEffect(() => {
-    const syncUser = async () => {
-      const { data } = await supabase.auth.getSession()
-      const user = data.session?.user
+    const syncUser = (session: Awaited<ReturnType<typeof supabase.auth.getSession>>['data']['session']) => {
+      const user = session?.user
       const meta = (user?.user_metadata ?? {}) as Record<string, unknown>
       const appMeta = (user?.app_metadata ?? {}) as Record<string, unknown>
       const role =
@@ -68,9 +67,8 @@ export default function MarketingTopbar({
       setRoleKey(role)
     }
 
-    syncUser()
-    const { data: sub } = supabase.auth.onAuthStateChange(() => {
-      syncUser()
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      syncUser(session)
     })
     return () => {
       sub.subscription.unsubscribe()

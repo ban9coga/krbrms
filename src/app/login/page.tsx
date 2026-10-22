@@ -89,7 +89,9 @@ export default function LoginPage() {
       return
     }
 
-    if (accessToken && refreshToken) {
+    // Email sign-in already persists the session. Crew login gets its tokens
+    // from the server and still needs to establish the browser-side session.
+    if (!isEmailLogin && accessToken && refreshToken) {
       const { data: persistedSession, error: persistError } = await supabase.auth.setSession({
         access_token: accessToken,
         refresh_token: refreshToken,
@@ -135,7 +137,7 @@ export default function LoginPage() {
       }
     }
 
-    const { data: userData } = await supabase.auth.getUser()
+    const { data: userData } = await supabase.auth.getUser(accessToken || undefined)
     const user = userData.user
     const meta = (user?.user_metadata ?? {}) as Record<string, unknown>
     const appMeta = (user?.app_metadata ?? {}) as Record<string, unknown>
