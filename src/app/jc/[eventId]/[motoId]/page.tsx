@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import CheckerTopbar from '../../../../components/CheckerTopbar'
 import LoadingState from '../../../../components/LoadingState'
 import { useHighVisibility } from '../../../../hooks/useHighVisibility'
-import { compareMotoSequence, getEligibleMotosInWorkflow, isAdvancementMoto, pickNextMotoInWorkflow } from '../../../../lib/motoSequence'
+import { compareMotoSequence, getEligibleMotosInWorkflow, isAdvancementMoto, parseMotoSequence, pickNextMotoInWorkflow } from '../../../../lib/motoSequence'
 import { useApiFetch } from '@/src/hooks/useApiFetch'
 import { isMotoLive, isMotoReady, isMotoUpcoming } from '../../../../lib/motoStatus'
 import { usePageVisibility } from '../../../../lib/usePageVisibility'
@@ -759,20 +759,41 @@ export default function JCPage() {
     setMotoPickerQuery('')
   }
   const activeCategoryWaitingStage = useMemo(() => {
-    // A workflow prep moto takes precedence over any completed category that
-    // is still eligible for a later compute. Otherwise an older category can
-    // hide the prep panel after the selector has already advanced.
-    if (workflowPrepMoto) return null
+    const pendingLastQualification = motos.find((moto) => {
+      const status = String(moto.status ?? '').toUpperCase()
+      if (!['LIVE', 'PROVISIONAL', 'PROTEST_REVIEW'].includes(status) || !parseMotoSequence(moto.moto_name)) return false
+
+      const categoryQualifications = motos
+        .filter((candidate) => candidate.category_id === moto.category_id && parseMotoSequence(candidate.moto_name))
+        .sort(compareMotoSequence)
+      return categoryQualifications.at(-1)?.id === moto.id
+    })
+    if (pendingLastQualification) {
+      const status = String(pendingLastQualification.status ?? '').toUpperCase()
+      const statusDetail = status === 'LIVE'
+        ? 'Moto terakhir kualifikasi masih berlangsung.'
+        : status === 'PROTEST_REVIEW'
+          ? 'Hasil moto terakhir kualifikasi masih dalam review.'
+          : 'Hasil moto terakhir kualifikasi sedang menunggu dikunci.'
+      return {
+        categoryLabel: categoryLabel.get(pendingLastQualification.category_id ?? '') ?? 'Kategori Terkait',
+        title: 'Menunggu Hasil Moto Kualifikasi Terakhir',
+        detail: `${pendingLastQualification.moto_name}: ${statusDetail} Stage berikutnya dihitung setelah hasil dikunci.`,
+      }
+    }
 
     const categoryIds = Array.from(new Set(motos.map((moto) => moto.category_id).filter(Boolean))) as string[]
-    for (const categoryId of categoryIds) {
+    const waitingCategories = categoryIds
+      .filter((categoryId) => isCategoryAwaitingStageCompute(motos, categoryId))
+      .sort((a, b) => {
+        const latestOrder = (categoryId: string) => Math.max(
+          ...motos.filter((moto) => moto.category_id === categoryId).map((moto) => moto.moto_order)
+        )
+        return latestOrder(b) - latestOrder(a)
+      })
+
+    for (const categoryId of waitingCategories) {
       const categoryMotos = motos.filter((moto) => moto.category_id === categoryId)
-      const hasPrepMoto = categoryMotos.some((moto) => !isLockedStatus(moto.status) && isPrepMotoStatus(moto.status))
-      if (hasPrepMoto) continue
-
-      const finalMotos = categoryMotos.filter((moto) => /^FINAL\s+/i.test(moto.moto_name))
-      if (finalMotos.length > 0 && finalMotos.every((moto) => isLockedStatus(moto.status))) continue
-
       const pendingMoto = categoryMotos.find((moto) => ['PROVISIONAL', 'PROTEST_REVIEW'].includes(String(moto.status ?? '').toUpperCase()))
       const lastLockedNonFinalMoto = [...categoryMotos]
         .reverse()
@@ -787,7 +808,7 @@ export default function JCPage() {
       }
     }
     return null
-  }, [motos, categoryLabel, workflowPrepMoto])
+  }, [motos, categoryLabel])
   const incidentCategoryLabel = incidentMoto
     ? categoryLabel.get(incidentMoto.category_id ?? '') ?? 'Unknown Category'
     : 'Kategori'
