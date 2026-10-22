@@ -17,6 +17,12 @@ type UseEventRaceRealtimeOptions = {
   debounceMs?: number
 }
 
+const readAccessTokenCookie = () => {
+  if (typeof document === 'undefined') return null
+  const entry = document.cookie.split('; ').find((item) => item.startsWith('sb-access-token='))
+  return entry ? decodeURIComponent(entry.slice('sb-access-token='.length)) : null
+}
+
 // Realtime only sends a tiny signal. Each screen decides how to refetch its
 // existing protected data, which keeps Broadcast payloads small and reusable.
 export function useEventRaceRealtime({
@@ -40,8 +46,11 @@ export function useEventRaceRealtime({
     let channel: ReturnType<typeof supabase.channel> | null = null
 
     const connect = async () => {
-      const { data } = await supabase.auth.getSession()
-      const accessToken = data.session?.access_token
+      let accessToken = readAccessTokenCookie()
+      if (!accessToken) {
+        const { data } = await supabase.auth.getSession()
+        accessToken = data.session?.access_token ?? null
+      }
       if (!accessToken || disposed) return
 
       await supabase.realtime.setAuth(accessToken)

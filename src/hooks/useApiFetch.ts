@@ -9,24 +9,49 @@ const readAccessTokenCookie = () => {
 
 export function useApiFetch() {
   const tokenRef = useRef<string | null>(null)
+  const sessionReadRef = useRef<Promise<string | null> | null>(null)
+  const refreshRef = useRef<Promise<string | null> | null>(null)
 
   const getToken = useCallback(async (forceRefresh = false) => {
     if (!forceRefresh && tokenRef.current) return tokenRef.current
 
-    if (forceRefresh) {
-      const { data } = await supabase.auth.refreshSession()
-      tokenRef.current = data.session?.access_token ?? null
-      if (tokenRef.current && typeof window !== 'undefined') {
-        const secureCookie = window.location.protocol === 'https:' ? '; Secure' : ''
-        const maxAge = data.session?.expires_in ?? 3600
-        document.cookie = `sb-access-token=${encodeURIComponent(tokenRef.current)}; Path=/; Max-Age=${maxAge}${secureCookie}; SameSite=Lax`
+    if (!forceRefresh) {
+      const cookieToken = readAccessTokenCookie()
+      if (cookieToken) {
+        tokenRef.current = cookieToken
+        return cookieToken
       }
-      return tokenRef.current
     }
 
-    const { data } = await supabase.auth.getSession()
-    tokenRef.current = data.session?.access_token ?? readAccessTokenCookie()
-    return tokenRef.current
+    const pending = forceRefresh ? refreshRef.current : sessionReadRef.current
+    if (pending) return pending
+
+    const request = (async () => {
+      if (forceRefresh) {
+        const { data } = await supabase.auth.refreshSession()
+        tokenRef.current = data.session?.access_token ?? null
+        if (tokenRef.current && typeof window !== 'undefined') {
+          const secureCookie = window.location.protocol === 'https:' ? '; Secure' : ''
+          const maxAge = data.session?.expires_in ?? 3600
+          document.cookie = `sb-access-token=${encodeURIComponent(tokenRef.current)}; Path=/; Max-Age=${maxAge}${secureCookie}; SameSite=Lax`
+        }
+        return tokenRef.current
+      }
+
+      const { data } = await supabase.auth.getSession()
+      tokenRef.current = data.session?.access_token ?? readAccessTokenCookie()
+      return tokenRef.current
+    })()
+
+    if (forceRefresh) refreshRef.current = request
+    else sessionReadRef.current = request
+
+    try {
+      return await request
+    } finally {
+      if (forceRefresh && refreshRef.current === request) refreshRef.current = null
+      if (!forceRefresh && sessionReadRef.current === request) sessionReadRef.current = null
+    }
   }, [])
 
   const apiFetch = useCallback(

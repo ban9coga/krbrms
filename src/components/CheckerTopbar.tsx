@@ -49,12 +49,15 @@ export default function CheckerTopbar({ title = 'Checker Control' }: CheckerTopb
 
   useEffect(() => {
     const loadUser = async () => {
-      const { data } = await supabase.auth.getSession()
-      const token = data.session?.access_token ?? readAccessTokenCookie()
-      let user = data.session?.user ?? null
-      if (!user && token) {
+      let token = readAccessTokenCookie()
+      let user = null
+      if (token) {
         const { data: tokenUserData } = await supabase.auth.getUser(token)
         user = tokenUserData.user
+      } else {
+        const { data } = await supabase.auth.getSession()
+        token = data.session?.access_token ?? null
+        user = data.session?.user ?? null
       }
       if (!user) return
       const meta = (user.user_metadata ?? {}) as Record<string, unknown>

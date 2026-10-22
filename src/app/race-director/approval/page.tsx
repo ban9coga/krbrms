@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import CheckerTopbar from '../../../components/CheckerTopbar'
 import { compareMotoSequence } from '../../../lib/motoSequence'
-import { supabase } from '@/src/lib/supabaseClient'
 import { useApiFetch } from '@/src/hooks/useApiFetch'
 import { useEventRaceRealtime } from '@/src/hooks/useEventRaceRealtime'
 import { usePageVisibility } from '@/src/lib/usePageVisibility'
@@ -223,19 +222,12 @@ export default function RaceDirectorApprovalPage() {
 
   useEffect(() => {
     const loadRole = async () => {
-      const { data } = await supabase.auth.getUser()
-      const meta = (data.user?.user_metadata ?? {}) as Record<string, unknown>
-      const appMeta = (data.user?.app_metadata ?? {}) as Record<string, unknown>
-      let r =
-        (typeof meta.role === 'string' ? meta.role : null) ||
-        (typeof appMeta.role === 'string' ? appMeta.role : null)
       try {
         const access = await apiFetch('/api/auth/backoffice-access')
-        if (typeof access?.data?.role === 'string') r = access.data.role
+        if (typeof access?.data?.role === 'string') setRole(normalizeRole(access.data.role))
       } catch {
-        // Keep JWT metadata as a fallback if role resolution is temporarily unavailable.
+        setRole(null)
       }
-      setRole(normalizeRole(r))
     }
     void loadRole()
   }, [apiFetch])
