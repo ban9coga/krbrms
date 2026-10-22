@@ -22,6 +22,7 @@ export type FinalParticipationHistory = {
 export type FinalRankingTieBreakEntry = {
   riderId: string
   totalPoints: number
+  finishOrder: number | null | undefined
   resultStatus: string | null | undefined
   dnfProgressPercent: number | null | undefined
   history: FinalParticipationHistory
@@ -94,6 +95,9 @@ export const compareFinalRankingEntries = (
 ) => {
   const pointsDiff = compareNumber(a.totalPoints, b.totalPoints)
   if (pointsDiff !== 0) return pointsDiff
+
+  const finishOrderDiff = compareNumber(a.finishOrder, b.finishOrder)
+  if (finishOrderDiff !== 0) return finishOrderDiff
 
   const statusDiff = resultStatusPriority(a.resultStatus) - resultStatusPriority(b.resultStatus)
   if (statusDiff !== 0) return statusDiff

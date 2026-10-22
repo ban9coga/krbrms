@@ -961,6 +961,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
               return {
                 riderId: row.rider_id,
                 totalPoints: (row.point ?? Number.MAX_SAFE_INTEGER) + (row.penalty_total ?? 0),
+                finishOrder: resultByRider.get(row.rider_id)?.finish_order,
                 resultStatus: row.status,
                 dnfProgressPercent: resultByRider.get(row.rider_id)?.dnf_progress_percent,
                 history: participationHistoryByRider.get(row.rider_id) ?? {

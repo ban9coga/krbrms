@@ -2411,6 +2411,7 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
     riderId: string
     finalClass: string
     point: number
+    finishOrder: number | null
     resultStatus: ResultRow['result_status']
     dnfProgressPercent: number | null
   }> = []
@@ -2431,6 +2432,7 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
         riderId: id,
         finalClass,
         point,
+        finishOrder: row?.finish_order ?? null,
         resultStatus: row?.result_status ?? null,
         dnfProgressPercent: row?.dnf_progress_percent ?? null,
       })
@@ -2476,6 +2478,7 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
         const toTieBreakEntry = (entry: (typeof a)) => ({
           riderId: entry.riderId,
           totalPoints: entry.point,
+          finishOrder: entry.finishOrder,
           resultStatus: entry.resultStatus,
           dnfProgressPercent: entry.dnfProgressPercent,
           history: participationHistoryByRider.get(entry.riderId) ?? {

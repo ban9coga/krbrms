@@ -127,6 +127,7 @@ const formatRankConclusion = ({
   const valueText = riderValue != null && comparisonValue != null ? ` (${formatValue(riderValue)} dibanding ${formatValue(comparisonValue)})` : ''
   const ruleText: Record<string, string> = {
     'Status hasil': 'urutan status FINISH > DNF > DNS > DQ',
+    'Urutan finish Final': 'urutan finish aktual pada Final yang lebih awal diprioritaskan',
     'Progress DNF': 'keduanya DNF dan progres DNF yang lebih jauh diprioritaskan',
     'Total poin termasuk penalty': 'total poin termasuk penalty yang lebih kecil diprioritaskan',
     'Riwayat sebelum Final': 'riwayat sebelum final dibandingkan: DNS lebih sedikit, lalu DNF lebih sedikit, lalu FINISH lebih banyak',
@@ -356,7 +357,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     categoryMotoIds.length
       ? adminClient
           .from('results')
-          .select('moto_id, rider_id, result_status, dnf_progress_percent')
+          .select('moto_id, rider_id, finish_order, result_status, dnf_progress_percent')
           .in('moto_id', categoryMotoIds)
           .in('rider_id', comparedRiderIds)
       : Promise.resolve({ data: [] }),
@@ -479,6 +480,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       if (pointDiff !== 0) decidingRule = 'Total poin termasuk penalty'
     }
 
+    if (isFinal && !decidingRule) {
+      const finishOrderDiff = Number(selectedResult?.finish_order ?? Number.MAX_SAFE_INTEGER) - Number(compareResult?.finish_order ?? Number.MAX_SAFE_INTEGER)
+      addCriterion('Urutan finish Final', selectedResult?.finish_order ?? null, compareResult?.finish_order ?? null, finishOrderDiff)
+      if (finishOrderDiff !== 0) decidingRule = 'Urutan finish Final'
+    }
+
     if (!decidingRule) {
       const statusDiff = addCriterion('Status hasil', rider.status, comparisonRider.status, statusQuality(rider.status) - statusQuality(comparisonRider.status))
       if (statusDiff !== 0) decidingRule = 'Status hasil'
@@ -566,6 +573,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         : 'Riwayat stage ditampilkan untuk menjelaskan jalur rider menuju babak ini. Rank pada stage ini tetap ditentukan oleh hasil stage yang sedang dibuka.',
       tiebreak_order: [
         'Total poin termasuk penalty: angka lebih kecil lebih baik',
+        ...(isFinal ? ['Untuk Final: urutan finish aktual yang lebih awal lebih baik'] : []),
         'Status hasil: FINISH > DNF > DNS > DQ',
         ...(dnfProgressEnabled ? ['Jika sama-sama DNF: progress yang lebih jauh lebih baik'] : []),
         ...(isFinal ? ['Untuk Final: riwayat DNS lebih sedikit, lalu DNF lebih sedikit, lalu FINISH lebih banyak'] : []),
