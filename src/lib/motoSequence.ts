@@ -4,6 +4,7 @@ type MotoLike = {
   moto_order?: number | null
   category_id?: string | null
   status?: string | null
+  checker_prep_ready_at?: string | null
 }
 
 type ParsedMoto = {
@@ -210,8 +211,7 @@ export const compareMotoSequence = (a: MotoLike, b: MotoLike) => {
   return (ao ?? 0) - (bo ?? 0)
 }
 
-const isPastForNextPrep = (status?: string | null) =>
-  ['LOCKED', 'FINISHED', 'PROVISIONAL', 'LIVE'].includes(String(status ?? '').toUpperCase())
+const isStageFinalized = (status?: string | null) => ['LOCKED', 'FINISHED'].includes(String(status ?? '').toUpperCase())
 
 const isQualificationMoto = (moto: MotoLike) => parseAdvancedMoto(moto.moto_name)?.stage === 'QUALIFICATION'
 export const isAdvancementMoto = (moto: MotoLike) => {
@@ -219,41 +219,66 @@ export const isAdvancementMoto = (moto: MotoLike) => {
   return parsed != null && parsed.stage !== 'QUALIFICATION'
 }
 
-// Generated advancement motos are appended to moto_order, but become the next
-// workflow step once their category's earlier motos are submitted or complete.
-export const pickNextMotoInWorkflow = <T extends MotoLike & { id: string }>(rows: T[], anchorMoto?: T | null) => {
+// Hold advancement motos behind event-wide stage barriers. Qualification must
+// finish across all categories before any advancement stage can run; then each
+// advancement stage completes before the next stage becomes eligible.
+export const getEligibleMotosInWorkflow = <T extends MotoLike>(rows: T[]) => {
   const candidates = rows.filter((row) => ['UPCOMING', 'READY'].includes(String(row.status ?? '').toUpperCase()))
-  const releasedAdvancement = candidates.filter((candidate) => {
-    if (!isAdvancementMoto(candidate) || !candidate.category_id) return false
-    return !rows.some((row) =>
-      row.category_id === candidate.category_id &&
-      row.id !== candidate.id &&
-      typeof row.moto_order === 'number' &&
-      typeof candidate.moto_order === 'number' &&
-      row.moto_order < candidate.moto_order &&
-      !isPastForNextPrep(row.status)
-    )
+  const qualificationMotos = rows.filter(isQualificationMoto)
+  const qualificationsComplete = qualificationMotos.every((moto) => isStageFinalized(moto.status))
+
+  // Keep event's qualification Moto Sequence intact, even when one category's
+  // generated finals are already available.
+  if (!qualificationsComplete) {
+    return candidates.filter(isQualificationMoto)
+  }
+
+  const unfinishedAdvancement = rows.filter((moto) => isAdvancementMoto(moto) && !isStageFinalized(moto.status))
+  const nextStageOrder = unfinishedAdvancement.reduce<number | null>((earliest, moto) => {
+    const parsed = parseAdvancedMoto(moto.moto_name)
+    if (!parsed) return earliest
+    const order = getAdvancedStageOrder(parsed.stage)
+    return earliest == null || order < earliest ? order : earliest
+  }, null)
+  const stageCandidates = candidates.filter((candidate) => {
+    const parsed = parseAdvancedMoto(candidate.moto_name)
+    return parsed != null && getAdvancedStageOrder(parsed.stage) === nextStageOrder
   })
 
-  const anchorIsAdvancement = anchorMoto && !isQualificationMoto(anchorMoto)
-  if (anchorIsAdvancement && anchorMoto.category_id) {
-    const anchorIndex = rows.findIndex((row) => row.id === anchorMoto.id)
-    const nextSameCategoryAdvancement = releasedAdvancement.find((candidate) => {
+  if (stageCandidates.length > 0) return stageCandidates
+
+  // No advancement stage is currently pending. Preserve ordinary sequence for
+  // events that contain motos outside the parsed stage naming convention.
+  if (unfinishedAdvancement.length > 0) return []
+  return candidates
+}
+
+export const pickNextMotoInWorkflow = <T extends MotoLike & { id: string }>(rows: T[], anchorMoto?: T | null) => {
+  const eligible = getEligibleMotosInWorkflow(rows)
+  if (eligible.length === 0) return null
+
+  // A checker-prepared moto is an explicit manual choice within the active
+  // stage. Prefer the most recently confirmed choice for auto-live as well.
+  const preparedSelection = eligible
+    .filter((moto) => String(moto.status ?? '').toUpperCase() === 'READY' && moto.checker_prep_ready_at)
+    .sort((a, b) => String(b.checker_prep_ready_at).localeCompare(String(a.checker_prep_ready_at)))[0]
+  if (preparedSelection) return preparedSelection
+
+  const candidates = [...eligible]
+  const anchorIndex = anchorMoto ? rows.findIndex((row) => row.id === anchorMoto.id) : -1
+  if (anchorMoto && isAdvancementMoto(anchorMoto)) {
+    const nextSameCategoryStage = candidates.find((candidate) => {
       const candidateIndex = rows.findIndex((row) => row.id === candidate.id)
       return candidate.category_id === anchorMoto.category_id && candidateIndex > anchorIndex
     })
-    if (nextSameCategoryAdvancement) return nextSameCategoryAdvancement
-  }
-
-  if (releasedAdvancement.length > 0) {
-    const categoryBaseOrder = buildCategoryBaseOrder(rows)
-    return [...releasedAdvancement].sort((a, b) =>
-      compareMotoWorkflowSequence(a, b, categoryBaseOrder)
-    )[0] ?? null
+    if (nextSameCategoryStage) return nextSameCategoryStage
   }
 
   if (!anchorMoto) return candidates[0] ?? null
-  const anchorIndex = rows.findIndex((row) => row.id === anchorMoto.id)
   const afterAnchor = anchorIndex >= 0 ? rows.slice(anchorIndex + 1) : rows
-  return afterAnchor.find((row) => candidates.some((candidate) => candidate.id === row.id)) ?? candidates[0] ?? null
+  const nextInSequence = afterAnchor.find((row) => candidates.some((candidate) => candidate.id === row.id))
+  if (nextInSequence) return nextInSequence as T & { id: string }
+
+  const categoryBaseOrder = buildCategoryBaseOrder(rows)
+  return [...candidates].sort((a, b) => compareMotoWorkflowSequence(a, b, categoryBaseOrder))[0] ?? null
 }

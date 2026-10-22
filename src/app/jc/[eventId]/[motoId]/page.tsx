@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import CheckerTopbar from '../../../../components/CheckerTopbar'
 import LoadingState from '../../../../components/LoadingState'
 import { useHighVisibility } from '../../../../hooks/useHighVisibility'
-import { compareMotoSequence, isAdvancementMoto, pickNextMotoInWorkflow } from '../../../../lib/motoSequence'
+import { compareMotoSequence, getEligibleMotosInWorkflow, isAdvancementMoto, pickNextMotoInWorkflow } from '../../../../lib/motoSequence'
 import { useApiFetch } from '@/src/hooks/useApiFetch'
 import { isMotoLive, isMotoReady, isMotoUpcoming } from '../../../../lib/motoStatus'
 import { usePageVisibility } from '../../../../lib/usePageVisibility'
@@ -137,6 +137,13 @@ const pickPrepMotoId = (
 ) => {
   const liveMoto = list.find((m) => m.id === liveMotoId) ?? null
   const releasedStage = pickUpcomingMoto(list, liveMoto)
+  const currentMoto = list.find((moto) => moto.id === currentId) ?? null
+  if (currentMoto && isAdvancementMoto(currentMoto)) {
+    // Do not keep a generated later-stage moto selected while the event-wide
+    // workflow is still waiting for qualifications or an earlier stage.
+    if (!releasedStage) return ''
+    if (releasedStage.id !== currentMoto.id) return releasedStage.id
+  }
   if (releasedStage && isAdvancementMoto(releasedStage)) return releasedStage.id
 
   if (liveMotoId) {
@@ -155,7 +162,7 @@ const pickPrepMotoId = (
       }
       const nextMoto = pickUpcomingMoto(list, currentMoto)
       if (nextMoto) return nextMoto.id
-      if (isCategoryUnfinished(list, currentMoto.category_id) || isCategoryAwaitingStageCompute(list, currentMoto.category_id)) return currentId
+      if (isCategoryUnfinished(list, currentMoto.category_id) || isCategoryAwaitingStageCompute(list, currentMoto.category_id)) return ''
     }
   }
 
@@ -386,19 +393,14 @@ export default function JCPage() {
       setMotos(workflowMotos)
 
       const liveMoto = workflowMotos.find((moto) => isMotoLive(moto.status)) ?? null
-      const nextWorkflowMoto = pickNextMotoInWorkflow(workflowMotos, liveMoto)
       const manuallySelectedMoto = manualSelectedMotoIdRef.current
         ? workflowMotos.find((moto) => moto.id === manualSelectedMotoIdRef.current)
         : null
-      const releasedStageOverridesManual =
-        !!nextWorkflowMoto &&
-        isAdvancementMoto(nextWorkflowMoto) &&
-        nextWorkflowMoto.id !== manuallySelectedMoto?.id
       if (
         manuallySelectedMoto &&
         isPrepMotoStatus(manuallySelectedMoto.status) &&
         !isLockedStatus(manuallySelectedMoto.status) &&
-        !releasedStageOverridesManual
+        getEligibleMotosInWorkflow(workflowMotos).some((moto) => moto.id === manuallySelectedMoto.id)
       ) {
         if (selectedMotoIdRef.current !== manuallySelectedMoto.id) {
           selectedMotoIdRef.current = manuallySelectedMoto.id
@@ -710,19 +712,11 @@ export default function JCPage() {
     () => motos.find((m) => m.id === workflowPrepMotoId) ?? null,
     [motos, workflowPrepMotoId]
   )
-  const selectableMotos = useMemo(
-    () =>
-      motos.filter(
-        (m) =>
-          !isLockedStatus(m.status) &&
-          isPrepMotoStatus(m.status)
-      ),
-    [motos]
-  )
   const nextWorkflowMoto = useMemo(
     () => pickNextMotoInWorkflow(motos, motos.find((moto) => isMotoLive(moto.status)) ?? null),
     [motos]
   )
+  const selectableMotos = useMemo(() => getEligibleMotosInWorkflow(motos), [motos])
   const allPrepSelectOptions = useMemo(() => {
     const sortedMotos = [...selectableMotos].sort(compareMotoSequence)
     if (!nextWorkflowMoto || !sortedMotos.some((moto) => moto.id === nextWorkflowMoto.id)) return sortedMotos
@@ -754,6 +748,7 @@ export default function JCPage() {
   }, [allPrepSelectOptions, categoryLabel, motoPickerQuery])
 
   const selectPrepMoto = (nextMotoId: string) => {
+    if (!selectableMotos.some((moto) => moto.id === nextMotoId)) return
     const targetMoto = motos.find((moto) => moto.id === nextMotoId)
     manualSelectedMotoIdRef.current = nextMotoId
     selectedMotoIdRef.current = nextMotoId

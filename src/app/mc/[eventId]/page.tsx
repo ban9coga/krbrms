@@ -8,6 +8,7 @@ import { ThemeToggleSwitch } from '@/src/components/ThemeProvider'
 import { useApiFetch } from '@/src/hooks/useApiFetch'
 import { useEventRaceRealtime } from '@/src/hooks/useEventRaceRealtime'
 import { useHighVisibility } from '@/src/hooks/useHighVisibility'
+import { FINAL_MOTO_DISPLAY_ORDER } from '@/src/lib/motoDisplayOrder'
 import { supabase } from '@/src/lib/supabaseClient'
 
 type Category = {
@@ -117,6 +118,11 @@ const stageSortKey = (title: string) => {
   if (normalized.startsWith('SEMI FINAL')) return 2
   if (normalized.startsWith('FINAL')) return 3
   return 4
+}
+
+const finalClassSortKey = (title: string) => {
+  const match = title.trim().match(/^FINAL\s+(.+)$/i)
+  return match ? FINAL_MOTO_DISPLAY_ORDER[match[1].trim().toUpperCase()] ?? Number.MAX_SAFE_INTEGER : Number.MAX_SAFE_INTEGER
 }
 
 const riderDisplayName = (row: { name: string; rider_nickname?: string | null }) => row.rider_nickname?.trim() || row.name
@@ -287,7 +293,21 @@ export default function McLivePage() {
   }, [loadScore, routeCategoryId])
 
   const batches = score?.batches ?? []
-  const stages = useMemo(() => [...(score?.stages ?? [])].sort((a, b) => stageSortKey(a.title) - stageSortKey(b.title) || a.title.localeCompare(b.title)), [score])
+  const stages = useMemo(
+    () =>
+      [...(score?.stages ?? [])].sort((a, b) => {
+        const aStage = stageSortKey(a.title)
+        const bStage = stageSortKey(b.title)
+        const stageDiff = aStage - bStage
+        if (stageDiff !== 0) return stageDiff
+        if (aStage === 3) {
+          const classDiff = finalClassSortKey(a.title) - finalClassSortKey(b.title)
+          if (classDiff !== 0) return classDiff
+        }
+        return a.title.localeCompare(b.title)
+      }),
+    [score]
+  )
   const showMoto3 = batches.some((batch) => Boolean(batch.moto3_id))
   const motoStateById = useMemo(() => new Map(motoStates.map((moto) => [moto.id, moto])), [motoStates])
   const nextCategory = useMemo(() => {

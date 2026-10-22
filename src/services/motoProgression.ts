@@ -195,7 +195,14 @@ export async function promoteReadyMotoAfterPreviousProvisional(eventId: string, 
     if (nextMoto?.id === readyMotoId) return promoteNextMotoToLive(eventId, previousProvisional.id)
   }
 
-  // The first prepared moto can still be opened by Checker. For subsequent motos,
-  // a LIVE moto elsewhere remains the guard against two motos running together.
+  // The first prepared moto can open directly only when it belongs to the
+  // event's active stage. A prepared manual choice still cannot skip a stage.
+  const liveMoto = loaded.rows.find(isLiveMoto) ?? null
+  const { nextMoto } = pickNextMotoToPromote(loaded.rows, liveMoto ?? readyMoto)
+  if (nextMoto?.id !== readyMotoId) {
+    return { ok: true as const, skipped: true as const, nextMotoId: nextMoto?.id ?? null, warning: 'Moto menunggu urutan stage aktif.' }
+  }
+
+  // A LIVE moto elsewhere remains the guard against two motos running together.
   return promoteReadyMoto(eventId, loaded.rows, readyMoto)
 }
