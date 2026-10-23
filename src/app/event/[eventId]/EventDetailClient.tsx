@@ -483,7 +483,6 @@ export default function EventDetailClient({
                             </div>
                           </div>
                           <div className="grid gap-3 p-3">
-                            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">{category.label}</p>
                             <CategoryMotoStatusBadges counts={categoryMotoBadges.get(category.id)} />
                             <Link
                               href={`/event/${eventId}/live-score/${encodeURIComponent(category.id)}`}
