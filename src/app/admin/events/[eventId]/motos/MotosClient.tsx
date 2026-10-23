@@ -1295,8 +1295,13 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                 ? 'Aktif/nonaktifkan polling otomatis halaman motos.'
                 : 'Auto refresh hanya berjalan saat event LIVE.'
             }
+            aria-label={isAutoRefreshActive ? 'Matikan auto refresh' : 'Nyalakan auto refresh'}
           >
-            {isAutoRefreshActive ? 'Auto Refresh ON' : 'Auto Refresh OFF'}
+            <svg className="motos-topbar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M20 7v5h-5M4 17v-5h5" />
+              <path d="M5.6 9A7 7 0 0 1 17.5 6L20 12M4 12l2.5 6A7 7 0 0 0 18.4 15" />
+            </svg>
+            <span className="motos-topbar-label">{isAutoRefreshActive ? 'Auto Refresh ON' : 'Auto Refresh OFF'}</span>
           </button>
           <button
             type="button"
@@ -1308,8 +1313,15 @@ export default function MotosClient({ eventId }: { eventId: string }) {
               whiteSpace: 'nowrap',
               opacity: loading || refreshing ? 0.6 : 1,
             }}
+            title={loading || refreshing ? 'Sedang memuat ulang data' : 'Refresh Data'}
+            aria-label={loading || refreshing ? 'Sedang refresh data' : 'Refresh data'}
           >
-            {loading || refreshing ? 'Refreshing...' : 'Refresh Data'}
+            <svg className={`motos-topbar-icon${loading || refreshing ? ' motos-topbar-icon-spinning' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M20 11a8 8 0 0 0-14.9-3L3 11" />
+              <path d="M3 4v7h7M4 13a8 8 0 0 0 14.9 3L21 13" />
+              <path d="M21 20v-7h-7" />
+            </svg>
+            <span className="motos-topbar-label">{loading || refreshing ? 'Refreshing...' : 'Refresh Data'}</span>
           </button>
           {eventStatus === 'UPCOMING' && (
             <button
@@ -1318,8 +1330,13 @@ export default function MotosClient({ eventId }: { eventId: string }) {
               disabled={raceResetLoading}
               className="admin-danger-button"
               style={{ cursor: raceResetLoading ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap', opacity: raceResetLoading ? 0.6 : 1 }}
+              title="Reset Data Race"
+              aria-label="Reset data race"
             >
-              {raceResetLoading ? 'Memeriksa Data...' : 'Reset Data Race'}
+              <svg className="motos-topbar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M3 6h18M8 6V4h8v2m3 0-1 14H6L5 6m5 5v5m4-5v5" />
+              </svg>
+              <span className="motos-topbar-label">{raceResetLoading ? 'Memeriksa Data...' : 'Reset Data Race'}</span>
             </button>
           )}
           <button
@@ -1333,8 +1350,14 @@ export default function MotosClient({ eventId }: { eventId: string }) {
               opacity: exportingMotoExcel || exportingMotoWord || loadingGateOrders ? 0.6 : 1,
             }}
             title={!allGateOrdersLoaded ? 'Klik untuk memuat data gate lalu export.' : undefined}
+            aria-label="Load dan export DOCX"
           >
-            {exportingMotoWord ? 'Preparing DOCX...' : !allGateOrdersLoaded ? 'Load & Export DOCX' : 'Word DOCX Rider Per Moto'}
+            <svg className="motos-topbar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <path d="M14 2v6h6M8 13h8M8 17h8" />
+              <path d="M8 9h1" />
+            </svg>
+            <span className="motos-topbar-label">{exportingMotoWord ? 'Preparing DOCX...' : !allGateOrdersLoaded ? 'Load & Export DOCX' : 'Word DOCX Rider Per Moto'}</span>
           </button>
           <button
             type="button"
@@ -1347,36 +1370,15 @@ export default function MotosClient({ eventId }: { eventId: string }) {
               opacity: exportingMotoExcel || exportingMotoWord || loadingGateOrders ? 0.6 : 1,
             }}
             title={!allGateOrdersLoaded ? 'Klik untuk memuat data gate lalu export.' : undefined}
+            aria-label="Load dan export XLSX"
           >
-            {exportingMotoExcel ? 'Preparing XLSX...' : !allGateOrdersLoaded ? 'Load & Export XLSX' : 'Excel Rider Per Moto'}
+            <svg className="motos-topbar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <path d="M14 2v6h6M8 13l4 5m0-5-4 5m8-5v5" />
+            </svg>
+            <span className="motos-topbar-label">{exportingMotoExcel ? 'Preparing XLSX...' : !allGateOrdersLoaded ? 'Load & Export XLSX' : 'Excel Rider Per Moto'}</span>
           </button>
         </div>
-      </div>
-      <div
-        className="no-print"
-        style={{
-          marginTop: 10,
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 8,
-          padding: '8px 12px',
-          borderRadius: 999,
-          border: '2px solid #111',
-          background: '#ecfccb',
-          fontWeight: 900,
-          fontSize: 12,
-        }}
-      >
-        <span
-          style={{
-            width: 10,
-            height: 10,
-            borderRadius: 999,
-            background: '#16a34a',
-            display: 'inline-block',
-          }}
-        />
-        Flow prep: checker menekan Moto Ready untuk mengubah moto menjadi READY. Moto READY belum race; status ini menjadi syarat sebelum moto masuk LIVE.
       </div>
       {eventStatus && eventStatus !== 'LIVE' && (
         <div
@@ -2136,6 +2138,15 @@ export default function MotosClient({ eventId }: { eventId: string }) {
         .motos-action-icon {
           display: none;
         }
+        .motos-topbar-icon {
+          display: none;
+          width: 20px;
+          height: 20px;
+        }
+        @keyframes motos-topbar-spin { to { transform: rotate(360deg); } }
+        .motos-topbar-icon-spinning {
+          animation: motos-topbar-spin .9s linear infinite;
+        }
         @keyframes motos-compute-spin { to { transform: rotate(360deg); } }
         @media (max-width: 860px) {
           .motos-print-root {
@@ -2208,6 +2219,24 @@ export default function MotosClient({ eventId }: { eventId: string }) {
           .motos-compute-button {
             min-height: 44px !important;
           }
+          .motos-global-actions {
+            display: grid !important;
+            grid-template-columns: repeat(auto-fit, 44px) !important;
+            justify-content: start;
+            width: 100% !important;
+            gap: 6px !important;
+          }
+          .motos-global-actions button {
+            display: inline-flex;
+            width: 44px !important;
+            min-width: 44px !important;
+            height: 44px;
+            align-items: center;
+            justify-content: center;
+            padding: 8px !important;
+          }
+          .motos-topbar-label { display: none; }
+          .motos-topbar-icon { display: block; }
         }
         @media print {
           .no-print {
