@@ -23,6 +23,7 @@ export default function RiderNotificationButton({
     riderId
   )
   const [confirming, setConfirming] = useState<'subscribe' | 'unsubscribe' | 'ios_instruction' | null>(null)
+  const [processingAction, setProcessingAction] = useState<'subscribe' | 'unsubscribe' | null>(null)
 
   if (!isSupported && !isIOSBrowser) return null
 
@@ -42,13 +43,30 @@ export default function RiderNotificationButton({
 
   const handleConfirm = async (e: React.MouseEvent) => {
     e.stopPropagation()
-    if (confirming === 'subscribe') {
-      await subscribe()
-    } else if (confirming === 'unsubscribe') {
-      await unsubscribe()
-    }
+    if (confirming !== 'subscribe' && confirming !== 'unsubscribe') return
 
-    setConfirming(null)
+    const action = confirming
+    const startedAt = performance.now()
+    setProcessingAction(action)
+
+    try {
+      // Let the busy state paint before opening the browser permission prompt or starting the request.
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
+      if (action === 'subscribe') {
+        await subscribe()
+      } else {
+        await unsubscribe()
+      }
+
+      // Keep feedback visible briefly when the operation completes very quickly.
+      const remainingFeedbackMs = 350 - (performance.now() - startedAt)
+      if (remainingFeedbackMs > 0) {
+        await new Promise((resolve) => window.setTimeout(resolve, remainingFeedbackMs))
+      }
+    } finally {
+      setProcessingAction(null)
+      setConfirming(null)
+    }
   }
 
   const handleCancel = (e: React.MouseEvent) => {
@@ -61,7 +79,7 @@ export default function RiderNotificationButton({
       {/* Bell icon button */}
       <button
         type="button"
-        disabled={isLoading}
+        disabled={isLoading || processingAction !== null}
         onClick={handleBellClick}
         title={
           isSubscribed
@@ -95,7 +113,9 @@ export default function RiderNotificationButton({
             <div className="flex flex-col gap-2 w-full">
               <span className="text-[11px] leading-snug text-slate-200">
                 <strong className="text-amber-400">Khusus iPhone:</strong><br/>
-                Tekan tombol Bagikan (Share) di bawah layar lalu pilih <strong>&quot;Add to Home Screen&quot; (Tambahkan ke Layar Utama)</strong> untuk mengaktifkan notifikasi.
+                1. Tekan tombol Bagikan (Share), lalu pilih <strong>&quot;Add to Home Screen&quot; (Tambahkan ke Layar Utama)</strong>.<br />
+                2. Setelah ikon RacePushBike muncul, buka aplikasi dari ikon itu di layar utama (bukan dari tab Safari).<br />
+                3. Cari rider ini, tekan ikon lonceng lagi, pilih <strong>Ya</strong>, lalu izinkan notifikasi saat diminta iPhone.
               </span>
               <button
                 type="button"
@@ -107,22 +127,31 @@ export default function RiderNotificationButton({
             </div>
           ) : (
             <>
-              <span className="text-[10px] text-slate-200 whitespace-nowrap">
-                {confirming === 'subscribe'
-                  ? `Aktifkan notifikasi rider ini?`
-                  : `Matikan notifikasi rider ini?`}
+              <span className="text-[10px] text-slate-200 whitespace-nowrap" aria-live="polite">
+                {processingAction === confirming ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="animate-spin" aria-hidden="true">◌</span>
+                    {confirming === 'subscribe' ? 'Mengaktifkan notifikasi…' : 'Mematikan notifikasi…'}
+                  </span>
+                ) : confirming === 'subscribe' ? (
+                  'Aktifkan notifikasi rider ini?'
+                ) : (
+                  'Matikan notifikasi rider ini?'
+                )}
               </span>
               <button
                 type="button"
+                disabled={processingAction !== null || isLoading}
                 onClick={handleConfirm}
-                className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300 px-1 py-0.5 rounded hover:bg-emerald-500/10 transition-colors"
+                className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300 px-1 py-0.5 rounded hover:bg-emerald-500/10 transition-colors disabled:opacity-50 disabled:cursor-wait"
               >
-                Ya
+                {processingAction !== null ? 'Tunggu…' : 'Ya'}
               </button>
               <button
                 type="button"
+                disabled={processingAction !== null || isLoading}
                 onClick={handleCancel}
-                className="text-[10px] font-bold text-slate-400 hover:text-slate-200 px-1 py-0.5 rounded hover:bg-white/10 transition-colors"
+                className="text-[10px] font-bold text-slate-400 hover:text-slate-200 px-1 py-0.5 rounded hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-wait"
               >
                 Tidak
               </button>
