@@ -28,6 +28,32 @@ const categoryCoverGradients = [
   'linear-gradient(140deg,#1f2937 0%,#334155 52%,#7f1d1d 100%)',
 ]
 
+type CategoryMotoBadgeCounts = { live: number; finished: number; upcoming: number }
+
+const CategoryMotoStatusBadges = ({ counts }: { counts?: CategoryMotoBadgeCounts }) => {
+  if (!counts || counts.live + counts.finished + counts.upcoming === 0) return null
+
+  return (
+    <div className="flex flex-wrap gap-1.5" aria-label="Status moto kategori">
+      {counts.live > 0 && (
+        <span className="motion-safe:animate-pulse rounded-full border border-emerald-300/70 bg-emerald-400/15 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-200">
+          LIVE · {counts.live}
+        </span>
+      )}
+      {counts.finished > 0 && (
+        <span className="rounded-full border border-slate-400/60 bg-slate-300/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-slate-200">
+          FINISH · {counts.finished}
+        </span>
+      )}
+      {counts.upcoming > 0 && (
+        <span className="rounded-full border border-amber-300/60 bg-amber-300/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-amber-200">
+          UPCOMING · {counts.upcoming}
+        </span>
+      )}
+    </div>
+  )
+}
+
 export default function EventDetailClient({
   eventId,
   initialEvent,
@@ -40,7 +66,7 @@ export default function EventDetailClient({
   const hideRegistrationAndVenueActions = eventId === '1d063c20-af89-4416-a578-cc06b824adc2'
   const [event, setEvent] = useState<EventItem | null>(initialEvent)
   const [categories, setCategories] = useState<RiderCategory[]>(initialArchive?.categories ?? [])
-  const [liveMotos, setLiveMotos] = useState<MotoItem[]>([])
+  const [eventMotos, setEventMotos] = useState<MotoItem[]>([])
   const [liveResults, setLiveResults] = useState<Record<string, LeaderboardRow[]>>({})
   const [liveLoading, setLiveLoading] = useState<Record<string, boolean>>({})
   const [expandedMotoId, setExpandedMotoId] = useState<string>('')
@@ -81,7 +107,7 @@ export default function EventDetailClient({
         setEvent(initialArchive.event)
         setCategories(initialArchive.categories)
         setRiderTotal(initialArchive.riderTotal)
-        setLiveMotos([])
+        setEventMotos(initialArchive.motos)
         setLoading(false)
         return
       }
@@ -93,7 +119,7 @@ export default function EventDetailClient({
             const archiveData = archive.data ?? {}
             setCategories((archiveData.categories ?? []).filter((category: RiderCategory) => category.enabled))
             setRiderTotal(Number(archiveData.rider_total ?? 0))
-            setLiveMotos([])
+            setEventMotos((archiveData.motos ?? []) as MotoItem[])
             setLoading(false)
             fetch(`/api/public/events/${eventId}/best-team`)
               .then((res) => res.json())
@@ -119,7 +145,7 @@ export default function EventDetailClient({
       setRiderTotal(riderData.total)
       const motoJson = await motoRes.json()
       const motos = (motoJson.data ?? []) as MotoItem[]
-      setLiveMotos(motos.filter((m) => m.status === 'LIVE'))
+      setEventMotos(motos)
       const bestTeamJson = await bestTeamRes.json().catch(() => null)
       if (bestTeamJson?.data?.enabled) {
         setBestTeam(bestTeamJson.data)
@@ -207,8 +233,21 @@ export default function EventDetailClient({
   }, [categories])
 
   const liveMotosSorted = useMemo(() => {
-    return [...liveMotos].sort(compareMotoDisplayOrder)
-  }, [liveMotos])
+    return eventMotos.filter((moto) => moto.status === 'LIVE').sort(compareMotoDisplayOrder)
+  }, [eventMotos])
+
+  const categoryMotoBadges = useMemo(() => {
+    const counts = new Map<string, { live: number; finished: number; upcoming: number }>()
+    for (const moto of eventMotos) {
+      const current = counts.get(moto.category_id) ?? { live: 0, finished: 0, upcoming: 0 }
+      const status = String(moto.status ?? '').toUpperCase()
+      if (status === 'LIVE') current.live += 1
+      else if (['FINISHED', 'PROVISIONAL', 'PROTEST_REVIEW', 'LOCKED'].includes(status)) current.finished += 1
+      else if (status === 'UPCOMING' || status === 'READY') current.upcoming += 1
+      counts.set(moto.category_id, current)
+    }
+    return counts
+  }, [eventMotos])
 
   const categoryCards = useMemo(() => {
     const genderOrder = { BOY: 0, GIRL: 1, MIX: 2 } as const
@@ -402,6 +441,9 @@ export default function EventDetailClient({
                   ) : categoryCards.map((category) => (
                     <article key={category.id} className="rounded-xl border border-[#705547] bg-[#2a160d] px-4 py-3">
                       <h3 className="text-base font-black uppercase text-[#fff8e8]">{category.label}</h3>
+                      <div className="mt-2">
+                        <CategoryMotoStatusBadges counts={categoryMotoBadges.get(category.id)} />
+                      </div>
                     </article>
                   ))}
                 </div>
@@ -442,6 +484,7 @@ export default function EventDetailClient({
                           </div>
                           <div className="grid gap-3 p-3">
                             <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">{category.label}</p>
+                            <CategoryMotoStatusBadges counts={categoryMotoBadges.get(category.id)} />
                             <Link
                               href={`/event/${eventId}/live-score/${encodeURIComponent(category.id)}`}
                               className="inline-flex items-center justify-center rounded-xl bg-emerald-700 px-4 py-2.5 text-xs font-extrabold uppercase tracking-[0.12em] text-white transition-colors hover:bg-emerald-600"
