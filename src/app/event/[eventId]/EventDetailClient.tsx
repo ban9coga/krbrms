@@ -3,7 +3,6 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { useEffect, useMemo, useState } from 'react'
-import StatusBadge from '../../../components/StatusBadge'
 import LoadingState from '../../../components/LoadingState'
 import EmptyState from '../../../components/EmptyState'
 import PublicTopbar from '../../../components/PublicTopbar'
@@ -37,17 +36,17 @@ const CategoryMotoStatusBadges = ({ counts }: { counts?: CategoryMotoBadgeCounts
     <div className="flex flex-wrap gap-1.5" aria-label="Status moto kategori">
       {counts.live > 0 && (
         <span className="motion-safe:animate-pulse rounded-full border border-emerald-300/70 bg-emerald-400/15 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-200">
-          LIVE · {counts.live}
+          ON TRACK
         </span>
       )}
       {counts.finished > 0 && (
         <span className="rounded-full border border-slate-400/60 bg-slate-300/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-slate-200">
-          FINISH · {counts.finished}
+          FINISHED
         </span>
       )}
       {counts.upcoming > 0 && (
         <span className="rounded-full border border-amber-300/60 bg-amber-300/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-amber-200">
-          UPCOMING · {counts.upcoming}
+          UP NEXT
         </span>
       )}
     </div>
@@ -288,6 +287,29 @@ export default function EventDetailClient({
     }
   }
 
+  const renderPublicStaffCards = () => publicStaff.map((staff) => (
+    <div key={staff.role} className="flex min-w-0 flex-1 items-center gap-3 rounded-xl border border-white/15 bg-white/5 px-3 py-2 sm:min-w-[220px]">
+      {staff.photoUrl ? (
+        <Image
+          src={staff.photoUrl}
+          alt={`Foto ${staff.name}`}
+          width={52}
+          height={52}
+          sizes="52px"
+          className="h-[52px] w-[52px] shrink-0 rounded-full border border-[#f3c63d]/60 object-cover"
+        />
+      ) : (
+        <span className="grid h-[52px] w-[52px] shrink-0 place-items-center rounded-full border border-[#f3c63d]/60 bg-[#2a160d] text-sm font-black text-[#f3c63d]">
+          {staff.name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || '-'}
+        </span>
+      )}
+      <span className="grid min-w-0 gap-0.5">
+        <span className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[#c9b7a5]">{staff.role}</span>
+        <span className="truncate text-sm font-extrabold text-[#fff8e8]">{staff.name}</span>
+      </span>
+    </div>
+  ))
+
   return (
     <div className="public-page public-editorial-page public-editorial-detail bg-[#f5ecd7] text-[#1d0d07]">
       <PublicTopbar />
@@ -296,9 +318,9 @@ export default function EventDetailClient({
         {!loading && !event && <EmptyState label="Event tidak ditemukan." />}
 
         {event && (
-          <div className="grid gap-6">
-            <section className="public-editorial-event-hero relative overflow-hidden rounded-[2rem] border border-[#4f372b] bg-[#1d0d07] px-5 py-8 shadow-[0_30px_70px_rgba(55,23,9,0.22)] sm:px-8 md:rounded-[2.5rem] md:px-12 md:py-10">
-              <div className="relative z-10 grid gap-6">
+          <div className="grid gap-4 sm:gap-6">
+            <section className="public-editorial-event-hero relative overflow-hidden rounded-[2rem] border border-[#4f372b] bg-[#1d0d07] px-4 py-6 shadow-[0_30px_70px_rgba(55,23,9,0.22)] sm:px-8 sm:py-8 md:rounded-[2.5rem] md:px-12 md:py-10">
+              <div className="relative z-10 grid gap-4 sm:gap-6">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="grid gap-2">
                     {hasDistinctPublicBrandName && (
@@ -306,7 +328,7 @@ export default function EventDetailClient({
                         {publicBrandName}
                       </p>
                     )}
-                    <h1 className="text-3xl font-black leading-tight text-[#fff8e8] md:text-5xl">
+                    <h1 className="text-2xl font-black leading-tight text-[#fff8e8] sm:text-3xl md:text-5xl">
                       {publicEventTitle}
                     </h1>
                     {publicTagline && (
@@ -329,45 +351,28 @@ export default function EventDetailClient({
                       </span>
                     </div>
                     {publicStaff.length > 0 && (
-                      <div className="grid max-w-6xl gap-2 pt-1">
-                        <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-[#c9b7a5]">Panitia & Official</p>
-                        <div className="flex flex-wrap gap-2 xl:flex-nowrap">
-                          {publicStaff.map((staff) => (
-                            <div key={staff.role} className="flex min-w-[220px] flex-1 items-center gap-3 rounded-xl border border-white/15 bg-white/5 px-3 py-2">
-                              {staff.photoUrl ? (
-                                <Image
-                                  src={staff.photoUrl}
-                                  alt={`Foto ${staff.name}`}
-                                  width={52}
-                                  height={52}
-                                  sizes="52px"
-                                  className="h-[52px] w-[52px] shrink-0 rounded-full border border-[#f3c63d]/60 object-cover"
-                                />
-                              ) : (
-                                <span className="grid h-[52px] w-[52px] shrink-0 place-items-center rounded-full border border-[#f3c63d]/60 bg-[#2a160d] text-sm font-black text-[#f3c63d]">
-                                  {staff.name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || '-'}
-                                </span>
-                              )}
-                              <span className="grid min-w-0 gap-0.5">
-                                <span className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[#c9b7a5]">{staff.role}</span>
-                                <span className="truncate text-sm font-extrabold text-[#fff8e8]">{staff.name}</span>
-                              </span>
-                            </div>
-                          ))}
+                      <>
+                        <div className="hidden max-w-6xl gap-2 pt-1 sm:grid">
+                          <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-[#c9b7a5]">Panitia & Official</p>
+                          <div className="flex flex-wrap gap-2 xl:flex-nowrap">
+                            {renderPublicStaffCards()}
+                          </div>
                         </div>
-                      </div>
+                        <details className="group max-w-full pt-1 sm:hidden">
+                          <summary className="flex w-fit max-w-full cursor-pointer list-none items-center gap-1.5 rounded-full border border-white/20 bg-white/5 px-2.5 py-2 text-[11px] font-extrabold text-[#eadcca]">
+                            Lihat Panitia &amp; Official ({publicStaff.length})
+                            <svg className="h-4 w-4 transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                              <path d="m6 9 6 6 6-6" />
+                            </svg>
+                          </summary>
+                          <div className="mt-2 grid gap-2">
+                            {renderPublicStaffCards()}
+                          </div>
+                        </details>
+                      </>
                     )}
                   </div>
                   <div className="grid justify-items-end gap-2">
-                    <StatusBadge
-                      label={
-                        event.status === 'LIVE'
-                          ? 'Ongoing Event'
-                          : event.status === 'FINISHED'
-                          ? 'Completed Event'
-                          : 'Coming Soon'
-                      }
-                    />
                     {event.status === 'UPCOMING' && daysToEvent !== null && (
                       <div className="rounded-full border border-[#705547] bg-[#2a160d] px-3 py-1.5 text-xs font-extrabold uppercase tracking-[0.1em] text-[#f3c63d]">
                         {Math.max(daysToEvent, 0)} hari lagi
@@ -454,13 +459,13 @@ export default function EventDetailClient({
                       Belum ada category untuk live results.
                     </div>
                   ) : (
-                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
                       {categoryCards.map((category, idx) => (
                         <article
                           key={category.id}
                           className="overflow-hidden rounded-2xl border border-slate-700 bg-slate-950/70 shadow-[0_12px_30px_rgba(2,6,23,0.25)]"
                         >
-                          <div className="relative h-28 overflow-hidden">
+                          <div className="relative h-24 overflow-hidden sm:h-28">
                             <div
                               className="absolute inset-0"
                               style={
@@ -475,18 +480,17 @@ export default function EventDetailClient({
                             />
                             <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/65 via-black/15 to-transparent" />
                             <div className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full border border-white/20" />
-                            <div className="absolute left-3 top-3 rounded-full bg-white/20 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.12em] text-white backdrop-blur-sm">
-                              Category
+                            <div className="absolute left-3 right-3 top-3">
+                              <CategoryMotoStatusBadges counts={categoryMotoBadges.get(category.id)} />
                             </div>
-                            <div className="absolute bottom-3 left-3 right-3 text-xl font-black uppercase leading-tight text-white">
+                            <div className="absolute bottom-3 left-3 right-3 text-lg font-black uppercase leading-tight text-white sm:text-xl">
                               {category.label}
                             </div>
                           </div>
-                          <div className="grid gap-3 p-3">
-                            <CategoryMotoStatusBadges counts={categoryMotoBadges.get(category.id)} />
+                          <div className="grid gap-2 p-2.5 sm:gap-3 sm:p-3">
                             <Link
                               href={`/event/${eventId}/live-score/${encodeURIComponent(category.id)}`}
-                              className="inline-flex items-center justify-center rounded-xl bg-emerald-700 px-4 py-2.5 text-xs font-extrabold uppercase tracking-[0.12em] text-white transition-colors hover:bg-emerald-600"
+                              className="inline-flex items-center justify-center rounded-xl bg-emerald-700 px-4 py-2 text-xs font-extrabold uppercase tracking-[0.12em] text-white transition-colors hover:bg-emerald-600 sm:py-2.5"
                             >
                               {event.status === 'FINISHED' ? 'View Results' : 'View Live Results'}
                             </Link>

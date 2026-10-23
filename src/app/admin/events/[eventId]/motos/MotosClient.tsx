@@ -1742,54 +1742,76 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                           Unlock Moto
                         </button>
                       )}
-                      {m.status !== 'LOCKED' && m.status !== 'PROTEST_REVIEW' && (
+                      <div className="motos-compact-icon-actions">
+                        {m.status !== 'LOCKED' && m.status !== 'PROTEST_REVIEW' && (
+                          <button
+                            type="button"
+                            onClick={() => handleResetResults(m.id)}
+                            className="motos-action-button"
+                            aria-label="Reset result"
+                            title="Reset Result"
+                            style={{
+                              padding: '8px 12px',
+                              borderRadius: 999,
+                              border: '2px solid #111',
+                              background: '#fee2e2',
+                              fontWeight: 900,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <svg className="motos-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                              <path d="M3 12a9 9 0 1 0 2.64-6.36L3 8" />
+                              <path d="M3 3v5h5" />
+                            </svg>
+                            <span className="motos-action-label">Reset Result</span>
+                          </button>
+                        )}
                         <button
                           type="button"
-                          onClick={() => handleResetResults(m.id)}
+                          onClick={() => window.open(`/event/${eventId}/live-score/${encodeURIComponent(m.category_id)}`, '_blank', 'noopener,noreferrer')}
                           className="motos-action-button"
+                          aria-label="Open public result"
+                          title="Open Public Result"
                           style={{
                             padding: '8px 12px',
                             borderRadius: 999,
                             border: '2px solid #111',
-                            background: '#fee2e2',
+                            background: '#dbeafe',
                             fontWeight: 900,
                             cursor: 'pointer',
                           }}
                         >
-                          Reset Result
+                          <svg className="motos-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+                            <circle cx="12" cy="12" r="3" />
+                          </svg>
+                          <span className="motos-action-label">Open Public Result</span>
                         </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => window.open(`/event/${eventId}/live-score/${encodeURIComponent(m.category_id)}`, '_blank', 'noopener,noreferrer')}
-                        className="motos-action-button"
-                        style={{
-                          padding: '8px 12px',
-                          borderRadius: 999,
-                          border: '2px solid #111',
-                          background: '#dbeafe',
-                          fontWeight: 900,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        Open Public Result
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteMoto(m.id)}
-                        className="motos-action-button"
-                        style={{
-                          padding: '8px 12px',
-                          borderRadius: 999,
-                          border: '2px solid #ef4444',
-                          background: '#fee2e2',
-                          color: '#b91c1c',
-                          fontWeight: 900,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        Delete Moto
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteMoto(m.id)}
+                          className="motos-action-button"
+                          aria-label="Delete moto"
+                          title="Delete Moto"
+                          style={{
+                            padding: '8px 12px',
+                            borderRadius: 999,
+                            border: '2px solid #ef4444',
+                            background: '#fee2e2',
+                            color: '#b91c1c',
+                            fontWeight: 900,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <svg className="motos-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M3 6h18" />
+                            <path d="M8 6V4h8v2" />
+                            <path d="m19 6-1 14H6L5 6" />
+                            <path d="M10 11v5M14 11v5" />
+                          </svg>
+                          <span className="motos-action-label">Delete Moto</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -2106,6 +2128,14 @@ export default function MotosClient({ eventId }: { eventId: string }) {
           background: #7c2d12;
           color: #fff;
         }
+        .motos-compact-icon-actions {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .motos-action-icon {
+          display: none;
+        }
         @keyframes motos-compute-spin { to { transform: rotate(360deg); } }
         @media (max-width: 860px) {
           .motos-print-root {
@@ -2156,6 +2186,21 @@ export default function MotosClient({ eventId }: { eventId: string }) {
           .motos-row-actions,
           .motos-global-actions {
             grid-template-columns: 1fr !important;
+          }
+          .motos-compact-icon-actions .motos-action-button {
+            width: 44px !important;
+            min-width: 44px !important;
+            min-height: 44px !important;
+            padding: 8px !important;
+            justify-content: center;
+          }
+          .motos-action-label {
+            display: none;
+          }
+          .motos-action-icon {
+            display: block;
+            width: 20px;
+            height: 20px;
           }
           .motos-topbar button,
           .motos-action-button,
