@@ -55,7 +55,7 @@ export type CustomSplitRule = {
   targetStage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'REPECHAGE' | 'FINAL'
   targetFinalClass?: FinalClass | null
   sortOrder?: number
-  splitBasis?: 'COMBINED' | 'PER_BATCH' | 'CUSTOM_PER_BATCH'
+  splitBasis?: 'COMBINED' | 'PER_BATCH' | 'CUSTOM_PER_BATCH' | 'GLOBAL_ACTIVE_FIRST'
   batchNo?: number | null
 }
 

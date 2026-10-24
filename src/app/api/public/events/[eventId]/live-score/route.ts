@@ -91,7 +91,7 @@ type QualificationCustomRuleRow = {
   rank_to: number
   target_stage: 'QUARTER_FINAL' | 'REPECHAGE' | 'SEMI_FINAL' | 'FINAL'
   target_final_class: string | null
-  split_basis: 'COMBINED' | 'PER_BATCH' | 'CUSTOM_PER_BATCH' | null
+  split_basis: 'COMBINED' | 'PER_BATCH' | 'CUSTOM_PER_BATCH' | 'GLOBAL_ACTIVE_FIRST' | null
   batch_no: number | null
 }
 
@@ -429,6 +429,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   }
   const qualificationRules = (qualificationCustomRules ?? []) as QualificationCustomRuleRow[]
   const qualificationSplitBasis = qualificationRules[0]?.split_basis ?? null
+  const allQualificationMotos = ((motos ?? []) as MotoRow[]).filter((moto) => parseBatchKey(moto.moto_name))
+  const qualificationResultsOfficial =
+    allQualificationMotos.length > 0 &&
+    allQualificationMotos.every((moto) => moto.status?.toUpperCase() === 'LOCKED')
 
   const { data: stageCustomRules, error: stageCustomRulesError } = stageCustomRulesResult
   if (stageCustomRulesError) {
@@ -778,8 +782,17 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         rankMap.set(row.rider_id, currentRank)
       })
 
-      const nextQualificationLabelForRank = (rank: number | null | undefined) => {
+      const nextQualificationLabelForRank = (rank: number | null | undefined, riderId: string) => {
         if (!rank || qualificationRules.length === 0) return null
+        if (qualificationSplitBasis === 'GLOBAL_ACTIVE_FIRST') {
+          const riderAssignments = stageSeedRows.filter(
+            (stageRow) => stageRow.rider_id === riderId && stageRow.stage !== 'QUALIFICATION'
+          )
+          const assigned = riderAssignments.find((stageRow) => stageRow.position === null) ?? riderAssignments[0]
+          return assigned && assigned.stage !== 'QUALIFICATION'
+            ? formatQualificationTargetLabel(assigned.stage, assigned.final_class ?? null)
+            : null
+        }
         const matchingRules =
           qualificationSplitBasis === 'CUSTOM_PER_BATCH'
             ? qualificationRules.filter((rule) => (rule.batch_no ?? 1) === batchIndex)
@@ -795,7 +808,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
           return {
             ...r,
             rank_point: rank,
-            class_label: nextQualificationLabelForRank(rank),
+            class_label: nextQualificationLabelForRank(rank, r.rider_id),
           }
         })
         .sort((a, b) => (a.gate_moto1 ?? 9999) - (b.gate_moto1 ?? 9999))
@@ -1069,6 +1082,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
 
   const liveScoreData = {
     category: category.label,
+    qualification_split_basis: qualificationSplitBasis,
+    qualification_advancements_calculated: stageSeedRows.some((row) => row.stage !== 'QUALIFICATION'),
+    qualification_results_official: qualificationResultsOfficial,
     batches,
     stages: stageGroups,
   }

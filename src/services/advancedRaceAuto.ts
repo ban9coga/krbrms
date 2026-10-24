@@ -12,6 +12,7 @@ import { normalizeEventMotoSequence } from './motoSequenceNormalizer'
 import {
   type CustomSplitRule,
   type FinalClass,
+  type StageAdvance as EngineStageAdvance,
   computeQualification,
   computeQualificationAdvancesFromRanks,
   computeQuarterFinal,
@@ -124,7 +125,7 @@ type CustomSplitRuleRow = {
   target_stage: 'QUARTER_FINAL' | 'REPECHAGE' | 'SEMI_FINAL' | 'FINAL'
   target_final_class: string | null
   sort_order: number
-  split_basis?: 'COMBINED' | 'PER_BATCH' | 'CUSTOM_PER_BATCH' | null
+  split_basis?: 'COMBINED' | 'PER_BATCH' | 'CUSTOM_PER_BATCH' | 'GLOBAL_ACTIVE_FIRST' | null
   batch_no?: number | null
 }
 
@@ -174,7 +175,14 @@ async function loadCustomSplitRules(categoryId: string, sourceStage?: StageName)
     targetStage: row.target_stage,
     targetFinalClass: normalizeFinalClassValue(row.target_final_class) as CustomSplitRule['targetFinalClass'],
     sortOrder: Number(row.sort_order ?? 0),
-    splitBasis: row.split_basis === 'CUSTOM_PER_BATCH' ? 'CUSTOM_PER_BATCH' : row.split_basis === 'PER_BATCH' ? 'PER_BATCH' : 'COMBINED',
+    splitBasis:
+      row.split_basis === 'CUSTOM_PER_BATCH'
+        ? 'CUSTOM_PER_BATCH'
+        : row.split_basis === 'GLOBAL_ACTIVE_FIRST'
+          ? 'GLOBAL_ACTIVE_FIRST'
+          : row.split_basis === 'PER_BATCH'
+            ? 'PER_BATCH'
+            : 'COMBINED',
     batchNo: row.batch_no != null ? Number(row.batch_no) : null,
   }))
 }
@@ -738,6 +746,68 @@ const rankCombinedQualificationRows = (
   })
 }
 
+const countBatchRuleSlots = (batchSizes: number[], rule: CustomSplitRule) =>
+  batchSizes.reduce((total, size) => {
+    if (size < rule.rankFrom) return total
+    return total + Math.max(0, Math.min(size, rule.rankTo) - rule.rankFrom + 1)
+  }, 0)
+
+const computeGlobalActiveFirstQualificationAdvances = (
+  batches: Array<{ batchId: string; batchIndex?: number; ranked: QualificationRankRow[] }>,
+  activeRiderIds: Set<string>,
+  rules: CustomSplitRule[],
+  primaryAdvance: Pick<EngineStageAdvance, 'toStage' | 'finalClass'>,
+  options: {
+    quarterEnabledFinalClasses?: string[]
+    semiEnabledFinalClasses?: string[]
+    dnfProgressEnabled?: boolean
+    qualificationMotoIndexes?: number[]
+  } = {}
+) => {
+  const batchSizes = batches.map((batch) => batch.ranked.length)
+  const ranked = batches
+    .flatMap((batch) => batch.ranked.map((row) => ({ ...row, batchId: batch.batchId, batchIndex: batch.batchIndex })))
+    .sort((a, b) => {
+      const activeDiff = Number(!activeRiderIds.has(a.riderId)) - Number(!activeRiderIds.has(b.riderId))
+      if (activeDiff !== 0) return activeDiff
+      if (a.points !== b.points) return a.points - b.points
+      if (a.qualificationTieBreak && b.qualificationTieBreak) {
+        const tieDiff = compareQualificationTieBreakData(a.qualificationTieBreak, b.qualificationTieBreak, {
+          dnfProgressEnabled: options.dnfProgressEnabled,
+          motoIndexes: options.qualificationMotoIndexes,
+        })
+        if (tieDiff !== 0) return tieDiff
+      }
+      const tieDiff = compareTieBreakers(a.tieBreakers, b.tieBreakers)
+      if (tieDiff !== 0) return tieDiff
+      if (a.rank !== b.rank) return a.rank - b.rank
+      const batchDiff = (a.batchIndex ?? Number.MAX_SAFE_INTEGER) - (b.batchIndex ?? Number.MAX_SAFE_INTEGER)
+      return batchDiff || (a.batchId ?? '').localeCompare(b.batchId ?? '') || a.riderId.localeCompare(b.riderId)
+    })
+    .map((row, index) => ({ ...row, rank: index + 1 }))
+
+  let nextRank = 1
+  const combinedRules: CustomSplitRule[] = [...rules]
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.rankFrom - b.rankFrom)
+    .flatMap((rule) => {
+      const slots = countBatchRuleSlots(batchSizes, rule)
+      if (slots <= 0) return []
+      const combined = {
+        ...rule,
+        splitBasis: 'COMBINED' as const,
+        rankFrom: nextRank,
+        rankTo: nextRank + slots - 1,
+      }
+      nextRank += slots
+      return [combined]
+    })
+
+  return {
+    ranked,
+    advances: computeQualificationAdvancesFromRanks(ranked, primaryAdvance, combinedRules, options),
+  }
+}
+
 const resolveHybridGuaranteedPerBatch = (stages: { enableQuarterFinal: boolean; enableSemiFinal: boolean }) => {
   if (stages.enableQuarterFinal) return 2
   if (stages.enableSemiFinal) return 4
@@ -981,6 +1051,8 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
     }
   )
   const customSplitBasis = customQualificationRules[0]?.splitBasis ?? 'COMBINED'
+  const useGlobalActiveFirst =
+    customQualificationRules.length > 0 && customSplitBasis === 'GLOBAL_ACTIVE_FIRST' && batches.length > 1
   const useCombinedCustomSplit =
     customQualificationRules.length > 0 && customSplitBasis === 'COMBINED' && batches.length > 1
   const useDefaultHybrid = customQualificationRules.length === 0
@@ -1000,6 +1072,33 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
         qualificationTieBreakMotoIndexes
       )
     : []
+  const globalActiveFirstResult = useGlobalActiveFirst
+    ? computeGlobalActiveFirstQualificationAdvances(
+        batches.map((batch) => ({
+          batchId: batch.batchId,
+          batchIndex: batch.batchIndex,
+          ranked: (batchRanks[batch.batchId] ?? []).map((row) => ({ ...row, batchId: batch.batchId })),
+        })),
+        new Set(
+          Object.values(batchRanks)
+            .flat()
+            .filter((row) =>
+              row.qualificationTieBreak?.motoResults.some((result) =>
+                ['FINISH', 'DNF'].includes(String(result.resultStatus ?? '').toUpperCase())
+              )
+            )
+            .map((row) => row.riderId)
+        ),
+        customQualificationRules,
+        resolveQualificationPrimaryAdvance(resolved.stages),
+        {
+          quarterEnabledFinalClasses: resolved.finalClasses,
+          semiEnabledFinalClasses: resolved.finalClasses,
+          dnfProgressEnabled,
+          qualificationMotoIndexes: qualificationTieBreakMotoIndexes,
+        }
+      )
+    : null
   const rawEffectiveAdvances = useCombinedCustomSplit
     ? computeQualificationAdvancesFromRanks(
         combinedQualificationRanks,
@@ -1010,7 +1109,9 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
           semiEnabledFinalClasses: resolved.finalClasses,
         }
       )
-    : useDefaultHybrid
+    : globalActiveFirstResult
+      ? globalActiveFirstResult.advances
+      : useDefaultHybrid
       ? computeHybridQualificationAdvances(
           Object.entries(batchRanks).map(([batchId, ranked]) => ({ batchId, ranked })),
           resolved.stages,
@@ -1054,13 +1155,14 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
     .eq('category_id', categoryId)
     .in('stage', ['QUALIFICATION'])
 
+  const globalPositionByRider = new Map(globalActiveFirstResult?.ranked.map((row) => [row.riderId, row.rank]) ?? [])
   const qualificationRows = Object.entries(batchRanks).flatMap(([batchId, ranks]) => {
     return ranks.map((row) => ({
       rider_id: row.riderId,
       category_id: categoryId,
       stage: 'QUALIFICATION',
       batch_id: batchId,
-      position: row.rank,
+      position: globalPositionByRider.get(row.riderId) ?? row.rank,
       points: row.points,
     }))
   })
@@ -2089,10 +2191,44 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
   const customQualificationRules = await loadCustomSplitRules(categoryId, 'QUALIFICATION')
   const qualificationBatchCount = Object.keys(qualificationRanksByBatch).length
   const customSplitBasis = customQualificationRules[0]?.splitBasis ?? 'COMBINED'
+  const useGlobalActiveFirst =
+    customQualificationRules.length > 0 && customSplitBasis === 'GLOBAL_ACTIVE_FIRST' && qualificationBatchCount > 1
+  const qualificationMotoIdsForPriority = new Set(
+    (existingMotos ?? [])
+      .filter((moto) => /^moto\s*\d+\s*-\s*batch\s*\d+/i.test(moto.moto_name ?? ''))
+      .map((moto) => moto.id)
+  )
+  const activeQualificationRiderIds = new Set(
+    ((preFinalResults ?? []) as ResultRow[])
+      .filter(
+        (row) =>
+          qualificationMotoIdsForPriority.has(row.moto_id) &&
+          ['FINISH', 'DNF'].includes(String(row.result_status ?? '').toUpperCase())
+      )
+      .map((row) => row.rider_id)
+  )
+  const globalActiveFirstAdvances = useGlobalActiveFirst
+    ? computeGlobalActiveFirstQualificationAdvances(
+        Object.entries(qualificationRanksByBatch).map(([batchId, ranked]) => ({
+          batchId,
+          batchIndex: qualificationBatchIndexById[batchId],
+          ranked: ranked.map((row) => ({ ...row, batchId })),
+        })),
+        activeQualificationRiderIds,
+        customQualificationRules,
+        resolveQualificationPrimaryAdvance(resolved.stages),
+        {
+          quarterEnabledFinalClasses: resolved.finalClasses,
+          semiEnabledFinalClasses: resolved.finalClasses,
+        }
+      ).advances
+    : null
   const useCombinedCustomSplit =
     customQualificationRules.length > 0 && customSplitBasis === 'COMBINED' && qualificationBatchCount > 1
   const useDefaultHybrid = customQualificationRules.length === 0
-  const rawQualificationAdvances = useCombinedCustomSplit
+  const rawQualificationAdvances = globalActiveFirstAdvances
+    ? globalActiveFirstAdvances
+    : useCombinedCustomSplit
     ? computeQualificationAdvancesFromRanks(
         rankCombinedQualificationRows(
           Object.entries(qualificationRanksByBatch).flatMap(([batchId, rankedRows]) =>

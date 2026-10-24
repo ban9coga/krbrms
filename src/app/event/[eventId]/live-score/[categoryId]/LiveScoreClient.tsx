@@ -62,6 +62,9 @@ type StageGroup = {
 
 export type LiveScoreData = {
   category?: string
+  qualification_split_basis?: string | null
+  qualification_advancements_calculated?: boolean
+  qualification_results_official?: boolean
   batches?: Batch[]
   stages?: StageGroup[]
 }
@@ -231,6 +234,13 @@ export default function LiveScoreClient({
   const [event] = useState<EventItem | null>(initialEvent)
   const [categories] = useState<RiderCategory[]>(initialCategories.filter((category) => category.enabled))
   const [categoryLabel, setCategoryLabel] = useState(initialLiveScore?.category ?? '')
+  const [qualificationSplitBasis, setQualificationSplitBasis] = useState(initialLiveScore?.qualification_split_basis ?? null)
+  const [qualificationAdvancementsCalculated, setQualificationAdvancementsCalculated] = useState(
+    initialLiveScore?.qualification_advancements_calculated ?? false
+  )
+  const [qualificationResultsOfficial, setQualificationResultsOfficial] = useState(
+    initialLiveScore?.qualification_results_official ?? false
+  )
   const [batches, setBatches] = useState<Batch[]>(initialLiveScore?.batches ?? [])
   const [stages, setStages] = useState<StageGroup[]>(initialLiveScore?.stages ?? [])
   const [sortMode, setSortMode] = useState<'GATE' | 'RANK'>('RANK')
@@ -252,6 +262,9 @@ export default function LiveScoreClient({
     )
     const json = await res.json()
     setCategoryLabel(json.data?.category ?? '')
+    setQualificationSplitBasis(json.data?.qualification_split_basis ?? null)
+    setQualificationAdvancementsCalculated(json.data?.qualification_advancements_calculated ?? false)
+    setQualificationResultsOfficial(json.data?.qualification_results_official ?? false)
     setBatches(json.data?.batches ?? [])
     setStages(json.data?.stages ?? [])
   }
@@ -357,9 +370,17 @@ export default function LiveScoreClient({
     [batches, sortMode]
   )
   const showMoto3 = batches.length <= 1
+  const usesGlobalActiveFirst = qualificationSplitBasis === 'GLOBAL_ACTIVE_FIRST'
   const showQualificationNextColumn = tableRowsByBatch.some((batch) =>
     batch.rows.some((row) => Boolean(row.class_label?.trim()))
-  )
+  ) || usesGlobalActiveFirst
+  const qualificationDestinationStatus = !qualificationAdvancementsCalculated
+    ? 'Menunggu hasil seluruh batch dihitung'
+    : qualificationResultsOfficial
+      ? 'Hasil resmi'
+      : 'Sementara — menunggu hasil resmi'
+  const qualificationDestinationLabel = (label?: string | null) =>
+    label || (!qualificationAdvancementsCalculated ? 'Menunggu hasil' : 'Tidak dialokasikan')
   const sortedStages = useMemo(
     () =>
       [...stages]
@@ -487,6 +508,12 @@ export default function LiveScoreClient({
                   {renderSortButtons(sortMode, setSortMode)}
                 </div>
               </div>
+              {usesGlobalActiveFirst && (
+                <div className="mb-3 rounded-xl border border-amber-300/40 bg-amber-300/10 px-3 py-2 text-xs font-semibold leading-relaxed text-amber-100">
+                  <p>Rank di tabel ini hanya urutan dalam batch, bukan peringkat gabungan kategori. FINISH/DNF dari semua batch diprioritaskan sebelum DNS; kuota stage tetap mengikuti aturan kategori.</p>
+                  <p className="mt-1 font-black">Tujuan stage: {qualificationDestinationStatus}.</p>
+                </div>
+              )}
               <div className="lg:hidden">
                 <div className="table-mobile-hint">Geser tabel ke samping untuk melihat seluruh hasil</div>
                 <div className="public-table-wrap">
@@ -503,7 +530,7 @@ export default function LiveScoreClient({
                           ...(showMoto3 ? ['Point M3'] : []),
                           'Penalty',
                           'Total',
-                          'Rank / Next',
+                          usesGlobalActiveFirst ? 'Rank Batch / Tujuan Stage' : 'Rank / Next',
                         ].map((heading) => <th key={`mobile-${heading}`}>{heading}</th>)}
                       </tr>
                     </thead>
@@ -530,7 +557,7 @@ export default function LiveScoreClient({
                             <div className="flex flex-col items-center gap-1">
                               {renderRankBadge(row.rank_point)}
                               {(row.status === 'DQ' || row.status === 'PENDING') && <span className={`inline-flex w-fit rounded-full border px-1 py-0.5 text-[8px] font-black uppercase ${statusBadgeClass(row.status)}`}>{row.status}</span>}
-                              {showQualificationNextColumn && row.class_label && <span className="text-[9px] font-black uppercase leading-tight text-slate-600">{row.class_label}</span>}
+                              {showQualificationNextColumn && <span className="text-[9px] font-black uppercase leading-tight text-slate-600">{usesGlobalActiveFirst ? qualificationDestinationLabel(row.class_label) : row.class_label}</span>}
                             </div>
                           </td>
                         </tr>
@@ -557,8 +584,8 @@ export default function LiveScoreClient({
                           ...(showMoto3 ? ['Point M3'] : []),
                           'Penalty',
                           'Total',
-                          'Rank',
-                          ...(showQualificationNextColumn ? ['Next'] : []),
+                          usesGlobalActiveFirst ? 'Rank Batch' : 'Rank',
+                          ...(showQualificationNextColumn ? [usesGlobalActiveFirst ? 'Tujuan Stage' : 'Next'] : []),
                         ].map((h) => (
                         <th key={h} className="whitespace-nowrap">
                           {h}
@@ -598,7 +625,7 @@ export default function LiveScoreClient({
                             )}
                           </div>
                         </td>
-                        {showQualificationNextColumn && <td className="whitespace-nowrap">{row.class_label || '-'}</td>}
+                        {showQualificationNextColumn && <td className="whitespace-nowrap">{usesGlobalActiveFirst ? qualificationDestinationLabel(row.class_label) : row.class_label || '-'}</td>}
                       </tr>
                     ))}
                   </tbody>

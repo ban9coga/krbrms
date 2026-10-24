@@ -14,7 +14,7 @@ type CustomRuleInput = {
   target_stage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'REPECHAGE' | 'FINAL'
   target_final_class?: string | null
   sort_order: number
-  split_basis?: 'COMBINED' | 'PER_BATCH' | 'CUSTOM_PER_BATCH'
+  split_basis?: 'COMBINED' | 'PER_BATCH' | 'CUSTOM_PER_BATCH' | 'GLOBAL_ACTIVE_FIRST'
   batch_no?: number | null
 }
 
@@ -26,7 +26,7 @@ type NormalizedRule = {
   target_stage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'REPECHAGE' | 'FINAL'
   target_final_class: string | null
   sort_order: number
-  split_basis: 'COMBINED' | 'PER_BATCH' | 'CUSTOM_PER_BATCH'
+  split_basis: 'COMBINED' | 'PER_BATCH' | 'CUSTOM_PER_BATCH' | 'GLOBAL_ACTIVE_FIRST'
   batch_no: number | null
 }
 
@@ -64,7 +64,7 @@ const targetKeyForRule = (rule: {
   target_stage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'REPECHAGE' | 'FINAL'
   target_final_class?: string | null
   batch_no?: number | null
-  split_basis?: 'COMBINED' | 'PER_BATCH' | 'CUSTOM_PER_BATCH'
+  split_basis?: 'COMBINED' | 'PER_BATCH' | 'CUSTOM_PER_BATCH' | 'GLOBAL_ACTIVE_FIRST'
 }) =>
   `${rule.source_stage ?? 'QUALIFICATION'}:${rule.split_basis === 'CUSTOM_PER_BATCH' ? `BATCH:${rule.batch_no ?? 'NULL'}:` : ''}${rule.target_stage}:${
     rule.target_stage === 'FINAL' ? rule.target_final_class ?? 'NULL' : '-'
@@ -249,9 +249,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       split_basis:
         rule.split_basis === 'CUSTOM_PER_BATCH'
           ? 'CUSTOM_PER_BATCH'
-          : rule.split_basis === 'PER_BATCH'
-            ? 'PER_BATCH'
-            : 'COMBINED',
+          : rule.split_basis === 'GLOBAL_ACTIVE_FIRST'
+            ? 'GLOBAL_ACTIVE_FIRST'
+            : rule.split_basis === 'PER_BATCH'
+              ? 'PER_BATCH'
+              : 'COMBINED',
       batch_no:
         rule.split_basis === 'CUSTOM_PER_BATCH'
           ? Math.max(1, Number(rule.batch_no) || 1)
@@ -269,6 +271,45 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
 
   if (normalizedRules.some((rule) => rule.target_stage === 'FINAL' && !rule.target_final_class)) {
     return NextResponse.json({ error: 'Final rules must have a valid final class.' }, { status: 400 })
+  }
+
+  if (normalizedRules.some((rule) => rule.split_basis === 'GLOBAL_ACTIVE_FIRST' && rule.source_stage !== 'QUALIFICATION')) {
+    return NextResponse.json(
+      { error: 'Global FINISH/DNF priority is only supported for Qualification rules.' },
+      { status: 400 }
+    )
+  }
+
+  const { data: savedQualificationRules, error: savedRulesError } = await adminClient
+    .from('race_category_custom_split_rule')
+    .select('source_stage, split_basis')
+    .eq('category_id', categoryId)
+  if (savedRulesError) {
+    return NextResponse.json({ error: savedRulesError.message }, { status: 400 })
+  }
+  const globalPriorityInUse =
+    normalizedRules.some((rule) => rule.split_basis === 'GLOBAL_ACTIVE_FIRST') ||
+    (savedQualificationRules ?? []).some(
+      (rule) => rule.source_stage === 'QUALIFICATION' && rule.split_basis === 'GLOBAL_ACTIVE_FIRST'
+    )
+  if (globalPriorityInUse) {
+    const { data: categoryMotos, error: categoryMotosError } = await adminClient
+      .from('motos')
+      .select('moto_name')
+      .eq('event_id', eventId)
+      .eq('category_id', categoryId)
+    if (categoryMotosError) {
+      return NextResponse.json({ error: categoryMotosError.message }, { status: 400 })
+    }
+    const nextStageAlreadyGenerated = (categoryMotos ?? []).some(
+      (moto) => !/^moto\s*\d+\s*-\s*batch\s*\d+$/i.test(String(moto.moto_name ?? '').trim())
+    )
+    if (nextStageAlreadyGenerated) {
+      return NextResponse.json(
+        { error: 'Rule prioritas global hanya bisa diatur sebelum stage setelah qualification digenerate.' },
+        { status: 409 }
+      )
+    }
   }
 
   const splitBasisByStage = new Map<NormalizedRule['source_stage'], NormalizedRule['split_basis']>()

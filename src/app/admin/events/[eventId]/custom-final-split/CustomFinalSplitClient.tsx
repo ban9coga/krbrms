@@ -44,17 +44,23 @@ type CustomSplitRule = {
   target_stage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'REPECHAGE' | 'FINAL'
   target_final_class: string | null
   sort_order: number
-  split_basis: 'COMBINED' | 'PER_BATCH' | 'CUSTOM_PER_BATCH'
+  split_basis: 'COMBINED' | 'PER_BATCH' | 'CUSTOM_PER_BATCH' | 'GLOBAL_ACTIVE_FIRST'
   batch_no: number | null
 }
 
 const DEFAULT_FINAL_CLASS_OPTIONS = ['ELITE', 'NOVICE', 'PRO', 'ROOKIE', 'ADVANCED', 'INTERMEDIATE', 'ACADEMY', 'AMATEUR', 'BEGINNER']
 const SOURCE_STAGE_OPTIONS: Array<CustomSplitRule['source_stage']> = ['QUALIFICATION', 'QUARTER_FINAL', 'SEMI_FINAL', 'REPECHAGE']
 const TARGET_STAGE_OPTIONS: Array<CustomSplitRule['target_stage']> = ['FINAL', 'SEMI_FINAL', 'REPECHAGE', 'QUARTER_FINAL']
-const SPLIT_BASIS_OPTIONS: Array<CustomSplitRule['split_basis']> = ['COMBINED', 'PER_BATCH', 'CUSTOM_PER_BATCH']
+const SPLIT_BASIS_OPTIONS: Array<CustomSplitRule['split_basis']> = [
+  'COMBINED',
+  'PER_BATCH',
+  'GLOBAL_ACTIVE_FIRST',
+  'CUSTOM_PER_BATCH',
+]
 
 const splitBasisLabel = (value: CustomSplitRule['split_basis']) => {
   if (value === 'PER_BATCH') return 'Top N Per Batch'
+  if (value === 'GLOBAL_ACTIVE_FIRST') return 'Global: FINISH/DNF First'
   if (value === 'CUSTOM_PER_BATCH') return 'Custom Per Batch'
   return 'Combined Rank'
 }
@@ -545,9 +551,11 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
           split_basis:
             row.split_basis === 'CUSTOM_PER_BATCH'
               ? 'CUSTOM_PER_BATCH'
-              : row.split_basis === 'PER_BATCH'
-                ? 'PER_BATCH'
-                : 'COMBINED',
+              : row.split_basis === 'GLOBAL_ACTIVE_FIRST'
+                ? 'GLOBAL_ACTIVE_FIRST'
+                : row.split_basis === 'PER_BATCH'
+                  ? 'PER_BATCH'
+                  : 'COMBINED',
           batch_no: row.batch_no != null ? Number(row.batch_no) : null,
         })
       }
@@ -687,6 +695,9 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
               }
               if (rule.split_basis === 'PER_BATCH') {
                 return `${formatStageLabel(rule.source_stage)}: posisi ${rule.rank_from}-${rule.rank_to} dari setiap batch masuk ${targetLabel}${countLabel}.`
+              }
+              if (rule.split_basis === 'GLOBAL_ACTIVE_FIRST') {
+                return `${formatStageLabel(rule.source_stage)}: kuota posisi ${rule.rank_from}-${rule.rank_to} per batch dialokasikan secara global; FINISH/DNF didahulukan dari DNS untuk masuk ${targetLabel}${countLabel}.`
               }
               return `${formatStageLabel(rule.source_stage)}: posisi gabungan ${rule.rank_from}-${rule.rank_to} masuk ${targetLabel}${countLabel}.`
             })
@@ -957,9 +968,11 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
       split_basis:
         rule.split_basis === 'CUSTOM_PER_BATCH'
           ? 'CUSTOM_PER_BATCH'
-          : rule.split_basis === 'PER_BATCH'
-            ? 'PER_BATCH'
-            : 'COMBINED',
+          : rule.split_basis === 'GLOBAL_ACTIVE_FIRST'
+            ? 'GLOBAL_ACTIVE_FIRST'
+            : rule.split_basis === 'PER_BATCH'
+              ? 'PER_BATCH'
+              : 'COMBINED',
       batch_no: rule.split_basis === 'CUSTOM_PER_BATCH' ? Math.max(1, Number(rule.batch_no) || 1) : null,
     }))
     const category = categories.find((item) => item.id === categoryId)
@@ -1206,12 +1219,19 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
                       }
                       style={{ padding: '10px 12px', borderRadius: 10, border: '2px solid #111', background: '#fff' }}
                     >
-                      {SPLIT_BASIS_OPTIONS.map((option) => (
+                      {SPLIT_BASIS_OPTIONS.filter((option) =>
+                        rule.source_stage === 'QUALIFICATION' || option !== 'GLOBAL_ACTIVE_FIRST'
+                      ).map((option) => (
                         <option key={option} value={option}>
                           {splitBasisLabel(option)}
                         </option>
                       ))}
                     </select>
+                    {rule.source_stage === 'QUALIFICATION' && rule.split_basis === 'GLOBAL_ACTIVE_FIRST' ? (
+                      <small style={{ color: '#475569', maxWidth: 260, lineHeight: 1.35 }}>
+                        Urut rider FINISH/DNF dari semua batch lebih dulu; kuota stage tetap mengikuti slot per batch.
+                      </small>
+                    ) : null}
                   </label>
 
                   <label style={{ display: 'grid', gap: 6, fontWeight: 800 }}>
