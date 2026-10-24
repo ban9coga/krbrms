@@ -234,68 +234,51 @@ const getCompletedDirectFinalCategoryIds = <T extends MotoLike>(rows: T[]) => {
   }))
 }
 
-// Hold advancement stages behind event-wide barriers, except direct finals:
-// those become eligible right after their own category's qualifications finish.
-// The remaining advancement stages still wait for all qualifications, then
-// complete in stage order across the event.
+// Release advancement stages per category: a category can proceed as soon as
+// its own previous stage is finalized, without waiting for other categories.
 export const getEligibleMotosInWorkflow = <T extends MotoLike>(rows: T[]) => {
   const candidates = rows.filter((row) => ['UPCOMING', 'READY'].includes(String(row.status ?? '').toUpperCase()))
-  const qualificationMotos = rows.filter(isQualificationMoto)
-  const qualificationsComplete = qualificationMotos.every((moto) => isStageFinalized(moto.status))
+  const categoryIds = new Set(rows.map((moto) => moto.category_id).filter((id): id is string => Boolean(id)))
+  const eligible = new Set<T>()
 
-  // Preserve the event's interleaved qualification sequence, then place a
-  // completed category's direct finals immediately after its last qualifier.
-  if (!qualificationsComplete) {
-    const directFinalCategoryIds = getCompletedDirectFinalCategoryIds(rows)
-    const eligible = candidates.filter((moto) =>
-      isQualificationMoto(moto) ||
-      (directFinalCategoryIds.has(moto.category_id ?? '') && parseAdvancedMoto(moto.moto_name)?.stage === 'FINAL')
-    )
-    if (directFinalCategoryIds.size === 0) return eligible
+  for (const categoryId of categoryIds) {
+    const categoryMotos = rows.filter((moto) => moto.category_id === categoryId)
+    const categoryCandidates = candidates.filter((moto) => moto.category_id === categoryId)
+    const qualificationMotos = categoryMotos.filter(isQualificationMoto)
+    const qualificationCandidates = categoryCandidates.filter(isQualificationMoto)
 
-    const lastQualificationByCategory = new Map<string, T>()
-    for (const moto of qualificationMotos) {
-      if (!moto.category_id) continue
-      const current = lastQualificationByCategory.get(moto.category_id)
-      if (!current || compareMotoSequence(current, moto) < 0) lastQualificationByCategory.set(moto.category_id, moto)
+    if (qualificationMotos.some((moto) => !isStageFinalized(moto.status))) {
+      qualificationCandidates.forEach((moto) => eligible.add(moto))
+      continue
     }
 
-    const eligibleSet = new Set(eligible)
-    const insertedDirectFinals = new Set(
-      eligible.filter((moto) => parseAdvancedMoto(moto.moto_name)?.stage === 'FINAL')
+    const unfinishedAdvancement = categoryMotos.filter(
+      (moto) => isAdvancementMoto(moto) && !isStageFinalized(moto.status)
     )
-    const ordered: T[] = []
-    for (const moto of rows) {
-      if (eligibleSet.has(moto) && !insertedDirectFinals.has(moto)) ordered.push(moto)
-      const categoryId = moto.category_id
-      if (!categoryId || !directFinalCategoryIds.has(categoryId) || lastQualificationByCategory.get(categoryId) !== moto) continue
-      ordered.push(
-        ...eligible
-          .filter((candidate) => candidate.category_id === categoryId && parseAdvancedMoto(candidate.moto_name)?.stage === 'FINAL')
-          .sort((a, b) => compareMotoWorkflowSequence(a, b, buildCategoryBaseOrder(rows)))
+    if (unfinishedAdvancement.length > 0) {
+      const nextStageOrder = Math.min(
+        ...unfinishedAdvancement.map((moto) => {
+          const parsed = parseAdvancedMoto(moto.moto_name)
+          return parsed ? getAdvancedStageOrder(parsed.stage) : Number.MAX_SAFE_INTEGER
+        })
       )
+      categoryCandidates
+        .filter((moto) => {
+          const parsed = parseAdvancedMoto(moto.moto_name)
+          return parsed != null && getAdvancedStageOrder(parsed.stage) === nextStageOrder
+        })
+        .forEach((moto) => eligible.add(moto))
+      continue
     }
-    return ordered
+
+    categoryCandidates
+      .filter((moto) => !isQualificationMoto(moto) && !isAdvancementMoto(moto))
+      .forEach((moto) => eligible.add(moto))
   }
 
-  const unfinishedAdvancement = rows.filter((moto) => isAdvancementMoto(moto) && !isStageFinalized(moto.status))
-  const nextStageOrder = unfinishedAdvancement.reduce<number | null>((earliest, moto) => {
-    const parsed = parseAdvancedMoto(moto.moto_name)
-    if (!parsed) return earliest
-    const order = getAdvancedStageOrder(parsed.stage)
-    return earliest == null || order < earliest ? order : earliest
-  }, null)
-  const stageCandidates = candidates.filter((candidate) => {
-    const parsed = parseAdvancedMoto(candidate.moto_name)
-    return parsed != null && getAdvancedStageOrder(parsed.stage) === nextStageOrder
-  })
-
-  if (stageCandidates.length > 0) return stageCandidates
-
-  // No advancement stage is currently pending. Preserve ordinary sequence for
-  // events that contain motos outside the parsed stage naming convention.
-  if (unfinishedAdvancement.length > 0) return []
-  return candidates
+  // Keep the caller's sequence order while allowing independent categories
+  // to have eligible motos at different stages concurrently.
+  return rows.filter((moto) => eligible.has(moto))
 }
 
 export const pickNextMotoInWorkflow = <T extends MotoLike & { id: string }>(rows: T[], anchorMoto?: T | null) => {
