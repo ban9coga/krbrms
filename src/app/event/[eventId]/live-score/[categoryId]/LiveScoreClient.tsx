@@ -178,7 +178,8 @@ const renderRankBadge = (rank: number | null) => {
 
 const renderSortButtons = (
   sortMode: 'GATE' | 'RANK',
-  setSortMode: (mode: 'GATE' | 'RANK') => void
+  setSortMode: (mode: 'GATE' | 'RANK') => void,
+  rankLabel = 'Rank'
 ) => (
   <div className="live-score-editorial-sort flex flex-wrap items-center gap-2">
     {(['GATE', 'RANK'] as const).map((mode) => (
@@ -192,7 +193,7 @@ const renderSortButtons = (
             : 'border-white/25 bg-white/10 text-white hover:bg-white/20'
         }`}
       >
-        Sort {mode}
+        Sort {mode === 'RANK' ? rankLabel : mode}
       </button>
     ))}
   </div>
@@ -505,12 +506,12 @@ export default function LiveScoreClient({
                 </div>
                 <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                   {renderRefreshButton(refresh, refreshing, isLiveEvent)}
-                  {renderSortButtons(sortMode, setSortMode)}
+                  {renderSortButtons(sortMode, setSortMode, 'Results')}
                 </div>
               </div>
               {usesGlobalActiveFirst && (
                 <div className="mb-3 rounded-xl border border-amber-300/40 bg-amber-300/10 px-3 py-2 text-xs font-semibold leading-relaxed text-amber-100">
-                  <p>Rank di tabel ini hanya urutan dalam batch, bukan peringkat gabungan kategori. FINISH/DNF dari semua batch diprioritaskan sebelum DNS; kuota stage tetap mengikuti aturan kategori.</p>
+                  <p>Penentuan tujuan stage membandingkan rider dari semua batch. FINISH/DNF diprioritaskan sebelum DNS; kuota stage tetap mengikuti aturan kategori.</p>
                   <p className="mt-1 font-black">Tujuan stage: {qualificationDestinationStatus}.</p>
                 </div>
               )}
@@ -530,7 +531,7 @@ export default function LiveScoreClient({
                           ...(showMoto3 ? ['Point M3'] : []),
                           'Penalty',
                           'Total',
-                          usesGlobalActiveFirst ? 'Rank Batch / Tujuan Stage' : 'Rank / Next',
+                          ...(showQualificationNextColumn ? [usesGlobalActiveFirst ? 'Tujuan Stage' : 'Next'] : []),
                         ].map((heading) => <th key={`mobile-${heading}`}>{heading}</th>)}
                       </tr>
                     </thead>
@@ -544,6 +545,9 @@ export default function LiveScoreClient({
                             </div>
                             <div className="mt-1 text-[10px] font-extrabold text-amber-700">{row.no_plate}</div>
                             <div className="mt-0.5 text-[10px] font-semibold leading-tight text-slate-600">{row.club || '-'}</div>
+                            {(row.status === 'DQ' || row.status === 'PENDING') && (
+                              <span className={`mt-1 inline-flex w-fit rounded-full border px-1 py-0.5 text-[8px] font-black uppercase ${statusBadgeClass(row.status)}`}>{row.status}</span>
+                            )}
                           </td>
                           <td>{renderGateBadge(row.gate_moto1)}</td>
                           <td>{renderGateBadge(row.gate_moto2)}</td>
@@ -553,13 +557,11 @@ export default function LiveScoreClient({
                           {showMoto3 && <td>{renderMotoResultCell(row.point_moto3, row.moto3_status)}</td>}
                           <td className="font-extrabold text-amber-600">{row.penalty_total ?? '-'}</td>
                           <td className="font-extrabold text-sky-700">{row.total_point ?? '-'}</td>
-                          <td className="text-center">
+                          {showQualificationNextColumn && <td className="text-center">
                             <div className="flex flex-col items-center gap-1">
-                              {renderRankBadge(row.rank_point)}
-                              {(row.status === 'DQ' || row.status === 'PENDING') && <span className={`inline-flex w-fit rounded-full border px-1 py-0.5 text-[8px] font-black uppercase ${statusBadgeClass(row.status)}`}>{row.status}</span>}
                               {showQualificationNextColumn && <span className="text-[9px] font-black uppercase leading-tight text-slate-600">{usesGlobalActiveFirst ? qualificationDestinationLabel(row.class_label) : row.class_label}</span>}
                             </div>
-                          </td>
+                          </td>}
                         </tr>
                       ))}
                     </tbody>
@@ -584,7 +586,6 @@ export default function LiveScoreClient({
                           ...(showMoto3 ? ['Point M3'] : []),
                           'Penalty',
                           'Total',
-                          usesGlobalActiveFirst ? 'Rank Batch' : 'Rank',
                           ...(showQualificationNextColumn ? [usesGlobalActiveFirst ? 'Tujuan Stage' : 'Next'] : []),
                         ].map((h) => (
                         <th key={h} className="whitespace-nowrap">
@@ -605,6 +606,9 @@ export default function LiveScoreClient({
                             <span>{row.name}</span>
                             <RiderNotificationButton eventId={eventId} riderId={row.rider_id} riderName={row.name} riderPlate={row.no_plate} />
                           </div>
+                          {(row.status === 'DQ' || row.status === 'PENDING') && (
+                            <span className={`mt-1 inline-flex w-fit rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] ${statusBadgeClass(row.status)}`}>{row.status}</span>
+                          )}
                         </td>
                         <td>{row.no_plate}</td>
                         <td className="whitespace-nowrap">{row.club || '-'}</td>
@@ -613,19 +617,13 @@ export default function LiveScoreClient({
                         {showMoto3 && <td>{renderMotoResultCell(row.point_moto3, row.moto3_status)}</td>}
                         <td className="font-extrabold text-amber-600">{row.penalty_total ?? '-'}</td>
                         <td className="font-extrabold text-sky-700">{row.total_point ?? '-'}</td>
-                        <td className="text-center">
-                          <div className="flex flex-col items-center gap-1">
-                            {renderRankBadge(row.rank_point)}
-                            {(row.status === 'DQ' || row.status === 'PENDING') && (
-                              <span
-                                className={`inline-flex w-fit rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.08em] ${statusBadgeClass(row.status)}`}
-                              >
-                                {row.status}
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        {showQualificationNextColumn && <td className="whitespace-nowrap">{usesGlobalActiveFirst ? qualificationDestinationLabel(row.class_label) : row.class_label || '-'}</td>}
+                        {showQualificationNextColumn && (
+                          <td className="whitespace-nowrap">
+                            <div className="flex flex-col items-start gap-1">
+                              <span>{usesGlobalActiveFirst ? qualificationDestinationLabel(row.class_label) : row.class_label || '-'}</span>
+                            </div>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
