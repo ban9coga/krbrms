@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import CheckerTopbar from '../../../../components/CheckerTopbar'
 import LoadingState from '../../../../components/LoadingState'
 import { useHighVisibility } from '../../../../hooks/useHighVisibility'
-import { compareMotoSequence, getEligibleMotosInWorkflow, isAdvancementMoto, parseMotoSequence, pickNextMotoInWorkflow } from '../../../../lib/motoSequence'
+import { buildCategoryBaseOrder, compareMotoSequence, compareMotoWorkflowSequence, getEligibleMotosInWorkflow, isAdvancementMoto, parseMotoSequence, pickNextMotoInWorkflow } from '../../../../lib/motoSequence'
 import { useApiFetch } from '@/src/hooks/useApiFetch'
 import { isMotoLive, isMotoReady, isMotoUpcoming } from '../../../../lib/motoStatus'
 import { usePageVisibility } from '../../../../lib/usePageVisibility'
@@ -138,6 +138,32 @@ const pickPrepMotoId = (
   const liveMoto = list.find((m) => m.id === liveMotoId) ?? null
   const releasedStage = pickUpcomingMoto(list, liveMoto)
   const currentMoto = list.find((moto) => moto.id === currentId) ?? null
+  const eligible = getEligibleMotosInWorkflow(list)
+  const categoryBaseOrder = buildCategoryBaseOrder(list)
+  const nextEligibleAdvancementInCategory = (categoryId?: string | null) =>
+    categoryId
+      ? eligible
+          .filter((moto) => moto.category_id === categoryId && isAdvancementMoto(moto))
+          .sort((a, b) => compareMotoWorkflowSequence(a, b, categoryBaseOrder))[0] ?? null
+      : null
+
+  if (currentMoto && isAdvancementMoto(currentMoto) && isLockedStatus(currentMoto.status)) {
+    const sameCategoryNextStage = nextEligibleAdvancementInCategory(currentMoto.category_id)
+    if (sameCategoryNextStage) return sameCategoryNextStage.id
+  }
+
+  if (currentMoto && parseMotoSequence(currentMoto.moto_name) && currentMoto.category_id) {
+    const categoryQualifications = list
+      .filter((moto) => moto.category_id === currentMoto.category_id && parseMotoSequence(moto.moto_name))
+      .sort(compareMotoSequence)
+    const isLastQualification = categoryQualifications.at(-1)?.id === currentMoto.id
+    const qualificationsComplete = categoryQualifications.length > 0 && categoryQualifications.every((moto) => isLockedStatus(moto.status))
+    if (isLastQualification && qualificationsComplete) {
+      const sameCategoryNextStage = nextEligibleAdvancementInCategory(currentMoto.category_id)
+      if (sameCategoryNextStage) return sameCategoryNextStage.id
+    }
+  }
+
   if (currentMoto && isAdvancementMoto(currentMoto)) {
     // Do not keep a generated later-stage moto selected while the event-wide
     // workflow is still waiting for qualifications or an earlier stage.
@@ -718,10 +744,11 @@ export default function JCPage() {
   )
   const selectableMotos = useMemo(() => getEligibleMotosInWorkflow(motos), [motos])
   const allPrepSelectOptions = useMemo(() => {
-    const sortedMotos = [...selectableMotos].sort(compareMotoSequence)
+    const categoryBaseOrder = buildCategoryBaseOrder(motos)
+    const sortedMotos = [...selectableMotos].sort((a, b) => compareMotoWorkflowSequence(a, b, categoryBaseOrder))
     if (!nextWorkflowMoto || !sortedMotos.some((moto) => moto.id === nextWorkflowMoto.id)) return sortedMotos
     return [nextWorkflowMoto, ...sortedMotos.filter((moto) => moto.id !== nextWorkflowMoto.id)]
-  }, [nextWorkflowMoto, selectableMotos])
+  }, [motos, nextWorkflowMoto, selectableMotos])
   const selectedMotoUpcoming = isMotoUpcoming(selectedMoto?.status)
   const selectedMotoReady = isMotoReady(selectedMoto?.status)
   const selectedMotoPreppable = !!selectedMoto && !isLockedStatus(selectedMoto.status) && (selectedMotoUpcoming || selectedMotoReady)
