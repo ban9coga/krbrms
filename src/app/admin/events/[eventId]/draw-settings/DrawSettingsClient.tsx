@@ -9,6 +9,7 @@ import {
   type DrawCategoryConfig,
   type DrawMoto2Order,
   type DrawMoto3Order,
+  type QualificationBatchMode,
 } from '@/src/lib/drawConfig'
 
 type DrawCategory = {
@@ -24,6 +25,7 @@ type DrawCategory = {
 type DrawSettingsData = {
   gate_positions: number
   draw_mode: 'internal_live_draw' | 'external_draw'
+  qualification_batch_mode: QualificationBatchMode
   categories: DrawCategory[]
 }
 
@@ -160,6 +162,28 @@ export default function DrawSettingsClient({ eventId }: { eventId: string }) {
     }
   }
 
+  const saveQualificationBatchMode = async (qualificationBatchMode: QualificationBatchMode) => {
+    if (!data || qualificationBatchMode === data.qualification_batch_mode) return
+    setModeSaving(true)
+    setMessage(null)
+    try {
+      const json = await apiFetch(`/api/events/${eventId}/draw-settings`, {
+        method: 'PATCH',
+        body: JSON.stringify({ qualification_batch_mode: qualificationBatchMode }),
+      })
+      setData((previous) => (previous ? { ...previous, qualification_batch_mode: json.data.qualification_batch_mode } : previous))
+      setMessage(
+        qualificationBatchMode === 'ROTATE_EACH_MOTO'
+          ? 'Batch kualifikasi akan diacak ulang pada setiap moto.'
+          : 'Batch kualifikasi tetap sama pada semua moto.'
+      )
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Gagal menyimpan mode batch kualifikasi.')
+    } finally {
+      setModeSaving(false)
+    }
+  }
+
   return (
     <div className="mx-auto grid w-full max-w-6xl gap-5 pb-10">
       <header className="rounded-xl border border-[#7d4b2d] bg-[#28140b] px-5 py-6 text-[#fff5df] shadow-[0_18px_38px_rgba(64,37,19,0.18)] sm:px-7">
@@ -194,6 +218,24 @@ export default function DrawSettingsClient({ eventId }: { eventId: string }) {
               {data.draw_mode === 'internal_live_draw'
                 ? 'Petugas akan mengundi urutan rider dari layar Drawing.'
                 : 'Petugas memasukkan atau menyusun urutan dari sumber drawing eksternal.'}
+            </p>
+
+            <label className="mt-4 grid gap-2 text-sm font-black text-[#2a1710]">
+              Pembagian batch kualifikasi
+              <select
+                value={data.qualification_batch_mode}
+                onChange={(event) => void saveQualificationBatchMode(event.target.value as QualificationBatchMode)}
+                disabled={modeSaving}
+                className={fieldClass}
+              >
+                <option value="FIXED">Batch tetap</option>
+                <option value="ROTATE_EACH_MOTO">Acak ulang tiap moto</option>
+              </select>
+            </label>
+            <p className="mt-3 text-xs font-semibold leading-5 text-[#765946]">
+              {data.qualification_batch_mode === 'ROTATE_EACH_MOTO'
+                ? 'Semua rider kategori diundi ulang pada setiap moto. Ranking kualifikasi memakai total poin seluruh moto.'
+                : 'Rider tetap pada batch awal. Moto 2 dan 3 hanya mengubah urutan gate.'}
             </p>
 
             <div className="my-5 border-t border-[#eadcc6]" />

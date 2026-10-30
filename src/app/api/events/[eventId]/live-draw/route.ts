@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
+import { randomInt } from 'node:crypto'
 import { adminClient, requireScopedEventWorkspace } from '../../../../../lib/auth'
 import { isMissingPrimaryCategoryColumnError } from '../../../../../lib/categoryAssignment'
-import { normalizeDrawCategoryConfig } from '../../../../../lib/drawConfig'
+import { normalizeDrawCategoryConfig, normalizeQualificationBatchMode } from '../../../../../lib/drawConfig'
 
 type CategoryRow = {
   id: string
@@ -53,6 +54,7 @@ const loadDrawConfiguration = async (eventId: string, categoryId: string) => {
     qualificationMotoCount: Math.min(3, Math.max(2, Number(config?.qualification_moto_count ?? 2))),
     singleBatchFinalEnabled: config?.single_batch_final_enabled === true,
     drawMode: format.draw_mode === 'external_draw' ? 'external_draw' : 'internal_live_draw',
+    qualificationBatchMode: normalizeQualificationBatchMode(format.qualification_batch_mode),
     config: normalizeDrawCategoryConfig({
       batch_mode: config?.draw_batch_mode,
       batch_size: config?.draw_batch_size,
@@ -122,6 +124,25 @@ const splitByBatchShape = <T,>(items: T[], referenceBatches: T[][]) => {
     const next = items.slice(cursor, cursor + batch.length)
     cursor += batch.length
     return next
+  })
+}
+
+const shuffleValues = <T,>(values: T[]) => {
+  const shuffled = [...values]
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const target = randomInt(index + 1)
+    ;[shuffled[index], shuffled[target]] = [shuffled[target], shuffled[index]]
+  }
+  return shuffled
+}
+
+const reshuffleIntoBatchShape = (riderIds: string[], batches: string[][]) => {
+  const shuffled = shuffleValues(riderIds)
+  let offset = 0
+  return batches.map((batch) => {
+    const nextBatch = shuffled.slice(offset, offset + batch.length)
+    offset += batch.length
+    return nextBatch
   })
 }
 
@@ -269,6 +290,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     has_final_state: deleteGuard.hasFinalState,
     qualification_moto_count: drawConfiguration.qualificationMotoCount,
     single_batch_final_enabled: drawConfiguration.singleBatchFinalEnabled,
+    qualification_batch_mode: drawConfiguration.qualificationBatchMode,
     gate_positions: drawConfiguration.gatePositions,
     draw_config: drawConfiguration.config,
   })
@@ -390,16 +412,21 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
         ? effectiveBatches
         : chunk(riderIds, batchSize)
   const capacityLimit = drawConfiguration.drawMode === 'internal_live_draw' ? gateCapacity : batchSize
+  const rotatesBatches = drawConfiguration.qualificationBatchMode === 'ROTATE_EACH_MOTO'
   const moto2Batches = hasManualMoto2Batches
     ? riderBatchesMoto2.filter((batch) => Array.isArray(batch) && batch.length > 0)
     : hasCustomMoto2
       ? splitByBatchShape(riderIdsMoto2, batches)
-      : []
+      : rotatesBatches
+        ? reshuffleIntoBatchShape(effectiveRiderIds, batches)
+        : []
   const moto3Batches = hasManualMoto3Batches
     ? riderBatchesMoto3.filter((batch) => Array.isArray(batch) && batch.length > 0)
     : hasCustomMoto3
       ? splitByBatchShape(riderIdsMoto3, batches)
-      : []
+      : rotatesBatches
+        ? reshuffleIntoBatchShape(effectiveRiderIds, batches)
+        : []
   const createMoto3 =
     (batches.length > 1 && Number(drawConfiguration.qualificationMotoCount ?? 2) >= 3) ||
     (batches.length === 1 && drawConfiguration.singleBatchFinalEnabled)
@@ -415,10 +442,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       { status: 400 }
     )
   }
-  if (hasCustomMoto2 && moto2Batches.length !== batches.length) {
+  if ((hasCustomMoto2 || hasManualMoto2Batches) && moto2Batches.length !== batches.length) {
     return NextResponse.json({ error: 'rider_ids_moto2 batch shape invalid' }, { status: 400 })
   }
   if (hasCustomMoto2 || hasManualMoto2Batches) {
+    if (rotatesBatches && !sameSet(effectiveRiderIds, moto2Batches.flat())) {
+      return NextResponse.json({ error: 'Moto 2 harus memuat semua rider kategori tepat satu kali.' }, { status: 400 })
+    }
     for (let i = 0; i < batches.length; i += 1) {
       const moto1Batch = batches[i]
       const moto2Batch = moto2Batches[i] ?? []
@@ -428,7 +458,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
           { status: 400 }
         )
       }
-      if (!sameSet(moto1Batch, moto2Batch)) {
+      if (moto1Batch.length !== moto2Batch.length) {
+        return NextResponse.json(
+          { error: `Jumlah rider Moto 2 Batch ${i + 1} harus sama dengan kapasitas batch tersebut.` },
+          { status: 400 }
+        )
+      }
+      if (!rotatesBatches && !sameSet(moto1Batch, moto2Batch)) {
         return NextResponse.json(
           { error: `rider_ids_moto2 batch ${i + 1} must contain same riders as moto1 batch ${i + 1}` },
           { status: 400 }
@@ -443,24 +479,35 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     return NextResponse.json({ error: 'rider_batches_moto3 batch shape invalid' }, { status: 400 })
   }
   if (hasCustomMoto3 || hasManualMoto3Batches) {
+    if (rotatesBatches && !sameSet(effectiveRiderIds, moto3Batches.flat())) {
+      return NextResponse.json({ error: 'Moto 3 harus memuat semua rider kategori tepat satu kali.' }, { status: 400 })
+    }
     for (let i = 0; i < batches.length; i += 1) {
       const moto3Batch = moto3Batches[i] ?? []
       if (moto3Batch.length > capacityLimit) {
         return NextResponse.json({ error: `rider_ids_moto3 batch ${i + 1} melebihi kapasitas maksimal ${capacityLimit} rider` }, { status: 400 })
       }
-      if (!sameSet(batches[i], moto3Batch)) {
+      if (moto3Batch.length !== batches[i].length) {
+        return NextResponse.json(
+          { error: `Jumlah rider Moto 3 Batch ${i + 1} harus sama dengan kapasitas batch tersebut.` },
+          { status: 400 }
+        )
+      }
+      if (!rotatesBatches && !sameSet(batches[i], moto3Batch)) {
         return NextResponse.json({ error: `rider_ids_moto3 batch ${i + 1} must contain same riders as moto1 batch ${i + 1}` }, { status: 400 })
       }
     }
   }
   const finalizedMoto2Batches = batches.map((batch, batchIndex) => {
     if (hasManualMoto2Batches || hasCustomMoto2) return moto2Batches[batchIndex] ?? []
+    if (rotatesBatches) return moto2Batches[batchIndex] ?? []
     return drawConfiguration.config?.moto2_order === 'SAME' ? [...batch] : [...batch].reverse()
   })
   const finalizedMoto3Batches = !createMoto3
     ? []
     : batches.map((batch, batchIndex) => {
         if (hasManualMoto3Batches || hasCustomMoto3) return moto3Batches[batchIndex] ?? []
+        if (rotatesBatches) return moto3Batches[batchIndex] ?? []
         return drawConfiguration.config?.moto3_order === 'REVERSE' ? [...batch].reverse() : [...batch]
       })
 

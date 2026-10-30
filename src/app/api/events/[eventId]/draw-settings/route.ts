@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../lib/auth'
-import { normalizeDrawCategoryConfig } from '../../../../../lib/drawConfig'
+import {
+  normalizeDrawCategoryConfig,
+  normalizeQualificationBatchMode,
+  QUALIFICATION_BATCH_MODES,
+} from '../../../../../lib/drawConfig'
 
 const parseRaceFormatSettings = (value: unknown): Record<string, unknown> =>
   value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {}
@@ -53,6 +57,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     data: {
       gate_positions: Math.max(1, Number(raceFormat.gate_positions ?? 8)),
       draw_mode: raceFormat.draw_mode === 'external_draw' ? 'external_draw' : 'internal_live_draw',
+      qualification_batch_mode: normalizeQualificationBatchMode(raceFormat.qualification_batch_mode),
       categories: (categories ?? []).map((category) => ({
         ...category,
         qualification_moto_count: Math.max(2, Math.min(3, Number(configs?.find((config) => config.category_id === category.id)?.qualification_moto_count ?? 2))),
@@ -160,7 +165,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ eventI
 
   const body = await req.json().catch(() => ({}))
   const drawMode = body?.draw_mode === 'external_draw' ? 'external_draw' : body?.draw_mode === 'internal_live_draw' ? 'internal_live_draw' : null
-  if (!drawMode) return NextResponse.json({ error: 'draw_mode tidak valid.' }, { status: 400 })
+  const qualificationBatchMode = body?.qualification_batch_mode
+  const hasBatchMode = typeof qualificationBatchMode === 'string'
+  if (!drawMode && !hasBatchMode) return NextResponse.json({ error: 'Pengaturan drawing kosong.' }, { status: 400 })
+  if (hasBatchMode && !QUALIFICATION_BATCH_MODES.includes(qualificationBatchMode as (typeof QUALIFICATION_BATCH_MODES)[number])) {
+    return NextResponse.json({ error: 'qualification_batch_mode tidak valid.' }, { status: 400 })
+  }
 
   const { data: current, error: currentError } = await adminClient
     .from('event_settings')
@@ -171,10 +181,36 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ eventI
     .maybeSingle()
   if (currentError) return NextResponse.json({ error: currentError.message }, { status: 400 })
 
-  const raceFormat = { ...parseRaceFormatSettings(current?.race_format_settings), draw_mode: drawMode }
+  const currentRaceFormat = parseRaceFormatSettings(current?.race_format_settings)
+  if (
+    hasBatchMode &&
+    normalizeQualificationBatchMode(currentRaceFormat.qualification_batch_mode) !== qualificationBatchMode
+  ) {
+    const { count, error: motoError } = await adminClient
+      .from('motos')
+      .select('id', { count: 'exact', head: true })
+      .eq('event_id', eventId)
+    if (motoError) return NextResponse.json({ error: motoError.message }, { status: 400 })
+    if ((count ?? 0) > 0) {
+      return NextResponse.json(
+        { error: 'Mode batch tidak bisa diubah setelah moto dibuat. Reset moto semua kategori dulu.' },
+        { status: 409 }
+      )
+    }
+  }
+  const raceFormat = {
+    ...currentRaceFormat,
+    ...(drawMode ? { draw_mode: drawMode } : {}),
+    ...(hasBatchMode ? { qualification_batch_mode: qualificationBatchMode } : {}),
+  }
   const { error } = await adminClient
     .from('event_settings')
     .upsert([{ event_id: eventId, race_format_settings: raceFormat }], { onConflict: 'event_id' })
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-  return NextResponse.json({ data: { draw_mode: drawMode } })
+  return NextResponse.json({
+    data: {
+      ...(drawMode ? { draw_mode: drawMode } : {}),
+      ...(hasBatchMode ? { qualification_batch_mode: qualificationBatchMode } : {}),
+    },
+  })
 }

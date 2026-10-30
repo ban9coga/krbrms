@@ -34,6 +34,7 @@ type EventGuideMeta = {
   event_logo_url?: string | null
   display_theme?: Record<string, unknown> | null
   final_class_options?: string[] | null
+  qualification_batch_mode?: 'FIXED' | 'ROTATE_EACH_MOTO'
 }
 
 type CustomSplitRule = {
@@ -116,6 +117,15 @@ const getStageSplitBasis = (
 ): CustomSplitRule['split_basis'] => {
   return rules.find((rule) => rule.source_stage === sourceStage)?.split_basis ?? 'COMBINED'
 }
+
+const normalizeQualificationRuleBasis = (rules: CustomSplitRule[], rotatingBatches: boolean) =>
+  rotatingBatches
+    ? rules.map((rule) =>
+        rule.source_stage === 'QUALIFICATION' && rule.split_basis !== 'GLOBAL_ACTIVE_FIRST'
+          ? { ...rule, split_basis: 'COMBINED' as const, batch_no: null }
+          : rule
+      )
+    : rules
 
 const buildStageBucketSizes = (
   rules: CustomSplitRule[],
@@ -610,8 +620,9 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
 
   const categorySummary = useMemo(() => {
     const summary: Record<string, string> = {}
+    const rotatingBatches = eventMeta?.qualification_batch_mode === 'ROTATE_EACH_MOTO'
     for (const category of categories) {
-      const rules = rulesByCategory[category.id] ?? []
+      const rules = normalizeQualificationRuleBasis(rulesByCategory[category.id] ?? [], rotatingBatches)
       const estimate = estimateRaceCounts(category, rules)
       const stageBasisSummary = SOURCE_STAGE_OPTIONS
         .filter((stage) => rules.some((rule) => rule.source_stage === stage))
@@ -636,20 +647,22 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
               .join(' | ')
     }
     return summary
-  }, [categories, rulesByCategory])
+  }, [categories, eventMeta?.qualification_batch_mode, rulesByCategory])
 
   const batchCountPerStage = useMemo(() => {
     const result: Record<string, BatchCountPerStage> = {}
+    const rotatingBatches = eventMeta?.qualification_batch_mode === 'ROTATE_EACH_MOTO'
     for (const category of categories) {
-      const rules = rulesByCategory[category.id] ?? []
+      const rules = normalizeQualificationRuleBasis(rulesByCategory[category.id] ?? [], rotatingBatches)
       result[category.id] = calculateBatchCountPerStage(category, rules)
     }
     return result
-  }, [categories, rulesByCategory])
+  }, [categories, eventMeta?.qualification_batch_mode, rulesByCategory])
 
   const guideEntries = useMemo(() => {
+    const rotatingBatches = eventMeta?.qualification_batch_mode === 'ROTATE_EACH_MOTO'
     return categories.map((category) => {
-      const rules = rulesByCategory[category.id] ?? []
+      const rules = normalizeQualificationRuleBasis(rulesByCategory[category.id] ?? [], rotatingBatches)
       const estimate = estimateRaceCounts(category, rules)
       const totalRiders = Math.max(0, Number(category.total_riders ?? 0))
       const maxRidersPerRace = Math.max(1, Number(category.max_riders_per_race ?? 8))
@@ -690,6 +703,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
           .map((stage) => `${formatStageLabel(stage)} memakai ${splitBasisLabel(getStageSplitBasis(rules, stage))}`)
           .join(', ')
         systemText = `Pembagian rider memakai aturan khusus. ${basisSummary}.`
+        if (rotatingBatches) systemText += ' Ranking Qualification memakai total poin global semua batch.'
         allocationText = buildCustomAutomationNotes(rules).join(' ')
       } else if (stageFlags.enableQuarterFinal) {
         systemText = 'Alurnya: qualification dulu, lalu rider terbaik lanjut ke Quarter Final, Semi Final, dan Final.'
@@ -726,7 +740,9 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
                 return `${formatStageLabel(rule.source_stage)}: posisi ${rule.rank_from}-${rule.rank_to} dari setiap batch masuk ${targetLabel}${countLabel}.`
               }
               if (rule.split_basis === 'GLOBAL_ACTIVE_FIRST') {
-                return `${formatStageLabel(rule.source_stage)}: kuota posisi ${rule.rank_from}-${rule.rank_to} per batch dialokasikan secara global; FINISH/DNF didahulukan dari DNS untuk masuk ${targetLabel}${countLabel}.`
+                return rotatingBatches
+                  ? `${formatStageLabel(rule.source_stage)}: FINISH/DNF didahulukan dari DNS; rentang rank global ${rule.rank_from}-${rule.rank_to} masuk ${targetLabel}${countLabel}.`
+                  : `${formatStageLabel(rule.source_stage)}: kuota posisi ${rule.rank_from}-${rule.rank_to} per batch dialokasikan secara global; FINISH/DNF didahulukan dari DNS untuk masuk ${targetLabel}${countLabel}.`
               }
               return `${formatStageLabel(rule.source_stage)}: posisi gabungan ${rule.rank_from}-${rule.rank_to} masuk ${targetLabel}${countLabel}.`
             })
@@ -774,7 +790,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
         stageLine,
       }
     })
-  }, [batchCountPerStage, categories, rulesByCategory])
+  }, [batchCountPerStage, categories, eventMeta?.qualification_batch_mode, rulesByCategory])
 
   const guideText = useMemo(
     () =>
@@ -1152,12 +1168,18 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
           }}
         >
           Custom split sekarang bisa dipakai untuk hasil <b>Qualification</b>, <b>Quarter Final</b>, <b>Repechage</b>, dan <b>Semi Final</b>.
-          <br />
-          <b>Combined Rank</b> = rank gabungan seluruh batch.
-          <br />
-          <b>Top N Per Batch</b> = range rank dihitung ulang di tiap batch.
-          <br />
-          <b>Custom Per Batch</b> = tiap batch boleh punya rule sendiri.
+          {eventMeta?.qualification_batch_mode === 'ROTATE_EACH_MOTO' ? (
+            <>
+              <br />Qualification memakai total poin global. Rule Qualification memakai rank global seluruh kategori.
+              <br />Rule stage lain tetap mengikuti basis yang dipilih.
+            </>
+          ) : (
+            <>
+              <br /><b>Combined Rank</b> = rank gabungan seluruh batch.
+              <br /><b>Top N Per Batch</b> = range rank dihitung ulang di tiap batch.
+              <br /><b>Custom Per Batch</b> = tiap batch boleh punya rule sendiri.
+            </>
+          )}
         </div>
       </div>
 
@@ -1167,9 +1189,18 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
         </div>
       )}
 
+      {!loading && eventMeta?.qualification_batch_mode === 'ROTATE_EACH_MOTO' && (
+        <div style={{ padding: 14, border: '2px solid #075985', borderRadius: 14, background: '#e0f2fe', fontWeight: 850 }}>
+          Batch kualifikasi berganti setiap moto. Rank Qualification memakai total poin seluruh rider kategori. Rule rank berlaku global.
+        </div>
+      )}
+
       {!loading &&
         categories.map((category) => {
-          const rules = rulesByCategory[category.id] ?? []
+          const rules = normalizeQualificationRuleBasis(
+            rulesByCategory[category.id] ?? [],
+            eventMeta?.qualification_batch_mode === 'ROTATE_EACH_MOTO'
+          )
           const estimate = estimateRaceCounts(category, rules)
           const maxRidersPerRace = Math.max(1, Number(category.max_riders_per_race ?? 8))
           const estimatedBatchCount = Math.max(
@@ -1271,7 +1302,8 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
                     background: '#f8fafc',
                   }}
                 >
-                  {rule.split_basis === 'CUSTOM_PER_BATCH' && (
+                  {rule.split_basis === 'CUSTOM_PER_BATCH' &&
+                    !(eventMeta?.qualification_batch_mode === 'ROTATE_EACH_MOTO' && rule.source_stage === 'QUALIFICATION') && (
                     <label style={{ display: 'grid', gap: 6, fontWeight: 800 }}>
                       <span>Batch</span>
                       <input
@@ -1312,15 +1344,25 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
                   <label style={{ display: 'grid', gap: 6, fontWeight: 800 }}>
                     <span>Rule Basis</span>
                     <select
-                      value={rule.split_basis}
+                      value={
+                        eventMeta?.qualification_batch_mode === 'ROTATE_EACH_MOTO' &&
+                        rule.source_stage === 'QUALIFICATION' &&
+                        rule.split_basis !== 'GLOBAL_ACTIVE_FIRST'
+                          ? 'COMBINED'
+                          : rule.split_basis
+                      }
                       onChange={(e) =>
                         updateSplitBasis(category.id, rule.source_stage, e.target.value as CustomSplitRule['split_basis'])
                       }
                       style={{ padding: '10px 12px', borderRadius: 10, border: '2px solid #111', background: '#fff' }}
                     >
-                      {SPLIT_BASIS_OPTIONS.filter((option) =>
-                        rule.source_stage === 'QUALIFICATION' || option !== 'GLOBAL_ACTIVE_FIRST'
-                      ).map((option) => (
+                      {SPLIT_BASIS_OPTIONS.filter((option) => {
+                        if (rule.source_stage !== 'QUALIFICATION' && option === 'GLOBAL_ACTIVE_FIRST') return false
+                        if (eventMeta?.qualification_batch_mode === 'ROTATE_EACH_MOTO' && rule.source_stage === 'QUALIFICATION') {
+                          return option === 'COMBINED' || option === 'GLOBAL_ACTIVE_FIRST'
+                        }
+                        return true
+                      }).map((option) => (
                         <option key={option} value={option}>
                           {splitBasisLabel(option)}
                         </option>
@@ -1328,13 +1370,24 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
                     </select>
                     {rule.source_stage === 'QUALIFICATION' && rule.split_basis === 'GLOBAL_ACTIVE_FIRST' ? (
                       <small style={{ color: '#475569', maxWidth: 260, lineHeight: 1.35 }}>
-                        Urut rider FINISH/DNF dari semua batch lebih dulu; kuota stage tetap mengikuti slot per batch.
+                        {eventMeta?.qualification_batch_mode === 'ROTATE_EACH_MOTO'
+                          ? 'FINISH/DNF mendapat prioritas di ranking global. Rentang rank di bawah berlaku untuk seluruh kategori.'
+                          : 'Urut rider FINISH/DNF dari semua batch lebih dulu; kuota stage tetap mengikuti slot per batch.'}
+                      </small>
+                    ) : null}
+                    {eventMeta?.qualification_batch_mode === 'ROTATE_EACH_MOTO' && rule.source_stage === 'QUALIFICATION' && rule.split_basis !== 'GLOBAL_ACTIVE_FIRST' ? (
+                      <small style={{ color: '#475569', maxWidth: 260, lineHeight: 1.35 }}>
+                        Ranking memakai total poin global. Rank berlaku untuk seluruh kategori, bukan tiap batch.
                       </small>
                     ) : null}
                   </label>
 
                   <label style={{ display: 'grid', gap: 6, fontWeight: 800 }}>
-                    <span>{rule.split_basis === 'COMBINED' ? 'Rank From' : 'Rank From Per Batch'}</span>
+                    <span>
+                      {eventMeta?.qualification_batch_mode === 'ROTATE_EACH_MOTO' && rule.source_stage === 'QUALIFICATION'
+                        ? 'Rank From Global'
+                        : rule.split_basis === 'COMBINED' ? 'Rank From' : 'Rank From Per Batch'}
+                    </span>
                     <input
                       type="number"
                       min={1}
@@ -1345,7 +1398,11 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
                   </label>
 
                   <label style={{ display: 'grid', gap: 6, fontWeight: 800 }}>
-                    <span>{rule.split_basis === 'COMBINED' ? 'Rank To' : 'Rank To Per Batch'}</span>
+                    <span>
+                      {eventMeta?.qualification_batch_mode === 'ROTATE_EACH_MOTO' && rule.source_stage === 'QUALIFICATION'
+                        ? 'Rank To Global'
+                        : rule.split_basis === 'COMBINED' ? 'Rank To' : 'Rank To Per Batch'}
+                    </span>
                     <input
                       type="number"
                       min={rule.rank_from}

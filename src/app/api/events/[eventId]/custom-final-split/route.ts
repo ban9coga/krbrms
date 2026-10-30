@@ -5,6 +5,7 @@ import {
   syncAdvancedRaceProgress,
 } from '../../../../../services/advancedRaceAuto'
 import { resolveCategoryConfig } from '../../../../../services/categoryResolver'
+import { normalizeQualificationBatchMode } from '../../../../../lib/drawConfig'
 
 type CustomRuleInput = {
   id?: string
@@ -213,6 +214,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ eventId: s
         event_logo_url: (settings?.event_logo_url ?? null) as string | null,
         display_theme: ((settings?.display_theme ?? {}) as Record<string, unknown>) ?? {},
         final_class_options: finalClassOptions,
+        qualification_batch_mode: normalizeQualificationBatchMode(raceFormatSettings.qualification_batch_mode),
       },
       categories: enrichedCategories,
       rules: (rules ?? []).map((rule) => ({

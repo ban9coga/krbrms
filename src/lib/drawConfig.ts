@@ -6,6 +6,14 @@ export type DrawMoto2Order = (typeof DRAW_MOTO2_ORDERS)[number]
 export const DRAW_MOTO3_ORDERS = ['REVERSE', 'SAME'] as const
 export type DrawMoto3Order = (typeof DRAW_MOTO3_ORDERS)[number]
 
+export const QUALIFICATION_BATCH_MODES = ['FIXED', 'ROTATE_EACH_MOTO'] as const
+export type QualificationBatchMode = (typeof QUALIFICATION_BATCH_MODES)[number]
+
+export const normalizeQualificationBatchMode = (value: unknown): QualificationBatchMode =>
+  QUALIFICATION_BATCH_MODES.includes(value as QualificationBatchMode)
+    ? (value as QualificationBatchMode)
+    : 'FIXED'
+
 export type DrawCategoryConfig = {
   batch_mode: DrawBatchMode
   batch_size: number | null
