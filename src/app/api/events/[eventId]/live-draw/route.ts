@@ -29,7 +29,7 @@ const loadDrawConfiguration = async (eventId: string, categoryId: string) => {
   const [{ data: config, error: configError }, { data: settings, error: settingsError }] = await Promise.all([
     adminClient
       .from('race_stage_config')
-      .select('qualification_moto_count, draw_batch_mode, draw_batch_size, draw_batch_count, draw_custom_batch_sizes, draw_moto2_order, draw_moto3_order')
+      .select('qualification_moto_count, single_batch_final_enabled, draw_batch_mode, draw_batch_size, draw_batch_count, draw_custom_batch_sizes, draw_moto2_order, draw_moto3_order')
       .eq('event_id', eventId)
       .eq('category_id', categoryId)
       .maybeSingle(),
@@ -51,6 +51,7 @@ const loadDrawConfiguration = async (eventId: string, categoryId: string) => {
     error: null,
     gatePositions: Math.max(1, Number(format.gate_positions ?? 8)),
     qualificationMotoCount: Math.min(3, Math.max(2, Number(config?.qualification_moto_count ?? 2))),
+    singleBatchFinalEnabled: config?.single_batch_final_enabled === true,
     drawMode: format.draw_mode === 'external_draw' ? 'external_draw' : 'internal_live_draw',
     config: normalizeDrawCategoryConfig({
       batch_mode: config?.draw_batch_mode,
@@ -267,6 +268,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     locked_moto_count: deleteGuard.lockedCount,
     has_final_state: deleteGuard.hasFinalState,
     qualification_moto_count: drawConfiguration.qualificationMotoCount,
+    single_batch_final_enabled: drawConfiguration.singleBatchFinalEnabled,
     gate_positions: drawConfiguration.gatePositions,
     draw_config: drawConfiguration.config,
   })
@@ -398,9 +400,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     : hasCustomMoto3
       ? splitByBatchShape(riderIdsMoto3, batches)
       : []
-  const createMoto3 = batches.length > 1 && drawConfiguration.qualificationMotoCount >= 3
+  const createMoto3 =
+    (batches.length > 1 && Number(drawConfiguration.qualificationMotoCount ?? 2) >= 3) ||
+    (batches.length === 1 && drawConfiguration.singleBatchFinalEnabled)
   if (!createMoto3 && (hasCustomMoto3 || hasManualMoto3Batches)) {
-    return NextResponse.json({ error: 'Moto 3 hanya bisa diatur untuk kategori multi-batch yang memakai 3 moto kualifikasi.' }, { status: 400 })
+    return NextResponse.json({ error: 'Moto 3 hanya bisa diatur untuk kategori multi-batch yang memakai 3 moto atau kategori 1 batch dengan opsi Final aktif.' }, { status: 400 })
   }
   const overCapacityBatches = batches
     .map((batch, index) => (batch.length > capacityLimit ? index + 1 : null))

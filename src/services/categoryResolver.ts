@@ -164,11 +164,25 @@ export async function resolveCategoryConfig(categoryId: string, override?: Resol
 
     const totalRiders = Math.max(registeredCategoryRiderIds.size, qualificationMotoRiderCount)
 
-    const { data: settingsRow } = await adminClient
-      .from('event_settings')
-      .select('race_format_settings')
-      .eq('event_id', eventId)
-      .maybeSingle()
+    const qualificationBatchCount = new Set(
+      (qualificationMotos ?? [])
+        .map((moto) => String(moto.moto_name ?? '').match(/moto\s*\d+\s*(?:-\s*)?batch\s*(\d+)/i)?.[1])
+        .filter(Boolean)
+    ).size
+    const [{ data: settingsRow }, { data: stageConfig }] = await Promise.all([
+      adminClient
+        .from('event_settings')
+        .select('race_format_settings')
+        .eq('event_id', eventId)
+        .maybeSingle(),
+      adminClient
+        .from('race_stage_config')
+        .select('single_batch_final_enabled')
+        .eq('event_id', eventId)
+        .eq('category_id', categoryId)
+        .maybeSingle(),
+    ])
+    const useSingleBatchFinal = stageConfig?.single_batch_final_enabled === true && qualificationBatchCount === 1
 
     const raceFormatSettings =
       settingsRow?.race_format_settings && typeof settingsRow.race_format_settings === 'object'
@@ -192,7 +206,7 @@ export async function resolveCategoryConfig(categoryId: string, override?: Resol
         eventId,
         totalRiders,
         stages: {
-          enableQualification: override.enableQualification ?? false,
+          enableQualification: Boolean(override.enableQualification) || useSingleBatchFinal,
           enableQuarterFinal: override.enableQuarterFinal ?? false,
           enableSemiFinal: override.enableSemiFinal ?? false,
         },
@@ -225,7 +239,10 @@ export async function resolveCategoryConfig(categoryId: string, override?: Resol
         categoryId,
         eventId,
         totalRiders: total,
-        stages: defaults.stages,
+        stages: {
+          ...defaults.stages,
+          enableQualification: defaults.stages.enableQualification || useSingleBatchFinal,
+        },
         finalClasses: eventFinalClasses.length > 0 ? eventFinalClasses : defaults.finalClasses,
         source: 'default',
         warning: eventFinalClasses.length > 0
@@ -239,7 +256,7 @@ export async function resolveCategoryConfig(categoryId: string, override?: Resol
       eventId,
       totalRiders,
       stages: {
-        enableQualification: Boolean(rule.enable_qualification),
+        enableQualification: Boolean(rule.enable_qualification) || useSingleBatchFinal,
         enableQuarterFinal: Boolean(rule.enable_quarter_final),
         enableSemiFinal: Boolean(rule.enable_semi_final),
       },

@@ -19,7 +19,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         .order('sequence_order', { ascending: true }),
       adminClient
         .from('race_stage_config')
-        .select('category_id, qualification_moto_count, draw_batch_mode, draw_batch_size, draw_batch_count, draw_custom_batch_sizes, draw_moto2_order, draw_moto3_order')
+        .select('category_id, qualification_moto_count, single_batch_final_enabled, draw_batch_mode, draw_batch_size, draw_batch_count, draw_custom_batch_sizes, draw_moto2_order, draw_moto3_order')
         .eq('event_id', eventId),
       adminClient
         .from('event_settings')
@@ -56,6 +56,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       categories: (categories ?? []).map((category) => ({
         ...category,
         qualification_moto_count: Math.max(2, Math.min(3, Number(configs?.find((config) => config.category_id === category.id)?.qualification_moto_count ?? 2))),
+        single_batch_final_enabled: configs?.find((config) => config.category_id === category.id)?.single_batch_final_enabled === true,
         draw_config: configByCategory.get(category.id) ?? normalizeDrawCategoryConfig({}),
       })),
     },
@@ -73,6 +74,10 @@ export async function PUT(req: Request, { params }: { params: Promise<{ eventId:
 
   const config = normalizeDrawCategoryConfig(body?.draw_config)
   const qualificationMotoCount = body?.qualification_moto_count == null ? undefined : Number(body.qualification_moto_count)
+  if (body?.single_batch_final_enabled != null && typeof body.single_batch_final_enabled !== 'boolean') {
+    return NextResponse.json({ error: 'single_batch_final_enabled harus boolean.' }, { status: 400 })
+  }
+  const singleBatchFinalEnabled = body?.single_batch_final_enabled == null ? undefined : Boolean(body.single_batch_final_enabled)
   if (qualificationMotoCount != null && ![2, 3].includes(qualificationMotoCount)) {
     return NextResponse.json({ error: 'Jumlah moto kualifikasi harus 2 atau 3.' }, { status: 400 })
   }
@@ -115,6 +120,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ eventId:
           event_id: eventId,
           category_id: categoryId,
           ...(qualificationMotoCount != null ? { qualification_moto_count: qualificationMotoCount } : {}),
+          ...(singleBatchFinalEnabled != null ? { single_batch_final_enabled: singleBatchFinalEnabled } : {}),
+          ...(singleBatchFinalEnabled ? { enabled: true } : {}),
           draw_batch_mode: config.batch_mode,
           draw_batch_size: config.batch_size,
           draw_batch_count: config.batch_count,
@@ -125,7 +132,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ eventId:
       ],
       { onConflict: 'event_id,category_id' }
     )
-    .select('category_id, qualification_moto_count, draw_batch_mode, draw_batch_size, draw_batch_count, draw_custom_batch_sizes, draw_moto2_order, draw_moto3_order')
+    .select('category_id, qualification_moto_count, single_batch_final_enabled, draw_batch_mode, draw_batch_size, draw_batch_count, draw_custom_batch_sizes, draw_moto2_order, draw_moto3_order')
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
@@ -133,6 +140,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ eventId:
     data: {
       category_id: data.category_id,
       qualification_moto_count: Math.max(2, Math.min(3, Number(data.qualification_moto_count ?? 2))),
+      single_batch_final_enabled: data.single_batch_final_enabled === true,
       draw_config: normalizeDrawCategoryConfig({
         batch_mode: data.draw_batch_mode,
         batch_size: data.draw_batch_size,

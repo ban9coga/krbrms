@@ -835,6 +835,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     race_gate_positions: '8',
     race_qualification_enabled: true,
     race_auto_advance: true,
+    race_qualification_tiebreak_repechage: false,
     race_final_classes: 'ELITE,NOVICE,PRO,ROOKIE,ADVANCED,INTERMEDIATE,ACADEMY,AMATEUR,BEGINNER',
     scoring_rules: '{\n}\n',
     display_theme: '{\n}\n',
@@ -1150,6 +1151,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
             typeof format.qualification_enabled === 'boolean' ? format.qualification_enabled : true,
           race_auto_advance:
             typeof format.auto_advance === 'boolean' ? format.auto_advance : true,
+          race_qualification_tiebreak_repechage: format.qualification_tiebreak_repechage === true,
           race_final_classes:
             Array.isArray(format.final_classes)
               ? format.final_classes.join(',')
@@ -1851,6 +1853,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
       gate_positions: gatePositions,
       qualification_enabled: Boolean(form.race_qualification_enabled),
       auto_advance: Boolean(form.race_auto_advance),
+      qualification_tiebreak_repechage: Boolean(form.race_qualification_tiebreak_repechage),
       final_classes: form.race_final_classes
         .split(',')
         .map((v) => v.trim())
@@ -3714,6 +3717,16 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                     onChange={(checked) => setForm({ ...form, race_auto_advance: checked })}
                     label="Auto advance aktif"
                   />
+                </div>
+                <div style={{ display: 'grid', gap: 6 }}>
+                  <ToggleSwitch
+                    checked={form.race_qualification_tiebreak_repechage}
+                    onChange={(checked) => setForm({ ...form, race_qualification_tiebreak_repechage: checked })}
+                    label="Seri kualifikasi ditentukan lewat Repechage"
+                  />
+                  <div style={{ color: '#475569', fontWeight: 700, fontSize: 12 }}>
+                    Setelah semua moto kualifikasi terkunci, seri poin dibandingkan dari Moto terakhir sampai Moto 1. Jika tetap seri, rider masuk Repechage khusus; hasil yang terkunci menentukan urutan sebelum Final Class Rules diterapkan. Perlu Advanced Stage aktif.
+                  </div>
                 </div>
                 <input
                   value={form.race_final_classes}

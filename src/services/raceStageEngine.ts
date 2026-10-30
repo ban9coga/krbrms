@@ -136,7 +136,7 @@ const defaultPointResolver: PointResolver = (finishOrder) => {
 const rankByPoints = (
   scores: Record<string, number>,
   tieBreakDataByRider?: Record<string, QualificationTieBreakData>,
-  tieBreakOptions: { dnfProgressEnabled?: boolean; motoIndexes: number[] } = { motoIndexes: [] }
+  tieBreakOptions: { dnfProgressEnabled?: boolean; motoIndexes: number[]; statusTiebreakEnabled?: boolean } = { motoIndexes: [] }
 ): RankedRider[] => {
   const rows = Object.entries(scores)
     .map(([riderId, points]) => ({ riderId, points, qualificationTieBreak: tieBreakDataByRider?.[riderId] }))
@@ -296,6 +296,8 @@ export function computeQualification(
     semiEnabledFinalClasses?: string[]
     dnfProgressEnabled?: boolean
     qualificationMotoCount?: number
+    statusTiebreakEnabled?: boolean
+    qualificationMotoIndexes?: number[]
   }
 ): { batchRanks: Record<string, RankedRider[]>; advances: StageAdvance[] } {
   const advances: StageAdvance[] = []
@@ -326,12 +328,13 @@ export function computeQualification(
 
     const maxMotoIndex = batch.finishes.reduce((max, finish) => Math.max(max, finish.motoIndex), 0)
     const qualificationMotoCount = options?.qualificationMotoCount ?? maxMotoIndex
-    const motoIndexes = qualificationMotoCount >= 3
+    const motoIndexes = options?.qualificationMotoIndexes ?? (qualificationMotoCount >= 3
       ? [3]
-      : Array.from(new Set(batch.finishes.map((finish) => finish.motoIndex))).sort((a, b) => b - a)
+      : Array.from(new Set(batch.finishes.map((finish) => finish.motoIndex))).sort((a, b) => b - a))
     const ranked = rankByPoints(scoreMap, tieBreakDataByRider, {
       dnfProgressEnabled: options?.dnfProgressEnabled,
       motoIndexes,
+      statusTiebreakEnabled: options?.statusTiebreakEnabled,
     })
     batchRanks[batch.batchId] = ranked
     advances.push(...computeQualificationAdvancesFromRanks(ranked, primaryAdvance, customRules, options))

@@ -17,6 +17,7 @@ type DrawCategory = {
   enabled: boolean
   sequence_order: number | null
   qualification_moto_count: number
+  single_batch_final_enabled: boolean
   draw_config: DrawCategoryConfig
 }
 
@@ -40,6 +41,7 @@ export default function DrawSettingsClient({ eventId }: { eventId: string }) {
   const [selectedCategoryId, setSelectedCategoryId] = useState('')
   const [draft, setDraft] = useState<DrawCategoryConfig>(cloneConfig(DEFAULT_DRAW_CATEGORY_CONFIG))
   const [draftQualificationMotoCount, setDraftQualificationMotoCount] = useState(2)
+  const [draftSingleBatchFinalEnabled, setDraftSingleBatchFinalEnabled] = useState(false)
   const [customPattern, setCustomPattern] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -55,6 +57,7 @@ export default function DrawSettingsClient({ eventId }: { eventId: string }) {
     const config = cloneConfig(category?.draw_config ?? DEFAULT_DRAW_CATEGORY_CONFIG)
     setDraft(config)
     setDraftQualificationMotoCount(Number(category?.qualification_moto_count ?? 2) >= 3 ? 3 : 2)
+    setDraftSingleBatchFinalEnabled(category?.single_batch_final_enabled === true)
     setCustomPattern(config.custom_batch_sizes.join(', '))
   }
 
@@ -112,6 +115,7 @@ export default function DrawSettingsClient({ eventId }: { eventId: string }) {
         body: JSON.stringify({
           category_id: selectedCategoryId,
           qualification_moto_count: draftQualificationMotoCount,
+          single_batch_final_enabled: draftSingleBatchFinalEnabled,
           draw_config: nextDraft,
         }),
       })
@@ -124,7 +128,7 @@ export default function DrawSettingsClient({ eventId }: { eventId: string }) {
               ...previous,
               categories: previous.categories.map((category) =>
                 category.id === selectedCategoryId
-                  ? { ...category, qualification_moto_count: draftQualificationMotoCount, draw_config: savedConfig }
+                  ? { ...category, qualification_moto_count: draftQualificationMotoCount, single_batch_final_enabled: draftSingleBatchFinalEnabled, draw_config: savedConfig }
                   : category
               ),
             }
@@ -233,7 +237,22 @@ export default function DrawSettingsClient({ eventId }: { eventId: string }) {
                   <option value={2}>2 moto</option>
                   <option value={3}>3 moto</option>
                 </select>
-                <span className="text-xs font-semibold text-[#765946]">Untuk kategori multi-batch, pilih 3 jika semua batch menjalankan Moto 1, 2, dan 3. Kategori satu batch tetap memakai alur 3 moto seperti biasa.</span>
+                <span className="text-xs font-semibold text-[#765946]">Untuk kategori multi-batch, pilih 3 jika semua batch menjalankan Moto 1, 2, dan 3. Kategori satu batch selalu menjalani 3 moto.</span>
+              </label>
+
+              <label className="flex items-start gap-3 rounded-lg border border-[#d9c6a8] bg-[#fffaf0] p-4 text-sm font-black text-[#2a1710]">
+                <input
+                  type="checkbox"
+                  checked={draftSingleBatchFinalEnabled}
+                  onChange={(event) => setDraftSingleBatchFinalEnabled(event.target.checked)}
+                  className="mt-0.5 h-4 w-4 accent-[#a95019]"
+                />
+                <span className="grid gap-1">
+                  <span>Untuk 1 batch, buat Final setelah 3 moto kualifikasi</span>
+                  <span className="text-xs font-semibold leading-5 text-[#765946]">
+                    Berlaku hanya jika hasil drawing tepat 1 batch. Aktif: Moto 3 dibuat saat drawing, lalu Final dibuat mengikuti Final Class Rules atau pembagian Final default kategori. Nonaktif: Moto 3 muncul setelah hasil Moto 2 dan kategori selesai di hasil total tiga moto.
+                  </span>
+                </span>
               </label>
 
               <label className="grid gap-2 text-sm font-black text-[#2a1710]">

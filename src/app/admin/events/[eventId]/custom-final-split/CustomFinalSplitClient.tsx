@@ -21,6 +21,7 @@ type CategoryRow = {
   qualification_batch_count?: number | null
   max_riders_per_race?: number | null
   qualification_moto_count?: number | null
+  single_batch_final_enabled?: boolean | null
   repechage_max_riders_per_race?: number | null
   quarter_final_max_riders_per_race?: number | null
   semi_final_max_riders_per_race?: number | null
@@ -659,20 +660,25 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
           : totalRiders > 0
             ? Math.max(1, Math.ceil(totalRiders / maxRidersPerRace))
             : 0
-      const usesSingleBatchFinal = batchCount === 1
-      const qualificationMotoCount = usesSingleBatchFinal
+      const usesSingleBatchFinalOption = batchCount === 1 && category.single_batch_final_enabled === true
+      const usesSingleBatchDirectResult = batchCount === 1 && !usesSingleBatchFinalOption
+      const qualificationMotoCount = batchCount === 1
         ? 3
         : Math.max(2, Number(category.qualification_moto_count ?? 2))
-      const stageFlags = category.stages ?? {
+      const resolvedStageFlags = category.stages ?? {
         enableQualification: false,
         enableQuarterFinal: false,
         enableSemiFinal: false,
+      }
+      const stageFlags = {
+        ...resolvedStageFlags,
+        enableQualification: resolvedStageFlags.enableQualification || usesSingleBatchFinalOption,
       }
       const introParts = [
         `${category.label} diikuti ${totalRiders} rider`,
         batchCount > 0 ? `dibagi menjadi ${batchCount} batch` : 'belum punya batch',
       ]
-      if (stageFlags.enableQualification || usesSingleBatchFinal) {
+      if (stageFlags.enableQualification || usesSingleBatchDirectResult) {
         introParts.push(`dengan ${qualificationMotoCount} moto qualification per batch`)
       }
 
@@ -691,7 +697,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
         systemText = 'Alurnya: qualification dulu, lalu rider terbaik lanjut ke Semi Final dan Final.'
       } else if (stageFlags.enableQualification) {
         systemText = 'Alurnya: qualification dulu, lalu rider dibagi ke kelas final sesuai hasil.'
-      } else if (usesSingleBatchFinal) {
+      } else if (usesSingleBatchDirectResult) {
         systemText = 'Karena hanya 1 batch, semua rider race 3 moto. Total point dari 3 moto menentukan hasil akhir.'
       } else {
         systemText = 'Kategori ini langsung memakai hasil race tanpa pembagian stage tambahan.'
@@ -735,7 +741,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
               ? 'Rider yang lolos dari qualification akan lanjut ke Semi Final, lalu Final.'
               : stageFlags.enableQualification
                 ? 'Setelah qualification selesai, rider dibagi ke final class sesuai aturan kategori ini.'
-                : usesSingleBatchFinal
+                : usesSingleBatchDirectResult
                   ? 'Setelah Moto 3 selesai dan dikunci, total point akan menjadi hasil akhir kategori.'
                   : 'Kategori ini langsung memakai hasil final tanpa stage lanjutan.'
       const batchCounts = batchCountPerStage[category.id]
@@ -948,7 +954,8 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
   const applyTwoFinalFinisherPreset = (category: CategoryRow) => {
     const totalRiders = Math.max(0, Number(category.total_riders ?? 0))
     const maxRidersPerFinal = Math.max(1, Number(category.max_riders_per_race ?? 8))
-    if (!finalClassOptions.includes('ELITE') || !finalClassOptions.includes('NOVICE')) {
+    const needsNovice = totalRiders > maxRidersPerFinal
+    if (!finalClassOptions.includes('ELITE') || (needsNovice && !finalClassOptions.includes('NOVICE'))) {
       alert('Aktifkan Final Class ELITE dan NOVICE pada Event Settings sebelum memakai format ini.')
       return
     }
@@ -1224,7 +1231,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#475569' }}>{categorySummary[category.id]}</div>
                 </div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {estimatedBatchCount > 1 && (
+                  {(estimatedBatchCount > 1 || (estimatedBatchCount === 1 && category.single_batch_final_enabled === true)) && (
                     <button
                       type="button"
                       onClick={() => applyTwoFinalFinisherPreset(category)}
@@ -1236,7 +1243,9 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
                         fontWeight: 900,
                       }}
                     >
-                      Pakai 2 Final + Finisher
+                      {estimatedBatchCount === 1 && Number(category.total_riders ?? 0) <= Number(category.max_riders_per_race ?? 8)
+                        ? 'Atur semua rider ke Final ELITE'
+                        : 'Pakai 2 Final + Finisher'}
                     </button>
                   )}
                 </div>

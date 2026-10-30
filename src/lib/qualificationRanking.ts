@@ -12,6 +12,7 @@ export type QualificationTieBreakData = {
 export type QualificationTieBreakOptions = {
   dnfProgressEnabled?: boolean
   motoIndexes?: number[]
+  statusTiebreakEnabled?: boolean
 }
 
 const qualificationStatusQuality = (status?: string | null) => {
@@ -32,15 +33,19 @@ export const createQualificationTieBreakData = (
 export const compareQualificationMotoTieBreak = (
   a: QualificationMotoTieBreak | undefined,
   b: QualificationMotoTieBreak | undefined,
-  dnfProgressEnabled = false
+  dnfProgressEnabled = false,
+  statusTiebreakEnabled = true
 ) => {
   const pointDiff = (a?.points ?? Number.MAX_SAFE_INTEGER) - (b?.points ?? Number.MAX_SAFE_INTEGER)
   if (pointDiff !== 0) return pointDiff
 
-  const statusDiff = qualificationStatusQuality(a?.resultStatus) - qualificationStatusQuality(b?.resultStatus)
-  if (statusDiff !== 0) return statusDiff
+  if (statusTiebreakEnabled) {
+    const statusDiff = qualificationStatusQuality(a?.resultStatus) - qualificationStatusQuality(b?.resultStatus)
+    if (statusDiff !== 0) return statusDiff
+  }
 
   if (
+    statusTiebreakEnabled &&
     dnfProgressEnabled &&
     String(a?.resultStatus ?? '').toUpperCase() === 'DNF' &&
     String(b?.resultStatus ?? '').toUpperCase() === 'DNF'
@@ -64,7 +69,8 @@ export const compareQualificationTieBreakData = (
     const tieBreakDiff = compareQualificationMotoTieBreak(
       aResults.get(motoIndex),
       bResults.get(motoIndex),
-      options.dnfProgressEnabled
+      options.dnfProgressEnabled,
+      options.statusTiebreakEnabled !== false
     )
     if (tieBreakDiff !== 0) return tieBreakDiff
   }
