@@ -240,7 +240,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
 
     await copySimpleEventTable(
       'race_stage_config',
-      'id, category_id, enabled, max_riders_per_race, qualification_moto_count, repechage_max_riders_per_race, quarter_final_max_riders_per_race, semi_final_max_riders_per_race, dnf_point_override, dns_point_override, draw_batch_mode, draw_batch_size, draw_batch_count, draw_custom_batch_sizes, draw_moto2_order',
+      'id, category_id, enabled, max_riders_per_race, qualification_moto_count, repechage_max_riders_per_race, quarter_final_max_riders_per_race, semi_final_max_riders_per_race, dnf_point_override, dns_point_override, draw_batch_mode, draw_batch_size, draw_batch_count, draw_custom_batch_sizes, draw_moto2_order, draw_moto3_order',
       (row) => {
         const mappedCategoryId = categoryIdMap.get(String(row.category_id ?? ''))
         if (!mappedCategoryId) return null
@@ -261,6 +261,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
           draw_batch_count: row.draw_batch_count,
           draw_custom_batch_sizes: row.draw_custom_batch_sizes,
           draw_moto2_order: row.draw_moto2_order,
+          draw_moto3_order: row.draw_moto3_order,
         }
       }
     )
@@ -296,7 +297,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
 
     await copyCategoryTable(
       'race_category_custom_split_rule',
-      'id, category_id, source_stage, rank_from, rank_to, target_stage, target_final_class, sort_order, split_basis, batch_no',
+      'id, category_id, source_stage, rank_from, rank_to, target_stage, target_outcome, target_final_class, sort_order, split_basis, batch_no',
       (row, newId, mappedCategoryId) => ({
         id: newId,
         category_id: mappedCategoryId,
@@ -304,6 +305,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
         rank_from: row.rank_from,
         rank_to: row.rank_to,
         target_stage: row.target_stage,
+        target_outcome: row.target_outcome,
         target_final_class: row.target_final_class,
         sort_order: row.sort_order,
         split_basis: row.split_basis,

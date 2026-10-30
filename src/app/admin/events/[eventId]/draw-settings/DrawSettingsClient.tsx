@@ -8,6 +8,7 @@ import {
   type DrawBatchMode,
   type DrawCategoryConfig,
   type DrawMoto2Order,
+  type DrawMoto3Order,
 } from '@/src/lib/drawConfig'
 
 type DrawCategory = {
@@ -15,6 +16,7 @@ type DrawCategory = {
   label: string
   enabled: boolean
   sequence_order: number | null
+  qualification_moto_count: number
   draw_config: DrawCategoryConfig
 }
 
@@ -37,6 +39,7 @@ export default function DrawSettingsClient({ eventId }: { eventId: string }) {
   const [data, setData] = useState<DrawSettingsData | null>(null)
   const [selectedCategoryId, setSelectedCategoryId] = useState('')
   const [draft, setDraft] = useState<DrawCategoryConfig>(cloneConfig(DEFAULT_DRAW_CATEGORY_CONFIG))
+  const [draftQualificationMotoCount, setDraftQualificationMotoCount] = useState(2)
   const [customPattern, setCustomPattern] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -51,6 +54,7 @@ export default function DrawSettingsClient({ eventId }: { eventId: string }) {
   const applyCategory = (category: DrawCategory | null) => {
     const config = cloneConfig(category?.draw_config ?? DEFAULT_DRAW_CATEGORY_CONFIG)
     setDraft(config)
+    setDraftQualificationMotoCount(Number(category?.qualification_moto_count ?? 2) >= 3 ? 3 : 2)
     setCustomPattern(config.custom_batch_sizes.join(', '))
   }
 
@@ -105,7 +109,11 @@ export default function DrawSettingsClient({ eventId }: { eventId: string }) {
     try {
       const json = await apiFetch(`/api/events/${eventId}/draw-settings`, {
         method: 'PUT',
-        body: JSON.stringify({ category_id: selectedCategoryId, draw_config: nextDraft }),
+        body: JSON.stringify({
+          category_id: selectedCategoryId,
+          qualification_moto_count: draftQualificationMotoCount,
+          draw_config: nextDraft,
+        }),
       })
       const savedConfig = json.data.draw_config as DrawCategoryConfig
       setDraft(cloneConfig(savedConfig))
@@ -115,7 +123,9 @@ export default function DrawSettingsClient({ eventId }: { eventId: string }) {
           ? {
               ...previous,
               categories: previous.categories.map((category) =>
-                category.id === selectedCategoryId ? { ...category, draw_config: savedConfig } : category
+                category.id === selectedCategoryId
+                  ? { ...category, qualification_moto_count: draftQualificationMotoCount, draw_config: savedConfig }
+                  : category
               ),
             }
           : previous
@@ -214,6 +224,19 @@ export default function DrawSettingsClient({ eventId }: { eventId: string }) {
 
             <div className="mt-5 grid gap-5">
               <label className="grid gap-2 text-sm font-black text-[#2a1710]">
+                Jumlah moto kualifikasi per batch
+                <select
+                  value={draftQualificationMotoCount}
+                  onChange={(event) => setDraftQualificationMotoCount(Number(event.target.value))}
+                  className={fieldClass}
+                >
+                  <option value={2}>2 moto</option>
+                  <option value={3}>3 moto</option>
+                </select>
+                <span className="text-xs font-semibold text-[#765946]">Untuk kategori multi-batch, pilih 3 jika semua batch menjalankan Moto 1, 2, dan 3. Kategori satu batch tetap memakai alur 3 moto seperti biasa.</span>
+              </label>
+
+              <label className="grid gap-2 text-sm font-black text-[#2a1710]">
                 Pembagian batch
                 <select
                   value={draft.batch_mode}
@@ -277,6 +300,19 @@ export default function DrawSettingsClient({ eventId }: { eventId: string }) {
                   <option value="REVERSE">Dibalik dari urutan Moto 1</option>
                   <option value="SAME">Sama seperti urutan Moto 1</option>
                 </select>
+              </label>
+
+              <label className="grid gap-2 text-sm font-black text-[#2a1710]">
+                Urutan gate Moto 3
+                <select
+                  value={draft.moto3_order}
+                  onChange={(event) => setDraft((previous) => ({ ...previous, moto3_order: event.target.value as DrawMoto3Order }))}
+                  className={fieldClass}
+                >
+                  <option value="SAME">Sama seperti urutan Moto 1</option>
+                  <option value="REVERSE">Dibalik dari urutan Moto 1</option>
+                </select>
+                <span className="text-xs font-semibold text-[#765946]">Dipakai saat kategori multi-batch disetel memakai 3 moto kualifikasi. Input external per batch tetap bisa menentukan urutan gate sendiri.</span>
               </label>
             </div>
 

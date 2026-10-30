@@ -52,7 +52,7 @@ export type CustomSplitRule = {
   sourceStage?: 'QUALIFICATION' | 'QUARTER_FINAL' | 'REPECHAGE' | 'SEMI_FINAL' | 'FINAL'
   rankFrom: number
   rankTo: number
-  targetStage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'REPECHAGE' | 'FINAL'
+  targetStage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'REPECHAGE' | 'FINAL' | 'FINISHER'
   targetFinalClass?: FinalClass | null
   sortOrder?: number
   splitBasis?: 'COMBINED' | 'PER_BATCH' | 'CUSTOM_PER_BATCH' | 'GLOBAL_ACTIVE_FIRST'
@@ -195,6 +195,7 @@ export function computeQualificationAdvancesFromRanks(
     const customRule = orderedRules.find((item) => slot >= item.rankFrom && slot <= item.rankTo)
 
     if (customRule) {
+      if (customRule.targetStage === 'FINISHER') continue
       if (customRule.targetStage === 'FINAL') {
         advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass: customRule.targetFinalClass ?? 'ELITE' })
       } else {

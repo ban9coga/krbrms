@@ -46,7 +46,12 @@ export default function RcAdminRulesPage() {
     if (!selectedId) return
     const config = configs.find((item) => item.category_id === selectedId)
     const categoryRules = rules.filter((item) => item.category_id === selectedId).map((item) => item.min_riders).sort((a, b) => a - b)
-    setDraft({ ...emptyDraft(), ...config, thresholds: categoryRules.join(', ') })
+    setDraft({
+      ...emptyDraft(),
+      ...config,
+      qualification_moto_count: Number(config?.qualification_moto_count ?? 2) >= 3 ? 3 : 2,
+      thresholds: categoryRules.join(', '),
+    })
   }, [selectedId, configs, rules])
 
   const setField = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft((current) => ({ ...current, [key]: value }))
@@ -87,7 +92,16 @@ export default function RcAdminRulesPage() {
         <label className="mt-5 grid max-w-xl gap-1.5 text-sm font-bold">Kategori<select value={selectedId} onChange={(event) => setSelectedId(event.target.value)} className="min-h-11 rounded-md border border-slate-300 bg-white px-3"><option value="">Pilih kategori</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.label}{category.enabled ? '' : ' (nonaktif)'}</option>)}</select></label>
         {selectedCategory && <div className="mt-5 grid gap-4">
           <label className="flex min-h-12 items-center justify-between gap-3 rounded-md border border-slate-200 px-3"><span className="text-sm font-bold">Aktifkan multi-stage untuk kategori ini</span><input type="checkbox" checked={draft.enabled} onChange={(event) => setField('enabled', event.target.checked)} className="h-5 w-5 accent-amber-500" /></label>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{numberField('Maks rider per race', 'max_riders_per_race', 2)}{numberField('Moto kualifikasi', 'qualification_moto_count', 1)}{numberField('Maks rider repechage (opsional)', 'repechage_max_riders_per_race', 2)}{numberField('Maks rider quarter-final (opsional)', 'quarter_final_max_riders_per_race', 2)}{numberField('Maks rider semi-final (opsional)', 'semi_final_max_riders_per_race', 2)}{numberField('Poin DNF (kosong = default)', 'dnf_point_override', 0)}{numberField('Poin DNS (kosong = default)', 'dns_point_override', 0)}</div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {numberField('Maks rider per race', 'max_riders_per_race', 2)}
+            <label className="grid gap-1 text-sm font-bold text-slate-700">Moto kualifikasi per batch
+              <select value={draft.qualification_moto_count} onChange={(event) => setField('qualification_moto_count', Number(event.target.value))} className="min-h-11 rounded-md border border-slate-300 bg-white px-3 font-semibold text-slate-950 focus:border-amber-500 focus:outline-none">
+                <option value={2}>2 moto</option><option value={3}>3 moto</option>
+              </select>
+              <span className="text-xs font-medium text-slate-500">Untuk multi-batch pilih 3 jika Moto 3 dipakai. Kategori satu batch tetap menjalankan 3 moto.</span>
+            </label>
+            {numberField('Maks rider repechage (opsional)', 'repechage_max_riders_per_race', 2)}{numberField('Maks rider quarter-final (opsional)', 'quarter_final_max_riders_per_race', 2)}{numberField('Maks rider semi-final (opsional)', 'semi_final_max_riders_per_race', 2)}{numberField('Poin DNF (kosong = default)', 'dnf_point_override', 0)}{numberField('Poin DNS (kosong = default)', 'dns_point_override', 0)}
+          </div>
           <label className="grid gap-1.5 text-sm font-bold">Ambang jumlah rider untuk aturan stage<input value={draft.thresholds} onChange={(event) => setField('thresholds', event.target.value)} className="min-h-11 rounded-md border border-slate-300 px-3 font-semibold focus:border-amber-500 focus:outline-none" placeholder="Contoh: 8, 16, 24" /><span className="text-xs font-medium text-slate-500">Angka dipisahkan koma. Sistem menerapkan format stage default sesuai ambang yang dipenuhi.</span></label>
           <p className="text-xs text-slate-500">Stage yang dihasilkan ditentukan oleh aturan default sistem dan jumlah rider. Simpan pengaturan ini sebelum mulai race.</p>
           <button type="button" onClick={save} disabled={saving} className="min-h-11 w-fit rounded-md bg-slate-950 px-5 text-sm font-extrabold text-white hover:bg-slate-800 disabled:opacity-60">{saving ? 'Menyimpan...' : 'Simpan aturan kategori'}</button>

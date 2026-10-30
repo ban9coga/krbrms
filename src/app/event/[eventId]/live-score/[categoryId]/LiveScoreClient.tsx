@@ -63,6 +63,7 @@ type StageGroup = {
 export type LiveScoreData = {
   category?: string
   qualification_split_basis?: string | null
+  qualification_has_finisher_outcome?: boolean
   qualification_advancements_calculated?: boolean
   qualification_results_official?: boolean
   batches?: Batch[]
@@ -236,6 +237,7 @@ export default function LiveScoreClient({
   const [categories] = useState<RiderCategory[]>(initialCategories.filter((category) => category.enabled))
   const [categoryLabel, setCategoryLabel] = useState(initialLiveScore?.category ?? '')
   const [qualificationSplitBasis, setQualificationSplitBasis] = useState(initialLiveScore?.qualification_split_basis ?? null)
+  const [qualificationHasFinisherOutcome, setQualificationHasFinisherOutcome] = useState(initialLiveScore?.qualification_has_finisher_outcome ?? false)
   const [qualificationAdvancementsCalculated, setQualificationAdvancementsCalculated] = useState(
     initialLiveScore?.qualification_advancements_calculated ?? false
   )
@@ -264,6 +266,7 @@ export default function LiveScoreClient({
     const json = await res.json()
     setCategoryLabel(json.data?.category ?? '')
     setQualificationSplitBasis(json.data?.qualification_split_basis ?? null)
+    setQualificationHasFinisherOutcome(json.data?.qualification_has_finisher_outcome === true)
     setQualificationAdvancementsCalculated(json.data?.qualification_advancements_calculated ?? false)
     setQualificationResultsOfficial(json.data?.qualification_results_official ?? false)
     setBatches(json.data?.batches ?? [])
@@ -370,7 +373,7 @@ export default function LiveScoreClient({
       })),
     [batches, sortMode]
   )
-  const showMoto3 = batches.length <= 1
+  const showMoto3 = batches.length <= 1 || batches.some((batch) => Boolean(batch.moto3_id))
   const usesGlobalActiveFirst = qualificationSplitBasis === 'GLOBAL_ACTIVE_FIRST'
   const showQualificationNextColumn = tableRowsByBatch.some((batch) =>
     batch.rows.some((row) => Boolean(row.class_label?.trim()))
@@ -531,7 +534,7 @@ export default function LiveScoreClient({
                           ...(showMoto3 ? ['Point M3'] : []),
                           'Penalty',
                           'Total',
-                          ...(showQualificationNextColumn ? [usesGlobalActiveFirst ? 'Tujuan Stage' : 'Next'] : []),
+                          ...(showQualificationNextColumn ? [qualificationHasFinisherOutcome ? 'Hasil Kualifikasi' : usesGlobalActiveFirst ? 'Tujuan Stage' : 'Next'] : []),
                         ].map((heading) => <th key={`mobile-${heading}`}>{heading}</th>)}
                       </tr>
                     </thead>
@@ -586,7 +589,7 @@ export default function LiveScoreClient({
                           ...(showMoto3 ? ['Point M3'] : []),
                           'Penalty',
                           'Total',
-                          ...(showQualificationNextColumn ? [usesGlobalActiveFirst ? 'Tujuan Stage' : 'Next'] : []),
+                          ...(showQualificationNextColumn ? [qualificationHasFinisherOutcome ? 'Hasil Kualifikasi' : usesGlobalActiveFirst ? 'Tujuan Stage' : 'Next'] : []),
                         ].map((h) => (
                         <th key={h} className="whitespace-nowrap">
                           {h}

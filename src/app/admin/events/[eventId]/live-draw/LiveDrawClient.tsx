@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import confetti from 'canvas-confetti'
 import { supabase } from '@/src/lib/supabaseClient'
-import { normalizeDrawCategoryConfig, type DrawMoto2Order } from '@/src/lib/drawConfig'
+import { normalizeDrawCategoryConfig, type DrawMoto2Order, type DrawMoto3Order } from '@/src/lib/drawConfig'
 
 type CategoryItem = {
   id: string
@@ -34,7 +34,7 @@ type RiderBatchLocation = {
 
 type ExternalTargetField = {
   batchIndex: number
-  moto: 1 | 2
+  moto: 1 | 2 | 3
 }
 
 type BatchMode = 'AUTO_BY_GATE' | 'MANUAL_BATCH_COUNT' | 'CUSTOM_BATCH_SIZES'
@@ -197,13 +197,16 @@ type LiveDrawGuard = {
 type ExternalBatchUndoState = {
   moto1Texts: string[]
   moto2Texts: string[]
+  moto3Texts: string[]
   targetField: ExternalTargetField
 }
 
-const formatMoto3Hint = (totalBatches: number) =>
+const formatMoto3Hint = (totalBatches: number, qualificationMotoCount: number) =>
   totalBatches === 1
-    ? 'Moto 3 tidak dibuat saat draw. Moto 3 akan dibuat otomatis setelah hasil Moto 2 lengkap.'
-    : 'Moto 3 tidak dipakai untuk konfigurasi draw kategori ini.'
+    ? 'Moto 3 dibuat otomatis setelah hasil Moto 2 lengkap.'
+    : qualificationMotoCount >= 3
+      ? 'Moto 3 dibuat untuk setiap batch dengan urutan gate dari input external atau pengaturan urutan Moto 3.'
+      : 'Kategori ini memakai 2 moto kualifikasi per batch.'
 
 const moveItem = <T,>(items: T[], fromIndex: number, toIndex: number) => {
   if (
@@ -242,6 +245,8 @@ export default function LiveDrawClient({
   const [customBatchPattern, setCustomBatchPattern] = useState('')
   const [gatePositions, setGatePositions] = useState(8)
   const [moto2Order, setMoto2Order] = useState<DrawMoto2Order>('REVERSE')
+  const [moto3Order, setMoto3Order] = useState<DrawMoto3Order>('SAME')
+  const [qualificationMotoCount, setQualificationMotoCount] = useState(2)
   const [eventLogoUrl, setEventLogoUrl] = useState<string | null>(null)
   const [drawMode, setDrawMode] = useState<DrawMode>('internal_live_draw')
   const [rollingName, setRollingName] = useState<string>('Ready')
@@ -259,6 +264,7 @@ export default function LiveDrawClient({
   const [externalBatchInputMode, setExternalBatchInputMode] = useState<'GLOBAL' | 'PER_BATCH'>('PER_BATCH')
   const [externalBatchTexts, setExternalBatchTexts] = useState<string[]>([])
   const [externalMoto2BatchTexts, setExternalMoto2BatchTexts] = useState<string[]>([])
+  const [externalMoto3BatchTexts, setExternalMoto3BatchTexts] = useState<string[]>([])
   const [externalTargetField, setExternalTargetField] = useState<ExternalTargetField>({ batchIndex: 0, moto: 1 })
   const [externalBatchSearch, setExternalBatchSearch] = useState('')
   const [resultModal, setResultModal] = useState<'draft' | 'saved' | null>(null)
@@ -598,10 +604,45 @@ export default function LiveDrawClient({
       isValidMoto2 = moto2UnknownTokens.length === 0 && moto2DuplicateTokens.length === 0 && moto2BatchMismatch.length === 0
     }
 
+    const moto3Provided = externalMoto3BatchTexts.some((text) => parseExternalTokens(text).length > 0)
+    const moto3UnknownTokens: string[] = []
+    const moto3DuplicateTokens: string[] = []
+    const moto3BatchMismatch: number[] = []
+    const orderedMoto3Batches: RiderItem[][] = []
+    let isValidMoto3 = true
+
+    if (moto3Provided) {
+      for (let batchIndex = 0; batchIndex < count; batchIndex += 1) {
+        const tokens = parseExternalTokens(externalMoto3BatchTexts[batchIndex] ?? '')
+        const batchSeen = new Set<string>()
+        const ordered: RiderItem[] = []
+        for (const token of tokens) {
+          const normalizedToken = normalizeExternalToken(token)
+          if (batchSeen.has(normalizedToken)) {
+            moto3DuplicateTokens.push(`B${batchIndex + 1}:${token}`)
+            continue
+          }
+          batchSeen.add(normalizedToken)
+          const rider = resolveRiderForToken(riders, token)
+          if (!rider) {
+            moto3UnknownTokens.push(`B${batchIndex + 1}:${token}`)
+            continue
+          }
+          ordered.push(rider)
+        }
+        orderedMoto3Batches.push(ordered)
+        if (!sameSet(ordered.map((rider) => rider.id), (orderedBatches[batchIndex] ?? []).map((rider) => rider.id))) {
+          moto3BatchMismatch.push(batchIndex + 1)
+        }
+      }
+      isValidMoto3 = moto3UnknownTokens.length === 0 && moto3DuplicateTokens.length === 0 && moto3BatchMismatch.length === 0
+    }
+
     return {
       batchCount: count,
       orderedBatches,
       orderedMoto2Batches,
+      orderedMoto3Batches,
       duplicateTokens,
       unknownTokens,
       duplicateRiders,
@@ -614,8 +655,13 @@ export default function LiveDrawClient({
       moto2DuplicateTokens,
       moto2BatchMismatch,
       isValidMoto2,
+      moto3Provided,
+      moto3UnknownTokens,
+      moto3DuplicateTokens,
+      moto3BatchMismatch,
+      isValidMoto3,
     }
-  }, [batchMode, customBatchSizes.length, effectiveBatchCount, riders, externalBatchTexts, externalMoto2BatchTexts, maxBatchRiders])
+  }, [batchMode, customBatchSizes.length, effectiveBatchCount, riders, externalBatchTexts, externalMoto2BatchTexts, externalMoto3BatchTexts, maxBatchRiders])
 
   const externalBatchLayouts = useMemo(() => {
     let cursor = 0
@@ -637,10 +683,14 @@ export default function LiveDrawClient({
     if (externalTargetField.moto === 1) {
       return externalPerBatchValidation.orderedBatches[externalTargetField.batchIndex]?.length ?? 0
     }
-    return externalPerBatchValidation.orderedMoto2Batches[externalTargetField.batchIndex]?.length ?? 0
+    if (externalTargetField.moto === 2) {
+      return externalPerBatchValidation.orderedMoto2Batches[externalTargetField.batchIndex]?.length ?? 0
+    }
+    return externalPerBatchValidation.orderedMoto3Batches[externalTargetField.batchIndex]?.length ?? 0
   }, [
     externalPerBatchValidation.orderedBatches,
     externalPerBatchValidation.orderedMoto2Batches,
+    externalPerBatchValidation.orderedMoto3Batches,
     externalTargetField.batchIndex,
     externalTargetField.moto,
   ])
@@ -660,13 +710,21 @@ export default function LiveDrawClient({
       const assignedInMoto2 = externalPerBatchValidation.orderedMoto2Batches.some((batch) =>
         batch.some((item) => item.id === rider.id)
       )
+      const assignedInMoto3 = externalPerBatchValidation.orderedMoto3Batches.some((batch) =>
+        batch.some((item) => item.id === rider.id)
+      )
+      const activeMoto1Batch = externalPerBatchValidation.orderedBatches[externalTargetField.batchIndex] ?? []
+      const assignedToActiveBatch = activeMoto1Batch.some((item) => item.id === rider.id)
       if (externalTargetField.moto === 1) return !assignedInMoto1
-      return assignedInMoto1 && !assignedInMoto2
+      if (externalTargetField.moto === 2) return assignedToActiveBatch && !assignedInMoto2
+      return assignedToActiveBatch && !assignedInMoto3
     })
   }, [
     riders,
     externalPerBatchValidation.orderedBatches,
     externalPerBatchValidation.orderedMoto2Batches,
+    externalPerBatchValidation.orderedMoto3Batches,
+    externalTargetField.batchIndex,
     externalTargetField.moto,
   ])
   const filteredPreviewRidersForExternalBatch = useMemo(() => {
@@ -758,6 +816,7 @@ export default function LiveDrawClient({
     const count = effectiveBatchCount ?? Math.max(1, Math.ceil(riders.length / maxBatchRiders))
     setExternalBatchTexts((prev) => Array.from({ length: count }, (_, index) => prev[index] ?? ''))
     setExternalMoto2BatchTexts((prev) => Array.from({ length: count }, (_, index) => prev[index] ?? ''))
+    setExternalMoto3BatchTexts((prev) => Array.from({ length: count }, (_, index) => prev[index] ?? ''))
     setExternalTargetField((prev) => ({
       batchIndex: Math.max(0, Math.min(count - 1, prev.batchIndex)),
       moto: prev.moto,
@@ -844,6 +903,8 @@ export default function LiveDrawClient({
       setManualBatchCount(drawConfig.batch_count ?? Math.max(1, Math.ceil(list.length / Math.max(1, Number(json?.gate_positions ?? gatePositions)))) )
       setCustomBatchPattern(drawConfig.custom_batch_sizes.join(', '))
       setMoto2Order(drawConfig.moto2_order)
+      setMoto3Order(drawConfig.moto3_order)
+      setQualificationMotoCount(Math.max(2, Math.min(3, Number(json?.qualification_moto_count ?? 2))))
       setDrawnOrder([])
       if (!options?.preserveSaveState) setSaveState('idle')
       setRollingName('Ready')
@@ -854,6 +915,7 @@ export default function LiveDrawClient({
       setExternalMoto2OrderText('')
       setExternalBatchTexts([])
       setExternalMoto2BatchTexts([])
+      setExternalMoto3BatchTexts([])
       setExternalUndoStack([])
       setWheelRiders([])
       setWheelRotation(0)
@@ -996,6 +1058,10 @@ export default function LiveDrawClient({
         alert('Input Moto 2 per batch belum valid. Pastikan rider per batch sama dengan Moto 1.')
         return
       }
+      if (externalPerBatchValidation.moto3Provided && !externalPerBatchValidation.isValidMoto3) {
+        alert('Input Moto 3 per batch belum valid. Pastikan rider per batch sama dengan Moto 1.')
+        return
+      }
       setDrawnOrder(externalPerBatchValidation.orderedBatches.flat())
     } else {
       if (!externalValidation.isValid) {
@@ -1040,18 +1106,24 @@ export default function LiveDrawClient({
       {
         moto1Texts: [...externalBatchTexts],
         moto2Texts: [...externalMoto2BatchTexts],
+        moto3Texts: [...externalMoto3BatchTexts],
         targetField: { ...externalTargetField },
       },
     ])
   }
 
   const findNextAvailableBatchIndex = (
-    moto: 1 | 2,
+    moto: 1 | 2 | 3,
     startIndex: number,
     nextMoto1Texts?: string[],
-    nextMoto2Texts?: string[]
+    nextMoto2Texts?: string[],
+    nextMoto3Texts?: string[]
   ) => {
-    const sourceTexts = moto === 1 ? nextMoto1Texts ?? externalBatchTexts : nextMoto2Texts ?? externalMoto2BatchTexts
+    const sourceTexts = moto === 1
+      ? nextMoto1Texts ?? externalBatchTexts
+      : moto === 2
+        ? nextMoto2Texts ?? externalMoto2BatchTexts
+        : nextMoto3Texts ?? externalMoto3BatchTexts
     const counts = sourceTexts.map((text) => parseExternalTokens(text).length)
     if (counts.length === 0) return startIndex
     for (let offset = 1; offset <= counts.length; offset += 1) {
@@ -1067,6 +1139,7 @@ export default function LiveDrawClient({
       if (!last) return prev
       setExternalBatchTexts(last.moto1Texts)
       setExternalMoto2BatchTexts(last.moto2Texts)
+      setExternalMoto3BatchTexts(last.moto3Texts)
       setExternalTargetField(last.targetField)
       setDrawnOrder([])
       setHasDrawn(false)
@@ -1083,12 +1156,18 @@ export default function LiveDrawClient({
     const assignedInMoto2 = externalPerBatchValidation.orderedMoto2Batches.some((batch) =>
       batch.some((item) => item.id === rider.id)
     )
+    const assignedInMoto3 = externalPerBatchValidation.orderedMoto3Batches.some((batch) =>
+      batch.some((item) => item.id === rider.id)
+    )
     const targetBatchCount =
       externalTargetField.moto === 1
         ? externalPerBatchValidation.orderedBatches[externalTargetField.batchIndex]?.length ?? 0
-        : externalPerBatchValidation.orderedMoto2Batches[externalTargetField.batchIndex]?.length ?? 0
+        : externalTargetField.moto === 2
+          ? externalPerBatchValidation.orderedMoto2Batches[externalTargetField.batchIndex]?.length ?? 0
+          : externalPerBatchValidation.orderedMoto3Batches[externalTargetField.batchIndex]?.length ?? 0
     if (externalTargetField.moto === 1 && assignedInMoto1) return
     if (externalTargetField.moto === 2 && (!assignedInMoto1 || assignedInMoto2)) return
+    if (externalTargetField.moto === 3 && (!assignedInMoto1 || assignedInMoto3)) return
     if (targetBatchCount >= maxBatchRiders) {
       alert(
         `Batch ${externalTargetField.batchIndex + 1} - Moto ${externalTargetField.moto} sudah penuh. Maksimal ${maxBatchRiders} rider per batch.`
@@ -1098,7 +1177,11 @@ export default function LiveDrawClient({
 
     pushExternalUndoState()
 
-    const setter = externalTargetField.moto === 1 ? setExternalBatchTexts : setExternalMoto2BatchTexts
+    const setter = externalTargetField.moto === 1
+      ? setExternalBatchTexts
+      : externalTargetField.moto === 2
+        ? setExternalMoto2BatchTexts
+        : setExternalMoto3BatchTexts
     setter((prev) => {
       const next = [...prev]
       const current = parseExternalTokens(next[externalTargetField.batchIndex] ?? '')
@@ -1109,7 +1192,8 @@ export default function LiveDrawClient({
           externalTargetField.moto,
           externalTargetField.batchIndex,
           externalTargetField.moto === 1 ? next : undefined,
-          externalTargetField.moto === 2 ? next : undefined
+          externalTargetField.moto === 2 ? next : undefined,
+          externalTargetField.moto === 3 ? next : undefined
         )
         if (nextTargetBatchIndex !== externalTargetField.batchIndex) {
           setExternalTargetField((prevTarget) => ({ ...prevTarget, batchIndex: nextTargetBatchIndex }))
@@ -1160,6 +1244,7 @@ export default function LiveDrawClient({
     setExternalMoto2OrderText('')
     setExternalBatchTexts([])
     setExternalMoto2BatchTexts([])
+    setExternalMoto3BatchTexts([])
     setExternalUndoStack([])
     setResultModal(null)
   }
@@ -1191,6 +1276,7 @@ export default function LiveDrawClient({
       setExternalMoto2OrderText('')
       setExternalBatchTexts([])
       setExternalMoto2BatchTexts([])
+      setExternalMoto3BatchTexts([])
       setExternalUndoStack([])
       setResultModal(null)
       setDeleteGuard({ canDelete: true, reason: null })
@@ -1221,28 +1307,47 @@ export default function LiveDrawClient({
     }
   }
 
-  const buildDraftBatchShareText = (batch: (typeof batchLayouts)[number]) => {
+  const getDraftMotoAssignments = (batchIndex: number, batchRiders: RiderItem[]) => {
     const moto2Manual =
       drawMode === 'external_draw' &&
         externalBatchInputMode === 'PER_BATCH' &&
         externalPerBatchValidation.moto2Provided
-        ? externalPerBatchValidation.orderedMoto2Batches[batch.index - 1] ?? []
+        ? externalPerBatchValidation.orderedMoto2Batches[batchIndex - 1] ?? []
         : []
-    const moto2Riders = moto2Manual.length > 0 ? moto2Manual : [...batch.riders].reverse()
+    const moto3Manual =
+      drawMode === 'external_draw' &&
+        externalBatchInputMode === 'PER_BATCH' &&
+        externalPerBatchValidation.moto3Provided
+        ? externalPerBatchValidation.orderedMoto3Batches[batchIndex - 1] ?? []
+        : []
+    return [
+      { title: `Moto 1 - Batch ${batchIndex}`, riders: batchRiders },
+      { title: `Moto 2 - Batch ${batchIndex}`, riders: moto2Manual.length > 0 ? moto2Manual : [...batchRiders].reverse() },
+      ...(qualificationMotoCount >= 3 && batches.length > 1
+        ? [{
+            title: `Moto 3 - Batch ${batchIndex}`,
+            riders: moto3Manual.length > 0
+              ? moto3Manual
+              : moto3Order === 'REVERSE'
+                ? [...batchRiders].reverse()
+                : [...batchRiders],
+          }]
+        : []),
+    ]
+  }
+
+  const buildDraftBatchShareText = (batch: (typeof batchLayouts)[number]) => {
     const lines = [
       `🏁 DRAW RESULT`,
       eventName,
       `Kategori: ${selectedCategoryLabel}`,
       `Batch ${batch.index}`,
-      '',
-      `MOTO 1 - BATCH ${batch.index}`,
-      ...batch.riders.map((rider, index) => `G${index + 1} - ${rider.no_plate_display} - ${rider.name}`),
-      '',
-      `MOTO 2 - BATCH ${batch.index}`,
-      ...moto2Riders.map((rider, index) => `G${index + 1} - ${rider.no_plate_display} - ${rider.name}`),
-      '',
-      'Mohon wali rider cek nomor plate dan gate masing-masing.',
     ]
+    getDraftMotoAssignments(batch.index, batch.riders).forEach((moto) => {
+      lines.push('', moto.title.toUpperCase())
+      moto.riders.forEach((rider, index) => lines.push(`G${index + 1} - ${rider.no_plate_display} - ${rider.name}`))
+    })
+    lines.push('', 'Mohon wali rider cek nomor plate dan gate masing-masing.')
     return lines.join('\n')
   }
 
@@ -1274,20 +1379,12 @@ export default function LiveDrawClient({
     ]
 
     batchLayouts.forEach((batch) => {
-      const moto2Manual =
-        drawMode === 'external_draw' &&
-          externalBatchInputMode === 'PER_BATCH' &&
-          externalPerBatchValidation.moto2Provided
-          ? externalPerBatchValidation.orderedMoto2Batches[batch.index - 1] ?? []
-          : []
-      const moto2Riders = moto2Manual.length > 0 ? moto2Manual : [...batch.riders].reverse()
-      lines.push(`BATCH ${batch.index}`, `MOTO 1 - BATCH ${batch.index}`)
-      batch.riders.forEach((rider, index) => {
-        lines.push(`G${index + 1} - ${rider.no_plate_display} - ${rider.name}`)
-      })
-      lines.push('', `MOTO 2 - BATCH ${batch.index}`)
-      moto2Riders.forEach((rider, index) => {
-        lines.push(`G${index + 1} - ${rider.no_plate_display} - ${rider.name}`)
+      lines.push(`BATCH ${batch.index}`)
+      getDraftMotoAssignments(batch.index, batch.riders).forEach((moto) => {
+        lines.push('', moto.title.toUpperCase())
+        moto.riders.forEach((rider, index) => {
+          lines.push(`G${index + 1} - ${rider.no_plate_display} - ${rider.name}`)
+        })
       })
       lines.push('')
     })
@@ -1587,33 +1684,16 @@ export default function LiveDrawClient({
   }
 
   const downloadDraftBatchPng = async (batch: (typeof batchLayouts)[number]) => {
-    const moto2Manual =
-      drawMode === 'external_draw' &&
-        externalBatchInputMode === 'PER_BATCH' &&
-        externalPerBatchValidation.moto2Provided
-        ? externalPerBatchValidation.orderedMoto2Batches[batch.index - 1] ?? []
-        : []
-    const moto2Riders = moto2Manual.length > 0 ? moto2Manual : [...batch.riders].reverse()
     const blob = await buildDrawBatchPngBlob({
       batchLabel: `Batch ${batch.index}`,
-      motos: [
-        {
-          title: `Moto 1 - Batch ${batch.index}`,
-          rows: batch.riders.map((rider, index) => ({
-            gate: index + 1,
-            plate: rider.no_plate_display,
-            name: rider.name,
-          })),
-        },
-        {
-          title: `Moto 2 - Batch ${batch.index}`,
-          rows: moto2Riders.map((rider, index) => ({
-            gate: index + 1,
-            plate: rider.no_plate_display,
-            name: rider.name,
-          })),
-        },
-      ],
+      motos: getDraftMotoAssignments(batch.index, batch.riders).map((moto) => ({
+        title: moto.title,
+        rows: moto.riders.map((rider, index) => ({
+          gate: index + 1,
+          plate: rider.no_plate_display,
+          name: rider.name,
+        })),
+      })),
     })
     const filename = `${sanitizeFileName(eventName)}-${sanitizeFileName(selectedCategoryLabel)}-batch-${batch.index}.png`
     await shareOrDownloadPng(blob, filename, `Draw ${selectedCategoryLabel} Batch ${batch.index}`)
@@ -1647,6 +1727,10 @@ export default function LiveDrawClient({
       }
       if (externalPerBatchValidation.moto2Provided && !externalPerBatchValidation.isValidMoto2) {
         alert('Urutan Moto 2 manual per batch belum valid. Cek kembali input Moto 2.')
+        return
+      }
+      if (externalPerBatchValidation.moto3Provided && !externalPerBatchValidation.isValidMoto3) {
+        alert('Urutan Moto 3 manual per batch belum valid. Cek kembali input Moto 3.')
         return
       }
     } else {
@@ -1686,6 +1770,10 @@ export default function LiveDrawClient({
         drawMode === 'external_draw' && externalBatchInputMode === 'PER_BATCH' && externalPerBatchValidation.moto2Provided
           ? externalPerBatchValidation.orderedMoto2Batches.map((batch) => batch.map((rider) => rider.id))
           : []
+      const riderBatchesMoto3 =
+        drawMode === 'external_draw' && externalBatchInputMode === 'PER_BATCH' && externalPerBatchValidation.moto3Provided
+          ? externalPerBatchValidation.orderedMoto3Batches.map((batch) => batch.map((rider) => rider.id))
+          : []
       const payload = {
         category_id: selectedCategory,
         rider_ids: riderIdsForMoto1,
@@ -1695,6 +1783,7 @@ export default function LiveDrawClient({
         ...(riderBatches.length > 0 ? { rider_batches: riderBatches } : {}),
         ...(manualMoto2Ids.length > 0 ? { rider_ids_moto2: manualMoto2Ids } : {}),
         ...(riderBatchesMoto2.length > 0 ? { rider_batches_moto2: riderBatchesMoto2 } : {}),
+        ...(riderBatchesMoto3.length > 0 ? { rider_batches_moto3: riderBatchesMoto3 } : {}),
       }
       const { res, json } = await apiFetch(`/api/events/${eventId}/live-draw`, {
         method: 'POST',
@@ -2024,7 +2113,9 @@ export default function LiveDrawClient({
                     ? 'Tidak ada rider yang cocok dengan pencarian ini.'
                     : externalTargetField.moto === 1
                       ? 'Semua rider sudah ditempatkan ke Moto 1.'
-                      : 'Semua rider yang tersedia untuk Moto 2 sudah ditempatkan.'
+                      : externalTargetField.moto === 2
+                        ? 'Semua rider yang tersedia untuk Moto 2 sudah ditempatkan.'
+                        : 'Semua rider yang tersedia untuk Moto 3 sudah ditempatkan.'
                   : 'Belum ada rider.'}
               </div>
             ) : (
@@ -2043,17 +2134,24 @@ export default function LiveDrawClient({
                   const assignedInMoto2 = externalPerBatchValidation.orderedMoto2Batches.some((batch) =>
                     batch.some((item) => item.id === rider.id)
                   )
+                  const assignedInMoto3 = externalPerBatchValidation.orderedMoto3Batches.some((batch) =>
+                    batch.some((item) => item.id === rider.id)
+                  )
                   const interactive =
                     drawMode === 'external_draw' && externalBatchInputMode === 'PER_BATCH' && !categoryLocked
                   const disabledForAssignment =
                     externalTargetField.moto === 1
                       ? assignedInMoto1
-                      : !assignedInMoto1 || assignedInMoto2
+                      : externalTargetField.moto === 2
+                        ? !assignedInMoto1 || assignedInMoto2
+                        : !assignedInMoto1 || assignedInMoto3
                   const disabledForTarget = disabledForAssignment || (interactive && isActiveTargetBatchFull)
                   const statusLabel = isActiveTargetBatchFull
                     ? `Penuh`
-                    : assignedInMoto2
-                      ? 'Di Moto 2'
+                    : externalTargetField.moto === 3 && assignedInMoto3
+                      ? 'Di Moto 3'
+                      : assignedInMoto2
+                        ? 'Di Moto 2'
                       : assignedInMoto1
                         ? 'Di Moto 1'
                         : 'Siap'
@@ -2097,9 +2195,7 @@ export default function LiveDrawClient({
                             : interactive
                               ? isActiveTargetBatchFull
                                 ? 'Penuh'
-                                : externalTargetField.moto === 1
-                                  ? 'Klik: Moto 1'
-                                  : 'Klik: Moto 2'
+                                : `Klik: Moto ${externalTargetField.moto}`
                               : statusLabel}
                         </span>
                       </span>
@@ -2225,11 +2321,11 @@ export default function LiveDrawClient({
                   ))}
                 </div>
                 <div className="ld-manual-target-group ld-manual-target-group--motos" style={{ display: 'flex', gap: 8 }}>
-                  {[1, 2].map((moto) => (
+                  {[1, 2, ...(qualificationMotoCount >= 3 && externalPerBatchValidation.batchCount > 1 ? [3] : [])].map((moto) => (
                     <button
                       key={`target-moto-${moto}`}
                       type="button"
-                      onClick={() => setExternalTargetField((prev) => ({ ...prev, moto: moto as 1 | 2 }))}
+                      onClick={() => setExternalTargetField((prev) => ({ ...prev, moto: moto as 1 | 2 | 3 }))}
                       aria-pressed={externalTargetField.moto === moto}
                       disabled={categoryLocked}
                       className={`ld-manual-target-button ${externalTargetField.moto === moto ? 'is-active' : ''}`}
@@ -2339,6 +2435,16 @@ export default function LiveDrawClient({
                       : `manual belum sinkron${externalPerBatchValidation.moto2BatchMismatch.length > 0 ? ` (batch mismatch ${externalPerBatchValidation.moto2BatchMismatch.join(', ')})` : ''}`
                     : 'otomatis reverse saat generate moto'}
                 </div>
+                {qualificationMotoCount >= 3 && externalPerBatchValidation.batchCount > 1 && (
+                  <div style={{ color: externalPerBatchValidation.isValidMoto3 ? '#166534' : '#92400e' }}>
+                    Moto 3:{' '}
+                    {externalPerBatchValidation.moto3Provided
+                      ? externalPerBatchValidation.isValidMoto3
+                        ? 'manual siap dan batch sesuai Moto 1'
+                        : `manual belum sinkron${externalPerBatchValidation.moto3BatchMismatch.length > 0 ? ` (batch mismatch ${externalPerBatchValidation.moto3BatchMismatch.join(', ')})` : ''}`
+                      : `otomatis ${moto3Order === 'SAME' ? 'mengikuti Moto 1' : 'dibalik dari Moto 1'}`}
+                  </div>
+                )}
               </div>
 
               <div className="ld-manual-editor" style={{ display: 'grid', gap: 12, marginTop: 8 }}>
@@ -2727,33 +2833,16 @@ export default function LiveDrawClient({
                     }
                   } else {
                     for (const batch of batchLayouts) {
-                      const moto2Manual =
-                        drawMode === 'external_draw' &&
-                          externalBatchInputMode === 'PER_BATCH' &&
-                          externalPerBatchValidation.moto2Provided
-                          ? externalPerBatchValidation.orderedMoto2Batches[batch.index - 1] ?? []
-                          : []
-                      const moto2Riders = moto2Manual.length > 0 ? moto2Manual : [...batch.riders].reverse()
                       const blob = await buildDrawBatchPngBlob({
                         batchLabel: `Batch ${batch.index}`,
-                        motos: [
-                          {
-                            title: 'Moto 1',
-                            rows: batch.riders.map((rider, i) => ({
-                              gate: i + 1,
-                              plate: rider.no_plate_display,
-                              name: rider.name,
-                            })),
-                          },
-                          {
-                            title: 'Moto 2',
-                            rows: moto2Riders.map((rider, i) => ({
-                              gate: i + 1,
-                              plate: rider.no_plate_display,
-                              name: rider.name,
-                            })),
-                          },
-                        ],
+                        motos: getDraftMotoAssignments(batch.index, batch.riders).map((moto) => ({
+                          title: moto.title,
+                          rows: moto.riders.map((rider, i) => ({
+                            gate: i + 1,
+                            plate: rider.no_plate_display,
+                            name: rider.name,
+                          })),
+                        })),
                       })
                       blobs.push(blob)
                       filenames.push(`${sanitizeFileName(eventName)}-${sanitizeFileName(selectedCategoryLabel)}-batch-${batch.index}.png`)
@@ -2910,33 +2999,16 @@ export default function LiveDrawClient({
                       const filenames: string[] = [];
 
                       for (const batch of batches) {
-                        const moto2Manual =
-                          drawMode === 'external_draw' &&
-                            externalBatchInputMode === 'PER_BATCH' &&
-                            externalPerBatchValidation.moto2Provided
-                            ? externalPerBatchValidation.orderedMoto2Batches[batch.index - 1] ?? []
-                            : []
-                        const moto2Riders = moto2Manual.length > 0 ? moto2Manual : [...batch.riders].reverse()
                         const blob = await buildDrawBatchPngBlob({
                           batchLabel: `Batch ${batch.index}`,
-                          motos: [
-                            {
-                              title: 'Moto 1',
-                              rows: batch.riders.map((rider, i) => ({
-                                gate: i + 1,
-                                plate: rider.no_plate_display,
-                                name: rider.name,
-                              })),
-                            },
-                            {
-                              title: 'Moto 2',
-                              rows: moto2Riders.map((rider, i) => ({
-                                gate: i + 1,
-                                plate: rider.no_plate_display,
-                                name: rider.name,
-                              })),
-                            },
-                          ],
+                          motos: getDraftMotoAssignments(batch.index, batch.riders).map((moto) => ({
+                            title: moto.title,
+                            rows: moto.riders.map((rider, i) => ({
+                              gate: i + 1,
+                              plate: rider.no_plate_display,
+                              name: rider.name,
+                            })),
+                          })),
                         })
                         blobs.push(blob)
                         filenames.push(`${sanitizeFileName(eventName)}-${sanitizeFileName(selectedCategoryLabel)}-batch-${batch.index}.png`)
@@ -3305,7 +3377,7 @@ export default function LiveDrawClient({
                             ? 'Moto 2: urutan gate manual sesuai editor batch.'
                             : `Moto 2: urutan gate otomatis dibalik (Gate ${batch.riders.length} > 1).`}
                         </div>
-                        <div>{formatMoto3Hint(batches.length)}</div>
+                        <div>{formatMoto3Hint(batches.length, qualificationMotoCount)}</div>
                       </div>
                     </div>
                   ))}

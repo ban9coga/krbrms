@@ -3,6 +3,8 @@ export type DrawBatchMode = (typeof DRAW_BATCH_MODES)[number]
 
 export const DRAW_MOTO2_ORDERS = ['REVERSE', 'SAME'] as const
 export type DrawMoto2Order = (typeof DRAW_MOTO2_ORDERS)[number]
+export const DRAW_MOTO3_ORDERS = ['REVERSE', 'SAME'] as const
+export type DrawMoto3Order = (typeof DRAW_MOTO3_ORDERS)[number]
 
 export type DrawCategoryConfig = {
   batch_mode: DrawBatchMode
@@ -10,6 +12,7 @@ export type DrawCategoryConfig = {
   batch_count: number | null
   custom_batch_sizes: number[]
   moto2_order: DrawMoto2Order
+  moto3_order: DrawMoto3Order
 }
 
 export const DEFAULT_DRAW_CATEGORY_CONFIG: DrawCategoryConfig = {
@@ -18,6 +21,7 @@ export const DEFAULT_DRAW_CATEGORY_CONFIG: DrawCategoryConfig = {
   batch_count: null,
   custom_batch_sizes: [],
   moto2_order: 'REVERSE',
+  moto3_order: 'SAME',
 }
 
 const positiveInteger = (value: unknown) => {
@@ -33,6 +37,9 @@ export const normalizeDrawCategoryConfig = (value: unknown): DrawCategoryConfig 
   const moto2Order = DRAW_MOTO2_ORDERS.includes(source.moto2_order as DrawMoto2Order)
     ? (source.moto2_order as DrawMoto2Order)
     : DEFAULT_DRAW_CATEGORY_CONFIG.moto2_order
+  const moto3Order = DRAW_MOTO3_ORDERS.includes(source.moto3_order as DrawMoto3Order)
+    ? (source.moto3_order as DrawMoto3Order)
+    : DEFAULT_DRAW_CATEGORY_CONFIG.moto3_order
   const batchSize = positiveInteger(source.batch_size)
   const batchCount = positiveInteger(source.batch_count)
   const customBatchSizes = Array.isArray(source.custom_batch_sizes)
@@ -45,5 +52,6 @@ export const normalizeDrawCategoryConfig = (value: unknown): DrawCategoryConfig 
     batch_count: batchCount,
     custom_batch_sizes: customBatchSizes,
     moto2_order: moto2Order,
+    moto3_order: moto3Order,
   }
 }

@@ -29,7 +29,7 @@ const loadDrawConfiguration = async (eventId: string, categoryId: string) => {
   const [{ data: config, error: configError }, { data: settings, error: settingsError }] = await Promise.all([
     adminClient
       .from('race_stage_config')
-      .select('qualification_moto_count, draw_batch_mode, draw_batch_size, draw_batch_count, draw_custom_batch_sizes, draw_moto2_order')
+      .select('qualification_moto_count, draw_batch_mode, draw_batch_size, draw_batch_count, draw_custom_batch_sizes, draw_moto2_order, draw_moto3_order')
       .eq('event_id', eventId)
       .eq('category_id', categoryId)
       .maybeSingle(),
@@ -50,7 +50,7 @@ const loadDrawConfiguration = async (eventId: string, categoryId: string) => {
   return {
     error: null,
     gatePositions: Math.max(1, Number(format.gate_positions ?? 8)),
-    qualificationMotoCount: Math.max(2, Number(config?.qualification_moto_count ?? 2)),
+    qualificationMotoCount: Math.min(3, Math.max(2, Number(config?.qualification_moto_count ?? 2))),
     drawMode: format.draw_mode === 'external_draw' ? 'external_draw' : 'internal_live_draw',
     config: normalizeDrawCategoryConfig({
       batch_mode: config?.draw_batch_mode,
@@ -58,6 +58,7 @@ const loadDrawConfiguration = async (eventId: string, categoryId: string) => {
       batch_count: config?.draw_batch_count,
       custom_batch_sizes: config?.draw_custom_batch_sizes,
       moto2_order: config?.draw_moto2_order,
+      moto3_order: config?.draw_moto3_order,
     }),
   }
 }
@@ -112,6 +113,15 @@ const chunk = <T,>(items: T[], size: number) => {
     cursor += size
   }
   return batches
+}
+
+const splitByBatchShape = <T,>(items: T[], referenceBatches: T[][]) => {
+  let cursor = 0
+  return referenceBatches.map((batch) => {
+    const next = items.slice(cursor, cursor + batch.length)
+    cursor += batch.length
+    return next
+  })
 }
 
 const buildBatchesByCount = <T,>(items: T[], batchCount: number) => {
@@ -270,12 +280,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   const categoryId = body?.category_id as string | undefined
   const riderIds = (body?.rider_ids ?? []) as string[]
   const riderIdsMoto2 = (body?.rider_ids_moto2 ?? []) as string[]
+  const riderIdsMoto3 = (body?.rider_ids_moto3 ?? []) as string[]
   const riderBatches = (body?.rider_batches ?? []) as string[][]
   const riderBatchesMoto2 = (body?.rider_batches_moto2 ?? []) as string[][]
+  const riderBatchesMoto3 = (body?.rider_batches_moto3 ?? []) as string[][]
   const batchSize = Math.max(4, Math.min(8, Number(body?.batch_size ?? 8)))
   const hasCustomMoto2 = Array.isArray(riderIdsMoto2) && riderIdsMoto2.length > 0
   const hasManualBatches = Array.isArray(riderBatches) && riderBatches.length > 0
   const hasManualMoto2Batches = Array.isArray(riderBatchesMoto2) && riderBatchesMoto2.length > 0
+  const hasCustomMoto3 = Array.isArray(riderIdsMoto3) && riderIdsMoto3.length > 0
+  const hasManualMoto3Batches = Array.isArray(riderBatchesMoto3) && riderBatchesMoto3.length > 0
 
   if (!categoryId) return NextResponse.json({ error: 'category_id required' }, { status: 400 })
   if (!hasManualBatches && (!Array.isArray(riderIds) || riderIds.length === 0)) {
@@ -283,6 +297,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   }
   if (!hasManualBatches && hasCustomMoto2 && riderIdsMoto2.length !== riderIds.length) {
     return NextResponse.json({ error: 'rider_ids_moto2 length must match rider_ids' }, { status: 400 })
+  }
+  if (!hasManualBatches && hasCustomMoto3 && riderIdsMoto3.length !== riderIds.length) {
+    return NextResponse.json({ error: 'rider_ids_moto3 length must match rider_ids' }, { status: 400 })
   }
 
   const category = await loadCategory(eventId, categoryId)
@@ -318,6 +335,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     for (const id of effectiveMoto2Ids) {
       if (!allowedIds.has(id)) {
         return NextResponse.json({ error: 'rider_ids_moto2 contains invalid rider' }, { status: 400 })
+      }
+    }
+  }
+  if (hasCustomMoto3 || hasManualMoto3Batches) {
+    const effectiveMoto3Ids = hasManualMoto3Batches ? flatten(riderBatchesMoto3) : riderIdsMoto3
+    const uniqueMoto3Ids = new Set(effectiveMoto3Ids)
+    if (uniqueMoto3Ids.size !== effectiveMoto3Ids.length) {
+      return NextResponse.json({ error: 'Duplicate rider_ids_moto3 detected' }, { status: 400 })
+    }
+    for (const id of effectiveMoto3Ids) {
+      if (!allowedIds.has(id)) {
+        return NextResponse.json({ error: 'rider_ids_moto3 contains invalid rider' }, { status: 400 })
       }
     }
   }
@@ -359,7 +388,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
         ? effectiveBatches
         : chunk(riderIds, batchSize)
   const capacityLimit = drawConfiguration.drawMode === 'internal_live_draw' ? gateCapacity : batchSize
-  const moto2Batches = hasManualMoto2Batches ? riderBatchesMoto2.filter((batch) => Array.isArray(batch) && batch.length > 0) : hasCustomMoto2 ? chunk(riderIdsMoto2, batchSize) : []
+  const moto2Batches = hasManualMoto2Batches
+    ? riderBatchesMoto2.filter((batch) => Array.isArray(batch) && batch.length > 0)
+    : hasCustomMoto2
+      ? splitByBatchShape(riderIdsMoto2, batches)
+      : []
+  const moto3Batches = hasManualMoto3Batches
+    ? riderBatchesMoto3.filter((batch) => Array.isArray(batch) && batch.length > 0)
+    : hasCustomMoto3
+      ? splitByBatchShape(riderIdsMoto3, batches)
+      : []
+  const createMoto3 = batches.length > 1 && drawConfiguration.qualificationMotoCount >= 3
+  if (!createMoto3 && (hasCustomMoto3 || hasManualMoto3Batches)) {
+    return NextResponse.json({ error: 'Moto 3 hanya bisa diatur untuk kategori multi-batch yang memakai 3 moto kualifikasi.' }, { status: 400 })
+  }
   const overCapacityBatches = batches
     .map((batch, index) => (batch.length > capacityLimit ? index + 1 : null))
     .filter((value): value is number => value !== null)
@@ -390,10 +432,33 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       }
     }
   }
+  if (hasCustomMoto3 && moto3Batches.length !== batches.length) {
+    return NextResponse.json({ error: 'rider_ids_moto3 batch shape invalid' }, { status: 400 })
+  }
+  if (hasManualMoto3Batches && riderBatchesMoto3.length !== batches.length) {
+    return NextResponse.json({ error: 'rider_batches_moto3 batch shape invalid' }, { status: 400 })
+  }
+  if (hasCustomMoto3 || hasManualMoto3Batches) {
+    for (let i = 0; i < batches.length; i += 1) {
+      const moto3Batch = moto3Batches[i] ?? []
+      if (moto3Batch.length > capacityLimit) {
+        return NextResponse.json({ error: `rider_ids_moto3 batch ${i + 1} melebihi kapasitas maksimal ${capacityLimit} rider` }, { status: 400 })
+      }
+      if (!sameSet(batches[i], moto3Batch)) {
+        return NextResponse.json({ error: `rider_ids_moto3 batch ${i + 1} must contain same riders as moto1 batch ${i + 1}` }, { status: 400 })
+      }
+    }
+  }
   const finalizedMoto2Batches = batches.map((batch, batchIndex) => {
     if (hasManualMoto2Batches || hasCustomMoto2) return moto2Batches[batchIndex] ?? []
     return drawConfiguration.config?.moto2_order === 'SAME' ? [...batch] : [...batch].reverse()
   })
+  const finalizedMoto3Batches = !createMoto3
+    ? []
+    : batches.map((batch, batchIndex) => {
+        if (hasManualMoto3Batches || hasCustomMoto3) return moto3Batches[batchIndex] ?? []
+        return drawConfiguration.config?.moto3_order === 'REVERSE' ? [...batch].reverse() : [...batch]
+      })
 
   // The RPC uses one database transaction plus an event advisory lock. This
   // avoids partially created motos and prevents simultaneous saves from two
@@ -403,6 +468,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     p_category_id: categoryId,
     p_batches: batches,
     p_moto2_batches: finalizedMoto2Batches,
+    p_moto3_batches: finalizedMoto3Batches,
   })
 
   if (saveError) {
@@ -415,7 +481,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   return NextResponse.json({
     data: {
       batch_count: Number(summary?.batch_count ?? batches.length),
-      moto_count: Number(summary?.moto_count ?? batches.length * 2),
+      moto_count: Number(summary?.moto_count ?? batches.length * (createMoto3 ? 3 : 2)),
       gate_positions_saved: Number(summary?.gate_positions_saved ?? 0) > 0,
     },
   })

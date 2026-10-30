@@ -41,7 +41,8 @@ type CustomSplitRule = {
   source_stage: 'QUALIFICATION' | 'QUARTER_FINAL' | 'SEMI_FINAL' | 'REPECHAGE'
   rank_from: number
   rank_to: number
-  target_stage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'REPECHAGE' | 'FINAL'
+  target_stage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'REPECHAGE' | 'FINAL' | 'FINISHER'
+  target_outcome?: 'STAGE' | 'FINISHER'
   target_final_class: string | null
   sort_order: number
   split_basis: 'COMBINED' | 'PER_BATCH' | 'CUSTOM_PER_BATCH' | 'GLOBAL_ACTIVE_FIRST'
@@ -50,7 +51,7 @@ type CustomSplitRule = {
 
 const DEFAULT_FINAL_CLASS_OPTIONS = ['ELITE', 'NOVICE', 'PRO', 'ROOKIE', 'ADVANCED', 'INTERMEDIATE', 'ACADEMY', 'AMATEUR', 'BEGINNER']
 const SOURCE_STAGE_OPTIONS: Array<CustomSplitRule['source_stage']> = ['QUALIFICATION', 'QUARTER_FINAL', 'SEMI_FINAL', 'REPECHAGE']
-const TARGET_STAGE_OPTIONS: Array<CustomSplitRule['target_stage']> = ['FINAL', 'SEMI_FINAL', 'REPECHAGE', 'QUARTER_FINAL']
+const TARGET_STAGE_OPTIONS: Array<CustomSplitRule['target_stage']> = ['FINAL', 'SEMI_FINAL', 'REPECHAGE', 'QUARTER_FINAL', 'FINISHER']
 const SPLIT_BASIS_OPTIONS: Array<CustomSplitRule['split_basis']> = [
   'COMBINED',
   'PER_BATCH',
@@ -87,6 +88,7 @@ const createEmptyRule = (
 
 type RaceEstimate = {
   qualificationRaceCount: number
+  qualificationMotoCount: number
   quarterRaceCount: number
   repechageRaceCount: number
   semiRaceCount: number
@@ -160,7 +162,7 @@ const applyRulesToBuckets = (rules: CustomSplitRule[], sourceStage: CustomSplitR
       const count = countCoveredRanks(total, rule.rank_from, rule.rank_to)
       if (rule.target_stage === 'FINAL') {
         finalCounts.set(rule.target_final_class ?? 'ELITE', (finalCounts.get(rule.target_final_class ?? 'ELITE') ?? 0) + count)
-      } else {
+      } else if (rule.target_stage !== 'FINISHER') {
         stageCounts[rule.target_stage] += count
       }
     })
@@ -173,7 +175,7 @@ const applyRulesToBuckets = (rules: CustomSplitRule[], sourceStage: CustomSplitR
         const count = countCoveredRanks(bucketSize, rule.rank_from, rule.rank_to)
         if (rule.target_stage === 'FINAL') {
           finalCounts.set(rule.target_final_class ?? 'ELITE', (finalCounts.get(rule.target_final_class ?? 'ELITE') ?? 0) + count)
-        } else {
+        } else if (rule.target_stage !== 'FINISHER') {
           stageCounts[rule.target_stage] += count
         }
       })
@@ -189,7 +191,7 @@ const applyRulesToBuckets = (rules: CustomSplitRule[], sourceStage: CustomSplitR
         const count = countCoveredRanks(bucketSize, rule.rank_from, rule.rank_to)
         if (rule.target_stage === 'FINAL') {
           finalCounts.set(rule.target_final_class ?? 'ELITE', (finalCounts.get(rule.target_final_class ?? 'ELITE') ?? 0) + count)
-        } else {
+        } else if (rule.target_stage !== 'FINISHER') {
           stageCounts[rule.target_stage] += count
         }
       })
@@ -218,7 +220,19 @@ const estimateRaceCounts = (category: CategoryRow, rules: CustomSplitRule[]): Ra
 
   const qualificationBatchCount = qualificationBucketSizes.length
   const qualificationRaceCount =
-    qualificationBatchCount === 0 ? 0 : qualificationBatchCount === 1 ? 3 : qualificationBatchCount * 2
+    qualificationBatchCount === 0
+      ? 0
+      : qualificationBatchCount === 1
+        ? 3
+        : qualificationBatchCount * (Number(category.qualification_moto_count ?? 2) >= 3 ? 3 : 2)
+  const qualificationMotoCount =
+    qualificationBatchCount === 0
+      ? 0
+      : qualificationBatchCount === 1
+        ? 3
+        : Number(category.qualification_moto_count ?? 2) >= 3
+          ? 3
+          : 2
 
   const qualificationOutputs = applyRulesToBuckets(rules, 'QUALIFICATION', qualificationBucketSizes)
 
@@ -268,7 +282,7 @@ const estimateRaceCounts = (category: CategoryRow, rules: CustomSplitRule[]): Ra
     notes.push('1 batch memakai 3 moto qualification.')
     notes.push('Urutan gate Moto 3 mengikuti total point terkecil dari Moto 1 dan Moto 2.')
   } else if (qualificationBatchCount > 1) {
-    notes.push(`Qualification dihitung ${qualificationRaceCount} race dari ${qualificationBatchCount} batch x 2 moto.`)
+    notes.push(`Qualification dihitung ${qualificationRaceCount} race dari ${qualificationBatchCount} batch x ${qualificationMotoCount} moto.`)
   }
   if (repechageRaceCount > 0) notes.push(`Repechage: ${repechageRaceCount} moto/race.`)
   if (quarterRaceCount > 0) notes.push(`Quarter Final: ${quarterRaceCount} moto/race.`)
@@ -277,6 +291,7 @@ const estimateRaceCounts = (category: CategoryRow, rules: CustomSplitRule[]): Ra
 
   return {
     qualificationRaceCount,
+    qualificationMotoCount,
     quarterRaceCount,
     repechageRaceCount,
     semiRaceCount,
@@ -287,12 +302,7 @@ const estimateRaceCounts = (category: CategoryRow, rules: CustomSplitRule[]): Ra
 }
 
 const buildRiderRaceEstimateText = (estimate: RaceEstimate) => {
-  const qualificationPerRider =
-    estimate.qualificationRaceCount <= 0
-      ? 0
-      : estimate.qualificationRaceCount === 3
-        ? 3
-        : 2
+  const qualificationPerRider = estimate.qualificationMotoCount
   const extraStageCount =
     (estimate.repechageRaceCount > 0 ? 1 : 0) +
     (estimate.quarterRaceCount > 0 ? 1 : 0) +
@@ -312,7 +322,7 @@ const buildRiderRaceEstimateText = (estimate: RaceEstimate) => {
 }
 
 const buildCustomStageGuideLines = (rules: CustomSplitRule[]) => {
-  const targetStageOrder: Array<CustomSplitRule['target_stage']> = ['QUARTER_FINAL', 'REPECHAGE', 'SEMI_FINAL', 'FINAL']
+  const targetStageOrder: Array<CustomSplitRule['target_stage']> = ['QUARTER_FINAL', 'REPECHAGE', 'SEMI_FINAL', 'FINAL', 'FINISHER']
   return SOURCE_STAGE_OPTIONS
     .filter((stage) => rules.some((rule) => rule.source_stage === stage))
     .map((sourceStage) => {
@@ -320,6 +330,7 @@ const buildCustomStageGuideLines = (rules: CustomSplitRule[]) => {
       const labels = targetStageOrder.flatMap((targetStage) => {
         const targetRules = stageRules.filter((rule) => rule.target_stage === targetStage)
         if (targetRules.length === 0) return []
+        if (targetStage === 'FINISHER') return ['Finisher']
         if (targetStage === 'FINAL') {
           return Array.from(new Set(targetRules.map((rule) => rule.target_final_class).filter(Boolean))).map(
             (finalClass) => `Final ${finalClass}`
@@ -371,6 +382,10 @@ const buildCustomAutomationNotes = (rules: CustomSplitRule[]) => {
     } else {
       notes.push('Final akan dibuat setelah qualification selesai dihitung.')
     }
+  }
+
+  if (targetStages.has('FINISHER')) {
+    notes.push('Rider pada rentang Finisher tampil sebagai hasil akhir di tabel Qualification dan tidak dibuatkan moto tambahan.')
   }
 
   return notes
@@ -608,7 +623,11 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
             rules
               .map((rule) => {
                 const rankLabel = `${rule.rank_from}-${rule.rank_to}`
-                const targetLabel = rule.target_stage === 'FINAL' ? rule.target_final_class : formatStageLabel(rule.target_stage)
+                const targetLabel = rule.target_stage === 'FINAL'
+                  ? rule.target_final_class
+                  : rule.target_stage === 'FINISHER'
+                    ? 'FINISHER'
+                    : formatStageLabel(rule.target_stage)
                 return rule.split_basis === 'CUSTOM_PER_BATCH'
                   ? `${formatStageLabel(rule.source_stage)} | Batch ${rule.batch_no ?? '?'} ${rankLabel} -> ${targetLabel}`
                   : `${formatStageLabel(rule.source_stage)} | ${rankLabel} -> ${targetLabel}`
@@ -687,7 +706,11 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
                 : `Final class default kategori ini: ${(category.final_classes ?? []).join(', ') || 'ELITE'}.`,
             ]
           : rules.map((rule) => {
-              const targetLabel = rule.target_stage === 'FINAL' ? `Final ${rule.target_final_class}` : formatStageLabel(rule.target_stage)
+              const targetLabel = rule.target_stage === 'FINAL'
+                ? `Final ${rule.target_final_class}`
+                : rule.target_stage === 'FINISHER'
+                  ? 'Finisher (tanpa moto tambahan)'
+                  : formatStageLabel(rule.target_stage)
               const riderCount = estimateRuleRiderCount(rule, stageBucketSizes)
               const countLabel = riderCount > 0 ? `, estimasi ${riderCount} rider` : ''
               if (rule.split_basis === 'CUSTOM_PER_BATCH') {
@@ -922,6 +945,51 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
     })
   }
 
+  const applyTwoFinalFinisherPreset = (category: CategoryRow) => {
+    const totalRiders = Math.max(0, Number(category.total_riders ?? 0))
+    const maxRidersPerFinal = Math.max(1, Number(category.max_riders_per_race ?? 8))
+    if (!finalClassOptions.includes('ELITE') || !finalClassOptions.includes('NOVICE')) {
+      alert('Aktifkan Final Class ELITE dan NOVICE pada Event Settings sebelum memakai format ini.')
+      return
+    }
+    if (totalRiders === 0) {
+      alert('Kategori belum memiliki rider terdaftar.')
+      return
+    }
+
+    const eliteEnd = Math.min(totalRiders, maxRidersPerFinal)
+    const noviceStart = eliteEnd + 1
+    const noviceEnd = Math.min(totalRiders, maxRidersPerFinal * 2)
+    const finisherStart = noviceEnd + 1
+    const nextRules: CustomSplitRule[] = [
+      {
+        ...createEmptyRule(category.id, 0, 'COMBINED', 'ELITE'),
+        rank_from: 1,
+        rank_to: eliteEnd,
+        target_stage: 'FINAL',
+      },
+    ]
+    if (noviceStart <= noviceEnd) {
+      nextRules.push({
+        ...createEmptyRule(category.id, 1, 'COMBINED', 'NOVICE'),
+        rank_from: noviceStart,
+        rank_to: noviceEnd,
+        target_stage: 'FINAL',
+      })
+    }
+    if (finisherStart <= totalRiders) {
+      nextRules.push({
+        ...createEmptyRule(category.id, nextRules.length, 'COMBINED'),
+        rank_from: finisherStart,
+        rank_to: totalRiders,
+        target_stage: 'FINISHER',
+        target_final_class: null,
+        target_outcome: 'FINISHER',
+      })
+    }
+    setRulesByCategory((previous) => ({ ...previous, [category.id]: nextRules }))
+  }
+
   const updateSplitBasis = (
     categoryId: string,
     sourceStage: CustomSplitRule['source_stage'],
@@ -965,6 +1033,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
       rank_from: Number(rule.rank_from),
       rank_to: Number(rule.rank_to),
       target_final_class: rule.target_stage === 'FINAL' ? rule.target_final_class ?? defaultFinalClass : null,
+      target_outcome: rule.target_stage === 'FINISHER' ? 'FINISHER' : 'STAGE',
       split_basis:
         rule.split_basis === 'CUSTOM_PER_BATCH'
           ? 'CUSTOM_PER_BATCH'
@@ -1095,6 +1164,11 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
         categories.map((category) => {
           const rules = rulesByCategory[category.id] ?? []
           const estimate = estimateRaceCounts(category, rules)
+          const maxRidersPerRace = Math.max(1, Number(category.max_riders_per_race ?? 8))
+          const estimatedBatchCount = Math.max(
+            0,
+            Number(category.qualification_batch_count ?? Math.ceil(Math.max(0, Number(category.total_riders ?? 0)) / maxRidersPerRace))
+          )
           return (
             <section
               key={category.id}
@@ -1149,7 +1223,23 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
                   </div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#475569' }}>{categorySummary[category.id]}</div>
                 </div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }} />
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {estimatedBatchCount > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => applyTwoFinalFinisherPreset(category)}
+                      style={{
+                        padding: '9px 12px',
+                        borderRadius: 10,
+                        border: '2px solid #111',
+                        background: '#dbeafe',
+                        fontWeight: 900,
+                      }}
+                    >
+                      Pakai 2 Final + Finisher
+                    </button>
+                  )}
+                </div>
               </div>
 
               {rules.length === 0 && (
@@ -1264,6 +1354,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
                         updateRule(category.id, index, {
                           target_stage: e.target.value as CustomSplitRule['target_stage'],
                           target_final_class: e.target.value === 'FINAL' ? rule.target_final_class ?? defaultFinalClass : null,
+                          target_outcome: e.target.value === 'FINISHER' ? 'FINISHER' : 'STAGE',
                         })
                       }
                       style={{ padding: '10px 12px', borderRadius: 10, border: '2px solid #111', background: '#fff' }}

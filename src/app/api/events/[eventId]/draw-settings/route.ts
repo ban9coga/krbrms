@@ -19,7 +19,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         .order('sequence_order', { ascending: true }),
       adminClient
         .from('race_stage_config')
-        .select('category_id, draw_batch_mode, draw_batch_size, draw_batch_count, draw_custom_batch_sizes, draw_moto2_order')
+        .select('category_id, qualification_moto_count, draw_batch_mode, draw_batch_size, draw_batch_count, draw_custom_batch_sizes, draw_moto2_order, draw_moto3_order')
         .eq('event_id', eventId),
       adminClient
         .from('event_settings')
@@ -43,6 +43,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         batch_count: config.draw_batch_count,
         custom_batch_sizes: config.draw_custom_batch_sizes,
         moto2_order: config.draw_moto2_order,
+        moto3_order: config.draw_moto3_order,
       }),
     ])
   )
@@ -54,6 +55,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       draw_mode: raceFormat.draw_mode === 'external_draw' ? 'external_draw' : 'internal_live_draw',
       categories: (categories ?? []).map((category) => ({
         ...category,
+        qualification_moto_count: Math.max(2, Math.min(3, Number(configs?.find((config) => config.category_id === category.id)?.qualification_moto_count ?? 2))),
         draw_config: configByCategory.get(category.id) ?? normalizeDrawCategoryConfig({}),
       })),
     },
@@ -70,6 +72,10 @@ export async function PUT(req: Request, { params }: { params: Promise<{ eventId:
   if (!categoryId) return NextResponse.json({ error: 'category_id required' }, { status: 400 })
 
   const config = normalizeDrawCategoryConfig(body?.draw_config)
+  const qualificationMotoCount = body?.qualification_moto_count == null ? undefined : Number(body.qualification_moto_count)
+  if (qualificationMotoCount != null && ![2, 3].includes(qualificationMotoCount)) {
+    return NextResponse.json({ error: 'Jumlah moto kualifikasi harus 2 atau 3.' }, { status: 400 })
+  }
   if (config.batch_mode === 'MANUAL_BATCH_COUNT' && !config.batch_count) {
     return NextResponse.json({ error: 'Jumlah batch wajib diisi untuk mode batch manual.' }, { status: 400 })
   }
@@ -108,28 +114,32 @@ export async function PUT(req: Request, { params }: { params: Promise<{ eventId:
         {
           event_id: eventId,
           category_id: categoryId,
+          ...(qualificationMotoCount != null ? { qualification_moto_count: qualificationMotoCount } : {}),
           draw_batch_mode: config.batch_mode,
           draw_batch_size: config.batch_size,
           draw_batch_count: config.batch_count,
           draw_custom_batch_sizes: config.custom_batch_sizes,
           draw_moto2_order: config.moto2_order,
+          draw_moto3_order: config.moto3_order,
         },
       ],
       { onConflict: 'event_id,category_id' }
     )
-    .select('category_id, draw_batch_mode, draw_batch_size, draw_batch_count, draw_custom_batch_sizes, draw_moto2_order')
+    .select('category_id, qualification_moto_count, draw_batch_mode, draw_batch_size, draw_batch_count, draw_custom_batch_sizes, draw_moto2_order, draw_moto3_order')
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
   return NextResponse.json({
     data: {
       category_id: data.category_id,
+      qualification_moto_count: Math.max(2, Math.min(3, Number(data.qualification_moto_count ?? 2))),
       draw_config: normalizeDrawCategoryConfig({
         batch_mode: data.draw_batch_mode,
         batch_size: data.draw_batch_size,
         batch_count: data.draw_batch_count,
         custom_batch_sizes: data.draw_custom_batch_sizes,
         moto2_order: data.draw_moto2_order,
+        moto3_order: data.draw_moto3_order,
       }),
     },
   })

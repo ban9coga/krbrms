@@ -89,7 +89,8 @@ type QualificationCustomRuleRow = {
   source_stage: 'QUALIFICATION' | 'QUARTER_FINAL' | 'REPECHAGE' | 'SEMI_FINAL'
   rank_from: number
   rank_to: number
-  target_stage: 'QUARTER_FINAL' | 'REPECHAGE' | 'SEMI_FINAL' | 'FINAL'
+  target_stage: 'QUARTER_FINAL' | 'REPECHAGE' | 'SEMI_FINAL' | 'FINAL' | null
+  target_outcome?: 'STAGE' | 'FINISHER' | null
   target_final_class: string | null
   split_basis: 'COMBINED' | 'PER_BATCH' | 'CUSTOM_PER_BATCH' | 'GLOBAL_ACTIVE_FIRST' | null
   batch_no: number | null
@@ -226,8 +227,15 @@ const resolvePenaltyStagesForMoto = (name: string): Array<'QUARTER' | 'REPECHAGE
 
 const formatQualificationTargetLabel = (
   targetStage: QualificationCustomRuleRow['target_stage'],
-  targetFinalClass: string | null
-) => (targetStage === 'FINAL' ? `FINAL ${targetFinalClass ?? 'ELITE'}` : formatStageAdvanceLabel({ toStage: targetStage }))
+  targetFinalClass: string | null,
+  targetOutcome?: QualificationCustomRuleRow['target_outcome']
+) => targetOutcome === 'FINISHER'
+  ? 'FINISHER'
+  : targetStage === 'FINAL'
+    ? `FINAL ${targetFinalClass ?? 'ELITE'}`
+    : targetStage
+      ? formatStageAdvanceLabel({ toStage: targetStage })
+      : null
 
 const parseStageHeatIndex = (name: string) => {
   const match = name.match(/(?:heat|batch)\s*(\d+)/i)
@@ -272,7 +280,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       : Promise.resolve({ data: null, error: null }),
     adminClient
       .from('race_stage_config')
-      .select('dnf_point_override, dns_point_override')
+      .select('dnf_point_override, dns_point_override, qualification_moto_count')
       .eq('event_id', eventId)
       .eq('category_id', categoryId)
       .maybeSingle(),
@@ -368,14 +376,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       .eq('category_id', categoryId),
     adminClient
       .from('race_category_custom_split_rule')
-      .select('source_stage, rank_from, rank_to, target_stage, target_final_class, split_basis, batch_no')
+      .select('source_stage, rank_from, rank_to, target_stage, target_outcome, target_final_class, split_basis, batch_no')
       .eq('category_id', categoryId)
       .eq('source_stage', 'QUALIFICATION')
       .order('sort_order', { ascending: true })
       .order('rank_from', { ascending: true }),
     adminClient
       .from('race_category_custom_split_rule')
-      .select('source_stage, rank_from, rank_to, target_stage, target_final_class, split_basis, batch_no')
+      .select('source_stage, rank_from, rank_to, target_stage, target_outcome, target_final_class, split_basis, batch_no')
       .eq('category_id', categoryId)
       .in('source_stage', ['QUARTER_FINAL', 'REPECHAGE', 'SEMI_FINAL'])
       .order('sort_order', { ascending: true })
@@ -573,7 +581,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     ? resultRows.filter((row) => row.moto_id === qualificationMoto3.id).length
     : 0
   const qualificationTieBreakMotoIndexes =
-    batchEntries.length === 1 && qualificationMoto3AssignedCount > 0 && qualificationMoto3ResultCount >= qualificationMoto3AssignedCount
+    Number(pointOverrideConfig?.qualification_moto_count ?? 2) >= 3 ||
+    (batchEntries.length === 1 && qualificationMoto3AssignedCount > 0 && qualificationMoto3ResultCount >= qualificationMoto3AssignedCount)
       ? [3]
       : [2, 1]
   const stageBatchOrderById = new Map<string, number>()
@@ -618,6 +627,40 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       qualificationGateByRider.set(gate.rider_id, gate.gate_position)
     }
   }
+
+  const nextQualificationLabelForRank = (rank: number | null | undefined, riderId: string, batchIndex: number) => {
+    if (!rank || qualificationRules.length === 0) return null
+    if (qualificationSplitBasis === 'GLOBAL_ACTIVE_FIRST') {
+      const riderAssignments = stageSeedRows.filter(
+        (stageRow) => stageRow.rider_id === riderId && stageRow.stage !== 'QUALIFICATION'
+      )
+      const assigned = riderAssignments.find((stageRow) => stageRow.position === null) ?? riderAssignments[0]
+      if (assigned && assigned.stage !== 'QUALIFICATION') {
+        return formatQualificationTargetLabel(assigned.stage, assigned.final_class ?? null)
+      }
+      return qualificationRules.some((rule) => rule.target_outcome === 'FINISHER')
+        ? 'FINISHER'
+        : assigned && assigned.stage !== 'QUALIFICATION'
+          ? formatQualificationTargetLabel(assigned.stage, assigned.final_class ?? null)
+          : null
+    }
+    const matchingRules =
+      qualificationSplitBasis === 'CUSTOM_PER_BATCH'
+        ? qualificationRules.filter((rule) => (rule.batch_no ?? 1) === batchIndex)
+        : qualificationRules
+    const matchedRule = matchingRules.find((rule) => rank >= rule.rank_from && rank <= rule.rank_to)
+    if (!matchedRule) return null
+    return formatQualificationTargetLabel(matchedRule.target_stage, matchedRule.target_final_class, matchedRule.target_outcome)
+  }
+
+  const combinedQualificationCandidates: Array<{
+    riderId: string
+    points: number
+    batchRank: number
+    batchIndex: number
+    batchId: string
+    tieBreak: ReturnType<typeof createQualificationTieBreakData>
+  }> = []
 
   const batches = batchEntries
     .map(([batchIndex, entry]) => {
@@ -781,26 +824,21 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         }
         rankMap.set(row.rider_id, currentRank)
       })
-
-      const nextQualificationLabelForRank = (rank: number | null | undefined, riderId: string) => {
-        if (!rank || qualificationRules.length === 0) return null
-        if (qualificationSplitBasis === 'GLOBAL_ACTIVE_FIRST') {
-          const riderAssignments = stageSeedRows.filter(
-            (stageRow) => stageRow.rider_id === riderId && stageRow.stage !== 'QUALIFICATION'
-          )
-          const assigned = riderAssignments.find((stageRow) => stageRow.position === null) ?? riderAssignments[0]
-          return assigned && assigned.stage !== 'QUALIFICATION'
-            ? formatQualificationTargetLabel(assigned.stage, assigned.final_class ?? null)
-            : null
+      rankedRows.forEach((row) => {
+        const tieBreak = qualificationTieBreakByRider.get(row.rider_id)
+        const rank = rankMap.get(row.rider_id)
+        const points = qualificationRankingTotalByRider.get(row.rider_id)
+        if (tieBreak && rank && points !== null && points !== undefined) {
+          combinedQualificationCandidates.push({
+            riderId: row.rider_id,
+            points,
+            batchRank: rank,
+            batchIndex,
+            batchId: moto1.id,
+            tieBreak,
+          })
         }
-        const matchingRules =
-          qualificationSplitBasis === 'CUSTOM_PER_BATCH'
-            ? qualificationRules.filter((rule) => (rule.batch_no ?? 1) === batchIndex)
-            : qualificationRules
-        const matchedRule = matchingRules.find((rule) => rank >= rule.rank_from && rank <= rule.rank_to)
-        if (!matchedRule) return null
-        return formatQualificationTargetLabel(matchedRule.target_stage, matchedRule.target_final_class)
-      }
+      })
 
       const ordered = rows
         .map((r) => {
@@ -808,7 +846,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
           return {
             ...r,
             rank_point: rank,
-            class_label: nextQualificationLabelForRank(rank, r.rider_id),
+            class_label: nextQualificationLabelForRank(rank, r.rider_id, batchIndex),
           }
         })
         .sort((a, b) => (a.gate_moto1 ?? 9999) - (b.gate_moto1 ?? 9999))
@@ -835,6 +873,52 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       if (a.batch_index !== b.batch_index) return a.batch_index - b.batch_index
       return a.sequence_order - b.sequence_order
     })
+
+  if (qualificationSplitBasis === 'COMBINED' && combinedQualificationCandidates.length > 0) {
+    const rankedCombined = [...combinedQualificationCandidates].sort((a, b) => {
+      if (a.points !== b.points) return a.points - b.points
+      const tieDiff = compareQualificationTieBreakData(a.tieBreak, b.tieBreak, {
+        dnfProgressEnabled,
+        motoIndexes: qualificationTieBreakMotoIndexes,
+      })
+      if (tieDiff !== 0) return tieDiff
+      if (a.batchRank !== b.batchRank) return a.batchRank - b.batchRank
+      const batchDiff = a.batchId.localeCompare(b.batchId)
+      if (batchDiff !== 0) return batchDiff
+      if (a.batchIndex !== b.batchIndex) return a.batchIndex - b.batchIndex
+      return a.riderId.localeCompare(b.riderId)
+    })
+    const combinedRankByRider = new Map<string, number>()
+    let currentRank = 0
+    let previousPoints: number | null = null
+    let previousBatchRank: number | null = null
+    let previousTieBreak: ReturnType<typeof createQualificationTieBreakData> | undefined
+    rankedCombined.forEach((row, index) => {
+      if (
+        index === 0 ||
+        row.points !== previousPoints ||
+        row.batchRank !== previousBatchRank ||
+        compareQualificationTieBreakData(row.tieBreak, previousTieBreak, {
+          dnfProgressEnabled,
+          motoIndexes: qualificationTieBreakMotoIndexes,
+        }) !== 0
+      ) {
+        currentRank = index + 1
+        previousPoints = row.points
+        previousBatchRank = row.batchRank
+        previousTieBreak = row.tieBreak
+      }
+      combinedRankByRider.set(row.riderId, currentRank)
+    })
+
+    batches.forEach((batch) => {
+      batch.rows.forEach((row) => {
+        const rank = combinedRankByRider.get(row.rider_id) ?? null
+        row.rank_point = rank
+        row.class_label = nextQualificationLabelForRank(rank, row.rider_id, batch.batch_index)
+      })
+    })
+  }
 
   const stageMotos = motoRows
     .filter((m) => !parseBatchKey(m.moto_name))
@@ -1083,6 +1167,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const liveScoreData = {
     category: category.label,
     qualification_split_basis: qualificationSplitBasis,
+    qualification_has_finisher_outcome: qualificationRules.some((rule) => rule.target_outcome === 'FINISHER'),
     qualification_advancements_calculated: stageSeedRows.some((row) => row.stage !== 'QUALIFICATION'),
     qualification_results_official: qualificationResultsOfficial,
     batches,

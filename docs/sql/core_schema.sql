@@ -631,6 +631,7 @@ create table if not exists race_stage_config (
   enabled boolean not null default false,
   max_riders_per_race int not null default 8,
   qualification_moto_count int not null default 2,
+  draw_moto3_order text not null default 'SAME' check (draw_moto3_order in ('REVERSE', 'SAME')),
   created_at timestamptz not null default now()
 );
 
@@ -659,12 +660,20 @@ create table if not exists race_category_custom_split_rule (
   source_stage race_stage not null default 'QUALIFICATION',
   rank_from int not null check (rank_from >= 1),
   rank_to int not null check (rank_to >= rank_from),
-  target_stage race_stage not null,
+  target_stage race_stage,
+  target_outcome text not null default 'STAGE' check (target_outcome in ('STAGE', 'FINISHER')),
   target_final_class final_class,
   split_basis text not null default 'COMBINED' check (split_basis in ('COMBINED', 'PER_BATCH', 'CUSTOM_PER_BATCH', 'GLOBAL_ACTIVE_FIRST')),
   batch_no int,
   sort_order int not null default 0,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  constraint race_category_custom_split_rule_target_consistency_check check (
+    (target_outcome = 'STAGE' and target_stage is not null)
+    or (target_outcome = 'FINISHER' and target_stage is null and target_final_class is null)
+  ),
+  constraint race_category_custom_split_rule_finisher_source_check check (
+    target_outcome <> 'FINISHER' or source_stage = 'QUALIFICATION'
+  )
 );
 
 create index if not exists idx_race_category_custom_split_rule_category

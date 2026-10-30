@@ -122,7 +122,8 @@ type CustomSplitRuleRow = {
   source_stage: 'QUALIFICATION' | 'QUARTER_FINAL' | 'REPECHAGE' | 'SEMI_FINAL' | 'FINAL'
   rank_from: number
   rank_to: number
-  target_stage: 'QUARTER_FINAL' | 'REPECHAGE' | 'SEMI_FINAL' | 'FINAL'
+  target_stage: 'QUARTER_FINAL' | 'REPECHAGE' | 'SEMI_FINAL' | 'FINAL' | null
+  target_outcome?: 'STAGE' | 'FINISHER' | null
   target_final_class: string | null
   sort_order: number
   split_basis?: 'COMBINED' | 'PER_BATCH' | 'CUSTOM_PER_BATCH' | 'GLOBAL_ACTIVE_FIRST' | null
@@ -153,7 +154,7 @@ type StageName = 'QUALIFICATION' | 'QUARTER_FINAL' | 'REPECHAGE' | 'SEMI_FINAL' 
 async function loadCustomSplitRules(categoryId: string, sourceStage?: StageName): Promise<CustomSplitRule[]> {
   const { data, error } = await adminClient
     .from('race_category_custom_split_rule')
-    .select('category_id, source_stage, rank_from, rank_to, target_stage, target_final_class, sort_order, split_basis, batch_no')
+    .select('category_id, source_stage, rank_from, rank_to, target_stage, target_outcome, target_final_class, sort_order, split_basis, batch_no')
     .eq('category_id', categoryId)
     .order('sort_order', { ascending: true })
     .order('rank_from', { ascending: true })
@@ -172,7 +173,7 @@ async function loadCustomSplitRules(categoryId: string, sourceStage?: StageName)
     sourceStage: row.source_stage,
     rankFrom: Number(row.rank_from),
     rankTo: Number(row.rank_to),
-    targetStage: row.target_stage,
+    targetStage: row.target_outcome === 'FINISHER' ? 'FINISHER' : row.target_stage ?? 'FINAL',
     targetFinalClass: normalizeFinalClassValue(row.target_final_class) as CustomSplitRule['targetFinalClass'],
     sortOrder: Number(row.sort_order ?? 0),
     splitBasis:
@@ -391,7 +392,8 @@ const buildQualificationSeedRowsFromCurrentResults = (
   resultRows: ResultRow[],
   config?: NonFinishPenaltyConfig,
   penaltyMaps?: ApprovedPenaltyMaps,
-  dnfProgressEnabled = false
+  dnfProgressEnabled = false,
+  configuredMotoCount = 2
 ): StageResultSeedRow[] => {
   const batchMap = new Map<number, { moto1?: MotoRow; moto2?: MotoRow; moto3?: MotoRow }>()
   for (const moto of motoRows) {
@@ -404,7 +406,7 @@ const buildQualificationSeedRowsFromCurrentResults = (
     batchMap.set(parsed.batchIndex, entry)
   }
 
-  const requiredMotoCount = resolveQualificationMotoRequirement(batchMap.size)
+  const requiredMotoCount = resolveQualificationMotoRequirement(batchMap.size, configuredMotoCount)
   const batches = Array.from(batchMap.values())
     .filter((entry) => entry.moto1 && entry.moto2 && (requiredMotoCount < 3 || entry.moto3))
     .map((entry) => {
@@ -644,15 +646,16 @@ const isMotoComplete = (motoId: string, assignedRows: MotoRiderRow[], resultRows
   return assignedRiders.every((riderId) => completedRiders.has(riderId))
 }
 
-const resolveQualificationMotoRequirement = (batchCount: number) => {
+const resolveQualificationMotoRequirement = (batchCount: number, configuredMotoCount = 2) => {
   if (batchCount === 1) return 3
-  return 2
+  return Number(configuredMotoCount) >= 3 ? 3 : 2
 }
 
 const buildQualificationProgress = (
   motoRows: MotoRow[],
   assignedRows: MotoRiderRow[],
-  resultRows: ResultRow[]
+  resultRows: ResultRow[],
+  configuredMotoCount = 2
 ) => {
   const batchMap = new Map<number, { moto1?: string; moto2?: string; moto3?: string }>()
 
@@ -666,7 +669,7 @@ const buildQualificationProgress = (
     batchMap.set(parsed.batchIndex, entry)
   }
 
-  const requiredMotoCount = resolveQualificationMotoRequirement(batchMap.size)
+  const requiredMotoCount = resolveQualificationMotoRequirement(batchMap.size, configuredMotoCount)
 
   const completeBatchIds = Array.from(batchMap.values()).filter((entry) => {
     if (!entry.moto1 || !entry.moto2) return false
@@ -991,7 +994,7 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
     batchMap.set(parsed.batchIndex, entry)
   }
 
-  const requiredMotoCount = resolveQualificationMotoRequirement(batchMap.size)
+  const requiredMotoCount = resolveQualificationMotoRequirement(batchMap.size, Number(config?.qualification_moto_count ?? 2))
   const qualificationTieBreakMotoIndexes = requiredMotoCount >= 3 ? [3] : [2, 1]
   const allowSingleBatchThreeMotoQualification = batchMap.size === 1 && requiredMotoCount >= 3
   if (!resolved.stages.enableQualification && !allowSingleBatchThreeMotoQualification) {
@@ -1288,7 +1291,8 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
   const qualificationProgress = buildQualificationProgress(
     existingMotoRows,
     categoryMotoRiderRows,
-    categoryResultRows
+    categoryResultRows,
+    Number(config?.qualification_moto_count ?? 2)
   )
   const existingQuarterMotos = existingMotoRows.filter((moto) => /^Quarter Final/i.test(moto.moto_name))
   const existingRepechageMotos = existingMotoRows.filter((moto) => /^Repechage/i.test(moto.moto_name))
@@ -1355,7 +1359,8 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
     categoryResultRows,
     config ?? undefined,
     categoryPenaltyMaps,
-    dnfProgressEnabled
+    dnfProgressEnabled,
+    Number(config?.qualification_moto_count ?? 2)
   )
   const finalGateSeedRows = currentQualificationSeedRows.length > 0 ? currentQualificationSeedRows : qualificationRows
   const quarterResultRows = stageSeedRows.filter((row) => row.stage === 'QUARTER_FINAL' && row.position !== null)

@@ -24,6 +24,11 @@ type ResultRow = {
   rider_id: string
 }
 
+type StageConfigRow = {
+  category_id: string
+  qualification_moto_count: number | null
+}
+
 const parseBatchKey = (name: string) => {
   const match = name.match(/moto\s*(\d+)\s*(?:-\s*)?batch\s*(\d+)/i)
   if (!match) return null
@@ -37,7 +42,7 @@ const isMotoComplete = (motoId: string, assignedRows: MotoRiderRow[], resultRows
   return assignedRiders.every((riderId) => completedRiders.has(riderId))
 }
 
-const buildQualificationProgress = (motoRows: MotoRow[], assignedRows: MotoRiderRow[], resultRows: ResultRow[]) => {
+const buildQualificationProgress = (motoRows: MotoRow[], assignedRows: MotoRiderRow[], resultRows: ResultRow[], configuredMotoCount = 2) => {
   const batchMap = new Map<number, { moto1?: string; moto2?: string; moto3?: string }>()
 
   for (const moto of motoRows) {
@@ -50,7 +55,8 @@ const buildQualificationProgress = (motoRows: MotoRow[], assignedRows: MotoRider
     batchMap.set(parsed.batchIndex, entry)
   }
 
-  const requiredMotoCount = batchMap.size === 1 && Array.from(batchMap.values()).some((entry) => entry.moto3) ? 3 : 2
+  const hasSingleBatchMoto3 = batchMap.size === 1 && Array.from(batchMap.values()).some((entry) => entry.moto3)
+  const requiredMotoCount = hasSingleBatchMoto3 || (batchMap.size > 1 && Number(configuredMotoCount) >= 3) ? 3 : 2
   const completeBatchIds = Array.from(batchMap.values()).filter((entry) => {
     if (!entry.moto1 || !entry.moto2) return false
     if (requiredMotoCount >= 3 && !entry.moto3) return false
@@ -84,6 +90,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
 
   const categoryIds = (categories ?? []).map((c) => c.id)
   if (categoryIds.length === 0) return NextResponse.json({ data: {} })
+
+  const { data: stageConfigs, error: stageConfigError } = await adminClient
+    .from('race_stage_config')
+    .select('category_id, qualification_moto_count')
+    .in('category_id', categoryIds)
+  if (stageConfigError) return NextResponse.json({ error: stageConfigError.message }, { status: 400 })
+  const configuredMotoCountByCategory = new Map(
+    ((stageConfigs ?? []) as StageConfigRow[]).map((row) => [row.category_id, row.qualification_moto_count ?? 2])
+  )
 
   const { data: stageRows, error: stageError } = await adminClient
     .from('race_stage_result')
@@ -209,7 +224,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     const quarterMotos = categoryMotos.filter((row) => /^Quarter Final/i.test(row.moto_name))
     const semiMotos = categoryMotos.filter((row) => /^Semi Final/i.test(row.moto_name))
     const repechageMotos = categoryMotos.filter((row) => /^Repechage/i.test(row.moto_name))
-    const qualificationProgress = buildQualificationProgress(qualificationMotos, typedAssignedRows, typedResultRows)
+    const qualificationProgress = buildQualificationProgress(
+      qualificationMotos,
+      typedAssignedRows,
+      typedResultRows,
+      configuredMotoCountByCategory.get(id) ?? 2
+    )
     const qualificationRun = (summary[id]?.stageCounts?.QUALIFICATION ?? 0) > 0
     const allQualificationLocked =
       qualificationMotos.length > 0 &&

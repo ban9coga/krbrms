@@ -33,7 +33,7 @@ const isMotoComplete = (motoId: string, assignedRows: MotoRiderRow[], resultRows
   return assignedRiders.every((riderId) => completedRiders.has(riderId))
 }
 
-const isQualificationReady = (motoRows: MotoRow[], assignedRows: MotoRiderRow[], resultRows: ResultRow[]) => {
+const isQualificationReady = (motoRows: MotoRow[], assignedRows: MotoRiderRow[], resultRows: ResultRow[], configuredMotoCount = 2) => {
   const batchMap = new Map<number, { moto1?: string; moto2?: string; moto3?: string }>()
 
   for (const moto of motoRows) {
@@ -46,7 +46,8 @@ const isQualificationReady = (motoRows: MotoRow[], assignedRows: MotoRiderRow[],
     batchMap.set(parsed.batchIndex, entry)
   }
 
-  const requiredMotoCount = batchMap.size === 1 && Array.from(batchMap.values()).some((entry) => entry.moto3) ? 3 : 2
+  const hasSingleBatchMoto3 = batchMap.size === 1 && Array.from(batchMap.values()).some((entry) => entry.moto3)
+  const requiredMotoCount = hasSingleBatchMoto3 || (batchMap.size > 1 && Number(configuredMotoCount) >= 3) ? 3 : 2
   if (batchMap.size === 0) return false
   return Array.from(batchMap.values()).every((entry) => {
     if (!entry.moto1 || !entry.moto2) return false
@@ -76,6 +77,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   if (catError || !category || category.event_id !== eventId) {
     return NextResponse.json({ error: 'Category not found in event' }, { status: 404 })
   }
+
+  const { data: stageConfig, error: stageConfigError } = await adminClient
+    .from('race_stage_config')
+    .select('qualification_moto_count')
+    .eq('event_id', eventId)
+    .eq('category_id', categoryId)
+    .maybeSingle()
+  if (stageConfigError) return NextResponse.json({ error: stageConfigError.message }, { status: 400 })
 
   const { data: customSplitRows, error: customSplitError } = await adminClient
     .from('race_category_custom_split_rule')
@@ -119,7 +128,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     : { data: [], error: null }
   if (resultError) return NextResponse.json({ error: resultError.message }, { status: 400 })
 
-  if (!isQualificationReady(qualificationMotoRows, (assignedRows ?? []) as MotoRiderRow[], (resultRows ?? []) as ResultRow[])) {
+  if (!isQualificationReady(qualificationMotoRows, (assignedRows ?? []) as MotoRiderRow[], (resultRows ?? []) as ResultRow[], Number(stageConfig?.qualification_moto_count ?? 2))) {
     return NextResponse.json(
       { warning: 'Belum ada hasil qualification lengkap. Selesaikan semua moto qualification yang diperlukan dulu.' },
       { status: 200 }

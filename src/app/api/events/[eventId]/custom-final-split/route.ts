@@ -11,7 +11,8 @@ type CustomRuleInput = {
   source_stage: 'QUALIFICATION' | 'QUARTER_FINAL' | 'SEMI_FINAL' | 'REPECHAGE'
   rank_from: number
   rank_to: number
-  target_stage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'REPECHAGE' | 'FINAL'
+  target_stage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'REPECHAGE' | 'FINAL' | 'FINISHER'
+  target_outcome?: 'STAGE' | 'FINISHER'
   target_final_class?: string | null
   sort_order: number
   split_basis?: 'COMBINED' | 'PER_BATCH' | 'CUSTOM_PER_BATCH' | 'GLOBAL_ACTIVE_FIRST'
@@ -23,7 +24,8 @@ type NormalizedRule = {
   source_stage: 'QUALIFICATION' | 'QUARTER_FINAL' | 'SEMI_FINAL' | 'REPECHAGE'
   rank_from: number
   rank_to: number
-  target_stage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'REPECHAGE' | 'FINAL'
+  target_stage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'REPECHAGE' | 'FINAL' | null
+  target_outcome: 'STAGE' | 'FINISHER'
   target_final_class: string | null
   sort_order: number
   split_basis: 'COMBINED' | 'PER_BATCH' | 'CUSTOM_PER_BATCH' | 'GLOBAL_ACTIVE_FIRST'
@@ -61,12 +63,13 @@ const parseQualificationBatchNo = (motoName: string | null | undefined) => {
 
 const targetKeyForRule = (rule: {
   source_stage?: 'QUALIFICATION' | 'QUARTER_FINAL' | 'SEMI_FINAL' | 'REPECHAGE'
-  target_stage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'REPECHAGE' | 'FINAL'
+  target_stage: 'QUARTER_FINAL' | 'SEMI_FINAL' | 'REPECHAGE' | 'FINAL' | 'FINISHER' | null
+  target_outcome?: 'STAGE' | 'FINISHER'
   target_final_class?: string | null
   batch_no?: number | null
   split_basis?: 'COMBINED' | 'PER_BATCH' | 'CUSTOM_PER_BATCH' | 'GLOBAL_ACTIVE_FIRST'
 }) =>
-  `${rule.source_stage ?? 'QUALIFICATION'}:${rule.split_basis === 'CUSTOM_PER_BATCH' ? `BATCH:${rule.batch_no ?? 'NULL'}:` : ''}${rule.target_stage}:${
+  `${rule.source_stage ?? 'QUALIFICATION'}:${rule.split_basis === 'CUSTOM_PER_BATCH' ? `BATCH:${rule.batch_no ?? 'NULL'}:` : ''}${rule.target_outcome === 'FINISHER' || rule.target_stage === 'FINISHER' ? 'FINISHER' : rule.target_stage}:${
     rule.target_stage === 'FINAL' ? rule.target_final_class ?? 'NULL' : '-'
   }`
 
@@ -131,7 +134,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ eventId: s
   const { data: rules, error: ruleError } = categoryIds.length
     ? await adminClient
       .from('race_category_custom_split_rule')
-        .select('id, category_id, source_stage, rank_from, rank_to, target_stage, target_final_class, sort_order, split_basis, batch_no')
+        .select('id, category_id, source_stage, rank_from, rank_to, target_stage, target_outcome, target_final_class, sort_order, split_basis, batch_no')
         .in('category_id', categoryIds)
         .order('sort_order', { ascending: true })
         .order('rank_from', { ascending: true })
@@ -210,7 +213,10 @@ export async function GET(_: Request, { params }: { params: Promise<{ eventId: s
         final_class_options: finalClassOptions,
       },
       categories: enrichedCategories,
-      rules: rules ?? [],
+      rules: (rules ?? []).map((rule) => ({
+        ...rule,
+        target_stage: rule.target_outcome === 'FINISHER' ? 'FINISHER' : rule.target_stage,
+      })),
     },
   })
 }
@@ -243,7 +249,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       source_stage: rule.source_stage ?? 'QUALIFICATION',
       rank_from: Math.max(1, Number(rule.rank_from) || 1),
       rank_to: Math.max(1, Number(rule.rank_to) || 1),
-      target_stage: rule.target_stage,
+      target_stage: rule.target_stage === 'FINISHER' ? null : rule.target_stage,
+      target_outcome: rule.target_stage === 'FINISHER' ? 'FINISHER' : 'STAGE',
       target_final_class: rule.target_stage === 'FINAL' ? normalizeFinalClassValue(rule.target_final_class) ?? null : null,
       sort_order: Number(rule.sort_order ?? index),
       split_basis:
@@ -271,6 +278,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
 
   if (normalizedRules.some((rule) => rule.target_stage === 'FINAL' && !rule.target_final_class)) {
     return NextResponse.json({ error: 'Final rules must have a valid final class.' }, { status: 400 })
+  }
+
+  if (normalizedRules.some((rule) => rule.target_outcome === 'FINISHER' && rule.source_stage !== 'QUALIFICATION')) {
+    return NextResponse.json({ error: 'FINISHER is only supported as a Qualification outcome.' }, { status: 400 })
   }
 
   if (normalizedRules.some((rule) => rule.split_basis === 'GLOBAL_ACTIVE_FIRST' && rule.source_stage !== 'QUALIFICATION')) {
@@ -363,9 +374,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     const existing = duplicateTarget.get(key)
     if (existing) {
       const label =
-        rule.target_stage === 'FINAL'
+        rule.target_outcome === 'FINISHER'
+          ? 'FINISHER'
+          : rule.target_stage === 'FINAL'
           ? `FINAL ${rule.target_final_class}`
-          : rule.target_stage.replace(/_/g, ' ')
+          : String(rule.target_stage).replace(/_/g, ' ')
       return NextResponse.json(
         {
           error:
@@ -393,12 +406,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     const { data, error } = await adminClient
       .from('race_category_custom_split_rule')
       .insert(normalizedRules)
-      .select('id, category_id, source_stage, rank_from, rank_to, target_stage, target_final_class, sort_order, split_basis, batch_no')
+        .select('id, category_id, source_stage, rank_from, rank_to, target_stage, target_outcome, target_final_class, sort_order, split_basis, batch_no')
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
-    savedRules = data ?? []
+    savedRules = (data ?? []).map((rule) => ({
+      ...rule,
+      target_stage: rule.target_outcome === 'FINISHER' ? 'FINISHER' : rule.target_stage,
+    }))
   }
 
   const syncResult = await syncAdvancedRaceProgress(eventId, categoryId)
