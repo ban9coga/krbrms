@@ -37,7 +37,13 @@ export async function GET(_: Request, { params }: { params: Promise<{ motoId: st
     .select('rider_id')
     .eq('moto_id', motoId)
   if (mrError) return NextResponse.json({ error: mrError.message }, { status: 400 })
-  const lastPosition = (motoRiders ?? []).length || null
+  const disqualifiedRiderIds = new Set(
+    (data ?? []).filter((row) => row.result_status === 'DQ').map((row) => {
+      const rider = Array.isArray(row.riders) ? row.riders[0] : row.riders
+      return rider?.id
+    }).filter((riderId): riderId is string => Boolean(riderId))
+  )
+  const lastPosition = (motoRiders ?? []).filter((row) => !disqualifiedRiderIds.has(row.rider_id)).length || null
 
   const penaltyMap = new Map<string, number>()
   if (moto?.event_id) {

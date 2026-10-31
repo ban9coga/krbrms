@@ -79,6 +79,7 @@ type StageRow = {
   photo_thumbnail_url?: string | null
   point: number | null
   penalty_total: number | null
+  total_point: number | null
   rank: number | null
   status: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'PENDING'
   next_class_label?: string | null
@@ -87,6 +88,7 @@ type StageRow = {
 type StageGroup = {
   title: string
   moto_id: string
+  status: string | null
   rows: StageRow[]
 }
 
@@ -423,6 +425,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const { data: results, error: resultError } = resultResult
   if (resultError) return NextResponse.json({ error: resultError.message }, { status: 400 })
   const resultRows = (results ?? []) as ResultRow[]
+  const resultByMotoAndRider = new Map(resultRows.map((row) => [`${row.moto_id}:${row.rider_id}`, row]))
+  const scoringRiderCountByMoto = new Map<string, number>()
+  motoRiderRows.forEach((row) => {
+    if (resultByMotoAndRider.get(`${row.moto_id}:${row.rider_id}`)?.result_status === 'DQ') return
+    scoringRiderCountByMoto.set(row.moto_id, (scoringRiderCountByMoto.get(row.moto_id) ?? 0) + 1)
+  })
   const finalMotoIds = new Set(motoRows.filter((moto) => /^final\b/i.test(moto.moto_name)).map((moto) => moto.id))
   const participationHistoryByRider = buildParticipationHistory(resultRows, finalMotoIds)
 
@@ -680,11 +688,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       if (assigned && assigned.stage !== 'QUALIFICATION') {
         return formatQualificationTargetLabel(assigned.stage, assigned.final_class ?? null)
       }
-      return qualificationRules.some((rule) => rule.target_outcome === 'FINISHER')
-        ? 'FINISHER'
-        : assigned && assigned.stage !== 'QUALIFICATION'
-          ? formatQualificationTargetLabel(assigned.stage, assigned.final_class ?? null)
-          : null
+      if (qualificationStageSeedRows.length === 0) return null
+      const globalRank = qualificationStageSeedRows.find((row) => row.rider_id === riderId)?.position ?? rank
+      const matchedRule = qualificationRules.find(
+        (rule) => globalRank !== null && globalRank !== undefined && globalRank >= rule.rank_from && globalRank <= rule.rank_to
+      )
+      return matchedRule
+        ? formatQualificationTargetLabel(matchedRule.target_stage, matchedRule.target_final_class, matchedRule.target_outcome)
+        : null
     }
     const matchingRules =
       qualificationSplitBasis === 'CUSTOM_PER_BATCH'
@@ -738,15 +749,17 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         const moto3Result = moto3
           ? resultRows.find((r) => r.moto_id === moto3.id && r.rider_id === riderId)
           : null
-        const qualificationRiderCount = assignedRiderCountByMoto.get(moto1.id) || null
+        const qualificationRiderCount1 = scoringRiderCountByMoto.get(moto1.id) || null
+        const qualificationRiderCount2 = moto2 ? scoringRiderCountByMoto.get(moto2.id) || null : null
+        const qualificationRiderCount3 = moto3 ? scoringRiderCountByMoto.get(moto3.id) || null : null
         const riderStatus = statusMap.get(`${moto1.id}:${riderId}`) ?? 'ACTIVE'
         const dnsCount1 = moto1 ? resultRows.filter((r) => r.moto_id === moto1.id && r.result_status === 'DNS').length : 0
         const dnsCount2 = moto2 ? resultRows.filter((r) => r.moto_id === moto2.id && r.result_status === 'DNS').length : 0
         const dnsCount3 = moto3 ? resultRows.filter((r) => r.moto_id === moto3.id && r.result_status === 'DNS').length : 0
         
-        const point1 = pointForMotoResult(moto1Result ?? null, qualificationRiderCount, dnsCount1)
-        const point2 = pointForMotoResult(moto2Result ?? null, qualificationRiderCount, dnsCount2)
-        const point3 = pointForMotoResult(moto3Result ?? null, qualificationRiderCount, dnsCount3)
+        const point1 = pointForMotoResult(moto1Result ?? null, qualificationRiderCount1, dnsCount1)
+        const point2 = pointForMotoResult(moto2Result ?? null, qualificationRiderCount2, dnsCount2)
+        const point3 = pointForMotoResult(moto3Result ?? null, qualificationRiderCount3, dnsCount3)
         const hasRecordedResult = Boolean(moto1Result || moto2Result || moto3Result)
         const basePoint = [point1, point2, point3].filter((v) => v !== null).length
           ? [point1, point2, point3].reduce<number>((acc, v) => acc + (v ?? 0), 0)
@@ -1129,6 +1142,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       }, 0) + (motoPenaltyMap.get(`${moto.id}:${riderId}`) ?? 0)
       const autoPenaltyTotal = resolveNonFinishAutoPenalty(status, pointOverrideConfig ?? undefined)
       const dnsCount = resultRows.filter((r) => r.moto_id === moto.id && r.result_status === 'DNS').length
+      const point = pointForMotoResult(res, riderCount, dnsCount)
 
       return {
         rider_id: riderId,
@@ -1138,8 +1152,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         no_plate: rider?.no_plate_display ?? '-',
         club: rider?.club ?? '-',
         ...(includePhotos ? { photo_thumbnail_url: rider?.photo_thumbnail_url ?? null } : {}),
-        point: pointForMotoResult(res, riderCount, dnsCount),
+        point,
         penalty_total: manualPenaltyTotal + autoPenaltyTotal || null,
+        total_point: point === null ? null : point + manualPenaltyTotal + autoPenaltyTotal,
         rank: null,
         status,
       }
@@ -1266,6 +1281,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     return [{
       title: formatMotoDisplayName(moto.moto_name),
       moto_id: moto.id,
+      status: moto.status ?? null,
       rows: rows.sort((a, b) => {
         // Sort by gate position first so display is 1,2,3,4,5,6,7,8
         const aGate = a.gate ?? Number.MAX_SAFE_INTEGER
@@ -1284,7 +1300,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     qualification_batch_mode: qualificationBatchMode,
     qualification_split_basis: qualificationSplitBasis,
     qualification_has_finisher_outcome: qualificationRules.some((rule) => rule.target_outcome === 'FINISHER'),
-    qualification_advancements_calculated: stageSeedRows.some((row) => row.stage !== 'QUALIFICATION'),
+    qualification_advancements_calculated: qualificationStageSeedRows.length > 0,
     qualification_results_official: qualificationResultsOfficial,
     qualification_overall_rows: (qualificationStageSeedRows as StageSeedRow[])
       .filter((row) => row.stage === 'QUALIFICATION' && row.position !== null)

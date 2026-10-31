@@ -3660,9 +3660,58 @@ html[data-theme='dark'] .setting-toggle-control:has(input:checked) .setting-togg
   color: #3f2b20;
 }
 
+.live-score-fixed-tabs {
+  display: flex;
+  max-width: 100%;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 1px 6px;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.live-score-fixed-tab {
+  display: inline-flex;
+  min-height: 42px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid #705547;
+  border-radius: 999px;
+  background: #2a160d;
+  padding: 9px 14px;
+  color: #eadcca;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.live-score-fixed-tab:hover {
+  border-color: #f3c63d;
+  background: #3a2116;
+}
+
+.live-score-fixed-tab.is-active {
+  border-color: #f3c63d;
+  background: #f3c63d;
+  color: #1d0d07;
+}
+
+.live-score-fixed-tab-live {
+  border-radius: 999px;
+  background: #b42318;
+  padding: 3px 6px;
+  color: white;
+  font-size: 8px;
+  line-height: 1;
+}
+
 @media (max-width: 1023px) {
   .live-score-editorial-page .live-score-rotation-panel,
-  .live-score-editorial-page .live-score-rotation-batch-panel {
+  .live-score-editorial-page .live-score-rotation-batch-panel,
+  .live-score-editorial-page .live-score-fixed-toolbar {
     border-color: #dfd1b8;
     background: #fff8e8;
     color: #1d0d07;
@@ -3671,8 +3720,22 @@ html[data-theme='dark'] .setting-toggle-control:has(input:checked) .setting-togg
 
   .live-score-editorial-page .live-score-rotation-panel h2,
   .live-score-editorial-page .live-score-rotation-panel h3,
-  .live-score-editorial-page .live-score-rotation-panel p {
+  .live-score-editorial-page .live-score-rotation-panel p,
+  .live-score-editorial-page .live-score-fixed-toolbar h2,
+  .live-score-editorial-page .live-score-fixed-toolbar p {
     color: #1d0d07 !important;
+  }
+
+  .live-score-editorial-page .live-score-fixed-tab {
+    border-color: #d9c9ae;
+    background: #fffaf0;
+    color: #5f4635;
+  }
+
+  .live-score-editorial-page .live-score-fixed-tab.is-active {
+    border-color: #8b5e20;
+    background: #f3c63d;
+    color: #1d0d07;
   }
 
   .live-score-editorial-page .live-score-rotation-tab[aria-selected='false'] {
@@ -3799,6 +3862,162 @@ html[data-theme='dark'] .setting-toggle-control:has(input:checked) .setting-togg
     color: #765946 !important;
   }
 
+  .live-score-mobile-rider-card {
+    display: grid;
+    gap: 10px;
+    min-width: 0;
+    border: 1px solid #d9c9ae;
+    border-radius: 16px;
+    background: #fffaf0;
+    padding: 12px;
+    color: #1d0d07;
+    box-shadow: 0 5px 16px rgba(55, 23, 9, 0.07);
+  }
+
+  .live-score-mobile-rider-heading {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .live-score-mobile-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .live-score-mobile-summary-grid > div {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
+    border: 1px solid #e2d5bd;
+    border-radius: 11px;
+    background: #f7ecd8;
+    padding: 8px 9px;
+  }
+
+  .live-score-mobile-summary-grid > div > span {
+    color: #765946;
+    font-size: 9px;
+    font-weight: 900;
+    text-transform: uppercase;
+  }
+
+  .live-score-mobile-summary-grid > div > strong {
+    overflow-wrap: anywhere;
+    color: #9a3412;
+    font-size: 15px;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.15;
+  }
+
+  .live-score-mobile-summary-grid .live-score-mobile-destination {
+    grid-column: 1 / -1;
+  }
+
+  .live-score-mobile-summary-grid .live-score-mobile-destination strong {
+    font-size: 12px;
+  }
+
+  .live-score-mobile-breakdown {
+    border-top: 1px solid #e2d5bd;
+    padding-top: 8px;
+  }
+
+  .live-score-mobile-breakdown summary {
+    color: #654631;
+    cursor: pointer;
+    font-size: 10px;
+    font-weight: 900;
+    list-style-position: inside;
+    text-transform: uppercase;
+  }
+
+  .live-score-mobile-moto-grid {
+    display: grid;
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  .live-score-mobile-moto-item {
+    display: grid;
+    grid-template-columns: 52px 58px minmax(0, 1fr);
+    align-items: center;
+    gap: 5px;
+    border-radius: 9px;
+    background: #f7ecd8;
+    padding: 7px 8px;
+    color: #49372c;
+    font-size: 10px;
+  }
+
+  .live-score-mobile-moto-item strong {
+    color: #1d0d07;
+    font-weight: 900;
+  }
+
+  .live-score-mobile-moto-item span:last-child {
+    text-align: right;
+  }
+
+  .live-score-stage-summary-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .live-score-stage-summary-grid > div > strong {
+    font-size: 13px;
+  }
+
+  .live-score-stage-summary-grid .live-score-mobile-total {
+    border-color: #b77b26;
+    background: #f4dfb5;
+  }
+
+  .live-score-mobile-result-status {
+    width: fit-content;
+    margin-top: 3px;
+    border: 1px solid;
+    border-radius: 999px;
+    padding: 2px 6px;
+    font-size: 8px;
+    line-height: 1.2;
+  }
+
+  .live-score-mobile-moto-result {
+    grid-column: 1 / -1;
+    overflow-wrap: anywhere;
+    text-align: left !important;
+  }
+
+  .live-score-editorial-page .live-score-editorial-sort button {
+    border-color: #d9c9ae;
+    background: #fffaf0;
+    color: #5f4635;
+  }
+
+  .live-score-editorial-page .live-score-editorial-sort button[class*='bg-amber-400'] {
+    border-color: #8b5e20;
+    background: #f3c63d;
+    color: #1d0d07;
+  }
+
+  .live-score-editorial-meta-mobile summary {
+    width: fit-content;
+    border: 1px solid rgba(255, 248, 232, 0.25);
+    border-radius: 999px;
+    background: rgba(255, 248, 232, 0.08);
+    padding: 7px 10px;
+    color: #fff8e8;
+    cursor: pointer;
+    font-size: 10px;
+    font-weight: 900;
+    text-transform: uppercase;
+  }
+
 }
 
 @media (max-width: 700px) {
@@ -3848,6 +4067,25 @@ html[data-theme='dark'] .setting-toggle-control:has(input:checked) .setting-togg
   .live-score-editorial-back,
   .live-score-editorial-next {
     width: 100%;
+    min-height: 40px !important;
+    padding: 9px 12px !important;
+    font-size: 10px !important;
+  }
+
+  .live-score-editorial-nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px !important;
+  }
+
+  .live-score-editorial-nav > * {
+    min-width: 0;
+    text-align: center;
+  }
+
+  .live-score-editorial-hero h1 {
+    font-size: clamp(1.75rem, 8vw, 2.5rem) !important;
+    line-height: 1.02 !important;
   }
 }
 

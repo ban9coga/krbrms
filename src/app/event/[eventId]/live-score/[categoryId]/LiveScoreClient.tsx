@@ -36,7 +36,7 @@ type Row = {
   moto2_status?: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'PENDING' | null
   moto3_status?: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'PENDING' | null
   penalty_total: number | null
-  total_point: number | null
+  total_point?: number | null
   rank_point: number | null
   status: 'FINISHED' | 'DNF' | 'DNS' | 'PENDING' | 'DQ'
   class_label?: string | null
@@ -98,6 +98,7 @@ type StageRow = {
   photo_thumbnail_url?: string | null
   point: number | null
   penalty_total: number | null
+  total_point?: number | null
   rank: number | null
   status: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'PENDING'
   next_class_label?: string | null
@@ -106,6 +107,7 @@ type StageRow = {
 type StageGroup = {
   title: string
   moto_id: string
+  status?: string | null
   rows: StageRow[]
 }
 
@@ -249,7 +251,7 @@ const renderRankBadge = (rank: number | null) => {
 const renderSortButtons = (
   sortMode: 'GATE' | 'RANK',
   setSortMode: (mode: 'GATE' | 'RANK') => void,
-  rankLabel = 'Rank'
+  rankLabel = 'Peringkat'
 ) => (
   <div className="live-score-editorial-sort flex flex-wrap items-center gap-2">
     {(['GATE', 'RANK'] as const).map((mode) => (
@@ -263,7 +265,7 @@ const renderSortButtons = (
             : 'border-white/25 bg-white/10 text-white hover:bg-white/20'
         }`}
       >
-        Sort {mode === 'RANK' ? rankLabel : mode}
+        Urut {mode === 'RANK' ? rankLabel : 'Gate'}
       </button>
     ))}
   </div>
@@ -280,7 +282,7 @@ const renderRefreshButton = (refresh: () => void, refreshing: boolean, enabled: 
     title={enabled ? 'Muat ulang hasil terbaru' : 'Hasil event selesai sudah diarsipkan'}
     className="live-score-editorial-refresh rounded-full border px-4 py-2 text-xs font-extrabold uppercase transition-colors disabled:cursor-not-allowed disabled:opacity-70"
   >
-      {refreshing ? 'Refreshing...' : 'Refresh'}
+      {refreshing ? 'Memuat...' : 'Muat Ulang'}
     </button>
   )
 }
@@ -323,6 +325,7 @@ export default function LiveScoreClient({
   const [stages, setStages] = useState<StageGroup[]>(initialLiveScore?.stages ?? [])
   const [sortMode, setSortMode] = useState<'GATE' | 'RANK'>('RANK')
   const [selectedRotatingView, setSelectedRotatingView] = useState('MOTO_1')
+  const [selectedFixedStageView, setSelectedFixedStageView] = useState('AUTO')
   const [refreshing, setRefreshing] = useState(false)
   const refreshInFlightRef = useRef(false)
   const refreshQueuedRef = useRef(false)
@@ -473,7 +476,7 @@ export default function LiveScoreClient({
       })),
     [batches, sortMode]
   )
-  const showMoto3 = batches.length <= 1 || batches.some((batch) => Boolean(batch.moto3_id))
+  const showMoto3 = batches.some((batch) => Boolean(batch.moto3_id))
   const rotatingMotoViews = useMemo<RotatingMotoView[]>(() => {
     const fields = [
       {
@@ -530,6 +533,9 @@ export default function LiveScoreClient({
               status: field.resultStatus(row) as NonNullable<Row['moto1_status']>,
             }))
             .sort((a, b) => {
+              if (sortMode === 'GATE') {
+                return (a.gate ?? Number.MAX_SAFE_INTEGER) - (b.gate ?? Number.MAX_SAFE_INTEGER)
+              }
               if (a.total_point !== null && b.total_point !== null && a.total_point !== b.total_point) {
                 return a.total_point - b.total_point
               }
@@ -552,7 +558,7 @@ export default function LiveScoreClient({
       )?.status ?? motoBatches[0].status
       return [{ index: field.index, title: `Moto ${field.index}`, status, batches: motoBatches }]
     })
-  }, [tableRowsByBatch])
+  }, [sortMode, tableRowsByBatch])
   const activeRotatingMotoView = rotatingMotoViews.find((view) => `MOTO_${view.index}` === selectedRotatingView)
   const usesGlobalActiveFirst = qualificationSplitBasis === 'GLOBAL_ACTIVE_FIRST'
   const showQualificationNextColumn = tableRowsByBatch.some((batch) =>
@@ -616,9 +622,18 @@ export default function LiveScoreClient({
     return Array.from(groups.values())
   }, [sortedStages])
   const selectedStageTab = stageTabs.find((tab) => selectedRotatingView === `STAGE_${tab.key}`)
+  const defaultFixedStageTab = stageTabs.find((tab) =>
+    tab.stages.some((stage) => ['LIVE', 'READY', 'PROVISIONAL', 'PROTEST_REVIEW'].includes(String(stage.status ?? '').toUpperCase()))
+  ) ?? stageTabs.find((tab) =>
+    tab.stages.some((stage) => String(stage.status ?? '').toUpperCase() === 'UPCOMING')
+  ) ?? stageTabs[stageTabs.length - 1]
+  const selectedFixedStageTab = selectedFixedStageView === 'AUTO'
+    ? defaultFixedStageTab
+    : stageTabs.find((tab) => tab.key === selectedFixedStageView)
+  const showFixedQualification = selectedFixedStageView === 'QUALIFICATION' || !selectedFixedStageTab
   const displayedStages = qualificationBatchMode === 'ROTATE_EACH_MOTO'
     ? selectedStageTab?.stages ?? []
-    : sortedStages
+    : showFixedQualification ? [] : selectedFixedStageTab?.stages ?? []
 
   useEffect(() => {
     if (
@@ -629,6 +644,25 @@ export default function LiveScoreClient({
     }
   }, [qualificationBatchMode, selectedRotatingView, selectedStageTab])
 
+  const publicMetaContent = (
+    <>
+      {publicTagline && <p className="text-sm font-semibold text-slate-300 sm:text-[15px]">{publicTagline}</p>}
+      <div className="flex flex-wrap gap-2 text-[10px] font-extrabold uppercase tracking-[0.12em] text-slate-300 sm:text-[11px]">
+        {showOperatingCommittee && (
+          <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
+            Panitia Operasional: {operatingCommitteeLabel}
+          </span>
+        )}
+        {showScoringSupport && (
+          <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
+            Tim Scoring: {scoringSupportLabel}
+          </span>
+        )}
+        {showMc && <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">MC: {mcName}</span>}
+      </div>
+    </>
+  )
+
   return (
     <div className="public-page public-editorial-page live-score-editorial-page">
       <PublicTopbar theme="dark" />
@@ -636,54 +670,50 @@ export default function LiveScoreClient({
         <section className="public-hero live-score-editorial-hero !rounded-[28px] px-4 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-7">
           <div className="relative z-10 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="grid gap-2 sm:gap-2.5">
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="live-score-editorial-nav flex flex-wrap items-center gap-3">
                 <Link
                   href={`/event/${eventId}#race-categories`}
                   className="live-score-editorial-back inline-flex min-h-[48px] items-center justify-center rounded-full px-5 py-3 text-sm font-black uppercase transition-transform hover:-translate-y-0.5"
                 >
-                  Back to Categories
+                  ← Semua Kategori
                 </Link>
                 {nextCategory ? (
                   <Link
                     href={`/event/${eventId}/live-score/${nextCategory.id}`}
                     className="live-score-editorial-next inline-flex min-h-[48px] items-center justify-center rounded-full px-5 py-3 text-sm font-black uppercase transition-transform hover:-translate-y-0.5"
                   >
-                    Next Category: {nextCategory.label}
+                    Kategori Berikutnya: {nextCategory.label} →
                   </Link>
                 ) : (
-                  <span className="live-score-editorial-next inline-flex min-h-[48px] items-center justify-center rounded-full px-5 py-3 text-sm font-black uppercase opacity-65">
-                    Last Category
+                  <span className="live-score-editorial-last-category inline-flex min-h-[40px] items-center rounded-full px-3 py-2 text-xs font-black uppercase">
+                    Kategori Terakhir
                   </span>
                 )}
               </div>
-              <p className="text-xs font-extrabold uppercase text-[#f3c63d]">
-                {publicBrandName || 'Live Score'}
-              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-xs font-extrabold uppercase text-[#f3c63d]">
+                  {publicBrandName || 'Live Score'}
+                </p>
+                {event?.status && (
+                  <span className="live-score-event-status rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-[10px] font-black uppercase text-white">
+                    {event.status === 'LIVE' ? 'BERLANGSUNG' : event.status === 'UPCOMING' ? 'AKAN DATANG' : 'SELESAI'}
+                  </span>
+                )}
+              </div>
               <h1 className="max-w-4xl text-4xl font-black uppercase text-[#f3c63d] sm:text-5xl lg:text-[4rem] lg:leading-none">
-                {categoryLabel || 'Category'}
+                {categoryLabel || 'Kategori'}
               </h1>
               <p className="max-w-3xl text-base font-bold text-[#fff8e8] sm:text-lg">
                 {publicEventTitle}
               </p>
               {(publicTagline || showOperatingCommittee || showScoringSupport || showMc) && (
-                <div className="grid gap-2">
-                  {publicTagline && <p className="text-sm font-semibold text-slate-300 sm:text-[15px]">{publicTagline}</p>}
-                  <div className="flex flex-wrap gap-2 text-[10px] font-extrabold uppercase tracking-[0.12em] text-slate-300 sm:text-[11px]">
-                    {showOperatingCommittee && (
-                      <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
-                        Operating Committee: {operatingCommitteeLabel}
-                      </span>
-                    )}
-                    {showScoringSupport && (
-                      <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
-                        Scoring Support: {scoringSupportLabel}
-                      </span>
-                    )}
-                    {showMc && (
-                      <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">MC: {mcName}</span>
-                    )}
-                  </div>
-                </div>
+                <>
+                  <div className="live-score-editorial-meta-desktop hidden gap-2 md:grid">{publicMetaContent}</div>
+                  <details className="live-score-editorial-meta-mobile md:hidden">
+                    <summary>Lihat info panitia &amp; event</summary>
+                    <div className="mt-2 grid gap-2">{publicMetaContent}</div>
+                  </details>
+                </>
               )}
             </div>
           </div>
@@ -702,7 +732,10 @@ export default function LiveScoreClient({
                   <h2 className="text-lg font-black uppercase text-[#fff8e8]">Kualifikasi - Rotasi per Moto</h2>
                   <p className="mt-1 text-xs font-semibold text-slate-300">Pilih klasemen gabungan atau lihat susunan rider per moto dan batch.</p>
                 </div>
-                {renderRefreshButton(refresh, refreshing, canRefreshPublicScore)}
+                <div className="flex flex-wrap items-center gap-2">
+                  {renderRefreshButton(refresh, refreshing, canRefreshPublicScore)}
+                  {renderSortButtons(sortMode, setSortMode)}
+                </div>
               </div>
               <div className="flex flex-wrap gap-2" role="tablist" aria-label="Tampilan kualifikasi">
                 <button
@@ -887,12 +920,54 @@ export default function LiveScoreClient({
           </section>
         ) : (
         <section className="grid gap-4">
-  {tableRowsByBatch.length === 0 && !loading && (
-    <article className="public-panel-dark">
-      <p className="text-slate-400 text-sm text-center py-8">Belum ada batch tersedia.</p>
-    </article>
-  )}
-          {tableRowsByBatch.map((batch) => (
+          <article className="public-panel-dark live-score-editorial-panel live-score-fixed-toolbar">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-base font-black uppercase text-[#fff8e8]">Hasil Kategori</h2>
+                <p className="mt-1 text-xs font-semibold text-slate-300">Pilih kualifikasi atau stage yang ingin dilihat.</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {renderRefreshButton(refresh, refreshing, canRefreshPublicScore)}
+                {renderSortButtons(sortMode, setSortMode)}
+              </div>
+            </div>
+            <div className="live-score-fixed-tabs mt-3" role="tablist" aria-label="Stage live score">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={showFixedQualification}
+                onClick={() => setSelectedFixedStageView('QUALIFICATION')}
+                className={`live-score-fixed-tab ${showFixedQualification ? 'is-active' : ''}`}
+              >
+                Kualifikasi
+              </button>
+              {stageTabs.map((tab) => {
+                const isActive = tab.stages.some((stage) =>
+                  ['LIVE', 'READY', 'PROVISIONAL', 'PROTEST_REVIEW'].includes(String(stage.status ?? '').toUpperCase())
+                )
+                const isSelected = selectedFixedStageTab?.key === tab.key && !showFixedQualification
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    role="tab"
+                    aria-selected={isSelected}
+                    onClick={() => setSelectedFixedStageView(tab.key)}
+                    className={`live-score-fixed-tab ${isSelected ? 'is-active' : ''}`}
+                  >
+                    {tab.label}
+                    {isActive && <span className="live-score-fixed-tab-live">Aktif</span>}
+                  </button>
+                )
+              })}
+            </div>
+          </article>
+          {showFixedQualification && tableRowsByBatch.length === 0 && stages.length > 0 && !loading && (
+            <article className="public-panel-dark">
+              <p className="text-slate-400 text-sm text-center py-8">Belum ada batch tersedia.</p>
+            </article>
+          )}
+          {showFixedQualification && tableRowsByBatch.map((batch) => (
             <article key={batch.batch_index} className="public-panel-dark live-score-editorial-panel">
               <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-wrap items-center gap-2">
@@ -903,10 +978,6 @@ export default function LiveScoreClient({
                     Kualifikasi Moto
                   </span>
                 </div>
-                <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                  {renderRefreshButton(refresh, refreshing, canRefreshPublicScore)}
-                  {renderSortButtons(sortMode, setSortMode, 'Results')}
-                </div>
               </div>
               {usesGlobalActiveFirst && (
                 <div className="mb-3 rounded-xl border border-amber-300/40 bg-amber-300/10 px-3 py-2 text-xs font-semibold leading-relaxed text-amber-100">
@@ -914,58 +985,54 @@ export default function LiveScoreClient({
                   <p className="mt-1 font-black">Tujuan stage: {qualificationDestinationStatus}.</p>
                 </div>
               )}
-              <div className="lg:hidden">
-                <div className="table-mobile-hint">Geser tabel ke samping untuk melihat seluruh hasil</div>
-                <div className="public-table-wrap">
-                  <table className="public-table min-w-[710px] text-[11px]">
-                    <thead>
-                      <tr>
+              <div className="live-score-qualification-cards grid gap-2 lg:hidden">
+                {batch.rows.map((row) => (
+                  <article key={`mobile-qualification-${row.rider_id}`} className="live-score-mobile-rider-card">
+                    <div className="live-score-mobile-rider-heading">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="live-score-rider-name truncate text-sm font-black">{row.name}</span>
+                          <RiderNotificationButton eventId={eventId} riderId={row.rider_id} riderName={row.name} riderPlate={row.no_plate} />
+                        </div>
+                        <p className="mt-1 text-xs font-extrabold text-amber-800">{row.no_plate}</p>
+                        <p className="text-[10px] font-semibold text-slate-600">{row.club || '-'}</p>
+                      </div>
+                      {(row.status === 'DQ' || row.status === 'PENDING') && (
+                        <span className={`rounded-full border px-2 py-1 text-[9px] font-black uppercase ${statusBadgeClass(row.status)}`}>
+                          {row.status === 'PENDING' ? 'MENUNGGU' : row.status}
+                        </span>
+                      )}
+                    </div>
+                    <div className="live-score-mobile-summary-grid">
+                      <div><span>Total Poin</span><strong>{row.total_point ?? '-'}</strong></div>
+                      <div><span>Total Penalti</span><strong>{row.penalty_total ?? '-'}</strong></div>
+                      {showQualificationNextColumn && (
+                        <div className="live-score-mobile-destination">
+                          <span>{qualificationHasFinisherOutcome ? 'Hasil Kualifikasi' : 'Tujuan Stage'}</span>
+                          <strong>{usesGlobalActiveFirst ? qualificationDestinationLabel(row.class_label) : row.class_label || '-'}</strong>
+                        </div>
+                      )}
+                    </div>
+                    <details className="live-score-mobile-breakdown">
+                      <summary>Lihat poin, gate &amp; status tiap moto</summary>
+                      <div className="live-score-mobile-moto-grid">
                         {[
-                          'Rider',
-                          'Gate M1',
-                          'Gate M2',
-                          ...(showMoto3 ? ['Gate M3'] : []),
-                          'Point M1',
-                          'Point M2',
-                          ...(showMoto3 ? ['Point M3'] : []),
-                          'Total Penalti',
-                          'Total Poin',
-                          ...(showQualificationNextColumn ? [qualificationHasFinisherOutcome ? 'Hasil Kualifikasi' : usesGlobalActiveFirst ? 'Tujuan Stage' : 'Next'] : []),
-                        ].map((heading) => <th key={`mobile-${heading}`}>{heading}</th>)}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {batch.rows.map((row) => (
-                        <tr key={`mobile-qualification-${row.rider_id}`}>
-                          <td className="min-w-[210px] whitespace-normal">
-                            <div className="flex items-center justify-between gap-1.5">
-                              <div className="live-score-rider-name text-[13px] font-black leading-tight">{row.name}</div>
-                              <RiderNotificationButton eventId={eventId} riderId={row.rider_id} riderName={row.name} riderPlate={row.no_plate} />
-                            </div>
-                            <div className="mt-1 text-[10px] font-extrabold text-amber-700">{row.no_plate}</div>
-                            <div className="mt-0.5 text-[10px] font-semibold leading-tight text-slate-600">{row.club || '-'}</div>
-                            {(row.status === 'DQ' || row.status === 'PENDING') && (
-                              <span className={`mt-1 inline-flex w-fit rounded-full border px-1 py-0.5 text-[8px] font-black uppercase ${statusBadgeClass(row.status)}`}>{row.status}</span>
-                            )}
-                          </td>
-                          <td>{renderGateBadge(row.gate_moto1)}</td>
-                          <td>{renderGateBadge(row.gate_moto2)}</td>
-                          {showMoto3 && <td>{renderGateBadge(row.gate_moto3)}</td>}
-                          <td>{renderMotoResultCell(row.point_moto1, row.moto1_status)}</td>
-                          <td>{renderMotoResultCell(row.point_moto2, row.moto2_status)}</td>
-                          {showMoto3 && <td>{renderMotoResultCell(row.point_moto3, row.moto3_status)}</td>}
-                          <td className="font-extrabold text-amber-600">{row.penalty_total ?? '-'}</td>
-                          <td className="font-extrabold text-sky-700">{row.total_point ?? '-'}</td>
-                          {showQualificationNextColumn && <td className="text-center">
-                            <div className="flex flex-col items-center gap-1">
-                              {showQualificationNextColumn && <span className="text-[9px] font-black uppercase leading-tight text-slate-600">{usesGlobalActiveFirst ? qualificationDestinationLabel(row.class_label) : row.class_label}</span>}
-                            </div>
-                          </td>}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                          { label: 'Moto 1', gate: row.gate_moto1, point: row.point_moto1, penalty: row.penalty_moto1, total: row.total_point_moto1, status: row.moto1_status },
+                          { label: 'Moto 2', gate: row.gate_moto2, point: row.point_moto2, penalty: row.penalty_moto2, total: row.total_point_moto2, status: row.moto2_status },
+                          ...(showMoto3 ? [{ label: 'Moto 3', gate: row.gate_moto3, point: row.point_moto3, penalty: row.penalty_moto3, total: row.total_point_moto3, status: row.moto3_status }] : []),
+                        ].map((moto) => (
+                          <div key={moto.label} className="live-score-mobile-moto-item">
+                            <strong>{moto.label}</strong>
+                            <span>Gate {moto.gate ?? '-'}</span>
+                            <span className="live-score-mobile-moto-result">
+                              {moto.status === 'PENDING' ? 'Menunggu' : moto.status ?? 'Menunggu'} · Poin {moto.point ?? '-'} · Penalti {moto.penalty ?? '-'} · Total {moto.total ?? '-'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  </article>
+                ))}
               </div>
               <div className="table-mobile-hint hidden lg:block">Geser tabel ke samping untuk melihat seluruh hasil</div>
               <div className="public-table-wrap hidden lg:block">
@@ -1041,10 +1108,6 @@ export default function LiveScoreClient({
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-lg font-black uppercase text-[#fff8e8]">{stage.title}</h2>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                    {renderRefreshButton(refresh, refreshing, canRefreshPublicScore)}
-                    {renderSortButtons(sortMode, setSortMode)}
-                  </div>
                 </div>
                 {stage.rows.length === 0 ? (
                   <p className="rounded-xl border border-white/15 bg-white/5 px-4 py-6 text-center text-sm font-semibold text-slate-300">
@@ -1052,44 +1115,44 @@ export default function LiveScoreClient({
                   </p>
                 ) : (
                   <>
-                <div className="lg:hidden">
-                  <div className="table-mobile-hint">Geser tabel ke samping untuk melihat seluruh hasil</div>
-                  <div className="public-table-wrap">
-                    <table className="public-table min-w-[620px] text-[11px]">
-                      <thead>
-                        <tr>
-                          {['Rider', 'Gate', 'Point', 'Penalty', 'Rank'].map((heading) => <th key={`mobile-stage-${heading}`}>{heading}</th>)}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {stage.rows.map((row) => (
-                          <tr key={`mobile-stage-${row.rider_id}`}>
-                            <td className="min-w-[210px] whitespace-normal">
-                              <div className="flex items-center justify-between gap-1.5">
-                                <div className="live-score-rider-name text-[13px] font-black leading-tight">{row.name}</div>
-                                <RiderNotificationButton eventId={eventId} riderId={row.rider_id} riderName={row.name} riderPlate={row.no_plate} />
-                              </div>
-                              <div className="mt-1 text-[10px] font-extrabold text-amber-700">{row.no_plate}</div>
-                              <div className="mt-0.5 text-[10px] font-semibold leading-tight text-slate-600">{row.club || '-'}</div>
-                            </td>
-                            <td>{renderGateBadge(row.gate)}</td>
-                            <td className="font-extrabold text-sky-700">{renderStagePointCell(row.point, row.status)}</td>
-                            <td className="font-extrabold text-amber-600">{row.penalty_total ?? '-'}</td>
-                            <td className="text-center">
-                              {renderRankBadge(row.rank)}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                <div className="live-score-stage-cards grid gap-2 lg:hidden">
+                  {stage.rows.map((row) => (
+                    <article key={`mobile-stage-${row.rider_id}`} className="live-score-mobile-rider-card">
+                      <div className="live-score-mobile-rider-heading">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="live-score-rider-name truncate text-sm font-black">{row.name}</span>
+                            <RiderNotificationButton eventId={eventId} riderId={row.rider_id} riderName={row.name} riderPlate={row.no_plate} />
+                          </div>
+                          <p className="mt-1 text-xs font-extrabold text-amber-800">{row.no_plate}</p>
+                          <p className="text-[10px] font-semibold text-slate-600">{row.club || '-'}</p>
+                        </div>
+                        <div className="grid justify-items-center gap-1">
+                          {renderRankBadge(row.rank)}
+                          <span className="text-[9px] font-black uppercase text-slate-600">Peringkat</span>
+                        </div>
+                      </div>
+                      <div className="live-score-mobile-summary-grid live-score-stage-summary-grid">
+                        <div><span>Gate</span><strong>{row.gate ?? '-'}</strong></div>
+                        <div>
+                          <span>Poin</span>
+                          <strong>{row.point ?? '-'}</strong>
+                          {['DNF', 'DNS', 'DQ'].includes(row.status) && (
+                            <small className={`live-score-mobile-result-status ${statusBadgeClass(row.status)}`}>{row.status}</small>
+                          )}
+                        </div>
+                        <div><span>Penalti</span><strong>{row.penalty_total ?? '-'}</strong></div>
+                        <div className="live-score-mobile-total"><span>Total Poin</span><strong>{row.total_point ?? '-'}</strong></div>
+                      </div>
+                    </article>
+                  ))}
                 </div>
                 <div className="table-mobile-hint hidden lg:block">Geser tabel ke samping untuk melihat seluruh hasil</div>
                 <div className="public-table-wrap hidden lg:block">
                   <table className="public-table min-w-[680px] text-[11px] sm:text-xs md:text-sm">
                     <thead>
                       <tr>
-                        {['Gate', ...(showRiderPhotos ? ['Foto'] : []), 'Nama Peserta', 'No Plat', 'Komunitas', 'Point', 'Penalty', 'Rank'].map((h) => (
+                        {['Gate', ...(showRiderPhotos ? ['Foto'] : []), 'Nama Peserta', 'No Plat', 'Komunitas', 'Poin', 'Penalti', 'Total Poin', 'Rank'].map((h) => (
                           <th key={h} className="whitespace-nowrap">
                             {h}
                           </th>
@@ -1111,6 +1174,7 @@ export default function LiveScoreClient({
                           <td className="whitespace-nowrap">{row.club || '-'}</td>
                           <td className="font-extrabold text-sky-700">{renderStagePointCell(row.point, row.status)}</td>
                           <td className="font-extrabold text-amber-600">{row.penalty_total ?? '-'}</td>
+                          <td className="font-extrabold text-sky-700">{row.total_point ?? '-'}</td>
                           <td className="whitespace-nowrap text-center">
                             {renderRankBadge(row.rank)}
                           </td>
