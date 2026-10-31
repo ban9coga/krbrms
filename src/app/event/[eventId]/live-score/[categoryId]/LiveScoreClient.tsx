@@ -25,6 +25,12 @@ type Row = {
   point_moto1: number | null
   point_moto2: number | null
   point_moto3: number | null
+  penalty_moto1: number | null
+  penalty_moto2: number | null
+  penalty_moto3: number | null
+  total_point_moto1: number | null
+  total_point_moto2: number | null
+  total_point_moto3: number | null
   moto1_status?: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'PENDING' | null
   moto2_status?: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'PENDING' | null
   moto3_status?: 'FINISH' | 'DNF' | 'DNS' | 'DQ' | 'PENDING' | null
@@ -54,6 +60,8 @@ type RotatingMotoRow = {
   photo_thumbnail_url?: string | null
   gate: number | null
   point: number | null
+  penalty: number | null
+  total_point: number | null
   status: NonNullable<Row['moto1_status']>
 }
 
@@ -130,7 +138,15 @@ const getStageGroupSortKey = (title: string) => {
   return { stageOrder: 9, finalOrder: 999, heatOrder: normalized }
 }
 
-const isFinalStageTitle = (title: string) => title.trim().toUpperCase().startsWith('FINAL ')
+const getStageTabLabel = (title: string) => {
+  const trimmed = title.trim()
+  if (/^repechage\b/i.test(trimmed)) return 'Repechage'
+  if (/^quarter\s*final\b/i.test(trimmed)) return 'Quarter Final'
+  if (/^semi\s*final\b/i.test(trimmed)) return 'Semifinal'
+  const finalMatch = trimmed.match(/^final\s+(.+)$/i)
+  if (finalMatch) return `Final ${finalMatch[1].trim()}`
+  return trimmed.replace(/\s*-\s*(?:batch|heat)\s*\d+\s*$/i, '').trim()
+}
 const PUBLIC_LIVE_SCORE_REFRESH_INTERVAL_MS = 30000
 
 const statusBadgeClass = (status: string) => {
@@ -446,6 +462,8 @@ export default function LiveScoreClient({
         assigned: (row: Row) => row.assigned_moto1 === true,
         gate: (row: Row) => row.gate_moto1,
         point: (row: Row) => row.point_moto1,
+        penalty: (row: Row) => row.penalty_moto1,
+        totalPoint: (row: Row) => row.total_point_moto1,
         resultStatus: (row: Row) => row.moto1_status ?? 'PENDING',
       },
       {
@@ -455,6 +473,8 @@ export default function LiveScoreClient({
         assigned: (row: Row) => row.assigned_moto2 === true,
         gate: (row: Row) => row.gate_moto2,
         point: (row: Row) => row.point_moto2,
+        penalty: (row: Row) => row.penalty_moto2,
+        totalPoint: (row: Row) => row.total_point_moto2,
         resultStatus: (row: Row) => row.moto2_status ?? 'PENDING',
       },
       {
@@ -464,6 +484,8 @@ export default function LiveScoreClient({
         assigned: (row: Row) => row.assigned_moto3 === true,
         gate: (row: Row) => row.gate_moto3,
         point: (row: Row) => row.point_moto3,
+        penalty: (row: Row) => row.penalty_moto3,
+        totalPoint: (row: Row) => row.total_point_moto3,
         resultStatus: (row: Row) => row.moto3_status ?? 'PENDING',
       },
     ]
@@ -482,9 +504,18 @@ export default function LiveScoreClient({
               photo_thumbnail_url: row.photo_thumbnail_url,
               gate: field.gate(row),
               point: field.point(row),
+              penalty: field.penalty(row),
+              total_point: field.totalPoint(row),
               status: field.resultStatus(row) as NonNullable<Row['moto1_status']>,
             }))
-            .sort((a, b) => (a.gate ?? Number.MAX_SAFE_INTEGER) - (b.gate ?? Number.MAX_SAFE_INTEGER))
+            .sort((a, b) => {
+              if (a.total_point !== null && b.total_point !== null && a.total_point !== b.total_point) {
+                return a.total_point - b.total_point
+              }
+              if (a.total_point !== null && b.total_point === null) return -1
+              if (a.total_point === null && b.total_point !== null) return 1
+              return (a.gate ?? Number.MAX_SAFE_INTEGER) - (b.gate ?? Number.MAX_SAFE_INTEGER)
+            })
           return {
             batch_index: batch.batch_index,
             moto_id: motoId ?? '',
@@ -552,6 +583,30 @@ export default function LiveScoreClient({
         }),
     [sortMode, stages]
   )
+  const stageTabs = useMemo(() => {
+    const groups = new Map<string, { key: string; label: string; stages: StageGroup[] }>()
+    sortedStages.forEach((stage) => {
+      const label = getStageTabLabel(stage.title)
+      const key = label.toUpperCase()
+      const group = groups.get(key) ?? { key, label, stages: [] }
+      group.stages.push(stage)
+      groups.set(key, group)
+    })
+    return Array.from(groups.values())
+  }, [sortedStages])
+  const selectedStageTab = stageTabs.find((tab) => selectedRotatingView === `STAGE_${tab.key}`)
+  const displayedStages = qualificationBatchMode === 'ROTATE_EACH_MOTO'
+    ? selectedStageTab?.stages ?? []
+    : sortedStages
+
+  useEffect(() => {
+    if (
+      selectedRotatingView.startsWith('STAGE_') &&
+      (qualificationBatchMode !== 'ROTATE_EACH_MOTO' || !selectedStageTab)
+    ) {
+      setSelectedRotatingView('MOTO_1')
+    }
+  }, [qualificationBatchMode, selectedRotatingView, selectedStageTab])
 
   return (
     <div className="public-page public-editorial-page live-score-editorial-page">
@@ -620,7 +675,7 @@ export default function LiveScoreClient({
 
         {qualificationBatchMode === 'ROTATE_EACH_MOTO' ? (
           <section className="grid gap-4">
-            <article className="public-panel-dark live-score-editorial-panel">
+            <article className="public-panel-dark live-score-editorial-panel live-score-rotation-panel">
               <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h2 className="text-lg font-black uppercase text-[#fff8e8]">Kualifikasi - Rotasi per Moto</h2>
@@ -638,7 +693,7 @@ export default function LiveScoreClient({
                     selectedRotatingView === 'OVERALL'
                       ? 'border-amber-300 bg-amber-300 text-slate-950'
                       : 'border-white/20 bg-white/10 text-white hover:bg-white/20'
-                  }`}
+                  } live-score-rotation-tab`}
                 >
                   Klasemen
                 </button>
@@ -653,19 +708,35 @@ export default function LiveScoreClient({
                       selectedRotatingView === `MOTO_${view.index}`
                         ? 'border-amber-300 bg-amber-300 text-slate-950'
                         : 'border-white/20 bg-white/10 text-white hover:bg-white/20'
-                    }`}
+                    } live-score-rotation-tab`}
                   >
                     {view.title}
+                  </button>
+                ))}
+                {stageTabs.map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    role="tab"
+                    aria-selected={selectedRotatingView === `STAGE_${tab.key}`}
+                    onClick={() => setSelectedRotatingView(`STAGE_${tab.key}`)}
+                    className={`rounded-full border px-4 py-2 text-xs font-black uppercase transition-colors ${
+                      selectedRotatingView === `STAGE_${tab.key}`
+                        ? 'border-amber-300 bg-amber-300 text-slate-950'
+                        : 'border-white/20 bg-white/10 text-white hover:bg-white/20'
+                    } live-score-rotation-tab`}
+                  >
+                    {tab.label}
                   </button>
                 ))}
               </div>
             </article>
 
             {selectedRotatingView === 'OVERALL' ? (
-              <article className="public-panel-dark live-score-editorial-panel">
+              <article className="public-panel-dark live-score-editorial-panel live-score-rotation-panel">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                   <h3 className="text-base font-black uppercase text-[#fff8e8]">Klasemen Gabungan</h3>
-                  <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[10px] font-black uppercase text-slate-200">
+                  <span className="live-score-rotation-status rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[10px] font-black uppercase text-slate-200">
                     {qualificationResultsOfficial && qualificationOverallRows.length > 0 ? 'Hasil Resmi' : 'Menunggu Hasil Kualifikasi'}
                   </span>
                 </div>
@@ -696,45 +767,69 @@ export default function LiveScoreClient({
                   </div>
                 )}
               </article>
+            ) : selectedStageTab ? (
+              <article className="public-panel-dark live-score-editorial-panel live-score-rotation-panel">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-base font-black uppercase text-[#fff8e8]">{selectedStageTab.label}</h3>
+                  <span className="live-score-rotation-status rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[10px] font-black uppercase text-slate-200">
+                    {selectedStageTab.stages.length} Moto Tersedia
+                  </span>
+                </div>
+                <p className="text-xs font-semibold text-slate-300">
+                  Moto-moto untuk stage ini sudah digenerate. Hasilnya ditampilkan di bawah.
+                </p>
+              </article>
             ) : activeRotatingMotoView ? (
               <section className="grid gap-4" aria-label={`${activeRotatingMotoView.title} per batch`}>
                 {activeRotatingMotoView.batches.map((batch) => (
-                  <article key={batch.moto_id} className="public-panel-dark live-score-editorial-panel">
-                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <article key={batch.moto_id} className="public-panel-dark live-score-editorial-panel live-score-rotation-batch-panel">
+                    <div className="live-score-rotation-batch-heading mb-3 flex flex-wrap items-center justify-between gap-2">
                       <h3 className="text-base font-black uppercase text-[#fff8e8]">
                         {activeRotatingMotoView.title} - Batch {batch.batch_index}
                       </h3>
-                      <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[10px] font-black uppercase text-slate-200">
+                      <span className="live-score-rotation-status rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[10px] font-black uppercase text-slate-200">
                         {formatMotoStatusLabel(batch.status)}
                       </span>
                     </div>
                     <div className="grid gap-2 lg:hidden">
                       {batch.rows.map((row) => (
-                        <div key={row.rider_id} className="flex items-center justify-between gap-3 rounded-xl border border-white/15 bg-white/5 p-3">
-                          <div className="flex min-w-0 items-center gap-3">
-                            {renderGateBadge(row.gate)}
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-1.5">
-                                <span className="live-score-rider-name truncate text-sm font-black">{row.name}</span>
-                                <RiderNotificationButton eventId={eventId} riderId={row.rider_id} riderName={row.name} riderPlate={row.no_plate} />
+                        <div key={row.rider_id} className="live-score-rotation-rider">
+                          <div className="live-score-rotation-row-top">
+                            <div className="live-score-rotation-rider-info flex min-w-0 items-center gap-3">
+                              {renderGateBadge(row.gate)}
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="live-score-rider-name text-sm font-black">{row.name}</span>
+                                  <RiderNotificationButton eventId={eventId} riderId={row.rider_id} riderName={row.name} riderPlate={row.no_plate} />
+                                </div>
+                                <div className="live-score-rotation-meta text-[10px] font-bold text-amber-300">{row.no_plate} - {row.club || '-'}</div>
                               </div>
-                              <div className="text-[10px] font-bold text-amber-300">{row.no_plate} - {row.club || '-'}</div>
+                            </div>
+                            <div className="live-score-rotation-result">
+                              <span className={`inline-flex rounded-full border px-2.5 py-1 text-[9px] font-black uppercase ${statusBadgeClass(row.status)}`}>
+                                {row.status === 'PENDING' ? 'MENUNGGU' : row.status}
+                              </span>
                             </div>
                           </div>
-                          <div className="shrink-0 text-right">
-                            <span className={`inline-flex rounded-full border px-2 py-1 text-[9px] font-black uppercase ${statusBadgeClass(row.status)}`}>
-                              {row.status === 'PENDING' ? 'MENUNGGU' : row.status}
-                            </span>
-                            <div className="mt-1 text-sm font-black text-sky-300">{row.point ?? '-'} poin</div>
+                          <div className="live-score-rotation-stats">
+                            <div className="live-score-rotation-stat live-score-rotation-stat-points">
+                              <span>Poin</span><strong>{row.point ?? '-'}</strong>
+                            </div>
+                            <div className="live-score-rotation-stat live-score-rotation-stat-penalty">
+                              <span>Penalti</span><strong>{row.penalty ?? '-'}</strong>
+                            </div>
+                            <div className="live-score-rotation-stat live-score-rotation-stat-total">
+                              <span>Total Poin</span><strong>{row.total_point ?? '-'}</strong>
+                            </div>
                           </div>
                         </div>
                       ))}
                     </div>
                     <div className="public-table-wrap hidden lg:block">
-                      <table className="public-table min-w-[620px] text-xs sm:text-sm">
+                      <table className="public-table min-w-[820px] text-xs sm:text-sm">
                         <thead>
                           <tr>
-                            {['Gate', ...(showRiderPhotos ? ['Foto'] : []), 'Nama Peserta', 'No Plat', 'Komunitas', 'Status', 'Poin'].map((heading) => <th key={heading}>{heading}</th>)}
+                            {['Gate', ...(showRiderPhotos ? ['Foto'] : []), 'Nama Peserta', 'No Plat', 'Komunitas', 'Status', 'Poin Moto', 'Penalti Moto', 'Total Poin Moto'].map((heading) => <th key={heading}>{heading}</th>)}
                           </tr>
                         </thead>
                         <tbody>
@@ -753,6 +848,8 @@ export default function LiveScoreClient({
                                 </span>
                               </td>
                               <td className="font-black text-sky-700">{row.point ?? '-'}</td>
+                              <td className="font-extrabold text-amber-600">{row.penalty ?? '-'}</td>
+                              <td className="font-extrabold text-sky-700">{row.total_point ?? '-'}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -762,7 +859,7 @@ export default function LiveScoreClient({
                 ))}
               </section>
             ) : (
-              <article className="public-panel-dark live-score-editorial-panel">
+              <article className="public-panel-dark live-score-editorial-panel live-score-rotation-panel">
                 <p className="py-8 text-center text-sm font-semibold text-slate-300">Belum ada susunan batch untuk moto ini.</p>
               </article>
             )}
@@ -810,8 +907,8 @@ export default function LiveScoreClient({
                           'Point M1',
                           'Point M2',
                           ...(showMoto3 ? ['Point M3'] : []),
-                          'Penalty',
-                          'Total',
+                          'Total Penalti',
+                          'Total Poin',
                           ...(showQualificationNextColumn ? [qualificationHasFinisherOutcome ? 'Hasil Kualifikasi' : usesGlobalActiveFirst ? 'Tujuan Stage' : 'Next'] : []),
                         ].map((heading) => <th key={`mobile-${heading}`}>{heading}</th>)}
                       </tr>
@@ -865,8 +962,8 @@ export default function LiveScoreClient({
                           'Point M1',
                           'Point M2',
                           ...(showMoto3 ? ['Point M3'] : []),
-                          'Penalty',
-                          'Total',
+                          'Total Penalti',
+                          'Total Poin',
                           ...(showQualificationNextColumn ? [qualificationHasFinisherOutcome ? 'Hasil Kualifikasi' : usesGlobalActiveFirst ? 'Tujuan Stage' : 'Next'] : []),
                         ].map((h) => (
                         <th key={h} className="whitespace-nowrap">
@@ -915,14 +1012,10 @@ export default function LiveScoreClient({
         </section>
         )}
 
-        {sortedStages.length > 0 && (
+        {displayedStages.length > 0 && (
           <section className="grid gap-4">
-            {sortedStages.map((stage) => (
+            {displayedStages.map((stage) => (
               <article key={stage.moto_id} className="public-panel-dark live-score-editorial-panel">
-                {(() => {
-                  const showStageNextColumn = !isFinalStageTitle(stage.title)
-                  return (
-                    <>
                 <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-lg font-black uppercase text-[#fff8e8]">{stage.title}</h2>
@@ -932,13 +1025,19 @@ export default function LiveScoreClient({
                     {renderSortButtons(sortMode, setSortMode)}
                   </div>
                 </div>
+                {stage.rows.length === 0 ? (
+                  <p className="rounded-xl border border-white/15 bg-white/5 px-4 py-6 text-center text-sm font-semibold text-slate-300">
+                    Moto sudah digenerate. Menunggu rider ditempatkan.
+                  </p>
+                ) : (
+                  <>
                 <div className="lg:hidden">
                   <div className="table-mobile-hint">Geser tabel ke samping untuk melihat seluruh hasil</div>
                   <div className="public-table-wrap">
                     <table className="public-table min-w-[620px] text-[11px]">
                       <thead>
                         <tr>
-                          {['Rider', 'Gate', 'Point', 'Penalty', 'Rank / Next'].map((heading) => <th key={`mobile-stage-${heading}`}>{heading}</th>)}
+                          {['Rider', 'Gate', 'Point', 'Penalty', 'Rank'].map((heading) => <th key={`mobile-stage-${heading}`}>{heading}</th>)}
                         </tr>
                       </thead>
                       <tbody>
@@ -956,10 +1055,7 @@ export default function LiveScoreClient({
                             <td className="font-extrabold text-sky-700">{renderStagePointCell(row.point, row.status)}</td>
                             <td className="font-extrabold text-amber-600">{row.penalty_total ?? '-'}</td>
                             <td className="text-center">
-                              <div className="flex flex-col items-center gap-1">
-                                {renderRankBadge(row.rank)}
-                                {showStageNextColumn && row.next_class_label && <span className="text-[9px] font-black uppercase leading-tight text-slate-600">{row.next_class_label}</span>}
-                              </div>
+                              {renderRankBadge(row.rank)}
                             </td>
                           </tr>
                         ))}
@@ -972,7 +1068,7 @@ export default function LiveScoreClient({
                   <table className="public-table min-w-[680px] text-[11px] sm:text-xs md:text-sm">
                     <thead>
                       <tr>
-                        {['Gate', ...(showRiderPhotos ? ['Foto'] : []), 'Nama Peserta', 'No Plat', 'Komunitas', 'Point', 'Penalty', 'Rank', ...(showStageNextColumn ? ['Next'] : [])].map((h) => (
+                        {['Gate', ...(showRiderPhotos ? ['Foto'] : []), 'Nama Peserta', 'No Plat', 'Komunitas', 'Point', 'Penalty', 'Rank'].map((h) => (
                           <th key={h} className="whitespace-nowrap">
                             {h}
                           </th>
@@ -997,15 +1093,13 @@ export default function LiveScoreClient({
                           <td className="whitespace-nowrap text-center">
                             {renderRankBadge(row.rank)}
                           </td>
-                          {showStageNextColumn && <td className="whitespace-nowrap">{row.next_class_label || '-'}</td>}
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
-                    </>
-                  )
-                })()}
+                  </>
+                )}
               </article>
             ))}
           </section>

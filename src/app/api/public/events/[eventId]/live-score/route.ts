@@ -841,6 +841,33 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
           point_moto1: point1,
           point_moto2: point2,
           point_moto3: point3,
+          penalty_moto1: moto1Result
+            ? resolveNonFinishAutoPenalty(moto1Result.result_status, pointOverrideConfig ?? undefined) +
+              (moto1?.id ? motoPenaltyMap.get(`${moto1.id}:${riderId}`) ?? 0 : 0)
+            : null,
+          penalty_moto2: moto2Result
+            ? resolveNonFinishAutoPenalty(moto2Result.result_status, pointOverrideConfig ?? undefined) +
+              (moto2?.id ? motoPenaltyMap.get(`${moto2.id}:${riderId}`) ?? 0 : 0)
+            : null,
+          penalty_moto3: moto3Result
+            ? resolveNonFinishAutoPenalty(moto3Result.result_status, pointOverrideConfig ?? undefined) +
+              (moto3?.id ? motoPenaltyMap.get(`${moto3.id}:${riderId}`) ?? 0 : 0)
+            : null,
+          total_point_moto1: point1 !== null
+            ? point1 +
+              (resolveNonFinishAutoPenalty(moto1Result?.result_status, pointOverrideConfig ?? undefined) +
+                (moto1?.id ? motoPenaltyMap.get(`${moto1.id}:${riderId}`) ?? 0 : 0))
+            : null,
+          total_point_moto2: point2 !== null
+            ? point2 +
+              (resolveNonFinishAutoPenalty(moto2Result?.result_status, pointOverrideConfig ?? undefined) +
+                (moto2?.id ? motoPenaltyMap.get(`${moto2.id}:${riderId}`) ?? 0 : 0))
+            : null,
+          total_point_moto3: point3 !== null
+            ? point3 +
+              (resolveNonFinishAutoPenalty(moto3Result?.result_status, pointOverrideConfig ?? undefined) +
+                (moto3?.id ? motoPenaltyMap.get(`${moto3.id}:${riderId}`) ?? 0 : 0))
+            : null,
           moto1_status: (moto1Result?.result_status ?? 'PENDING') as QualificationMotoStatus,
           moto2_status: (moto2Result?.result_status ?? 'PENDING') as QualificationMotoStatus,
           moto3_status: (moto3Result?.result_status ?? 'PENDING') as QualificationMotoStatus,
@@ -1235,8 +1262,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     rows.forEach((row) => {
       row.next_class_label = nextLabelForRank(row.rank)
     })
-
-    if (rows.length === 0) return []
 
     return [{
       title: formatMotoDisplayName(moto.moto_name),
