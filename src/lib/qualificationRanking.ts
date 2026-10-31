@@ -75,5 +75,20 @@ export const compareQualificationTieBreakData = (
     if (tieBreakDiff !== 0) return tieBreakDiff
   }
 
+  // If points remain identical and status is otherwise disabled for a
+  // qualification tie-break Repechage, keep riders who actually started ahead
+  // of riders who were DNS/absent throughout qualification. DNS-only ties use
+  // the normal seed fallback and must not be sent to a race they did not start.
+  if (options.statusTiebreakEnabled === false) {
+    const aStarted = a?.motoResults.some((result) =>
+      ['FINISH', 'DNF'].includes(String(result.resultStatus ?? 'FINISH').toUpperCase())
+    )
+    const bStarted = b?.motoResults.some((result) =>
+      ['FINISH', 'DNF'].includes(String(result.resultStatus ?? 'FINISH').toUpperCase())
+    )
+    const participationDiff = Number(!aStarted) - Number(!bStarted)
+    if (participationDiff !== 0) return participationDiff
+  }
+
   return 0
 }
