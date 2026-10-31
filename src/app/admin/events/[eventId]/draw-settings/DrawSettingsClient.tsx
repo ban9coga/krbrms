@@ -29,6 +29,11 @@ type DrawSettingsData = {
   categories: DrawCategory[]
 }
 
+type CategorySaveNotice = {
+  kind: 'saving' | 'success' | 'error'
+  text: string
+}
+
 const panelClass = 'rounded-xl border border-[#d9c6a8] bg-white p-5 shadow-[0_14px_30px_rgba(64,37,19,0.08)]'
 const fieldClass = 'w-full rounded-lg border border-[#cbb896] bg-[#fffaf0] px-3 py-2.5 text-sm font-bold text-[#2a1710] outline-none focus:border-[#b85a1c] focus:ring-2 focus:ring-[#e7b23b]/30'
 
@@ -49,6 +54,7 @@ export default function DrawSettingsClient({ eventId }: { eventId: string }) {
   const [saving, setSaving] = useState(false)
   const [modeSaving, setModeSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const [categorySaveNotice, setCategorySaveNotice] = useState<CategorySaveNotice | null>(null)
 
   const selectedCategory = useMemo(
     () => data?.categories.find((category) => category.id === selectedCategoryId) ?? null,
@@ -87,6 +93,7 @@ export default function DrawSettingsClient({ eventId }: { eventId: string }) {
   const selectCategory = (categoryId: string) => {
     setSelectedCategoryId(categoryId)
     applyCategory(data?.categories.find((category) => category.id === categoryId) ?? null)
+    setCategorySaveNotice(null)
     setMessage(null)
   }
 
@@ -101,16 +108,17 @@ export default function DrawSettingsClient({ eventId }: { eventId: string }) {
       custom_batch_sizes: draft.batch_mode === 'CUSTOM_BATCH_SIZES' ? parsedPattern : [],
     })
     if (nextDraft.batch_mode === 'CUSTOM_BATCH_SIZES' && parsedPattern.length === 0) {
-      setMessage('Isi pola batch, misalnya 5, 4 atau 8, 8, 7.')
+      setCategorySaveNotice({ kind: 'error', text: 'Isi pola batch, misalnya 5, 4 atau 8, 8, 7.' })
       return
     }
     if (nextDraft.batch_mode === 'AUTO_BY_GATE' && nextDraft.batch_size && nextDraft.batch_size > (data?.gate_positions ?? 8)) {
-      setMessage(`Maksimal rider per batch tidak boleh lebih dari jumlah gate (${data?.gate_positions ?? 8}).`)
+      setCategorySaveNotice({ kind: 'error', text: `Maksimal rider per batch tidak boleh lebih dari jumlah gate (${data?.gate_positions ?? 8}).` })
       return
     }
 
     setSaving(true)
     setMessage(null)
+    setCategorySaveNotice({ kind: 'saving', text: `Menyimpan konfigurasi ${selectedCategory?.label ?? 'kategori'}...` })
     try {
       const json = await apiFetch(`/api/events/${eventId}/draw-settings`, {
         method: 'PUT',
@@ -136,9 +144,12 @@ export default function DrawSettingsClient({ eventId }: { eventId: string }) {
             }
           : previous
       )
-      setMessage(`Konfigurasi ${selectedCategory?.label ?? 'kategori'} tersimpan.`)
+      setCategorySaveNotice({ kind: 'success', text: `Konfigurasi ${selectedCategory?.label ?? 'kategori'} berhasil disimpan.` })
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Gagal menyimpan konfigurasi drawing.')
+      setCategorySaveNotice({
+        kind: 'error',
+        text: error instanceof Error ? error.message : 'Gagal menyimpan konfigurasi drawing.',
+      })
     } finally {
       setSaving(false)
     }
@@ -273,7 +284,10 @@ export default function DrawSettingsClient({ eventId }: { eventId: string }) {
                 Jumlah moto kualifikasi per batch
                 <select
                   value={draftQualificationMotoCount}
-                  onChange={(event) => setDraftQualificationMotoCount(Number(event.target.value))}
+                  onChange={(event) => {
+                    setDraftQualificationMotoCount(Number(event.target.value))
+                    setCategorySaveNotice(null)
+                  }}
                   className={fieldClass}
                 >
                   <option value={2}>2 moto</option>
@@ -286,7 +300,10 @@ export default function DrawSettingsClient({ eventId }: { eventId: string }) {
                 <input
                   type="checkbox"
                   checked={draftSingleBatchFinalEnabled}
-                  onChange={(event) => setDraftSingleBatchFinalEnabled(event.target.checked)}
+                  onChange={(event) => {
+                    setDraftSingleBatchFinalEnabled(event.target.checked)
+                    setCategorySaveNotice(null)
+                  }}
                   className="mt-0.5 h-4 w-4 accent-[#a95019]"
                 />
                 <span className="grid gap-1">
@@ -301,7 +318,10 @@ export default function DrawSettingsClient({ eventId }: { eventId: string }) {
                 Pembagian batch
                 <select
                   value={draft.batch_mode}
-                  onChange={(event) => setDraft((previous) => ({ ...previous, batch_mode: event.target.value as DrawBatchMode }))}
+                  onChange={(event) => {
+                    setDraft((previous) => ({ ...previous, batch_mode: event.target.value as DrawBatchMode }))
+                    setCategorySaveNotice(null)
+                  }}
                   className={fieldClass}
                 >
                   <option value="AUTO_BY_GATE">Otomatis berdasarkan kapasitas gate</option>
@@ -318,7 +338,10 @@ export default function DrawSettingsClient({ eventId }: { eventId: string }) {
                     min={1}
                     max={data.gate_positions}
                     value={draft.batch_size ?? data.gate_positions}
-                    onChange={(event) => setDraft((previous) => ({ ...previous, batch_size: Number(event.target.value) || null }))}
+                    onChange={(event) => {
+                      setDraft((previous) => ({ ...previous, batch_size: Number(event.target.value) || null }))
+                      setCategorySaveNotice(null)
+                    }}
                     className={fieldClass}
                   />
                 </label>
@@ -331,7 +354,10 @@ export default function DrawSettingsClient({ eventId }: { eventId: string }) {
                     type="number"
                     min={1}
                     value={draft.batch_count ?? ''}
-                    onChange={(event) => setDraft((previous) => ({ ...previous, batch_count: Number(event.target.value) || null }))}
+                    onChange={(event) => {
+                      setDraft((previous) => ({ ...previous, batch_count: Number(event.target.value) || null }))
+                      setCategorySaveNotice(null)
+                    }}
                     className={fieldClass}
                   />
                 </label>
@@ -343,7 +369,10 @@ export default function DrawSettingsClient({ eventId }: { eventId: string }) {
                   <input
                     type="text"
                     value={customPattern}
-                    onChange={(event) => setCustomPattern(event.target.value)}
+                    onChange={(event) => {
+                      setCustomPattern(event.target.value)
+                      setCategorySaveNotice(null)
+                    }}
                     placeholder="Contoh: 5, 4 atau 8, 8, 7"
                     className={fieldClass}
                   />
@@ -355,7 +384,10 @@ export default function DrawSettingsClient({ eventId }: { eventId: string }) {
                 Urutan gate Moto 2
                 <select
                   value={draft.moto2_order}
-                  onChange={(event) => setDraft((previous) => ({ ...previous, moto2_order: event.target.value as DrawMoto2Order }))}
+                  onChange={(event) => {
+                    setDraft((previous) => ({ ...previous, moto2_order: event.target.value as DrawMoto2Order }))
+                    setCategorySaveNotice(null)
+                  }}
                   className={fieldClass}
                 >
                   <option value="REVERSE">Dibalik dari urutan Moto 1</option>
@@ -367,7 +399,10 @@ export default function DrawSettingsClient({ eventId }: { eventId: string }) {
                 Urutan gate Moto 3
                 <select
                   value={draft.moto3_order}
-                  onChange={(event) => setDraft((previous) => ({ ...previous, moto3_order: event.target.value as DrawMoto3Order }))}
+                  onChange={(event) => {
+                    setDraft((previous) => ({ ...previous, moto3_order: event.target.value as DrawMoto3Order }))
+                    setCategorySaveNotice(null)
+                  }}
                   className={fieldClass}
                 >
                   <option value="SAME">Sama seperti urutan Moto 1</option>
@@ -379,14 +414,33 @@ export default function DrawSettingsClient({ eventId }: { eventId: string }) {
 
             <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-[#eadcc6] pt-5">
               <p className="max-w-lg text-xs font-semibold leading-5 text-[#765946]">Konfigurasi ini dipakai ketika kategori belum memiliki moto. Setelah drawing disimpan, perubahan format tidak akan mengubah batch yang sudah dibuat.</p>
-              <button
-                type="button"
-                onClick={() => void saveCategory()}
-                disabled={saving || !selectedCategoryId}
-                className="rounded-lg border border-[#6f3d1c] bg-[#f6c73b] px-5 py-3 text-sm font-black text-[#21150f] shadow-[0_4px_0_#8d4d1d] transition hover:bg-[#ffd85b] active:translate-y-1 active:shadow-none disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {saving ? 'Menyimpan...' : 'Simpan Konfigurasi'}
-              </button>
+              <div className="grid justify-items-end gap-3">
+                {categorySaveNotice && (
+                  <p
+                    role={categorySaveNotice.kind === 'error' ? 'alert' : 'status'}
+                    aria-live={categorySaveNotice.kind === 'error' ? 'assertive' : 'polite'}
+                    className={`m-0 rounded-lg border px-3 py-2 text-sm font-bold ${
+                      categorySaveNotice.kind === 'success'
+                        ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                        : categorySaveNotice.kind === 'error'
+                          ? 'border-red-300 bg-red-50 text-red-800'
+                          : 'border-blue-300 bg-blue-50 text-blue-800'
+                    }`}
+                  >
+                    {categorySaveNotice.kind === 'saving' && <span className="mr-2 inline-block animate-spin" aria-hidden="true">◌</span>}
+                    {categorySaveNotice.kind === 'success' && <span className="mr-2" aria-hidden="true">✓</span>}
+                    {categorySaveNotice.text}
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onClick={() => void saveCategory()}
+                  disabled={saving || !selectedCategoryId}
+                  className="rounded-lg border border-[#6f3d1c] bg-[#f6c73b] px-5 py-3 text-sm font-black text-[#21150f] shadow-[0_4px_0_#8d4d1d] transition hover:bg-[#ffd85b] active:translate-y-1 active:shadow-none disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {saving ? 'Menyimpan...' : 'Simpan Konfigurasi'}
+                </button>
+              </div>
             </div>
           </section>
         </div>

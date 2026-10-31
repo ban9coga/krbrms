@@ -83,7 +83,7 @@ type EventFlags = {
 
 const isLockedStatus = (status?: string | null) => String(status ?? '').toUpperCase() === 'LOCKED'
 const isPrepMotoStatus = (status?: string | null) => isMotoUpcoming(status) || isMotoReady(status)
-const CHECKER_POLL_INTERVAL_MS = 5000
+const CHECKER_POLL_INTERVAL_MS = 15000
 
 const isCategoryAwaitingStageCompute = (list: MotoItem[], categoryId?: string | null) => {
   if (!categoryId) return false

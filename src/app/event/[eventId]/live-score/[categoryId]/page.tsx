@@ -106,10 +106,15 @@ export default async function LiveScorePage({
     ? [archive.event, archive.categories]
     : await Promise.all([loadInitialEvent(eventId), loadInitialCategories(eventId)])
   const includePhotos = event?.business_settings?.show_rider_photos_public === true
-  const initialLiveScore =
-    event?.status === 'LIVE'
-      ? await loadInitialLiveScore(eventId, categoryId, includePhotos, true)
-      : await loadCachedFinishedLiveScore(eventId, categoryId, includePhotos)
+  const isFinishedEvent = event?.status === 'FINISHED'
+  const initialLiveScore = isFinishedEvent
+    ? await loadCachedFinishedLiveScore(eventId, categoryId, includePhotos)
+    : await loadInitialLiveScore(
+        eventId,
+        categoryId,
+        includePhotos,
+        event?.status === 'LIVE' || event?.status === 'UPCOMING'
+      )
 
   return (
     <LiveScoreClient

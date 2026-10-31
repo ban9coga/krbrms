@@ -37,6 +37,15 @@ type MotoRiderRow = {
   created_at?: string | null
 }
 
+type QualificationOverallRow = {
+  rider_id: string
+  name: string
+  no_plate: string
+  rank: number
+  total_point: number | null
+  next_class_label: string | null
+}
+
 type ResultRow = {
   moto_id: string
   rider_id: string
@@ -338,6 +347,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     !Array.isArray(settingsResult.data.race_format_settings)
       ? (settingsResult.data.race_format_settings as Record<string, unknown>)
       : {}
+  const qualificationBatchMode = raceFormatSettings.qualification_batch_mode === 'ROTATE_EACH_MOTO'
+    ? 'ROTATE_EACH_MOTO'
+    : 'FIXED'
   const qualificationTieBreakRepechage = raceFormatSettings.qualification_tiebreak_repechage === true
 
   const { data: pointOverrideConfig } = pointOverrideResult
@@ -703,7 +715,17 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       const gate1Map = new Map(gates1.map((g) => [g.rider_id, g.gate_position]))
       const gate2Map = new Map(gates2.map((g) => [g.rider_id, g.gate_position]))
       const gate3Map = new Map(gates3.map((g) => [g.rider_id, g.gate_position]))
-      const riderIdsInBatch = Array.from(new Set([...gate1Map.keys(), ...gate2Map.keys(), ...gate3Map.keys()]))
+      const assignedMoto1Ids = new Set(motoRiderRows.filter((row) => row.moto_id === moto1.id).map((row) => row.rider_id))
+      const assignedMoto2Ids = new Set(moto2 ? motoRiderRows.filter((row) => row.moto_id === moto2.id).map((row) => row.rider_id) : [])
+      const assignedMoto3Ids = new Set(moto3 ? motoRiderRows.filter((row) => row.moto_id === moto3.id).map((row) => row.rider_id) : [])
+      const riderIdsInBatch = Array.from(new Set([
+        ...assignedMoto1Ids,
+        ...assignedMoto2Ids,
+        ...assignedMoto3Ids,
+        ...gate1Map.keys(),
+        ...gate2Map.keys(),
+        ...gate3Map.keys(),
+      ]))
       const qualificationTieBreakByRider = new Map<string, ReturnType<typeof createQualificationTieBreakData>>()
       const qualificationRankingTotalByRider = new Map<string, number | null>()
 
@@ -805,6 +827,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
                 : 'PENDING'
         return {
           rider_id: riderId,
+          assigned_moto1: assignedMoto1Ids.has(riderId),
+          assigned_moto2: assignedMoto2Ids.has(riderId),
+          assigned_moto3: assignedMoto3Ids.has(riderId),
           gate_moto1: gate1Map.get(riderId) ?? null,
           gate_moto2: gate2Map.get(riderId) ?? null,
           gate_moto3: gate3Map.get(riderId) ?? null,
@@ -926,6 +951,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         moto1_id: moto1.id,
         moto2_id: moto2?.id ?? null,
         moto3_id: moto3?.id ?? null,
+        moto1_status: moto1.status ?? null,
+        moto2_status: moto2?.status ?? null,
+        moto3_status: moto3?.status ?? null,
         moto_status: resolvedMotoStatus || null,
         isProvisional: resolvedMotoStatus === 'PROVISIONAL',
         isUnderReview: resolvedMotoStatus === 'PROTEST_REVIEW',
@@ -1228,10 +1256,28 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
 
   const liveScoreData = {
     category: category.label,
+    qualification_batch_mode: qualificationBatchMode,
     qualification_split_basis: qualificationSplitBasis,
     qualification_has_finisher_outcome: qualificationRules.some((rule) => rule.target_outcome === 'FINISHER'),
     qualification_advancements_calculated: stageSeedRows.some((row) => row.stage !== 'QUALIFICATION'),
     qualification_results_official: qualificationResultsOfficial,
+    qualification_overall_rows: (qualificationStageSeedRows as StageSeedRow[])
+      .filter((row) => row.stage === 'QUALIFICATION' && row.position !== null)
+      .map((row): QualificationOverallRow | null => {
+        const rider = riderMap.get(row.rider_id)
+        if (!rider) return null
+        const batchIndex = row.batch_id ? stageBatchOrderById.get(row.batch_id) ?? 1 : 1
+        return {
+          rider_id: row.rider_id,
+          name: rider.name,
+          no_plate: rider.no_plate_display,
+          rank: Number(row.position),
+          total_point: row.points,
+          next_class_label: nextQualificationLabelForRank(Number(row.position), row.rider_id, batchIndex),
+        }
+      })
+      .filter((row): row is QualificationOverallRow => row !== null)
+      .sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name)),
     batches,
     stages: stageGroups,
   }

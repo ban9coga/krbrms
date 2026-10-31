@@ -12,6 +12,9 @@ import { FINAL_MOTO_DISPLAY_ORDER } from '../../../../../lib/motoDisplayOrder'
 
 type Row = {
   rider_id: string
+  assigned_moto1?: boolean
+  assigned_moto2?: boolean
+  assigned_moto3?: boolean
   gate_moto1: number | null
   gate_moto2: number | null
   gate_moto3: number | null
@@ -37,7 +40,44 @@ type Batch = {
   moto1_id: string
   moto2_id: string | null
   moto3_id?: string | null
+  moto1_status?: string | null
+  moto2_status?: string | null
+  moto3_status?: string | null
   rows: Row[]
+}
+
+type RotatingMotoRow = {
+  rider_id: string
+  name: string
+  no_plate: string
+  club: string
+  photo_thumbnail_url?: string | null
+  gate: number | null
+  point: number | null
+  status: NonNullable<Row['moto1_status']>
+}
+
+type RotatingMotoBatch = {
+  batch_index: number
+  moto_id: string
+  status: string | null
+  rows: RotatingMotoRow[]
+}
+
+type RotatingMotoView = {
+  index: number
+  title: string
+  status: string | null
+  batches: RotatingMotoBatch[]
+}
+
+type QualificationOverallRow = {
+  rider_id: string
+  name: string
+  no_plate: string
+  rank: number
+  total_point: number | null
+  next_class_label: string | null
 }
 
 type StageRow = {
@@ -62,10 +102,12 @@ type StageGroup = {
 
 export type LiveScoreData = {
   category?: string
+  qualification_batch_mode?: 'FIXED' | 'ROTATE_EACH_MOTO'
   qualification_split_basis?: string | null
   qualification_has_finisher_outcome?: boolean
   qualification_advancements_calculated?: boolean
   qualification_results_official?: boolean
+  qualification_overall_rows?: QualificationOverallRow[]
   batches?: Batch[]
   stages?: StageGroup[]
 }
@@ -103,6 +145,16 @@ const statusBadgeClass = (status: string) => {
       return 'border-slate-300 bg-slate-100 text-slate-600'
     default:
       return 'border-emerald-300 bg-emerald-50 text-emerald-700'
+  }
+}
+
+const formatMotoStatusLabel = (status?: string | null) => {
+  switch (String(status ?? '').toUpperCase()) {
+    case 'PROVISIONAL': return 'SEMENTARA'
+    case 'PROTEST_REVIEW': return 'PROTES'
+    case 'FINISHED': return 'SELESAI'
+    case 'LOCKED': return 'TERKUNCI'
+    default: return String(status ?? 'UPCOMING').toUpperCase()
   }
 }
 
@@ -244,19 +296,28 @@ export default function LiveScoreClient({
   const [qualificationResultsOfficial, setQualificationResultsOfficial] = useState(
     initialLiveScore?.qualification_results_official ?? false
   )
+  const [qualificationBatchMode, setQualificationBatchMode] = useState(
+    initialLiveScore?.qualification_batch_mode ?? 'FIXED'
+  )
+  const [qualificationOverallRows, setQualificationOverallRows] = useState<QualificationOverallRow[]>(
+    initialLiveScore?.qualification_overall_rows ?? []
+  )
   const [batches, setBatches] = useState<Batch[]>(initialLiveScore?.batches ?? [])
   const [stages, setStages] = useState<StageGroup[]>(initialLiveScore?.stages ?? [])
   const [sortMode, setSortMode] = useState<'GATE' | 'RANK'>('RANK')
+  const [selectedRotatingView, setSelectedRotatingView] = useState('MOTO_1')
   const [refreshing, setRefreshing] = useState(false)
   const business = event?.business_settings ?? null
   const isLiveEvent = event?.status === 'LIVE'
+  const canShowUpcomingMotos = isLiveEvent || event?.status === 'UPCOMING'
+  const canRefreshPublicScore = canShowUpcomingMotos
   const showRiderPhotos =
     typeof business?.show_rider_photos_public === 'boolean' ? business.show_rider_photos_public : false
 
   const loadLiveScore = async () => {
     const params = new URLSearchParams({
       category_id: categoryId,
-      include_upcoming: isLiveEvent ? '1' : '0',
+      include_upcoming: canShowUpcomingMotos ? '1' : '0',
       include_photos: showRiderPhotos ? '1' : '0',
     })
     const res = await fetch(
@@ -269,6 +330,8 @@ export default function LiveScoreClient({
     setQualificationHasFinisherOutcome(json.data?.qualification_has_finisher_outcome === true)
     setQualificationAdvancementsCalculated(json.data?.qualification_advancements_calculated ?? false)
     setQualificationResultsOfficial(json.data?.qualification_results_official ?? false)
+    setQualificationBatchMode(json.data?.qualification_batch_mode ?? 'FIXED')
+    setQualificationOverallRows(json.data?.qualification_overall_rows ?? [])
     setBatches(json.data?.batches ?? [])
     setStages(json.data?.stages ?? [])
   }
@@ -374,6 +437,71 @@ export default function LiveScoreClient({
     [batches, sortMode]
   )
   const showMoto3 = batches.length <= 1 || batches.some((batch) => Boolean(batch.moto3_id))
+  const rotatingMotoViews = useMemo<RotatingMotoView[]>(() => {
+    const fields = [
+      {
+        index: 1,
+        motoId: (batch: Batch) => batch.moto1_id,
+        status: (batch: Batch) => batch.moto1_status,
+        assigned: (row: Row) => row.assigned_moto1 === true,
+        gate: (row: Row) => row.gate_moto1,
+        point: (row: Row) => row.point_moto1,
+        resultStatus: (row: Row) => row.moto1_status ?? 'PENDING',
+      },
+      {
+        index: 2,
+        motoId: (batch: Batch) => batch.moto2_id,
+        status: (batch: Batch) => batch.moto2_status,
+        assigned: (row: Row) => row.assigned_moto2 === true,
+        gate: (row: Row) => row.gate_moto2,
+        point: (row: Row) => row.point_moto2,
+        resultStatus: (row: Row) => row.moto2_status ?? 'PENDING',
+      },
+      {
+        index: 3,
+        motoId: (batch: Batch) => batch.moto3_id ?? null,
+        status: (batch: Batch) => batch.moto3_status ?? null,
+        assigned: (row: Row) => row.assigned_moto3 === true,
+        gate: (row: Row) => row.gate_moto3,
+        point: (row: Row) => row.point_moto3,
+        resultStatus: (row: Row) => row.moto3_status ?? 'PENDING',
+      },
+    ]
+
+    return fields.flatMap((field) => {
+      const motoBatches = tableRowsByBatch
+        .map((batch) => {
+          const motoId = field.motoId(batch)
+          const rows = batch.rows
+            .filter(field.assigned)
+            .map((row) => ({
+              rider_id: row.rider_id,
+              name: row.name,
+              no_plate: row.no_plate,
+              club: row.club,
+              photo_thumbnail_url: row.photo_thumbnail_url,
+              gate: field.gate(row),
+              point: field.point(row),
+              status: field.resultStatus(row) as NonNullable<Row['moto1_status']>,
+            }))
+            .sort((a, b) => (a.gate ?? Number.MAX_SAFE_INTEGER) - (b.gate ?? Number.MAX_SAFE_INTEGER))
+          return {
+            batch_index: batch.batch_index,
+            moto_id: motoId ?? '',
+            status: field.status(batch) ?? null,
+            rows,
+          }
+        })
+        .filter((batch) => batch.moto_id && batch.rows.length > 0)
+
+      if (motoBatches.length === 0) return []
+      const status = motoBatches.find((batch) =>
+        ['LIVE', 'PROVISIONAL', 'PROTEST_REVIEW', 'READY'].includes(String(batch.status ?? '').toUpperCase())
+      )?.status ?? motoBatches[0].status
+      return [{ index: field.index, title: `Moto ${field.index}`, status, batches: motoBatches }]
+    })
+  }, [tableRowsByBatch])
+  const activeRotatingMotoView = rotatingMotoViews.find((view) => `MOTO_${view.index}` === selectedRotatingView)
   const usesGlobalActiveFirst = qualificationSplitBasis === 'GLOBAL_ACTIVE_FIRST'
   const showQualificationNextColumn = tableRowsByBatch.some((batch) =>
     batch.rows.some((row) => Boolean(row.class_label?.trim()))
@@ -490,6 +618,156 @@ export default function LiveScoreClient({
   <EmptyState label="Belum ada data." />
 )}
 
+        {qualificationBatchMode === 'ROTATE_EACH_MOTO' ? (
+          <section className="grid gap-4">
+            <article className="public-panel-dark live-score-editorial-panel">
+              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-lg font-black uppercase text-[#fff8e8]">Kualifikasi - Rotasi per Moto</h2>
+                  <p className="mt-1 text-xs font-semibold text-slate-300">Pilih klasemen gabungan atau lihat susunan rider per moto dan batch.</p>
+                </div>
+                {renderRefreshButton(refresh, refreshing, canRefreshPublicScore)}
+              </div>
+              <div className="flex flex-wrap gap-2" role="tablist" aria-label="Tampilan kualifikasi">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={selectedRotatingView === 'OVERALL'}
+                  onClick={() => setSelectedRotatingView('OVERALL')}
+                  className={`rounded-full border px-4 py-2 text-xs font-black uppercase transition-colors ${
+                    selectedRotatingView === 'OVERALL'
+                      ? 'border-amber-300 bg-amber-300 text-slate-950'
+                      : 'border-white/20 bg-white/10 text-white hover:bg-white/20'
+                  }`}
+                >
+                  Klasemen
+                </button>
+                {rotatingMotoViews.map((view) => (
+                  <button
+                    key={view.index}
+                    type="button"
+                    role="tab"
+                    aria-selected={selectedRotatingView === `MOTO_${view.index}`}
+                    onClick={() => setSelectedRotatingView(`MOTO_${view.index}`)}
+                    className={`rounded-full border px-4 py-2 text-xs font-black uppercase transition-colors ${
+                      selectedRotatingView === `MOTO_${view.index}`
+                        ? 'border-amber-300 bg-amber-300 text-slate-950'
+                        : 'border-white/20 bg-white/10 text-white hover:bg-white/20'
+                    }`}
+                  >
+                    {view.title}
+                  </button>
+                ))}
+              </div>
+            </article>
+
+            {selectedRotatingView === 'OVERALL' ? (
+              <article className="public-panel-dark live-score-editorial-panel">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-base font-black uppercase text-[#fff8e8]">Klasemen Gabungan</h3>
+                  <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[10px] font-black uppercase text-slate-200">
+                    {qualificationResultsOfficial && qualificationOverallRows.length > 0 ? 'Hasil Resmi' : 'Menunggu Hasil Kualifikasi'}
+                  </span>
+                </div>
+                {qualificationOverallRows.length === 0 ? (
+                  <p className="py-8 text-center text-sm font-semibold text-slate-300">
+                    Peringkat gabungan dan tujuan stage muncul setelah hasil seluruh moto kualifikasi dihitung.
+                  </p>
+                ) : (
+                  <div className="public-table-wrap">
+                    <table className="public-table min-w-[620px] text-xs sm:text-sm">
+                      <thead>
+                        <tr>
+                          {['Rank', 'Rider', 'No Plat', 'Total Poin', 'Tujuan Stage'].map((heading) => <th key={heading}>{heading}</th>)}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {qualificationOverallRows.map((row) => (
+                          <tr key={row.rider_id}>
+                            <td className="text-center">{renderRankBadge(row.rank)}</td>
+                            <td className="live-score-rider-name font-extrabold">{row.name}</td>
+                            <td>{row.no_plate}</td>
+                            <td className="font-black text-sky-700">{row.total_point ?? '-'}</td>
+                            <td className="font-black uppercase">{row.next_class_label || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </article>
+            ) : activeRotatingMotoView ? (
+              <section className="grid gap-4" aria-label={`${activeRotatingMotoView.title} per batch`}>
+                {activeRotatingMotoView.batches.map((batch) => (
+                  <article key={batch.moto_id} className="public-panel-dark live-score-editorial-panel">
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                      <h3 className="text-base font-black uppercase text-[#fff8e8]">
+                        {activeRotatingMotoView.title} - Batch {batch.batch_index}
+                      </h3>
+                      <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[10px] font-black uppercase text-slate-200">
+                        {formatMotoStatusLabel(batch.status)}
+                      </span>
+                    </div>
+                    <div className="grid gap-2 lg:hidden">
+                      {batch.rows.map((row) => (
+                        <div key={row.rider_id} className="flex items-center justify-between gap-3 rounded-xl border border-white/15 bg-white/5 p-3">
+                          <div className="flex min-w-0 items-center gap-3">
+                            {renderGateBadge(row.gate)}
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="live-score-rider-name truncate text-sm font-black">{row.name}</span>
+                                <RiderNotificationButton eventId={eventId} riderId={row.rider_id} riderName={row.name} riderPlate={row.no_plate} />
+                              </div>
+                              <div className="text-[10px] font-bold text-amber-300">{row.no_plate} - {row.club || '-'}</div>
+                            </div>
+                          </div>
+                          <div className="shrink-0 text-right">
+                            <span className={`inline-flex rounded-full border px-2 py-1 text-[9px] font-black uppercase ${statusBadgeClass(row.status)}`}>
+                              {row.status === 'PENDING' ? 'MENUNGGU' : row.status}
+                            </span>
+                            <div className="mt-1 text-sm font-black text-sky-300">{row.point ?? '-'} poin</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="public-table-wrap hidden lg:block">
+                      <table className="public-table min-w-[620px] text-xs sm:text-sm">
+                        <thead>
+                          <tr>
+                            {['Gate', ...(showRiderPhotos ? ['Foto'] : []), 'Nama Peserta', 'No Plat', 'Komunitas', 'Status', 'Poin'].map((heading) => <th key={heading}>{heading}</th>)}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {batch.rows.map((row) => (
+                            <tr key={row.rider_id}>
+                              <td>{renderGateBadge(row.gate)}</td>
+                              {showRiderPhotos && <td>{riderPhotoCell(row.name, row.no_plate, row.photo_thumbnail_url)}</td>}
+                              <td className="live-score-rider-name font-extrabold">
+                                <span className="inline-flex items-center gap-2">{row.name}<RiderNotificationButton eventId={eventId} riderId={row.rider_id} riderName={row.name} riderPlate={row.no_plate} /></span>
+                              </td>
+                              <td>{row.no_plate}</td>
+                              <td>{row.club || '-'}</td>
+                              <td>
+                                <span className={`inline-flex rounded-full border px-2 py-1 text-[10px] font-black uppercase ${statusBadgeClass(row.status)}`}>
+                                  {row.status === 'PENDING' ? 'MENUNGGU' : row.status}
+                                </span>
+                              </td>
+                              <td className="font-black text-sky-700">{row.point ?? '-'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </article>
+                ))}
+              </section>
+            ) : (
+              <article className="public-panel-dark live-score-editorial-panel">
+                <p className="py-8 text-center text-sm font-semibold text-slate-300">Belum ada susunan batch untuk moto ini.</p>
+              </article>
+            )}
+          </section>
+        ) : (
         <section className="grid gap-4">
   {tableRowsByBatch.length === 0 && !loading && (
     <article className="public-panel-dark">
@@ -508,7 +786,7 @@ export default function LiveScoreClient({
                   </span>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                  {renderRefreshButton(refresh, refreshing, isLiveEvent)}
+                  {renderRefreshButton(refresh, refreshing, canRefreshPublicScore)}
                   {renderSortButtons(sortMode, setSortMode, 'Results')}
                 </div>
               </div>
@@ -635,6 +913,7 @@ export default function LiveScoreClient({
             </article>
           ))}
         </section>
+        )}
 
         {sortedStages.length > 0 && (
           <section className="grid gap-4">
@@ -649,7 +928,7 @@ export default function LiveScoreClient({
                     <h2 className="text-lg font-black uppercase text-[#fff8e8]">{stage.title}</h2>
                   </div>
                   <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                    {renderRefreshButton(refresh, refreshing, isLiveEvent)}
+                    {renderRefreshButton(refresh, refreshing, canRefreshPublicScore)}
                     {renderSortButtons(sortMode, setSortMode)}
                   </div>
                 </div>
