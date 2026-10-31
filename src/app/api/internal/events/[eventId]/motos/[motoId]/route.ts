@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { broadcastRaceState } from '../../../../../../../lib/broadcastRaceState'
 
 export async function DELETE(
   request: NextRequest,
@@ -22,7 +23,7 @@ export async function DELETE(
     // Ensure the moto belongs to the event
     const { data: moto, error: motoError } = await supabase
       .from('motos')
-      .select('id')
+      .select('id, category_id')
       .eq('id', motoId)
       .eq('event_id', eventId)
       .single()
@@ -57,6 +58,8 @@ export async function DELETE(
       .eq('id', motoId)
 
     if (deleteMotoError) throw deleteMotoError
+
+    void broadcastRaceState(eventId, motoId, moto.category_id)
 
     return NextResponse.json({ success: true })
   } catch (err: any) {

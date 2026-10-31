@@ -2,13 +2,14 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import EmptyState from '../../../../../components/EmptyState'
 import LoadingState from '../../../../../components/LoadingState'
 import PublicTopbar from '../../../../../components/PublicTopbar'
 import RiderNotificationButton from '../../../../../components/RiderNotificationButton'
 import { type EventItem, type RiderCategory } from '../../../../../lib/eventService'
 import { FINAL_MOTO_DISPLAY_ORDER } from '../../../../../lib/motoDisplayOrder'
+import { usePublicLiveScoreRealtime } from '../../../../../hooks/usePublicLiveScoreRealtime'
 
 type Row = {
   rider_id: string
@@ -147,7 +148,7 @@ const getStageTabLabel = (title: string) => {
   if (finalMatch) return `Final ${finalMatch[1].trim()}`
   return trimmed.replace(/\s*-\s*(?:batch|heat)\s*\d+\s*$/i, '').trim()
 }
-const PUBLIC_LIVE_SCORE_REFRESH_INTERVAL_MS = 30000
+const PUBLIC_LIVE_SCORE_FALLBACK_REFRESH_INTERVAL_MS = 120000
 
 const statusBadgeClass = (status: string) => {
   switch (status) {
@@ -323,10 +324,12 @@ export default function LiveScoreClient({
   const [sortMode, setSortMode] = useState<'GATE' | 'RANK'>('RANK')
   const [selectedRotatingView, setSelectedRotatingView] = useState('MOTO_1')
   const [refreshing, setRefreshing] = useState(false)
+  const refreshInFlightRef = useRef(false)
+  const refreshQueuedRef = useRef(false)
   const business = event?.business_settings ?? null
-  const isLiveEvent = event?.status === 'LIVE'
-  const canShowUpcomingMotos = isLiveEvent || event?.status === 'UPCOMING'
+  const canShowUpcomingMotos = event?.status === 'LIVE' || event?.status === 'UPCOMING'
   const canRefreshPublicScore = canShowUpcomingMotos
+  const canSubscribeToScoreChanges = Boolean(event)
   const showRiderPhotos =
     typeof business?.show_rider_photos_public === 'boolean' ? business.show_rider_photos_public : false
 
@@ -367,29 +370,47 @@ export default function LiveScoreClient({
   }, [eventId, categoryId])
 
   const refresh = async () => {
+    if (refreshInFlightRef.current) {
+      refreshQueuedRef.current = true
+      return
+    }
+    refreshInFlightRef.current = true
     setRefreshing(true)
     try {
       await loadLiveScore()
     } finally {
+      refreshInFlightRef.current = false
       setRefreshing(false)
+      if (refreshQueuedRef.current) {
+        refreshQueuedRef.current = false
+        window.setTimeout(() => void refresh(), 0)
+      }
     }
   }
 
+  usePublicLiveScoreRealtime({
+    eventId,
+    categoryId,
+    enabled: canSubscribeToScoreChanges,
+    refreshOnVisible: !canRefreshPublicScore,
+    onScoreChanged: refresh,
+  })
+
   useEffect(() => {
-    if (!isLiveEvent) return
+    if (!canRefreshPublicScore) return
     const refreshWhenVisible = () => {
       if (document.visibilityState === 'visible') void refresh()
     }
     const interval = setInterval(() => {
       if (document.visibilityState === 'visible') void refresh()
-    }, PUBLIC_LIVE_SCORE_REFRESH_INTERVAL_MS)
+    }, PUBLIC_LIVE_SCORE_FALLBACK_REFRESH_INTERVAL_MS)
     document.addEventListener('visibilitychange', refreshWhenVisible)
     return () => {
       clearInterval(interval)
       document.removeEventListener('visibilitychange', refreshWhenVisible)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [eventId, categoryId, isLiveEvent])
+  }, [eventId, categoryId, canRefreshPublicScore])
 
   const publicEventTitle = business?.public_event_title?.trim() || event?.name || 'Live Score'
   const publicBrandName = business?.public_brand_name?.trim() || ''

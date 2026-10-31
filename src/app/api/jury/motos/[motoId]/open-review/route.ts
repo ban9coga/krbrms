@@ -8,7 +8,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
 
   const { data: moto, error } = await adminClient
     .from('motos')
-    .select('id, event_id, status')
+    .select('id, event_id, category_id, status')
     .eq('id', motoId)
     .maybeSingle()
 
@@ -28,6 +28,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
     .eq('id', motoId)
 
   if (updateError) return NextResponse.json({ error: updateError.message }, { status: 400 })
-  void broadcastRaceState(moto.event_id, motoId)
+  void broadcastRaceState(moto.event_id, motoId, moto.category_id)
   return NextResponse.json({ ok: true })
 }

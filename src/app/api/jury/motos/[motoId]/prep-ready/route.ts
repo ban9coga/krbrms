@@ -10,7 +10,7 @@ import { broadcastRaceState } from '../../../../../../lib/broadcastRaceState'
 const getMoto = async (motoId: string) => {
   const { data, error } = await adminClient
     .from('motos')
-    .select('id, event_id, status')
+    .select('id, event_id, category_id, status')
     .eq('id', motoId)
     .maybeSingle()
   if (error) throw new Error(error.message)
@@ -59,7 +59,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
     console.error('Non-blocking push notification error:', pushErr)
   }
 
-  void broadcastRaceState(moto.event_id, motoId)
+  void broadcastRaceState(moto.event_id, motoId, moto.category_id)
   return NextResponse.json({ ok: true, data, next_moto: promotionResult })
 }
 
@@ -93,6 +93,6 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ motoI
     .eq('id', motoId)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-  void broadcastRaceState(moto.event_id, motoId)
+  void broadcastRaceState(moto.event_id, motoId, moto.category_id)
   return NextResponse.json({ ok: true })
 }

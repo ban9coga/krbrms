@@ -9,6 +9,7 @@ import {
 } from '../../../../../../lib/riderStatusSource'
 import { requireJury } from '../../../../../../services/juryAuth'
 import { upsertRiderParticipationStatuses } from '../../../../../../services/riderParticipationStatus'
+import { broadcastRaceState } from '../../../../../../lib/broadcastRaceState'
 
 const getApprovalMode = async (eventId: string) => {
   const { data } = await adminClient
@@ -298,7 +299,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
           .eq('moto_id', motoId)
           .in('rider_id', activeRiderIds)
           .eq('result_status', 'DNS')
-      : Promise.resolve({ error: null }),
+          .select('rider_id')
+      : Promise.resolve({ error: null, data: [] as { rider_id: string }[] }),
     adminClient.from('audit_log').insert(
       typedRows.map((row) => ({
       action_type: 'STATUS_APPROVAL',
@@ -320,6 +322,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   if (participationResult.error) return NextResponse.json({ error: participationResult.error.message }, { status: 400 })
   if (dnsResult.error) return NextResponse.json({ error: dnsResult.error.message }, { status: 400 })
   if (clearDnsResult.error) return NextResponse.json({ error: clearDnsResult.error.message }, { status: 400 })
+
+  if (dnsRows.length > 0 || (clearDnsResult.data?.length ?? 0) > 0) {
+    void broadcastRaceState(eventId, motoId, moto.category_id)
+  }
 
   return NextResponse.json({ data })
 }
@@ -351,7 +357,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ event
 
   const { data: moto, error: motoError } = await adminClient
     .from('motos')
-    .select('id, event_id, status')
+    .select('id, event_id, category_id, status')
     .eq('id', motoId)
     .maybeSingle()
   if (motoError) return NextResponse.json({ error: motoError.message }, { status: 400 })
@@ -385,13 +391,14 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ event
 
   if (participationDeleteError) return NextResponse.json({ error: participationDeleteError.message }, { status: 400 })
 
-  const { error: resultDeleteError } = await adminClient
+  const { data: deletedDnsRows, error: resultDeleteError } = await adminClient
     .from('results')
     .delete()
     .eq('event_id', eventId)
     .eq('moto_id', motoId)
     .eq('rider_id', riderId)
     .eq('result_status', 'DNS')
+    .select('rider_id')
 
   if (resultDeleteError) return NextResponse.json({ error: resultDeleteError.message }, { status: 400 })
 
@@ -405,6 +412,8 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ event
       reason: 'Undo checker status',
     },
   ])
+
+  if ((deletedDnsRows?.length ?? 0) > 0) void broadcastRaceState(eventId, motoId, moto.category_id)
 
   return NextResponse.json({ ok: true })
 }

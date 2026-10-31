@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../../lib/auth'
 import { assertMotoEditable, assertMotoNotUnderProtest } from '../../../../../../lib/motoLock'
 import { requireJury } from '../../../../../../services/juryAuth'
+import { broadcastRaceState } from '../../../../../../lib/broadcastRaceState'
 
 type PenaltyStage = 'ALL' | 'MOTO' | 'QUARTER' | 'REPECHAGE' | 'SEMI' | 'FINAL'
 
@@ -59,10 +60,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ riderId
     return NextResponse.json({ error: 'moto_id required for MOTO stage penalty.' }, { status: 400 })
   }
 
+  let motoCategoryId: string | null = null
   if (moto_id) {
     const { data: moto, error: motoError } = await adminClient
       .from('motos')
-      .select('id, event_id, status')
+      .select('id, event_id, category_id, status')
       .eq('id', moto_id)
       .maybeSingle()
     if (motoError) return NextResponse.json({ error: motoError.message }, { status: 400 })
@@ -78,6 +80,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ riderId
         { status: 409 }
       )
     }
+    motoCategoryId = moto.category_id ?? null
   }
 
   const { data: rider, error: riderError } = await adminClient
@@ -138,6 +141,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ riderId
       reason: note?.trim() || `Rule ${rule.code} approved immediately by Race Director`,
     },
   ])
+
+  if (moto_id && motoCategoryId) void broadcastRaceState(event_id, moto_id, motoCategoryId)
 
   return NextResponse.json({ data: penalty })
 }

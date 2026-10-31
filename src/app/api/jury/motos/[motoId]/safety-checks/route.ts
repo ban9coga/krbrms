@@ -3,11 +3,12 @@ import { adminClient } from '../../../../../../lib/auth'
 import { assertMotoEditable, assertMotoNotUnderProtest } from '../../../../../../lib/motoLock'
 import { isMotoLive, isMotoReady, isMotoUpcoming } from '../../../../../../lib/motoStatus'
 import { requireJury } from '../../../../../../services/juryAuth'
+import { broadcastRaceState } from '../../../../../../lib/broadcastRaceState'
 
 const getMotoEvent = async (motoId: string) => {
   const { data, error } = await adminClient
     .from('motos')
-    .select('id, event_id, status')
+    .select('id, event_id, category_id, status')
     .eq('id', motoId)
     .maybeSingle()
   if (error) throw new Error(error.message)
@@ -260,5 +261,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Failed to sync safety penalty' }, { status: 400 })
   }
 
+  void broadcastRaceState(moto.event_id, motoId, moto.category_id)
   return NextResponse.json({ ok: true, count: validChecks.length })
 }

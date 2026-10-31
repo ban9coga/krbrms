@@ -45,7 +45,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
   const { motoId } = await params
   const { data: moto, error: motoError } = await adminClient
     .from('motos')
-    .select('id, event_id, moto_name, status')
+    .select('id, event_id, category_id, moto_name, status')
     .eq('id', motoId)
     .maybeSingle()
   const auth = await requireJury(req, ['FINISHER', 'CHECKER', 'RACE_DIRECTOR', 'ADMIN', 'super_admin'], moto?.event_id ?? null)
@@ -203,11 +203,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
   if (activeStatusResult.error) return NextResponse.json({ error: activeStatusResult.error.message }, { status: 400 })
   if (motoUpdateResult.error) return NextResponse.json({ error: motoUpdateResult.error.message }, { status: 400 })
 
-  void broadcastRaceState(moto.event_id, motoId)
   const moto3Reseed = needsMoto3Reseed(moto.moto_name)
     ? await reseedSingleBatchMoto3FromMoto(motoId)
     : { ok: true as const, warning: null }
   const nextMoto = await promoteNextMotoToLive(moto.event_id, motoId)
+  void broadcastRaceState(moto.event_id, motoId, moto.category_id)
 
   return NextResponse.json({
     ok: true,
@@ -219,7 +219,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
 
 export async function DELETE(req: Request, { params }: { params: Promise<{ motoId: string }> }) {
   const { motoId } = await params
-  const { data: scopedMoto } = await adminClient.from('motos').select('event_id').eq('id', motoId).maybeSingle()
+  const { data: scopedMoto } = await adminClient.from('motos').select('event_id, category_id').eq('id', motoId).maybeSingle()
   const auth = await requireJury(req, ['FINISHER', 'RACE_DIRECTOR', 'ADMIN', 'super_admin'], scopedMoto?.event_id ?? null)
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
   if (await isLockedMoto(motoId) && auth.role !== 'RACE_DIRECTOR' && auth.role !== 'SUPER_ADMIN') {
@@ -249,6 +249,6 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ motoI
     .update({ status: 'LIVE', provisional_at: null })
     .eq('id', motoId)
 
-  void broadcastRaceState(scopedMoto?.event_id ?? '', motoId)
+  void broadcastRaceState(scopedMoto?.event_id ?? '', motoId, scopedMoto?.category_id)
   return NextResponse.json({ ok: true })
 }

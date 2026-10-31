@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../lib/auth'
 import { requireJury } from '../../../../../services/juryAuth'
+import { broadcastRaceState } from '../../../../../lib/broadcastRaceState'
 
 export async function POST(req: Request) {
   const body = await req.json()
@@ -9,7 +10,7 @@ export async function POST(req: Request) {
 
   const { data: penalty, error } = await adminClient
     .from('rider_penalties')
-    .select('id, rider_id, event_id')
+    .select('id, rider_id, event_id, moto_id')
     .eq('id', penalty_id)
     .maybeSingle()
 
@@ -37,6 +38,11 @@ export async function POST(req: Request) {
       reason: reason ?? null,
     },
   ])
+
+  if (penalty.moto_id) {
+    const { data: moto } = await adminClient.from('motos').select('category_id').eq('id', penalty.moto_id).maybeSingle()
+    if (moto?.category_id) void broadcastRaceState(penalty.event_id, penalty.moto_id, moto.category_id)
+  }
 
   return NextResponse.json({ ok: true })
 }

@@ -1,31 +1,56 @@
 import { adminClient } from './auth'
 
-/**
- * Broadcasts a race_state_changed event on the private Supabase Realtime channel
- * for an event. All jury/checker tabs subscribed to that channel will receive this
- * and immediately re-fetch fresh data without waiting for the 15-second polling interval.
- *
- * Fire-and-forget: errors are silently suppressed so the main API response is never
- * blocked or failed by a broadcast hiccup.
- */
-export async function broadcastRaceState(
-  eventId: string,
-  motoId?: string | null
-): Promise<void> {
+const sendBroadcast = async (
+  channelName: string,
+  isPrivate: boolean,
+  eventName: string,
+  payload: Record<string, string | null>
+): Promise<void> => {
+  const channel = adminClient.channel(channelName, { config: { private: isPrivate } })
   try {
-    const channel = adminClient.channel(`race:event:${eventId}`, {
-      config: { private: true },
-    })
     await channel.send({
       type: 'broadcast',
-      event: 'race_state_changed',
-      payload: {
-        event_id: eventId,
-        moto_id: motoId ?? null,
-      },
+      event: eventName,
+      payload,
     })
-    await adminClient.removeChannel(channel)
   } catch {
-    // Non-critical: tabs will fall back to the 15-second polling interval.
+    // Screens keep their low-frequency polling fallback if broadcast fails.
+  } finally {
+    try {
+      await adminClient.removeChannel(channel)
+    } catch {
+      // Channel cleanup is non-critical.
+    }
   }
+}
+
+/** Signal public score viewers for one category after a race-data change. */
+export async function broadcastPublicLiveScore(
+  eventId: string,
+  categoryId: string,
+  motoId?: string | null
+): Promise<void> {
+  if (!eventId || !categoryId) return
+  await sendBroadcast(
+    `public-live-score:event:${eventId}:category:${categoryId}`,
+    false,
+    'score_changed',
+    { event_id: eventId, category_id: categoryId, moto_id: motoId ?? null }
+  )
+}
+
+/** Send an internal race signal and, when scoped to a category, a public score signal. */
+export async function broadcastRaceState(
+  eventId: string,
+  motoId?: string | null,
+  categoryId?: string | null
+): Promise<void> {
+  if (!eventId) return
+  await Promise.all([
+    sendBroadcast(`race:event:${eventId}`, true, 'race_state_changed', {
+      event_id: eventId,
+      moto_id: motoId ?? null,
+    }),
+    categoryId ? broadcastPublicLiveScore(eventId, categoryId, motoId) : Promise.resolve(),
+  ])
 }

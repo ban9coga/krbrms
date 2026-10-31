@@ -33,6 +33,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
     return NextResponse.json({ warning: result.warning ?? 'Advanced race skipped.' }, { status: 200 })
   }
 
-  void broadcastRaceState(moto.event_id, motoId)
+  void broadcastRaceState(moto.event_id, motoId, moto.category_id)
   return NextResponse.json({ ok: true })
 }

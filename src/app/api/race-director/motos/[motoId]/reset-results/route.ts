@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../../lib/auth'
 import { requireJury } from '../../../../../../services/juryAuth'
+import { broadcastRaceState } from '../../../../../../lib/broadcastRaceState'
 
 const isQualificationMoto = (motoName: string): boolean => {
   const match = motoName.match(/moto\s*(\d+)\s*(?:-\s*)?batch\s*(\d+)/i)
@@ -195,6 +196,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
       reason,
     },
   ])
+
+  void broadcastRaceState(moto.event_id, motoId, moto.category_id)
 
   return NextResponse.json({ ok: true })
 }

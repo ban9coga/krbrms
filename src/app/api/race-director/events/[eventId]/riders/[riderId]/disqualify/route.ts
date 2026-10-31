@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../../../../lib/auth'
 import { requireJury } from '../../../../../../../../services/juryAuth'
+import { broadcastPublicLiveScore } from '../../../../../../../../lib/broadcastRaceState'
 
 export async function POST(
   req: Request,
@@ -106,6 +107,10 @@ export async function POST(
     },
   ])
 
+  await Promise.all(affectedCategoryIds.map((affectedCategoryId) =>
+    broadcastPublicLiveScore(eventId, affectedCategoryId)
+  ))
+
   return NextResponse.json({
     ok: true,
     motosAffected: motos.length,
@@ -165,6 +170,16 @@ export async function DELETE(
       motos_affected: motoIds,
     },
   })
+
+  const affectedCategoryIds = Array.from(new Set(
+    (dqResults ?? []).flatMap((row) => {
+      const moto = Array.isArray(row.motos) ? row.motos[0] : row.motos
+      return moto?.category_id ? [moto.category_id] : []
+    })
+  ))
+  await Promise.all(affectedCategoryIds.map((affectedCategoryId) =>
+    broadcastPublicLiveScore(eventId, affectedCategoryId)
+  ))
 
   return NextResponse.json({ ok: true, motosAffected: motoIds.length })
 }

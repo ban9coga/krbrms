@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../../lib/auth'
+import { broadcastPublicLiveScore } from '../../../../../../lib/broadcastRaceState'
 
 const isAdvancedMoto = (motoName: string) => /^(REPECHAGE|QUARTER\s+FINAL|SEMI\s+FINAL|FINAL\s+)/i.test(motoName)
 const isQualificationMoto = (motoName: string) => /^moto\s*\d+\s*-\s*batch\s*\d+\s*$/i.test(motoName)
@@ -88,5 +89,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     p_reason: 'Reset data race untuk simulasi',
   })
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+
+  const { data: categories } = await adminClient.from('categories').select('id').eq('event_id', eventId)
+  await Promise.all((categories ?? []).map((category) => broadcastPublicLiveScore(eventId, category.id)))
   return NextResponse.json({ data })
 }

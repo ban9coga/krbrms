@@ -3,6 +3,7 @@ import { adminClient, requireAdmin } from '../../../../../lib/auth'
 import { assertMotoEditable, assertMotoNotUnderProtest } from '../../../../../lib/motoLock'
 import { resolveBasePointForRaceResult, resolveNonFinishAutoPenalty } from '../../../../../lib/nonFinishScoring'
 import { upsertRiderParticipationStatuses } from '../../../../../services/riderParticipationStatus'
+import { broadcastRaceState } from '../../../../../lib/broadcastRaceState'
 
 export async function GET(_: Request, { params }: { params: Promise<{ motoId: string }> }) {
   const { motoId } = await params
@@ -166,6 +167,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
     .from('motos')
     .update({ status: 'PROVISIONAL', provisional_at: new Date().toISOString() })
     .eq('id', motoId)
+
+  void broadcastRaceState(moto.event_id, motoId, moto.category_id)
 
   return NextResponse.json({
     ok: true,

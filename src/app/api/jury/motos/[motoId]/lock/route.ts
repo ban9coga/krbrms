@@ -3,6 +3,7 @@ import { adminClient } from '../../../../../../lib/auth'
 import { requireJury } from '../../../../../../services/juryAuth'
 import { syncAdvancedRaceProgressAfterLockedStage } from '../../../../../../services/advancedRaceAuto'
 import { promoteNextMotoToLive } from '../../../../../../services/motoProgression'
+import { broadcastRaceState } from '../../../../../../lib/broadcastRaceState'
 
 export async function POST(req: Request, { params }: { params: Promise<{ motoId: string }> }) {
   const auth = await requireJury(req, ['RACE_DIRECTOR'])
@@ -55,5 +56,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
   const stageProgress = moto.category_id
     ? await syncAdvancedRaceProgressAfterLockedStage(moto.event_id, moto.category_id, moto.moto_name)
     : { ok: true, skipped: true }
+  void broadcastRaceState(moto.event_id, motoId, moto.category_id)
   return NextResponse.json({ ok: true, next_moto: nextMoto, stage_progress: stageProgress })
 }

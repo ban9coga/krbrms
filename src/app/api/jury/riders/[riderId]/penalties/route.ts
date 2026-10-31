@@ -3,6 +3,7 @@ import { adminClient } from '../../../../../../lib/auth'
 import { assertMotoEditable, assertMotoNotUnderProtest } from '../../../../../../lib/motoLock'
 import { isMotoLive } from '../../../../../../lib/motoStatus'
 import { requireJury } from '../../../../../../services/juryAuth'
+import { broadcastRaceState } from '../../../../../../lib/broadcastRaceState'
 
 const isLockedMoto = async (motoId?: string | null) => {
   if (!motoId) return false
@@ -29,6 +30,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ riderId
     return NextResponse.json({ error: 'Read-only for RACE_DIRECTOR' }, { status: 403 })
   }
 
+  let motoCategoryId: string | null = null
   if (await isLockedMoto(moto_id)) {
     try {
       assertMotoEditable('locked')
@@ -39,7 +41,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ riderId
   if (moto_id) {
     const { data: moto, error: motoError } = await adminClient
       .from('motos')
-      .select('id, status')
+      .select('id, category_id, status')
       .eq('id', moto_id)
       .maybeSingle()
     if (motoError) return NextResponse.json({ error: motoError.message }, { status: 400 })
@@ -51,6 +53,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ riderId
     if (!isMotoLive((moto as { status?: string | null })?.status ?? null)) {
       return NextResponse.json({ error: 'Penalty checker hanya bisa diberikan saat moto masih LIVE.' }, { status: 409 })
     }
+    motoCategoryId = (moto as { category_id?: string | null })?.category_id ?? null
   }
 
   const { data: rule, error: ruleError } = await adminClient
@@ -123,6 +126,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ riderId
       reason: 'BMX mode: penalty auto-approved',
     },
   ])
+
+  if (moto_id && motoCategoryId) void broadcastRaceState(event_id, moto_id, motoCategoryId)
 
   return NextResponse.json({ data })
 }
