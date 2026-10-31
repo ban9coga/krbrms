@@ -98,6 +98,35 @@ type EventDqFormState = {
 
 const normalizeRole = (value: string | null | undefined) => String(value ?? '').trim().toUpperCase()
 const getErrorMessage = (err: unknown) => (err instanceof Error ? err.message : 'Request failed')
+const motoStatusLabel: Record<string, string> = {
+  UPCOMING: 'Akan datang',
+  READY: 'Siap',
+  LIVE: 'Sedang berjalan',
+  PROVISIONAL: 'Hasil sementara',
+  PROTEST_REVIEW: 'Sedang ditinjau',
+  LOCKED: 'Terkunci',
+}
+const gateStatusLabel: Record<string, string> = {
+  READY: 'Siap',
+  CHECKING: 'Sedang diperiksa',
+  LIVE: 'Sedang berjalan',
+  BLOCKED: 'Belum siap',
+}
+const penaltyStageLabel: Record<string, string> = {
+  ALL: 'Semua tahap',
+  MOTO: 'Moto',
+  QUARTER: 'Perempat final',
+  REPECHAGE: 'Repechage',
+  SEMI: 'Semifinal',
+  FINAL: 'Final',
+}
+const riderStatusLabel: Record<string, string> = {
+  ACTIVE: 'Hadir',
+  DNS: 'DNS (tidak start)',
+  DNF: 'DNF (tidak finis)',
+  ABSENT: 'Absen',
+  DQ: 'Diskualifikasi',
+}
 
 export default function RaceDirectorApprovalPage() {
   const isPageVisible = usePageVisibility()
@@ -110,6 +139,8 @@ export default function RaceDirectorApprovalPage() {
   const [refreshing, setRefreshing] = useState(false)
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null)
   const [approvalMode, setApprovalMode] = useState<'AUTO' | 'DIRECTOR'>('AUTO')
+  const [savedApprovalMode, setSavedApprovalMode] = useState<'AUTO' | 'DIRECTOR'>('AUTO')
+  const [savingApprovalMode, setSavingApprovalMode] = useState(false)
   const [motos, setMotos] = useState<MotoRow[]>([])
   const [lockedMap, setLockedMap] = useState<Record<string, boolean>>({})
   const [role, setRole] = useState<string | null>(null)
@@ -284,7 +315,9 @@ export default function RaceDirectorApprovalPage() {
 
         setStatusUpdates(approvalRes.status_updates ?? [])
         setPenalties(approvalRes.penalties ?? [])
-        setApprovalMode((modeRes.data?.approval_mode as 'AUTO' | 'DIRECTOR') ?? 'AUTO')
+        const loadedApprovalMode = (modeRes.data?.approval_mode as 'AUTO' | 'DIRECTOR') ?? 'AUTO'
+        setApprovalMode(loadedApprovalMode)
+        setSavedApprovalMode(loadedApprovalMode)
         setMotos((motoRes.data ?? []) as MotoRow[])
         const lockList = (lockRes.data ?? []) as Array<{ moto_id: string }>
         const map: Record<string, boolean> = {}
@@ -590,7 +623,7 @@ export default function RaceDirectorApprovalPage() {
       if (refreshed) {
         showNotice(
           'success',
-          `${decisionModal.type === 'status' ? 'Status' : 'Penalty'} ${decisionModal.decision === 'APPROVE' ? 'disetujui' : 'ditolak'
+          `${decisionModal.type === 'status' ? 'Perubahan status' : 'Penalti'} ${decisionModal.decision === 'APPROVE' ? 'disetujui' : 'ditolak'
           }.`
         )
       } else {
@@ -604,22 +637,27 @@ export default function RaceDirectorApprovalPage() {
   }
 
   const handleSaveMode = async () => {
+    if (!eventId || savingApprovalMode) return
+    setSavingApprovalMode(true)
     try {
       await apiFetch('/api/race-director/mode', {
         method: 'PATCH',
         body: JSON.stringify({ event_id: eventId, approval_mode: approvalMode }),
       })
+      setSavedApprovalMode(approvalMode)
       const refreshed = await loadEventData({ silent: true, includeHeavy: false })
-      showNotice(refreshed ? 'success' : 'error', refreshed ? 'Mode approval diperbarui.' : 'Mode tersimpan, refresh gagal.')
+      showNotice(refreshed ? 'success' : 'error', refreshed ? 'Cara persetujuan disimpan.' : 'Cara persetujuan tersimpan, tetapi data gagal diperbarui.')
     } catch (err: unknown) {
       showNotice('error', getErrorMessage(err))
+    } finally {
+      setSavingApprovalMode(false)
     }
   }
 
   const handleLock = async (motoId: string, lock: boolean) => {
     if (lock) {
       const ok = confirm(
-        'Lock Moto?\n\nThis will finalize results and freeze modifications.\nThis action should only be done after all approvals are completed.'
+        'Kunci hasil moto ini?\n\nSetelah dikunci, hasil tidak dapat diedit melalui alur biasa. Pastikan status rider dan penalti sudah diperiksa.'
       )
       if (!ok) return
     }
@@ -706,7 +744,7 @@ export default function RaceDirectorApprovalPage() {
         motoId: '',
         note: '',
       }))
-      showNotice(refreshed ? 'success' : 'error', refreshed ? 'Penalty rider berhasil ditambahkan.' : 'Penalty tersimpan, refresh gagal.')
+      showNotice(refreshed ? 'success' : 'error', refreshed ? 'Penalti berhasil ditambahkan.' : 'Penalti tersimpan, tetapi data gagal diperbarui.')
     } catch (err: unknown) {
       showNotice('error', getErrorMessage(err))
     } finally {
@@ -772,8 +810,11 @@ export default function RaceDirectorApprovalPage() {
     }
     const rider = riderMap[eventDqForm.riderId]
     const riderName = rider ? rider.name : 'Rider'
-    const scopeLabel = eventDqForm.scope === 'CATEGORY' ? 'kategori yang dipilih' : 'SEMUA KATEGORI'
-    const confirmMsg = `Anda akan men-DQ ${riderName} dari ${scopeLabel} di event ini. Semua hasil moto rider ini akan di-override menjadi DQ. Lanjutkan?`
+    const selectedCategoryLabel = categoriesSorted.find((category) => category.id === eventDqForm.categoryId)?.label
+    const scopeLabel = eventDqForm.scope === 'CATEGORY'
+      ? `kategori ${selectedCategoryLabel ?? 'terpilih'}`
+      : 'seluruh kategori'
+    const confirmMsg = `Anda akan mendiskualifikasi ${riderName} dari ${scopeLabel} di event ini. Semua hasil moto rider ini akan diubah menjadi diskualifikasi. Lanjutkan?`
     if (!window.confirm(confirmMsg)) return
 
     try {
@@ -815,7 +856,10 @@ export default function RaceDirectorApprovalPage() {
     }
 
     const riderName = riderMap[eventDqForm.riderId]?.name ?? 'rider ini'
-    const scopeLabel = eventDqForm.scope === 'CATEGORY' ? 'kategori yang dipilih' : 'seluruh event'
+    const selectedCategoryLabel = categoriesSorted.find((category) => category.id === eventDqForm.categoryId)?.label
+    const scopeLabel = eventDqForm.scope === 'CATEGORY'
+      ? `kategori ${selectedCategoryLabel ?? 'terpilih'}`
+      : 'seluruh event'
     if (!window.confirm(`Batalkan DQ ${riderName} dari ${scopeLabel}? Hasil finish sebelum DQ harus dicek dan diinput ulang bila diperlukan.`)) {
       return
     }
@@ -870,7 +914,7 @@ export default function RaceDirectorApprovalPage() {
       })
       await loadApprovedMotoPenalties(penaltyReviewMotoId)
       await loadEventData({ silent: true, includeHeavy: true })
-      showNotice('success', 'Penalty berhasil di-void dan audit log sudah dicatat.')
+      showNotice('success', 'Penalti dibatalkan. Riwayat tindakan sudah dicatat.')
     } catch (err: unknown) {
       showNotice('error', getErrorMessage(err))
     } finally {
@@ -887,37 +931,54 @@ export default function RaceDirectorApprovalPage() {
           <div className="pointer-events-none absolute -top-24 right-0 h-72 w-72 rounded-full bg-sky-400/15 blur-3xl" />
           <div className="relative z-10 grid gap-2">
             <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-amber-300">Race Director</p>
-            <h1 className="text-3xl font-black tracking-tight text-white md:text-5xl">Kontrol Approval & Kunci Moto</h1>
+            <h1 className="text-3xl font-black tracking-tight text-white md:text-5xl">Panel Race Director</h1>
             <p className="max-w-2xl text-sm font-semibold text-slate-200 sm:text-base">
-              Approval status/penalty, penguncian moto, dan audit.
+              Tinjau laporan, kelola diskualifikasi dan penalti, lalu kunci hasil moto setelah pemeriksaan selesai.
             </p>
           </div>
         </section>
 
         <section className="public-panel-light">
           <div className="grid gap-3">
-            <select value={eventId} onChange={(e) => setEventId(e.target.value)} className="public-filter">
-              {events.map((ev) => (
-                <option key={ev.id} value={ev.id}>
-                  {ev.name} - {ev.status}
+            <label htmlFor="rd-event-select" className="grid gap-1 text-xs font-black uppercase tracking-wide text-slate-600">
+              Event aktif
+              <select id="rd-event-select" value={eventId} onChange={(e) => setEventId(e.target.value)} disabled={events.length === 0} className="public-filter disabled:opacity-60">
+                <option value="" disabled>
+                  {events.length === 0 ? 'Tidak ada event aktif untuk dikelola' : 'Pilih event'}
                 </option>
-              ))}
-            </select>
-            <div className="flex flex-wrap items-center gap-2">
-              <select
-                value={approvalMode}
-                onChange={(e) => setApprovalMode(e.target.value as 'AUTO' | 'DIRECTOR')}
-                className="public-filter max-w-[220px]"
-              >
-                <option value="AUTO">AUTO</option>
-                <option value="DIRECTOR">DIRECTOR</option>
+                {events.map((ev) => (
+                  <option key={ev.id} value={ev.id}>
+                    {ev.name} - {ev.status}
+                  </option>
+                ))}
               </select>
+            </label>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="grid min-w-[240px] gap-1 text-xs font-black uppercase tracking-wide text-slate-600">
+                Cara menyetujui laporan
+                <select
+                  value={approvalMode}
+                  onChange={(e) => setApprovalMode(e.target.value as 'AUTO' | 'DIRECTOR')}
+                  disabled={savingApprovalMode || !eventId}
+                  className="public-filter"
+                >
+                  <option value="AUTO">Otomatis oleh sistem</option>
+                  <option value="DIRECTOR">Perlu keputusan RD</option>
+                </select>
+              </label>
+              <p className="max-w-lg text-xs font-semibold leading-5 text-slate-600">
+                {approvalMode === 'AUTO'
+                  ? 'Laporan status dan penalti diterapkan otomatis.'
+                  : 'Laporan masuk ke antrean untuk disetujui atau ditolak di halaman ini.'}
+                {approvalMode !== savedApprovalMode && ' Pilihan berubah; simpan untuk menerapkannya.'}
+              </p>
               <button
                 type="button"
                 onClick={handleSaveMode}
-                className="inline-flex items-center justify-center rounded-xl border border-emerald-300 bg-emerald-100 px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.1em] text-emerald-800 transition-colors hover:bg-emerald-200"
+                disabled={savingApprovalMode || !eventId || approvalMode === savedApprovalMode}
+                className="inline-flex items-center justify-center rounded-xl border border-emerald-300 bg-emerald-100 px-4 py-2.5 text-sm font-extrabold text-emerald-800 transition-colors hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Simpan Mode
+                {savingApprovalMode ? 'Menyimpan...' : 'Simpan cara persetujuan'}
               </button>
               <button
                 type="button"
@@ -925,7 +986,7 @@ export default function RaceDirectorApprovalPage() {
                 disabled={loading || refreshing || !eventId}
                 className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.1em] text-slate-800 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {refreshing ? 'Memuat...' : 'Segarkan'}
+                {refreshing ? 'Memuat...' : 'Perbarui data'}
               </button>
               <button
                 type="button"
@@ -935,18 +996,18 @@ export default function RaceDirectorApprovalPage() {
                 disabled={!eventId}
                 className="inline-flex items-center justify-center rounded-xl border border-amber-400 bg-amber-300 px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.1em] text-amber-950 transition-colors hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Rekap Hasil
+                Buka rekap hasil
               </button>
               <div
-                className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-extrabold uppercase tracking-[0.12em] ${approvalMode === 'AUTO'
+                className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-extrabold uppercase tracking-[0.12em] ${savedApprovalMode === 'AUTO'
                     ? 'border-emerald-300 bg-emerald-100 text-emerald-800'
                     : 'border-amber-300 bg-amber-100 text-amber-800'
                   }`}
               >
-                {approvalMode === 'AUTO' ? 'MODE AUTO APPROVAL' : 'MODE APPROVAL DIRECTOR'}
+                {savedApprovalMode === 'AUTO' ? 'Persetujuan otomatis' : 'Persetujuan oleh RD'}
               </div>
               <div className="inline-flex items-center rounded-full border border-slate-300 bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
-                Sinkron: {lastSyncAt ?? '-'}
+                Data diperbarui: {lastSyncAt ?? 'belum tersedia'}
               </div>
             </div>
           </div>
@@ -954,7 +1015,9 @@ export default function RaceDirectorApprovalPage() {
 
         {actionNotice && (
           <section
-            className={`rounded-xl border px-4 py-3 text-sm font-bold ${actionNotice.type === 'error'
+            role={actionNotice.type === 'error' ? 'alert' : 'status'}
+            aria-live={actionNotice.type === 'error' ? 'assertive' : 'polite'}
+            className={`fixed bottom-4 left-4 right-4 z-[70] mx-auto max-w-2xl rounded-xl border px-4 py-3 text-sm font-bold shadow-xl ${actionNotice.type === 'error'
                 ? 'border-amber-300 bg-amber-100 text-amber-800'
                 : 'border-emerald-300 bg-emerald-100 text-emerald-800'
               }`}
@@ -972,29 +1035,53 @@ export default function RaceDirectorApprovalPage() {
           </section>
         )}
 
+        <nav aria-label="Lompat ke bagian Race Director" className="sticky top-[108px] z-40 overflow-x-auto rounded-xl border border-slate-300 bg-white/95 p-2 shadow-sm backdrop-blur sm:top-[68px]">
+          <div className="flex min-w-max gap-2">
+            {[
+              ['rd-summary', 'Ringkasan'],
+              ['rd-status-updates', 'Perubahan status'],
+              ['rd-penalty-approvals', 'Setujui penalti'],
+              ['rd-moto-lock', 'Kunci hasil moto'],
+              ['rd-dq-moto', 'Diskualifikasi satu moto'],
+              ['rd-dq-event', 'Diskualifikasi event/kategori'],
+              ['rd-penalty-review', 'Batalkan penalti'],
+              ['rd-penalty-tools', 'Tambah penalti'],
+              ['rd-audit', 'Riwayat tindakan'],
+            ].map(([target, label]) => (
+              <a
+                key={target}
+                href={`#${target}`}
+                className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-extrabold text-slate-700 hover:border-slate-400 hover:bg-slate-100"
+              >
+                {label}
+              </a>
+            ))}
+          </div>
+        </nav>
+
         {loading && (
           <div className="public-panel-light">
             <div className="text-sm font-extrabold uppercase tracking-[0.12em] text-slate-600">Memuat...</div>
           </div>
         )}
 
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div id="rd-summary" className="scroll-mt-36 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div className="public-panel-light">
-            <div style={{ fontSize: 12, fontWeight: 800, color: '#333' }}>Pending Status</div>
+            <div style={{ fontSize: 12, fontWeight: 800, color: '#333' }}>Perubahan status menunggu</div>
             <div style={{ fontSize: 22, fontWeight: 950 }}>{statusUpdates.length}</div>
           </div>
           <div className="public-panel-light">
-            <div style={{ fontSize: 12, fontWeight: 800, color: '#333' }}>Pending Penalties</div>
+            <div style={{ fontSize: 12, fontWeight: 800, color: '#333' }}>Penalti menunggu</div>
             <div style={{ fontSize: 22, fontWeight: 950 }}>{penalties.length}</div>
           </div>
           <div className="public-panel-light">
-            <div style={{ fontSize: 12, fontWeight: 800, color: '#333' }}>Locked Motos</div>
+            <div style={{ fontSize: 12, fontWeight: 800, color: '#333' }}>Moto terkunci</div>
             <div style={{ fontSize: 22, fontWeight: 950 }}>
               {Object.values(lockedMap).filter(Boolean).length}
             </div>
           </div>
           <div className="public-panel-light">
-            <div style={{ fontSize: 12, fontWeight: 800, color: '#333' }}>Gate Status</div>
+            <div style={{ fontSize: 12, fontWeight: 800, color: '#333' }}>Kesiapan gate</div>
             <div style={{ marginTop: 8 }}>
               <select
                 value={gateCategoryId}
@@ -1040,10 +1127,9 @@ export default function RaceDirectorApprovalPage() {
                 >
                   <span>{gateCategoryId === 'ALL' ? `${g.category_label ?? 'Category'} - ${g.moto_name}` : g.moto_name}</span>
                   <span className="rd-gate-meta">
-                    {g.status}
-                    {g.warnings && g.warnings > 0 ? ` (WARN ${g.warnings})` : ''}
-                    {' | '}
-                    {g.ready}/{g.total}
+                    {gateStatusLabel[g.status] ?? g.status}
+                    {' · '}{g.ready}/{g.total} gate siap
+                    {g.warnings && g.warnings > 0 ? ` · ${g.warnings} peringatan` : ''}
                   </span>
                 </div>
               ))}
@@ -1052,16 +1138,17 @@ export default function RaceDirectorApprovalPage() {
         </div>
 
         <div className="grid gap-4">
-          <section className="public-panel-light">
-            <div style={{ fontWeight: 900, fontSize: 18 }}>Set Rider DQ</div>
+          <section id="rd-dq-moto" className="public-panel-light scroll-mt-36">
+            <div style={{ fontWeight: 900, fontSize: 18 }}>Diskualifikasi untuk satu moto</div>
             <div style={{ marginTop: 6, fontSize: 13, fontWeight: 700, color: '#475569' }}>
-              Gunakan untuk diskualifikasi manual oleh Race Director. DQ tidak lagi berasal dari threshold point penalty.
+              Hanya mengubah hasil rider pada moto yang dipilih. Gunakan diskualifikasi event jika berlaku untuk seluruh hasil rider.
             </div>
             <div style={{ marginTop: 12, display: 'grid', gap: 10 }}>
               <div className="rd-form-grid" style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
                 <div style={{ display: 'grid', gap: 6 }}>
-                  <label style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Kategori</label>
+                  <label htmlFor="rd-dq-category" style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Kategori</label>
                   <select
+                    id="rd-dq-category"
                     value={dqForm.categoryId}
                     onChange={(e) => handleDqFormChange('categoryId', e.target.value)}
                     className="public-filter"
@@ -1075,8 +1162,9 @@ export default function RaceDirectorApprovalPage() {
                   </select>
                 </div>
                 <div style={{ display: 'grid', gap: 6 }}>
-                  <label style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Moto</label>
+                  <label htmlFor="rd-dq-moto-select" style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Moto</label>
                   <select
+                    id="rd-dq-moto-select"
                     value={dqForm.motoId}
                     onChange={(e) => handleDqFormChange('motoId', e.target.value)}
                     className="public-filter"
@@ -1084,14 +1172,15 @@ export default function RaceDirectorApprovalPage() {
                     <option value="">Pilih moto</option>
                     {dqFormMotos.map((moto) => (
                       <option key={moto.id} value={moto.id}>
-                        {moto.moto_order}. {moto.moto_name} - {moto.status}
+                        {moto.moto_order}. {moto.moto_name} - {motoStatusLabel[moto.status.toUpperCase()] ?? moto.status}
                       </option>
                     ))}
                   </select>
                 </div>
                 <div style={{ display: 'grid', gap: 6 }}>
-                  <label style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Rider</label>
+                  <label htmlFor="rd-dq-rider" style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Rider</label>
                   <select
+                    id="rd-dq-rider"
                     value={dqForm.riderId}
                     onChange={(e) => handleDqFormChange('riderId', e.target.value)}
                     className="public-filter"
@@ -1105,8 +1194,9 @@ export default function RaceDirectorApprovalPage() {
                   </select>
                 </div>
                 <div style={{ display: 'grid', gap: 6 }}>
-                  <label style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Alasan DQ</label>
+                  <label htmlFor="rd-dq-reason" style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Alasan (opsional)</label>
                   <input
+                    id="rd-dq-reason"
                     value={dqForm.reason}
                     onChange={(e) => handleDqFormChange('reason', e.target.value)}
                     className="public-filter"
@@ -1121,39 +1211,41 @@ export default function RaceDirectorApprovalPage() {
                   disabled={settingDq || !eventId}
                   className="inline-flex items-center justify-center rounded-xl border border-red-300 bg-red-100 px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.1em] text-red-800 transition-colors hover:bg-red-200 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {settingDq ? 'Menyimpan...' : 'Set DQ'}
+                  {settingDq ? 'Menerapkan...' : 'Terapkan diskualifikasi'}
                 </button>
               </div>
             </div>
           </section>
 
-          <section className="public-panel-light">
-            <div style={{ fontWeight: 900, fontSize: 18 }}>Diskualifikasi Event</div>
+          <section id="rd-dq-event" className="public-panel-light scroll-mt-36">
+            <div style={{ fontWeight: 900, fontSize: 18 }}>Diskualifikasi event atau kategori</div>
             <div style={{ marginTop: 6, fontSize: 13, fontWeight: 700, color: '#475569' }}>
-              Diskualifikasi rider dari seluruh event.
+              Mengubah hasil semua moto rider dalam cakupan yang dipilih. Alasan wajib diisi dan aplikasi akan meminta konfirmasi sebelum menerapkan.
             </div>
             <div style={{ marginTop: 12, display: 'grid', gap: 12 }}>
               <div className="rd-form-grid" style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
                 <div style={{ display: 'grid', gap: 6 }}>
-                  <label style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Scope DQ</label>
+                  <label htmlFor="rd-event-dq-scope" style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Terapkan pada</label>
                   <select
+                    id="rd-event-dq-scope"
                     value={eventDqForm.scope}
                     onChange={(e) => handleEventDqFormChange('scope', e.target.value as 'ALL' | 'CATEGORY')}
                     className="public-filter"
                   >
-                    <option value="ALL">Semua Kategori (Event-Wide)</option>
-                    <option value="CATEGORY">Per Kategori Spesifik</option>
+                    <option value="ALL">Seluruh kategori di event</option>
+                    <option value="CATEGORY">Satu kategori saja</option>
                   </select>
                 </div>
                 
                 <div style={{ display: 'grid', gap: 6 }}>
-                  <label style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Rider</label>
+                  <label htmlFor="rd-event-dq-rider" style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Rider</label>
                   <select
+                    id="rd-event-dq-rider"
                     value={eventDqForm.riderId}
                     onChange={(e) => handleEventDqFormChange('riderId', e.target.value)}
                     className="public-filter"
                   >
-                    <option value="">Cari dan pilih rider</option>
+                    <option value="">Pilih rider</option>
                     {Object.values(riderMap)
                       .sort((a, b) => a.name.localeCompare(b.name))
                       .map((rider) => (
@@ -1166,8 +1258,9 @@ export default function RaceDirectorApprovalPage() {
 
                 {eventDqForm.scope === 'CATEGORY' && (
                   <div style={{ display: 'grid', gap: 6 }}>
-                    <label style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Pilih Kategori</label>
+                    <label htmlFor="rd-event-dq-category" style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Pilih kategori</label>
                     <select
+                      id="rd-event-dq-category"
                       value={eventDqForm.categoryId}
                       onChange={(e) => handleEventDqFormChange('categoryId', e.target.value)}
                       className="public-filter"
@@ -1183,8 +1276,9 @@ export default function RaceDirectorApprovalPage() {
                 )}
               </div>
               <div style={{ display: 'grid', gap: 6 }}>
-                <label style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Alasan DQ (Wajib)</label>
+                <label htmlFor="rd-event-dq-reason" style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Alasan diskualifikasi (wajib)</label>
                 <textarea
+                  id="rd-event-dq-reason"
                   value={eventDqForm.reason}
                   onChange={(e) => handleEventDqFormChange('reason', e.target.value)}
                   className="public-filter"
@@ -1200,30 +1294,34 @@ export default function RaceDirectorApprovalPage() {
                   disabled={cancellingEventDq || settingEventDq || !eventId || !eventDqForm.riderId || (eventDqForm.scope === 'CATEGORY' && !eventDqForm.categoryId)}
                   className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.1em] text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {cancellingEventDq ? 'Membatalkan...' : 'Cancel DQ'}
+                  {cancellingEventDq ? 'Membatalkan...' : 'Batalkan diskualifikasi'}
                 </button>
                 <button
                   onClick={handleSetEventDq}
                   disabled={settingEventDq || cancellingEventDq || !eventId || !eventDqForm.riderId || (eventDqForm.scope === 'CATEGORY' && !eventDqForm.categoryId)}
                   className="inline-flex items-center justify-center rounded-xl border border-red-300 bg-red-100 px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.1em] text-red-800 transition-colors hover:bg-red-200 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {settingEventDq ? 'Menyimpan...' : 'Set DQ Seluruh Event'}
+                  {settingEventDq
+                    ? 'Menerapkan DQ...'
+                    : eventDqForm.scope === 'CATEGORY'
+                      ? 'Diskualifikasi rider di kategori ini'
+                      : 'Diskualifikasi rider di seluruh event'}
                 </button>
               </div>
             </div>
           </section>
 
-          <section className="public-panel-light">
-            <div style={{ fontWeight: 900, fontSize: 18 }}>Void Penalty Moto</div>
+          <section id="rd-penalty-review" className="public-panel-light scroll-mt-36">
+            <div style={{ fontWeight: 900, fontSize: 18 }}>Batalkan penalti yang sudah disetujui</div>
             <div style={{ marginTop: 6, fontSize: 13, fontWeight: 700, color: '#475569' }}>
-              Untuk koreksi protest: penalty approved bisa di-void oleh RD dengan alasan wajib. Point tidak dihitung lagi,
-              riwayat penalty tetap tersimpan.
+              Untuk koreksi hasil protes. Penalti yang dibatalkan tidak menambah poin lagi, tetapi riwayatnya tetap tersimpan.
             </div>
             <div style={{ marginTop: 12, display: 'grid', gap: 12 }}>
               <div className="rd-form-grid" style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
                 <div style={{ display: 'grid', gap: 6 }}>
-                  <label style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Kategori</label>
+                  <label htmlFor="rd-penalty-review-category" style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Kategori</label>
                   <select
+                    id="rd-penalty-review-category"
                     value={penaltyReviewCategoryId}
                     onChange={(e) => {
                       setPenaltyReviewCategoryId(e.target.value)
@@ -1240,8 +1338,9 @@ export default function RaceDirectorApprovalPage() {
                   </select>
                 </div>
                 <div style={{ display: 'grid', gap: 6 }}>
-                  <label style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Moto</label>
+                  <label htmlFor="rd-penalty-review-moto" style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Moto</label>
                   <select
+                    id="rd-penalty-review-moto"
                     value={penaltyReviewMotoId}
                     onChange={(e) => setPenaltyReviewMotoId(e.target.value)}
                     className="public-filter"
@@ -1263,7 +1362,7 @@ export default function RaceDirectorApprovalPage() {
                   disabled={!penaltyReviewMotoId || loadingApprovedPenalties}
                   className="inline-flex items-center justify-center rounded-xl border border-sky-300 bg-sky-100 px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.1em] text-sky-800 transition-colors hover:bg-sky-200 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {loadingApprovedPenalties ? 'Memuat...' : 'Refresh Penalty'}
+                  {loadingApprovedPenalties ? 'Memuat...' : 'Tampilkan penalti'}
                 </button>
               </div>
 
@@ -1297,7 +1396,7 @@ export default function RaceDirectorApprovalPage() {
                           <div>
                             <div style={{ fontWeight: 950 }}>{riderLabel}</div>
                             <div style={{ marginTop: 3, fontSize: 12, fontWeight: 800, color: '#475569' }}>
-                              {penalty.rule_code} | {penalty.penalty_point} pts | {timeAgo(penalty.created_at)}
+                              {penalty.rule_code} | {penalty.penalty_point} poin | {timeAgo(penalty.created_at)}
                             </div>
                             {penalty.note && (
                               <div style={{ marginTop: 4, fontSize: 12, fontWeight: 700, color: '#64748b' }}>
@@ -1316,23 +1415,26 @@ export default function RaceDirectorApprovalPage() {
                               fontWeight: 950,
                             }}
                           >
-                            APPROVED
+                            Disetujui
                           </span>
                         </div>
                         <div className="rd-form-grid" style={{ display: 'grid', gap: 8, gridTemplateColumns: '1fr auto' }}>
-                          <input
-                            value={reason}
-                            onChange={(e) => setVoidReasons((prev) => ({ ...prev, [penalty.id]: e.target.value }))}
-                            className="public-filter"
-                            placeholder="Alasan void penalty wajib diisi"
-                          />
+                          <label className="grid gap-1 text-xs font-extrabold text-slate-600">
+                            Alasan pembatalan (wajib)
+                            <input
+                              value={reason}
+                              onChange={(e) => setVoidReasons((prev) => ({ ...prev, [penalty.id]: e.target.value }))}
+                              className="public-filter"
+                              placeholder="Jelaskan hasil koreksi atau protes"
+                            />
+                          </label>
                           <button
                             type="button"
                             onClick={() => void handleVoidPenalty(penalty.id)}
                             disabled={voidingPenaltyId === penalty.id || !reason.trim()}
                             className="inline-flex items-center justify-center rounded-xl border border-orange-300 bg-orange-100 px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.1em] text-orange-800 transition-colors hover:bg-orange-200 disabled:cursor-not-allowed disabled:opacity-60"
                           >
-                            {voidingPenaltyId === penalty.id ? 'Void...' : 'Void Penalty'}
+                            {voidingPenaltyId === penalty.id ? 'Membatalkan...' : 'Batalkan penalti'}
                           </button>
                         </div>
                       </div>
@@ -1343,16 +1445,17 @@ export default function RaceDirectorApprovalPage() {
             </div>
           </section>
 
-          <section className="public-panel-light">
-            <div style={{ fontWeight: 900, fontSize: 18 }}>Tambah Penalty Rider</div>
+          <section id="rd-penalty-tools" className="public-panel-light scroll-mt-36">
+            <div style={{ fontWeight: 900, fontSize: 18 }}>Kelola penalti rider</div>
             <div style={{ marginTop: 6, fontSize: 13, fontWeight: 700, color: '#475569' }}>
-              Gunakan rules penalty yang sudah ada. Cocok untuk kasus pelanggaran wali rider yang menambah point ke rider.
+              Tambahkan penalti sesuai aturan yang tersedia. Gunakan catatan untuk menjelaskan kejadian.
             </div>
             <div style={{ marginTop: 12, display: 'grid', gap: 10 }}>
               <div className="rd-form-grid" style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
                 <div style={{ display: 'grid', gap: 6 }}>
-                  <label style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Kategori</label>
+                  <label htmlFor="rd-penalty-category" style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Kategori</label>
                   <select
+                    id="rd-penalty-category"
                     value={penaltyForm.categoryId}
                     onChange={(e) => handlePenaltyFormChange('categoryId', e.target.value)}
                     className="public-filter"
@@ -1366,8 +1469,9 @@ export default function RaceDirectorApprovalPage() {
                   </select>
                 </div>
                 <div style={{ display: 'grid', gap: 6 }}>
-                  <label style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Rider</label>
+                  <label htmlFor="rd-penalty-rider" style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Rider</label>
                   <select
+                    id="rd-penalty-rider"
                     value={penaltyForm.riderId}
                     onChange={(e) => handlePenaltyFormChange('riderId', e.target.value)}
                     className="public-filter"
@@ -1381,28 +1485,30 @@ export default function RaceDirectorApprovalPage() {
                   </select>
                 </div>
                 <div style={{ display: 'grid', gap: 6 }}>
-                  <label style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Rule Penalty</label>
+                  <label htmlFor="rd-penalty-rule" style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Aturan penalti</label>
                   <select
+                    id="rd-penalty-rule"
                     value={penaltyForm.ruleCode}
                     onChange={(e) => handlePenaltyFormChange('ruleCode', e.target.value)}
                     className="public-filter"
                   >
-                    <option value="">Pilih rule penalty</option>
+                    <option value="">Pilih aturan penalti</option>
                     {penaltyRules.map((rule) => (
                       <option key={rule.id} value={rule.code}>
-                        {rule.code} - {rule.penalty_point} pts
+                        {rule.code} - {rule.penalty_point} poin
                       </option>
                     ))}
                   </select>
                   {selectedPenaltyRule && (
                     <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b' }}>
-                      {selectedPenaltyRule.description || 'Tanpa deskripsi'} | Stage rule: {selectedPenaltyRule.applies_to_stage}
+                      {selectedPenaltyRule.description || 'Tanpa deskripsi'} | Berlaku pada: {penaltyStageLabel[selectedPenaltyRule.applies_to_stage] ?? selectedPenaltyRule.applies_to_stage}
                     </div>
                   )}
                 </div>
                 <div style={{ display: 'grid', gap: 6 }}>
-                  <label style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Stage</label>
+                  <label htmlFor="rd-penalty-stage" style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Tahap yang dikenai</label>
                   <select
+                    id="rd-penalty-stage"
                     value={penaltyForm.stage}
                     onChange={(e) => handlePenaltyFormChange('stage', e.target.value as PenaltyFormState['stage'])}
                     className="public-filter"
@@ -1410,14 +1516,20 @@ export default function RaceDirectorApprovalPage() {
                   >
                     {(['ALL', 'MOTO', 'QUARTER', 'REPECHAGE', 'SEMI', 'FINAL'] as const).map((stage) => (
                       <option key={stage} value={stage}>
-                        {stage}
+                        {penaltyStageLabel[stage] ?? stage}
                       </option>
                     ))}
                   </select>
+                  {selectedPenaltyRule?.applies_to_stage !== 'ALL' && (
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#64748b' }}>
+                      Tahap mengikuti aturan penalti yang dipilih.
+                    </span>
+                  )}
                 </div>
                 <div style={{ display: 'grid', gap: 6 }}>
-                  <label style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Moto (opsional / wajib untuk MOTO)</label>
+                  <label htmlFor="rd-penalty-moto" style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Moto (wajib jika tahapnya Moto)</label>
                   <select
+                    id="rd-penalty-moto"
                     value={penaltyForm.motoId}
                     onChange={(e) => handlePenaltyFormChange('motoId', e.target.value)}
                     className="public-filter"
@@ -1426,14 +1538,15 @@ export default function RaceDirectorApprovalPage() {
                     <option value="">Pilih moto</option>
                     {penaltyFormMotos.map((moto) => (
                       <option key={moto.id} value={moto.id}>
-                        {moto.moto_order}. {moto.moto_name} - {moto.status}
+                        {moto.moto_order}. {moto.moto_name} - {motoStatusLabel[moto.status.toUpperCase()] ?? moto.status}
                       </option>
                     ))}
                   </select>
                 </div>
                 <div style={{ display: 'grid', gap: 6 }}>
-                  <label style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Catatan</label>
+                  <label htmlFor="rd-penalty-note" style={{ fontSize: 12, fontWeight: 900, color: '#475569' }}>Catatan</label>
                   <input
+                    id="rd-penalty-note"
                     value={penaltyForm.note}
                     onChange={(e) => handlePenaltyFormChange('note', e.target.value)}
                     className="public-filter"
@@ -1448,15 +1561,20 @@ export default function RaceDirectorApprovalPage() {
                   disabled={addingPenalty || !eventId}
                   className="inline-flex items-center justify-center rounded-xl border border-rose-300 bg-rose-100 px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.1em] text-rose-800 transition-colors hover:bg-rose-200 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {addingPenalty ? 'Menyimpan...' : 'Tambah Penalty'}
+                    {addingPenalty ? 'Menyimpan...' : 'Tambahkan penalti'}
                 </button>
               </div>
             </div>
           </section>
 
-          <section className="public-panel-light">
-            <div style={{ fontWeight: 900, fontSize: 18 }}>Status Updates</div>
-            {statusUpdates.length === 0 && <div style={{ marginTop: 8 }}>Tidak ada status pending.</div>}
+          <section id="rd-status-updates" className="public-panel-light scroll-mt-36">
+            <div style={{ fontWeight: 900, fontSize: 18 }}>Perubahan status menunggu keputusan</div>
+            <p style={{ marginTop: 6, fontSize: 13, fontWeight: 700, color: '#475569' }}>
+              {approvalMode === 'AUTO'
+                ? 'Mode otomatis aktif; laporan status yang masuk tidak memerlukan keputusan manual di sini.'
+                : 'Periksa pengajuan lalu pilih Setujui atau Tolak. Alasan keputusan dapat ditambahkan pada langkah berikutnya.'}
+            </p>
+            {statusUpdates.length === 0 && <div style={{ marginTop: 8 }}>Tidak ada perubahan status yang menunggu.</div>}
             <div style={{ marginTop: 10, display: 'grid', gap: 10 }}>
               {sortedStatusUpdates.map((u) => {
                 const rider = riderMap[u.rider_id]
@@ -1491,7 +1609,7 @@ export default function RaceDirectorApprovalPage() {
                           fontSize: 12,
                         }}
                       >
-                        {u.proposed_status}
+                          {riderStatusLabel[u.proposed_status] ?? u.proposed_status}
                       </span>
                       <span style={{ fontSize: 12, color: '#333' }}>{timeAgo(u.created_at)}</span>
                     </div>
@@ -1511,7 +1629,7 @@ export default function RaceDirectorApprovalPage() {
                           cursor: approvalMode === 'AUTO' ? 'not-allowed' : 'pointer',
                         }}
                       >
-                        Setujui
+                        Setujui perubahan
                       </button>
                       <button
                         disabled={approvalMode === 'AUTO'}
@@ -1525,7 +1643,7 @@ export default function RaceDirectorApprovalPage() {
                           cursor: approvalMode === 'AUTO' ? 'not-allowed' : 'pointer',
                         }}
                       >
-                        Tolak
+                        Tolak perubahan
                       </button>
                     </div>
                   </div>
@@ -1534,9 +1652,14 @@ export default function RaceDirectorApprovalPage() {
             </div>
           </section>
 
-          <section className="public-panel-light">
-            <div style={{ fontWeight: 900, fontSize: 18 }}>Approval Penalty</div>
-            {penalties.length === 0 && <div style={{ marginTop: 8 }}>Tidak ada penalty pending.</div>}
+          <section id="rd-penalty-approvals" className="public-panel-light scroll-mt-36">
+            <div style={{ fontWeight: 900, fontSize: 18 }}>Penalti menunggu keputusan</div>
+            {approvalMode === 'AUTO' && (
+              <p style={{ marginTop: 6, fontSize: 13, fontWeight: 700, color: '#475569' }}>
+                Mode otomatis aktif; penalti baru diterapkan tanpa keputusan manual.
+              </p>
+            )}
+            {penalties.length === 0 && <div style={{ marginTop: 8 }}>Tidak ada penalti yang menunggu keputusan.</div>}
             <div style={{ marginTop: 10, display: 'grid', gap: 10 }}>
               {sortedPenalties.map((p) => {
                 const rider = riderMap[p.rider_id]
@@ -1554,8 +1677,8 @@ export default function RaceDirectorApprovalPage() {
                     }}
                   >
                     <div style={{ fontWeight: 900 }}>{riderLabel}</div>
-                    <div>Rule: {p.rule_code} (+{p.penalty_point})</div>
-                    {p.note && <div style={{ fontSize: 12, color: '#333' }}>Note: {p.note}</div>}
+                    <div>Aturan: {p.rule_code} (+{p.penalty_point} poin)</div>
+                    {p.note && <div style={{ fontSize: 12, color: '#333' }}>Catatan: {p.note}</div>}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontSize: 12, color: '#333' }}>{timeAgo(p.created_at)}</span>
                     </div>
@@ -1575,7 +1698,7 @@ export default function RaceDirectorApprovalPage() {
                           cursor: approvalMode === 'AUTO' ? 'not-allowed' : 'pointer',
                         }}
                       >
-                        Setujui
+                        Setujui penalti
                       </button>
                       <button
                         disabled={approvalMode === 'AUTO'}
@@ -1589,7 +1712,7 @@ export default function RaceDirectorApprovalPage() {
                           cursor: approvalMode === 'AUTO' ? 'not-allowed' : 'pointer',
                         }}
                       >
-                        Tolak
+                        Tolak penalti
                       </button>
                     </div>
                   </div>
@@ -1598,8 +1721,11 @@ export default function RaceDirectorApprovalPage() {
             </div>
           </section>
 
-          <section className="public-panel-light">
-            <div style={{ fontWeight: 900, fontSize: 18 }}>Moto Locking</div>
+          <section id="rd-moto-lock" className="public-panel-light scroll-mt-36">
+            <div style={{ fontWeight: 900, fontSize: 18 }}>Periksa dan kunci hasil moto</div>
+            <p style={{ marginTop: 6, fontSize: 13, fontWeight: 700, color: '#475569' }}>
+              Kunci moto setelah hasil, perubahan status, dan penalti selesai diperiksa. Moto yang terkunci tidak bisa diedit melalui alur biasa.
+            </p>
             {motos.length === 0 && <div style={{ marginTop: 8 }}>Tidak ada moto.</div>}
             <div style={{ marginTop: 10, display: 'grid', gap: 10 }}>
               {categoriesSorted.map((cat) => {
@@ -1621,6 +1747,8 @@ export default function RaceDirectorApprovalPage() {
                     <button
                       type="button"
                       onClick={() => setOpenCategoryId(isOpen ? null : cat.id)}
+                      aria-expanded={isOpen}
+                      aria-controls={`rd-motos-${cat.id}`}
                       style={{
                         padding: '10px 12px',
                         borderRadius: 10,
@@ -1631,16 +1759,16 @@ export default function RaceDirectorApprovalPage() {
                         textAlign: 'left',
                       }}
                     >
-                      {cat.label} {isOpen ? 'v' : '>'}
+                      {cat.label} · {list.length} moto {isOpen ? '−' : '+'}
                     </button>
                     {isOpen && (
-                      <div style={{ display: 'grid', gap: 8 }}>
+                      <div id={`rd-motos-${cat.id}`} style={{ display: 'grid', gap: 8 }}>
                         {list.map((m) => {
                           const status = (m.status ?? '').toUpperCase()
                           const isLocked = status === 'LOCKED'
                           const canUnlock = isLocked && (role === 'SUPER_ADMIN' || role === 'RACE_DIRECTOR')
                           const canLock = status === 'PROVISIONAL' || status === 'PROTEST_REVIEW'
-                          const showLockDisabled = status === 'UPCOMING'
+                          const lockUnavailable = !isLocked && !canLock
                           return (
                             <div
                               key={m.id}
@@ -1675,7 +1803,7 @@ export default function RaceDirectorApprovalPage() {
                                   width: 'fit-content',
                                 }}
                               >
-                                {status || 'UNKNOWN'}
+                                {(motoStatusLabel[status] ?? status) || 'Status tidak diketahui'}
                               </div>
                               {status === 'LIVE' && (
                                 <div
@@ -1693,21 +1821,10 @@ export default function RaceDirectorApprovalPage() {
                                 </div>
                               )}
                               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                                {showLockDisabled && (
-                                  <button
-                                    disabled
-                                    title="Moto harus LIVE/PROVISIONAL sebelum bisa dikunci."
-                                    style={{
-                                      padding: '8px 12px',
-                                      borderRadius: 10,
-                                      border: '2px solid #111',
-                                      background: '#f3f4f6',
-                                      fontWeight: 900,
-                                      cursor: 'not-allowed',
-                                    }}
-                                  >
-                                    Kunci
-                                  </button>
+                                {lockUnavailable && (
+                                  <span style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>
+                                    Belum bisa dikunci. Tunggu sampai hasil moto berstatus sementara atau sedang ditinjau.
+                                  </span>
                                 )}
                                 {canLock && (
                                   <button
@@ -1752,9 +1869,9 @@ export default function RaceDirectorApprovalPage() {
             </div>
           </section>
 
-          <section className="public-panel-light">
+          <section id="rd-audit" className="public-panel-light scroll-mt-36">
             <div className="rd-section-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-              <div style={{ fontWeight: 900, fontSize: 18 }}>Audit Log (Last 100)</div>
+              <div style={{ fontWeight: 900, fontSize: 18 }}>Riwayat tindakan (100 terbaru)</div>
               <button
                 type="button"
                 onClick={() => setShowAuditLogs((prev) => !prev)}
@@ -1810,7 +1927,7 @@ export default function RaceDirectorApprovalPage() {
               <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Catatan Keputusan</p>
               <h2 className="text-xl font-black text-slate-900">
                 {decisionModal.decision === 'APPROVE' ? 'Setujui' : 'Tolak'}{' '}
-                {decisionModal.type === 'status' ? 'Status' : 'Penalty'}
+                {decisionModal.type === 'status' ? 'Perubahan status' : 'Penalti'}
               </h2>
               <p className="text-sm font-semibold text-slate-600">
                 Tambahkan alasan (opsional) lalu konfirmasi aksi.

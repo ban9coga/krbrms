@@ -54,12 +54,18 @@ export default function DrawSettingsClient({ eventId }: { eventId: string }) {
   const [saving, setSaving] = useState(false)
   const [modeSaving, setModeSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const [modeSaveNotice, setModeSaveNotice] = useState<CategorySaveNotice | null>(null)
   const [categorySaveNotice, setCategorySaveNotice] = useState<CategorySaveNotice | null>(null)
+  const [categorySearch, setCategorySearch] = useState('')
 
   const selectedCategory = useMemo(
     () => data?.categories.find((category) => category.id === selectedCategoryId) ?? null,
     [data, selectedCategoryId]
   )
+  const filteredCategories = useMemo(() => {
+    const query = categorySearch.trim().toLocaleLowerCase()
+    return (data?.categories ?? []).filter((category) => category.label.toLocaleLowerCase().includes(query))
+  }, [categorySearch, data?.categories])
 
   const applyCategory = (category: DrawCategory | null) => {
     const config = cloneConfig(category?.draw_config ?? DEFAULT_DRAW_CATEGORY_CONFIG)
@@ -71,13 +77,20 @@ export default function DrawSettingsClient({ eventId }: { eventId: string }) {
 
   const load = async () => {
     setLoading(true)
+    setMessage(null)
+    setModeSaveNotice(null)
+    setCategorySaveNotice(null)
+    setCategorySearch('')
     try {
       const json = await apiFetch(`/api/events/${eventId}/draw-settings`)
       const nextData = json.data as DrawSettingsData
       setData(nextData)
-      const nextCategoryId = selectedCategoryId || nextData.categories[0]?.id || ''
+      const nextCategoryId = nextData.categories.some((category) => category.id === selectedCategoryId)
+        ? selectedCategoryId
+        : nextData.categories[0]?.id || ''
       setSelectedCategoryId(nextCategoryId)
       applyCategory(nextData.categories.find((category) => category.id === nextCategoryId) ?? null)
+      setMessage(null)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Gagal memuat Draw Settings.')
     } finally {
@@ -94,25 +107,36 @@ export default function DrawSettingsClient({ eventId }: { eventId: string }) {
     setSelectedCategoryId(categoryId)
     applyCategory(data?.categories.find((category) => category.id === categoryId) ?? null)
     setCategorySaveNotice(null)
+    setModeSaveNotice(null)
     setMessage(null)
   }
 
   const saveCategory = async () => {
     if (!selectedCategoryId) return
-    const parsedPattern = customPattern
-      .split(/[\s,]+/)
-      .map((item) => Number(item.trim()))
-      .filter((item) => Number.isInteger(item) && item > 0)
+    const patternParts = customPattern.split(/[\s,]+/).filter(Boolean)
+    const parsedPattern = patternParts.map((item) => Number(item.trim()))
     const nextDraft = normalizeDrawCategoryConfig({
       ...draft,
       custom_batch_sizes: draft.batch_mode === 'CUSTOM_BATCH_SIZES' ? parsedPattern : [],
     })
-    if (nextDraft.batch_mode === 'CUSTOM_BATCH_SIZES' && parsedPattern.length === 0) {
-      setCategorySaveNotice({ kind: 'error', text: 'Isi pola batch, misalnya 5, 4 atau 8, 8, 7.' })
+    if (nextDraft.batch_mode === 'CUSTOM_BATCH_SIZES' && (parsedPattern.length === 0 || parsedPattern.some((size) => !Number.isInteger(size) || size < 1))) {
+      setCategorySaveNotice({ kind: 'error', text: 'Pola batch hanya boleh berisi angka positif, misalnya 5, 4 atau 8, 8, 7.' })
       return
     }
     if (nextDraft.batch_mode === 'AUTO_BY_GATE' && nextDraft.batch_size && nextDraft.batch_size > (data?.gate_positions ?? 8)) {
       setCategorySaveNotice({ kind: 'error', text: `Maksimal rider per batch tidak boleh lebih dari jumlah gate (${data?.gate_positions ?? 8}).` })
+      return
+    }
+    if (nextDraft.batch_mode === 'AUTO_BY_GATE' && (!nextDraft.batch_size || nextDraft.batch_size < 1)) {
+      setCategorySaveNotice({ kind: 'error', text: 'Isi batas rider per batch dengan angka minimal 1.' })
+      return
+    }
+    if (nextDraft.batch_mode === 'MANUAL_BATCH_COUNT' && (!nextDraft.batch_count || nextDraft.batch_count < 1)) {
+      setCategorySaveNotice({ kind: 'error', text: 'Isi jumlah batch dengan angka minimal 1.' })
+      return
+    }
+    if (nextDraft.batch_mode === 'CUSTOM_BATCH_SIZES' && parsedPattern.some((size) => size > (data?.gate_positions ?? 8))) {
+      setCategorySaveNotice({ kind: 'error', text: `Setiap batch tidak boleh melebihi jumlah gate (${data?.gate_positions ?? 8}).` })
       return
     }
 
@@ -159,15 +183,19 @@ export default function DrawSettingsClient({ eventId }: { eventId: string }) {
     if (!data || drawMode === data.draw_mode) return
     setModeSaving(true)
     setMessage(null)
+    setModeSaveNotice({ kind: 'saving', text: 'Menyimpan cara drawing...' })
     try {
       const json = await apiFetch(`/api/events/${eventId}/draw-settings`, {
         method: 'PATCH',
         body: JSON.stringify({ draw_mode: drawMode }),
       })
       setData((previous) => (previous ? { ...previous, draw_mode: json.data.draw_mode } : previous))
-      setMessage(drawMode === 'internal_live_draw' ? 'Mode Spin Draw aktif untuk event ini.' : 'Mode input manual aktif untuk event ini.')
+      setModeSaveNotice({
+        kind: 'success',
+        text: drawMode === 'internal_live_draw' ? 'Cara drawing disimpan: Spin Draw.' : 'Cara drawing disimpan: input manual.',
+      })
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Gagal menyimpan mode drawing.')
+      setModeSaveNotice({ kind: 'error', text: error instanceof Error ? error.message : 'Gagal menyimpan cara drawing.' })
     } finally {
       setModeSaving(false)
     }
@@ -177,19 +205,21 @@ export default function DrawSettingsClient({ eventId }: { eventId: string }) {
     if (!data || qualificationBatchMode === data.qualification_batch_mode) return
     setModeSaving(true)
     setMessage(null)
+    setModeSaveNotice({ kind: 'saving', text: 'Menyimpan pembagian batch kualifikasi...' })
     try {
       const json = await apiFetch(`/api/events/${eventId}/draw-settings`, {
         method: 'PATCH',
         body: JSON.stringify({ qualification_batch_mode: qualificationBatchMode }),
       })
       setData((previous) => (previous ? { ...previous, qualification_batch_mode: json.data.qualification_batch_mode } : previous))
-      setMessage(
-        qualificationBatchMode === 'ROTATE_EACH_MOTO'
-          ? 'Batch kualifikasi akan diacak ulang pada setiap moto.'
-          : 'Batch kualifikasi tetap sama pada semua moto.'
-      )
+      setModeSaveNotice({
+        kind: 'success',
+        text: qualificationBatchMode === 'ROTATE_EACH_MOTO'
+          ? 'Pembagian batch disimpan: rider diacak ulang tiap moto.'
+          : 'Pembagian batch disimpan: rider tetap di batch yang sama.',
+      })
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Gagal menyimpan mode batch kualifikasi.')
+      setModeSaveNotice({ kind: 'error', text: error instanceof Error ? error.message : 'Gagal menyimpan pembagian batch.' })
     } finally {
       setModeSaving(false)
     }
@@ -198,21 +228,28 @@ export default function DrawSettingsClient({ eventId }: { eventId: string }) {
   return (
     <div className="mx-auto grid w-full max-w-6xl gap-5 pb-10">
       <header className="rounded-xl border border-[#7d4b2d] bg-[#28140b] px-5 py-6 text-[#fff5df] shadow-[0_18px_38px_rgba(64,37,19,0.18)] sm:px-7">
-        <p className="m-0 text-[11px] font-black uppercase tracking-[0.16em] text-[#f4c743]">Race setup</p>
-        <h1 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">Draw Settings</h1>
+        <p className="m-0 text-[11px] font-black uppercase tracking-[0.16em] text-[#f4c743]">Pengaturan event</p>
+        <h1 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">Pengaturan Drawing</h1>
         <p className="mt-3 max-w-3xl text-sm font-semibold leading-6 text-[#e7d1b0]">
           Tetapkan format drawing sebelum petugas menjalankan undian. Pengaturan ini digunakan pada drawing berikutnya dan tidak mengubah moto yang sudah dibuat.
         </p>
       </header>
 
-      {message && <div className={`${panelClass} border-[#d5b16a] bg-[#fff5dc] text-sm font-bold text-[#5d3c13]`}>{message}</div>}
+      {message && data && <div role="alert" className={`${panelClass} border-red-300 bg-red-50 text-sm font-bold text-red-800`}>{message}</div>}
 
-      {loading || !data ? (
+      {loading ? (
         <div className={`${panelClass} text-sm font-bold text-[#664b38]`}>Memuat konfigurasi drawing...</div>
+      ) : !data ? (
+        <div role="alert" className={`${panelClass} grid gap-3 border-red-300 bg-red-50 text-sm font-bold text-red-800`}>
+          <p className="m-0">{message ?? 'Konfigurasi drawing belum berhasil dimuat.'}</p>
+          <button type="button" onClick={() => void load()} className="w-fit rounded-lg border border-red-300 bg-white px-4 py-2 font-black text-red-800 hover:bg-red-100">
+            Coba muat lagi
+          </button>
+        </div>
       ) : (
         <div className="grid gap-5 lg:grid-cols-[minmax(260px,0.78fr)_minmax(0,1.5fr)]">
           <aside className={`${panelClass} h-fit`}>
-            <p className="mb-3 text-[11px] font-black uppercase tracking-[0.14em] text-[#98602c]">Mode Event</p>
+            <p className="mb-3 text-[11px] font-black uppercase tracking-[0.14em] text-[#98602c]">Pengaturan event</p>
             <label className="grid gap-2 text-sm font-black text-[#2a1710]">
               Metode drawing
               <select
@@ -221,14 +258,14 @@ export default function DrawSettingsClient({ eventId }: { eventId: string }) {
                 disabled={modeSaving}
                 className={fieldClass}
               >
-                <option value="internal_live_draw">Spin Draw</option>
-                <option value="external_draw">Input manual / external</option>
+                <option value="internal_live_draw">Spin Draw di aplikasi</option>
+                <option value="external_draw">Masukkan urutan dari undian luar</option>
               </select>
             </label>
             <p className="mt-3 text-xs font-semibold leading-5 text-[#765946]">
               {data.draw_mode === 'internal_live_draw'
-                ? 'Petugas akan mengundi urutan rider dari layar Drawing.'
-                : 'Petugas memasukkan atau menyusun urutan dari sumber drawing eksternal.'}
+                ? 'Urutan rider akan diundi langsung dari halaman Drawing.'
+                : 'Pilih ini jika urutan rider sudah ditentukan di luar aplikasi.'}
             </p>
 
             <label className="mt-4 grid gap-2 text-sm font-black text-[#2a1710]">
@@ -239,20 +276,48 @@ export default function DrawSettingsClient({ eventId }: { eventId: string }) {
                 disabled={modeSaving}
                 className={fieldClass}
               >
-                <option value="FIXED">Batch tetap</option>
-                <option value="ROTATE_EACH_MOTO">Acak ulang tiap moto</option>
+                <option value="FIXED">Rider tetap di batch yang sama</option>
+                <option value="ROTATE_EACH_MOTO">Acak ulang rider tiap moto</option>
               </select>
             </label>
             <p className="mt-3 text-xs font-semibold leading-5 text-[#765946]">
               {data.qualification_batch_mode === 'ROTATE_EACH_MOTO'
-                ? 'Semua rider kategori diundi ulang pada setiap moto. Ranking kualifikasi memakai total poin seluruh moto.'
-                : 'Rider tetap pada batch awal. Moto 2 dan 3 hanya mengubah urutan gate.'}
+                ? 'Komposisi rider setiap batch berubah pada tiap moto. Peringkat memakai total poin semua moto.'
+                : 'Rider tetap satu kelompok batch pada semua moto; urutan gate dapat berubah.'}
             </p>
+            <p className="mt-2 text-xs font-semibold leading-5 text-[#765946]">
+              Pilihan di bagian ini tersimpan otomatis setelah dropdown diubah.
+            </p>
+            {modeSaveNotice && (
+              <p
+                role={modeSaveNotice.kind === 'error' ? 'alert' : 'status'}
+                aria-live={modeSaveNotice.kind === 'error' ? 'assertive' : 'polite'}
+                className={`mt-3 rounded-lg border px-3 py-2 text-sm font-bold ${
+                  modeSaveNotice.kind === 'success'
+                    ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                    : modeSaveNotice.kind === 'error'
+                      ? 'border-red-300 bg-red-50 text-red-800'
+                      : 'border-blue-300 bg-blue-50 text-blue-800'
+                }`}
+              >
+                {modeSaveNotice.kind === 'saving' ? 'Menyimpan... ' : ''}{modeSaveNotice.text}
+              </p>
+            )}
 
             <div className="my-5 border-t border-[#eadcc6]" />
-            <p className="mb-3 text-[11px] font-black uppercase tracking-[0.14em] text-[#98602c]">Kategori</p>
+            <p className="mb-3 text-[11px] font-black uppercase tracking-[0.14em] text-[#98602c]">Pilih kategori</p>
+            <label className="mb-3 grid gap-1 text-xs font-bold text-[#765946]">
+              Cari kategori
+              <input
+                type="search"
+                value={categorySearch}
+                onChange={(event) => setCategorySearch(event.target.value)}
+                placeholder="Ketik nama kategori"
+                className={fieldClass}
+              />
+            </label>
             <div className="grid gap-2">
-              {data.categories.map((category) => (
+              {filteredCategories.map((category) => (
                 <button
                   key={category.id}
                   type="button"
@@ -267,6 +332,11 @@ export default function DrawSettingsClient({ eventId }: { eventId: string }) {
                   {!category.enabled && <span className="ml-2 text-[10px] font-bold uppercase opacity-60">Nonaktif</span>}
                 </button>
               ))}
+              {filteredCategories.length === 0 && (
+                <p className="m-0 rounded-lg border border-dashed border-[#decdb5] p-3 text-xs font-semibold text-[#765946]">
+                  {data.categories.length === 0 ? 'Event ini belum memiliki kategori.' : 'Kategori tidak ditemukan.'}
+                </p>
+              )}
             </div>
           </aside>
 
@@ -274,14 +344,20 @@ export default function DrawSettingsClient({ eventId }: { eventId: string }) {
             <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#eadcc6] pb-4">
               <div>
                 <p className="m-0 text-[11px] font-black uppercase tracking-[0.14em] text-[#98602c]">Konfigurasi kategori</p>
-                <h2 className="mt-1 text-2xl font-black tracking-tight text-[#25150e]">{selectedCategory?.label ?? 'Pilih kategori'}</h2>
+                <h2 className="mt-1 text-2xl font-black tracking-tight text-[#25150e]">{selectedCategory?.label ?? 'Belum ada kategori'}</h2>
               </div>
               <span className="rounded-full border border-[#d6b77b] bg-[#fff5dc] px-3 py-1 text-xs font-black text-[#765116]">{data.gate_positions} gate tersedia</span>
             </div>
 
-            <div className="mt-5 grid gap-5">
+            {!selectedCategory && (
+              <p role="status" className="mt-5 rounded-lg border border-dashed border-[#decdb5] bg-[#fffaf0] p-4 text-sm font-semibold leading-6 text-[#765946]">
+                Event ini belum memiliki kategori. Tambahkan kategori event terlebih dahulu sebelum mengatur drawing.
+              </p>
+            )}
+
+            <fieldset disabled={!selectedCategory} className="mt-5 grid gap-5 border-0 p-0 disabled:opacity-50">
               <label className="grid gap-2 text-sm font-black text-[#2a1710]">
-                Jumlah moto kualifikasi per batch
+                Jumlah moto kualifikasi
                 <select
                   value={draftQualificationMotoCount}
                   onChange={(event) => {
@@ -293,7 +369,7 @@ export default function DrawSettingsClient({ eventId }: { eventId: string }) {
                   <option value={2}>2 moto</option>
                   <option value={3}>3 moto</option>
                 </select>
-                <span className="text-xs font-semibold text-[#765946]">Untuk kategori multi-batch, pilih 3 jika semua batch menjalankan Moto 1, 2, dan 3. Kategori satu batch selalu menjalani 3 moto.</span>
+                <span className="text-xs font-semibold leading-5 text-[#765946]">Untuk kategori dengan beberapa batch, pilih 2 atau 3 moto. Jika hasil drawing hanya satu batch, kualifikasi otomatis berjalan 3 moto.</span>
               </label>
 
               <label className="flex items-start gap-3 rounded-lg border border-[#d9c6a8] bg-[#fffaf0] p-4 text-sm font-black text-[#2a1710]">
@@ -307,9 +383,9 @@ export default function DrawSettingsClient({ eventId }: { eventId: string }) {
                   className="mt-0.5 h-4 w-4 accent-[#a95019]"
                 />
                 <span className="grid gap-1">
-                  <span>Untuk 1 batch, buat Final setelah 3 moto kualifikasi</span>
+                  <span>Buat Final otomatis untuk kategori satu batch</span>
                   <span className="text-xs font-semibold leading-5 text-[#765946]">
-                    Berlaku hanya jika hasil drawing tepat 1 batch. Aktif: Moto 3 dibuat saat drawing, lalu Final dibuat mengikuti Final Class Rules atau pembagian Final default kategori. Nonaktif: Moto 3 muncul setelah hasil Moto 2 dan kategori selesai di hasil total tiga moto.
+                    Jika aktif dan hasil drawing tepat satu batch, Moto 1, 2, dan 3 dibuat sekaligus. Setelah hasil Moto 3 dihitung, Final dibuat mengikuti aturan pembagian kelas Final. Jika nonaktif, Moto 3 dibuat setelah hasil Moto 2 dihitung, lalu kategori berlanjut setelah hasil total tiga moto selesai.
                   </span>
                 </span>
               </label>
@@ -408,9 +484,9 @@ export default function DrawSettingsClient({ eventId }: { eventId: string }) {
                   <option value="SAME">Sama seperti urutan Moto 1</option>
                   <option value="REVERSE">Dibalik dari urutan Moto 1</option>
                 </select>
-                <span className="text-xs font-semibold text-[#765946]">Dipakai saat kategori multi-batch disetel memakai 3 moto kualifikasi. Input external per batch tetap bisa menentukan urutan gate sendiri.</span>
+                <span className="text-xs font-semibold text-[#765946]">Dipakai untuk kategori beberapa batch dengan 3 moto kualifikasi. Undian manual tetap dapat menentukan urutan gate tiap batch.</span>
               </label>
-            </div>
+            </fieldset>
 
             <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-[#eadcc6] pt-5">
               <p className="max-w-lg text-xs font-semibold leading-5 text-[#765946]">Konfigurasi ini dipakai ketika kategori belum memiliki moto. Setelah drawing disimpan, perubahan format tidak akan mengubah batch yang sudah dibuat.</p>
