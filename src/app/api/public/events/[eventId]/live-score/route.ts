@@ -712,7 +712,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       const storedStageAssignment = (['REPECHAGE', 'QUARTER_FINAL', 'SEMI_FINAL', 'FINAL'] as const)
         .map((stage) => stageSeedRows.find((row) => row.rider_id === riderId && row.stage === stage))
         .find((row) => row !== undefined)
-      if (storedStageAssignment) {
+      if (storedStageAssignment && storedStageAssignment.stage !== 'QUALIFICATION') {
         return formatQualificationTargetLabel(storedStageAssignment.stage, storedStageAssignment.final_class ?? null)
       }
     }

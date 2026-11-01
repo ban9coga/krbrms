@@ -248,20 +248,21 @@ type SafetyCheckPayload = {
   is_checked: boolean
 }
 
-type PendingSafetyCheck = { isChecked: boolean; version: number }
+type SafetyChecksByRider = Map<string, Map<string, boolean>>
 
 function overlayPendingSafetyChecks(
   checks: Record<string, Record<string, boolean>>,
-  pending: Map<string, Map<string, PendingSafetyCheck>>
+  pending: SafetyChecksByRider | undefined
 ) {
+  if (!pending?.size) return checks
   let next = checks
   for (const [riderId, requirements] of pending) {
     let riderChecks = next[riderId]
-    for (const [requirementId, value] of requirements) {
-      if (riderChecks?.[requirementId] === value.isChecked) continue
+    for (const [requirementId, isChecked] of requirements) {
+      if (riderChecks?.[requirementId] === isChecked) continue
       if (next === checks) next = { ...checks }
       if (riderChecks === next[riderId]) riderChecks = { ...(riderChecks ?? {}) }
-      riderChecks[requirementId] = value.isChecked
+      riderChecks[requirementId] = isChecked
       next[riderId] = riderChecks
     }
   }
@@ -375,32 +376,105 @@ export default function JCPage() {
   const [allReadyDone, setAllReadyDone] = useState(false)
   const [motoReadySaving, setMotoReadySaving] = useState(false)
   const [motoReadyConfirmation, setMotoReadyConfirmation] = useState<MotoReadyConfirmation | null>(null)
+  const [pendingSafetyCheckCount, setPendingSafetyCheckCount] = useState(0)
   
   const [viewportWidth, setViewportWidth] = useState(1280)
   const { highVisibility } = useHighVisibility('jury-checker-high-visibility')
-  const localMutationRef = useRef(false)
-  const safetyMutationVersionRef = useRef(0)
-  const pendingSafetyChecksRef = useRef<Map<string, Map<string, PendingSafetyCheck>>>(new Map())
+  const safetyBaselineByMotoRef = useRef<Map<string, SafetyChecksByRider>>(new Map())
+  const pendingSafetyChecksRef = useRef<Map<string, SafetyChecksByRider>>(new Map())
 
-  const beginSafetyMutation = (checks: SafetyCheckPayload[]) => {
-    const version = ++safetyMutationVersionRef.current
-    for (const check of checks) {
-      const riderChecks = pendingSafetyChecksRef.current.get(check.rider_id) ?? new Map<string, PendingSafetyCheck>()
-      riderChecks.set(check.requirement_id, { isChecked: check.is_checked, version })
-      pendingSafetyChecksRef.current.set(check.rider_id, riderChecks)
-    }
-    return version
-  }
+  const getPendingSafetyChecks = useCallback((motoId: string) => {
+    const pending = pendingSafetyChecksRef.current.get(motoId)
+    if (!pending) return []
+    return Array.from(pending.entries()).flatMap(([riderId, requirements]) =>
+      Array.from(requirements.entries()).map(([requirementId, isChecked]) => ({
+        rider_id: riderId,
+        requirement_id: requirementId,
+        is_checked: isChecked,
+      }))
+    )
+  }, [])
 
-  const finishSafetyMutation = (checks: SafetyCheckPayload[], version: number) => {
+  const updatePendingSafetyChecks = useCallback((motoId: string, checks: SafetyCheckPayload[]) => {
+    const pending = pendingSafetyChecksRef.current.get(motoId) ?? new Map<string, Map<string, boolean>>()
     for (const check of checks) {
-      const riderChecks = pendingSafetyChecksRef.current.get(check.rider_id)
-      if (riderChecks?.get(check.requirement_id)?.version !== version) continue
-      riderChecks.delete(check.requirement_id)
-      if (riderChecks.size === 0) pendingSafetyChecksRef.current.delete(check.rider_id)
+      const baseline = safetyBaselineByMotoRef.current.get(motoId)?.get(check.rider_id)?.get(check.requirement_id) ?? true
+      const riderChecks = pending.get(check.rider_id) ?? new Map<string, boolean>()
+      if (check.is_checked === baseline) riderChecks.delete(check.requirement_id)
+      else riderChecks.set(check.requirement_id, check.is_checked)
+      if (riderChecks.size === 0) pending.delete(check.rider_id)
+      else pending.set(check.rider_id, riderChecks)
     }
-    safetyMutationVersionRef.current += 1
-  }
+    if (pending.size === 0) pendingSafetyChecksRef.current.delete(motoId)
+    else pendingSafetyChecksRef.current.set(motoId, pending)
+    if (selectedMotoIdRef.current === motoId) {
+      setPendingSafetyCheckCount(Array.from(pending.values()).reduce((sum, checks) => sum + checks.size, 0))
+    }
+  }, [])
+
+  const updateSafetyBaseline = useCallback((
+    motoId: string,
+    riderIds: string[],
+    requirementIds: string[],
+    rows: SafetyCheckPayload[]
+  ) => {
+    const baseline: SafetyChecksByRider = new Map()
+    for (const riderId of riderIds) {
+      baseline.set(riderId, new Map(requirementIds.map((requirementId) => [requirementId, true])))
+    }
+    for (const row of rows) {
+      const riderChecks = baseline.get(row.rider_id) ?? new Map<string, boolean>()
+      riderChecks.set(row.requirement_id, row.is_checked)
+      baseline.set(row.rider_id, riderChecks)
+    }
+    safetyBaselineByMotoRef.current.set(motoId, baseline)
+
+    const pending = pendingSafetyChecksRef.current.get(motoId)
+    if (pending) {
+      for (const [riderId, riderChecks] of pending) {
+        for (const [requirementId, isChecked] of riderChecks) {
+          if (baseline.get(riderId)?.get(requirementId) === isChecked) riderChecks.delete(requirementId)
+        }
+        if (riderChecks.size === 0) pending.delete(riderId)
+      }
+      if (pending.size === 0) pendingSafetyChecksRef.current.delete(motoId)
+    }
+
+    const pendingCount = Array.from(pendingSafetyChecksRef.current.get(motoId)?.values() ?? [])
+      .reduce((sum, checks) => sum + checks.size, 0)
+    if (selectedMotoIdRef.current === motoId) setPendingSafetyCheckCount(pendingCount)
+
+    const next: Record<string, Record<string, boolean>> = {}
+    for (const [riderId, riderChecks] of baseline) next[riderId] = Object.fromEntries(riderChecks)
+    return overlayPendingSafetyChecks(next, pendingSafetyChecksRef.current.get(motoId))
+  }, [])
+
+  const clearPendingSafetyChecks = useCallback((motoId: string, checks: SafetyCheckPayload[]) => {
+    const baseline = safetyBaselineByMotoRef.current.get(motoId) ?? new Map<string, Map<string, boolean>>()
+    for (const check of checks) {
+      const riderChecks = baseline.get(check.rider_id) ?? new Map<string, boolean>()
+      riderChecks.set(check.requirement_id, check.is_checked)
+      baseline.set(check.rider_id, riderChecks)
+    }
+    safetyBaselineByMotoRef.current.set(motoId, baseline)
+    pendingSafetyChecksRef.current.delete(motoId)
+    if (selectedMotoIdRef.current === motoId) setPendingSafetyCheckCount(0)
+  }, [])
+
+  useEffect(() => {
+    const pending = pendingSafetyChecksRef.current.get(selectedMotoId)
+    setPendingSafetyCheckCount(Array.from(pending?.values() ?? []).reduce((sum, checks) => sum + checks.size, 0))
+  }, [selectedMotoId])
+
+  useEffect(() => {
+    if (pendingSafetyCheckCount === 0) return
+    const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', warnBeforeLeaving)
+    return () => window.removeEventListener('beforeunload', warnBeforeLeaving)
+  }, [pendingSafetyCheckCount])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -518,7 +592,6 @@ export default function JCPage() {
 
   const loadMoto = useCallback(async (silent = false, preserveAllReadyDone = silent) => {
     const targetMotoId = selectedMotoIdRef.current
-    const safetyReadVersion = safetyMutationVersionRef.current
     if (!targetMotoId || !eventId) {
       setLocked(false)
       setRiders([])
@@ -595,24 +668,14 @@ export default function JCPage() {
         is_checked: boolean
       }>
       if (requirements.length > 0) setSafetyRequirements(requirements)
-      setSafetyChecks((previous) => {
-        if (safetyReadVersion !== safetyMutationVersionRef.current) {
-          return overlayPendingSafetyChecks(previous, pendingSafetyChecksRef.current)
-        }
-        const next: Record<string, Record<string, boolean>> = {}
-        for (const rider of (riderRes.data ?? []) as RiderItem[]) {
-          const updated: Record<string, boolean> = {}
-          for (const item of requirements) {
-            updated[item.id] = true
-          }
-          next[rider.id] = updated
-        }
-        for (const row of checks) {
-          const current = next[row.rider_id] ?? {}
-          next[row.rider_id] = { ...current, [row.requirement_id]: row.is_checked }
-        }
-        return overlayPendingSafetyChecks(next, pendingSafetyChecksRef.current)
-      })
+      setSafetyChecks(
+        updateSafetyBaseline(
+          targetMotoId,
+          ((riderRes.data ?? []) as RiderItem[]).map((rider) => rider.id),
+          requirements.map((item) => item.id),
+          checks
+        )
+      )
       setLastUpdated(new Date().toLocaleTimeString())
     } catch (err: unknown) {
       if (!silent) {
@@ -621,7 +684,7 @@ export default function JCPage() {
     } finally {
       if (!silent) setLoading(false)
     }
-  }, [apiFetch, eventId, motos, loadMotos])
+  }, [apiFetch, eventId, motos, loadMotos, updateSafetyBaseline])
 
 
 
@@ -667,7 +730,6 @@ export default function JCPage() {
   const refreshCheckerPollingState = useCallback(
     async (prepMotoId: string, activeIncidentMotoId: string) => {
       if (!eventId) return
-      const safetyReadVersion = safetyMutationVersionRef.current
       const params = new URLSearchParams()
       if (prepMotoId) params.set('prep_moto_id', prepMotoId)
       if (activeIncidentMotoId) params.set('incident_moto_id', activeIncidentMotoId)
@@ -678,23 +740,14 @@ export default function JCPage() {
         setStatuses(nextStatuses)
 
         const checks = response.prep.checks ?? []
-        setSafetyChecks((previous) => {
-          if (safetyReadVersion !== safetyMutationVersionRef.current) {
-            return overlayPendingSafetyChecks(previous, pendingSafetyChecksRef.current)
-          }
-          const next: Record<string, Record<string, boolean>> = {}
-          for (const rider of riders) {
-            const riderChecks: Record<string, boolean> = {}
-            for (const requirement of safetyRequirements) {
-              riderChecks[requirement.id] = true
-            }
-            next[rider.id] = riderChecks
-          }
-          for (const row of checks) {
-            next[row.rider_id] = { ...(next[row.rider_id] ?? {}), [row.requirement_id]: row.is_checked }
-          }
-          return overlayPendingSafetyChecks(next, pendingSafetyChecksRef.current)
-        })
+        setSafetyChecks(
+          updateSafetyBaseline(
+            prepMotoId,
+            riders.map((rider) => rider.id),
+            safetyRequirements.map((requirement) => requirement.id),
+            checks
+          )
+        )
         setLastUpdated(new Date().toLocaleTimeString())
       }
 
@@ -704,11 +757,11 @@ export default function JCPage() {
         setIncidentLastUpdated(new Date().toLocaleTimeString())
       }
     },
-    [apiFetch, eventId, riders, safetyRequirements]
+    [apiFetch, eventId, riders, safetyRequirements, updateSafetyBaseline]
   )
 
   const refreshFromRealtime = useCallback(async () => {
-    if (saving || motoReadySaving || localMutationRef.current) return
+    if (saving || motoReadySaving) return
 
     try {
       const workflowMotos = (await loadMotos(true)) ?? []
@@ -1160,27 +1213,7 @@ export default function JCPage() {
     setSaving(true)
     setWarningMessage(null)
     setErrorMessage(null)
-    let safetyChecksToSave: SafetyCheckPayload[] = []
-    let safetyMutationVersion: number | null = null
     try {
-      const requests: Array<Promise<unknown>> = []
-      if (safetyRequirements.length > 0) {
-        safetyChecksToSave = targetRiders.flatMap((rider) =>
-          safetyRequirements.map((item) => ({
-            rider_id: rider.id,
-            requirement_id: item.id,
-            is_checked: safetyChecks[rider.id]?.[item.id] === true,
-          }))
-        )
-        safetyMutationVersion = beginSafetyMutation(safetyChecksToSave)
-        requests.push(
-          apiFetch(`/api/jury/motos/${selectedMotoId}/safety-checks`, {
-            method: 'POST',
-            body: JSON.stringify({ checks: safetyChecksToSave }),
-          })
-        )
-      }
-
       const nextStatuses = targetRiders.reduce<Record<string, StatusRow>>((acc, rider, index) => {
         acc[rider.id] = {
           rider_id: rider.id,
@@ -1196,20 +1229,17 @@ export default function JCPage() {
       }))
       setAllReadyDone(false)
 
-      requests.push(
-        apiFetch(`/api/jury/events/${eventId}/rider-status`, {
-          method: 'POST',
-          body: JSON.stringify({
-            changes: targetRiders.map((rider, index) => ({
-              rider_id: rider.id,
-              participation_status: 'ACTIVE',
-              registration_order: rider.gate_position ?? rider.registration_order ?? index + 1,
-              moto_id: selectedMotoId,
-            })),
-          }),
-        })
-      )
-      await Promise.all(requests)
+      await apiFetch(`/api/jury/events/${eventId}/rider-status`, {
+        method: 'POST',
+        body: JSON.stringify({
+          changes: targetRiders.map((rider, index) => ({
+            rider_id: rider.id,
+            participation_status: 'ACTIVE',
+            registration_order: rider.gate_position ?? rider.registration_order ?? index + 1,
+            moto_id: selectedMotoId,
+          })),
+        }),
+      })
 
       setWarningMessage(`${targetRiders.length} rider di ${selectedMoto?.moto_name ?? 'moto ini'} ditandai READY. Kalau ada yang keliru, tekan UNDO READY pada rider terkait.`)
       setLastUpdated(new Date().toLocaleTimeString())
@@ -1224,7 +1254,6 @@ export default function JCPage() {
       setErrorMessage(err instanceof Error ? err.message : 'Gagal set semua rider READY.')
       await loadMoto(true)
     } finally {
-      if (safetyMutationVersion !== null) finishSafetyMutation(safetyChecksToSave, safetyMutationVersion)
       setSaving(false)
     }
   }
@@ -1244,10 +1273,15 @@ export default function JCPage() {
     setSaving(true)
     setAllReadyDone(true)
     setWarningMessage('Moto Ready sedang disimpan. Menunggu konfirmasi sistem...')
+    const safetyChecksToSave = getPendingSafetyChecks(selectedMotoId)
     try {
-      const response = (await apiFetch(`/api/jury/motos/${selectedMotoId}/prep-ready`, { method: 'POST' })) as {
+      const response = (await apiFetch(`/api/jury/motos/${selectedMotoId}/prep-ready`, {
+        method: 'POST',
+        body: JSON.stringify({ checks: safetyChecksToSave }),
+      })) as {
         next_moto?: { nextMotoId?: string; skipped?: boolean }
       }
+      clearPendingSafetyChecks(selectedMotoId, safetyChecksToSave)
       const status = response.next_moto?.nextMotoId === selectedMotoId && !response.next_moto?.skipped ? 'LIVE' : 'READY'
       setMotos((prev) =>
         prev.map((moto) =>
@@ -1775,6 +1809,15 @@ export default function JCPage() {
               </button>
             </div>
           )}
+          {pendingSafetyCheckCount > 0 && (
+            <div
+              role="status"
+              aria-live="polite"
+              style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #f59e0b', background: '#fffbeb', color: '#92400e', fontSize: 12, fontWeight: 900 }}
+            >
+              {pendingSafetyCheckCount} perubahan Safety Gear belum disimpan. Perubahan akan disimpan saat Moto Ready.
+            </div>
+          )}
           <div className="jc-safety-toolbar">
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               <span
@@ -1817,7 +1860,7 @@ export default function JCPage() {
             <button
               className="jc-action-btn jc-safety-bulk-action"
               type="button"
-              onClick={async () => {
+              onClick={() => {
                 if (!selectedMotoId) return
                 const checks: SafetyCheckPayload[] = riderList.filter((rider) => !rider.is_disqualified).flatMap((rider) =>
                   safetyRequirements.map((item) => ({
@@ -1826,8 +1869,7 @@ export default function JCPage() {
                     is_checked: true,
                   }))
                 )
-                const mutationVersion = beginSafetyMutation(checks)
-                localMutationRef.current = true
+                updatePendingSafetyChecks(selectedMotoId, checks)
                 setSafetyChecks((prev) => {
                   const next = { ...prev }
                   for (const rider of riderList.filter((item) => !item.is_disqualified)) {
@@ -1838,17 +1880,6 @@ export default function JCPage() {
                   }
                   return next
                 })
-                try {
-                  if (checks.length > 0) {
-                    await apiFetch(`/api/jury/motos/${selectedMotoId}/safety-checks`, {
-                      method: 'POST',
-                      body: JSON.stringify({ checks }),
-                    })
-                  }
-                } finally {
-                  finishSafetyMutation(checks, mutationVersion)
-                  localMutationRef.current = false
-                }
               }}
               disabled={safetyInteractionDisabled || !hasSafetyRequirements}
               style={{
@@ -1964,36 +1995,18 @@ export default function JCPage() {
                         type="button"
                         aria-pressed={checked}
                         aria-label={`${visual.shortLabel}: ${checked ? 'safety gear lengkap' : 'safety gear belum lengkap'}`}
-                        onClick={async () => {
+                        onClick={() => {
                           const nextChecked = !checked
                           const checkPayload: SafetyCheckPayload = {
                             rider_id: r.id,
                             requirement_id: item.id,
                             is_checked: nextChecked,
                           }
-                          const mutationVersion = beginSafetyMutation([checkPayload])
-                          localMutationRef.current = true
+                          updatePendingSafetyChecks(selectedMotoId, [checkPayload])
                           setSafetyChecks((prev) => ({
                             ...prev,
                             [r.id]: { ...(prev[r.id] ?? {}), [item.id]: nextChecked },
                           }))
-                          try {
-                            await apiFetch(`/api/jury/motos/${selectedMotoId}/safety-checks`, {
-                              method: 'POST',
-                              body: JSON.stringify(checkPayload),
-                            })
-                          } catch {
-                            const currentMutation = pendingSafetyChecksRef.current.get(r.id)?.get(item.id)
-                            if (currentMutation?.version === mutationVersion) {
-                              setSafetyChecks((prev) => ({
-                                ...prev,
-                                [r.id]: { ...(prev[r.id] ?? {}), [item.id]: checked },
-                              }))
-                            }
-                          } finally {
-                            finishSafetyMutation([checkPayload], mutationVersion)
-                            localMutationRef.current = false
-                          }
                         }}
                         disabled={safetyInteractionDisabled || isRiderDq}
                         style={{
