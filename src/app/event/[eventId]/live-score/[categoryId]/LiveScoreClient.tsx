@@ -1041,7 +1041,7 @@ export default function LiveScoreClient({
                     <table className="public-table min-w-[900px] text-xs sm:text-sm">
                       <thead>
                         <tr>
-                          {['Rank', 'Rider', 'No Plat', 'Moto 1', 'Moto 2', 'Moto 3', 'Total Poin', 'Tujuan Stage'].map((heading) => <th key={heading}>{heading}</th>)}
+                          {['Rank', 'Rider', 'No Plat', 'Moto 1', 'Moto 2', 'Moto 3', 'Total Poin', 'Next Stage'].map((heading) => <th key={heading}>{heading}</th>)}
                         </tr>
                       </thead>
                       <tbody>
@@ -1254,7 +1254,7 @@ export default function LiveScoreClient({
                       <div><span>Total Penalti</span><strong>{row.penalty_total ?? '-'}</strong></div>
                       {showQualificationNextColumn && (
                         <div className="live-score-mobile-destination">
-                          <span>{qualificationHasFinisherOutcome ? 'Hasil Kualifikasi' : 'Tujuan Stage'}</span>
+                          <span>{qualificationHasFinisherOutcome ? 'Hasil Kualifikasi' : 'Next Stage'}</span>
                           <strong>{usesGlobalActiveFirst ? qualificationDestinationLabel(row.class_label) : row.class_label || '-'}</strong>
                         </div>
                       )}
@@ -1298,7 +1298,7 @@ export default function LiveScoreClient({
                           ...(showMoto3 ? ['Point M3'] : []),
                           'Total Penalti',
                           'Total Poin',
-                          ...(showQualificationNextColumn ? [qualificationHasFinisherOutcome ? 'Hasil Kualifikasi' : usesGlobalActiveFirst ? 'Tujuan Stage' : 'Next'] : []),
+                          ...(showQualificationNextColumn ? [qualificationHasFinisherOutcome ? 'Hasil Kualifikasi' : 'Next Stage'] : []),
                         ].map((h) => (
                         <th key={h} className="whitespace-nowrap">
                           {h}
