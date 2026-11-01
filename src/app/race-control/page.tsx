@@ -138,16 +138,6 @@ export default function RaceControlPage() {
 
   // Removed automatic polling per user request
 
-  const toggleHighVisibility = useCallback(() => {
-    setHighVisibility((current) => {
-      const next = !current
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem('race-control-high-visibility', next ? '1' : '0')
-      }
-      return next
-    })
-  }, [])
-
   const activeQueue = useMemo(() => queue.filter((m) => m.status === 'LIVE' || m.status === 'READY' || m.status === 'UPCOMING'), [queue])
   const visibleQueue = useMemo(() => activeQueue.slice(0, 3), [activeQueue])
 
@@ -191,17 +181,6 @@ export default function RaceControlPage() {
               className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.1em] text-slate-800 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {refreshing ? 'Refreshing...' : 'Refresh'}
-            </button>
-            <button
-              type="button"
-              onClick={toggleHighVisibility}
-              className={`inline-flex items-center justify-center rounded-xl border px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.1em] transition-colors ${
-                highVisibility
-                  ? 'border-amber-300 bg-amber-100 text-amber-900 hover:bg-amber-200'
-                  : 'border-slate-300 bg-white text-slate-800 hover:bg-slate-100'
-              }`}
-            >
-              {highVisibility ? 'Mode Besar Aktif' : 'Mode Besar'}
             </button>
           </div>
         </section>

@@ -154,7 +154,7 @@ export default function JuryFinishPage() {
   const [actions, setActions] = useState<Action[]>([])
   const [submitNotice, setSubmitNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [submittedMotoNotice, setSubmittedMotoNotice] = useState<SubmittedMotoNotice | null>(null)
-  const { highVisibility, toggleHighVisibility } = useHighVisibility('jury-finish-high-visibility')
+  const { highVisibility } = useHighVisibility('jury-finish-high-visibility')
 
   const pressTimers = useRef<Record<string, ReturnType<typeof setTimeout> | null>>({})
   const longPressFired = useRef<Record<string, boolean>>({})
@@ -882,18 +882,6 @@ export default function JuryFinishPage() {
               Input {selectedMoto?.moto_name ?? 'moto ini'} belum disubmit. Pilihan moto dikunci agar input tidak pindah; submit hasil atau Undo dulu untuk berganti.
             </div>
           )}
-          <div className="mt-3 flex justify-end">
-            <button
-              type="button"
-              onClick={toggleHighVisibility}
-              className={`rounded-xl border px-4 py-2.5 text-sm font-extrabold uppercase tracking-[0.08em] transition-colors ${highVisibility
-                  ? 'border-amber-300 bg-amber-100 text-amber-900 hover:bg-amber-200'
-                  : 'border-slate-300 bg-white text-slate-800 hover:bg-slate-100'
-                }`}
-            >
-              {highVisibility ? 'Mode Besar Aktif' : 'Mode Besar'}
-            </button>
-          </div>
         </section>
 
         {events.length === 0 && (

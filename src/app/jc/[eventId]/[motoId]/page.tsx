@@ -377,7 +377,7 @@ export default function JCPage() {
   const [motoReadyConfirmation, setMotoReadyConfirmation] = useState<MotoReadyConfirmation | null>(null)
   
   const [viewportWidth, setViewportWidth] = useState(1280)
-  const { highVisibility, toggleHighVisibility } = useHighVisibility('jury-checker-high-visibility')
+  const { highVisibility } = useHighVisibility('jury-checker-high-visibility')
   const localMutationRef = useRef(false)
   const safetyMutationVersionRef = useRef(0)
   const pendingSafetyChecksRef = useRef<Map<string, Map<string, PendingSafetyCheck>>>(new Map())
@@ -1381,21 +1381,6 @@ export default function JCPage() {
                 }}
               >
                 Refresh Checker
-              </button>
-              <button
-                type="button"
-                onClick={toggleHighVisibility}
-                style={{
-                  padding: '10px 14px',
-                  borderRadius: 8,
-                  border: '1px solid #cbd5e1',
-                  background: highVisibility ? '#fffbeb' : '#fff',
-                  color: '#17202b',
-                  fontWeight: 900,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {highVisibility ? 'Mode Besar Aktif' : 'Mode Besar'}
               </button>
             </div>
           </div>
