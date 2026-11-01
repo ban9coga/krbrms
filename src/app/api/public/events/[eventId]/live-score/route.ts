@@ -128,6 +128,9 @@ type StageSeedRow = {
   batch_id: string | null
   position: number | null
   points: number | null
+  qualification_next_outcome?: 'STAGE' | 'FINISHER' | 'UNASSIGNED' | null
+  qualification_next_stage?: 'QUARTER_FINAL' | 'REPECHAGE' | 'SEMI_FINAL' | 'FINAL' | null
+  qualification_next_final_class?: string | null
 }
 
 const parseBatchKey = (name: string) => {
@@ -403,7 +406,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       .in('moto_id', liveScoreMotoIds),
     adminClient
       .from('race_stage_result')
-      .select('rider_id, stage, final_class, batch_id, position, points')
+      .select('rider_id, stage, final_class, batch_id, position, points, qualification_next_outcome, qualification_next_stage, qualification_next_final_class')
       .eq('category_id', categoryId),
     adminClient
       .from('race_category_custom_split_rule')
@@ -690,12 +693,36 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   }
 
   const nextQualificationLabelForRank = (rank: number | null | undefined, riderId: string, batchIndex: number) => {
+    const qualificationAssignment = qualificationStageSeedRows.find((row) => row.rider_id === riderId)
+    if (qualificationStageSeedRows.length > 0) {
+      if (qualificationAssignment?.qualification_next_outcome === 'FINISHER') return 'FINISHER'
+      if (qualificationAssignment?.qualification_next_outcome === 'UNASSIGNED') return null
+      if (
+        qualificationAssignment?.qualification_next_outcome === 'STAGE' &&
+        qualificationAssignment.qualification_next_stage
+      ) {
+        return formatQualificationTargetLabel(
+          qualificationAssignment.qualification_next_stage,
+          qualificationAssignment.qualification_next_final_class ?? null
+        )
+      }
+
+      // Older generated brackets predate the frozen fields; use their saved
+      // stage assignment rather than recalculating an already-generated route.
+      const storedStageAssignment = (['REPECHAGE', 'QUARTER_FINAL', 'SEMI_FINAL', 'FINAL'] as const)
+        .map((stage) => stageSeedRows.find((row) => row.rider_id === riderId && row.stage === stage))
+        .find((row) => row !== undefined)
+      if (storedStageAssignment) {
+        return formatQualificationTargetLabel(storedStageAssignment.stage, storedStageAssignment.final_class ?? null)
+      }
+    }
     if (
       qualificationTieBreakRepechage &&
       activeQualificationTieBreakRiderIds.has(riderId) &&
       !completedQualificationTieBreakRiderIds.has(riderId)
     ) return 'REPECHAGE'
-    if (!rank || qualificationRules.length === 0) return null
+    const rankForRules = qualificationAssignment?.position ?? rank
+    if (!rankForRules || qualificationRules.length === 0) return null
     if (qualificationSplitBasis === 'GLOBAL_ACTIVE_FIRST') {
       const riderAssignments = stageSeedRows.filter(
         (stageRow) => stageRow.rider_id === riderId && stageRow.stage !== 'QUALIFICATION'
@@ -717,7 +744,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       qualificationSplitBasis === 'CUSTOM_PER_BATCH'
         ? qualificationRules.filter((rule) => (rule.batch_no ?? 1) === batchIndex)
         : qualificationRules
-    const matchedRule = matchingRules.find((rule) => rank >= rule.rank_from && rank <= rule.rank_to)
+    const matchedRule = matchingRules.find((rule) => rankForRules >= rule.rank_from && rankForRules <= rule.rank_to)
     if (!matchedRule) return null
     return formatQualificationTargetLabel(matchedRule.target_stage, matchedRule.target_final_class, matchedRule.target_outcome)
   }

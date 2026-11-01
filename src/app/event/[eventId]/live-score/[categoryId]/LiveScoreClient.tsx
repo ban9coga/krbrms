@@ -161,7 +161,7 @@ const getStageTabLabel = (title: string) => {
   if (finalMatch) return `Final ${finalMatch[1].trim()}`
   return trimmed.replace(/\s*-\s*(?:batch|heat)\s*\d+\s*$/i, '').trim()
 }
-const PUBLIC_LIVE_SCORE_FALLBACK_REFRESH_INTERVAL_MS = 120000
+const PUBLIC_LIVE_SCORE_FALLBACK_REFRESH_INTERVAL_MS = 60000
 
 const statusBadgeClass = (status: string) => {
   switch (status) {
@@ -1348,7 +1348,9 @@ export default function LiveScoreClient({
 
         {displayedStages.length > 0 && (
           <section className="grid gap-4">
-            {displayedStages.map((stage, stageIndex) => (
+            {displayedStages.map((stage, stageIndex) => {
+              const showNextStageColumn = /^(REPECHAGE|QUARTER FINAL|SEMI FINAL)/i.test(stage.title)
+              return (
               <article key={stage.moto_id} className="public-panel-dark live-score-editorial-panel">
                 <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex flex-wrap items-center gap-2">
@@ -1390,16 +1392,22 @@ export default function LiveScoreClient({
                         </div>
                         <div><span>Penalti</span><strong>{row.penalty_total ?? '-'}</strong></div>
                         <div className="live-score-mobile-total"><span>Total Poin</span><strong>{row.total_point ?? '-'}</strong></div>
+                        {showNextStageColumn && (
+                          <div className="live-score-mobile-destination">
+                            <span>Next Stage</span>
+                            <strong>{row.next_class_label || '-'}</strong>
+                          </div>
+                        )}
                       </div>
                     </article>
                   ))}
                 </div>
                 <div className="table-mobile-hint hidden lg:block">Geser tabel ke samping untuk melihat seluruh hasil</div>
                 <div className="public-table-wrap hidden lg:block">
-                  <table className="public-table min-w-[680px] text-[11px] sm:text-xs md:text-sm">
+                  <table className={`public-table ${showNextStageColumn ? 'min-w-[820px]' : 'min-w-[680px]'} text-[11px] sm:text-xs md:text-sm`}>
                     <thead>
                       <tr>
-                        {['Gate', ...(showRiderPhotos ? ['Foto'] : []), 'Nama Peserta', 'No Plat', 'Komunitas', 'Poin', 'Penalti', 'Total Poin', 'Rank'].map((h) => (
+                        {['Gate', ...(showRiderPhotos ? ['Foto'] : []), 'Nama Peserta', 'No Plat', 'Komunitas', 'Poin', 'Penalti', 'Total Poin', 'Rank', ...(showNextStageColumn ? ['Next Stage'] : [])].map((h) => (
                           <th key={h} className="whitespace-nowrap">
                             {h}
                           </th>
@@ -1425,6 +1433,7 @@ export default function LiveScoreClient({
                           <td className="whitespace-nowrap text-center">
                             {renderRankBadge(row.rank)}
                           </td>
+                          {showNextStageColumn && <td className="whitespace-nowrap">{row.next_class_label || '-'}</td>}
                         </tr>
                       ))}
                     </tbody>
@@ -1433,7 +1442,8 @@ export default function LiveScoreClient({
                   </>
                 )}
               </article>
-            ))}
+              )
+            })}
           </section>
         )}
       </main>

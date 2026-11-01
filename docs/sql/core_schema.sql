@@ -692,6 +692,19 @@ create table if not exists race_stage_result (
   final_class final_class,
   position int,
   points int,
+  qualification_next_outcome text,
+  qualification_next_stage race_stage,
+  qualification_next_final_class final_class,
+  constraint ck_race_stage_result_qualification_next_outcome check (
+    (qualification_next_outcome is null and qualification_next_stage is null and qualification_next_final_class is null)
+    or (
+      stage = 'QUALIFICATION'
+      and (
+        (qualification_next_outcome = 'STAGE' and qualification_next_stage is not null and qualification_next_stage <> 'QUALIFICATION' and (qualification_next_stage = 'FINAL' or qualification_next_final_class is null))
+        or (qualification_next_outcome in ('FINISHER', 'UNASSIGNED') and qualification_next_stage is null and qualification_next_final_class is null)
+      )
+    )
+  ),
   created_at timestamptz not null default now()
 );
 

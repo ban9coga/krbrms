@@ -116,6 +116,9 @@ type StageResultSeedRow = {
   batch_id: string | null
   position: number | null
   points: number | null
+  qualification_next_outcome?: 'STAGE' | 'FINISHER' | 'UNASSIGNED' | null
+  qualification_next_stage?: 'QUARTER_FINAL' | 'REPECHAGE' | 'SEMI_FINAL' | 'FINAL' | null
+  qualification_next_final_class?: string | null
 }
 
 type CustomSplitRuleRow = {
@@ -1566,6 +1569,22 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
     ...filteredBaseAdvances.filter((row) => !qualificationTieRiderIds.has(row.riderId)),
     ...Array.from(qualificationTieRiderIds).map((riderId) => ({ riderId, toStage: 'REPECHAGE' as const })),
   ]
+  const qualificationDestinationByRider = new Map<
+    string,
+    { outcome: 'STAGE'; stage: StageAdvance['toStage']; finalClass: string | null } | { outcome: 'FINISHER' } | { outcome: 'UNASSIGNED' }
+  >()
+  filteredAdvances.forEach((advance) => {
+    qualificationDestinationByRider.set(advance.riderId, {
+      outcome: 'STAGE',
+      stage: advance.toStage,
+      finalClass: advance.finalClass ?? null,
+    })
+  })
+  finisherQualificationRiderIds.forEach((riderId) => {
+    if (!qualificationDestinationByRider.has(riderId)) {
+      qualificationDestinationByRider.set(riderId, { outcome: 'FINISHER' })
+    }
+  })
   const tieMetadataByRider = new Map<string, { batchId: string; points: number }>()
   qualificationTieGroups.forEach((group) => {
     const totalPoints = batchRanks[group.batchId]?.find((row) => group.riderIds.includes(row.riderId))?.points ?? null
@@ -1623,20 +1642,26 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
     })
   }
   const qualificationRows = Object.entries(batchRanks).flatMap(([batchId, ranks]) => {
-    return ranks.map((row) => ({
-      rider_id: row.riderId,
-      category_id: categoryId,
-      stage: 'QUALIFICATION',
-      batch_id: qualificationBatchMode === 'ROTATE_EACH_MOTO'
-        ? qualificationInput.batchIdByRider.get(row.riderId) ?? batchId
-        : batchId,
-      position: qualificationBatchMode === 'ROTATE_EACH_MOTO'
-        ? globalPositionByRider.get(row.riderId) ?? row.rank
-        : qualificationTieBreakRepechage && !qualificationTieGroupsAcrossBatches
-          ? row.rank
-          : globalPositionByRider.get(row.riderId) ?? row.rank,
-      points: row.points,
-    }))
+    return ranks.map((row) => {
+      const destination = qualificationDestinationByRider.get(row.riderId) ?? { outcome: 'UNASSIGNED' as const }
+      return {
+        rider_id: row.riderId,
+        category_id: categoryId,
+        stage: 'QUALIFICATION',
+        batch_id: qualificationBatchMode === 'ROTATE_EACH_MOTO'
+          ? qualificationInput.batchIdByRider.get(row.riderId) ?? batchId
+          : batchId,
+        position: qualificationBatchMode === 'ROTATE_EACH_MOTO'
+          ? globalPositionByRider.get(row.riderId) ?? row.rank
+          : qualificationTieBreakRepechage && !qualificationTieGroupsAcrossBatches
+            ? row.rank
+            : globalPositionByRider.get(row.riderId) ?? row.rank,
+        points: row.points,
+        qualification_next_outcome: destination.outcome,
+        qualification_next_stage: destination.outcome === 'STAGE' ? destination.stage : null,
+        qualification_next_final_class: destination.outcome === 'STAGE' ? destination.finalClass : null,
+      }
+    })
   })
 
   const completedRiderIds = new Set(
