@@ -45,6 +45,15 @@ type Action =
   | { type: 'finish'; riderId: string; position: number }
   | { type: 'dnf'; riderId: string }
 
+type SubmitPreviewRow = {
+  riderId: string
+  rider: RiderItem | null
+  resultStatus: 'FINISH' | 'DNF' | 'DNS'
+  finishOrder: number | null
+  dnfProgressPercent: number | null
+  sourceStatus: 'DNS' | 'ABSENT' | null
+}
+
 type EventFlags = {
   penalty_enabled: boolean
   absent_enabled: boolean
@@ -152,6 +161,8 @@ export default function JuryFinishPage() {
   const [dnfProgressRiderId, setDnfProgressRiderId] = useState<string | null>(null)
   const [dnfProgressDraft, setDnfProgressDraft] = useState('')
   const [actions, setActions] = useState<Action[]>([])
+  const [submitPreviewOpen, setSubmitPreviewOpen] = useState(false)
+  const [submitPreviewRows, setSubmitPreviewRows] = useState<SubmitPreviewRow[]>([])
   const [submitNotice, setSubmitNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [submittedMotoNotice, setSubmittedMotoNotice] = useState<SubmittedMotoNotice | null>(null)
   const { highVisibility } = useHighVisibility('jury-finish-high-visibility')
@@ -187,8 +198,8 @@ export default function JuryFinishPage() {
   }, [motos])
 
   useEffect(() => {
-    localEditingRef.current = Boolean(pressedId || saving || actions.length > 0 || dnsActionRiderId)
-  }, [actions.length, dnsActionRiderId, pressedId, saving])
+    localEditingRef.current = Boolean(pressedId || saving || actions.length > 0 || dnsActionRiderId || submitPreviewOpen)
+  }, [actions.length, dnsActionRiderId, pressedId, saving, submitPreviewOpen])
 
   useEffect(() => {
     if (!submitNotice) return
@@ -286,7 +297,7 @@ export default function JuryFinishPage() {
 
   const selectedMoto = useMemo(() => motos.find((m) => m.id === selectedMotoId) ?? null, [motos, selectedMotoId])
   const selectedMotoLive = isMotoLive(selectedMoto?.status)
-  const hasPendingFinisherEdits = Boolean(actions.length || saving || pressedId || dnsActionRiderId)
+  const hasPendingFinisherEdits = Boolean(actions.length || saving || pressedId || dnsActionRiderId || submitPreviewOpen)
   const selectedCategoryLabel = selectedMoto
     ? categoryLabel.get(selectedMoto.category_id ?? '') ?? 'Unknown Category'
     : null
@@ -524,6 +535,64 @@ export default function JuryFinishPage() {
     dnsRiders.forEach((id) => completed.add(id))
     return completed.size
   }, [dnfRiders, dnsRiders, finishOrder])
+  const currentSubmitRows = useMemo(() => {
+    const riderById = new Map<string, RiderItem>(riders.map((rider) => [rider.id, rider] as const))
+    const rows: SubmitPreviewRow[] = finishSequence.map((finish) => ({
+      riderId: finish.id,
+      rider: riderById.get(finish.id) ?? null,
+      resultStatus: 'FINISH',
+      finishOrder: finish.position,
+      dnfProgressPercent: null,
+      sourceStatus: null,
+    }))
+    const sortedDnfRiders = [...dnfRiders].sort(
+      (a, b) => Number(dnfProgressByRider[b] ?? -1) - Number(dnfProgressByRider[a] ?? -1)
+    )
+    sortedDnfRiders.forEach((riderId, index) => {
+      rows.push({
+        riderId,
+        rider: riderById.get(riderId) ?? null,
+        resultStatus: 'DNF',
+        finishOrder: flags.dnf_progress_enabled ? finishSequence.length + index + 1 : null,
+        dnfProgressPercent: flags.dnf_progress_enabled ? dnfProgressByRider[riderId] ?? null : null,
+        sourceStatus: null,
+      })
+    })
+    dnsRiders.forEach((riderId) => {
+      rows.push({
+        riderId,
+        rider: riderById.get(riderId) ?? null,
+        resultStatus: 'DNS',
+        finishOrder: null,
+        dnfProgressPercent: null,
+        sourceStatus: participationByRider[riderId] === 'ABSENT' ? 'ABSENT' : 'DNS',
+      })
+    })
+    return rows
+  }, [dnfProgressByRider, dnfRiders, dnsRiders, finishSequence, flags.dnf_progress_enabled, participationByRider, riders])
+  const submitPreviewGroups = useMemo(() => [
+    {
+      status: 'FINISH' as const,
+      label: 'Finisher',
+      detail: 'Urutan rider yang finish',
+      color: 'border-emerald-200 bg-emerald-50 text-emerald-900',
+      rows: submitPreviewRows.filter((row) => row.resultStatus === 'FINISH'),
+    },
+    {
+      status: 'DNF' as const,
+      label: 'DNF',
+      detail: 'Rider yang tidak menyelesaikan race',
+      color: 'border-amber-200 bg-amber-50 text-amber-900',
+      rows: submitPreviewRows.filter((row) => row.resultStatus === 'DNF'),
+    },
+    {
+      status: 'DNS' as const,
+      label: 'DNS / Absent',
+      detail: 'Absent dikirim sebagai DNS',
+      color: 'border-rose-200 bg-rose-50 text-rose-900',
+      rows: submitPreviewRows.filter((row) => row.resultStatus === 'DNS'),
+    },
+  ], [submitPreviewRows])
   const allRidersHaveResult = riders.length > 0 && completedRiderCount >= riders.length
   const submitDisabled =
     hasSubmitted || saving || role === 'RACE_DIRECTOR' || motoLocked || !selectedMotoLive || !allRidersHaveResult
@@ -666,9 +735,8 @@ export default function JuryFinishPage() {
     vibrate()
   }
 
-  const handleSubmitHeat = async () => {
-    if (role === 'RACE_DIRECTOR' || motoLocked || !selectedMotoLive) return
-    if (!selectedMoto) return
+  const handleOpenSubmitPreview = () => {
+    if (role === 'RACE_DIRECTOR' || motoLocked || !selectedMotoLive || !selectedMoto) return
     if (!allRidersHaveResult) {
       setSubmitNotice({
         type: 'error',
@@ -676,38 +744,34 @@ export default function JuryFinishPage() {
       })
       return
     }
+    setSubmitPreviewRows(currentSubmitRows)
+    setSubmitPreviewOpen(true)
+  }
+
+  const handleSubmitHeat = async () => {
+    if (role === 'RACE_DIRECTOR' || motoLocked || !selectedMotoLive) return
+    if (!selectedMoto) return
+    if (submitPreviewRows.length === 0) return
+    if (!allRidersHaveResult) {
+      setSubmitNotice({
+        type: 'error',
+        message: `Belum bisa submit. Baru ${completedRiderCount}/${riders.length} rider yang masuk hasil.`,
+      })
+      return
+    }
+    setSubmitPreviewOpen(false)
     localEditingRef.current = true
     setSaving(true)
     setSubmitNotice(null)
     try {
-      const payload = [
-        ...finishSequence.map((f) => ({
-          event_id: eventId,
-          moto_id: selectedMoto.id,
-          rider_id: f.id,
-          finish_order: f.position,
-          result_status: 'FINISH',
-          dnf_progress_percent: null,
-        })),
-        ...[...dnfRiders]
-          .sort((a, b) => Number(dnfProgressByRider[b] ?? -1) - Number(dnfProgressByRider[a] ?? -1))
-          .map((id, index) => ({
-          event_id: eventId,
-          moto_id: selectedMoto.id,
-          rider_id: id,
-          finish_order: flags.dnf_progress_enabled ? finishSequence.length + index + 1 : null,
-          result_status: 'DNF',
-          dnf_progress_percent: flags.dnf_progress_enabled ? dnfProgressByRider[id] ?? null : null,
-        })),
-        ...dnsRiders.map((id) => ({
-          event_id: eventId,
-          moto_id: selectedMoto.id,
-          rider_id: id,
-          finish_order: null,
-          result_status: 'DNS',
-          dnf_progress_percent: null,
-        })),
-      ]
+      const payload = submitPreviewRows.map((row) => ({
+        event_id: eventId,
+        moto_id: selectedMoto.id,
+        rider_id: row.riderId,
+        finish_order: row.finishOrder,
+        result_status: row.resultStatus,
+        dnf_progress_percent: row.dnfProgressPercent,
+      }))
       if (payload.length) {
         await apiFetch(`/api/jury/motos/${selectedMoto.id}/results`, {
           method: 'POST',
@@ -998,11 +1062,11 @@ export default function JuryFinishPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={handleSubmitHeat}
+                  onClick={handleOpenSubmitPreview}
                   disabled={submitDisabled}
                   className="w-full rounded-xl border border-emerald-300 bg-emerald-500 px-4 py-3 text-sm font-extrabold uppercase tracking-[0.1em] text-white transition-colors hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {saving ? 'Submitting...' : 'Submit Result'}
+                  Submit Result
                 </button>
               </div>
             </div>
@@ -1187,6 +1251,94 @@ export default function JuryFinishPage() {
                   Simpan DNF
                 </button>
               </div>
+            </section>
+          </div>
+        )}
+
+        {submitPreviewOpen && (
+          <div
+            className="fixed inset-0 z-[82] flex items-center justify-center bg-slate-950/60 p-3 sm:p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="finisher-submit-preview-title"
+          >
+            <section className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+              <header className="shrink-0 border-b border-slate-200 px-4 py-4 sm:px-6">
+                <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-emerald-700">Periksa hasil sebelum dikirim</p>
+                <h2 id="finisher-submit-preview-title" className="mt-1 text-xl font-black text-slate-950 sm:text-2xl">
+                  Konfirmasi Submit Result
+                </h2>
+                <p className="mt-2 text-sm font-semibold text-slate-600">
+                  {selectedCategoryLabel ?? 'Kategori'} | {selectedMoto?.moto_name ?? 'Moto'}
+                </p>
+                <p className="mt-1 text-xs font-semibold text-slate-500">
+                  {submitPreviewRows.length} rider akan disubmit. Periksa seluruh daftar, termasuk rider DNS.
+                </p>
+              </header>
+
+              <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4 sm:p-6">
+                {submitPreviewGroups.map((group) => (
+                  <section key={group.status} className={`rounded-xl border p-3 ${group.color}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h3 className="text-sm font-black uppercase tracking-[0.1em]">{group.label}</h3>
+                        <p className="mt-0.5 text-xs font-semibold opacity-75">{group.detail}</p>
+                      </div>
+                      <span className="rounded-full bg-white/80 px-2.5 py-1 text-xs font-black">{group.rows.length}</span>
+                    </div>
+                    {group.rows.length === 0 ? (
+                      <p className="mt-3 rounded-lg bg-white/70 px-3 py-2 text-sm font-semibold opacity-70">Tidak ada rider.</p>
+                    ) : (
+                      <ol className="mt-3 grid gap-1.5">
+                        {group.rows.map((row) => (
+                          <li key={row.riderId} className="flex min-w-0 items-center justify-between gap-3 rounded-lg bg-white/85 px-3 py-2 text-sm">
+                            <div className="min-w-0">
+                              <span className="mr-2 inline-flex min-w-10 justify-center rounded-md bg-slate-100 px-2 py-1 text-xs font-black text-slate-700">
+                                {row.rider?.no_plate_display ?? '-'}
+                              </span>
+                              <span className="font-bold text-slate-900">{row.rider?.name ?? 'Data rider tidak ditemukan'}</span>
+                            </div>
+                            <span className="shrink-0 text-right text-xs font-extrabold text-slate-600">
+                              {group.status === 'FINISH' && `Finish #${row.finishOrder}`}
+                              {group.status === 'DNF' && (row.dnfProgressPercent !== null ? `Progres ${row.dnfProgressPercent}%` : 'DNF')}
+                              {group.status === 'DNS' && `${row.sourceStatus === 'ABSENT' ? 'ABSENT' : 'DNS'} -> DNS`}
+                            </span>
+                          </li>
+                        ))}
+                      </ol>
+                    )}
+                  </section>
+                ))}
+
+                {dqRiders.length > 0 && (
+                  <section className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <h3 className="text-sm font-black uppercase tracking-[0.1em] text-slate-700">DQ yang sudah tercatat · tidak dikirim ulang</h3>
+                    <ul className="mt-2 grid gap-1 text-sm font-semibold text-slate-600">
+                      {dqRiders.map(({ rider }) => (
+                        <li key={rider.id}>{rider.no_plate_display} · {rider.name}</li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
+              </div>
+
+              <footer className="grid shrink-0 grid-cols-2 gap-3 border-t border-slate-200 bg-white p-4 sm:px-6">
+                <button
+                  type="button"
+                  onClick={() => setSubmitPreviewOpen(false)}
+                  className="rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm font-extrabold text-slate-700 transition-colors hover:bg-slate-50"
+                >
+                  Kembali
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleSubmitHeat()}
+                  disabled={saving || submitPreviewRows.length === 0}
+                  className="rounded-xl border border-emerald-300 bg-emerald-500 px-3 py-3 text-sm font-extrabold text-white transition-colors hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {saving ? 'Mengirim...' : `Konfirmasi & Submit ${submitPreviewRows.length} Rider`}
+                </button>
+              </footer>
             </section>
           </div>
         )}
