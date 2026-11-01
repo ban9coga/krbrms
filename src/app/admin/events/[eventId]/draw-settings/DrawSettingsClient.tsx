@@ -485,9 +485,9 @@ export default function DrawSettingsClient({ eventId }: { eventId: string }) {
                 >
                   <option value="SAME">Sama seperti urutan Moto 1</option>
                   <option value="REVERSE">Dibalik dari urutan Moto 1</option>
-                  <option value="ODD_EVEN">Ganjil lalu genap</option>
+                  <option value="EVEN_ODD">Genap lalu ganjil</option>
                 </select>
-                <span className="text-xs font-semibold text-[#765946]">Contoh 8 rider: 1, 3, 5, 7, 2, 4, 6, 8. Berlaku untuk urutan otomatis; drawing manual tetap dapat menentukan sendiri.</span>
+                <span className="text-xs font-semibold text-[#765946]">Contoh 8 rider: 2, 4, 6, 8, 1, 3, 5, 7. Berlaku untuk urutan otomatis; drawing manual tetap dapat menentukan sendiri.</span>
               </label>
             </fieldset>
 

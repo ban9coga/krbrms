@@ -2620,7 +2620,7 @@ export default function LiveDrawClient({
                         : `manual belum sinkron${externalPerBatchValidation.moto3BatchMismatch.length > 0 ? ` (batch mismatch ${externalPerBatchValidation.moto3BatchMismatch.join(', ')})` : ''}`
                       : qualificationBatchMode === 'ROTATE_EACH_MOTO'
                         ? 'diacak otomatis saat disimpan (belum diisi manual)'
-                        : `otomatis ${moto3Order === 'ODD_EVEN' ? 'ganjil lalu genap' : moto3Order === 'SAME' ? 'mengikuti Moto 1' : 'dibalik dari Moto 1'}`}
+                        : `otomatis ${moto3Order === 'EVEN_ODD' ? 'genap lalu ganjil' : moto3Order === 'SAME' ? 'mengikuti Moto 1' : 'dibalik dari Moto 1'}`}
                   </div>
                 )}
               </div>

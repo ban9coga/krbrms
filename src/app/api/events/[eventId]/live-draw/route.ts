@@ -516,10 +516,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
         if (rotatesBatches) return moto3Batches[batchIndex] ?? []
         const moto3Order = drawConfiguration.config?.moto3_order
         if (moto3Order === 'REVERSE') return [...batch].reverse()
-        if (moto3Order === 'ODD_EVEN') {
+        if (moto3Order === 'EVEN_ODD') {
           return [
-            ...batch.filter((_, index) => index % 2 === 0),
             ...batch.filter((_, index) => index % 2 === 1),
+            ...batch.filter((_, index) => index % 2 === 0),
           ]
         }
         return [...batch]
