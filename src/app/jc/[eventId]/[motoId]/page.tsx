@@ -351,6 +351,8 @@ export default function JCPage() {
   const manualSelectedMotoIdRef = useRef<string | null>(null)
   const [riders, setRiders] = useState<RiderItem[]>([])
   const [statuses, setStatuses] = useState<Record<string, StatusRow>>({})
+  const [pendingStatusMutations, setPendingStatusMutations] = useState<Set<string>>(new Set())
+  const pendingStatusMutationsRef = useRef<Set<string>>(new Set())
   const [incidentRiders, setIncidentRiders] = useState<RiderItem[]>([])
   const [incidentStatuses, setIncidentStatuses] = useState<Record<string, StatusRow>>({})
   const [flags, setFlags] = useState<EventFlags>({
@@ -761,7 +763,7 @@ export default function JCPage() {
   )
 
   const refreshFromRealtime = useCallback(async () => {
-    if (saving || motoReadySaving) return
+    if (saving || motoReadySaving || pendingStatusMutationsRef.current.size > 0) return
 
     try {
       const workflowMotos = (await loadMotos(true)) ?? []
@@ -804,6 +806,7 @@ export default function JCPage() {
 
     const interval = setInterval(() => {
       void (async () => {
+        if (pendingStatusMutationsRef.current.size > 0) return
         const workflowMotos = (await loadMotos(true)) ?? []
         const liveMotoId = workflowMotos.find((moto) => isMotoLive(moto.status))?.id ?? ''
         const prepMotoId = manualSelectedMotoIdRef.current ?? pickPrepMotoId(workflowMotos, selectedMotoIdRef.current, liveMotoId, allReadyDone)
@@ -1044,8 +1047,12 @@ export default function JCPage() {
     if (!selectedMotoPreppable || locked) return
     if (status === 'ABSENT' && !flags.absent_enabled) return
     if (riders.some((rider) => rider.id === riderId && rider.is_disqualified)) return
+    const targetMotoId = selectedMotoId
+    const mutationKey = `${targetMotoId}:${riderId}`
+    if (pendingStatusMutationsRef.current.has(mutationKey)) return
+    pendingStatusMutationsRef.current = new Set(pendingStatusMutationsRef.current).add(mutationKey)
+    setPendingStatusMutations(new Set(pendingStatusMutationsRef.current))
     const previousStatus = statuses[riderId]
-    setSaving(true)
     setWarningMessage(null)
     setErrorMessage(null)
     try {
@@ -1059,24 +1066,26 @@ export default function JCPage() {
           rider_id: riderId,
           participation_status: status,
           registration_order: order,
-          moto_id: selectedMotoId,
+          moto_id: targetMotoId,
         }),
       })
-      setLastUpdated(new Date().toLocaleTimeString())
-      setTimeout(() => {
-        void loadMoto(true)
-      }, 350)
+      if (selectedMotoIdRef.current === targetMotoId) setLastUpdated(new Date().toLocaleTimeString())
     } catch (err: unknown) {
-      setStatuses((prev) => {
-        const next = { ...prev }
-        if (previousStatus) next[riderId] = previousStatus
-        else delete next[riderId]
-        return next
-      })
+      if (selectedMotoIdRef.current === targetMotoId) {
+        setStatuses((prev) => {
+          const next = { ...prev }
+          if (previousStatus) next[riderId] = previousStatus
+          else delete next[riderId]
+          return next
+        })
+      }
       setErrorMessage(err instanceof Error ? err.message : 'Gagal menyimpan status rider.')
       await loadMoto(true)
     } finally {
-      setSaving(false)
+      const nextPending = new Set(pendingStatusMutationsRef.current)
+      nextPending.delete(mutationKey)
+      pendingStatusMutationsRef.current = nextPending
+      setPendingStatusMutations(nextPending)
     }
   }
 
@@ -1085,7 +1094,11 @@ export default function JCPage() {
     if (!selectedMotoPreppable || locked) return
     const previousStatus = statuses[riderId]
     if (!previousStatus || previousStatus.participation_status !== 'ACTIVE') return
-    setSaving(true)
+    const targetMotoId = selectedMotoId
+    const mutationKey = `${targetMotoId}:${riderId}`
+    if (pendingStatusMutationsRef.current.has(mutationKey)) return
+    pendingStatusMutationsRef.current = new Set(pendingStatusMutationsRef.current).add(mutationKey)
+    setPendingStatusMutations(new Set(pendingStatusMutationsRef.current))
     setWarningMessage(null)
     setErrorMessage(null)
     try {
@@ -1096,22 +1109,24 @@ export default function JCPage() {
       })
       setAllReadyDone(false)
       
-      await apiFetch(`/api/jury/events/${eventId}/rider-status?rider_id=${encodeURIComponent(riderId)}&moto_id=${encodeURIComponent(selectedMotoId)}`, {
+      await apiFetch(`/api/jury/events/${eventId}/rider-status?rider_id=${encodeURIComponent(riderId)}&moto_id=${encodeURIComponent(targetMotoId)}`, {
         method: 'DELETE',
       })
-      setLastUpdated(new Date().toLocaleTimeString())
-      setTimeout(() => {
-        void loadMoto(true)
-      }, 350)
+      if (selectedMotoIdRef.current === targetMotoId) setLastUpdated(new Date().toLocaleTimeString())
     } catch (err: unknown) {
-      setStatuses((prev) => ({
-        ...prev,
-        [riderId]: previousStatus,
-      }))
+      if (selectedMotoIdRef.current === targetMotoId) {
+        setStatuses((prev) => ({
+          ...prev,
+          [riderId]: previousStatus,
+        }))
+      }
       setErrorMessage(err instanceof Error ? err.message : 'Gagal undo READY rider.')
       await loadMoto(true)
     } finally {
-      setSaving(false)
+      const nextPending = new Set(pendingStatusMutationsRef.current)
+      nextPending.delete(mutationKey)
+      pendingStatusMutationsRef.current = nextPending
+      setPendingStatusMutations(nextPending)
     }
   }
 
@@ -1913,6 +1928,7 @@ export default function JCPage() {
             const isRiderDq = r.is_disqualified === true
             const isRiderReady = currentStatus === 'ACTIVE'
             const isRiderAbsent = currentStatus === 'ABSENT'
+            const isStatusSaving = pendingStatusMutations.has(`${selectedMotoId}:${r.id}`)
             const safetyOk = !isRiderDq && isSafetyOk(r.id)
             const statusBadge =
               isRiderDq
@@ -2058,12 +2074,12 @@ export default function JCPage() {
                         ? handleUndoReady(r.id)
                         : handleSaveStatus(r.id, 'ACTIVE', r.gate_position ?? 0)
                     }
-                    disabled={readyDisabled || isRiderAbsent || isRiderDq}
+                    disabled={readyDisabled || isRiderAbsent || isRiderDq || isStatusSaving}
                   >
                     <span className="jc-rider-action-shadow" />
                     <span className="jc-rider-action-edge" />
                     <span className="jc-rider-action-front">
-                      {isRiderReady ? 'UNDO READY' : 'READY'}
+                      {isStatusSaving ? 'MENYIMPAN…' : isRiderReady ? 'UNDO READY' : 'READY'}
                     </span>
                   </button>
                   <button
@@ -2074,11 +2090,13 @@ export default function JCPage() {
                         ? handleSaveStatus(r.id, 'ACTIVE', r.gate_position ?? 0)
                         : handleSaveStatus(r.id, 'ABSENT', r.gate_position ?? 0)
                     }
-                    disabled={absentDisabled || isRiderReady || isRiderDq}
+                    disabled={absentDisabled || isRiderReady || isRiderDq || isStatusSaving}
                   >
                     <span className="jc-rider-action-shadow" />
                     <span className="jc-rider-action-edge" />
-                    <span className="jc-rider-action-front">{isRiderAbsent ? 'UNDO ABSENT' : 'ABSENT'}</span>
+                    <span className="jc-rider-action-front">
+                      {isStatusSaving ? 'MENYIMPAN…' : isRiderAbsent ? 'UNDO ABSENT' : 'ABSENT'}
+                    </span>
                   </button>
                 </div>
               </div>
