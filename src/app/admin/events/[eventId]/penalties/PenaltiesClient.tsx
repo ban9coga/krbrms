@@ -9,6 +9,7 @@ type FeatureFlags = {
   penalty_enabled: boolean
   absent_enabled: boolean
   dns_enabled: boolean
+  finisher_dns_enabled: boolean
   dnf_enabled: boolean
   dnf_progress_enabled: boolean
   dq_retains_final_classification: boolean
@@ -252,7 +253,7 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
       const reqJson = reqRes
       const advancedJson = advancedRes
 
-      setFlags(flagJson.data ?? { penalty_enabled: false, absent_enabled: false, dns_enabled: false, dnf_enabled: false, dnf_progress_enabled: false, dq_retains_final_classification: false })
+      setFlags(flagJson.data ?? { penalty_enabled: false, absent_enabled: false, dns_enabled: false, finisher_dns_enabled: false, dnf_enabled: false, dnf_progress_enabled: false, dq_retains_final_classification: false })
       setRules(ruleJson.data ?? [])
       setRequirements(reqJson.data ?? [])
       setStandardPointDraft((previous) => {
@@ -705,6 +706,7 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
                 penalty_enabled: checked,
                 absent_enabled: flags?.absent_enabled ?? false,
                 dns_enabled: flags?.dns_enabled ?? false,
+                finisher_dns_enabled: flags?.finisher_dns_enabled ?? false,
                 dnf_enabled: flags?.dnf_enabled ?? false,
                 dnf_progress_enabled: flags?.dnf_progress_enabled ?? false,
                 dq_retains_final_classification: flags?.dq_retains_final_classification ?? false,
@@ -719,6 +721,7 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
                 penalty_enabled: flags?.penalty_enabled ?? false,
                 absent_enabled: checked,
                 dns_enabled: flags?.dns_enabled ?? false,
+                finisher_dns_enabled: flags?.finisher_dns_enabled ?? false,
                 dnf_enabled: flags?.dnf_enabled ?? false,
                 dnf_progress_enabled: flags?.dnf_progress_enabled ?? false,
                 dq_retains_final_classification: flags?.dq_retains_final_classification ?? false,
@@ -728,17 +731,35 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
           />
           <ToggleSwitch
             checked={flags?.dns_enabled ?? false}
+            disabled={saving}
             onChange={(checked) =>
               saveFlags({
                 penalty_enabled: flags?.penalty_enabled ?? false,
                 absent_enabled: flags?.absent_enabled ?? false,
                 dns_enabled: checked,
+                finisher_dns_enabled: flags?.finisher_dns_enabled ?? false,
                 dnf_enabled: flags?.dnf_enabled ?? false,
                 dnf_progress_enabled: flags?.dnf_progress_enabled ?? false,
                 dq_retains_final_classification: flags?.dq_retains_final_classification ?? false,
               })
             }
-            label="Modul DNS aktif"
+            label="Modul DNS Checker aktif"
+          />
+          <ToggleSwitch
+            checked={flags?.finisher_dns_enabled ?? false}
+            disabled={saving}
+            onChange={(checked) =>
+              saveFlags({
+                penalty_enabled: flags?.penalty_enabled ?? false,
+                absent_enabled: flags?.absent_enabled ?? false,
+                dns_enabled: flags?.dns_enabled ?? false,
+                finisher_dns_enabled: checked,
+                dnf_enabled: flags?.dnf_enabled ?? false,
+                dnf_progress_enabled: flags?.dnf_progress_enabled ?? false,
+                dq_retains_final_classification: flags?.dq_retains_final_classification ?? false,
+              })
+            }
+            label="Tombol Set DNS Finisher aktif"
           />
           <ToggleSwitch
             checked={flags?.dnf_enabled ?? false}
@@ -747,6 +768,7 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
                 penalty_enabled: flags?.penalty_enabled ?? false,
                 absent_enabled: flags?.absent_enabled ?? false,
                 dns_enabled: flags?.dns_enabled ?? false,
+                finisher_dns_enabled: flags?.finisher_dns_enabled ?? false,
                 dnf_enabled: checked,
                 dnf_progress_enabled: flags?.dnf_progress_enabled ?? false,
                 dq_retains_final_classification: flags?.dq_retains_final_classification ?? false,
@@ -761,6 +783,7 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
                 penalty_enabled: flags?.penalty_enabled ?? false,
                 absent_enabled: flags?.absent_enabled ?? false,
                 dns_enabled: flags?.dns_enabled ?? false,
+                finisher_dns_enabled: flags?.finisher_dns_enabled ?? false,
                 dnf_enabled: flags?.dnf_enabled ?? false,
                 dnf_progress_enabled: checked,
                 dq_retains_final_classification: flags?.dq_retains_final_classification ?? false,
@@ -775,6 +798,7 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
                 penalty_enabled: flags?.penalty_enabled ?? false,
                 absent_enabled: flags?.absent_enabled ?? false,
                 dns_enabled: flags?.dns_enabled ?? false,
+                finisher_dns_enabled: flags?.finisher_dns_enabled ?? false,
                 dnf_enabled: flags?.dnf_enabled ?? false,
                 dnf_progress_enabled: flags?.dnf_progress_enabled ?? false,
                 dq_retains_final_classification: checked,
@@ -784,7 +808,8 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
           />
         </div>
         <div style={{ display: 'grid', gap: 6, fontSize: 12, fontWeight: 800, color: '#334155' }}>
-          <div>DNS module: checker bisa menandai rider DNS. Nilai rider otomatis dihitung sebagai jumlah rider + 2.</div>
+          <div>DNS Checker: mengatur aksi DNS yang tersedia di panel Checker.</div>
+          <div>DNS Finisher: mengatur tombol Set DNS di panel Finisher. Jika aktif, point DNS otomatis dihitung sebagai jumlah rider + 2.</div>
           <div>DNF module: finisher bisa menandai rider DNF. Nilai rider otomatis dihitung sebagai posisi terakhir.</div>
           <div>DNF berdasarkan progres trek: Finisher mencatat 0-100%. DNF dengan progres lebih jauh mendapat urutan dan point lebih baik.</div>
           <div>DQ tetap masuk klasifikasi akhir: rider DQ tetap diarahkan ke final class bawah sebagai non-starter tanpa gate dan tanpa input Finisher.</div>

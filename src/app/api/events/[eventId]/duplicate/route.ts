@@ -208,12 +208,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
 
     await copySimplePrimaryEventTable(
       'event_feature_flags',
-      'penalty_enabled, absent_enabled, dns_enabled, dnf_enabled, dnf_progress_enabled, dq_retains_final_classification',
+      'penalty_enabled, absent_enabled, dns_enabled, finisher_dns_enabled, dnf_enabled, dnf_progress_enabled, dq_retains_final_classification',
       (row) => ({
         event_id: newEventId,
         penalty_enabled: row.penalty_enabled,
         absent_enabled: row.absent_enabled,
         dns_enabled: row.dns_enabled,
+        finisher_dns_enabled: row.finisher_dns_enabled,
         dnf_enabled: row.dnf_enabled,
         dnf_progress_enabled: row.dnf_progress_enabled,
         dq_retains_final_classification: row.dq_retains_final_classification,

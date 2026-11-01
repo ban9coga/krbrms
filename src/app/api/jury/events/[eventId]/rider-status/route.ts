@@ -165,6 +165,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     return NextResponse.json({ error: 'Read-only for RACE_DIRECTOR' }, { status: 403 })
   }
 
+  if (auth.role === 'FINISHER' && typedRows.some((row) => row.participation_status === 'DNS')) {
+    const { data: eventFlags, error: flagsError } = await adminClient
+      .from('event_feature_flags')
+      .select('finisher_dns_enabled')
+      .eq('event_id', eventId)
+      .maybeSingle()
+
+    if (flagsError) return NextResponse.json({ error: flagsError.message }, { status: 500 })
+    if (!eventFlags?.finisher_dns_enabled) {
+      return NextResponse.json({ error: 'Tombol Set DNS Finisher sedang dinonaktifkan oleh Admin event.' }, { status: 409 })
+    }
+  }
+
   const { data: rpcData, error } = await adminClient.rpc('set_jury_rider_statuses', {
     p_event_id: eventId,
     p_moto_id: motoId,

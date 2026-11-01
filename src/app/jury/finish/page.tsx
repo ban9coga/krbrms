@@ -57,7 +57,7 @@ type SubmitPreviewRow = {
 type EventFlags = {
   penalty_enabled: boolean
   absent_enabled: boolean
-  dns_enabled: boolean
+  finisher_dns_enabled: boolean
   dnf_enabled: boolean
   dnf_progress_enabled: boolean
 }
@@ -68,6 +68,7 @@ type PenaltyBadgeItem = {
 }
 
 type FinisherPollData = {
+  flags?: { finisher_dns_enabled?: boolean }
   statuses: Array<{
     rider_id: string
     participation_status?: string | null
@@ -149,7 +150,7 @@ export default function JuryFinishPage() {
   const [flags, setFlags] = useState<EventFlags>({
     penalty_enabled: true,
     absent_enabled: true,
-    dns_enabled: true,
+    finisher_dns_enabled: false,
     dnf_enabled: true,
     dnf_progress_enabled: false,
   })
@@ -255,7 +256,7 @@ export default function JuryFinishPage() {
       (flagRes.data as EventFlags | null) ?? {
         penalty_enabled: true,
         absent_enabled: true,
-        dns_enabled: true,
+        finisher_dns_enabled: false,
         dnf_enabled: true,
         dnf_progress_enabled: false,
       }
@@ -307,6 +308,10 @@ export default function JuryFinishPage() {
   )
 
   const applyFinisherPollData = useCallback((data: FinisherPollData, targetMoto: MotoItem | null, preserveLocalResults = false) => {
+    const dnsEnabled = data.flags?.finisher_dns_enabled
+    if (typeof dnsEnabled === 'boolean') {
+      setFlags((current) => ({ ...current, finisher_dns_enabled: dnsEnabled }))
+    }
     const existingResults = data.results ?? []
     const finishFromServer = [...existingResults]
       .filter((r) => r.result_status === 'FINISH' && r.finish_order != null)
@@ -647,7 +652,7 @@ export default function JuryFinishPage() {
   }
 
   const handleSetDns = async (rider: RiderItem) => {
-    if (!selectedMoto || role === 'RACE_DIRECTOR' || motoLocked || !selectedMotoLive || !flags.dns_enabled) return
+    if (!selectedMoto || role === 'RACE_DIRECTOR' || motoLocked || !selectedMotoLive || !flags.finisher_dns_enabled) return
     if (finishOrder.includes(rider.id) || dnfRiders.includes(rider.id)) return
     const confirmed = window.confirm(
       `Tetapkan DNS untuk ${rider.no_plate_display} - ${rider.name}?\n\nRider akan dikeluarkan dari input urutan finish dan dapat di-undo sebelum Submit Result.`
@@ -941,11 +946,6 @@ export default function JuryFinishPage() {
               </div>
             </div>
           </div>
-          {hasPendingFinisherEdits && (
-            <div role="status" className="mt-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-bold text-amber-900">
-              Input {selectedMoto?.moto_name ?? 'moto ini'} belum disubmit. Pilihan moto dikunci agar input tidak pindah; submit hasil atau Undo dulu untuk berganti.
-            </div>
-          )}
         </section>
 
         {events.length === 0 && (
@@ -978,12 +978,12 @@ export default function JuryFinishPage() {
         )}
         <section className="flex flex-wrap gap-2">
           <span
-            className={`rounded-full border px-3 py-1 text-xs font-extrabold tracking-[0.12em] ${flags.dns_enabled
+            className={`rounded-full border px-3 py-1 text-xs font-extrabold tracking-[0.12em] ${flags.finisher_dns_enabled
                 ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
                 : 'border-rose-300 bg-rose-50 text-rose-800'
               }`}
           >
-            DNS {flags.dns_enabled ? 'ON' : 'OFF'}
+            DNS FINISHER {flags.finisher_dns_enabled ? 'ON' : 'OFF'}
           </span>
           <span
             className={`rounded-full border px-3 py-1 text-xs font-extrabold tracking-[0.12em] ${flags.dnf_enabled
@@ -1021,14 +1021,16 @@ export default function JuryFinishPage() {
                         <span className="finisher-rider-cue">Tap = Finish</span>
                       </span>
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => void handleSetDns(r)}
-                      disabled={role === 'RACE_DIRECTOR' || motoLocked || !selectedMotoLive || !flags.dns_enabled || dnsActionRiderId === r.id}
-                      className="finisher-dns-btn"
-                    >
-                      {dnsActionRiderId === r.id ? 'Menyimpan DNS...' : 'Set DNS'}
-                    </button>
+                    {flags.finisher_dns_enabled && (
+                      <button
+                        type="button"
+                        onClick={() => void handleSetDns(r)}
+                        disabled={role === 'RACE_DIRECTOR' || motoLocked || !selectedMotoLive || dnsActionRiderId === r.id}
+                        className="finisher-dns-btn"
+                      >
+                        {dnsActionRiderId === r.id ? 'Menyimpan DNS...' : 'Set DNS'}
+                      </button>
+                    )}
                   </div>
                 )
               })}
@@ -1039,7 +1041,7 @@ export default function JuryFinishPage() {
               )}
             </div>
             <div className="mt-2 text-xs font-semibold text-slate-500">
-              {flags.dnf_enabled ? 'Tap untuk Finish, tahan kartu 800ms untuk DNF, atau gunakan Set DNS.' : 'DNF dimatikan dari menu Penalties.'}
+              {`Tap untuk Finish${flags.dnf_enabled ? ', tahan 800ms untuk DNF' : ''}${flags.finisher_dns_enabled ? ', atau gunakan Set DNS' : ''}.`}
             </div>
 
             <div className="jf-actions mt-4">
@@ -1732,8 +1734,7 @@ export default function JuryFinishPage() {
         .jf-panel {
           padding: 16px;
         }
-        .finisher-refresh-shadow,
-        .finisher-rider-shadow {
+        .finisher-refresh-shadow {
           display: none;
         }
         .finisher-refresh-edge,
@@ -1757,20 +1758,63 @@ export default function JuryFinishPage() {
           transform: none;
         }
         .finisher-refresh-btn.is-pressed .finisher-refresh-front,
-        .finisher-refresh-btn:active:not(:disabled) .finisher-refresh-front,
+        .finisher-refresh-btn:active:not(:disabled) .finisher-refresh-front {
+          background: #115e59;
+          transform: none;
+        }
         .finisher-rider-btn.is-pressed .finisher-rider-front,
         .finisher-rider-btn:active:not(:disabled) .finisher-rider-front {
           background: #115e59;
-          transform: none;
+          transform: translateY(-1px);
+        }
+        .finisher-rider-shadow {
+          display: block;
+          background: rgba(15, 23, 42, 0.2);
+          filter: blur(4px);
+          transform: translateY(5px);
+          transition: transform 160ms ease, filter 160ms ease;
+        }
+        .finisher-rider-btn:hover:not(:disabled) .finisher-rider-shadow {
+          filter: blur(6px);
+          transform: translateY(8px);
+        }
+        .finisher-rider-btn.is-pressed .finisher-rider-shadow,
+        .finisher-rider-btn:active:not(:disabled) .finisher-rider-shadow {
+          filter: blur(2px);
+          transform: translateY(2px);
         }
         .finisher-rider-front {
           border: 1px solid #0f766e;
           border-radius: 12px;
           background: #0f766e;
-          box-shadow: none;
+          box-shadow:
+            0 4px 0 #115e59,
+            0 7px 10px rgba(15, 23, 42, 0.18),
+            inset 0 2px 2px rgba(255, 255, 255, 0.22),
+            inset 0 -2px 2px rgba(15, 23, 42, 0.2);
           text-shadow: none;
-          transform: none;
-          transition: background-color 120ms ease;
+          transform: translateY(-3px);
+          transition: transform 160ms cubic-bezier(0.3, 0.7, 0.4, 1), background-color 160ms ease, box-shadow 160ms ease;
+        }
+        .finisher-rider-btn:hover:not(:disabled) .finisher-rider-front {
+          background: #0d9488;
+          transform: translateY(-5px);
+          box-shadow:
+            0 6px 0 #115e59,
+            0 10px 15px rgba(15, 23, 42, 0.2),
+            inset 0 2px 2px rgba(255, 255, 255, 0.24),
+            inset 0 -2px 2px rgba(15, 23, 42, 0.2);
+        }
+        .finisher-rider-btn.is-pressed .finisher-rider-front,
+        .finisher-rider-btn:active:not(:disabled) .finisher-rider-front {
+          background: #115e59;
+          transform: translateY(-1px);
+          box-shadow:
+            0 2px 0 #0b4f4a,
+            0 3px 5px rgba(15, 23, 42, 0.18),
+            inset 0 2px 2px rgba(255, 255, 255, 0.18),
+            inset 0 -2px 2px rgba(15, 23, 42, 0.22);
+          transition-duration: 45ms;
         }
         .finisher-rider-cue {
           border-color: rgba(255, 255, 255, 0.6);

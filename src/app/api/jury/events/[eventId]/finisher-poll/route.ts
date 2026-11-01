@@ -80,7 +80,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   if (!moto) return NextResponse.json({ error: 'Moto not found in event.' }, { status: 404 })
 
   try {
-    const [statuses, resultsResult, penaltiesResult, lockResult] = await Promise.all([
+    const [statuses, resultsResult, penaltiesResult, lockResult, flagsResult] = await Promise.all([
       loadMotoStatuses(eventId, motoId),
       adminClient
         .from('results')
@@ -100,9 +100,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         .eq('moto_id', motoId)
         .eq('is_locked', true)
         .maybeSingle(),
+      adminClient
+        .from('event_feature_flags')
+        .select('finisher_dns_enabled')
+        .eq('event_id', eventId)
+        .maybeSingle(),
     ])
 
-    const error = resultsResult.error ?? penaltiesResult.error ?? lockResult.error
+    const error = resultsResult.error ?? penaltiesResult.error ?? lockResult.error ?? flagsResult.error
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
     return NextResponse.json(
@@ -112,6 +117,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
           results: resultsResult.data ?? [],
           penalties: penaltiesResult.data ?? [],
           locked: Boolean(lockResult.data),
+          flags: { finisher_dns_enabled: Boolean(flagsResult.data?.finisher_dns_enabled) },
         },
       },
       {
