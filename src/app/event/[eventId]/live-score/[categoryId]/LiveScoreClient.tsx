@@ -259,13 +259,26 @@ const renderSortButtons = (
         key={mode}
         type="button"
         onClick={() => setSortMode(mode)}
-        className={`rounded-full border px-3 py-2 text-[10px] font-extrabold uppercase tracking-[0.12em] transition-colors sm:text-xs ${
+        aria-label={`Urutkan berdasarkan ${mode === 'RANK' ? rankLabel : 'Gate'}`}
+        aria-pressed={sortMode === mode}
+        title={`Urutkan berdasarkan ${mode === 'RANK' ? rankLabel : 'Gate'}`}
+        className={`inline-flex size-10 shrink-0 items-center justify-center rounded-full border transition-colors ${
           sortMode === mode
             ? 'border-amber-300 bg-amber-400 text-white'
             : 'border-white/25 bg-white/10 text-white hover:bg-white/20'
         }`}
       >
-        Urut {mode === 'RANK' ? rankLabel : 'Gate'}
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="size-4">
+          {mode === 'GATE' ? (
+            <>
+              <path d="M4 20V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14M4 9h16M4 14h16M9 4v16M15 4v16" />
+            </>
+          ) : (
+            <>
+              <path d="M7 4v16m0-16L4 7m3-3 3 3M13 6h7M13 12h7M13 18h7" />
+            </>
+          )}
+        </svg>
       </button>
     ))}
   </div>
@@ -276,13 +289,17 @@ const renderRefreshButton = (refresh: () => void, refreshing: boolean, enabled: 
 
   return (
     <button
-    type="button"
-    onClick={refresh}
-    disabled={refreshing || !enabled}
-    title={enabled ? 'Muat ulang hasil terbaru' : 'Hasil event selesai sudah diarsipkan'}
-    className="live-score-editorial-refresh rounded-full border px-4 py-2 text-xs font-extrabold uppercase transition-colors disabled:cursor-not-allowed disabled:opacity-70"
-  >
-      {refreshing ? 'Memuat...' : 'Muat Ulang'}
+      type="button"
+      onClick={refresh}
+      disabled={refreshing || !enabled}
+      aria-label={refreshing ? 'Sedang memuat ulang hasil' : 'Muat ulang hasil terbaru'}
+      aria-busy={refreshing}
+      title={refreshing ? 'Sedang memuat ulang hasil' : 'Muat ulang hasil terbaru'}
+      className="live-score-editorial-refresh inline-flex size-10 shrink-0 items-center justify-center rounded-full border transition-colors disabled:cursor-not-allowed disabled:opacity-70"
+    >
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={`size-4 ${refreshing ? 'animate-spin' : ''}`}>
+        <path d="M20 11a8 8 0 0 0-14.9-3L3 11m0-4v4h4M4 13a8 8 0 0 0 14.9 3L21 13m0 4v-4h-4" />
+      </svg>
     </button>
   )
 }
@@ -662,6 +679,18 @@ export default function LiveScoreClient({
       </div>
     </>
   )
+  const refreshControl = renderRefreshButton(refresh, refreshing, canRefreshPublicScore)
+  const refreshOnlyControl = (
+    <div className="live-score-card-controls flex flex-nowrap items-center gap-1.5">
+      {refreshControl}
+    </div>
+  )
+  const scoreControls = (
+    <div className="live-score-card-controls flex flex-nowrap items-center gap-1.5">
+      {refreshControl}
+      {renderSortButtons(sortMode, setSortMode)}
+    </div>
+  )
 
   return (
     <div className="public-page public-editorial-page live-score-editorial-page">
@@ -732,10 +761,6 @@ export default function LiveScoreClient({
                   <h2 className="text-lg font-black uppercase text-[#fff8e8]">Kualifikasi - Rotasi per Moto</h2>
                   <p className="mt-1 text-xs font-semibold text-slate-300">Pilih klasemen gabungan atau lihat susunan rider per moto dan batch.</p>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  {renderRefreshButton(refresh, refreshing, canRefreshPublicScore)}
-                  {renderSortButtons(sortMode, setSortMode)}
-                </div>
               </div>
               <div className="flex flex-wrap gap-2" role="tablist" aria-label="Tampilan kualifikasi">
                 <button
@@ -790,9 +815,12 @@ export default function LiveScoreClient({
               <article className="public-panel-dark live-score-editorial-panel live-score-rotation-panel">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                   <h3 className="text-base font-black uppercase text-[#fff8e8]">Klasemen Gabungan</h3>
-                  <span className="live-score-rotation-status rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[10px] font-black uppercase text-slate-200">
-                    {qualificationResultsOfficial && qualificationOverallRows.length > 0 ? 'Hasil Resmi' : 'Menunggu Hasil Kualifikasi'}
-                  </span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {refreshOnlyControl}
+                    <span className="live-score-rotation-status rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[10px] font-black uppercase text-slate-200">
+                      {qualificationResultsOfficial && qualificationOverallRows.length > 0 ? 'Hasil Resmi' : 'Menunggu Hasil Kualifikasi'}
+                    </span>
+                  </div>
                 </div>
                 {qualificationOverallRows.length === 0 ? (
                   <p className="py-8 text-center text-sm font-semibold text-slate-300">
@@ -835,15 +863,18 @@ export default function LiveScoreClient({
               </article>
             ) : activeRotatingMotoView ? (
               <section className="grid gap-4" aria-label={`${activeRotatingMotoView.title} per batch`}>
-                {activeRotatingMotoView.batches.map((batch) => (
+                {activeRotatingMotoView.batches.map((batch, batchIndex) => (
                   <article key={batch.moto_id} className="public-panel-dark live-score-editorial-panel live-score-rotation-batch-panel">
                     <div className="live-score-rotation-batch-heading mb-3 flex flex-wrap items-center justify-between gap-2">
                       <h3 className="text-base font-black uppercase text-[#fff8e8]">
                         {activeRotatingMotoView.title} - Batch {batch.batch_index}
                       </h3>
-                      <span className="live-score-rotation-status rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[10px] font-black uppercase text-slate-200">
-                        {formatMotoStatusLabel(batch.status)}
-                      </span>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {batchIndex === 0 && scoreControls}
+                        <span className="live-score-rotation-status rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[10px] font-black uppercase text-slate-200">
+                          {formatMotoStatusLabel(batch.status)}
+                        </span>
+                      </div>
                     </div>
                     <div className="grid gap-2 lg:hidden">
                       {batch.rows.map((row) => (
@@ -914,6 +945,7 @@ export default function LiveScoreClient({
               </section>
             ) : (
               <article className="public-panel-dark live-score-editorial-panel live-score-rotation-panel">
+                {refreshOnlyControl}
                 <p className="py-8 text-center text-sm font-semibold text-slate-300">Belum ada susunan batch untuk moto ini.</p>
               </article>
             )}
@@ -925,10 +957,6 @@ export default function LiveScoreClient({
               <div>
                 <h2 className="text-base font-black uppercase text-[#fff8e8]">Hasil Kategori</h2>
                 <p className="mt-1 text-xs font-semibold text-slate-300">Pilih kualifikasi atau stage yang ingin dilihat.</p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                {renderRefreshButton(refresh, refreshing, canRefreshPublicScore)}
-                {renderSortButtons(sortMode, setSortMode)}
               </div>
             </div>
             <div className="live-score-fixed-tabs mt-3" role="tablist" aria-label="Stage live score">
@@ -964,10 +992,11 @@ export default function LiveScoreClient({
           </article>
           {showFixedQualification && tableRowsByBatch.length === 0 && stages.length > 0 && !loading && (
             <article className="public-panel-dark">
+              {refreshOnlyControl}
               <p className="text-slate-400 text-sm text-center py-8">Belum ada batch tersedia.</p>
             </article>
           )}
-          {showFixedQualification && tableRowsByBatch.map((batch) => (
+          {showFixedQualification && tableRowsByBatch.map((batch, batchIndex) => (
             <article key={batch.batch_index} className="public-panel-dark live-score-editorial-panel">
               <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-wrap items-center gap-2">
@@ -978,6 +1007,7 @@ export default function LiveScoreClient({
                     Kualifikasi Moto
                   </span>
                 </div>
+                {batchIndex === 0 && scoreControls}
               </div>
               {usesGlobalActiveFirst && (
                 <div className="mb-3 rounded-xl border border-amber-300/40 bg-amber-300/10 px-3 py-2 text-xs font-semibold leading-relaxed text-amber-100">
@@ -1102,12 +1132,13 @@ export default function LiveScoreClient({
 
         {displayedStages.length > 0 && (
           <section className="grid gap-4">
-            {displayedStages.map((stage) => (
+            {displayedStages.map((stage, stageIndex) => (
               <article key={stage.moto_id} className="public-panel-dark live-score-editorial-panel">
                 <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-lg font-black uppercase text-[#fff8e8]">{stage.title}</h2>
                   </div>
+                  {stageIndex === 0 && (stage.rows.length > 0 ? scoreControls : refreshOnlyControl)}
                 </div>
                 {stage.rows.length === 0 ? (
                   <p className="rounded-xl border border-white/15 bg-white/5 px-4 py-6 text-center text-sm font-semibold text-slate-300">
