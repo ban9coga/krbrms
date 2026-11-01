@@ -92,6 +92,12 @@ type QualificationOverallRow = {
   total_point_moto3?: number | null
 }
 
+type QualificationStandingRow = QualificationOverallRow & {
+  displayRank: number | null
+  hasRecordedResult: boolean
+  isDisqualified: boolean
+}
+
 type StageRow = {
   rider_id: string
   gate: number | null
@@ -340,9 +346,6 @@ export default function LiveScoreClient({
   const [qualificationH2HPendingCount, setQualificationH2HPendingCount] = useState(
     initialLiveScore?.qualification_h2h_pending_count ?? 0
   )
-  const [qualificationH2HAppliedCount, setQualificationH2HAppliedCount] = useState(
-    initialLiveScore?.qualification_h2h_applied_count ?? 0
-  )
   const [qualificationBatchMode, setQualificationBatchMode] = useState(
     initialLiveScore?.qualification_batch_mode ?? 'FIXED'
   )
@@ -352,7 +355,7 @@ export default function LiveScoreClient({
   const [batches, setBatches] = useState<Batch[]>(initialLiveScore?.batches ?? [])
   const [stages, setStages] = useState<StageGroup[]>(initialLiveScore?.stages ?? [])
   const [sortMode, setSortMode] = useState<'GATE' | 'RANK'>('RANK')
-  const [selectedRotatingView, setSelectedRotatingView] = useState('MOTO_1')
+  const [selectedRotatingView, setSelectedRotatingView] = useState<string | null>(null)
   const [selectedFixedStageView, setSelectedFixedStageView] = useState('AUTO')
   const [refreshing, setRefreshing] = useState(false)
   const refreshInFlightRef = useRef(false)
@@ -381,7 +384,6 @@ export default function LiveScoreClient({
     setQualificationAdvancementsCalculated(json.data?.qualification_advancements_calculated ?? false)
     setQualificationResultsOfficial(json.data?.qualification_results_official ?? false)
     setQualificationH2HPendingCount(json.data?.qualification_h2h_pending_count ?? 0)
-    setQualificationH2HAppliedCount(json.data?.qualification_h2h_applied_count ?? 0)
     setQualificationBatchMode(json.data?.qualification_batch_mode ?? 'FIXED')
     setQualificationOverallRows(json.data?.qualification_overall_rows ?? [])
     setBatches(json.data?.batches ?? [])
@@ -480,19 +482,163 @@ export default function LiveScoreClient({
 
   const nextCategory = currentCategoryIndex >= 0 ? sortedCategories[currentCategoryIndex + 1] ?? null : null
 
-  const qualificationMotoTotalsByRider = useMemo(() => {
-    const totalsByRider = new Map<string, { moto1: number | null; moto2: number | null; moto3: number | null }>()
+  const qualificationDisplayRows = useMemo<QualificationStandingRow[]>(() => {
+    type StandingDraft = {
+      rider_id: string
+      name: string
+      no_plate: string
+      rank: number
+      next_class_label: string | null
+      fallbackTotalPoint: number | null
+      fallbackMotoTotals: [number | null, number | null, number | null]
+      motoPointTotals: [number | null, number | null, number | null]
+      liveMotoTotals: [number | null, number | null, number | null]
+      liveMotoAssigned: [boolean, boolean, boolean]
+      liveMotoStatuses: [string | null, string | null, string | null]
+      dynamicRank: number | null
+      additionalPenalty: number
+      hasRecordedResult: boolean
+      isDisqualified: boolean
+    }
+    const standingsByRider = new Map<string, StandingDraft>()
+    const getStanding = (riderId: string, name: string, noPlate: string) => {
+      let standing = standingsByRider.get(riderId)
+      if (!standing) {
+        standing = {
+          rider_id: riderId,
+          name,
+          no_plate: noPlate,
+          rank: Number.MAX_SAFE_INTEGER,
+          next_class_label: null,
+          fallbackTotalPoint: null,
+          fallbackMotoTotals: [null, null, null],
+          motoPointTotals: [null, null, null],
+          liveMotoTotals: [null, null, null],
+          liveMotoAssigned: [false, false, false],
+          liveMotoStatuses: [null, null, null],
+          dynamicRank: null,
+          additionalPenalty: 0,
+          hasRecordedResult: false,
+          isDisqualified: false,
+        }
+        standingsByRider.set(riderId, standing)
+      }
+      return standing
+    }
+
+    qualificationOverallRows.forEach((row) => {
+      const standing = getStanding(row.rider_id, row.name, row.no_plate)
+      standing.rank = row.rank
+      standing.next_class_label = row.next_class_label
+      standing.fallbackTotalPoint = row.total_point
+      standing.fallbackMotoTotals = [
+        row.total_point_moto1 ?? null,
+        row.total_point_moto2 ?? null,
+        row.total_point_moto3 ?? null,
+      ]
+      standing.hasRecordedResult = row.total_point !== null
+    })
+
     batches.forEach((batch) => {
       batch.rows.forEach((row) => {
-        const current = totalsByRider.get(row.rider_id) ?? { moto1: null, moto2: null, moto3: null }
-        if (row.total_point_moto1 !== null && row.total_point_moto1 !== undefined) current.moto1 = row.total_point_moto1
-        if (row.total_point_moto2 !== null && row.total_point_moto2 !== undefined) current.moto2 = row.total_point_moto2
-        if (row.total_point_moto3 !== null && row.total_point_moto3 !== undefined) current.moto3 = row.total_point_moto3
-        totalsByRider.set(row.rider_id, current)
+        const standing = getStanding(row.rider_id, row.name, row.no_plate)
+        const assigned = [row.assigned_moto1, row.assigned_moto2, row.assigned_moto3]
+        const points = [row.point_moto1, row.point_moto2, row.point_moto3]
+        const motoTotals = [row.total_point_moto1, row.total_point_moto2, row.total_point_moto3]
+        const statuses = [row.moto1_status, row.moto2_status, row.moto3_status]
+
+        assigned.forEach((isAssigned, index) => {
+          if (!isAssigned) return
+          standing.liveMotoAssigned[index] = true
+          standing.motoPointTotals[index] = points[index] ?? null
+          standing.liveMotoTotals[index] = motoTotals[index] ?? null
+          standing.liveMotoStatuses[index] = statuses[index] ?? 'PENDING'
+        })
+
+        const motoPenaltyTotal = motoTotals.reduce((sum, total, index) => {
+          const point = points[index]
+          return total !== null && total !== undefined && point !== null && point !== undefined
+            ? sum + Math.max(0, total - point)
+            : sum
+        }, 0)
+        standing.additionalPenalty = Math.max(
+          standing.additionalPenalty,
+          Math.max(0, (row.penalty_total ?? 0) - motoPenaltyTotal)
+        )
+        if (!qualificationAdvancementsCalculated && row.class_label?.trim()) {
+          standing.next_class_label = row.class_label
+        }
+        if (row.rank_point !== null && row.rank_point !== undefined) {
+          standing.dynamicRank = standing.dynamicRank === null
+            ? row.rank_point
+            : Math.min(standing.dynamicRank, row.rank_point)
+        }
+        if ((row.total_point !== null && row.total_point !== undefined) || statuses.some((status) => status && status !== 'PENDING')) {
+          standing.hasRecordedResult = true
+        }
+        if (row.status === 'DQ' || statuses.includes('DQ')) standing.isDisqualified = true
       })
     })
-    return totalsByRider
-  }, [batches])
+
+    const compareMotoPoint = (a: number | null, b: number | null) => {
+      if (a === null && b === null) return 0
+      if (a === null) return 1
+      if (b === null) return -1
+      return a - b
+    }
+
+    const rows = Array.from(standingsByRider.values()).map((standing) => {
+      const hasLiveMotoScores = standing.liveMotoAssigned.some(Boolean)
+      const motoTotals = standing.fallbackMotoTotals.map((fallback, index) =>
+        standing.liveMotoAssigned[index] ? standing.liveMotoTotals[index] : fallback
+      ) as [number | null, number | null, number | null]
+      const hasRecordedResult = hasLiveMotoScores
+        ? motoTotals.some((point) => point !== null) || standing.liveMotoStatuses.some((status) => status !== null && status !== 'PENDING')
+        : standing.hasRecordedResult
+      const totalPoint = hasLiveMotoScores
+        ? hasRecordedResult
+          ? motoTotals.reduce<number>((sum, point) => sum + (point ?? 0), 0) + standing.additionalPenalty
+          : null
+        : standing.fallbackTotalPoint
+
+      return {
+        rider_id: standing.rider_id,
+        name: standing.name,
+        no_plate: standing.no_plate,
+        rank: standing.rank !== Number.MAX_SAFE_INTEGER ? standing.rank : standing.dynamicRank ?? Number.MAX_SAFE_INTEGER,
+        next_class_label: standing.next_class_label,
+        total_point: totalPoint,
+        total_point_moto1: motoTotals[0],
+        total_point_moto2: motoTotals[1],
+        total_point_moto3: motoTotals[2],
+        hasRecordedResult,
+        isDisqualified: standing.isDisqualified,
+      }
+    })
+
+    rows.sort((a, b) => {
+      if (a.isDisqualified !== b.isDisqualified) return a.isDisqualified ? 1 : -1
+      if (a.hasRecordedResult !== b.hasRecordedResult) return a.hasRecordedResult ? -1 : 1
+      if (a.total_point !== null && b.total_point !== null && a.total_point !== b.total_point) {
+        return a.total_point - b.total_point
+      }
+      if (a.total_point === null && b.total_point !== null) return 1
+      if (a.total_point !== null && b.total_point === null) return -1
+      const moto3Diff = compareMotoPoint(a.total_point_moto3, b.total_point_moto3)
+      if (moto3Diff !== 0) return moto3Diff
+      const moto2Diff = compareMotoPoint(a.total_point_moto2, b.total_point_moto2)
+      if (moto2Diff !== 0) return moto2Diff
+      const moto1Diff = compareMotoPoint(a.total_point_moto1, b.total_point_moto1)
+      if (moto1Diff !== 0) return moto1Diff
+      if (a.rank !== b.rank) return a.rank - b.rank
+      return a.name.localeCompare(b.name) || a.no_plate.localeCompare(b.no_plate)
+    })
+
+    return rows.map((row, index) => ({
+      ...row,
+      displayRank: row.hasRecordedResult ? index + 1 : null,
+    }))
+  }, [batches, qualificationAdvancementsCalculated, qualificationOverallRows])
 
   const riderPhotoCell = (name: string, noPlate: string, photoUrl?: string | null) => {
     if (showRiderPhotos && photoUrl) {
@@ -597,13 +743,12 @@ export default function LiveScoreClient({
         .filter((batch) => batch.moto_id && batch.rows.length > 0)
 
       if (motoBatches.length === 0) return []
-      const status = motoBatches.find((batch) =>
-        ['LIVE', 'PROVISIONAL', 'PROTEST_REVIEW', 'READY'].includes(String(batch.status ?? '').toUpperCase())
-      )?.status ?? motoBatches[0].status
+      const status = motoBatches.find((batch) => String(batch.status ?? '').toUpperCase() === 'LIVE')?.status ??
+        motoBatches.find((batch) => ['PROVISIONAL', 'PROTEST_REVIEW', 'READY'].includes(String(batch.status ?? '').toUpperCase()))?.status ??
+        motoBatches[0].status
       return [{ index: field.index, title: `Moto ${field.index}`, status, batches: motoBatches }]
     })
   }, [sortMode, tableRowsByBatch])
-  const activeRotatingMotoView = rotatingMotoViews.find((view) => `MOTO_${view.index}` === selectedRotatingView)
   const usesGlobalActiveFirst = qualificationSplitBasis === 'GLOBAL_ACTIVE_FIRST'
   const showQualificationNextColumn = tableRowsByBatch.some((batch) =>
     batch.rows.some((row) => Boolean(row.class_label?.trim()))
@@ -665,7 +810,18 @@ export default function LiveScoreClient({
     })
     return Array.from(groups.values())
   }, [sortedStages])
-  const selectedStageTab = stageTabs.find((tab) => selectedRotatingView === `STAGE_${tab.key}`)
+  const liveStageTab = stageTabs.find((tab) =>
+    tab.stages.some((stage) => String(stage.status ?? '').toUpperCase() === 'LIVE')
+  )
+  const liveRotatingMotoView = rotatingMotoViews.find((view) => String(view.status ?? '').toUpperCase() === 'LIVE')
+  const defaultRotatingView = liveStageTab
+    ? `STAGE_${liveStageTab.key}`
+    : liveRotatingMotoView
+      ? `MOTO_${liveRotatingMotoView.index}`
+      : 'OVERALL'
+  const activeRotatingView = selectedRotatingView ?? defaultRotatingView
+  const activeRotatingMotoView = rotatingMotoViews.find((view) => `MOTO_${view.index}` === activeRotatingView)
+  const selectedStageTab = stageTabs.find((tab) => activeRotatingView === `STAGE_${tab.key}`)
   const defaultFixedStageTab = stageTabs.find((tab) =>
     tab.stages.some((stage) => ['LIVE', 'READY', 'PROVISIONAL', 'PROTEST_REVIEW'].includes(String(stage.status ?? '').toUpperCase()))
   ) ?? stageTabs.find((tab) =>
@@ -681,10 +837,10 @@ export default function LiveScoreClient({
 
   useEffect(() => {
     if (
-      selectedRotatingView.startsWith('STAGE_') &&
+      selectedRotatingView?.startsWith('STAGE_') &&
       (qualificationBatchMode !== 'ROTATE_EACH_MOTO' || !selectedStageTab)
     ) {
-      setSelectedRotatingView('MOTO_1')
+      setSelectedRotatingView(null)
     }
   }, [qualificationBatchMode, selectedRotatingView, selectedStageTab])
 
@@ -779,21 +935,12 @@ export default function LiveScoreClient({
         {!loading && batches.length === 0 && stages.length === 0 && (
   <EmptyState label="Belum ada data." />
 )}
-        {(qualificationH2HPendingCount > 0 || qualificationH2HAppliedCount > 0) && (
+        {qualificationH2HPendingCount > 0 && (
           <p
             role="status"
             className="rounded-xl border border-amber-300/50 bg-amber-300/10 px-3 py-2 text-xs font-bold leading-relaxed text-amber-100"
           >
-            {qualificationH2HPendingCount ? (
-              <>
-                {qualificationH2HAppliedCount
-                  ? `${qualificationH2HAppliedCount} H2H sudah dipakai; `
-                  : ''}
-                Menunggu {qualificationH2HPendingCount} Repechage H2H. Rank dan tujuan Final untuk seri tersebut belum ditetapkan. Poin kualifikasi tetap.
-              </>
-            ) : (
-              'Hasil Repechage H2H sudah dipakai untuk menentukan Rank, urutan gate, atau tujuan Final. Poin M1, M2, M3, dan Total Poin kualifikasi tidak berubah.'
-            )}
+            Menunggu {qualificationH2HPendingCount} Repechage H2H. Rank dan tujuan Final untuk seri tersebut belum ditetapkan. Poin kualifikasi tetap.
           </p>
         )}
 
@@ -802,96 +949,114 @@ export default function LiveScoreClient({
             <article className="public-panel-dark live-score-editorial-panel live-score-rotation-panel">
               <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h2 className="text-lg font-black uppercase text-[#fff8e8]">Kualifikasi - Rotasi per Moto</h2>
-                  <p className="mt-1 text-xs font-semibold text-slate-300">Pilih klasemen gabungan atau lihat susunan rider per moto dan batch.</p>
+                  <h2 className="text-lg font-black uppercase text-[#fff8e8]">Hasil Kualifikasi &amp; Babak</h2>
+                  <p className="mt-1 text-xs font-semibold text-slate-300">Pilih klasemen, moto, atau babak yang ingin dilihat.</p>
                 </div>
               </div>
               <div className="flex flex-wrap gap-2" role="tablist" aria-label="Tampilan kualifikasi">
                 <button
                   type="button"
                   role="tab"
-                  aria-selected={selectedRotatingView === 'OVERALL'}
+                  aria-selected={activeRotatingView === 'OVERALL'}
                   onClick={() => setSelectedRotatingView('OVERALL')}
                   className={`rounded-full border px-4 py-2 text-xs font-black uppercase transition-colors ${
-                    selectedRotatingView === 'OVERALL'
+                    activeRotatingView === 'OVERALL'
                       ? 'border-amber-300 bg-amber-300 text-slate-950'
                       : 'border-white/20 bg-white/10 text-white hover:bg-white/20'
                   } live-score-rotation-tab`}
                 >
                   Klasemen
                 </button>
-                {rotatingMotoViews.map((view) => (
-                  <button
-                    key={view.index}
-                    type="button"
-                    role="tab"
-                    aria-selected={selectedRotatingView === `MOTO_${view.index}`}
-                    onClick={() => setSelectedRotatingView(`MOTO_${view.index}`)}
-                    className={`rounded-full border px-4 py-2 text-xs font-black uppercase transition-colors ${
-                      selectedRotatingView === `MOTO_${view.index}`
-                        ? 'border-amber-300 bg-amber-300 text-slate-950'
-                        : 'border-white/20 bg-white/10 text-white hover:bg-white/20'
-                    } live-score-rotation-tab`}
-                  >
-                    {view.title}
-                  </button>
-                ))}
-                {stageTabs.map((tab) => (
-                  <button
-                    key={tab.key}
-                    type="button"
-                    role="tab"
-                    aria-selected={selectedRotatingView === `STAGE_${tab.key}`}
-                    onClick={() => setSelectedRotatingView(`STAGE_${tab.key}`)}
-                    className={`rounded-full border px-4 py-2 text-xs font-black uppercase transition-colors ${
-                      selectedRotatingView === `STAGE_${tab.key}`
-                        ? 'border-amber-300 bg-amber-300 text-slate-950'
-                        : 'border-white/20 bg-white/10 text-white hover:bg-white/20'
-                    } live-score-rotation-tab`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
+                {rotatingMotoViews.map((view) => {
+                  const isLive = String(view.status ?? '').toUpperCase() === 'LIVE'
+                  return (
+                    <button
+                      key={view.index}
+                      type="button"
+                      role="tab"
+                      aria-selected={activeRotatingView === `MOTO_${view.index}`}
+                      aria-label={isLive ? `${view.title}, sedang berlangsung` : view.title}
+                      onClick={() => setSelectedRotatingView(`MOTO_${view.index}`)}
+                      className={`rounded-full border px-4 py-2 text-xs font-black uppercase transition-colors ${
+                        activeRotatingView === `MOTO_${view.index}`
+                          ? 'border-amber-300 bg-amber-300 text-slate-950'
+                          : 'border-white/20 bg-white/10 text-white hover:bg-white/20'
+                      } live-score-rotation-tab${isLive ? ' is-live' : ''}`}
+                    >
+                      {view.title}
+                      {isLive && <span className="live-score-tab-live-badge">LIVE</span>}
+                    </button>
+                  )
+                })}
+                {stageTabs.map((tab) => {
+                  const isLive = tab.stages.some((stage) => String(stage.status ?? '').toUpperCase() === 'LIVE')
+                  return (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      role="tab"
+                      aria-selected={activeRotatingView === `STAGE_${tab.key}`}
+                      aria-label={isLive ? `${tab.label}, sedang berlangsung` : tab.label}
+                      onClick={() => setSelectedRotatingView(`STAGE_${tab.key}`)}
+                      className={`rounded-full border px-4 py-2 text-xs font-black uppercase transition-colors ${
+                        activeRotatingView === `STAGE_${tab.key}`
+                          ? 'border-amber-300 bg-amber-300 text-slate-950'
+                          : 'border-white/20 bg-white/10 text-white hover:bg-white/20'
+                      } live-score-rotation-tab${isLive ? ' is-live' : ''}`}
+                    >
+                      {tab.label}
+                      {isLive && <span className="live-score-tab-live-badge">LIVE</span>}
+                    </button>
+                  )
+                })}
               </div>
             </article>
 
-            {selectedRotatingView === 'OVERALL' ? (
+            {activeRotatingView === 'OVERALL' ? (
               <article className="public-panel-dark live-score-editorial-panel live-score-rotation-panel">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="text-base font-black uppercase text-[#fff8e8]">Klasemen Gabungan</h3>
+                  <div>
+                    <h3 className="text-base font-black uppercase text-[#fff8e8]">Klasemen Gabungan</h3>
+                    <p className="mt-1 text-xs font-semibold text-slate-300">
+                      Urutan bergerak mengikuti total poin terbaru; seri memakai M3, M2, lalu M1.
+                    </p>
+                  </div>
                   <div className="flex flex-wrap items-center gap-2">
                     {refreshOnlyControl}
                     <span className="live-score-rotation-status rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[10px] font-black uppercase text-slate-200">
                       {qualificationH2HPendingCount > 0
                         ? 'Menunggu H2H'
-                        : qualificationResultsOfficial && qualificationOverallRows.length > 0
+                        : qualificationResultsOfficial
                           ? 'Hasil Resmi'
-                          : 'Menunggu Hasil Kualifikasi'}
+                          : 'Klasemen Sementara'}
                     </span>
                   </div>
                 </div>
-                {qualificationOverallRows.length === 0 ? (
+                {qualificationDisplayRows.length === 0 ? (
                   <p className="py-8 text-center text-sm font-semibold text-slate-300">
-                    Peringkat gabungan dan tujuan stage muncul setelah hasil seluruh moto kualifikasi dihitung.
+                    Klasemen akan terisi saat hasil moto kualifikasi mulai masuk.
                   </p>
                 ) : (
                   <div className="public-table-wrap">
                     <table className="public-table min-w-[900px] text-xs sm:text-sm">
                       <thead>
                         <tr>
-                          {['Rank', 'Rider', 'No Plat', 'Total Poin M1', 'Total Poin M2', 'Total Poin M3', 'Total Poin', 'Tujuan Stage'].map((heading) => <th key={heading}>{heading}</th>)}
+                          {['Rank', 'Rider', 'No Plat', 'Moto 1', 'Moto 2', 'Moto 3', 'Total Poin', 'Tujuan Stage'].map((heading) => <th key={heading}>{heading}</th>)}
                         </tr>
                       </thead>
                       <tbody>
-                        {qualificationOverallRows.map((row) => (
-                          <tr key={row.rider_id}>
-                            <td className="text-center">{renderRankBadge(row.rank)}</td>
+                        {qualificationDisplayRows.map((row) => (
+                          <tr
+                            key={row.rider_id}
+                            className={`qualification-standing-row${row.displayRank !== null && row.displayRank <= 3 ? ` is-podium-${row.displayRank}` : ''}`}
+                          >
+                            <td className="text-center">{renderRankBadge(row.displayRank)}</td>
                             <td className="live-score-rider-name font-extrabold">{row.name}</td>
                             <td>{row.no_plate}</td>
-                            <td className="text-center font-bold">{row.total_point_moto1 ?? qualificationMotoTotalsByRider.get(row.rider_id)?.moto1 ?? '-'}</td>
-                            <td className="text-center font-bold">{row.total_point_moto2 ?? qualificationMotoTotalsByRider.get(row.rider_id)?.moto2 ?? '-'}</td>
-                            <td className="text-center font-bold">{row.total_point_moto3 ?? qualificationMotoTotalsByRider.get(row.rider_id)?.moto3 ?? '-'}</td>
-                            <td className="text-center font-black text-sky-700">{row.total_point ?? '-'}</td>
+                            <td className="qualification-standing-moto-point text-center font-bold">{row.total_point_moto1 ?? '-'}</td>
+                            <td className="qualification-standing-moto-point text-center font-bold">{row.total_point_moto2 ?? '-'}</td>
+                            <td className="qualification-standing-moto-point text-center font-bold">{row.total_point_moto3 ?? '-'}</td>
+                            <td className="qualification-standing-total text-center font-black">{row.total_point ?? '-'}</td>
                             <td className="font-black uppercase">{row.next_class_label || '-'}</td>
                           </tr>
                         ))}
