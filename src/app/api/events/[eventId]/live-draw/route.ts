@@ -501,14 +501,28 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   const finalizedMoto2Batches = batches.map((batch, batchIndex) => {
     if (hasManualMoto2Batches || hasCustomMoto2) return moto2Batches[batchIndex] ?? []
     if (rotatesBatches) return moto2Batches[batchIndex] ?? []
-    return drawConfiguration.config?.moto2_order === 'SAME' ? [...batch] : [...batch].reverse()
+    const moto2Order = drawConfiguration.config?.moto2_order
+    if (moto2Order === 'SAME') return [...batch]
+    if (moto2Order === 'MIDDLE') {
+      const midpoint = Math.floor(batch.length / 2)
+      return [...batch.slice(midpoint), ...batch.slice(0, midpoint)]
+    }
+    return [...batch].reverse()
   })
   const finalizedMoto3Batches = !createMoto3
     ? []
     : batches.map((batch, batchIndex) => {
         if (hasManualMoto3Batches || hasCustomMoto3) return moto3Batches[batchIndex] ?? []
         if (rotatesBatches) return moto3Batches[batchIndex] ?? []
-        return drawConfiguration.config?.moto3_order === 'REVERSE' ? [...batch].reverse() : [...batch]
+        const moto3Order = drawConfiguration.config?.moto3_order
+        if (moto3Order === 'REVERSE') return [...batch].reverse()
+        if (moto3Order === 'ODD_EVEN') {
+          return [
+            ...batch.filter((_, index) => index % 2 === 0),
+            ...batch.filter((_, index) => index % 2 === 1),
+          ]
+        }
+        return [...batch]
       })
 
   // The RPC uses one database transaction plus an event advisory lock. This

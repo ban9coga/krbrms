@@ -1,9 +1,9 @@
 export const DRAW_BATCH_MODES = ['AUTO_BY_GATE', 'MANUAL_BATCH_COUNT', 'CUSTOM_BATCH_SIZES'] as const
 export type DrawBatchMode = (typeof DRAW_BATCH_MODES)[number]
 
-export const DRAW_MOTO2_ORDERS = ['REVERSE', 'SAME'] as const
+export const DRAW_MOTO2_ORDERS = ['REVERSE', 'SAME', 'MIDDLE'] as const
 export type DrawMoto2Order = (typeof DRAW_MOTO2_ORDERS)[number]
-export const DRAW_MOTO3_ORDERS = ['REVERSE', 'SAME'] as const
+export const DRAW_MOTO3_ORDERS = ['REVERSE', 'SAME', 'ODD_EVEN'] as const
 export type DrawMoto3Order = (typeof DRAW_MOTO3_ORDERS)[number]
 
 export const QUALIFICATION_BATCH_MODES = ['FIXED', 'ROTATE_EACH_MOTO'] as const

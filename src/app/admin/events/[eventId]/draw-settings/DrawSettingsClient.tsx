@@ -468,7 +468,9 @@ export default function DrawSettingsClient({ eventId }: { eventId: string }) {
                 >
                   <option value="REVERSE">Dibalik dari urutan Moto 1</option>
                   <option value="SAME">Sama seperti urutan Moto 1</option>
+                  <option value="MIDDLE">Geser setengah putaran</option>
                 </select>
+                <span className="text-xs font-semibold text-[#765946]">Contoh 8 rider: gate 1–8 menjadi 5–8, lalu 1–4 di Moto 2. Berlaku untuk urutan otomatis.</span>
               </label>
 
               <label className="grid gap-2 text-sm font-black text-[#2a1710]">
@@ -483,8 +485,9 @@ export default function DrawSettingsClient({ eventId }: { eventId: string }) {
                 >
                   <option value="SAME">Sama seperti urutan Moto 1</option>
                   <option value="REVERSE">Dibalik dari urutan Moto 1</option>
+                  <option value="ODD_EVEN">Ganjil lalu genap</option>
                 </select>
-                <span className="text-xs font-semibold text-[#765946]">Dipakai untuk kategori beberapa batch dengan 3 moto kualifikasi. Undian manual tetap dapat menentukan urutan gate tiap batch.</span>
+                <span className="text-xs font-semibold text-[#765946]">Contoh 8 rider: 1, 3, 5, 7, 2, 4, 6, 8. Berlaku untuk urutan otomatis; drawing manual tetap dapat menentukan sendiri.</span>
               </label>
             </fieldset>
 

@@ -385,7 +385,9 @@ export default function LiveDrawClient({
       : '1 batch; gate bisa berbeda'
     : moto2Order === 'SAME'
       ? 'Sama seperti Moto 1'
-      : 'Dibalik otomatis'
+      : moto2Order === 'MIDDLE'
+        ? 'Geser setengah putaran'
+        : 'Dibalik otomatis'
   const savedMotoBatches = useMemo(() => {
     const grouped = new Map<number, GateMoto[]>()
     for (const moto of lockedMotos) {
@@ -2602,7 +2604,7 @@ export default function LiveDrawClient({
                       : `manual belum sinkron${externalPerBatchValidation.moto2BatchMismatch.length > 0 ? ` (batch mismatch ${externalPerBatchValidation.moto2BatchMismatch.join(', ')})` : ''}`
                     : qualificationBatchMode === 'ROTATE_EACH_MOTO'
                       ? 'diacak otomatis saat disimpan (belum diisi manual)'
-                      : 'otomatis reverse saat generate moto'}
+                      : `otomatis ${moto2Order === 'MIDDLE' ? 'geser setengah putaran' : moto2Order === 'SAME' ? 'mengikuti Moto 1' : 'reverse'} saat generate moto`}
                 </div>
                 {(
                   (qualificationMotoCount >= 3 && externalPerBatchValidation.batchCount > 1) ||
@@ -2618,7 +2620,7 @@ export default function LiveDrawClient({
                         : `manual belum sinkron${externalPerBatchValidation.moto3BatchMismatch.length > 0 ? ` (batch mismatch ${externalPerBatchValidation.moto3BatchMismatch.join(', ')})` : ''}`
                       : qualificationBatchMode === 'ROTATE_EACH_MOTO'
                         ? 'diacak otomatis saat disimpan (belum diisi manual)'
-                        : `otomatis ${moto3Order === 'SAME' ? 'mengikuti Moto 1' : 'dibalik dari Moto 1'}`}
+                        : `otomatis ${moto3Order === 'ODD_EVEN' ? 'ganjil lalu genap' : moto3Order === 'SAME' ? 'mengikuti Moto 1' : 'dibalik dari Moto 1'}`}
                   </div>
                 )}
               </div>
