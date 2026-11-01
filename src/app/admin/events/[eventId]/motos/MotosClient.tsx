@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { compareMotoDisplayOrder, formatMotoDisplayName } from '../../../../../lib/motoDisplayOrder'
+import { normalizeAppRole } from '../../../../../lib/roles'
 import { useApiFetch } from '@/src/hooks/useApiFetch'
 import { useEventRaceRealtime } from '@/src/hooks/useEventRaceRealtime'
 import { usePageVisibility } from '@/src/lib/usePageVisibility'
+import { supabase } from '@/src/lib/supabaseClient'
 
 type CategoryItem = {
   id: string
@@ -188,9 +190,10 @@ export default function MotosClient({ eventId }: { eventId: string }) {
   const [raceResetConfirmation, setRaceResetConfirmation] = useState('')
   const [raceResetLoading, setRaceResetLoading] = useState(false)
   const [raceResetSubmitting, setRaceResetSubmitting] = useState(false)
-  const [raceDayFilter, setRaceDayFilter] = useState<RaceDayFilter>('ACTION')
+  const [raceDayFilter, setRaceDayFilter] = useState<RaceDayFilter>('ALL')
   const [expandedCategoryIds, setExpandedCategoryIds] = useState<string[]>([])
   const hasInitializedRaceDayView = useRef(false)
+  const hasSelectedRaceDayFilter = useRef(false)
   const loadInFlightRef = useRef(false)
   const queuedRefreshRef = useRef(false)
   const queuedRefreshSummaryRef = useRef(false)
@@ -198,6 +201,33 @@ export default function MotosClient({ eventId }: { eventId: string }) {
   const getErrorMessage = (err: unknown) => (err instanceof Error ? err.message : 'Request failed')
 
   const apiFetch = useApiFetch()
+
+  useEffect(() => {
+    let active = true
+    const loadDefaultRaceDayFilter = async () => {
+      try {
+        const { data } = await supabase.auth.getSession()
+        if (!active) return
+        const meta = (data.session?.user.user_metadata ?? {}) as Record<string, unknown>
+        const appMeta = (data.session?.user.app_metadata ?? {}) as Record<string, unknown>
+        const role = normalizeAppRole(
+          (typeof meta.role === 'string' ? meta.role : null) ||
+          (typeof appMeta.role === 'string' ? appMeta.role : null)
+        )
+        if (role !== 'SUPER_ADMIN' && !hasSelectedRaceDayFilter.current) {
+          setRaceDayFilter('ACTION')
+        }
+      } catch {
+        if (active && !hasSelectedRaceDayFilter.current) {
+          setRaceDayFilter('ACTION')
+        }
+      }
+    }
+    void loadDefaultRaceDayFilter()
+    return () => {
+      active = false
+    }
+  }, [])
 
   const loadGateOrders = async (categoryIds: string[], options: { force?: boolean } = {}) => {
     const uniqueCategoryIds = Array.from(new Set(categoryIds.filter(Boolean)))
@@ -1424,7 +1454,10 @@ export default function MotosClient({ eventId }: { eventId: string }) {
               <button
                 key={filter}
                 type="button"
-                onClick={() => setRaceDayFilter(filter)}
+                onClick={() => {
+                  hasSelectedRaceDayFilter.current = true
+                  setRaceDayFilter(filter)
+                }}
                 style={{
                   padding: '6px 10px',
                   borderRadius: 999,
