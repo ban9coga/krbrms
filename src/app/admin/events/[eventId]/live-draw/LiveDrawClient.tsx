@@ -226,7 +226,11 @@ const formatMoto3Hint = (
     (totalBatches === 1 && singleBatchFinalEnabled) ||
     (totalBatches > 1 && qualificationMotoCount >= 3)
   if (!enabled) return 'Kategori ini memakai 2 moto kualifikasi per batch.'
-  if (qualificationBatchMode === 'ROTATE_EACH_MOTO') return 'Moto 3 memakai pembagian batch baru.'
+  if (qualificationBatchMode === 'ROTATE_EACH_MOTO') {
+    return totalBatches === 1
+      ? 'Kategori ini hanya memiliki satu batch; anggota batch tetap sama, urutan gate dapat diatur.'
+      : 'Komposisi rider Moto 3 dapat berbeda di setiap batch.'
+  }
   return totalBatches === 1
     ? 'Moto 3 dibuat otomatis setelah hasil Moto 2 lengkap.'
     : 'Moto 3 dibuat untuk setiap batch dengan urutan gate dari input external atau pengaturan urutan Moto 3.'
@@ -376,7 +380,9 @@ export default function LiveDrawClient({
     return `Maks. ${batchSize} rider / batch`
   }, [batchMode, batchSize, customBatchPattern, effectiveBatchCount])
   const moto2OrderLabel = qualificationBatchMode === 'ROTATE_EACH_MOTO'
-    ? 'Batch diacak ulang tiap moto'
+    ? batches.length > 1
+      ? 'Batch bisa berbeda tiap moto'
+      : '1 batch; gate bisa berbeda'
     : moto2Order === 'SAME'
       ? 'Sama seperti Moto 1'
       : 'Dibalik otomatis'
@@ -2503,6 +2509,26 @@ export default function LiveDrawClient({
                 </button>
               </div>
 
+              {qualificationBatchMode === 'ROTATE_EACH_MOTO' && (
+                <div
+                  role="note"
+                  style={{
+                    padding: '10px 12px',
+                    border: '1px solid #facc15',
+                    borderRadius: 10,
+                    background: '#fffbeb',
+                    color: '#713f12',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {externalPerBatchValidation.batchCount > 1
+                    ? 'Rider boleh ditempatkan di batch berbeda pada Moto 2 dan Moto 3. Pilih target di atas lalu masukkan rider secara manual. Setiap rider harus muncul sekali per moto, dengan jumlah rider tiap batch mengikuti Moto 1.'
+                    : 'Kategori ini hanya memiliki satu batch. Semua rider tetap berada di batch tersebut, tetapi urutan gate bisa kamu susun berbeda untuk tiap moto.'}
+                </div>
+              )}
+
               <div className="ld-manual-batch-statuses" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {externalPerBatchValidation.orderedBatches.map((batch, index) => (
                   <button
@@ -2575,7 +2601,7 @@ export default function LiveDrawClient({
                       ? `manual siap - ${externalMoto2AssignedCount}/${externalMoto1AssignedCount} rider`
                       : `manual belum sinkron${externalPerBatchValidation.moto2BatchMismatch.length > 0 ? ` (batch mismatch ${externalPerBatchValidation.moto2BatchMismatch.join(', ')})` : ''}`
                     : qualificationBatchMode === 'ROTATE_EACH_MOTO'
-                      ? 'acak ulang otomatis saat simpan'
+                      ? 'diacak otomatis saat disimpan (belum diisi manual)'
                       : 'otomatis reverse saat generate moto'}
                 </div>
                 {(
@@ -2587,11 +2613,11 @@ export default function LiveDrawClient({
                     {externalPerBatchValidation.moto3Provided
                       ? externalPerBatchValidation.isValidMoto3
                         ? qualificationBatchMode === 'ROTATE_EACH_MOTO'
-                          ? 'manual siap; batch bebas berubah'
+                          ? 'manual siap; rider boleh pindah batch'
                           : 'manual siap dan batch sesuai Moto 1'
                         : `manual belum sinkron${externalPerBatchValidation.moto3BatchMismatch.length > 0 ? ` (batch mismatch ${externalPerBatchValidation.moto3BatchMismatch.join(', ')})` : ''}`
                       : qualificationBatchMode === 'ROTATE_EACH_MOTO'
-                        ? 'acak ulang otomatis saat simpan'
+                        ? 'diacak otomatis saat disimpan (belum diisi manual)'
                         : `otomatis ${moto3Order === 'SAME' ? 'mengikuti Moto 1' : 'dibalik dari Moto 1'}`}
                   </div>
                 )}

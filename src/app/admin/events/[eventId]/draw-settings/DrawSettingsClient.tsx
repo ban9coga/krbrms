@@ -276,13 +276,13 @@ export default function DrawSettingsClient({ eventId }: { eventId: string }) {
                 disabled={modeSaving}
                 className={fieldClass}
               >
-                <option value="FIXED">Rider tetap di batch yang sama</option>
-                <option value="ROTATE_EACH_MOTO">Acak ulang rider tiap moto</option>
+                <option value="FIXED">Batch tetap di setiap moto</option>
+                <option value="ROTATE_EACH_MOTO">Batch bisa berbeda tiap moto</option>
               </select>
             </label>
             <p className="mt-3 text-xs font-semibold leading-5 text-[#765946]">
               {data.qualification_batch_mode === 'ROTATE_EACH_MOTO'
-                ? 'Komposisi rider setiap batch berubah pada tiap moto. Peringkat memakai total poin semua moto.'
+                ? 'Pada kategori multi-batch, rider boleh masuk batch berbeda di tiap moto. Di draw manual, tentukan rider melalui target Moto dan Batch; di draw otomatis, sistem mengacak pembagiannya. Kategori satu batch tetap memakai batch yang sama. Peringkat memakai total poin semua moto.'
                 : 'Rider tetap satu kelompok batch pada semua moto; urutan gate dapat berubah.'}
             </p>
             <p className="mt-2 text-xs font-semibold leading-5 text-[#765946]">
