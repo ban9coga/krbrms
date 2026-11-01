@@ -693,6 +693,14 @@ export default function JuryFinishPage() {
           result_status: 'DNF',
           dnf_progress_percent: flags.dnf_progress_enabled ? dnfProgressByRider[id] ?? null : null,
         })),
+        ...dnsRiders.map((id) => ({
+          event_id: eventId,
+          moto_id: selectedMoto.id,
+          rider_id: id,
+          finish_order: null,
+          result_status: 'DNS',
+          dnf_progress_percent: null,
+        })),
       ]
       if (payload.length) {
         await apiFetch(`/api/jury/motos/${selectedMoto.id}/results`, {
