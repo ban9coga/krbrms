@@ -555,7 +555,7 @@ export default function LiveScoreClient({
           standing.liveMotoStatuses[index] = statuses[index] ?? 'PENDING'
         })
 
-        const motoPenaltyTotal = motoTotals.reduce((sum, total, index) => {
+        const motoPenaltyTotal = motoTotals.reduce<number>((sum, total, index) => {
           const point = points[index]
           return total !== null && total !== undefined && point !== null && point !== undefined
             ? sum + Math.max(0, total - point)
