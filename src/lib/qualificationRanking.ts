@@ -65,14 +65,26 @@ export const compareQualificationTieBreakData = (
   const aResults = new Map((a?.motoResults ?? []).map((result) => [result.motoIndex, result]))
   const bResults = new Map((b?.motoResults ?? []).map((result) => [result.motoIndex, result]))
   const motoIndexes = options.motoIndexes ?? Array.from(new Set([...aResults.keys(), ...bResults.keys()])).sort((x, y) => y - x)
+
+  // Compare every moto's points before considering status or DNF progress.
+  // Qualification order is Total, Moto 3, Moto 2, Moto 1; a status in a later
+  // moto must not outrank a better points result in an earlier moto.
   for (const motoIndex of motoIndexes) {
-    const tieBreakDiff = compareQualificationMotoTieBreak(
-      aResults.get(motoIndex),
-      bResults.get(motoIndex),
-      options.dnfProgressEnabled,
-      options.statusTiebreakEnabled !== false
-    )
-    if (tieBreakDiff !== 0) return tieBreakDiff
+    const pointDiff = (aResults.get(motoIndex)?.points ?? Number.MAX_SAFE_INTEGER) -
+      (bResults.get(motoIndex)?.points ?? Number.MAX_SAFE_INTEGER)
+    if (pointDiff !== 0) return pointDiff
+  }
+
+  if (options.statusTiebreakEnabled !== false) {
+    for (const motoIndex of motoIndexes) {
+      const statusDiff = compareQualificationMotoTieBreak(
+        aResults.get(motoIndex),
+        bResults.get(motoIndex),
+        options.dnfProgressEnabled,
+        true
+      )
+      if (statusDiff !== 0) return statusDiff
+    }
   }
 
   // If points remain identical and status is otherwise disabled for a

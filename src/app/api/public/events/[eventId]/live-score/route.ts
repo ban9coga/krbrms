@@ -44,11 +44,9 @@ type QualificationOverallRow = {
   rank: number
   total_point: number | null
   next_class_label: string | null
-  tie_break_points?: {
-    moto1: number | null
-    moto2: number | null
-    moto3: number | null
-  } | null
+  total_point_moto1: number | null
+  total_point_moto2: number | null
+  total_point_moto3: number | null
 }
 
 type ResultRow = {
@@ -363,7 +361,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const dnfProgressEnabled = featureFlagsResult.data?.dnf_progress_enabled === true
   const { data: motos, error: motoError } = motoResult
   if (motoError) return NextResponse.json({ error: motoError.message }, { status: 400 })
-  const motoRows = ((motos ?? []) as MotoRow[]).filter((m) => {
+  const allMotoRows = (motos ?? []) as MotoRow[]
+  const qualificationTieBreakMotoRows = allMotoRows.filter((moto) =>
+    /^repechage\s*-\s*batch\s*\d+\s*-\s*tie[ -]?break\b/i.test(moto.moto_name)
+  )
+  const motoRows = allMotoRows.filter((m) => {
     if (isMotoPublicVisible(m.status, m.is_published)) return true
     if (includeUpcoming && (isMotoUpcoming(m.status) || isMotoReady(m.status))) return true
     return false
@@ -373,6 +375,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   if (motoIds.length === 0) {
     return NextResponse.json({ data: { batches: [], category: category.label } }, { headers: cacheHeaders })
   }
+  const liveScoreMotoIds = Array.from(new Set([
+    ...motoIds,
+    ...qualificationTieBreakMotoRows.map((moto) => moto.id),
+  ]))
 
   const [
     gateResult,
@@ -389,12 +395,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     adminClient
       .from('moto_riders')
       .select('moto_id, rider_id, created_at')
-      .in('moto_id', motoIds)
+      .in('moto_id', liveScoreMotoIds)
       .order('created_at', { ascending: true }),
     adminClient
       .from('results')
       .select('moto_id, rider_id, finish_order, result_status, dnf_progress_percent')
-      .in('moto_id', motoIds),
+      .in('moto_id', liveScoreMotoIds),
     adminClient
       .from('race_stage_result')
       .select('rider_id, stage, final_class, batch_id, position, points')
@@ -614,9 +620,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   const hasCompletedQualificationMoto3 =
     Number(pointOverrideConfig?.qualification_moto_count ?? 2) >= 3 ||
     (batchEntries.length === 1 && qualificationMoto3AssignedCount > 0 && qualificationMoto3ResultCount >= qualificationMoto3AssignedCount)
-  const qualificationTieBreakMotoIndexes = qualificationTieBreakRepechage
-    ? hasCompletedQualificationMoto3 ? [3, 2, 1] : [2, 1]
-    : hasCompletedQualificationMoto3 ? [3] : [2, 1]
+  const qualificationTieBreakMotoIndexes = hasCompletedQualificationMoto3 ? [3, 2, 1] : [2, 1]
   const qualificationTieBreakOptions = {
     dnfProgressEnabled: qualificationTieBreakRepechage ? false : dnfProgressEnabled,
     motoIndexes: qualificationTieBreakMotoIndexes,
@@ -636,19 +640,26 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
   }
 
   const qualificationStageSeedRows = stageSeedRows.filter((row) => row.stage === 'QUALIFICATION')
-  const qualificationTieBreakMotoRows = ((motos ?? []) as MotoRow[]).filter((moto) =>
-    /^repechage\s*-\s*batch\s*\d+\s*-\s*tie[ -]?break\b/i.test(moto.moto_name)
-  )
   const completedQualificationTieBreakRiderIds = new Set<string>()
+  const activeQualificationTieBreakRiderIds = new Set<string>()
+  let qualificationH2HPendingCount = 0
+  let qualificationH2HAppliedCount = 0
   for (const moto of qualificationTieBreakMotoRows) {
-    if (!['LOCKED', 'FINISHED'].includes(String(moto.status ?? '').toUpperCase())) continue
     const assigned = motoRiderRows.filter((row) => row.moto_id === moto.id).map((row) => row.rider_id)
+    if (assigned.length === 0) continue
     const completed = new Set(resultRows.filter((row) => row.moto_id === moto.id).map((row) => row.rider_id))
-    if (assigned.length > 0 && assigned.every((riderId) => completed.has(riderId))) {
+    const tieBreakComplete =
+      ['LOCKED', 'FINISHED'].includes(String(moto.status ?? '').toUpperCase()) &&
+      assigned.length > 0 &&
+      assigned.every((riderId) => completed.has(riderId))
+    if (tieBreakComplete) {
+      qualificationH2HAppliedCount += 1
       assigned.forEach((riderId) => completedQualificationTieBreakRiderIds.add(riderId))
+    } else {
+      qualificationH2HPendingCount += 1
+      assigned.forEach((riderId) => activeQualificationTieBreakRiderIds.add(riderId))
     }
   }
-  const activeQualificationTieBreakRiderIds = new Set<string>()
   const quarterStageResultRows = stageSeedRows.filter((row) => row.stage === 'QUARTER_FINAL' && row.position !== null)
   const repechageStageResultRows = stageSeedRows.filter((row) => row.stage === 'REPECHAGE' && row.position !== null)
   const semiStageResultRows = stageSeedRows.filter((row) => row.stage === 'SEMI_FINAL' && row.position !== null)
@@ -892,11 +903,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
           penalty_total: penaltyTotalDisplay,
           total_point: totalPoint,
           qualification_ranking_total: hasRecordedResult ? qualificationTotalPoint : null,
-          qualification_tiebreak_points: {
-            moto1: qualificationPoint1,
-            moto2: qualificationPoint2,
-            moto3: qualificationPoint3,
-          },
           status,
         }
       })
@@ -935,23 +941,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         rankMap.set(row.rider_id, currentRank)
       })
       if (qualificationTieBreakRepechage) {
-        const tieGroups = new Map<string, string[]>()
-        rankedRows.forEach((row) => {
-          if (row.status === 'DQ') return
-          const points = qualificationRankingTotalByRider.get(row.rider_id)
-          if (points === null || points === undefined) return
-          const key = `${rankMap.get(row.rider_id)}:${points}`
-          const group = tieGroups.get(key) ?? []
-          group.push(row.rider_id)
-          tieGroups.set(key, group)
-        })
-        tieGroups.forEach((riderIds) => {
-          if (riderIds.length > 1) {
-            riderIds
-              .filter((riderId) => !completedQualificationTieBreakRiderIds.has(riderId))
-              .forEach((riderId) => activeQualificationTieBreakRiderIds.add(riderId))
-          }
-        })
         rankedRows.forEach((row) => {
           if (!completedQualificationTieBreakRiderIds.has(row.rider_id)) return
           const officialRank = qualificationStageSeedRows.find((seed) => seed.rider_id === row.rider_id)?.position
@@ -1300,19 +1289,18 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     }]
   })
 
-  const qualificationTieBreakPointsByRider = new Map<string, { moto1: number | null; moto2: number | null; moto3: number | null }>()
+  const qualificationMotoTotalsByRider = new Map<string, { moto1: number | null; moto2: number | null; moto3: number | null }>()
   batches.forEach((batch) => {
     batch.rows.forEach((row) => {
-      const current = qualificationTieBreakPointsByRider.get(row.rider_id) ?? {
+      const current = qualificationMotoTotalsByRider.get(row.rider_id) ?? {
         moto1: null,
         moto2: null,
         moto3: null,
       }
-      const points = row.qualification_tiebreak_points
-      if (points?.moto1 !== null && points?.moto1 !== undefined) current.moto1 = points.moto1
-      if (points?.moto2 !== null && points?.moto2 !== undefined) current.moto2 = points.moto2
-      if (points?.moto3 !== null && points?.moto3 !== undefined) current.moto3 = points.moto3
-      qualificationTieBreakPointsByRider.set(row.rider_id, current)
+      if (row.total_point_moto1 !== null && row.total_point_moto1 !== undefined) current.moto1 = row.total_point_moto1
+      if (row.total_point_moto2 !== null && row.total_point_moto2 !== undefined) current.moto2 = row.total_point_moto2
+      if (row.total_point_moto3 !== null && row.total_point_moto3 !== undefined) current.moto3 = row.total_point_moto3
+      qualificationMotoTotalsByRider.set(row.rider_id, current)
     })
   })
 
@@ -1320,11 +1308,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     category: category.label,
     qualification_batch_mode: qualificationBatchMode,
     qualification_split_basis: qualificationSplitBasis,
-    qualification_tiebreak_moto_indexes: qualificationTieBreakMotoIndexes,
-    qualification_tiebreak_repechage: qualificationTieBreakRepechage,
     qualification_has_finisher_outcome: qualificationRules.some((rule) => rule.target_outcome === 'FINISHER'),
     qualification_advancements_calculated: qualificationStageSeedRows.length > 0,
     qualification_results_official: qualificationResultsOfficial,
+    qualification_h2h_pending_count: qualificationH2HPendingCount,
+    qualification_h2h_applied_count: qualificationH2HAppliedCount,
     qualification_overall_rows: (qualificationStageSeedRows as StageSeedRow[])
       .filter((row) => row.stage === 'QUALIFICATION' && row.position !== null)
       .map((row): QualificationOverallRow | null => {
@@ -1338,7 +1326,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
           rank: Number(row.position),
           total_point: row.points,
           next_class_label: nextQualificationLabelForRank(Number(row.position), row.rider_id, batchIndex),
-          tie_break_points: qualificationTieBreakPointsByRider.get(row.rider_id) ?? null,
+          total_point_moto1: qualificationMotoTotalsByRider.get(row.rider_id)?.moto1 ?? null,
+          total_point_moto2: qualificationMotoTotalsByRider.get(row.rider_id)?.moto2 ?? null,
+          total_point_moto3: qualificationMotoTotalsByRider.get(row.rider_id)?.moto3 ?? null,
         }
       })
       .filter((row): row is QualificationOverallRow => row !== null)

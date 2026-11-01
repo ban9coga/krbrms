@@ -38,11 +38,6 @@ type Row = {
   penalty_total: number | null
   total_point?: number | null
   rank_point: number | null
-  qualification_tiebreak_points?: {
-    moto1: number | null
-    moto2: number | null
-    moto3: number | null
-  }
   status: 'FINISHED' | 'DNF' | 'DNS' | 'PENDING' | 'DQ'
   class_label?: string | null
 }
@@ -92,11 +87,9 @@ type QualificationOverallRow = {
   rank: number
   total_point: number | null
   next_class_label: string | null
-  tie_break_points?: {
-    moto1: number | null
-    moto2: number | null
-    moto3: number | null
-  } | null
+  total_point_moto1?: number | null
+  total_point_moto2?: number | null
+  total_point_moto3?: number | null
 }
 
 type StageRow = {
@@ -126,10 +119,10 @@ export type LiveScoreData = {
   qualification_batch_mode?: 'FIXED' | 'ROTATE_EACH_MOTO'
   qualification_split_basis?: string | null
   qualification_has_finisher_outcome?: boolean
-  qualification_tiebreak_moto_indexes?: number[]
-  qualification_tiebreak_repechage?: boolean
   qualification_advancements_calculated?: boolean
   qualification_results_official?: boolean
+  qualification_h2h_pending_count?: number
+  qualification_h2h_applied_count?: number
   qualification_overall_rows?: QualificationOverallRow[]
   batches?: Batch[]
   stages?: StageGroup[]
@@ -344,17 +337,17 @@ export default function LiveScoreClient({
   const [qualificationResultsOfficial, setQualificationResultsOfficial] = useState(
     initialLiveScore?.qualification_results_official ?? false
   )
+  const [qualificationH2HPendingCount, setQualificationH2HPendingCount] = useState(
+    initialLiveScore?.qualification_h2h_pending_count ?? 0
+  )
+  const [qualificationH2HAppliedCount, setQualificationH2HAppliedCount] = useState(
+    initialLiveScore?.qualification_h2h_applied_count ?? 0
+  )
   const [qualificationBatchMode, setQualificationBatchMode] = useState(
     initialLiveScore?.qualification_batch_mode ?? 'FIXED'
   )
   const [qualificationOverallRows, setQualificationOverallRows] = useState<QualificationOverallRow[]>(
     initialLiveScore?.qualification_overall_rows ?? []
-  )
-  const [qualificationTieBreakMotoIndexes, setQualificationTieBreakMotoIndexes] = useState<number[] | null>(
-    initialLiveScore?.qualification_tiebreak_moto_indexes ?? null
-  )
-  const [qualificationTieBreakRepechage, setQualificationTieBreakRepechage] = useState(
-    initialLiveScore?.qualification_tiebreak_repechage === true
   )
   const [batches, setBatches] = useState<Batch[]>(initialLiveScore?.batches ?? [])
   const [stages, setStages] = useState<StageGroup[]>(initialLiveScore?.stages ?? [])
@@ -385,10 +378,10 @@ export default function LiveScoreClient({
     setCategoryLabel(json.data?.category ?? '')
     setQualificationSplitBasis(json.data?.qualification_split_basis ?? null)
     setQualificationHasFinisherOutcome(json.data?.qualification_has_finisher_outcome === true)
-    setQualificationTieBreakMotoIndexes(json.data?.qualification_tiebreak_moto_indexes ?? null)
-    setQualificationTieBreakRepechage(json.data?.qualification_tiebreak_repechage === true)
     setQualificationAdvancementsCalculated(json.data?.qualification_advancements_calculated ?? false)
     setQualificationResultsOfficial(json.data?.qualification_results_official ?? false)
+    setQualificationH2HPendingCount(json.data?.qualification_h2h_pending_count ?? 0)
+    setQualificationH2HAppliedCount(json.data?.qualification_h2h_applied_count ?? 0)
     setQualificationBatchMode(json.data?.qualification_batch_mode ?? 'FIXED')
     setQualificationOverallRows(json.data?.qualification_overall_rows ?? [])
     setBatches(json.data?.batches ?? [])
@@ -487,94 +480,19 @@ export default function LiveScoreClient({
 
   const nextCategory = currentCategoryIndex >= 0 ? sortedCategories[currentCategoryIndex + 1] ?? null : null
 
-  const qualificationTieInfoByRider = useMemo(() => {
-    const pointsByRider = new Map<string, { moto1: number | null; moto2: number | null; moto3: number | null }>()
+  const qualificationMotoTotalsByRider = useMemo(() => {
+    const totalsByRider = new Map<string, { moto1: number | null; moto2: number | null; moto3: number | null }>()
     batches.forEach((batch) => {
       batch.rows.forEach((row) => {
-        const points = row.qualification_tiebreak_points
-        const current = pointsByRider.get(row.rider_id) ?? { moto1: null, moto2: null, moto3: null }
-        if (points?.moto1 !== null && points?.moto1 !== undefined) current.moto1 = points.moto1
-        if (points?.moto2 !== null && points?.moto2 !== undefined) current.moto2 = points.moto2
-        if (points?.moto3 !== null && points?.moto3 !== undefined) current.moto3 = points.moto3
-        pointsByRider.set(row.rider_id, current)
+        const current = totalsByRider.get(row.rider_id) ?? { moto1: null, moto2: null, moto3: null }
+        if (row.total_point_moto1 !== null && row.total_point_moto1 !== undefined) current.moto1 = row.total_point_moto1
+        if (row.total_point_moto2 !== null && row.total_point_moto2 !== undefined) current.moto2 = row.total_point_moto2
+        if (row.total_point_moto3 !== null && row.total_point_moto3 !== undefined) current.moto3 = row.total_point_moto3
+        totalsByRider.set(row.rider_id, current)
       })
     })
-
-    const rowsByTotal = new Map<number, QualificationOverallRow[]>()
-    qualificationOverallRows.forEach((row) => {
-      if (row.total_point === null) return
-      const group = rowsByTotal.get(row.total_point) ?? []
-      group.push(row)
-      rowsByTotal.set(row.total_point, group)
-    })
-
-    const motoIndexes = qualificationTieBreakMotoIndexes?.length
-      ? qualificationTieBreakMotoIndexes
-      : batches.some((batch) => Boolean(batch.moto3_id)) ? [3] : [2, 1]
-    const motoKey = (motoIndex: number) => `moto${motoIndex}` as 'moto1' | 'moto2' | 'moto3'
-    const pointFor = (row: QualificationOverallRow, motoIndex: number) =>
-      row.tie_break_points?.[motoKey(motoIndex)] ?? pointsByRider.get(row.rider_id)?.[motoKey(motoIndex)] ?? null
-    const tieInfo = new Map<string, { badge: string; detail: string }>()
-
-    rowsByTotal.forEach((group) => {
-      if (group.length < 2) return
-      const ordered = [...group].sort((a, b) => a.rank - b.rank)
-      ordered.forEach((row) => {
-        const comparisons = ordered
-          .filter((other) => other.rider_id !== row.rider_id)
-          .sort((a, b) => Math.abs(a.rank - row.rank) - Math.abs(b.rank - row.rank))
-        const opponent = comparisons.find((other) =>
-          motoIndexes.some((motoIndex) => {
-            const rowPoints = pointFor(row, motoIndex)
-            const otherPoints = pointFor(other, motoIndex)
-            return rowPoints !== null && otherPoints !== null && rowPoints !== otherPoints
-          })
-        )
-
-        if (opponent) {
-          const decidingMoto = motoIndexes.find((motoIndex) => {
-            const rowPoints = pointFor(row, motoIndex)
-            const otherPoints = pointFor(opponent, motoIndex)
-            return rowPoints !== null && otherPoints !== null && rowPoints !== otherPoints
-          })
-          if (decidingMoto !== undefined) {
-            const rowPoints = pointFor(row, decidingMoto)
-            const otherPoints = pointFor(opponent, decidingMoto)
-            tieInfo.set(row.rider_id, {
-              badge: `Penentu M${decidingMoto}`,
-              detail: `Total sama (${row.total_point}). Moto ${decidingMoto} jadi penentu: ${row.no_plate} ${rowPoints} poin, ${opponent.no_plate} ${otherPoints} poin. Poin lebih rendah berada di atas.`,
-            })
-            return
-          }
-        }
-
-        const equalAcrossTieBreakMotos = group.length > 1 && motoIndexes.every((motoIndex) => {
-          const groupPoints = group.map((candidate) => pointFor(candidate, motoIndex))
-          return groupPoints.every((points) => points !== null) && groupPoints.every((points) => points === groupPoints[0])
-        })
-        if (qualificationTieBreakRepechage && equalAcrossTieBreakMotos) {
-          tieInfo.set(row.rider_id, {
-            badge: 'Repechage',
-            detail: 'Total sama (' + row.total_point + ') dan poin semua rider yang seri sama pada moto tie-break (' +
-              motoIndexes.map((index) => 'M' + index).join(' > ') +
-              '). Penentuan dilanjutkan ke Repechage.',
-          })
-          return
-        }
-
-        const breakdown = [1, 2, 3]
-          .map((motoIndex) => `M${motoIndex}: ${pointFor(row, motoIndex) ?? '-'}`)
-          .join(' | ')
-        tieInfo.set(row.rider_id, {
-          badge: 'Total seri',
-          detail: 'Total poin seri (' + row.total_point + '). Rincian per moto: ' + breakdown +
-            '. Peringkat lanjutan mengikuti aturan tie-break event.',
-        })
-      })
-    })
-
-    return tieInfo
-  }, [batches, qualificationOverallRows, qualificationTieBreakMotoIndexes, qualificationTieBreakRepechage])
+    return totalsByRider
+  }, [batches])
 
   const riderPhotoCell = (name: string, noPlate: string, photoUrl?: string | null) => {
     if (showRiderPhotos && photoUrl) {
@@ -861,6 +779,23 @@ export default function LiveScoreClient({
         {!loading && batches.length === 0 && stages.length === 0 && (
   <EmptyState label="Belum ada data." />
 )}
+        {(qualificationH2HPendingCount > 0 || qualificationH2HAppliedCount > 0) && (
+          <p
+            role="status"
+            className="rounded-xl border border-amber-300/50 bg-amber-300/10 px-3 py-2 text-xs font-bold leading-relaxed text-amber-100"
+          >
+            {qualificationH2HPendingCount ? (
+              <>
+                {qualificationH2HAppliedCount
+                  ? `${qualificationH2HAppliedCount} H2H sudah dipakai; `
+                  : ''}
+                Menunggu {qualificationH2HPendingCount} Repechage H2H. Rank dan tujuan Final untuk seri tersebut belum ditetapkan. Poin kualifikasi tetap.
+              </>
+            ) : (
+              'Hasil Repechage H2H sudah dipakai untuk menentukan Rank, urutan gate, atau tujuan Final. Poin M1, M2, M3, dan Total Poin kualifikasi tidak berubah.'
+            )}
+          </p>
+        )}
 
         {qualificationBatchMode === 'ROTATE_EACH_MOTO' ? (
           <section className="grid gap-4">
@@ -927,7 +862,11 @@ export default function LiveScoreClient({
                   <div className="flex flex-wrap items-center gap-2">
                     {refreshOnlyControl}
                     <span className="live-score-rotation-status rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[10px] font-black uppercase text-slate-200">
-                      {qualificationResultsOfficial && qualificationOverallRows.length > 0 ? 'Hasil Resmi' : 'Menunggu Hasil Kualifikasi'}
+                      {qualificationH2HPendingCount > 0
+                        ? 'Menunggu H2H'
+                        : qualificationResultsOfficial && qualificationOverallRows.length > 0
+                          ? 'Hasil Resmi'
+                          : 'Menunggu Hasil Kualifikasi'}
                     </span>
                   </div>
                 </div>
@@ -937,10 +876,10 @@ export default function LiveScoreClient({
                   </p>
                 ) : (
                   <div className="public-table-wrap">
-                    <table className="public-table min-w-[620px] text-xs sm:text-sm">
+                    <table className="public-table min-w-[900px] text-xs sm:text-sm">
                       <thead>
                         <tr>
-                          {['Rank', 'Rider', 'No Plat', 'Total Poin', 'Tujuan Stage'].map((heading) => <th key={heading}>{heading}</th>)}
+                          {['Rank', 'Rider', 'No Plat', 'Total Poin M1', 'Total Poin M2', 'Total Poin M3', 'Total Poin', 'Tujuan Stage'].map((heading) => <th key={heading}>{heading}</th>)}
                         </tr>
                       </thead>
                       <tbody>
@@ -949,25 +888,10 @@ export default function LiveScoreClient({
                             <td className="text-center">{renderRankBadge(row.rank)}</td>
                             <td className="live-score-rider-name font-extrabold">{row.name}</td>
                             <td>{row.no_plate}</td>
-                            <td className="font-black text-sky-700">
-                              <div className="flex flex-wrap items-center gap-1.5">
-                                <span>{row.total_point ?? '-'}</span>
-                                {qualificationTieInfoByRider.get(row.rider_id) && (
-                                  <details className="text-left font-normal text-slate-700">
-                                    <summary
-                                      aria-label={qualificationTieInfoByRider.get(row.rider_id)?.detail}
-                                      title={qualificationTieInfoByRider.get(row.rider_id)?.detail}
-                                      className="inline-flex cursor-pointer list-none rounded-full border border-amber-400 bg-amber-100 px-2 py-1 text-[9px] font-black uppercase leading-none text-amber-900"
-                                    >
-                                      {qualificationTieInfoByRider.get(row.rider_id)?.badge}
-                                    </summary>
-                                    <p className="mt-1 max-w-[240px] whitespace-normal rounded-lg border border-amber-200 bg-amber-50 p-2 text-[10px] font-semibold leading-relaxed text-amber-950">
-                                      {qualificationTieInfoByRider.get(row.rider_id)?.detail}
-                                    </p>
-                                  </details>
-                                )}
-                              </div>
-                            </td>
+                            <td className="text-center font-bold">{row.total_point_moto1 ?? qualificationMotoTotalsByRider.get(row.rider_id)?.moto1 ?? '-'}</td>
+                            <td className="text-center font-bold">{row.total_point_moto2 ?? qualificationMotoTotalsByRider.get(row.rider_id)?.moto2 ?? '-'}</td>
+                            <td className="text-center font-bold">{row.total_point_moto3 ?? qualificationMotoTotalsByRider.get(row.rider_id)?.moto3 ?? '-'}</td>
+                            <td className="text-center font-black text-sky-700">{row.total_point ?? '-'}</td>
                             <td className="font-black uppercase">{row.next_class_label || '-'}</td>
                           </tr>
                         ))}

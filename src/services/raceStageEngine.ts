@@ -329,7 +329,7 @@ export function computeQualification(
     const maxMotoIndex = batch.finishes.reduce((max, finish) => Math.max(max, finish.motoIndex), 0)
     const qualificationMotoCount = options?.qualificationMotoCount ?? maxMotoIndex
     const motoIndexes = options?.qualificationMotoIndexes ?? (qualificationMotoCount >= 3
-      ? [3]
+      ? [3, 2, 1]
       : Array.from(new Set(batch.finishes.map((finish) => finish.motoIndex))).sort((a, b) => b - a))
     const ranked = rankByPoints(scoreMap, tieBreakDataByRider, {
       dnfProgressEnabled: options?.dnfProgressEnabled,

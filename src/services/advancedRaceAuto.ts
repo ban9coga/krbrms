@@ -165,27 +165,53 @@ const loadQualificationEventSettings = async (eventId: string) => {
 }
 
 const qualificationTieGroupsFromRanks = (
-  rankedByBatch: Record<string, Array<{ riderId: string; points: number; rank: number }>>,
+  rankedByBatch: Record<string, Array<{
+    riderId: string
+    points: number
+    rank: number
+    qualificationTieBreak?: QualificationTieBreakData
+  }>>,
   excludedRiderIds: Set<string>,
-  eligibleRiderIds: Set<string>
-): QualificationTieGroup[] =>
-  Object.entries(rankedByBatch).flatMap(([batchId, rows]) => {
-    const tiedRows = new Map<string, Array<{ riderId: string; points: number; rank: number }>>()
+  eligibleRiderIds: Set<string>,
+  motoIndexes: number[],
+  acrossBatches = false
+): QualificationTieGroup[] => {
+  const tiedRows = new Map<string, Array<{ batchId: string; riderId: string; points: number; rank: number }>>()
+  Object.entries(rankedByBatch).forEach(([batchId, rows]) => {
     rows.forEach((row) => {
       if (excludedRiderIds.has(row.riderId) || !eligibleRiderIds.has(row.riderId)) return
-      const key = `${row.rank}:${row.points}`
+      const pointsByMoto = new Map((row.qualificationTieBreak?.motoResults ?? []).map((result) => [result.motoIndex, result.points]))
+      if (motoIndexes.some((motoIndex) => !pointsByMoto.has(motoIndex))) return
+      const scoreKey = `${row.points}|${motoIndexes.map((motoIndex) => pointsByMoto.get(motoIndex)).join(':')}`
+      const key = `${acrossBatches ? 'GLOBAL' : batchId}:${scoreKey}`
       const group = tiedRows.get(key) ?? []
-      group.push(row)
+      group.push({ batchId, riderId: row.riderId, points: row.points, rank: row.rank })
       tiedRows.set(key, group)
     })
-    return Array.from(tiedRows.values())
-      .filter((group) => group.length > 1)
-      .map((group) => ({
-        batchId,
-        position: Math.min(...group.map((row) => row.rank)),
-        riderIds: group.map((row) => row.riderId),
-      }))
   })
+
+  return Array.from(tiedRows.values())
+    .filter((group) => group.length > 1)
+    .map((group) => ({
+      batchId: group[0].batchId,
+      position: Math.min(...group.map((row) => row.rank)),
+      riderIds: group.map((row) => row.riderId),
+    }))
+}
+
+const finisherRiderIdsFromRankedRows = (
+  ranked: Array<{ riderId: string }>,
+  rules: CustomSplitRule[]
+) => {
+  const finisherRiderIds = new Set<string>()
+  ranked.forEach((row, index) => {
+    const slot = index + 1
+    if (rules.some((rule) => rule.targetStage === 'FINISHER' && slot >= rule.rankFrom && slot <= rule.rankTo)) {
+      finisherRiderIds.add(row.riderId)
+    }
+  })
+  return finisherRiderIds
+}
 
 const qualificationTieGroupsFromStageRows = (
   rows: Array<{ rider_id: string; batch_id: string | null; position: number | null; points: number | null }>,
@@ -229,6 +255,15 @@ const qualificationTieGroupsFromRepechageIntake = (
       position: Number.MAX_SAFE_INTEGER,
       riderIds: group.map((row) => row.rider_id),
     }))
+}
+
+const selectQueuedQualificationTieGroups = (
+  positionGroups: QualificationTieGroup[],
+  intakeGroups: QualificationTieGroup[]
+) => {
+  const queuedRiderIds = new Set(intakeGroups.flatMap((group) => group.riderIds))
+  const exactQueuedGroups = positionGroups.filter((group) => group.riderIds.every((riderId) => queuedRiderIds.has(riderId)))
+  return exactQueuedGroups.length > 0 ? exactQueuedGroups : intakeGroups
 }
 
 const mergeQualificationTieGroups = (...groups: QualificationTieGroup[][]) => {
@@ -1115,6 +1150,7 @@ const computeGlobalActiveFirstQualificationAdvances = (
 
   return {
     ranked,
+    rules: combinedRules,
     advances: computeQualificationAdvancesFromRanks(ranked, primaryAdvance, combinedRules, options),
   }
 }
@@ -1249,6 +1285,12 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
 
   const baseResolved = await resolveCategoryConfig(categoryId)
   const customRules = await loadCustomSplitRules(categoryId)
+  const customQualificationRules = customRules.filter((rule) => rule.sourceStage === 'QUALIFICATION')
+  const qualificationSplitBasis = customQualificationRules[0]?.splitBasis ?? 'COMBINED'
+  const qualificationTieGroupsAcrossBatches =
+    qualificationBatchMode === 'ROTATE_EACH_MOTO' ||
+    qualificationSplitBasis === 'GLOBAL_ACTIVE_FIRST' ||
+    qualificationSplitBasis === 'COMBINED'
   const resolved = {
     ...baseResolved,
     stages: resolveCustomWorkflowStages(baseResolved.stages, customRules),
@@ -1308,14 +1350,11 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
     Number(config?.qualification_moto_count ?? 2),
     config?.single_batch_final_enabled === true
   )
-  const qualificationTieBreakMotoIndexes = qualificationTieBreakRepechage
-    ? requiredMotoCount >= 3 ? [3, 2, 1] : [2, 1]
-    : requiredMotoCount >= 3 ? [3] : [2, 1]
+  const qualificationTieBreakMotoIndexes = requiredMotoCount >= 3 ? [3, 2, 1] : [2, 1]
   const allowSingleBatchThreeMotoQualification = physicalBatchCount === 1 && requiredMotoCount >= 3
   if (!resolved.stages.enableQualification && !allowSingleBatchThreeMotoQualification) {
     return { ok: false, warning: resolved.warning ?? 'Qualification disabled by resolver.' }
   }
-  const customQualificationRules = customRules.filter((rule) => rule.sourceStage === 'QUALIFICATION')
   const qualificationInput = buildQualificationInputs(
     motoRows,
     motoRiderRows,
@@ -1359,10 +1398,6 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
       qualificationMotoIndexes: qualificationTieBreakMotoIndexes,
     }
   )
-  const qualificationTieGroups = qualificationTieBreakRepechage
-    ? qualificationTieGroupsFromRanks(batchRanks, disqualifiedQualificationRiderIds, activeQualificationRiderIds)
-    : []
-  const qualificationTieRiderIds = new Set(qualificationTieGroups.flatMap((group) => group.riderIds))
   const customSplitBasis = customQualificationRules[0]?.splitBasis ?? 'COMBINED'
   const useRotatingGlobal = qualificationBatchMode === 'ROTATE_EACH_MOTO'
   const useGlobalActiveFirst =
@@ -1485,6 +1520,48 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
     }
     return true
   })
+  const exactQualificationTieGroups = qualificationTieBreakRepechage
+    ? qualificationTieGroupsFromRanks(
+        batchRanks,
+        disqualifiedQualificationRiderIds,
+        activeQualificationRiderIds,
+        qualificationTieBreakMotoIndexes,
+        qualificationTieGroupsAcrossBatches
+      )
+    : []
+  const finisherQualificationRiderIds = new Set<string>()
+  if (globalActiveFirstResult) {
+    finisherRiderIdsFromRankedRows(globalActiveFirstResult.ranked, globalActiveFirstResult.rules)
+      .forEach((riderId) => finisherQualificationRiderIds.add(riderId))
+  } else if (useCombinedCustomSplit) {
+    finisherRiderIdsFromRankedRows(combinedQualificationRanks, customQualificationRules)
+      .forEach((riderId) => finisherQualificationRiderIds.add(riderId))
+  } else if (useRotatingGlobal && customQualificationRules.length > 0) {
+    finisherRiderIdsFromRankedRows(Object.values(batchRanks).flat(), customQualificationRules)
+      .forEach((riderId) => finisherQualificationRiderIds.add(riderId))
+  } else {
+    qualificationInput.batches.forEach((batch) => {
+      const batchRules = filterCustomSplitRulesForBatch(customQualificationRules, customSplitBasis, batch.batchIndex)
+      finisherRiderIdsFromRankedRows(batchRanks[batch.batchId] ?? [], batchRules)
+        .forEach((riderId) => finisherQualificationRiderIds.add(riderId))
+    })
+  }
+  const finalClassByRider = new Map(
+    filteredBaseAdvances
+      .filter((advance) => advance.toStage === 'FINAL')
+      .map((advance) => [advance.riderId, advance.finalClass ?? 'ELITE'])
+  )
+  const qualificationTieGroups = exactQualificationTieGroups.filter((group) => {
+    const outcomes = group.riderIds.map((riderId) =>
+      finalClassByRider.has(riderId)
+        ? 'FINAL'
+        : finisherQualificationRiderIds.has(riderId)
+          ? 'FINISHER'
+          : 'OTHER'
+    )
+    return outcomes.includes('FINAL') && outcomes.every((outcome) => outcome === 'FINAL' || outcome === 'FINISHER')
+  })
+  const qualificationTieRiderIds = new Set(qualificationTieGroups.flatMap((group) => group.riderIds))
   const filteredAdvances: StageAdvance[] = [
     ...filteredBaseAdvances.filter((row) => !qualificationTieRiderIds.has(row.riderId)),
     ...Array.from(qualificationTieRiderIds).map((riderId) => ({ riderId, toStage: 'REPECHAGE' as const })),
@@ -1502,7 +1579,49 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
     .eq('category_id', categoryId)
     .in('stage', ['QUALIFICATION'])
 
-  const globalPositionByRider = new Map(globalActiveFirstResult?.ranked.map((row) => [row.riderId, row.rank]) ?? [])
+  const qualificationGlobalRankedRows = globalActiveFirstResult?.ranked ?? (
+    qualificationTieBreakRepechage && qualificationTieGroupsAcrossBatches && useCombinedCustomSplit
+      ? combinedQualificationRanks
+      : qualificationTieBreakRepechage && qualificationTieGroupsAcrossBatches
+        ? rankCombinedQualificationRows(
+            Object.entries(batchRanks).flatMap(([batchId, ranks]) =>
+              ranks.map((row) => ({
+                riderId: row.riderId,
+                points: row.points,
+                rank: row.rank,
+                batchId,
+                tieBreakers: row.tieBreakers ?? [],
+                qualificationTieBreak: row.qualificationTieBreak,
+              }))
+            ),
+            dnfProgressEnabled,
+            qualificationTieBreakMotoIndexes,
+            !qualificationTieBreakRepechage
+          )
+        : []
+  )
+  const globalPositionByRider = new Map(qualificationGlobalRankedRows.map((row, index) => [row.riderId, row.rank ?? index + 1]))
+  if (qualificationTieBreakRepechage && qualificationTieGroupsAcrossBatches && qualificationGlobalRankedRows.length > 0) {
+    const tieBreakByRider = new Map(Object.values(batchRanks).flat().map((row) => [row.riderId, row.qualificationTieBreak]))
+    let currentGlobalRank = 0
+    let previousGlobalPoints: number | null = null
+    let previousGlobalRiderId: string | null = null
+    qualificationGlobalRankedRows.forEach((row, index) => {
+      const tieBreakDiff = previousGlobalRiderId
+        ? compareQualificationTieBreakData(
+            tieBreakByRider.get(row.riderId),
+            tieBreakByRider.get(previousGlobalRiderId),
+            { motoIndexes: qualificationTieBreakMotoIndexes, statusTiebreakEnabled: false }
+          )
+        : 1
+      if (index === 0 || row.points !== previousGlobalPoints || tieBreakDiff !== 0) {
+        currentGlobalRank = index + 1
+        previousGlobalPoints = row.points
+      }
+      globalPositionByRider.set(row.riderId, currentGlobalRank)
+      previousGlobalRiderId = row.riderId
+    })
+  }
   const qualificationRows = Object.entries(batchRanks).flatMap(([batchId, ranks]) => {
     return ranks.map((row) => ({
       rider_id: row.riderId,
@@ -1513,7 +1632,9 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
         : batchId,
       position: qualificationBatchMode === 'ROTATE_EACH_MOTO'
         ? globalPositionByRider.get(row.riderId) ?? row.rank
-        : qualificationTieBreakRepechage ? row.rank : globalPositionByRider.get(row.riderId) ?? row.rank,
+        : qualificationTieBreakRepechage && !qualificationTieGroupsAcrossBatches
+          ? row.rank
+          : globalPositionByRider.get(row.riderId) ?? row.rank,
       points: row.points,
     }))
   })
@@ -1587,6 +1708,12 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
   const semiMaxRiders = Math.max(4, Number(config.semi_final_max_riders_per_race ?? config.max_riders_per_race ?? 8))
   const baseResolved = await resolveCategoryConfig(categoryId)
   const customRules = await loadCustomSplitRules(categoryId)
+  const qualificationRules = customRules.filter((rule) => rule.sourceStage === 'QUALIFICATION')
+  const qualificationSplitBasis = qualificationRules[0]?.splitBasis ?? 'COMBINED'
+  const qualificationTieGroupsAcrossBatches =
+    qualificationBatchMode === 'ROTATE_EACH_MOTO' ||
+    qualificationSplitBasis === 'GLOBAL_ACTIVE_FIRST' ||
+    qualificationSplitBasis === 'COMBINED'
   const resolved = {
     ...baseResolved,
     stages: resolveCustomWorkflowStages(baseResolved.stages, customRules),
@@ -1696,13 +1823,15 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
   const storedQualificationTieGroups = qualificationTieBreakRepechage
     ? qualificationTieGroupsFromStageRows(
         stageSeedRows.filter((row) => row.stage === 'QUALIFICATION'),
-        activeQualificationRiderIds
+        activeQualificationRiderIds,
+        qualificationTieGroupsAcrossBatches
       )
     : []
   const qualificationTieIntakeGroups = qualificationTieBreakRepechage
     ? qualificationTieGroupsFromRepechageIntake(
         stageSeedRows.filter((row) => row.stage === 'REPECHAGE' && row.batch_id !== null),
-        activeQualificationRiderIds
+        activeQualificationRiderIds,
+        qualificationTieGroupsAcrossBatches
       )
     : []
   const existingQualificationTieGroups: QualificationTieGroup[] = existingTieBreakRepechageMotos.flatMap((moto) => {
@@ -1718,7 +1847,10 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
     }]
   })
   const qualificationTieGroups = qualificationTieBreakRepechage
-    ? mergeQualificationTieGroups(storedQualificationTieGroups, qualificationTieIntakeGroups, existingQualificationTieGroups)
+    ? mergeQualificationTieGroups(
+        selectQueuedQualificationTieGroups(storedQualificationTieGroups, qualificationTieIntakeGroups),
+        existingQualificationTieGroups
+      )
     : []
   const pendingQualificationTieRiderIds = new Set<string>()
   qualificationTieGroups.forEach((group) => {
@@ -2469,6 +2601,12 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
   } catch (err) {
     return { ok: false, warning: err instanceof Error ? err.message : 'Failed to load qualification tiebreak settings.' }
   }
+  const customQualificationRules = await loadCustomSplitRules(categoryId, 'QUALIFICATION')
+  const qualificationSplitBasis = customQualificationRules[0]?.splitBasis ?? 'COMBINED'
+  const qualificationTieGroupsAcrossBatches =
+    qualificationBatchMode === 'ROTATE_EACH_MOTO' ||
+    qualificationSplitBasis === 'GLOBAL_ACTIVE_FIRST' ||
+    qualificationSplitBasis === 'COMBINED'
   const [{ data: config }, { data: featureFlags }] = await Promise.all([
     adminClient
       .from('race_stage_config')
@@ -2602,11 +2740,13 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
     batch_id: string | null
     position: number | null
     points: number | null
-  }>, activeQualificationRiderIds, useRotatingGlobal)
+  }>, activeQualificationRiderIds, qualificationTieGroupsAcrossBatches)
   const qualificationTieGroups = qualificationTieBreakRepechage
     ? mergeQualificationTieGroups(
-        qualificationTieGroupsFromStageRows(rawQualificationRows, activeQualificationRiderIds, useRotatingGlobal),
-        intakeTieGroups,
+        selectQueuedQualificationTieGroups(
+          qualificationTieGroupsFromStageRows(rawQualificationRows, activeQualificationRiderIds, qualificationTieGroupsAcrossBatches),
+          intakeTieGroups
+        ),
         tieBreakGroupsFromMotos
       )
     : []
@@ -2651,7 +2791,7 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
         }])),
         dnfProgressEnabled
       )
-      const batchRows = useRotatingGlobal
+      const batchRows = qualificationTieGroupsAcrossBatches
         ? effectiveQualificationStageRows
         : effectiveQualificationStageRows.filter((row) => row.batch_id === group.batchId)
       const basePosition = Math.min(...batchRows.filter((row) => group.riderIds.includes(row.rider_id)).map((row) => Number(row.position ?? group.position)))
@@ -2823,10 +2963,9 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
   const pendingSemiRiders = new Set<string>()
   const pendingFinalAssignments = new Map<string, string>()
   const repechageAlreadyRun = repechageMotos.some((moto) => hasMotoResults(moto.id, resultRows))
-  const customQualificationRules = await loadCustomSplitRules(categoryId, 'QUALIFICATION')
   const qualificationBatchCount = Object.keys(qualificationRanksByBatch).length
   const physicalQualificationBatchCount = Object.keys(qualificationBatchIndexById).length
-  const customSplitBasis = customQualificationRules[0]?.splitBasis ?? 'COMBINED'
+  const customSplitBasis = qualificationSplitBasis
   const useGlobalActiveFirst =
     customQualificationRules.length > 0 && customSplitBasis === 'GLOBAL_ACTIVE_FIRST' &&
     (useRotatingGlobal || physicalQualificationBatchCount > 1)
