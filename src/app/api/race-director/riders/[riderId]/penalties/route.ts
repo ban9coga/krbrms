@@ -81,6 +81,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ riderId
       )
     }
     motoCategoryId = moto.category_id ?? null
+
+    const { data: assignment, error: assignmentError } = await adminClient
+      .from('moto_riders')
+      .select('rider_id')
+      .eq('moto_id', moto_id)
+      .eq('rider_id', riderId)
+      .maybeSingle()
+    if (assignmentError) return NextResponse.json({ error: assignmentError.message }, { status: 400 })
+    if (!assignment) {
+      return NextResponse.json({ error: 'Rider is not assigned to the selected moto.' }, { status: 400 })
+    }
   }
 
   const { data: rider, error: riderError } = await adminClient

@@ -42,7 +42,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ motoId: 
       `
     )
     .eq('moto_id', motoId)
-    .eq('stage', 'MOTO')
     .eq('rider_penalty_approvals.approval_status', 'APPROVED')
     .order('created_at', { ascending: false })
 

@@ -96,6 +96,8 @@ type EventDqFormState = {
   scope: 'ALL' | 'CATEGORY'
 }
 
+type RDQuickScreen = 'HOME' | 'PENALTY' | 'DQ' | 'CANCEL_PENALTY' | 'FULL'
+
 const normalizeRole = (value: string | null | undefined) => String(value ?? '').trim().toUpperCase()
 const getErrorMessage = (err: unknown) => (err instanceof Error ? err.message : 'Request failed')
 const motoStatusLabel: Record<string, string> = {
@@ -128,8 +130,18 @@ const riderStatusLabel: Record<string, string> = {
   DQ: 'Diskualifikasi',
 }
 
+const getPenaltyStageForMoto = (motoName: string): PenaltyFormState['stage'] => {
+  const normalized = motoName.trim().toUpperCase()
+  if (normalized.startsWith('QUARTER FINAL')) return 'QUARTER'
+  if (normalized.startsWith('REPECHAGE')) return 'REPECHAGE'
+  if (normalized.startsWith('SEMI FINAL')) return 'SEMI'
+  if (normalized.startsWith('FINAL')) return 'FINAL'
+  return 'MOTO'
+}
+
 export default function RaceDirectorApprovalPage() {
   const isPageVisible = usePageVisibility()
+  const [quickScreen, setQuickScreen] = useState<RDQuickScreen>('HOME')
   const [eventId, setEventId] = useState('')
   const [events, setEvents] = useState<EventItem[]>([])
   const [categories, setCategories] = useState<CategoryItem[]>([])
@@ -216,6 +228,19 @@ export default function RaceDirectorApprovalPage() {
   const [loadingApprovedPenalties, setLoadingApprovedPenalties] = useState(false)
   const [voidReasons, setVoidReasons] = useState<Record<string, string>>({})
   const [voidingPenaltyId, setVoidingPenaltyId] = useState<string | null>(null)
+  const [quickCategoryId, setQuickCategoryId] = useState('')
+  const [quickMotoId, setQuickMotoId] = useState('')
+  const [quickRiders, setQuickRiders] = useState<RiderItem[]>([])
+  const [loadingQuickRiders, setLoadingQuickRiders] = useState(false)
+  const [quickRiderSearch, setQuickRiderSearch] = useState('')
+  const [quickRiderId, setQuickRiderId] = useState('')
+  const [quickRuleCode, setQuickRuleCode] = useState('')
+  const [quickPenaltyNote, setQuickPenaltyNote] = useState('')
+  const [quickDqReason, setQuickDqReason] = useState('')
+  const [quickVoidReasons, setQuickVoidReasons] = useState<Record<string, string>>({})
+  const [quickMotoPenalties, setQuickMotoPenalties] = useState<ApprovedMotoPenaltyRow[]>([])
+  const [loadingQuickMotoPenalties, setLoadingQuickMotoPenalties] = useState(false)
+  const quickMotoPenaltiesRequestRef = useRef(0)
 
   const apiFetch = useApiFetch()
 
@@ -544,6 +569,51 @@ export default function RaceDirectorApprovalPage() {
     return motosByCategory.get(penaltyReviewCategoryId) ?? []
   }, [motosByCategory, penaltyReviewCategoryId])
 
+  const quickTargetMotos = useMemo(() => {
+    if (!quickCategoryId) return []
+    return (motosByCategory.get(quickCategoryId) ?? []).filter(
+      (moto) => !['LOCKED', 'FINISHED', 'PROTEST_REVIEW'].includes((moto.status ?? '').toUpperCase())
+    )
+  }, [motosByCategory, quickCategoryId])
+  const selectedQuickMoto = quickTargetMotos.find((moto) => moto.id === quickMotoId) ?? null
+  const quickPenaltyStage = selectedQuickMoto ? getPenaltyStageForMoto(selectedQuickMoto.moto_name) : 'MOTO'
+  const quickPenaltyRules = useMemo(
+    () => penaltyRules.filter((rule) => rule.applies_to_stage === 'ALL' || rule.applies_to_stage === quickPenaltyStage),
+    [penaltyRules, quickPenaltyStage]
+  )
+  const selectedQuickPenaltyRule = quickPenaltyRules.find((rule) => rule.code === quickRuleCode) ?? null
+  const filteredQuickRiders = useMemo(() => {
+    const query = quickRiderSearch.trim().toLocaleLowerCase()
+    if (!query) return quickRiders
+    return quickRiders.filter((rider) =>
+      `${rider.name} ${rider.no_plate_display}`.toLocaleLowerCase().includes(query)
+    )
+  }, [quickRiderSearch, quickRiders])
+
+  useEffect(() => {
+    if (quickCategoryId && categoriesSorted.some((category) => category.id === quickCategoryId)) return
+    setQuickCategoryId(categoriesSorted[0]?.id ?? '')
+  }, [categoriesSorted, quickCategoryId])
+
+  useEffect(() => {
+    if (quickMotoId && quickTargetMotos.some((moto) => moto.id === quickMotoId)) return
+    const preferredMoto = quickTargetMotos.find((moto) => moto.status.toUpperCase() === 'LIVE')
+      ?? quickTargetMotos.find((moto) => moto.status.toUpperCase() === 'READY')
+      ?? quickTargetMotos.find((moto) => moto.status.toUpperCase() === 'UPCOMING')
+      ?? quickTargetMotos[0]
+    setQuickMotoId(preferredMoto?.id ?? '')
+  }, [quickMotoId, quickTargetMotos])
+
+  useEffect(() => {
+    setQuickRiderId('')
+    setQuickRiderSearch('')
+  }, [quickMotoId])
+
+  useEffect(() => {
+    if (!quickRuleCode || quickPenaltyRules.some((rule) => rule.code === quickRuleCode)) return
+    setQuickRuleCode('')
+  }, [quickPenaltyRules, quickRuleCode])
+
   useEffect(() => {
     if (!penaltyReviewCategoryId) {
       setPenaltyReviewMotoId('')
@@ -574,6 +644,65 @@ export default function RaceDirectorApprovalPage() {
     },
     [apiFetch, penaltyReviewMotoId, showNotice]
   )
+
+  const loadQuickMotoPenalties = useCallback(async (targetMotoId: string) => {
+    const requestId = quickMotoPenaltiesRequestRef.current + 1
+    quickMotoPenaltiesRequestRef.current = requestId
+    if (!targetMotoId) {
+      setQuickMotoPenalties([])
+      setLoadingQuickMotoPenalties(false)
+      return
+    }
+    setQuickMotoPenalties([])
+    setLoadingQuickMotoPenalties(true)
+    try {
+      const res = await apiFetch(`/api/race-director/motos/${targetMotoId}/penalties`)
+      if (quickMotoPenaltiesRequestRef.current === requestId) {
+        setQuickMotoPenalties((res.data ?? []) as ApprovedMotoPenaltyRow[])
+      }
+    } catch (err: unknown) {
+      if (quickMotoPenaltiesRequestRef.current === requestId) {
+        setQuickMotoPenalties([])
+        showNotice('error', getErrorMessage(err))
+      }
+    } finally {
+      if (quickMotoPenaltiesRequestRef.current === requestId) setLoadingQuickMotoPenalties(false)
+    }
+  }, [apiFetch, showNotice])
+
+  useEffect(() => {
+    if (quickScreen !== 'PENALTY' && quickScreen !== 'CANCEL_PENALTY') return
+    void loadQuickMotoPenalties(quickMotoId)
+  }, [loadQuickMotoPenalties, quickMotoId, quickScreen])
+
+  useEffect(() => {
+    if ((quickScreen !== 'PENALTY' && quickScreen !== 'DQ') || !quickMotoId) {
+      setQuickRiders([])
+      setLoadingQuickRiders(false)
+      return
+    }
+
+    let cancelled = false
+    const loadAssignedRiders = async () => {
+      setLoadingQuickRiders(true)
+      try {
+        const res = await apiFetch(`/api/race-director/motos/${quickMotoId}/riders`)
+        if (!cancelled) setQuickRiders((res.data ?? []) as RiderItem[])
+      } catch (err: unknown) {
+        if (!cancelled) {
+          setQuickRiders([])
+          showNotice('error', getErrorMessage(err))
+        }
+      } finally {
+        if (!cancelled) setLoadingQuickRiders(false)
+      }
+    }
+
+    void loadAssignedRiders()
+    return () => {
+      cancelled = true
+    }
+  }, [apiFetch, quickMotoId, quickScreen, showNotice])
 
   useEffect(() => {
     void loadApprovedMotoPenalties()
@@ -752,6 +881,84 @@ export default function RaceDirectorApprovalPage() {
     }
   }
 
+  const openQuickScreen = (screen: RDQuickScreen) => {
+    setQuickScreen(screen)
+    setQuickRiderSearch('')
+    setQuickRiderId('')
+    if (screen !== 'PENALTY') {
+      setQuickRuleCode('')
+      setQuickPenaltyNote('')
+    }
+    if (screen !== 'DQ') setQuickDqReason('')
+  }
+
+  const handleQuickAddPenalty = async () => {
+    if (!eventId || !quickMotoId || !quickRiderId || !selectedQuickPenaltyRule) {
+      showNotice('error', 'Pilih rider dan aturan penalti terlebih dahulu.')
+      return
+    }
+
+    setAddingPenalty(true)
+    try {
+      const stage = selectedQuickPenaltyRule.applies_to_stage === 'ALL'
+        ? quickPenaltyStage
+        : selectedQuickPenaltyRule.applies_to_stage
+      await apiFetch(`/api/race-director/riders/${quickRiderId}/penalties`, {
+        method: 'POST',
+        body: JSON.stringify({
+          event_id: eventId,
+          rule_code: selectedQuickPenaltyRule.code,
+          stage,
+          moto_id: quickMotoId,
+          note: quickPenaltyNote.trim() || null,
+        }),
+      })
+      await Promise.all([
+        loadQuickMotoPenalties(quickMotoId),
+        loadEventData({ silent: true, includeHeavy: false }),
+      ])
+      setQuickRiderId('')
+      setQuickRuleCode('')
+      setQuickPenaltyNote('')
+      showNotice('success', 'Penalti rider berhasil dicatat dan disetujui.')
+    } catch (err: unknown) {
+      showNotice('error', getErrorMessage(err))
+    } finally {
+      setAddingPenalty(false)
+    }
+  }
+
+  const handleQuickSetDq = async () => {
+    if (!quickMotoId || !quickRiderId || !quickDqReason.trim()) {
+      showNotice('error', 'Pilih rider dan isi alasan DQ.')
+      return
+    }
+
+    const selectedRider = quickRiders.find((rider) => rider.id === quickRiderId)
+    const riderLabel = selectedRider ? `${selectedRider.no_plate_display} - ${selectedRider.name}` : 'rider terpilih'
+    const motoLabel = selectedQuickMoto?.moto_name ?? 'moto terpilih'
+    if (!window.confirm(`Terapkan DQ untuk ${riderLabel} pada ${motoLabel}?`)) return
+
+    setSettingDq(true)
+    try {
+      await apiFetch(`/api/race-director/motos/${quickMotoId}/override`, {
+        method: 'POST',
+        body: JSON.stringify({
+          results: [{ rider_id: quickRiderId, finish_order: null, result_status: 'DQ' }],
+          reason: quickDqReason.trim(),
+        }),
+      })
+      await loadEventData({ silent: true, includeHeavy: true })
+      setQuickRiderId('')
+      setQuickDqReason('')
+      showNotice('success', 'DQ berhasil diterapkan pada moto ini.')
+    } catch (err: unknown) {
+      showNotice('error', getErrorMessage(err))
+    } finally {
+      setSettingDq(false)
+    }
+  }
+
   const handleSetDq = async () => {
     if (!dqForm.categoryId || !dqForm.riderId || !dqForm.motoId) {
       showNotice('error', 'Kategori, moto, dan rider wajib dipilih untuk set DQ.')
@@ -784,6 +991,41 @@ export default function RaceDirectorApprovalPage() {
       showNotice('error', getErrorMessage(err))
     } finally {
       setSettingDq(false)
+    }
+  }
+
+  const handleQuickVoidPenalty = async (penalty: ApprovedMotoPenaltyRow) => {
+    if (!quickMotoId) return
+    const reason = (quickVoidReasons[penalty.id] ?? '').trim()
+    if (!reason) {
+      showNotice('error', 'Alasan pembatalan penalti wajib diisi.')
+      return
+    }
+    const rider = quickRiders.find((item) => item.id === penalty.rider_id)
+      ?? (Array.isArray(penalty.riders) ? penalty.riders[0] : penalty.riders)
+    const riderLabel = rider ? `${rider.no_plate_display} - ${rider.name}` : 'rider terpilih'
+    if (!window.confirm(`Batalkan penalti ${penalty.rule_code} untuk ${riderLabel}?`)) return
+
+    setVoidingPenaltyId(penalty.id)
+    try {
+      await apiFetch(`/api/race-director/motos/${quickMotoId}/penalties`, {
+        method: 'POST',
+        body: JSON.stringify({ penalty_id: penalty.id, reason }),
+      })
+      setQuickVoidReasons((prev) => {
+        const next = { ...prev }
+        delete next[penalty.id]
+        return next
+      })
+      await Promise.all([
+        loadQuickMotoPenalties(quickMotoId),
+        loadEventData({ silent: true, includeHeavy: false }),
+      ])
+      showNotice('success', `Penalti ${penalty.rule_code} untuk ${riderLabel} dibatalkan.`)
+    } catch (err: unknown) {
+      showNotice('error', getErrorMessage(err))
+    } finally {
+      setVoidingPenaltyId(null)
     }
   }
 
@@ -942,7 +1184,26 @@ export default function RaceDirectorApprovalPage() {
           <div className="grid gap-3">
             <label htmlFor="rd-event-select" className="grid gap-1 text-xs font-black uppercase tracking-wide text-slate-600">
               Event aktif
-              <select id="rd-event-select" value={eventId} onChange={(e) => setEventId(e.target.value)} disabled={events.length === 0} className="public-filter disabled:opacity-60">
+              <select
+                id="rd-event-select"
+                value={eventId}
+                onChange={(e) => {
+                  setEventId(e.target.value)
+                  setCategories([])
+                  setMotos([])
+                  setPenaltyRules([])
+                  setQuickCategoryId('')
+                  setQuickMotoId('')
+                  setQuickRiders([])
+                  setQuickRiderId('')
+                  setQuickRiderSearch('')
+                  setQuickMotoPenalties([])
+                  setLoadingQuickMotoPenalties(false)
+                  quickMotoPenaltiesRequestRef.current += 1
+                }}
+                disabled={events.length === 0}
+                className="public-filter disabled:opacity-60"
+              >
                 <option value="" disabled>
                   {events.length === 0 ? 'Tidak ada event aktif untuk dikelola' : 'Pilih event'}
                 </option>
@@ -953,7 +1214,7 @@ export default function RaceDirectorApprovalPage() {
                 ))}
               </select>
             </label>
-            <div className="flex flex-wrap items-center gap-2">
+            {quickScreen === 'FULL' && <div className="flex flex-wrap items-center gap-2">
               <label className="grid min-w-[240px] gap-1 text-xs font-black uppercase tracking-wide text-slate-600">
                 Cara menyetujui laporan
                 <select
@@ -1009,7 +1270,7 @@ export default function RaceDirectorApprovalPage() {
               <div className="inline-flex items-center rounded-full border border-slate-300 bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
                 Data diperbarui: {lastSyncAt ?? 'belum tersedia'}
               </div>
-            </div>
+            </div>}
           </div>
         </section>
 
@@ -1035,6 +1296,312 @@ export default function RaceDirectorApprovalPage() {
           </section>
         )}
 
+        {quickScreen === 'HOME' && (
+          <section className="public-panel-light grid gap-4">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Aksi Race Director</p>
+              <h2 className="mt-1 text-xl font-black text-slate-900">Apa yang perlu dicatat?</h2>
+              <p className="mt-1 text-sm font-semibold text-slate-600">Catat atau batalkan aksi pada rider. Moto yang sedang live otomatis dipilih lebih dulu.</p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <button
+                type="button"
+                onClick={() => openQuickScreen('PENALTY')}
+                className="min-h-16 rounded-2xl border-2 border-amber-400 bg-amber-300 px-4 py-4 text-left text-base font-black text-amber-950 shadow-sm transition hover:bg-amber-200"
+              >
+                <span className="block text-2xl" aria-hidden="true">+</span>
+                Beri penalti
+              </button>
+              <button
+                type="button"
+                onClick={() => openQuickScreen('DQ')}
+                className="min-h-16 rounded-2xl border-2 border-rose-300 bg-rose-100 px-4 py-4 text-left text-base font-black text-rose-900 shadow-sm transition hover:bg-rose-200"
+              >
+                <span className="block text-2xl" aria-hidden="true">DQ</span>
+                DQ satu moto
+              </button>
+              <button
+                type="button"
+                onClick={() => openQuickScreen('CANCEL_PENALTY')}
+                className="min-h-16 rounded-2xl border-2 border-slate-300 bg-slate-100 px-4 py-4 text-left text-base font-black text-slate-800 shadow-sm transition hover:bg-slate-200"
+              >
+                <span className="block text-2xl" aria-hidden="true">-</span>
+                Batalkan penalti
+              </button>
+              <button
+                type="button"
+                onClick={() => openQuickScreen('FULL')}
+                className="min-h-16 rounded-2xl border-2 border-slate-300 bg-white px-4 py-4 text-left text-base font-black text-slate-800 shadow-sm transition hover:bg-slate-50"
+              >
+                <span className="block text-2xl" aria-hidden="true">...</span>
+                Menu RD lainnya
+              </button>
+            </div>
+          </section>
+        )}
+
+        {(quickScreen === 'PENALTY' || quickScreen === 'DQ' || quickScreen === 'CANCEL_PENALTY') && (
+          <section className="public-panel-light grid gap-4">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => openQuickScreen('HOME')}
+                className="min-h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm font-extrabold text-slate-700 hover:bg-slate-50"
+              >
+                Kembali
+              </button>
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Aksi Race Director</p>
+                <h2 className="text-xl font-black text-slate-900">
+                  {quickScreen === 'PENALTY' ? 'Beri penalti' : quickScreen === 'DQ' ? 'DQ satu moto' : 'Batalkan penalti'}
+                </h2>
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="grid gap-1 text-xs font-black uppercase tracking-wide text-slate-600">
+                Kategori
+                <select
+                  value={quickCategoryId}
+                  onChange={(e) => {
+                    setQuickCategoryId(e.target.value)
+                    setQuickMotoId('')
+                    setQuickRiderId('')
+                    setQuickRiderSearch('')
+                    setQuickRuleCode('')
+                  }}
+                  disabled={!eventId || categoriesSorted.length === 0}
+                  className="public-filter min-h-12 w-full"
+                >
+                  {categoriesSorted.length === 0 && <option value="">Belum ada kategori</option>}
+                  {categoriesSorted.map((category) => <option key={category.id} value={category.id}>{category.label}</option>)}
+                </select>
+              </label>
+              <label className="grid gap-1 text-xs font-black uppercase tracking-wide text-slate-600">
+                Moto / batch
+                <select
+                  value={quickMotoId}
+                  onChange={(e) => setQuickMotoId(e.target.value)}
+                  disabled={!quickCategoryId || quickTargetMotos.length === 0}
+                  className="public-filter min-h-12 w-full"
+                >
+                  {quickTargetMotos.length === 0 && <option value="">Belum ada moto yang bisa diedit</option>}
+                  {quickTargetMotos.map((moto) => (
+                    <option key={moto.id} value={moto.id}>
+                      {moto.moto_name} - {motoStatusLabel[moto.status.toUpperCase()] ?? moto.status}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            {selectedQuickMoto && (
+              <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700">
+                <span>{categoriesSorted.find((category) => category.id === quickCategoryId)?.label}</span>
+                <span aria-hidden="true">-</span>
+                <span>{selectedQuickMoto.moto_name}</span>
+                <span className="rounded-full bg-white px-2.5 py-1 text-xs font-black uppercase">{motoStatusLabel[selectedQuickMoto.status.toUpperCase()] ?? selectedQuickMoto.status}</span>
+              </div>
+            )}
+
+            {quickScreen !== 'CANCEL_PENALTY' && <div className="grid gap-2">
+              <label htmlFor="rd-quick-rider-search" className="text-xs font-black uppercase tracking-wide text-slate-600">Cari rider di batch ini</label>
+              <input
+                id="rd-quick-rider-search"
+                type="search"
+                value={quickRiderSearch}
+                onChange={(e) => setQuickRiderSearch(e.target.value)}
+                disabled={!quickMotoId || loadingQuickRiders}
+                placeholder="Ketik nama atau nomor plat"
+                className="public-filter min-h-12 w-full"
+              />
+              <p className="text-xs font-semibold text-slate-500">Daftar hanya berisi rider yang terdaftar pada moto/batch terpilih.</p>
+              <div className="grid max-h-64 gap-2 overflow-y-auto overscroll-contain rounded-xl border border-slate-200 bg-slate-50 p-2">
+                {loadingQuickRiders ? (
+                  <p className="p-3 text-sm font-bold text-slate-600">Memuat rider...</p>
+                ) : !quickMotoId ? (
+                  <p className="p-3 text-sm font-bold text-slate-600">Pilih kategori dan moto terlebih dahulu.</p>
+                ) : filteredQuickRiders.length === 0 ? (
+                  <p className="p-3 text-sm font-bold text-slate-600">Tidak ada rider yang cocok pada batch ini.</p>
+                ) : filteredQuickRiders.map((rider) => {
+                  const selected = quickRiderId === rider.id
+                  return (
+                    <button
+                      key={rider.id}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => setQuickRiderId(selected ? '' : rider.id)}
+                      className={`flex min-h-14 w-full items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left transition ${selected ? 'border-amber-500 bg-amber-100 ring-2 ring-amber-300' : 'border-slate-200 bg-white hover:border-slate-400'}`}
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-black text-slate-900">{rider.name}</span>
+                        <span className="mt-0.5 block text-xs font-bold text-slate-500">#{rider.no_plate_display}</span>
+                      </span>
+                      <span className="shrink-0 text-xs font-black text-slate-600">{selected ? 'Dipilih' : 'Pilih'}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>}
+
+            {quickScreen === 'PENALTY' ? (
+              <div className="grid gap-3 border-t border-slate-200 pt-4">
+                <label className="grid gap-1 text-xs font-black uppercase tracking-wide text-slate-600">
+                  Aturan penalti
+                  <select
+                    value={quickRuleCode}
+                    onChange={(e) => setQuickRuleCode(e.target.value)}
+                    disabled={!quickRiderId || quickPenaltyRules.length === 0}
+                    className="public-filter min-h-12 w-full"
+                  >
+                    <option value="">Pilih penalti</option>
+                    {quickPenaltyRules.map((rule) => (
+                      <option key={rule.id} value={rule.code}>
+                        {rule.code} - {rule.penalty_point} poin{rule.description ? ` - ${rule.description}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {selectedQuickPenaltyRule && (
+                  <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-950">
+                    {selectedQuickPenaltyRule.description || selectedQuickPenaltyRule.code} - {selectedQuickPenaltyRule.penalty_point} poin
+                  </p>
+                )}
+                {quickPenaltyRules.length === 0 && <p className="text-sm font-semibold text-slate-600">Belum ada aturan penalti aktif untuk stage moto ini.</p>}
+                <label className="grid gap-1 text-xs font-black uppercase tracking-wide text-slate-600">
+                  Catatan (opsional)
+                  <textarea
+                    value={quickPenaltyNote}
+                    onChange={(e) => setQuickPenaltyNote(e.target.value)}
+                    rows={2}
+                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm font-semibold text-slate-800 outline-none focus:border-amber-500"
+                    placeholder="Contoh: pelanggaran perlengkapan saat race"
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => void handleQuickAddPenalty()}
+                  disabled={addingPenalty || !quickRiderId || !selectedQuickPenaltyRule || !quickMotoId}
+                  className="min-h-14 w-full rounded-xl border-2 border-amber-500 bg-amber-300 px-4 py-3 text-base font-black text-amber-950 shadow-sm hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {addingPenalty ? 'Menyimpan penalti...' : 'Simpan penalti'}
+                </button>
+
+                <div className="grid gap-2 border-t border-slate-200 pt-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="text-base font-black text-slate-900">Penalti pada moto ini</h3>
+                    <button
+                      type="button"
+                      onClick={() => void loadQuickMotoPenalties(quickMotoId)}
+                      disabled={!quickMotoId || loadingQuickMotoPenalties}
+                      className="min-h-10 rounded-lg border border-slate-300 bg-white px-3 text-xs font-extrabold text-slate-700 disabled:opacity-50"
+                    >
+                      {loadingQuickMotoPenalties ? 'Memuat...' : 'Muat ulang'}
+                    </button>
+                  </div>
+                  {loadingQuickMotoPenalties ? (
+                    <p className="rounded-xl border border-dashed border-slate-300 p-3 text-sm font-semibold text-slate-600">Memuat riwayat penalti...</p>
+                  ) : quickMotoPenalties.length === 0 ? (
+                    <p className="rounded-xl border border-dashed border-slate-300 p-3 text-sm font-semibold text-slate-600">Belum ada penalti pada moto ini.</p>
+                  ) : quickMotoPenalties.map((penalty) => {
+                    const rider = getApprovedPenaltyRider(penalty)
+                    return (
+                      <article key={penalty.id} className="rounded-xl border border-slate-200 bg-white p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-black text-slate-900">{rider ? `${rider.no_plate_display} - ${rider.name}` : penalty.rider_id}</p>
+                            <p className="mt-1 text-xs font-bold text-slate-600">{penalty.rule_code} - {penalty.penalty_point} poin - {timeAgo(penalty.created_at)}</p>
+                            {penalty.note && <p className="mt-1 text-xs font-medium text-slate-500">Catatan: {penalty.note}</p>}
+                          </div>
+                          <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-black uppercase text-emerald-800">Disetujui</span>
+                        </div>
+                      </article>
+                    )
+                  })}
+                </div>
+              </div>
+            ) : quickScreen === 'DQ' ? (
+              <div className="grid gap-3 border-t border-slate-200 pt-4">
+                <label className="grid gap-1 text-xs font-black uppercase tracking-wide text-slate-600">
+                  Alasan DQ (wajib)
+                  <textarea
+                    value={quickDqReason}
+                    onChange={(e) => setQuickDqReason(e.target.value)}
+                    rows={3}
+                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm font-semibold text-slate-800 outline-none focus:border-rose-500"
+                    placeholder="Tulis alasan diskualifikasi"
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => void handleQuickSetDq()}
+                  disabled={settingDq || !quickRiderId || !quickDqReason.trim() || !quickMotoId}
+                  className="min-h-14 w-full rounded-xl border-2 border-rose-400 bg-rose-100 px-4 py-3 text-base font-black text-rose-900 shadow-sm hover:bg-rose-200 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {settingDq ? 'Menyimpan DQ...' : 'Terapkan DQ pada moto ini'}
+                </button>
+              </div>
+            ) : (
+              <div className="grid gap-3 border-t border-slate-200 pt-4">
+                <div>
+                  <h3 className="text-base font-black text-slate-900">Pilih penalti yang akan dibatalkan</h3>
+                  <p className="mt-1 text-sm font-semibold text-slate-600">Isi alasan pembatalan pada penalti yang benar. Pembatalan akan tersimpan di riwayat tindakan.</p>
+                </div>
+                {loadingQuickMotoPenalties ? (
+                  <p className="rounded-xl border border-dashed border-slate-300 p-3 text-sm font-semibold text-slate-600">Memuat penalti moto ini...</p>
+                ) : !quickMotoId ? (
+                  <p className="rounded-xl border border-dashed border-slate-300 p-3 text-sm font-semibold text-slate-600">Pilih kategori dan moto terlebih dahulu.</p>
+                ) : quickMotoPenalties.length === 0 ? (
+                  <p className="rounded-xl border border-dashed border-slate-300 p-3 text-sm font-semibold text-slate-600">Tidak ada penalti aktif pada moto ini.</p>
+                ) : quickMotoPenalties.map((penalty) => {
+                  const rider = getApprovedPenaltyRider(penalty)
+                  const reason = quickVoidReasons[penalty.id] ?? ''
+                  const isVoiding = voidingPenaltyId === penalty.id
+                  return (
+                    <article key={penalty.id} className="grid gap-3 rounded-xl border border-slate-200 bg-white p-3">
+                      <div>
+                        <p className="text-sm font-black text-slate-900">{rider ? `${rider.no_plate_display} - ${rider.name}` : penalty.rider_id}</p>
+                        <p className="mt-1 text-xs font-bold text-slate-600">{penalty.rule_code} - {penalty.penalty_point} poin - {timeAgo(penalty.created_at)}</p>
+                        {penalty.note && <p className="mt-1 text-xs font-medium text-slate-500">Catatan penalti: {penalty.note}</p>}
+                      </div>
+                      <label className="grid gap-1 text-xs font-black uppercase tracking-wide text-slate-600">
+                        Alasan pembatalan (wajib)
+                        <textarea
+                          value={reason}
+                          onChange={(e) => setQuickVoidReasons((prev) => ({ ...prev, [penalty.id]: e.target.value }))}
+                          rows={2}
+                          disabled={isVoiding}
+                          className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm font-semibold text-slate-800 outline-none focus:border-slate-500"
+                          placeholder="Contoh: penalti salah diberikan setelah pengecekan ulang"
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => void handleQuickVoidPenalty(penalty)}
+                        disabled={isVoiding || !reason.trim()}
+                        className="min-h-12 w-full rounded-xl border-2 border-rose-300 bg-rose-100 px-4 py-3 text-sm font-black text-rose-900 hover:bg-rose-200 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {isVoiding ? 'Membatalkan penalti...' : 'Batalkan penalti ini'}
+                      </button>
+                    </article>
+                  )
+                })}
+              </div>
+            )}
+          </section>
+        )}
+
+        {quickScreen === 'FULL' && (
+          <>
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => openQuickScreen('HOME')}
+            className="min-h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm font-extrabold text-slate-700 hover:bg-slate-50"
+          >
+            Beranda RD
+          </button>
+        </div>
         <nav aria-label="Lompat ke bagian Race Director" className="sticky top-[108px] z-40 overflow-x-auto rounded-xl border border-slate-300 bg-white/95 p-2 shadow-sm backdrop-blur sm:top-[68px]">
           <div className="flex min-w-max gap-2">
             {[
@@ -1919,6 +2486,8 @@ export default function RaceDirectorApprovalPage() {
             )}
           </section>
         </div>
+          </>
+        )}
       </main>
       {decisionModal && (
         <div className="fixed inset-0 z-[80] grid place-items-center bg-slate-900/55 p-4">
