@@ -44,6 +44,11 @@ type QualificationOverallRow = {
   rank: number
   total_point: number | null
   next_class_label: string | null
+  tie_break_points?: {
+    moto1: number | null
+    moto2: number | null
+    moto3: number | null
+  } | null
 }
 
 type ResultRow = {
@@ -1295,10 +1300,28 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     }]
   })
 
+  const qualificationTieBreakPointsByRider = new Map<string, { moto1: number | null; moto2: number | null; moto3: number | null }>()
+  batches.forEach((batch) => {
+    batch.rows.forEach((row) => {
+      const current = qualificationTieBreakPointsByRider.get(row.rider_id) ?? {
+        moto1: null,
+        moto2: null,
+        moto3: null,
+      }
+      const points = row.qualification_tiebreak_points
+      if (points?.moto1 !== null && points?.moto1 !== undefined) current.moto1 = points.moto1
+      if (points?.moto2 !== null && points?.moto2 !== undefined) current.moto2 = points.moto2
+      if (points?.moto3 !== null && points?.moto3 !== undefined) current.moto3 = points.moto3
+      qualificationTieBreakPointsByRider.set(row.rider_id, current)
+    })
+  })
+
   const liveScoreData = {
     category: category.label,
     qualification_batch_mode: qualificationBatchMode,
     qualification_split_basis: qualificationSplitBasis,
+    qualification_tiebreak_moto_indexes: qualificationTieBreakMotoIndexes,
+    qualification_tiebreak_repechage: qualificationTieBreakRepechage,
     qualification_has_finisher_outcome: qualificationRules.some((rule) => rule.target_outcome === 'FINISHER'),
     qualification_advancements_calculated: qualificationStageSeedRows.length > 0,
     qualification_results_official: qualificationResultsOfficial,
@@ -1315,6 +1338,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
           rank: Number(row.position),
           total_point: row.points,
           next_class_label: nextQualificationLabelForRank(Number(row.position), row.rider_id, batchIndex),
+          tie_break_points: qualificationTieBreakPointsByRider.get(row.rider_id) ?? null,
         }
       })
       .filter((row): row is QualificationOverallRow => row !== null)
