@@ -187,8 +187,8 @@ export default function JuryFinishPage() {
   }, [motos])
 
   useEffect(() => {
-    localEditingRef.current = Boolean(pressedId || saving || actions.length > 0)
-  }, [actions.length, pressedId, saving])
+    localEditingRef.current = Boolean(pressedId || saving || actions.length > 0 || dnsActionRiderId)
+  }, [actions.length, dnsActionRiderId, pressedId, saving])
 
   useEffect(() => {
     if (!submitNotice) return
@@ -255,7 +255,9 @@ export default function JuryFinishPage() {
     const categoryBaseOrder = buildCategoryBaseOrder(rawMotos)
     const workflowMotos = [...rawMotos].sort((a, b) => compareMotoWorkflowSequence(a, b, categoryBaseOrder))
     setMotos(workflowMotos)
-    setSelectedMotoId((prev) => pickNextSelectableMotoId(workflowMotos, prev))
+    setSelectedMotoId((prev) =>
+      localEditingRef.current && prev ? prev : pickNextSelectableMotoId(workflowMotos, prev)
+    )
     return workflowMotos
   }, [apiFetch, eventId, pickNextSelectableMotoId])
 
@@ -265,7 +267,10 @@ export default function JuryFinishPage() {
     const rawMotos = (motoRes.data ?? []) as MotoItem[]
     const categoryBaseOrder = buildCategoryBaseOrder(rawMotos)
     const workflowMotos = [...rawMotos].sort((a, b) => compareMotoWorkflowSequence(a, b, categoryBaseOrder))
-    const nextSelectedMotoId = pickNextSelectableMotoId(workflowMotos, selectedMotoId)
+    const nextSelectedMotoId =
+      localEditingRef.current && selectedMotoId
+        ? selectedMotoId
+        : pickNextSelectableMotoId(workflowMotos, selectedMotoId)
 
     setMotos(workflowMotos)
     if (nextSelectedMotoId !== selectedMotoId) setSelectedMotoId(nextSelectedMotoId)
@@ -281,6 +286,7 @@ export default function JuryFinishPage() {
 
   const selectedMoto = useMemo(() => motos.find((m) => m.id === selectedMotoId) ?? null, [motos, selectedMotoId])
   const selectedMotoLive = isMotoLive(selectedMoto?.status)
+  const hasPendingFinisherEdits = Boolean(actions.length || saving || pressedId || dnsActionRiderId)
   const selectedCategoryLabel = selectedMoto
     ? categoryLabel.get(selectedMoto.category_id ?? '') ?? 'Unknown Category'
     : null
@@ -752,7 +758,7 @@ export default function JuryFinishPage() {
       // A changed selector triggers the rider-grid effect exactly once. When
       // the selector already points here, reload its grid too: the moto may
       // have changed from READY to LIVE since the previous background poll.
-      if (state.selectedMotoId === selectedMotoId) {
+      if (state.selectedMotoId === selectedMotoId && !localEditingRef.current) {
         void loadRiders(state.selectedMotoId, true)
       }
     } finally {
@@ -819,9 +825,11 @@ export default function JuryFinishPage() {
               <select
                 value={eventId}
                 onChange={(e) => {
+                  if (hasPendingFinisherEdits) return
                   setEventId(e.target.value)
                   setSelectedMotoId('')
                 }}
+                disabled={hasPendingFinisherEdits}
                 className="public-filter"
               >
                 {events.length === 0 && <option value="">Belum ada event LIVE</option>}
@@ -835,7 +843,14 @@ export default function JuryFinishPage() {
             <div className="grid gap-2">
               <label className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">Moto</label>
               <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
-                <select value={selectedMotoId} onChange={(e) => setSelectedMotoId(e.target.value)} className="public-filter">
+                <select
+                  value={selectedMotoId}
+                  onChange={(e) => {
+                    if (!hasPendingFinisherEdits) setSelectedMotoId(e.target.value)
+                  }}
+                  disabled={hasPendingFinisherEdits}
+                  className="public-filter"
+                >
                   {selectableMotos.length === 0 && <option value="">Belum ada moto aktif</option>}
                   {selectableMotos.map((m) => (
                     <option key={m.id} value={m.id} disabled={!isMotoLive(m.status)}>
@@ -862,6 +877,11 @@ export default function JuryFinishPage() {
               </div>
             </div>
           </div>
+          {hasPendingFinisherEdits && (
+            <div role="status" className="mt-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-bold text-amber-900">
+              Input {selectedMoto?.moto_name ?? 'moto ini'} belum disubmit. Pilihan moto dikunci agar input tidak pindah; submit hasil atau Undo dulu untuk berganti.
+            </div>
+          )}
           <div className="mt-3 flex justify-end">
             <button
               type="button"

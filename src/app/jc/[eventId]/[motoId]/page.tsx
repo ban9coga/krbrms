@@ -164,6 +164,44 @@ const pickPrepMotoId = (
     }
   }
 
+  const activeCategoryId =
+    currentMoto?.category_id && isCategoryUnfinished(list, currentMoto.category_id)
+      ? currentMoto.category_id
+      : liveMoto?.category_id && isCategoryUnfinished(list, liveMoto.category_id)
+        ? liveMoto.category_id
+        : null
+  if (activeCategoryId) {
+    const sameCategoryEligible = eligible
+      .filter((moto) => moto.category_id === activeCategoryId)
+      .sort((a, b) => compareMotoWorkflowSequence(a, b, categoryBaseOrder))
+    const currentInActiveCategory = currentMoto?.category_id === activeCategoryId ? currentMoto : null
+
+    if (
+      currentInActiveCategory &&
+      sameCategoryEligible.some((moto) => moto.id === currentInActiveCategory.id) &&
+      isPrepMotoStatus(currentInActiveCategory.status) &&
+      !currentPrepFinalized
+    ) {
+      return currentInActiveCategory.id
+    }
+
+    const nextCategoryCandidates = sameCategoryEligible.filter((moto) => moto.id !== currentInActiveCategory?.id)
+    const preparedCategoryMoto = nextCategoryCandidates
+      .filter((moto) => isMotoReady(moto.status) && Boolean(moto.checker_prep_ready_at))
+      .sort((a, b) => String(b.checker_prep_ready_at).localeCompare(String(a.checker_prep_ready_at)))[0]
+    if (preparedCategoryMoto) return preparedCategoryMoto.id
+
+    const anchorMoto = currentInActiveCategory ?? (liveMoto?.category_id === activeCategoryId ? liveMoto : null)
+    const anchorIndex = anchorMoto ? list.findIndex((moto) => moto.id === anchorMoto.id) : -1
+    const nextSameCategoryMoto = nextCategoryCandidates.find(
+      (moto) => list.findIndex((row) => row.id === moto.id) > anchorIndex
+    )
+    if (nextSameCategoryMoto) return nextSameCategoryMoto.id
+    if (nextCategoryCandidates.length > 0) return nextCategoryCandidates[0].id
+    if (currentInActiveCategory) return currentInActiveCategory.id
+    if (liveMoto?.category_id === activeCategoryId) return liveMoto.id
+  }
+
   if (currentMoto && isAdvancementMoto(currentMoto)) {
     // Do not keep a generated later-stage moto selected while the event-wide
     // workflow is still waiting for qualifications or an earlier stage.
@@ -786,15 +824,18 @@ export default function JCPage() {
     setMotoPickerQuery('')
   }
   const activeCategoryWaitingStage = useMemo(() => {
-    const pendingLastQualification = motos.find((moto) => {
-      const status = String(moto.status ?? '').toUpperCase()
-      if (!['LIVE', 'PROVISIONAL', 'PROTEST_REVIEW'].includes(status) || !parseMotoSequence(moto.moto_name)) return false
+    const selectedCategoryId = motos.find((moto) => moto.id === selectedMotoId)?.category_id
+    const pendingLastQualification = motos
+      .filter((moto) => {
+        const status = String(moto.status ?? '').toUpperCase()
+        if (!['LIVE', 'PROVISIONAL', 'PROTEST_REVIEW'].includes(status) || !parseMotoSequence(moto.moto_name)) return false
 
-      const categoryQualifications = motos
-        .filter((candidate) => candidate.category_id === moto.category_id && parseMotoSequence(candidate.moto_name))
-        .sort(compareMotoSequence)
-      return categoryQualifications.at(-1)?.id === moto.id
-    })
+        const categoryQualifications = motos
+          .filter((candidate) => candidate.category_id === moto.category_id && parseMotoSequence(candidate.moto_name))
+          .sort(compareMotoSequence)
+        return categoryQualifications.at(-1)?.id === moto.id
+      })
+      .sort((a, b) => Number(b.category_id === selectedCategoryId) - Number(a.category_id === selectedCategoryId))[0]
     if (pendingLastQualification) {
       const status = String(pendingLastQualification.status ?? '').toUpperCase()
       const statusDetail = status === 'LIVE'
@@ -813,6 +854,8 @@ export default function JCPage() {
     const waitingCategories = categoryIds
       .filter((categoryId) => isCategoryAwaitingStageCompute(motos, categoryId))
       .sort((a, b) => {
+        if (a === selectedCategoryId) return -1
+        if (b === selectedCategoryId) return 1
         const latestOrder = (categoryId: string) => Math.max(
           ...motos.filter((moto) => moto.category_id === categoryId).map((moto) => moto.moto_order)
         )
@@ -835,7 +878,7 @@ export default function JCPage() {
       }
     }
     return null
-  }, [motos, categoryLabel])
+  }, [motos, categoryLabel, selectedMotoId])
   const incidentCategoryLabel = incidentMoto
     ? categoryLabel.get(incidentMoto.category_id ?? '') ?? 'Unknown Category'
     : 'Kategori'
