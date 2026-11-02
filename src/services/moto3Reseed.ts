@@ -51,12 +51,18 @@ export async function reseedSingleBatchMoto3FromMoto(motoId: string) {
     return { ok: false as const, warning: currentMotoError?.message ?? 'Moto not found for Moto 3 reseed.' }
   }
 
-  const { data: stageConfig } = await adminClient
+  const { data: stageConfig, error: stageConfigError } = await adminClient
     .from('race_stage_config')
-    .select('dnf_point_override, dns_point_override')
+    .select('dnf_point_override, dns_point_override, single_batch_two_moto_final_enabled')
     .eq('event_id', currentMoto.event_id)
     .eq('category_id', currentMoto.category_id)
     .maybeSingle()
+  if (stageConfigError) return { ok: false as const, warning: stageConfigError.message }
+  // In this mode Moto 1 + Moto 2 are the complete qualification. Final class
+  // motos are generated after Moto 2 is locked; do not create a legacy Moto 3.
+  if (stageConfig?.single_batch_two_moto_final_enabled === true) {
+    return { ok: true as const, skipped: true as const }
+  }
 
   const { data: featureFlags, error: featureFlagsError } = await adminClient
     .from('event_feature_flags')

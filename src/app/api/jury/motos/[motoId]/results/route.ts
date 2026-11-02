@@ -5,6 +5,7 @@ import { reseedSingleBatchMoto3FromMoto } from '../../../../../../services/moto3
 import { createSingleBatchMoto2FromMoto1Results } from '../../../../../../services/singleBatchFinalProgress'
 import { promoteNextMotoToLive } from '../../../../../../services/motoProgression'
 import { upsertRiderParticipationStatuses } from '../../../../../../services/riderParticipationStatus'
+import { syncAdvancedRaceProgressAfterLockedStage } from '../../../../../../services/advancedRaceAuto'
 import { requireJury } from '../../../../../../services/juryAuth'
 import { broadcastRaceState } from '../../../../../../lib/broadcastRaceState'
 
@@ -19,6 +20,37 @@ const isLockedMoto = async (motoId: string) => {
 }
 
 const needsMoto3Reseed = (motoName?: string | null) => /^moto\s*2\s*-\s*batch\s*1$/i.test(motoName ?? '')
+const isMoto2Batch1 = (motoName?: string | null) => /^moto\s*2\s*-\s*batch\s*1$/i.test(String(motoName ?? '').trim())
+
+const hasPendingApprovals = async (eventId: string, riderIds: string[]) => {
+  if (!riderIds.length) return false
+
+  const { data: pendingStatuses, error: statusError } = await adminClient
+    .from('rider_status_updates')
+    .select('id')
+    .eq('event_id', eventId)
+    .eq('approval_status', 'PENDING')
+    .in('rider_id', riderIds)
+  if (statusError) throw new Error(statusError.message)
+  if (pendingStatuses?.length) return true
+
+  const { data: penalties, error: penaltyError } = await adminClient
+    .from('rider_penalties')
+    .select('id')
+    .eq('event_id', eventId)
+    .in('rider_id', riderIds)
+  if (penaltyError) throw new Error(penaltyError.message)
+  const penaltyIds = (penalties ?? []).map((row) => row.id)
+  if (!penaltyIds.length) return false
+
+  const { data: pendingPenalties, error: approvalError } = await adminClient
+    .from('rider_penalty_approvals')
+    .select('id')
+    .eq('approval_status', 'PENDING')
+    .in('penalty_id', penaltyIds)
+  if (approvalError) throw new Error(approvalError.message)
+  return Boolean(pendingPenalties?.length)
+}
 
 type ExistingResult = {
   rider_id: string
@@ -217,6 +249,96 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
     return NextResponse.json({ error: deferredMoto2.warning }, { status: 409 })
   }
 
+  const { data: stageConfig, error: stageConfigError } = isMoto2Batch1(moto.moto_name)
+    ? await adminClient
+        .from('race_stage_config')
+        .select('single_batch_two_moto_final_enabled')
+        .eq('event_id', moto.event_id)
+        .eq('category_id', moto.category_id)
+        .maybeSingle()
+    : { data: null, error: null }
+  if (stageConfigError) return NextResponse.json({ error: stageConfigError.message }, { status: 500 })
+
+  let autoLockedForFinal = false
+  let stageProgress: Awaited<ReturnType<typeof syncAdvancedRaceProgressAfterLockedStage>> | null = null
+  if (stageConfig?.single_batch_two_moto_final_enabled === true && isMoto2Batch1(moto.moto_name)) {
+    const { data: latestResults, error: latestResultsError } = await adminClient
+      .from('results')
+      .select('rider_id')
+      .eq('moto_id', motoId)
+    if (latestResultsError) return NextResponse.json({ error: latestResultsError.message }, { status: 500 })
+
+    const completedRiders = new Set((latestResults ?? []).map((row) => row.rider_id))
+    const allRidersHaveResults = assigned.every((row) => completedRiders.has(row.rider_id))
+    if (allRidersHaveResults) {
+      try {
+        if (await hasPendingApprovals(moto.event_id, assigned.map((row) => row.rider_id))) {
+          return NextResponse.json({
+            ok: true,
+            auto_locked: false,
+            warning: 'Hasil tersimpan, tetapi Moto 2 tetap provisional karena masih ada approval yang menunggu.',
+          })
+        }
+      } catch (err: unknown) {
+        return NextResponse.json({ error: err instanceof Error ? err.message : 'Gagal memeriksa approval.' }, { status: 500 })
+      }
+
+      // Remove only the incompatible, unraced Moto 3 that the old generator
+      // may have left behind for this two-moto-final mode.
+      const { data: staleMoto3, error: staleMotoError } = await adminClient
+        .from('motos')
+        .select('id, status')
+        .eq('event_id', moto.event_id)
+        .eq('category_id', moto.category_id)
+        .ilike('moto_name', 'Moto 3 - Batch 1')
+      if (staleMotoError) return NextResponse.json({ error: staleMotoError.message }, { status: 500 })
+      for (const stale of staleMoto3 ?? []) {
+        if (String(stale.status ?? '').toUpperCase() !== 'UPCOMING') {
+          return NextResponse.json({
+            ok: true,
+            auto_locked: false,
+            warning: 'Moto 2 selesai, tetapi ada Moto 3 yang sudah berjalan. Hapus atau selesaikan Moto 3 tersebut sebelum membuat Final.',
+          })
+        }
+        const { data: staleResults, error: staleResultsError } = await adminClient
+          .from('results')
+          .select('id')
+          .eq('moto_id', stale.id)
+          .limit(1)
+        if (staleResultsError) return NextResponse.json({ error: staleResultsError.message }, { status: 500 })
+        if (staleResults?.length) {
+          return NextResponse.json({
+            ok: true,
+            auto_locked: false,
+            warning: 'Moto 2 selesai, tetapi Moto 3 sudah memiliki hasil. Periksa dan hapus Moto 3 sebelum membuat Final.',
+          })
+        }
+        const { error: deleteStaleMotoError } = await adminClient.from('motos').delete().eq('id', stale.id)
+        if (deleteStaleMotoError) return NextResponse.json({ error: deleteStaleMotoError.message }, { status: 500 })
+      }
+
+      const lockedAt = new Date().toISOString()
+      const { error: autoLockError } = await adminClient
+        .from('motos')
+        .update({ status: 'LOCKED' })
+        .eq('id', motoId)
+      if (autoLockError) return NextResponse.json({ error: autoLockError.message }, { status: 500 })
+      const { error: motoLockError } = await adminClient
+        .from('moto_locks')
+        .upsert({
+          moto_id: motoId,
+          event_id: moto.event_id,
+          is_locked: true,
+          locked_by: auth.user.id,
+          locked_at: lockedAt,
+        }, { onConflict: 'moto_id' })
+      if (motoLockError) return NextResponse.json({ error: motoLockError.message }, { status: 500 })
+
+      autoLockedForFinal = true
+      stageProgress = await syncAdvancedRaceProgressAfterLockedStage(moto.event_id, moto.category_id, moto.moto_name)
+    }
+  }
+
   const moto3Reseed = needsMoto3Reseed(moto.moto_name)
     ? await reseedSingleBatchMoto3FromMoto(motoId)
     : { ok: true as const, warning: null }
@@ -226,6 +348,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
   return NextResponse.json({
     ok: true,
     next_moto: nextMoto,
+    auto_locked: autoLockedForFinal,
+    stage_progress: stageProgress,
     warning: moto3Reseed.ok ? null : moto3Reseed.warning ?? 'Moto 3 gate reseed skipped.',
   })
 }
