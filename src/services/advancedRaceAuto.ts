@@ -7,6 +7,7 @@ import { resolveCategoryConfig } from './categoryResolver'
 import { assertMotoNotUnderProtest } from '../lib/motoLock'
 import { resolveTotalPointForRaceResult, type NonFinishPenaltyConfig } from '../lib/nonFinishScoring'
 import { compareFinalRankingEntries, resolveFinalRankingSourceSeed } from '../lib/finalRanking'
+import { createSingleBatchMoto2FromMoto1Results } from './singleBatchFinalProgress'
 import { compareQualificationTieBreakData, type QualificationTieBreakData } from '../lib/qualificationRanking'
 import { normalizeQualificationBatchMode, type QualificationBatchMode } from '../lib/drawConfig'
 import { normalizeEventMotoSequence } from './motoSequenceNormalizer'
@@ -1272,7 +1273,7 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
   const [{ data: config }, { data: featureFlags }] = await Promise.all([
     adminClient
       .from('race_stage_config')
-      .select('enabled, qualification_moto_count, single_batch_final_enabled, dnf_point_override, dns_point_override')
+      .select('enabled, qualification_moto_count, single_batch_final_enabled, single_batch_two_moto_final_enabled, dnf_point_override, dns_point_override')
       .eq('event_id', eventId)
       .eq('category_id', categoryId)
       .maybeSingle(),
@@ -1298,7 +1299,7 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
     ...baseResolved,
     stages: resolveCustomWorkflowStages(baseResolved.stages, customRules),
   }
-  if (!resolved.stages.enableQualification && config?.single_batch_final_enabled !== true) {
+  if (!resolved.stages.enableQualification && config?.single_batch_final_enabled !== true && config?.single_batch_two_moto_final_enabled !== true) {
     return { ok: true, warning: 'Qualification not required for single batch.' }
   }
 
@@ -1355,7 +1356,8 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
   )
   const qualificationTieBreakMotoIndexes = requiredMotoCount >= 3 ? [3, 2, 1] : [2, 1]
   const allowSingleBatchThreeMotoQualification = physicalBatchCount === 1 && requiredMotoCount >= 3
-  if (!resolved.stages.enableQualification && !allowSingleBatchThreeMotoQualification) {
+  const allowSingleBatchTwoMotoFinal = physicalBatchCount === 1 && config?.single_batch_two_moto_final_enabled === true
+  if (!resolved.stages.enableQualification && !allowSingleBatchThreeMotoQualification && !allowSingleBatchTwoMotoFinal) {
     return { ok: false, warning: resolved.warning ?? 'Qualification disabled by resolver.' }
   }
   const qualificationInput = buildQualificationInputs(
@@ -1714,7 +1716,7 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
   const [{ data: config }, { data: featureFlags }] = await Promise.all([
     adminClient
       .from('race_stage_config')
-      .select('enabled, max_riders_per_race, qualification_moto_count, single_batch_final_enabled, repechage_max_riders_per_race, quarter_final_max_riders_per_race, semi_final_max_riders_per_race, dnf_point_override, dns_point_override')
+      .select('enabled, max_riders_per_race, qualification_moto_count, single_batch_final_enabled, single_batch_two_moto_final_enabled, repechage_max_riders_per_race, quarter_final_max_riders_per_race, semi_final_max_riders_per_race, dnf_point_override, dns_point_override')
       .eq('event_id', eventId)
       .eq('category_id', categoryId)
       .maybeSingle(),
@@ -2635,7 +2637,7 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
   const [{ data: config }, { data: featureFlags }] = await Promise.all([
     adminClient
       .from('race_stage_config')
-      .select('enabled, max_riders_per_race, single_batch_final_enabled, dnf_point_override, dns_point_override')
+      .select('enabled, max_riders_per_race, single_batch_final_enabled, single_batch_two_moto_final_enabled, dnf_point_override, dns_point_override')
       .eq('event_id', eventId)
       .eq('category_id', categoryId)
       .maybeSingle(),
@@ -3548,6 +3550,30 @@ export async function syncAdvancedRaceProgressAfterLockedStage(
 
   if (!stageLocked) {
     return { ok: true, skipped: true, warning: 'Menunggu semua moto pada stage ini LOCKED.' }
+  }
+
+  if (group === 'QUALIFICATION' && /^MOTO\s*1\s*-\s*BATCH\s*1/i.test(String(lockedMotoName ?? '').trim())) {
+    const { data: config, error: configError } = await adminClient
+      .from('race_stage_config')
+      .select('single_batch_two_moto_final_enabled')
+      .eq('event_id', eventId)
+      .eq('category_id', categoryId)
+      .maybeSingle()
+    if (configError) return { ok: false, warning: configError.message }
+    if (config?.single_batch_two_moto_final_enabled === true) {
+      const { data: motos, error: motosError } = await adminClient
+        .from('motos')
+        .select('id, moto_name')
+        .eq('event_id', eventId)
+        .eq('category_id', categoryId)
+      if (motosError) return { ok: false, warning: motosError.message }
+      const moto1 = motos?.find((row) => /^moto\s*1\s*-\s*batch\s*1$/i.test(row.moto_name))
+      if (moto1) {
+        const nextMoto = await createSingleBatchMoto2FromMoto1Results(moto1.id)
+        if (!nextMoto.ok) return nextMoto
+        return { ok: true, warning: nextMoto.warning ?? null, next_moto_id: nextMoto.motoId ?? null }
+      }
+    }
   }
 
   return syncAdvancedRaceProgress(eventId, categoryId)

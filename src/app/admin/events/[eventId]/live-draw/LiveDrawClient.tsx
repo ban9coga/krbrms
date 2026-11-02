@@ -276,6 +276,7 @@ export default function LiveDrawClient({
   const [moto3Order, setMoto3Order] = useState<DrawMoto3Order>('SAME')
   const [qualificationMotoCount, setQualificationMotoCount] = useState(2)
   const [singleBatchFinalEnabled, setSingleBatchFinalEnabled] = useState(false)
+  const [singleBatchTwoMotoFinalEnabled, setSingleBatchTwoMotoFinalEnabled] = useState(false)
   const [qualificationBatchMode, setQualificationBatchMode] = useState<QualificationBatchMode>('FIXED')
   const [rotatedMoto2Batches, setRotatedMoto2Batches] = useState<RiderItem[][]>([])
   const [rotatedMoto3Batches, setRotatedMoto3Batches] = useState<RiderItem[][]>([])
@@ -985,6 +986,7 @@ export default function LiveDrawClient({
       setMoto3Order(drawConfig.moto3_order)
       setQualificationMotoCount(Math.max(2, Math.min(3, Number(json?.qualification_moto_count ?? 2))))
       setSingleBatchFinalEnabled(json?.single_batch_final_enabled === true)
+      setSingleBatchTwoMotoFinalEnabled(json?.single_batch_two_moto_final_enabled === true)
       setQualificationBatchMode(json?.qualification_batch_mode === 'ROTATE_EACH_MOTO' ? 'ROTATE_EACH_MOTO' : 'FIXED')
       setRotatedMoto2Batches([])
       setRotatedMoto3Batches([])
@@ -1446,17 +1448,17 @@ export default function LiveDrawClient({
         ? externalPerBatchValidation.orderedMoto3Batches[batchIndex - 1] ?? []
         : rotatedMoto3Batches[batchIndex - 1] ?? []
     const hasMoto3 =
-      (qualificationMotoCount >= 3 && batches.length > 1) ||
-      (batches.length === 1 && singleBatchFinalEnabled)
+      !singleBatchTwoMotoFinalEnabled && ((qualificationMotoCount >= 3 && batches.length > 1) ||
+      (batches.length === 1 && singleBatchFinalEnabled))
     return [
       { title: `Moto 1 - Batch ${batchIndex}`, riders: batchRiders },
-      {
+      ...(singleBatchTwoMotoFinalEnabled && batches.length === 1 ? [] : [{
         title: `Moto 2 - Batch ${batchIndex}`,
         riders: qualificationBatchMode === 'ROTATE_EACH_MOTO'
           ? (moto2Manual.length > 0 ? moto2Manual : moto2Rotated)
           : (moto2Manual.length > 0 ? moto2Manual : [...batchRiders].reverse()),
-      },
-      ...(hasMoto3
+      }]),
+      ...(!singleBatchTwoMotoFinalEnabled && hasMoto3
         ? [{
             title: `Moto 3 - Batch ${batchIndex}`,
             riders: qualificationBatchMode === 'ROTATE_EACH_MOTO'
@@ -3550,14 +3552,16 @@ export default function LiveDrawClient({
                         })}
                       </div>
                       <div style={{ marginTop: 12, display: 'grid', gap: 6, color: '#475569', fontWeight: 700 }}>
-                        <div>
+                        {singleBatchTwoMotoFinalEnabled && batches.length === 1 ? (
+                          <div>Moto 2 dibuat setelah hasil Moto 1 lengkap; gate mengikuti poin Moto 1. Final dibuat setelah Moto 2 selesai dan gate mengikuti total poin Moto 1 + 2.</div>
+                        ) : <><div>
                           {qualificationBatchMode === 'ROTATE_EACH_MOTO'
                             ? 'Moto 2: rider masuk batch baru.'
                             : drawMode === 'external_draw' && externalPerBatchValidation.moto2Provided
                             ? 'Moto 2: urutan gate manual sesuai editor batch.'
                             : `Moto 2: urutan gate otomatis dibalik (Gate ${batch.riders.length} > 1).`}
                         </div>
-                        <div>{formatMoto3Hint(batches.length, qualificationMotoCount, singleBatchFinalEnabled, qualificationBatchMode)}</div>
+                        <div>{formatMoto3Hint(batches.length, qualificationMotoCount, singleBatchFinalEnabled, qualificationBatchMode)}</div></>}
                       </div>
                     </div>
                   ))}

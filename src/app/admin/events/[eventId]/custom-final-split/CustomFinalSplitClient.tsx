@@ -22,6 +22,7 @@ type CategoryRow = {
   max_riders_per_race?: number | null
   qualification_moto_count?: number | null
   single_batch_final_enabled?: boolean | null
+  single_batch_two_moto_final_enabled?: boolean | null
   repechage_max_riders_per_race?: number | null
   quarter_final_max_riders_per_race?: number | null
   semi_final_max_riders_per_race?: number | null
@@ -673,10 +674,12 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
           : totalRiders > 0
             ? Math.max(1, Math.ceil(totalRiders / maxRidersPerRace))
             : 0
-      const usesSingleBatchFinalOption = batchCount === 1 && category.single_batch_final_enabled === true
+      const usesSingleBatchFinalOption = batchCount === 1 && (
+        category.single_batch_final_enabled === true || category.single_batch_two_moto_final_enabled === true
+      )
       const usesSingleBatchDirectResult = batchCount === 1 && !usesSingleBatchFinalOption
       const qualificationMotoCount = batchCount === 1
-        ? 3
+        ? (category.single_batch_two_moto_final_enabled === true ? 2 : 3)
         : Math.max(2, Number(category.qualification_moto_count ?? 2))
       const resolvedStageFlags = category.stages ?? {
         enableQualification: false,
@@ -1262,7 +1265,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#475569' }}>{categorySummary[category.id]}</div>
                 </div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {(estimatedBatchCount > 1 || (estimatedBatchCount === 1 && category.single_batch_final_enabled === true)) && (
+                  {(estimatedBatchCount > 1 || (estimatedBatchCount === 1 && (category.single_batch_final_enabled === true || category.single_batch_two_moto_final_enabled === true))) && (
                     <button
                       type="button"
                       onClick={() => applyTwoFinalFinisherPreset(category)}

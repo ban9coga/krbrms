@@ -634,6 +634,7 @@ create table if not exists race_stage_config (
   qualification_moto_count int not null default 2,
   draw_moto3_order text not null default 'SAME' check (draw_moto3_order in ('REVERSE', 'SAME', 'ODD_EVEN', 'EVEN_ODD')),
   single_batch_final_enabled boolean not null default false,
+  single_batch_two_moto_final_enabled boolean not null default false,
   created_at timestamptz not null default now()
 );
 

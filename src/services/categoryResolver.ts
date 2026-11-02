@@ -177,12 +177,14 @@ export async function resolveCategoryConfig(categoryId: string, override?: Resol
         .maybeSingle(),
       adminClient
         .from('race_stage_config')
-        .select('single_batch_final_enabled')
+        .select('single_batch_final_enabled, single_batch_two_moto_final_enabled')
         .eq('event_id', eventId)
         .eq('category_id', categoryId)
         .maybeSingle(),
     ])
-    const useSingleBatchFinal = stageConfig?.single_batch_final_enabled === true && qualificationBatchCount === 1
+    const useSingleBatchFinal = (
+      stageConfig?.single_batch_final_enabled === true || stageConfig?.single_batch_two_moto_final_enabled === true
+    ) && qualificationBatchCount === 1
 
     const raceFormatSettings =
       settingsRow?.race_format_settings && typeof settingsRow.race_format_settings === 'object'

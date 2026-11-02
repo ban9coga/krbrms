@@ -38,6 +38,7 @@ type StageConfigRow = {
   max_riders_per_race: number
   qualification_moto_count: number
   single_batch_final_enabled: boolean | null
+  single_batch_two_moto_final_enabled: boolean | null
   repechage_max_riders_per_race: number | null
   quarter_final_max_riders_per_race: number | null
   semi_final_max_riders_per_race: number | null
@@ -111,7 +112,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ eventId: s
   const { data: stageConfigs, error: stageConfigError } = categoryIds.length
     ? await adminClient
         .from('race_stage_config')
-        .select('category_id, max_riders_per_race, qualification_moto_count, single_batch_final_enabled, repechage_max_riders_per_race, quarter_final_max_riders_per_race, semi_final_max_riders_per_race, dnf_point_override, dns_point_override')
+        .select('category_id, max_riders_per_race, qualification_moto_count, single_batch_final_enabled, single_batch_two_moto_final_enabled, repechage_max_riders_per_race, quarter_final_max_riders_per_race, semi_final_max_riders_per_race, dnf_point_override, dns_point_override')
         .eq('event_id', eventId)
         .in('category_id', categoryIds)
     : { data: [], error: null }
@@ -197,6 +198,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ eventId: s
       max_riders_per_race: effectiveMaxRiders,
       qualification_moto_count: stageConfig?.qualification_moto_count ?? 2,
       single_batch_final_enabled: stageConfig?.single_batch_final_enabled === true,
+      single_batch_two_moto_final_enabled: stageConfig?.single_batch_two_moto_final_enabled === true,
       repechage_max_riders_per_race: stageConfig?.repechage_max_riders_per_race ?? null,
       quarter_final_max_riders_per_race: stageConfig?.quarter_final_max_riders_per_race ?? null,
       semi_final_max_riders_per_race: stageConfig?.semi_final_max_riders_per_race ?? null,

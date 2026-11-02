@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { adminClient } from '../../../../../../lib/auth'
 import { assertMotoEditable, assertMotoNotUnderProtest } from '../../../../../../lib/motoLock'
 import { reseedSingleBatchMoto3FromMoto } from '../../../../../../services/moto3Reseed'
+import { createSingleBatchMoto2FromMoto1Results } from '../../../../../../services/singleBatchFinalProgress'
 import { promoteNextMotoToLive } from '../../../../../../services/motoProgression'
 import { upsertRiderParticipationStatuses } from '../../../../../../services/riderParticipationStatus'
 import { requireJury } from '../../../../../../services/juryAuth'
@@ -203,6 +204,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
   if (activeStatusResult.error) return NextResponse.json({ error: activeStatusResult.error.message }, { status: 400 })
   if (motoUpdateResult.error) return NextResponse.json({ error: motoUpdateResult.error.message }, { status: 400 })
 
+  const deferredMoto2 = /^moto\s*1\s*-\s*batch\s*1$/i.test(String(moto.moto_name ?? '').trim())
+    ? await createSingleBatchMoto2FromMoto1Results(motoId)
+    : { ok: true as const, skipped: true as const }
   const moto3Reseed = needsMoto3Reseed(moto.moto_name)
     ? await reseedSingleBatchMoto3FromMoto(motoId)
     : { ok: true as const, warning: null }
@@ -212,7 +216,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
   return NextResponse.json({
     ok: true,
     next_moto: nextMoto,
-    warning: moto3Reseed.ok ? null : moto3Reseed.warning ?? 'Moto 3 gate reseed skipped.',
+    warning: !deferredMoto2.ok
+      ? deferredMoto2.warning ?? 'Gagal membuat Moto 2 otomatis.'
+      : moto3Reseed.ok
+        ? null
+        : moto3Reseed.warning ?? 'Moto 3 gate reseed skipped.',
   })
 }
 

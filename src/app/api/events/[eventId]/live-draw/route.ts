@@ -30,7 +30,7 @@ const loadDrawConfiguration = async (eventId: string, categoryId: string) => {
   const [{ data: config, error: configError }, { data: settings, error: settingsError }] = await Promise.all([
     adminClient
       .from('race_stage_config')
-      .select('qualification_moto_count, single_batch_final_enabled, draw_batch_mode, draw_batch_size, draw_batch_count, draw_custom_batch_sizes, draw_moto2_order, draw_moto3_order')
+      .select('qualification_moto_count, single_batch_final_enabled, single_batch_two_moto_final_enabled, draw_batch_mode, draw_batch_size, draw_batch_count, draw_custom_batch_sizes, draw_moto2_order, draw_moto3_order')
       .eq('event_id', eventId)
       .eq('category_id', categoryId)
       .maybeSingle(),
@@ -53,6 +53,7 @@ const loadDrawConfiguration = async (eventId: string, categoryId: string) => {
     gatePositions: Math.max(1, Number(format.gate_positions ?? 8)),
     qualificationMotoCount: Math.min(3, Math.max(2, Number(config?.qualification_moto_count ?? 2))),
     singleBatchFinalEnabled: config?.single_batch_final_enabled === true,
+    singleBatchTwoMotoFinalEnabled: config?.single_batch_two_moto_final_enabled === true,
     drawMode: format.draw_mode === 'external_draw' ? 'external_draw' : 'internal_live_draw',
     qualificationBatchMode: normalizeQualificationBatchMode(format.qualification_batch_mode),
     config: normalizeDrawCategoryConfig({
@@ -290,6 +291,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     has_final_state: deleteGuard.hasFinalState,
     qualification_moto_count: drawConfiguration.qualificationMotoCount,
     single_batch_final_enabled: drawConfiguration.singleBatchFinalEnabled,
+    single_batch_two_moto_final_enabled: drawConfiguration.singleBatchTwoMotoFinalEnabled,
     qualification_batch_mode: drawConfiguration.qualificationBatchMode,
     gate_positions: drawConfiguration.gatePositions,
     draw_config: drawConfiguration.config,
@@ -427,9 +429,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       : rotatesBatches
         ? reshuffleIntoBatchShape(effectiveRiderIds, batches)
         : []
+  if (drawConfiguration.singleBatchTwoMotoFinalEnabled && batches.length !== 1) {
+    return NextResponse.json({ error: 'Mode Final setelah 2 moto hanya berlaku untuk drawing tepat satu batch.' }, { status: 400 })
+  }
   const createMoto3 =
+    !drawConfiguration.singleBatchTwoMotoFinalEnabled && (
     (batches.length > 1 && Number(drawConfiguration.qualificationMotoCount ?? 2) >= 3) ||
     (batches.length === 1 && drawConfiguration.singleBatchFinalEnabled)
+    )
   if (!createMoto3 && (hasCustomMoto3 || hasManualMoto3Batches)) {
     return NextResponse.json({ error: 'Moto 3 hanya bisa diatur untuk kategori multi-batch yang memakai 3 moto atau kategori 1 batch dengan opsi Final aktif.' }, { status: 400 })
   }
@@ -528,13 +535,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   // The RPC uses one database transaction plus an event advisory lock. This
   // avoids partially created motos and prevents simultaneous saves from two
   // drawing devices from reusing the same moto order.
-  const { data: savedDraw, error: saveError } = await adminClient.rpc('save_live_draw_motos', {
+  const { data: savedDraw, error: saveError } = drawConfiguration.singleBatchTwoMotoFinalEnabled
+    ? await adminClient.rpc('save_live_draw_moto1_only', {
+        p_event_id: eventId,
+        p_category_id: categoryId,
+        p_rider_ids: batches[0],
+      })
+    : await adminClient.rpc('save_live_draw_motos', {
     p_event_id: eventId,
     p_category_id: categoryId,
     p_batches: batches,
     p_moto2_batches: finalizedMoto2Batches,
     p_moto3_batches: finalizedMoto3Batches,
-  })
+    })
 
   if (saveError) {
     const status = saveError.code === '23505' ? 409 : 400
@@ -546,8 +559,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   return NextResponse.json({
     data: {
       batch_count: Number(summary?.batch_count ?? batches.length),
-      moto_count: Number(summary?.moto_count ?? batches.length * (createMoto3 ? 3 : 2)),
+      moto_count: Number(summary?.moto_count ?? (drawConfiguration.singleBatchTwoMotoFinalEnabled ? 1 : batches.length * (createMoto3 ? 3 : 2))),
       gate_positions_saved: Number(summary?.gate_positions_saved ?? 0) > 0,
+      next_step: drawConfiguration.singleBatchTwoMotoFinalEnabled ? 'Moto 2 dibuat otomatis setelah semua hasil Moto 1 disubmit.' : null,
     },
   })
 }
