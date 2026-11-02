@@ -319,7 +319,13 @@ export default function EventDetailClient({
 
         {event && (
           <div className="grid gap-4 sm:gap-6">
-            <section className="public-editorial-event-hero relative overflow-hidden rounded-[2rem] border border-[#4f372b] bg-[#1d0d07] px-4 py-6 shadow-[0_30px_70px_rgba(55,23,9,0.22)] sm:px-8 sm:py-8 md:rounded-[2.5rem] md:px-12 md:py-10">
+            <section
+              className="public-editorial-event-hero relative overflow-hidden rounded-[2rem] border border-[#4f372b] bg-[#1d0d07] bg-cover bg-center px-4 py-6 shadow-[0_30px_70px_rgba(55,23,9,0.22)] sm:px-8 sm:py-8 md:rounded-[2.5rem] md:px-12 md:py-10"
+              style={event.event_poster_url ? { backgroundImage: `url("${event.event_poster_url.replace(/["\\\r\n]/g, '')}")` } : undefined}
+            >
+              {event.event_poster_url && (
+                <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-r from-[#1d0d07]/90 via-[#1d0d07]/75 to-[#1d0d07]/45" />
+              )}
               <div className="relative z-10 grid gap-4 sm:gap-6">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="grid gap-2">

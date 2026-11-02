@@ -45,6 +45,7 @@ const loadInitialEvent = cache(async (eventId: string): Promise<EventItem | null
     event_scope: raceFormat.event_scope === 'INTERNAL' ? 'INTERNAL' : 'PUBLIC',
     registration_open: typeof settings?.registration_open === 'boolean' ? settings.registration_open : true,
     event_logo_url: toPublicMediaUrl(typeof settings?.event_logo_url === 'string' ? settings.event_logo_url : null),
+    event_poster_url: toPublicMediaUrl(typeof raceFormat.event_poster_url === 'string' ? raceFormat.event_poster_url : null),
     sponsor_logo_urls: toPublicMediaUrls(settings?.sponsor_logo_urls),
     business_settings: proxyBusinessSettingsMedia(business),
   } as EventItem

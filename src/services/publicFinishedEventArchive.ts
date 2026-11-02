@@ -13,6 +13,7 @@ type ArchivePayload = {
     sponsor_logo_urls?: unknown
     business_settings?: unknown
     registration_open?: boolean | null
+    event_poster_url?: string | null
     race_format_settings?: unknown
     display_theme?: unknown
   } | null
@@ -68,6 +69,7 @@ const parseArchive = (rawPayload: unknown): PublicFinishedEventArchive | null =>
       event_scope: raceFormat.event_scope === 'INTERNAL' ? 'INTERNAL' : 'PUBLIC',
       registration_open: typeof settings?.registration_open === 'boolean' ? settings.registration_open : true,
       event_logo_url: toPublicMediaUrl(settings?.event_logo_url),
+      event_poster_url: toPublicMediaUrl(typeof raceFormat.event_poster_url === 'string' ? raceFormat.event_poster_url : null),
       sponsor_logo_urls: toPublicMediaUrls(settings?.sponsor_logo_urls),
       business_settings: proxyBusinessSettingsMedia(business),
     },

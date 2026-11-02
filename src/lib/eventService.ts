@@ -119,6 +119,7 @@ export type EventItem = {
   event_scope?: 'PUBLIC' | 'INTERNAL' | null
   registration_open?: boolean | null
   event_logo_url?: string | null
+  event_poster_url?: string | null
   sponsor_logo_urls?: string[] | null
   business_settings?: BusinessSettings | null
   created_at?: string | null

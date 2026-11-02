@@ -867,26 +867,8 @@ export default function JuryFinishPage() {
 
   return (
     <div className="public-page">
-      <CheckerTopbar title="Jury Finish Panel" />
+      <CheckerTopbar title="Finisher" />
       <main className="public-main max-w-[1500px] pb-36">
-        <section className="jf-hero">
-          <div className="relative z-10 grid gap-3">
-            <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-slate-500">Jury Finish</p>
-            <div className="jf-active-category">
-              <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-teal-800">Kategori aktif</div>
-              <div className={`${highVisibility ? 'text-4xl md:text-6xl' : 'text-3xl md:text-5xl'} mt-2 font-black text-slate-950`}>
-                {selectedCategoryLabel ?? 'Pilih Moto'}
-              </div>
-              <div className={`${highVisibility ? 'text-base sm:text-lg' : 'text-sm sm:text-base'} mt-2 font-semibold text-slate-600`}>
-                {selectedMoto?.moto_name ?? 'Belum ada moto dipilih'} |{' '}
-                {flags.dnf_enabled
-                  ? 'Tap rider untuk finish, tahan 800ms untuk DNF.'
-                  : 'Tap rider untuk finish. Modul DNF sedang nonaktif.'}
-              </div>
-            </div>
-          </div>
-        </section>
-
         <section className="jf-panel">
           <div className="grid gap-3 md:grid-cols-2">
             <div className="grid gap-2">
@@ -899,7 +881,7 @@ export default function JuryFinishPage() {
                   setSelectedMotoId('')
                 }}
                 disabled={hasPendingFinisherEdits}
-                className="public-filter"
+                className="public-filter w-full min-w-0"
               >
                 {events.length === 0 && <option value="">Belum ada event LIVE</option>}
                 {events.map((ev) => (
@@ -918,7 +900,7 @@ export default function JuryFinishPage() {
                     if (!hasPendingFinisherEdits) setSelectedMotoId(e.target.value)
                   }}
                   disabled={hasPendingFinisherEdits}
-                  className="public-filter"
+                  className="public-filter w-full min-w-0"
                 >
                   {selectableMotos.length === 0 && <option value="">Belum ada moto aktif</option>}
                   {selectableMotos.map((m) => (
@@ -932,6 +914,8 @@ export default function JuryFinishPage() {
                   onClick={() => void handleRefreshMotoSelector()}
                   disabled={saving || refreshingSelector}
                   aria-busy={refreshingSelector}
+                  aria-label={refreshingSelector ? 'Memuat ulang daftar moto' : 'Muat ulang daftar moto'}
+                  title={refreshingSelector ? 'Memuat ulang daftar moto' : 'Muat ulang daftar moto'}
                   className={`finisher-refresh-btn ${refreshingSelector ? 'is-loading is-pressed' : ''}`}
                 >
                   <span className="finisher-refresh-shadow" />
@@ -940,7 +924,6 @@ export default function JuryFinishPage() {
                     <span className={`finisher-refresh-icon ${refreshingSelector ? 'is-spinning' : ''}`} aria-hidden="true">
                       ↻
                     </span>
-                    {refreshingSelector ? 'Memuat' : 'Refresh'}
                   </span>
                 </button>
               </div>
@@ -950,11 +933,11 @@ export default function JuryFinishPage() {
 
         {events.length === 0 && (
           <section className="rounded-xl border border-amber-300 bg-amber-100 px-4 py-3 text-sm font-bold text-amber-800">
-            Tidak ada event LIVE untuk Jury Finish. Set event ke LIVE dulu.
+            Belum ada event LIVE. Minta admin mengaktifkan event.
           </section>
         )}
         {events.length === 0 && (
-          <div className="text-xs font-semibold text-slate-500">Admin: ubah status event ke LIVE agar Jury Finish aktif.</div>
+          <div className="text-xs font-semibold text-slate-500">Admin: ubah status event menjadi LIVE.</div>
         )}
         {motoLocked && (
           <section className="rounded-xl border border-amber-300 bg-amber-100 px-4 py-3 text-sm font-bold text-amber-800">
@@ -1405,8 +1388,9 @@ export default function JuryFinishPage() {
         }
         .finisher-refresh-btn {
           position: relative;
-          min-width: 118px;
-          min-height: 48px;
+          width: 44px;
+          min-width: 44px;
+          min-height: 44px;
           padding: 0;
           border: 0;
           background: transparent;
@@ -1434,12 +1418,11 @@ export default function JuryFinishPage() {
         .finisher-refresh-front {
           position: relative;
           display: inline-flex;
-          min-height: 48px;
-          width: 100%;
+          min-height: 44px;
+          width: 44px;
           align-items: center;
           justify-content: center;
-          gap: 7px;
-          padding: 0 14px;
+          padding: 0;
           border-radius: 12px;
           background: hsl(217, 70%, 62%);
           color: white;
@@ -1481,7 +1464,7 @@ export default function JuryFinishPage() {
         }
         .finisher-refresh-icon {
           display: inline-flex;
-          font-size: 18px;
+          font-size: 22px;
           line-height: 1;
         }
         .finisher-refresh-icon.is-spinning {
@@ -1713,23 +1696,12 @@ export default function JuryFinishPage() {
             animation-duration: 0.01ms;
           }
         }
-        .jf-hero,
         .jf-panel {
           min-width: 0;
           border: 1px solid var(--panel-border);
           border-radius: 16px;
           background: var(--panel-bg);
           box-shadow: none;
-        }
-        .jf-hero {
-          padding: 20px 24px;
-        }
-        .jf-active-category {
-          border: 1px solid #dbe4e8;
-          border-left: 4px solid #0f766e;
-          border-radius: 10px;
-          background: #f8fafc;
-          padding: 14px 18px;
         }
         .jf-panel {
           padding: 16px;
@@ -1852,7 +1824,6 @@ export default function JuryFinishPage() {
           outline-color: #0f766e;
         }
         @media (max-width: 640px) {
-          .jf-hero,
           .jf-panel {
             border-radius: 12px;
             padding: 14px;

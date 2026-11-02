@@ -10,8 +10,10 @@ const ALLOWED_KINDS = new Set([
   'certificate-template',
   'certificate-event-logo',
   'certificate-organizer-logo',
+  'event-poster',
 ])
 const REGISTRATION_MEDIA_MAX_BYTES = 2 * 1024 * 1024
+const EVENT_POSTER_MAX_BYTES = 5 * 1024 * 1024
 const CERTIFICATE_TEMPLATE_MAX_BYTES = 10 * 1024 * 1024
 const CERTIFICATE_ASSET_MAX_BYTES = 3 * 1024 * 1024
 
@@ -87,10 +89,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
             label: kind === 'certificate-template' ? 'Template sertifikat PNG' : 'Aset sertifikat PNG',
           })
         : await prepareImageUpload(file, {
-            maxBytes: REGISTRATION_MEDIA_MAX_BYTES,
-            maxDimension: 1200,
+            maxBytes: kind === 'event-poster' ? EVENT_POSTER_MAX_BYTES : REGISTRATION_MEDIA_MAX_BYTES,
+            maxDimension: kind === 'event-poster' ? 2200 : 1200,
             quality: 82,
-            label: kind === 'qris' ? 'Gambar QRIS' : 'Gambar size chart',
+            label: kind === 'qris' ? 'Gambar QRIS' : kind === 'event-poster' ? 'Poster event' : 'Gambar size chart',
           })
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Gambar gagal diproses.' }, { status: 400 })

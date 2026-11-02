@@ -736,6 +736,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     | 'certificate-template'
     | 'certificate-event-logo'
     | 'certificate-organizer-logo'
+    | 'event-poster'
     | null
   >(null)
   const [registrationMediaError, setRegistrationMediaError] = useState<string>('')
@@ -771,6 +772,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
 
   const [form, setForm] = useState({
     event_logo_url: '',
+    event_poster_url: '',
     sponsor_logo_urls: '',
     base_price: '250000',
     extra_price: '150000',
@@ -931,6 +933,8 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
       | 'certificate-template'
       | 'certificate-event-logo'
       | 'certificate-organizer-logo'
+      | 'event-poster'
+    | 'event-poster'
       | 'certificate-race-director-signature'
       | 'certificate-organizer-signature'
   ) => {
@@ -1022,6 +1026,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
         )
         const nextForm = {
           event_logo_url: data.event_logo_url ?? '',
+          event_poster_url: typeof format.event_poster_url === 'string' ? format.event_poster_url : '',
           sponsor_logo_urls: (data.sponsor_logo_urls ?? []).join('\n'),
           base_price: typeof data.base_price === 'number' ? String(data.base_price) : '250000',
           extra_price: typeof data.extra_price === 'number' ? String(data.extra_price) : '150000',
@@ -1265,6 +1270,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
       | 'certificate-template'
       | 'certificate-event-logo'
       | 'certificate-organizer-logo'
+      | 'event-poster'
   ) => {
     if (!file) return
     setRegistrationMediaError('')
@@ -1278,14 +1284,16 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
       setRegistrationMediaError('Aset sertifikat harus berupa PNG.')
       return
     }
-    const maxBytes = kind === 'certificate-template' ? 10 * 1024 * 1024 : certificateAsset ? 3 * 1024 * 1024 : 2 * 1024 * 1024
+    const maxBytes = kind === 'certificate-template' ? 10 * 1024 * 1024 : certificateAsset ? 3 * 1024 * 1024 : kind === 'event-poster' ? 5 * 1024 * 1024 : 2 * 1024 * 1024
     if (file.size > maxBytes) {
       setRegistrationMediaError(
         kind === 'certificate-template'
           ? 'Template sertifikat terlalu besar. Maksimal 10 MB.'
           : certificateAsset
             ? 'Aset sertifikat terlalu besar. Maksimal 3 MB.'
-            : 'Media registrasi terlalu besar. Maksimal 2.0 MB.'
+            : kind === 'event-poster'
+              ? 'Poster event terlalu besar. Maksimal 5 MB.'
+              : 'Media registrasi terlalu besar. Maksimal 2.0 MB.'
       )
       return
     }
@@ -1296,6 +1304,8 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
         ...prev,
         ...(kind === 'qris'
           ? { business_registration_qris_image_url: url }
+          : kind === 'event-poster'
+            ? { event_poster_url: url }
           : kind === 'jersey-chart'
             ? { business_registration_jersey_size_chart_url: url }
             : kind === 'certificate-template'
@@ -1849,6 +1859,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
         : {}
     const format = {
       ...existingFormat,
+      event_poster_url: form.event_poster_url.trim() || null,
       moto_per_batch: motoPerBatch,
       gate_positions: gatePositions,
       qualification_enabled: Boolean(form.race_qualification_enabled),
@@ -3677,6 +3688,37 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                     />
                   )}
                 </div>
+                <div style={{ marginTop: 14, fontWeight: 900 }}>Poster Event untuk Background Halaman Publik</div>
+                <div style={{ color: '#475569', fontWeight: 700, fontSize: 13 }}>
+                  Poster dipakai sebagai latar card utama detail event. Gunakan gambar landscape agar judul dan info event tetap terbaca.
+                </div>
+                <input
+                  value={form.event_poster_url}
+                  onChange={(e) => setForm({ ...form, event_poster_url: e.target.value })}
+                  placeholder="URL poster event"
+                  style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                />
+                <label style={{ display: 'inline-flex', width: 'fit-content', padding: '8px 12px', borderRadius: 10, border: '2px solid #111', fontWeight: 900, cursor: registrationMediaUploading ? 'wait' : 'pointer' }}>
+                  {registrationMediaUploading === 'event-poster' ? 'Mengunggah poster...' : 'Upload Poster Event'}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    disabled={Boolean(registrationMediaUploading)}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] ?? null
+                      e.currentTarget.value = ''
+                      void handleRegistrationMediaUpload(file, 'event-poster')
+                    }}
+                    style={{ display: 'none' }}
+                  />
+                </label>
+                {form.event_poster_url && (
+                  <img
+                    src={form.event_poster_url}
+                    alt="Preview poster event"
+                    style={{ width: '100%', maxWidth: 520, aspectRatio: '16 / 9', objectFit: 'cover', borderRadius: 14, border: '2px solid #111' }}
+                  />
+                )}
                 <input
                   value={form.display_slogan}
                   onChange={(e) => setForm({ ...form, display_slogan: e.target.value })}
