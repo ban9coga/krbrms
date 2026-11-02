@@ -3,6 +3,7 @@ import { adminClient } from '../../../../../lib/auth'
 import { requireJury } from '../../../../../services/juryAuth'
 import { syncAdvancedRaceProgressAfterLockedStage } from '../../../../../services/advancedRaceAuto'
 import { promoteNextMotoToLive } from '../../../../../services/motoProgression'
+import { createSingleBatchMoto2FromMoto1Results } from '../../../../../services/singleBatchFinalProgress'
 
 const allowedTargets = ['LOCKED', 'PROVISIONAL'] as const
 type TargetStatus = (typeof allowedTargets)[number]
@@ -56,6 +57,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
   const { motoId } = await params
   const body = await req.json().catch(() => ({}))
   const status = body?.status as TargetStatus | undefined
+  const retryDeferredMoto2 = body?.retry_deferred_moto2 === true
   if (!status || !allowedTargets.includes(status)) {
     return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
   }
@@ -71,8 +73,28 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
   const current = (moto.status as string | null)?.toUpperCase() ?? ''
+  const isDeferredSingleBatchMoto1 = /^moto\s*1\s*-\s*batch\s*1$/i.test(String(moto.moto_name ?? '').trim())
 
   if (current === 'LOCKED' && status === 'LOCKED') {
+    if (retryDeferredMoto2 && !isDeferredSingleBatchMoto1) {
+      return NextResponse.json({ error: 'Retry Moto 2 hanya berlaku untuk Moto 1 - Batch 1.' }, { status: 400 })
+    }
+    if (retryDeferredMoto2 && isDeferredSingleBatchMoto1) {
+      const deferredMoto2 = await createSingleBatchMoto2FromMoto1Results(motoId)
+      if (!deferredMoto2.ok) {
+        return NextResponse.json(
+          { error: deferredMoto2.warning ?? 'Gagal membuat Moto 2 otomatis.' },
+          { status: 500 }
+        )
+      }
+      if ('created' in deferredMoto2 && deferredMoto2.created) {
+        return NextResponse.json({ ok: true, moto2_created: true, moto2_id: deferredMoto2.motoId })
+      }
+      if ('skipped' in deferredMoto2 && deferredMoto2.skipped && deferredMoto2.warning) {
+        return NextResponse.json({ error: deferredMoto2.warning }, { status: 409 })
+      }
+      return NextResponse.json({ error: 'Moto 2 tidak dibuat. Pastikan mode deferred aktif dan belum ada Moto 2.' }, { status: 409 })
+    }
     return NextResponse.json({ error: 'Moto already locked. No modification allowed.' }, { status: 409 })
   }
 
@@ -91,6 +113,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
     const pending = await hasPendingApprovals(moto.event_id as string, riderIds)
     if (pending) {
       return NextResponse.json({ error: 'Cannot lock moto. Pending approvals exist.' }, { status: 400 })
+    }
+
+    if (isDeferredSingleBatchMoto1) {
+      const deferredMoto2 = await createSingleBatchMoto2FromMoto1Results(motoId)
+      if (!deferredMoto2.ok) {
+        return NextResponse.json(
+          { error: deferredMoto2.warning ?? 'Gagal membuat Moto 2 otomatis. Hasil tetap bisa diperiksa dan dicoba lagi.' },
+          { status: 500 }
+        )
+      }
+      if ('skipped' in deferredMoto2 && deferredMoto2.skipped && deferredMoto2.warning) {
+        return NextResponse.json({ error: deferredMoto2.warning }, { status: 409 })
+      }
     }
   }
 

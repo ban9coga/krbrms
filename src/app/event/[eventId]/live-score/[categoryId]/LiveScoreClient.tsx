@@ -753,11 +753,6 @@ export default function LiveScoreClient({
   const showQualificationNextColumn = tableRowsByBatch.some((batch) =>
     batch.rows.some((row) => Boolean(row.class_label?.trim()))
   ) || usesGlobalActiveFirst
-  const qualificationDestinationStatus = !qualificationAdvancementsCalculated
-    ? 'Menunggu hasil seluruh batch dihitung'
-    : qualificationResultsOfficial
-      ? 'Hasil resmi'
-      : 'Sementara — menunggu hasil resmi'
   const qualificationDestinationLabel = (label?: string | null) =>
     label || (!qualificationAdvancementsCalculated ? 'Menunggu hasil' : 'Tidak dialokasikan')
   const sortedStages = useMemo(
@@ -1225,12 +1220,6 @@ export default function LiveScoreClient({
                 </div>
                 {batchIndex === 0 && scoreControls}
               </div>
-              {usesGlobalActiveFirst && (
-                <div className="mb-3 rounded-xl border border-amber-300/40 bg-amber-300/10 px-3 py-2 text-xs font-semibold leading-relaxed text-amber-100">
-                  <p>Penentuan tujuan stage membandingkan rider dari semua batch. FINISH/DNF diprioritaskan sebelum DNS; kuota stage tetap mengikuti aturan kategori.</p>
-                  <p className="mt-1 font-black">Tujuan stage: {qualificationDestinationStatus}.</p>
-                </div>
-              )}
               <div className="live-score-qualification-cards grid gap-2 lg:hidden">
                 {batch.rows.map((row) => (
                   <article key={`mobile-qualification-${row.rider_id}`} className="live-score-mobile-rider-card">

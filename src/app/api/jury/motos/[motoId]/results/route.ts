@@ -207,6 +207,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
   const deferredMoto2 = /^moto\s*1\s*-\s*batch\s*1$/i.test(String(moto.moto_name ?? '').trim())
     ? await createSingleBatchMoto2FromMoto1Results(motoId)
     : { ok: true as const, skipped: true as const }
+  if (!deferredMoto2.ok) {
+    return NextResponse.json(
+      { error: deferredMoto2.warning ?? 'Gagal membuat Moto 2 otomatis. Moto tetap menunggu pemeriksaan.' },
+      { status: 500 }
+    )
+  }
+  if (deferredMoto2.skipped && deferredMoto2.warning) {
+    return NextResponse.json({ error: deferredMoto2.warning }, { status: 409 })
+  }
+
   const moto3Reseed = needsMoto3Reseed(moto.moto_name)
     ? await reseedSingleBatchMoto3FromMoto(motoId)
     : { ok: true as const, warning: null }
@@ -216,11 +226,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ motoId:
   return NextResponse.json({
     ok: true,
     next_moto: nextMoto,
-    warning: !deferredMoto2.ok
-      ? deferredMoto2.warning ?? 'Gagal membuat Moto 2 otomatis.'
-      : moto3Reseed.ok
-        ? null
-        : moto3Reseed.warning ?? 'Moto 3 gate reseed skipped.',
+    warning: moto3Reseed.ok ? null : moto3Reseed.warning ?? 'Moto 3 gate reseed skipped.',
   })
 }
 

@@ -120,7 +120,11 @@ begin
   ) then
     raise exception 'All Moto 1 results must be submitted before creating Moto 2';
   end if;
-  if (select count(*) from public.moto_riders where moto_id = v_moto1_id) <> v_rider_count
+  if (
+      select count(*)
+      from public.moto_riders assigned_moto_rider
+      where assigned_moto_rider.moto_id = v_moto1_id
+    ) <> v_rider_count
     or exists (
       select 1 from public.moto_riders mr
       where mr.moto_id = v_moto1_id

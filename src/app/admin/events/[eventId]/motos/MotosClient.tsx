@@ -684,6 +684,22 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     }
   }
 
+  const handleRetryDeferredMoto2 = async (motoId: string) => {
+    const ok = confirm('Coba buat Moto 2 dari hasil Moto 1 yang sudah tersimpan?')
+    if (!ok) return
+
+    try {
+      await apiFetch(`/api/motos/${motoId}/status`, {
+        method: 'POST',
+        body: JSON.stringify({ status: 'LOCKED', retry_deferred_moto2: true }),
+      })
+      await load()
+      alert('Moto 2 berhasil dibuat dari urutan poin Moto 1.')
+    } catch (err: unknown) {
+      alert(getErrorMessage(err))
+    }
+  }
+
   const handleUnlockMoto = async (motoId: string) => {
     const moto = motos.find((m) => m.id === motoId)
     if (!moto) return
@@ -1761,21 +1777,44 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                         </button>
                       )}
                       {m.status === 'LOCKED' && (
-                        <button
-                          type="button"
-                          onClick={() => handleUnlockMoto(m.id)}
-                          className="motos-action-button"
-                          style={{
-                            padding: '8px 12px',
-                            borderRadius: 999,
-                            border: '2px solid #111',
-                            background: '#e0f2fe',
-                            fontWeight: 900,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          Unlock Moto
-                        </button>
+                        <>
+                          {/^moto\s*1\s*-\s*batch\s*1$/i.test(m.moto_name) &&
+                            !motos.some((candidate) =>
+                              candidate.category_id === m.category_id && /^moto\s*2\s*-\s*batch\s*1$/i.test(candidate.moto_name)
+                            ) && (
+                              <button
+                                type="button"
+                                onClick={() => handleRetryDeferredMoto2(m.id)}
+                                disabled={eventStatus !== 'LIVE'}
+                                className="motos-action-button"
+                                style={{
+                                  padding: '8px 12px',
+                                  borderRadius: 999,
+                                  border: '2px solid #111',
+                                  background: '#fef3c7',
+                                  fontWeight: 900,
+                                  cursor: eventStatus === 'LIVE' ? 'pointer' : 'not-allowed',
+                                }}
+                              >
+                                Coba Buat Moto 2
+                              </button>
+                            )}
+                          <button
+                            type="button"
+                            onClick={() => handleUnlockMoto(m.id)}
+                            className="motos-action-button"
+                            style={{
+                              padding: '8px 12px',
+                              borderRadius: 999,
+                              border: '2px solid #111',
+                              background: '#e0f2fe',
+                              fontWeight: 900,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Unlock Moto
+                          </button>
+                        </>
                       )}
                       <div className="motos-compact-icon-actions">
                         {m.status !== 'LOCKED' && m.status !== 'PROTEST_REVIEW' && (
