@@ -397,7 +397,7 @@ const buildCustomAutomationNotes = (rules: CustomSplitRule[]) => {
   }
 
   if (targetStages.has('FINISHER')) {
-    notes.push('Rider pada rentang Finisher tampil sebagai hasil akhir di tabel Qualification dan tidak dibuatkan moto tambahan.')
+    notes.push('Rider pada rentang Finisher menjadi hasil akhir setelah stage sumbernya dan tidak dibuatkan moto tambahan.')
   }
 
   return notes

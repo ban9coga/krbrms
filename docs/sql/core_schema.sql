@@ -675,7 +675,7 @@ create table if not exists race_category_custom_split_rule (
     or (target_outcome = 'FINISHER' and target_stage is null and target_final_class is null)
   ),
   constraint race_category_custom_split_rule_finisher_source_check check (
-    target_outcome <> 'FINISHER' or source_stage = 'QUALIFICATION'
+    target_outcome <> 'FINISHER' or source_stage in ('QUALIFICATION', 'REPECHAGE')
   )
 );
 

@@ -286,8 +286,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     return NextResponse.json({ error: 'Final rules must have a valid final class.' }, { status: 400 })
   }
 
-  if (normalizedRules.some((rule) => rule.target_outcome === 'FINISHER' && rule.source_stage !== 'QUALIFICATION')) {
-    return NextResponse.json({ error: 'FINISHER is only supported as a Qualification outcome.' }, { status: 400 })
+  if (normalizedRules.some((rule) => rule.target_outcome === 'FINISHER' && !['QUALIFICATION', 'REPECHAGE'].includes(rule.source_stage))) {
+    return NextResponse.json({ error: 'FINISHER is only supported from Qualification or Repechage.' }, { status: 400 })
   }
 
   if (normalizedRules.some((rule) => rule.split_basis === 'GLOBAL_ACTIVE_FIRST' && rule.source_stage !== 'QUALIFICATION')) {
