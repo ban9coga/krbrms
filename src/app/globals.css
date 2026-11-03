@@ -1,4 +1,4 @@
-@import "tailwindcss";
+﻿@import "tailwindcss";
 
 .theme-switch-placeholder {
   display: inline-block;
@@ -4022,6 +4022,38 @@ html[data-theme='dark'] .setting-toggle-control:has(input:checked) .setting-togg
   .live-score-mobile-table-wrap.has-three-motos .live-score-mobile-table th:nth-child(11),
   .live-score-mobile-table-wrap.has-three-motos .live-score-mobile-table td:nth-child(11) {
     width: 88px;
+  }
+
+  .live-score-moto-mobile-table {
+    min-width: 430px;
+  }
+
+  .live-score-moto-mobile-table th:nth-child(1),
+  .live-score-moto-mobile-table td:nth-child(1) {
+    width: 36px;
+  }
+
+  .live-score-moto-mobile-table th:nth-child(2),
+  .live-score-moto-mobile-table td:nth-child(2) {
+    width: 160px;
+    text-align: left;
+  }
+
+  .live-score-moto-mobile-table th:nth-child(3),
+  .live-score-moto-mobile-table td:nth-child(3) {
+    width: 62px;
+  }
+
+  .live-score-moto-mobile-table th:nth-child(4),
+  .live-score-moto-mobile-table th:nth-child(5),
+  .live-score-moto-mobile-table td:nth-child(4),
+  .live-score-moto-mobile-table td:nth-child(5) {
+    width: 46px;
+  }
+
+  .live-score-moto-mobile-table th:nth-child(6),
+  .live-score-moto-mobile-table td:nth-child(6) {
+    width: 52px;
   }
 
   .live-score-stage-mobile-table {

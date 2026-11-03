@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import Image from 'next/image'
 import Link from 'next/link'
@@ -1092,39 +1092,42 @@ export default function LiveScoreClient({
                         </span>
                       </div>
                     </div>
-                    <div className="grid gap-2 lg:hidden">
-                      {batch.rows.map((row) => (
-                        <div key={row.rider_id} className="live-score-rotation-rider">
-                          <div className="live-score-rotation-row-top">
-                            <div className="live-score-rotation-rider-info flex min-w-0 items-center gap-3">
-                              {renderGateBadge(row.gate)}
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-1.5">
-                                  <span className="live-score-rider-name text-sm font-black">{row.name}</span>
+                    <div className="live-score-mobile-table-wrap live-score-moto-mobile-table-wrap lg:hidden">
+                      <table className="live-score-mobile-table live-score-moto-mobile-table">
+                        <thead>
+                          <tr>
+                            <th>Gate</th>
+                            <th>Rider</th>
+                            <th>Status</th>
+                            <th>Poin</th>
+                            <th>Penalti</th>
+                            <th>Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {batch.rows.map((row) => (
+                            <tr key={`mobile-moto-table-${row.rider_id}`}>
+                              <td className="live-score-mobile-gate">{row.gate ?? '-'}</td>
+                              <td className="live-score-mobile-rider-cell">
+                                <div className="live-score-mobile-rider-name">
+                                  <span>{row.name}</span>
                                   <RiderNotificationButton eventId={eventId} riderId={row.rider_id} riderName={row.name} riderPlate={row.no_plate} />
                                 </div>
-                                <div className="live-score-rotation-meta text-[10px] font-bold text-amber-300">{row.no_plate} - {row.club || '-'}</div>
-                              </div>
-                            </div>
-                            <div className="live-score-rotation-result">
-                              <span className={`inline-flex rounded-full border px-2.5 py-1 text-[9px] font-black uppercase ${statusBadgeClass(row.status)}`}>
-                                {row.status === 'PENDING' ? 'MENUNGGU' : row.status}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="live-score-rotation-stats">
-                            <div className="live-score-rotation-stat live-score-rotation-stat-points">
-                              <span>Poin</span><strong>{row.point ?? '-'}</strong>
-                            </div>
-                            <div className="live-score-rotation-stat live-score-rotation-stat-penalty">
-                              <span>Penalti</span><strong>{row.penalty ?? '-'}</strong>
-                            </div>
-                            <div className="live-score-rotation-stat live-score-rotation-stat-total">
-                              <span>Total Poin</span><strong>{row.total_point ?? '-'}</strong>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
+                                <small>#{row.no_plate}</small>
+                                <small>{row.club || '-'}</small>
+                              </td>
+                              <td>
+                                <span className={`inline-flex rounded-full border px-1.5 py-0.5 text-[8px] font-black uppercase ${statusBadgeClass(row.status)}`}>
+                                  {row.status === 'PENDING' ? 'MENUNGGU' : row.status}
+                                </span>
+                              </td>
+                              <td className="live-score-mobile-point">{row.point ?? '-'}</td>
+                              <td className="live-score-mobile-penalty">{row.penalty ?? '-'}</td>
+                              <td className="live-score-mobile-total-cell">{row.total_point ?? '-'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                     <div className="public-table-wrap hidden lg:block">
                       <table className="public-table min-w-[820px] text-xs sm:text-sm">
