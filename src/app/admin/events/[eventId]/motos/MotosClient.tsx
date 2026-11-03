@@ -1415,21 +1415,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
           </button>
         </div>
       </div>
-      {eventStatus && eventStatus !== 'LIVE' && (
-        <div
-          className="no-print"
-          style={{
-            marginTop: 10,
-            padding: 10,
-            borderRadius: 12,
-            border: '2px dashed #111',
-            background: '#fff',
-            fontWeight: 900,
-          }}
-        >
-          Status event saat ini: {eventStatus}. Update status moto hanya bisa ketika event LIVE.
-        </div>
-      )}
+
 
       <section
         className="no-print motos-race-day-panel"
@@ -1719,7 +1705,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                       <select
                         value={m.status}
                         onChange={(e) => handleUpdateMotoStatus(m.id, e.target.value as MotoItem['status'])}
-                        disabled={eventStatus !== 'LIVE' || getAllowedMotoStatuses(m.status).length <= 1}
+                        disabled={getAllowedMotoStatuses(m.status).length <= 1}
                         className="motos-status-select"
                         style={{ padding: '8px 10px', borderRadius: 12, border: '2px solid #111', fontWeight: 900 }}
                       >
@@ -1733,7 +1719,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                         <button
                           type="button"
                           onClick={() => handleOpenReview(m.id)}
-                          disabled={eventStatus !== 'LIVE'}
+                          disabled={false}
                           className="motos-action-button"
                           style={{
                             padding: '8px 12px',
@@ -1741,7 +1727,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                             border: '2px solid #111',
                             background: '#fef3c7',
                             fontWeight: 900,
-                            cursor: eventStatus === 'LIVE' ? 'pointer' : 'not-allowed',
+                            cursor: 'pointer',
                           }}
                         >
                           Buka Review
@@ -1751,7 +1737,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                         <button
                           type="button"
                           onClick={() => handleLockMoto(m.id)}
-                          disabled={eventStatus !== 'LIVE'}
+                          disabled={false}
                           className="motos-action-button"
                           style={{
                             padding: '8px 12px',
@@ -1759,7 +1745,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                             border: '2px solid #111',
                             background: '#d1fae5',
                             fontWeight: 900,
-                            cursor: eventStatus === 'LIVE' ? 'pointer' : 'not-allowed',
+                            cursor: 'pointer',
                           }}
                         >
                           Lock Moto
@@ -1774,7 +1760,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                               <button
                                 type="button"
                                 onClick={() => handleRetryDeferredMoto2(m.id)}
-                                disabled={eventStatus !== 'LIVE'}
+                                disabled={false}
                                 className="motos-action-button"
                                 style={{
                                   padding: '8px 12px',
@@ -1782,7 +1768,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                                   border: '2px solid #111',
                                   background: '#fef3c7',
                                   fontWeight: 900,
-                                  cursor: eventStatus === 'LIVE' ? 'pointer' : 'not-allowed',
+                                  cursor: 'pointer',
                                 }}
                               >
                                 Coba Buat Moto 2
