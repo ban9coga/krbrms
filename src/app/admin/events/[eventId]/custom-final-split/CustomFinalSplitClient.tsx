@@ -26,6 +26,8 @@ type CategoryRow = {
   repechage_max_riders_per_race?: number | null
   quarter_final_max_riders_per_race?: number | null
   semi_final_max_riders_per_race?: number | null
+  dnf_point_override?: number | null
+  dns_point_override?: number | null
 }
 
 type EventGuideMeta = {
@@ -36,6 +38,43 @@ type EventGuideMeta = {
   display_theme?: Record<string, unknown> | null
   final_class_options?: string[] | null
   qualification_batch_mode?: 'FIXED' | 'ROTATE_EACH_MOTO'
+}
+
+type PenaltyGuideRule = {
+  code: string
+  description: string | null
+  penalty_point: number
+  applies_to_stage: 'MOTO' | 'QUARTER' | 'REPECHAGE' | 'SEMI' | 'FINAL' | 'ALL'
+  is_active: boolean
+  checker_enabled: boolean
+  rd_enabled: boolean
+}
+
+type PenaltyGuideRequirement = {
+  label: string
+  penalty_code: string | null
+  is_required: boolean
+}
+
+type PenaltyGuideFlags = {
+  penalty_enabled: boolean
+  absent_enabled: boolean
+  dns_enabled: boolean
+  finisher_dns_enabled: boolean
+  dnf_enabled: boolean
+  dnf_progress_enabled: boolean
+  dq_retains_final_classification: boolean
+}
+
+const escapeGuideHtml = (value: unknown) => {
+  const entities: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  }
+  return String(value ?? '').replace(/[&<>"']/g, (character) => entities[character] ?? character)
 }
 
 type CustomSplitRule = {
@@ -559,6 +598,11 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
   const [loading, setLoading] = useState(false)
   const [savingCategoryId, setSavingCategoryId] = useState<string | null>(null)
   const [showGuide, setShowGuide] = useState(false)
+  const [showPenaltyGuide, setShowPenaltyGuide] = useState(false)
+  const [penaltyGuideLoading, setPenaltyGuideLoading] = useState(false)
+  const [penaltyGuideRules, setPenaltyGuideRules] = useState<PenaltyGuideRule[]>([])
+  const [penaltyGuideRequirements, setPenaltyGuideRequirements] = useState<PenaltyGuideRequirement[]>([])
+  const [penaltyGuideFlags, setPenaltyGuideFlags] = useState<PenaltyGuideFlags | null>(null)
   const [eventMeta, setEventMeta] = useState<EventGuideMeta | null>(null)
   const [categories, setCategories] = useState<CategoryRow[]>([])
   const [rulesByCategory, setRulesByCategory] = useState<Record<string, CustomSplitRule[]>>({})
@@ -833,6 +877,114 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
         ? theme.logo_url
         : null
   const themeSlogan = typeof theme.slogan === 'string' ? theme.slogan : ''
+
+  const loadPenaltyGuide = async () => {
+    setPenaltyGuideLoading(true)
+    try {
+      const [rulesResponse, modulesResponse, safetyResponse] = await Promise.all([
+        apiFetch(`/api/events/${eventId}/penalties`),
+        apiFetch(`/api/events/${eventId}/modules`),
+        apiFetch(`/api/events/${eventId}/safety-requirements`),
+      ])
+      setPenaltyGuideRules((rulesResponse.data ?? []) as PenaltyGuideRule[])
+      setPenaltyGuideRequirements((safetyResponse.data ?? []) as PenaltyGuideRequirement[])
+      const flags = modulesResponse.data ?? {}
+      setPenaltyGuideFlags({
+        penalty_enabled: Boolean(flags.penalty_enabled),
+        absent_enabled: Boolean(flags.absent_enabled),
+        dns_enabled: Boolean(flags.dns_enabled),
+        finisher_dns_enabled: Boolean(flags.finisher_dns_enabled),
+        dnf_enabled: Boolean(flags.dnf_enabled),
+        dnf_progress_enabled: Boolean(flags.dnf_progress_enabled),
+        dq_retains_final_classification: Boolean(flags.dq_retains_final_classification),
+      })
+      setShowPenaltyGuide(true)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Gagal memuat panduan penalty event.')
+    } finally {
+      setPenaltyGuideLoading(false)
+    }
+  }
+
+  const penaltyStageLabel = (stage: PenaltyGuideRule['applies_to_stage']) =>
+    ({ MOTO: 'Qualification / Moto', QUARTER: 'Quarter Final', REPECHAGE: 'Repechage', SEMI: 'Semi Final', FINAL: 'Final', ALL: 'Semua stage' })[stage]
+
+  const penaltyRulesFor = (audience: 'checker_enabled' | 'rd_enabled') =>
+    penaltyGuideRules
+      .filter((rule) => rule[audience])
+      .map((rule) => {
+        const safetyLabels = penaltyGuideRequirements
+          .filter((requirement) => requirement.penalty_code === rule.code)
+          .map((requirement) => `${requirement.label}${requirement.is_required ? ' (wajib)' : ''}`)
+        return {
+          ...rule,
+          safetyLabels,
+          scopeLabel: penaltyStageLabel(rule.applies_to_stage),
+        }
+      })
+
+  const printPenaltyGuide = () => {
+    const checkerRules = penaltyRulesFor('checker_enabled')
+    const rdRules = penaltyRulesFor('rd_enabled')
+    const printPrimary = /^#[0-9a-f]{3,8}$/i.test(themePrimary) ? themePrimary : '#2563eb'
+    const printSecondary = /^#[0-9a-f]{3,8}$/i.test(themeSecondary) ? themeSecondary : '#0f172a'
+    const printHeader = /^#[0-9a-f]{3,8}$/i.test(themeHeaderBg) ? themeHeaderBg : '#e0f2fe'
+    const printCard = /^#[0-9a-f]{3,8}$/i.test(themeCardBg) ? themeCardBg : '#ffffff'
+    const renderRules = (rows: ReturnType<typeof penaltyRulesFor>) => rows.length
+      ? `<table><thead><tr><th>Penalty</th><th>Keterangan / safety item</th><th>Poin</th><th>Stage</th><th>Status</th></tr></thead><tbody>${rows.map((rule) => `<tr><td><b>${escapeGuideHtml(rule.code)}</b></td><td>${escapeGuideHtml(rule.description || rule.safetyLabels.join(', ') || '-')}<br/><small>${escapeGuideHtml(rule.safetyLabels.join(', '))}</small></td><td>+${escapeGuideHtml(rule.penalty_point)}</td><td>${escapeGuideHtml(rule.scopeLabel)}</td><td>${rule.is_active ? 'Aktif' : 'Nonaktif'}</td></tr>`).join('')}</tbody></table>`
+      : '<p>Belum ada rule untuk peran ini.</p>'
+    const moduleRows = [
+      ['Modul penalty', penaltyGuideFlags?.penalty_enabled],
+      ['Modul DNS', penaltyGuideFlags?.dns_enabled],
+      ['Modul Absent', penaltyGuideFlags?.absent_enabled],
+      ['Modul DNF', penaltyGuideFlags?.dnf_enabled],
+      ['Progress DNF sebagai tie-break', penaltyGuideFlags?.dnf_progress_enabled],
+      ['DNS di Finisher', penaltyGuideFlags?.finisher_dns_enabled],
+      ['DQ mempertahankan klasifikasi final', penaltyGuideFlags?.dq_retains_final_classification],
+    ]
+    const categoryRows = categories.map((category) => {
+      const dnfPoints = category.dnf_point_override ?? 8
+      const dnsPoints = category.dns_point_override ?? 9
+      return `<tr><td>${escapeGuideHtml(category.label)}</td><td>${dnfPoints} poin${category.dnf_point_override == null ? ' (default)' : ''}</td><td>${dnsPoints} poin${category.dns_point_override == null ? ' (default)' : ''}</td></tr>`
+    }).join('')
+    const logoHtml = themeLogoUrl
+      ? `<img class="logo" src="${escapeGuideHtml(themeLogoUrl)}" alt="Logo event" />`
+      : ''
+    const subtitle = [eventMeta?.community_name, themeSlogan].filter(Boolean).map(escapeGuideHtml).join(' | ')
+    const frame = document.createElement('iframe')
+    frame.style.position = 'fixed'
+    frame.style.right = '0'
+    frame.style.bottom = '0'
+    frame.style.width = '0'
+    frame.style.height = '0'
+    frame.style.border = '0'
+    frame.setAttribute('aria-hidden', 'true')
+    document.body.appendChild(frame)
+    const frameWindow = frame.contentWindow
+    const frameDocument = frame.contentDocument ?? frameWindow?.document
+    if (!frameWindow || !frameDocument) {
+      frame.remove()
+      alert('Gagal membuka dokumen cetak panduan penalty.')
+      return
+    }
+    frameDocument.open()
+    frameDocument.write(`<!doctype html><html><head><meta charset="utf-8"/><title>Panduan Penalty</title><style>
+      :root{--primary:${printPrimary};--secondary:${printSecondary};--header:${printHeader};--card:${printCard}}
+      *{box-sizing:border-box}body{font:14px Arial,sans-serif;color:#172033;margin:0;background:#f8fafc}.page{padding:28px}.hero{display:flex;gap:18px;align-items:center;background:linear-gradient(135deg,var(--secondary),var(--primary));color:#fff;padding:24px;border-radius:20px;margin-bottom:18px}.logo{width:72px;height:72px;object-fit:contain;background:#ffffff20;border-radius:14px;padding:6px}.kicker{font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}.hero h1{margin:6px 0;font-size:28px}.hero p{margin:0;opacity:.9}.card{background:var(--card);border:2px solid var(--header);border-radius:15px;padding:16px;margin:12px 0;break-inside:avoid}.card h2{color:var(--secondary);font-size:18px;margin:0 0 10px}.card p{line-height:1.5;margin:6px 0}table{width:100%;border-collapse:collapse;margin-top:8px}th,td{text-align:left;padding:8px;border:1px solid #cbd5e1;vertical-align:top}th{background:var(--header)}small{color:#475569}.modules{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.module{border:1px solid #cbd5e1;border-radius:9px;padding:8px} @media print{body{background:#fff}.page{padding:0}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+      </style></head><body><main class="page"><header class="hero">${logoHtml}<div><div class="kicker">Panduan Penalty Event</div><h1>${escapeGuideHtml(eventMeta?.name ?? 'Event')}</h1><p>${subtitle}</p></div></header>
+      <section class="card"><h2>Penalty oleh Checker</h2><p>Checker memeriksa safety gear. Jika item safety yang dipetakan tidak terpenuhi, sistem menerapkan penalty sesuai rule aktif event.</p>${renderRules(checkerRules)}</section>
+      <section class="card"><h2>Penalty oleh Race Director</h2><p>RD dapat memasukkan rule manual yang aktif untuk peran RD. Poin penalty yang disetujui ditambahkan ke poin race pada stage terkait.</p>${renderRules(rdRules)}</section>
+      <section class="card"><h2>DNS, Absent, dan DNF</h2><p><b>DNS dan Absent:</b> perhitungan poinnya sama. Poin dasar memakai posisi terakhir berdasarkan jumlah rider pada moto, lalu ditambah penalti otomatis DNS/Absent kategori.</p><p><b>DNF:</b> bila ada posisi finish yang tercatat, posisi itu menjadi poin dasar; jika tidak, poin dasar memakai jumlah rider yang start (rider terdaftar dikurangi DNS). Setelah itu ditambah penalti otomatis DNF kategori.</p><p><b>Progress DNF:</b> tidak mengganti poin secara langsung. Jika modul progress aktif dan poin rider DNF seri, persentase progress track yang lebih tinggi menjadi tie-break.</p><table><thead><tr><th>Kategori</th><th>Tambahan otomatis DNF</th><th>Tambahan otomatis DNS / Absent</th></tr></thead><tbody>${categoryRows || '<tr><td colspan="3">Belum ada kategori.</td></tr>'}</tbody></table></section>
+      <section class="card"><h2>Setting Modul Event</h2><div class="modules">${moduleRows.map(([label, enabled]) => `<div class="module"><b>${escapeGuideHtml(label)}</b>: ${enabled ? 'Aktif' : 'Nonaktif'}</div>`).join('')}</div></section>
+      </main><script>window.onload=()=>window.print()</script></body></html>`)
+    frameDocument.close()
+    frameWindow.focus()
+    const cleanup = () => window.setTimeout(() => frame.remove(), 1000)
+    frameWindow.onafterprint = cleanup
+    window.setTimeout(() => {
+      try { frameWindow.print() } finally { cleanup() }
+    }, 250)
+  }
 
   const copyGuideText = async () => {
     try {
@@ -1160,6 +1312,20 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
             }}
           >
             Race System Guide
+          </button>
+          <button
+            type="button"
+            onClick={() => void loadPenaltyGuide()}
+            disabled={penaltyGuideLoading}
+            style={{
+              padding: '10px 14px',
+              borderRadius: 12,
+              border: '2px solid #111',
+              background: '#fef08a',
+              fontWeight: 900,
+            }}
+          >
+            {penaltyGuideLoading ? 'Memuat panduan...' : 'Panduan Penalty'}
           </button>
         </div>
         <div
@@ -1701,6 +1867,114 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
                 </section>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+      {showPenaltyGuide && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Panduan Penalty Event"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.62)',
+            display: 'grid',
+            placeItems: 'center',
+            padding: 16,
+            zIndex: 70,
+          }}
+        >
+          <div style={{ width: 'min(980px, 100%)', maxHeight: '92vh', overflow: 'auto', borderRadius: 20, border: `2px solid ${themeSecondary}`, background: themeCardBg, padding: 18, display: 'grid', gap: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'start', flexWrap: 'wrap' }}>
+              <div style={{ display: 'grid', gap: 5 }}>
+                <div style={{ fontSize: 26, fontWeight: 950, color: themeSecondary }}>Panduan Penalty Event</div>
+                <div style={{ color: '#475569', fontWeight: 750 }}>{eventMeta?.name ?? 'Event'} · aturan sesuai pengaturan event saat ini</div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button type="button" onClick={printPenaltyGuide} style={{ padding: '10px 14px', borderRadius: 10, border: `2px solid ${themeSecondary}`, background: '#d9f99d', fontWeight: 900 }}>
+                  Cetak / Save PDF
+                </button>
+                <button type="button" onClick={() => setShowPenaltyGuide(false)} style={{ padding: '10px 14px', borderRadius: 10, border: `2px solid ${themeSecondary}`, background: '#ffd7d7', fontWeight: 900 }}>
+                  Tutup
+                </button>
+              </div>
+            </div>
+
+            <section style={{ border: `2px solid ${themeHeaderBg}`, borderRadius: 14, background: themeCardBg, padding: 14 }}>
+              <h2 style={{ margin: '0 0 10px', color: themeSecondary, fontSize: 18 }}>Penalty Checker</h2>
+              <p style={{ margin: '0 0 10px', color: '#334155', lineHeight: 1.5 }}>Checker memeriksa item safety. Jika item yang terhubung ke rule penalty tidak terpenuhi, sistem menerapkan poin sesuai rule aktif dan stage-nya.</p>
+              {penaltyRulesFor('checker_enabled').length ? (
+                <div style={{ display: 'grid', gap: 8 }}>
+                  {penaltyRulesFor('checker_enabled').map((rule) => (
+                    <div key={`checker-${rule.code}`} style={{ border: '1px solid #cbd5e1', borderRadius: 10, background: '#fff', padding: 10, display: 'grid', gap: 4 }}>
+                      <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                        <b>{rule.code}</b><b style={{ color: themePrimary }}>+{rule.penalty_point} poin</b>
+                      </div>
+                      <div>{rule.description || 'Penalty Checker'}</div>
+                      {rule.safetyLabels.length > 0 && <div style={{ color: '#475569' }}>Safety checklist: {rule.safetyLabels.join(', ')}</div>}
+                      <small style={{ color: '#475569' }}>Berlaku: {rule.scopeLabel} · {rule.is_active ? 'Aktif' : 'Rule nonaktif'}</small>
+                    </div>
+                  ))}
+                </div>
+              ) : <div style={{ color: '#64748b' }}>Belum ada rule Checker Auto.</div>}
+            </section>
+
+            <section style={{ border: `2px solid ${themeHeaderBg}`, borderRadius: 14, background: themeCardBg, padding: 14 }}>
+              <h2 style={{ margin: '0 0 10px', color: themeSecondary, fontSize: 18 }}>Penalty Race Director</h2>
+              <p style={{ margin: '0 0 10px', color: '#334155', lineHeight: 1.5 }}>RD memilih rule manual yang sesuai kejadian. Penalty yang sudah disetujui ditambahkan ke poin race rider pada stage terkait.</p>
+              {penaltyRulesFor('rd_enabled').length ? (
+                <div style={{ display: 'grid', gap: 8 }}>
+                  {penaltyRulesFor('rd_enabled').map((rule) => (
+                    <div key={`rd-${rule.code}`} style={{ border: '1px solid #cbd5e1', borderRadius: 10, background: '#fff', padding: 10, display: 'grid', gap: 4 }}>
+                      <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                        <b>{rule.code}</b><b style={{ color: themePrimary }}>+{rule.penalty_point} poin</b>
+                      </div>
+                      <div>{rule.description || 'Penalty manual RD'}</div>
+                      <small style={{ color: '#475569' }}>Berlaku: {rule.scopeLabel} · {rule.is_active ? 'Aktif' : 'Rule nonaktif'}</small>
+                    </div>
+                  ))}
+                </div>
+              ) : <div style={{ color: '#64748b' }}>Belum ada rule RD Manual.</div>}
+            </section>
+
+            <section style={{ border: `2px solid ${themeHeaderBg}`, borderRadius: 14, background: themeCardBg, padding: 14, display: 'grid', gap: 9 }}>
+              <h2 style={{ margin: 0, color: themeSecondary, fontSize: 18 }}>DNS, Absent, dan DNF</h2>
+              <div><b>DNS dan Absent</b> memakai perhitungan poin yang sama: poin dasar posisi terakhir sesuai jumlah rider pada moto, ditambah penalti otomatis DNS kategori.</div>
+              <div><b>DNF</b> memakai finish order jika posisi sudah tercatat; jika belum, poin dasarnya mengikuti jumlah rider yang start (jumlah rider dikurangi DNS). Lalu ditambah penalti otomatis DNF kategori.</div>
+              <div><b>Progress track DNF</b> bukan tambahan/pengurang poin langsung. Jika opsi progress DNF aktif dan poin DNF seri, progress track lebih tinggi dipakai sebagai tie-break.</div>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 460 }}>
+                  <thead><tr style={{ background: themeHeaderBg }}><th style={{ textAlign: 'left', padding: 9 }}>Kategori</th><th style={{ textAlign: 'left', padding: 9 }}>Poin otomatis DNF</th><th style={{ textAlign: 'left', padding: 9 }}>Poin otomatis DNS / Absent</th></tr></thead>
+                  <tbody>{categories.map((category) => (
+                    <tr key={`nonfinish-${category.id}`}>
+                      <td style={{ padding: 9, borderTop: '1px solid #cbd5e1' }}>{category.label}</td>
+                      <td style={{ padding: 9, borderTop: '1px solid #cbd5e1' }}>{category.dnf_point_override ?? 8} poin{category.dnf_point_override == null ? ' (default)' : ''}</td>
+                      <td style={{ padding: 9, borderTop: '1px solid #cbd5e1' }}>{category.dns_point_override ?? 9} poin{category.dns_point_override == null ? ' (default)' : ''}</td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
+            </section>
+
+            <section style={{ border: `2px solid ${themeHeaderBg}`, borderRadius: 14, background: themeCardBg, padding: 14 }}>
+              <h2 style={{ margin: '0 0 10px', color: themeSecondary, fontSize: 18 }}>Status Modul Event</h2>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {([
+                  ['Penalty', penaltyGuideFlags?.penalty_enabled],
+                  ['DNS', penaltyGuideFlags?.dns_enabled],
+                  ['Absent', penaltyGuideFlags?.absent_enabled],
+                  ['DNF', penaltyGuideFlags?.dnf_enabled],
+                  ['Progress DNF tie-break', penaltyGuideFlags?.dnf_progress_enabled],
+                  ['DNS di Finisher', penaltyGuideFlags?.finisher_dns_enabled],
+                  ['DQ mempertahankan klasifikasi final', penaltyGuideFlags?.dq_retains_final_classification],
+                ] as Array<[string, boolean | undefined]>).map(([label, enabled]) => (
+                  <span key={label} style={{ padding: '7px 10px', borderRadius: 999, background: enabled ? '#dcfce7' : '#f1f5f9', border: `1px solid ${enabled ? '#16a34a' : '#cbd5e1'}`, fontSize: 12, fontWeight: 850 }}>
+                    {label}: {enabled ? 'Aktif' : 'Nonaktif'}
+                  </span>
+                ))}
+              </div>
+            </section>
           </div>
         </div>
       )}
