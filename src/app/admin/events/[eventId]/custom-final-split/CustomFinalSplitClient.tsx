@@ -231,17 +231,18 @@ const estimateRaceCounts = (category: CategoryRow, rules: CustomSplitRule[]): Ra
         )
 
   const qualificationBatchCount = qualificationBucketSizes.length
+  const oneBatchQualificationMotoCount = category.single_batch_two_moto_final_enabled === true ? 2 : 3
   const qualificationRaceCount =
     qualificationBatchCount === 0
       ? 0
       : qualificationBatchCount === 1
-        ? 3
+        ? oneBatchQualificationMotoCount
         : qualificationBatchCount * (Number(category.qualification_moto_count ?? 2) >= 3 ? 3 : 2)
   const qualificationMotoCount =
     qualificationBatchCount === 0
       ? 0
       : qualificationBatchCount === 1
-        ? 3
+        ? oneBatchQualificationMotoCount
         : Number(category.qualification_moto_count ?? 2) >= 3
           ? 3
           : 2
@@ -290,9 +291,11 @@ const estimateRaceCounts = (category: CategoryRow, rules: CustomSplitRule[]): Ra
   const finalRaceCount = Array.from(finalCounts.values()).filter((count) => count > 0).length
 
   const notes: string[] = []
-  if (qualificationBatchCount === 1 && qualificationRaceCount === 3) {
+  if (qualificationBatchCount === 1 && qualificationMotoCount === 3) {
     notes.push('1 batch memakai 3 moto qualification.')
     notes.push('Urutan gate Moto 3 mengikuti total point terkecil dari Moto 1 dan Moto 2.')
+  } else if (qualificationBatchCount === 1 && qualificationMotoCount === 2) {
+    notes.push('1 batch memakai 2 moto qualification. Final dibuat setelah hasil Moto 2 dihitung.')
   } else if (qualificationBatchCount > 1) {
     notes.push(`Qualification dihitung ${qualificationRaceCount} race dari ${qualificationBatchCount} batch x ${qualificationMotoCount} moto.`)
   }
