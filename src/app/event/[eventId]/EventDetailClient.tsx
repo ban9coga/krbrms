@@ -455,6 +455,12 @@ export default function EventDetailClient({
                       <div className="mt-2">
                         <CategoryMotoStatusBadges counts={categoryMotoBadges.get(category.id)} />
                       </div>
+                      <Link
+                        href={`/event/${eventId}/live-score/${encodeURIComponent(category.id)}`}
+                        className="mt-3 inline-flex min-h-10 w-full items-center justify-center rounded-lg bg-emerald-700 px-4 py-2 text-xs font-extrabold uppercase tracking-wide text-white transition-colors hover:bg-emerald-600"
+                      >
+                        Lihat Hasil &amp; Jadwal Moto
+                      </Link>
                     </article>
                   ))}
                 </div>
