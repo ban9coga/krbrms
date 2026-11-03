@@ -1,4 +1,4 @@
-import { randomUUID } from 'crypto'
+﻿import { randomUUID } from 'crypto'
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../lib/auth'
 import { normalizeFinalClassValue } from '../../../../../lib/advancedRaceDefaults'
@@ -32,7 +32,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
 
   const { data: sourceEvent, error: sourceEventError } = await adminClient
     .from('events')
-    .select('id, name, location, event_date, status, is_public')
+    .select('id, name, community_name, location, event_date, status, description, is_public')
     .eq('id', eventId)
     .maybeSingle()
 
@@ -47,9 +47,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       {
         id: newEventId,
         name: newEventName,
+        community_name: sourceEvent.community_name,
         location: sourceEvent.location,
         event_date: sourceEvent.event_date,
         status: sourceEvent.status,
+        description: sourceEvent.description,
         is_public: sourceEvent.is_public,
       },
     ])
@@ -241,7 +243,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
 
     await copySimpleEventTable(
       'race_stage_config',
-      'id, category_id, enabled, max_riders_per_race, qualification_moto_count, repechage_max_riders_per_race, quarter_final_max_riders_per_race, semi_final_max_riders_per_race, dnf_point_override, dns_point_override, draw_batch_mode, draw_batch_size, draw_batch_count, draw_custom_batch_sizes, draw_moto2_order, draw_moto3_order',
+      'id, category_id, enabled, max_riders_per_race, qualification_moto_count, repechage_max_riders_per_race, quarter_final_max_riders_per_race, semi_final_max_riders_per_race, dnf_point_override, dns_point_override, draw_batch_mode, draw_batch_size, draw_batch_count, draw_custom_batch_sizes, draw_moto2_order, draw_moto3_order, single_batch_final_enabled, single_batch_two_moto_final_enabled',
       (row) => {
         const mappedCategoryId = categoryIdMap.get(String(row.category_id ?? ''))
         if (!mappedCategoryId) return null
@@ -263,6 +265,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
           draw_custom_batch_sizes: row.draw_custom_batch_sizes,
           draw_moto2_order: row.draw_moto2_order,
           draw_moto3_order: row.draw_moto3_order,
+          single_batch_final_enabled: row.single_batch_final_enabled ?? false,
+          single_batch_two_moto_final_enabled: row.single_batch_two_moto_final_enabled ?? false,
         }
       }
     )
