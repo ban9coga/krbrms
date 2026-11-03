@@ -640,6 +640,11 @@ export default function LiveScoreClient({
     }))
   }, [batches, qualificationAdvancementsCalculated, qualificationOverallRows])
 
+  const qualificationDisplayRankByRider = useMemo(
+    () => new Map(qualificationDisplayRows.map((row) => [row.rider_id, row.displayRank])),
+    [qualificationDisplayRows]
+  )
+
   const riderPhotoCell = (name: string, noPlate: string, photoUrl?: string | null) => {
     if (showRiderPhotos && photoUrl) {
       return (
@@ -1220,54 +1225,52 @@ export default function LiveScoreClient({
                 </div>
                 {batchIndex === 0 && scoreControls}
               </div>
-              <div className="live-score-qualification-cards grid gap-2 lg:hidden">
-                {batch.rows.map((row) => (
-                  <article key={`mobile-qualification-${row.rider_id}`} className="live-score-mobile-rider-card">
-                    <div className="live-score-mobile-rider-heading">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="live-score-rider-name truncate text-sm font-black">{row.name}</span>
-                          <RiderNotificationButton eventId={eventId} riderId={row.rider_id} riderName={row.name} riderPlate={row.no_plate} />
-                        </div>
-                        <p className="mt-1 text-xs font-extrabold text-amber-800">{row.no_plate}</p>
-                        <p className="text-[10px] font-semibold text-slate-600">{row.club || '-'}</p>
-                      </div>
-                      {(row.status === 'DQ' || row.status === 'PENDING') && (
-                        <span className={`rounded-full border px-2 py-1 text-[9px] font-black uppercase ${statusBadgeClass(row.status)}`}>
-                          {row.status === 'PENDING' ? 'MENUNGGU' : row.status}
-                        </span>
-                      )}
-                    </div>
-                    <div className="live-score-mobile-summary-grid">
-                      <div><span>Total Poin</span><strong>{row.total_point ?? '-'}</strong></div>
-                      <div><span>Total Penalti</span><strong>{row.penalty_total ?? '-'}</strong></div>
-                      {showQualificationNextColumn && (
-                        <div className="live-score-mobile-destination">
-                          <span>{qualificationHasFinisherOutcome ? 'Hasil Kualifikasi' : 'Next Stage'}</span>
-                          <strong>{usesGlobalActiveFirst ? qualificationDestinationLabel(row.class_label) : row.class_label || '-'}</strong>
-                        </div>
-                      )}
-                    </div>
-                    <details className="live-score-mobile-breakdown">
-                      <summary>Lihat poin, gate &amp; status tiap moto</summary>
-                      <div className="live-score-mobile-moto-grid">
-                        {[
-                          { label: 'Moto 1', gate: row.gate_moto1, point: row.point_moto1, penalty: row.penalty_moto1, total: row.total_point_moto1, status: row.moto1_status },
-                          { label: 'Moto 2', gate: row.gate_moto2, point: row.point_moto2, penalty: row.penalty_moto2, total: row.total_point_moto2, status: row.moto2_status },
-                          ...(showMoto3 ? [{ label: 'Moto 3', gate: row.gate_moto3, point: row.point_moto3, penalty: row.penalty_moto3, total: row.total_point_moto3, status: row.moto3_status }] : []),
-                        ].map((moto) => (
-                          <div key={moto.label} className="live-score-mobile-moto-item">
-                            <strong>{moto.label}</strong>
-                            <span>Gate {moto.gate ?? '-'}</span>
-                            <span className="live-score-mobile-moto-result">
-                              {moto.status === 'PENDING' ? 'Menunggu' : moto.status ?? 'Menunggu'} · Poin {moto.point ?? '-'} · Penalti {moto.penalty ?? '-'} · Total {moto.total ?? '-'}
-                            </span>
+              <div className={`live-score-mobile-table-wrap lg:hidden${showMoto3 ? ' has-three-motos' : ''}`}>
+                <table className="live-score-mobile-table">
+                  <thead>
+                    <tr>
+                      <th>Gate M1</th>
+                      <th>Gate M2</th>
+                      {showMoto3 && <th>Gate M3</th>}
+                      <th>Rider</th>
+                      <th>Poin M1</th>
+                      <th>Poin M2</th>
+                      {showMoto3 && <th>Poin M3</th>}
+                      <th>Penalti</th>
+                      <th>Total</th>
+                      <th>Rank</th>
+                      {showQualificationNextColumn && <th>{qualificationHasFinisherOutcome ? 'Hasil' : 'Next Stage'}</th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {batch.rows.map((row) => (
+                      <tr key={`mobile-qualification-table-${row.rider_id}`}>
+                        <td className="live-score-mobile-gate">{row.gate_moto1 ?? '-'}</td>
+                        <td className="live-score-mobile-gate">{row.gate_moto2 ?? '-'}</td>
+                        {showMoto3 && <td className="live-score-mobile-gate">{row.gate_moto3 ?? '-'}</td>}
+                        <td className="live-score-mobile-rider-cell">
+                          <div className="live-score-mobile-rider-name">
+                            <span>{row.name}</span>
+                            <RiderNotificationButton eventId={eventId} riderId={row.rider_id} riderName={row.name} riderPlate={row.no_plate} />
                           </div>
-                        ))}
-                      </div>
-                    </details>
-                  </article>
-                ))}
+                          <small>#{row.no_plate}</small>
+                          <small>{row.club || '-'}</small>
+                        </td>
+                        <td className="live-score-mobile-point">{renderMotoResultCell(row.point_moto1, row.moto1_status)}</td>
+                        <td className="live-score-mobile-point">{renderMotoResultCell(row.point_moto2, row.moto2_status)}</td>
+                        {showMoto3 && <td className="live-score-mobile-point">{renderMotoResultCell(row.point_moto3, row.moto3_status)}</td>}
+                        <td className="live-score-mobile-penalty">{row.penalty_total ?? '-'}</td>
+                        <td className="live-score-mobile-total-cell">{row.total_point ?? '-'}</td>
+                        <td className="live-score-mobile-rank">{renderRankBadge(qualificationDisplayRankByRider.get(row.rider_id) ?? null)}</td>
+                        {showQualificationNextColumn && (
+                          <td className="live-score-mobile-next-stage">
+                            {usesGlobalActiveFirst ? qualificationDestinationLabel(row.class_label) : row.class_label || '-'}
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
               <div className="table-mobile-hint hidden lg:block">Geser tabel ke samping untuk melihat seluruh hasil</div>
               <div className="public-table-wrap hidden lg:block">
@@ -1353,43 +1356,40 @@ export default function LiveScoreClient({
                   </p>
                 ) : (
                   <>
-                <div className="live-score-stage-cards grid gap-2 lg:hidden">
-                  {stage.rows.map((row) => (
-                    <article key={`mobile-stage-${row.rider_id}`} className="live-score-mobile-rider-card">
-                      <div className="live-score-mobile-rider-heading">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="live-score-rider-name truncate text-sm font-black">{row.name}</span>
-                            <RiderNotificationButton eventId={eventId} riderId={row.rider_id} riderName={row.name} riderPlate={row.no_plate} />
-                          </div>
-                          <p className="mt-1 text-xs font-extrabold text-amber-800">{row.no_plate}</p>
-                          <p className="text-[10px] font-semibold text-slate-600">{row.club || '-'}</p>
-                        </div>
-                        <div className="grid justify-items-center gap-1">
-                          {renderRankBadge(row.rank)}
-                          <span className="text-[9px] font-black uppercase text-slate-600">Peringkat</span>
-                        </div>
-                      </div>
-                      <div className="live-score-mobile-summary-grid live-score-stage-summary-grid">
-                        <div><span>Gate</span><strong>{row.gate ?? '-'}</strong></div>
-                        <div>
-                          <span>Poin</span>
-                          <strong>{row.point ?? '-'}</strong>
-                          {['DNF', 'DNS', 'DQ'].includes(row.status) && (
-                            <small className={`live-score-mobile-result-status ${statusBadgeClass(row.status)}`}>{row.status}</small>
-                          )}
-                        </div>
-                        <div><span>Penalti</span><strong>{row.penalty_total ?? '-'}</strong></div>
-                        <div className="live-score-mobile-total"><span>Total Poin</span><strong>{row.total_point ?? '-'}</strong></div>
-                        {showNextStageColumn && (
-                          <div className="live-score-mobile-destination">
-                            <span>Next Stage</span>
-                            <strong>{row.next_class_label || '-'}</strong>
-                          </div>
-                        )}
-                      </div>
-                    </article>
-                  ))}
+                <div className={`live-score-mobile-table-wrap live-score-stage-mobile-table-wrap lg:hidden${showNextStageColumn ? ' has-next-stage' : ''}`}>
+                  <table className="live-score-mobile-table live-score-stage-mobile-table">
+                    <thead>
+                      <tr>
+                        <th>Gate</th>
+                        <th>Rider</th>
+                        <th>Poin</th>
+                        <th>Penalti</th>
+                        <th>Total</th>
+                        <th>Rank</th>
+                        {showNextStageColumn && <th>Next Stage</th>}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {stage.rows.map((row) => (
+                        <tr key={`mobile-stage-table-${row.rider_id}`}>
+                          <td className="live-score-mobile-gate">{row.gate ?? '-'}</td>
+                          <td className="live-score-mobile-rider-cell">
+                            <div className="live-score-mobile-rider-name">
+                              <span>{row.name}</span>
+                              <RiderNotificationButton eventId={eventId} riderId={row.rider_id} riderName={row.name} riderPlate={row.no_plate} />
+                            </div>
+                            <small>#{row.no_plate}</small>
+                            <small>{row.club || '-'}</small>
+                          </td>
+                          <td className="live-score-mobile-point">{renderStagePointCell(row.point, row.status)}</td>
+                          <td className="live-score-mobile-penalty">{row.penalty_total ?? '-'}</td>
+                          <td className="live-score-mobile-total-cell">{row.total_point ?? '-'}</td>
+                          <td className="live-score-mobile-rank">{renderRankBadge(row.rank)}</td>
+                          {showNextStageColumn && <td className="live-score-mobile-next-stage">{row.next_class_label || '-'}</td>}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
                 <div className="table-mobile-hint hidden lg:block">Geser tabel ke samping untuk melihat seluruh hasil</div>
                 <div className="public-table-wrap hidden lg:block">

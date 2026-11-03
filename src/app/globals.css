@@ -3882,6 +3882,243 @@ html[data-theme='dark'] .setting-toggle-control:has(input:checked) .setting-togg
     gap: 10px;
   }
 
+  .live-score-mobile-table-wrap {
+    width: 100%;
+    overflow-x: auto;
+    border: 1px solid #d9c9ae;
+    border-radius: 12px;
+    background: #fff8e8;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .live-score-mobile-table {
+    width: 100%;
+    min-width: 620px;
+    table-layout: fixed;
+    border-collapse: collapse;
+    color: #49372c;
+    font-size: 10px;
+  }
+
+  .live-score-mobile-table-wrap.has-three-motos .live-score-mobile-table {
+    min-width: 700px;
+  }
+
+  .live-score-mobile-table th,
+  .live-score-mobile-table td {
+    padding: 4px 3px;
+    border-bottom: 1px solid #e2d5bd;
+    vertical-align: middle;
+  }
+
+  .live-score-mobile-table th {
+    background: #efe2c7;
+    color: #3f2b20;
+    font-size: 8px;
+    font-weight: 900;
+    line-height: 1.15;
+    text-align: center;
+    text-transform: uppercase;
+  }
+
+  .live-score-mobile-table tbody tr:nth-child(odd) {
+    background: #fffaf0;
+  }
+
+  .live-score-mobile-table tbody tr:nth-child(even) {
+    background: #f7ecd8;
+  }
+
+  .live-score-mobile-table th:nth-child(1),
+  .live-score-mobile-table td:nth-child(1),
+  .live-score-mobile-table th:nth-child(2),
+  .live-score-mobile-table td:nth-child(2) {
+    width: 38px;
+  }
+
+  .live-score-mobile-table th:nth-child(3),
+  .live-score-mobile-table td:nth-child(3) {
+    width: 160px;
+    text-align: left;
+  }
+
+  .live-score-mobile-table thead th:nth-child(3) {
+    background: #efe2c7;
+  }
+
+  .live-score-mobile-table th:nth-child(4),
+  .live-score-mobile-table td:nth-child(4),
+  .live-score-mobile-table th:nth-child(5),
+  .live-score-mobile-table td:nth-child(5) {
+    width: 48px;
+  }
+
+  .live-score-mobile-table th:nth-child(6),
+  .live-score-mobile-table td:nth-child(6) {
+    width: 50px;
+  }
+
+  .live-score-mobile-table th:nth-child(7),
+  .live-score-mobile-table td:nth-child(7) {
+    width: 54px;
+  }
+
+  .live-score-mobile-table th:nth-child(8),
+  .live-score-mobile-table td:nth-child(8) {
+    width: 44px;
+    text-align: center;
+  }
+
+  .live-score-mobile-table th:nth-child(9),
+  .live-score-mobile-table td:nth-child(9) {
+    width: 88px;
+  }
+
+  .live-score-mobile-table-wrap.has-three-motos .live-score-mobile-table th:nth-child(3),
+  .live-score-mobile-table-wrap.has-three-motos .live-score-mobile-table td:nth-child(3) {
+    width: 38px;
+    position: static;
+    left: auto;
+    z-index: auto;
+    border-right: 0;
+    text-align: center;
+  }
+
+  .live-score-mobile-table-wrap.has-three-motos .live-score-mobile-table th:nth-child(4),
+  .live-score-mobile-table-wrap.has-three-motos .live-score-mobile-table td:nth-child(4) {
+    width: 160px;
+    text-align: left;
+  }
+
+  .live-score-mobile-table-wrap.has-three-motos .live-score-mobile-table thead th:nth-child(4) {
+    background: #efe2c7;
+  }
+
+  .live-score-mobile-table-wrap.has-three-motos .live-score-mobile-table th:nth-child(5),
+  .live-score-mobile-table-wrap.has-three-motos .live-score-mobile-table td:nth-child(5),
+  .live-score-mobile-table-wrap.has-three-motos .live-score-mobile-table th:nth-child(6),
+  .live-score-mobile-table-wrap.has-three-motos .live-score-mobile-table td:nth-child(6),
+  .live-score-mobile-table-wrap.has-three-motos .live-score-mobile-table th:nth-child(7),
+  .live-score-mobile-table-wrap.has-three-motos .live-score-mobile-table td:nth-child(7) {
+    width: 48px;
+  }
+
+  .live-score-mobile-table-wrap.has-three-motos .live-score-mobile-table th:nth-child(8),
+  .live-score-mobile-table-wrap.has-three-motos .live-score-mobile-table td:nth-child(8) {
+    width: 50px;
+  }
+
+  .live-score-mobile-table-wrap.has-three-motos .live-score-mobile-table th:nth-child(9),
+  .live-score-mobile-table-wrap.has-three-motos .live-score-mobile-table td:nth-child(9) {
+    width: 54px;
+  }
+
+  .live-score-mobile-table-wrap.has-three-motos .live-score-mobile-table th:nth-child(10),
+  .live-score-mobile-table-wrap.has-three-motos .live-score-mobile-table td:nth-child(10) {
+    width: 44px;
+    text-align: center;
+  }
+
+  .live-score-mobile-table-wrap.has-three-motos .live-score-mobile-table th:nth-child(11),
+  .live-score-mobile-table-wrap.has-three-motos .live-score-mobile-table td:nth-child(11) {
+    width: 88px;
+  }
+
+  .live-score-stage-mobile-table {
+    min-width: 470px;
+  }
+
+  .live-score-stage-mobile-table-wrap.has-next-stage .live-score-stage-mobile-table {
+    min-width: 570px;
+  }
+
+  .live-score-stage-mobile-table th:nth-child(1),
+  .live-score-stage-mobile-table td:nth-child(1) {
+    width: 42px;
+  }
+
+  .live-score-stage-mobile-table th:nth-child(2),
+  .live-score-stage-mobile-table td:nth-child(2) {
+    width: 170px;
+    text-align: left;
+  }
+
+  .live-score-stage-mobile-table th:nth-child(3),
+  .live-score-stage-mobile-table td:nth-child(3) {
+    width: 50px;
+  }
+
+  .live-score-stage-mobile-table th:nth-child(4),
+  .live-score-stage-mobile-table td:nth-child(4) {
+    width: 52px;
+  }
+
+  .live-score-stage-mobile-table th:nth-child(5),
+  .live-score-stage-mobile-table td:nth-child(5) {
+    width: 56px;
+  }
+
+  .live-score-stage-mobile-table th:nth-child(6),
+  .live-score-stage-mobile-table td:nth-child(6) {
+    width: 50px;
+    text-align: center;
+  }
+
+  .live-score-stage-mobile-table-wrap.has-next-stage .live-score-stage-mobile-table th:nth-child(7),
+  .live-score-stage-mobile-table-wrap.has-next-stage .live-score-stage-mobile-table td:nth-child(7) {
+    width: 92px;
+  }
+
+  .live-score-mobile-gate,
+  .live-score-mobile-point,
+  .live-score-mobile-penalty,
+  .live-score-mobile-total-cell {
+    color: #8f3413 !important;
+    font-variant-numeric: tabular-nums;
+    font-weight: 900;
+    text-align: center;
+  }
+
+  .live-score-mobile-rank {
+    text-align: center;
+  }
+
+  .live-score-mobile-next-stage {
+    color: #49372c;
+    font-size: 9px;
+    font-weight: 800;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+  }
+
+  .live-score-mobile-rider-cell {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .live-score-mobile-rider-name {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    color: #1d0d07;
+    font-size: 11px;
+    font-weight: 900;
+    line-height: 1.05;
+  }
+
+  .live-score-mobile-rider-name > span {
+    min-width: 0;
+  }
+
+  .live-score-mobile-rider-cell > small {
+    display: block;
+    margin-top: 1px;
+    color: #5f4635;
+    font-size: 9px;
+    font-weight: 800;
+    line-height: 1.05;
+  }
+
   .live-score-mobile-summary-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
