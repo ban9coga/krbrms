@@ -373,25 +373,11 @@ export default function MotosClient({ eventId }: { eventId: string }) {
 
   const categoriesSorted = useMemo(() => {
     return [...categories].sort((a, b) => {
-      const firstMotoOrder = (categoryId: string) => {
-        const orders = motos
-          .filter((moto) => moto.category_id === categoryId)
-          .map((moto) => moto.moto_order)
-          .filter((order) => Number.isFinite(order))
-        return orders.length > 0 ? Math.min(...orders) : Number.MAX_SAFE_INTEGER
-      }
-      const aFirstMoto = firstMotoOrder(a.id)
-      const bFirstMoto = firstMotoOrder(b.id)
-      if (aFirstMoto !== bFirstMoto) return aFirstMoto - bFirstMoto
-
-      const aSequence = typeof a.sequence_order === 'number' ? a.sequence_order : null
-      const bSequence = typeof b.sequence_order === 'number' ? b.sequence_order : null
-      if (aSequence !== null || bSequence !== null) {
-        return (aSequence ?? Number.MAX_SAFE_INTEGER) - (bSequence ?? Number.MAX_SAFE_INTEGER)
-      }
-
       const ayMax = typeof a.year_max === 'number' ? a.year_max : typeof a.year_min === 'number' ? a.year_min : 0
       const byMax = typeof b.year_max === 'number' ? b.year_max : typeof b.year_min === 'number' ? b.year_min : 0
+      const aIsFfa = /^(?:FFA|FREE\s*FOR\s*ALL)/i.test(a.label.trim())
+      const bIsFfa = /^(?:FFA|FREE\s*FOR\s*ALL)/i.test(b.label.trim())
+      if (aIsFfa !== bIsFfa) return aIsFfa ? 1 : -1
       if (byMax !== ayMax) return byMax - ayMax
       const ayMin = typeof a.year_min === 'number' ? a.year_min : ayMax
       const byMin = typeof b.year_min === 'number' ? b.year_min : byMax
@@ -399,9 +385,13 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       const order = { BOY: 0, GIRL: 1, MIX: 2 } as const
       const ag = order[a.gender] ?? 9
       const bg = order[b.gender] ?? 9
-      return ag - bg
+      if (ag !== bg) return ag - bg
+      const aSequence = typeof a.sequence_order === 'number' ? a.sequence_order : Number.MAX_SAFE_INTEGER
+      const bSequence = typeof b.sequence_order === 'number' ? b.sequence_order : Number.MAX_SAFE_INTEGER
+      if (aSequence !== bSequence) return aSequence - bSequence
+      return a.label.localeCompare(b.label)
     })
-  }, [categories, motos])
+  }, [categories])
 
   const motosByCategory = useMemo(() => {
     const grouped = new Map<string, MotoItem[]>()
@@ -439,14 +429,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     [advancedEnabledByCategory, motosByCategory]
   )
 
-  const displayCategoriesSorted = useMemo(() => {
-    return [...categoriesSorted].sort((a, b) => {
-      const aComplete = isCategoryComplete(a.id)
-      const bComplete = isCategoryComplete(b.id)
-      if (aComplete !== bComplete) return aComplete ? 1 : -1
-      return 0
-    })
-  }, [categoriesSorted, isCategoryComplete])
+  const displayCategoriesSorted = categoriesSorted
 
   const raceDayOverview = useMemo(() => {
     const live = motos.filter((moto) => moto.status === 'LIVE')
