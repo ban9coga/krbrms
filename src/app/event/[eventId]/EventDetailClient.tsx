@@ -450,18 +450,17 @@ export default function EventDetailClient({
                       Belum ada kategori yang dibuka.
                     </div>
                   ) : categoryCards.map((category) => (
-                    <article key={category.id} className="rounded-xl border border-[#705547] bg-[#2a160d] px-4 py-3">
+                    <Link
+                      key={category.id}
+                      href={`/event/${eventId}/live-score/${encodeURIComponent(category.id)}`}
+                      className="block rounded-xl border border-[#705547] bg-[#2a160d] px-4 py-3 transition hover:border-emerald-400/70 hover:bg-[#341b10] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
+                      aria-label={`Buka live score kategori ${category.label}`}
+                    >
                       <h3 className="text-base font-black uppercase text-[#fff8e8]">{category.label}</h3>
                       <div className="mt-2">
                         <CategoryMotoStatusBadges counts={categoryMotoBadges.get(category.id)} />
                       </div>
-                      <Link
-                        href={`/event/${eventId}/live-score/${encodeURIComponent(category.id)}`}
-                        className="mt-3 inline-flex min-h-10 w-full items-center justify-center rounded-lg bg-emerald-700 px-4 py-2 text-xs font-extrabold uppercase tracking-wide text-white transition-colors hover:bg-emerald-600"
-                      >
-                        Lihat Hasil &amp; Jadwal Moto
-                      </Link>
-                    </article>
+                    </Link>
                   ))}
                 </div>
               ) : (
