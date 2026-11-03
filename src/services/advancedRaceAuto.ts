@@ -1559,12 +1559,16 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
   const qualificationTieGroups = exactQualificationTieGroups.filter((group) => {
     const outcomes = group.riderIds.map((riderId) =>
       finalClassByRider.has(riderId)
-        ? 'FINAL'
+        ? `FINAL:${finalClassByRider.get(riderId)}`
         : finisherQualificationRiderIds.has(riderId)
           ? 'FINISHER'
           : 'OTHER'
     )
-    return outcomes.includes('FINAL') && outcomes.every((outcome) => outcome === 'FINAL' || outcome === 'FINISHER')
+    if (outcomes.includes('OTHER')) return false
+    const finalClasses = new Set(outcomes.filter((outcome) => outcome.startsWith('FINAL:')))
+    const crossesFinalClassBoundary = finalClasses.size > 1
+    const crossesFinalFinisherBoundary = finalClasses.size > 0 && outcomes.includes('FINISHER')
+    return crossesFinalClassBoundary || crossesFinalFinisherBoundary
   })
   const qualificationTieRiderIds = new Set(qualificationTieGroups.flatMap((group) => group.riderIds))
   const filteredAdvances: StageAdvance[] = [

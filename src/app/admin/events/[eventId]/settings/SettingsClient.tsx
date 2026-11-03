@@ -3767,7 +3767,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                     label="Seri kualifikasi ditentukan lewat Repechage"
                   />
                   <div style={{ color: '#475569', fontWeight: 700, fontSize: 12 }}>
-                    Setelah semua moto kualifikasi terkunci, urutan seri adalah Total Poin, Moto 3, Moto 2, lalu Moto 1. Jika masih seri dan memperebutkan urutan gate/kelas Final atau batas Final dan Finisher, rider yang pernah start masuk Repechage H2H. Seri sesama Finisher tidak membuat Repechage. Hasil H2H mengubah Rank dan tujuan, bukan poin kualifikasi. Perlu Advanced Stage aktif.
+                    Setelah semua moto kualifikasi terkunci, urutan seri adalah Total Poin, Moto 3, Moto 2, lalu Moto 1. Repechage H2H hanya dibuat jika seri melintasi batas antar kelas Final (misalnya Elite–Novice) atau batas Final–Finisher. Seri di dalam kelas Final yang sama atau sesama Finisher tidak membuat Repechage. Hasil H2H mengubah Rank dan tujuan, bukan poin kualifikasi. Perlu Advanced Stage aktif.
                   </div>
                 </div>
                 <input
