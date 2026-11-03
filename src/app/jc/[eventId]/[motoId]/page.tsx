@@ -1831,15 +1831,7 @@ export default function JCPage() {
               </button>
             </div>
           )}
-          {pendingSafetyCheckCount > 0 && (
-            <div
-              role="status"
-              aria-live="polite"
-              style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #f59e0b', background: '#fffbeb', color: '#92400e', fontSize: 12, fontWeight: 900 }}
-            >
-              {pendingSafetyCheckCount} perubahan Safety Gear belum disimpan. Perubahan akan disimpan saat Moto Ready.
-            </div>
-          )}
+          {/* helper text safety gear dihilangkan */}
           <div className="jc-safety-toolbar">
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               <span
