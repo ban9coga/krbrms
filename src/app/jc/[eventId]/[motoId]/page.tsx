@@ -1559,63 +1559,68 @@ export default function JCPage() {
             </div>
           )}
           {incidentMoto ? (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
               <span
                 style={{
-                  padding: '6px 10px',
-                  borderRadius: 6,
+                  padding: '3px 7px',
+                  borderRadius: 5,
                   border: '1px solid #fecaca',
                   background: '#fff',
                   color: '#881337',
                   fontWeight: 900,
+                  fontSize: 12,
                 }}
               >
                 Total: {incidentSummary.total}
               </span>
               <span
                 style={{
-                  padding: '6px 10px',
-                  borderRadius: 6,
+                  padding: '3px 7px',
+                  borderRadius: 5,
                   border: '1px solid #fecaca',
                   background: '#fef2f2',
                   color: '#991b1b',
                   fontWeight: 900,
+                  fontSize: 12,
                 }}
               >
                 Ready: {incidentSummary.ready}
               </span>
               <span
                 style={{
-                  padding: '6px 10px',
-                  borderRadius: 6,
+                  padding: '3px 7px',
+                  borderRadius: 5,
                   border: '1px solid #fed7aa',
                   background: '#fff7ed',
                   color: '#9a3412',
                   fontWeight: 900,
+                  fontSize: 12,
                 }}
               >
                 DNS: {incidentSummary.dns}
               </span>
               <span
                 style={{
-                  padding: '6px 10px',
-                  borderRadius: 6,
+                  padding: '3px 7px',
+                  borderRadius: 5,
                   border: '1px solid #cbd5e1',
                   background: '#f1f5f9',
                   color: '#334155',
                   fontWeight: 900,
+                  fontSize: 12,
                 }}
               >
                 ABSENT: {incidentSummary.absent}
               </span>
               <span
                 style={{
-                  padding: '6px 10px',
-                  borderRadius: 6,
+                  padding: '3px 7px',
+                  borderRadius: 5,
                   border: '1px solid #bfdbfe',
                   background: '#eff6ff',
                   color: '#1e3a8a',
                   fontWeight: 900,
+                  fontSize: 12,
                 }}
               >
                 Remaining: {incidentSummary.remaining}
@@ -1656,6 +1661,8 @@ export default function JCPage() {
                     <span className="jc-incident-rider-edge" />
                     <span className="jc-incident-rider-front">
                       <span className="jc-incident-rider-plate">{r.no_plate_display}</span>
+                      {isDns && <span className="jc-incident-dns-badge">DNS</span>}
+                      {isAbsent && <span className="jc-incident-absent-badge">ABSENT</span>}
                     </span>
                     {sourceLabel && <span className="sr-only">{sourceLabel}</span>}
                     <span className="sr-only">Status {statusLabel}</span>
@@ -2136,7 +2143,8 @@ export default function JCPage() {
 
         .jc-incident-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+          grid-template-columns: repeat(auto-fit, minmax(76px, 1fr));
+          gap: 6px;
         }
 
         .jc-header-row {
@@ -2191,11 +2199,11 @@ export default function JCPage() {
         }
 
         .jc-incident-rider-btn {
-          min-height: 98px;
+          min-height: 48px;
         }
 
         .jc-incident-rider-btn.is-large {
-          min-height: 120px;
+          min-height: 56px;
         }
 
         .jc-incident-rider-shadow,
@@ -2209,8 +2217,11 @@ export default function JCPage() {
         .jc-rider-action-front {
           position: absolute;
           inset: 0;
-          display: grid;
-          place-items: center;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 2px;
           border-radius: 8px;
           pointer-events: none;
           transform: none;
@@ -2232,39 +2243,65 @@ export default function JCPage() {
         }
 
         .jc-incident-rider-front {
-          min-height: 98px;
-          padding: 9px;
+          min-height: 48px;
+          padding: 4px 6px;
           border: 1px solid #fed7aa;
           background: #fff7ed;
           color: #9a3412;
         }
 
         .jc-incident-rider-btn.is-large .jc-incident-rider-front {
-          min-height: 120px;
+          min-height: 56px;
+          padding: 6px 8px;
         }
 
         .jc-incident-rider-btn.is-dns .jc-incident-rider-front {
-          border-color: #fca5a5;
-          background: #fef2f2;
-          color: #991b1b;
+          border-color: #0f172a;
+          background: #1e293b;
+          color: #f8fafc;
+          box-shadow: 0 2px 5px rgba(0,0,0,0.3);
         }
 
         .jc-incident-rider-btn.is-absent .jc-incident-rider-front {
-          border-color: #cbd5e1;
-          background: #f1f5f9;
-          color: #475569;
+          border-color: #475569;
+          background: #334155;
+          color: #94a3b8;
+          opacity: 0.8;
         }
 
         .jc-incident-rider-plate {
           font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace;
-          font-size: 31px;
+          font-size: 20px;
           font-weight: 950;
           line-height: 1;
           letter-spacing: 0.04em;
         }
 
         .jc-incident-rider-btn.is-large .jc-incident-rider-plate {
-          font-size: 40px;
+          font-size: 23px;
+        }
+
+        .jc-incident-dns-badge {
+          display: inline-block;
+          font-size: 10px;
+          font-weight: 950;
+          line-height: 1;
+          letter-spacing: 0.05em;
+          padding: 2px 6px;
+          border-radius: 4px;
+          background: #dc2626;
+          color: #ffffff;
+        }
+
+        .jc-incident-absent-badge {
+          display: inline-block;
+          font-size: 9px;
+          font-weight: 900;
+          line-height: 1;
+          padding: 2px 4px;
+          border-radius: 3px;
+          background: #64748b;
+          color: #f8fafc;
         }
 
         .jc-rider-action-btn {
@@ -2382,6 +2419,14 @@ export default function JCPage() {
           }
           .jc-status-grid {
             grid-template-columns: 1fr;
+          }
+          .jc-incident-grid {
+            grid-template-columns: repeat(4, 1fr) !important;
+            gap: 6px !important;
+          }
+          .jc-incident-panel {
+            padding: 10px 12px !important;
+            gap: 8px !important;
           }
         }
       `}</style>
