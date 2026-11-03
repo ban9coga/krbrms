@@ -10,6 +10,7 @@ import { supabase } from '@/src/lib/supabaseClient'
 
 type CategoryItem = {
   id: string
+  year?: number | null
   year_min?: number | null
   year_max?: number | null
   gender: 'BOY' | 'GIRL' | 'MIX'
@@ -373,22 +374,27 @@ export default function MotosClient({ eventId }: { eventId: string }) {
 
   const categoriesSorted = useMemo(() => {
     return [...categories].sort((a, b) => {
-      const ayMax = typeof a.year_max === 'number' ? a.year_max : typeof a.year_min === 'number' ? a.year_min : 0
-      const byMax = typeof b.year_max === 'number' ? b.year_max : typeof b.year_min === 'number' ? b.year_min : 0
-      const aIsFfa = /^(?:FFA|FREE\s*FOR\s*ALL)/i.test(a.label.trim())
-      const bIsFfa = /^(?:FFA|FREE\s*FOR\s*ALL)/i.test(b.label.trim())
-      if (aIsFfa !== bIsFfa) return aIsFfa ? 1 : -1
-      if (byMax !== ayMax) return byMax - ayMax
-      const ayMin = typeof a.year_min === 'number' ? a.year_min : ayMax
-      const byMin = typeof b.year_min === 'number' ? b.year_min : byMax
-      if (byMin !== ayMin) return byMin - ayMin
+      const aSequence = typeof a.sequence_order === 'number' ? a.sequence_order : null
+      const bSequence = typeof b.sequence_order === 'number' ? b.sequence_order : null
+      if (aSequence !== null || bSequence !== null) {
+        return (aSequence ?? Number.MAX_SAFE_INTEGER) - (bSequence ?? Number.MAX_SAFE_INTEGER)
+      }
+
+      const aYear = typeof a.year === 'number'
+        ? a.year
+        : typeof a.year_max === 'number'
+          ? a.year_max
+          : typeof a.year_min === 'number' ? a.year_min : 0
+      const bYear = typeof b.year === 'number'
+        ? b.year
+        : typeof b.year_max === 'number'
+          ? b.year_max
+          : typeof b.year_min === 'number' ? b.year_min : 0
+      if (bYear !== aYear) return bYear - aYear
       const order = { BOY: 0, GIRL: 1, MIX: 2 } as const
       const ag = order[a.gender] ?? 9
       const bg = order[b.gender] ?? 9
       if (ag !== bg) return ag - bg
-      const aSequence = typeof a.sequence_order === 'number' ? a.sequence_order : Number.MAX_SAFE_INTEGER
-      const bSequence = typeof b.sequence_order === 'number' ? b.sequence_order : Number.MAX_SAFE_INTEGER
-      if (aSequence !== bSequence) return aSequence - bSequence
       return a.label.localeCompare(b.label)
     })
   }, [categories])
