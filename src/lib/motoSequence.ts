@@ -285,11 +285,13 @@ export const pickNextMotoInWorkflow = <T extends MotoLike & { id: string }>(rows
   const eligible = getEligibleMotosInWorkflow(rows)
   if (eligible.length === 0) return null
 
-  // A checker-prepared moto is an explicit manual choice within the active
-  // stage. Prefer the most recently confirmed choice for auto-live as well.
+  // When selecting the next moto, if multiple motos are READY,
+  // pick the earliest one according to the race workflow sequence (NOT the most recently confirmed),
+  // so that moto-readying a later moto does not skip an earlier READY moto.
+  const categoryBaseOrder = buildCategoryBaseOrder(rows)
   const preparedSelection = eligible
     .filter((moto) => String(moto.status ?? '').toUpperCase() === 'READY' && moto.checker_prep_ready_at)
-    .sort((a, b) => String(b.checker_prep_ready_at).localeCompare(String(a.checker_prep_ready_at)))[0]
+    .sort((a, b) => compareMotoWorkflowSequence(a, b, categoryBaseOrder))[0]
   if (preparedSelection) return preparedSelection
 
   const candidates = [...eligible]

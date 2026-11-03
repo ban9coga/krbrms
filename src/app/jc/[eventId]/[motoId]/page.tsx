@@ -188,7 +188,7 @@ const pickPrepMotoId = (
     const nextCategoryCandidates = sameCategoryEligible.filter((moto) => moto.id !== currentInActiveCategory?.id)
     const preparedCategoryMoto = nextCategoryCandidates
       .filter((moto) => isMotoReady(moto.status) && Boolean(moto.checker_prep_ready_at))
-      .sort((a, b) => String(b.checker_prep_ready_at).localeCompare(String(a.checker_prep_ready_at)))[0]
+      .sort((a, b) => compareMotoWorkflowSequence(a, b, categoryBaseOrder))[0]
     if (preparedCategoryMoto) return preparedCategoryMoto.id
 
     const anchorMoto = currentInActiveCategory ?? (liveMoto?.category_id === activeCategoryId ? liveMoto : null)
