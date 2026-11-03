@@ -195,6 +195,21 @@ export async function promoteReadyMotoAfterPreviousProvisional(eventId: string, 
     if (nextMoto?.id === readyMotoId) return promoteNextMotoToLive(eventId, previousProvisional.id)
   }
 
+  // If there is an earlier moto in the sequence that is already READY or LIVE,
+  // do not promote this moto to LIVE; keep it as READY so earlier motos aren't skipped.
+  const earlierUnfinished = loaded.rows
+    .slice(0, readyIndex)
+    .find((row) => isLiveMoto(row) || isReadyMoto(row) || isLegacyPreparedMoto(row))
+
+  if (earlierUnfinished) {
+    return {
+      ok: true as const,
+      skipped: true as const,
+      nextMotoId: readyMoto.id,
+      warning: `Auto-live ditunda karena ${earlierUnfinished.moto_name ?? 'moto sebelumnya'} masih ${earlierUnfinished.status}.`,
+    }
+  }
+
   // The first prepared moto can open directly only when it belongs to the
   // event's active stage. A prepared manual choice still cannot skip a stage.
   const liveMoto = loaded.rows.find(isLiveMoto) ?? null
