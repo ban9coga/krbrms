@@ -535,13 +535,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   // The RPC uses one database transaction plus an event advisory lock. This
   // avoids partially created motos and prevents simultaneous saves from two
   // drawing devices from reusing the same moto order.
-  const { data: savedDraw, error: saveError } = drawConfiguration.singleBatchTwoMotoFinalEnabled
-    ? await adminClient.rpc('save_live_draw_moto1_only', {
-        p_event_id: eventId,
-        p_category_id: categoryId,
-        p_rider_ids: batches[0],
-      })
-    : await adminClient.rpc('save_live_draw_motos', {
+  const { data: savedDraw, error: saveError } = await adminClient.rpc('save_live_draw_motos', {
     p_event_id: eventId,
     p_category_id: categoryId,
     p_batches: batches,
@@ -559,9 +553,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   return NextResponse.json({
     data: {
       batch_count: Number(summary?.batch_count ?? batches.length),
-      moto_count: Number(summary?.moto_count ?? (drawConfiguration.singleBatchTwoMotoFinalEnabled ? 1 : batches.length * (createMoto3 ? 3 : 2))),
+      moto_count: Number(summary?.moto_count ?? (batches.length * (createMoto3 ? 3 : 2))),
       gate_positions_saved: Number(summary?.gate_positions_saved ?? 0) > 0,
-      next_step: drawConfiguration.singleBatchTwoMotoFinalEnabled ? 'Moto 2 dibuat otomatis setelah semua hasil Moto 1 disubmit.' : null,
+      next_step: drawConfiguration.singleBatchTwoMotoFinalEnabled ? 'Moto 1 dan Moto 2 tersimpan dari drawing. Final dibuat setelah hasil Moto 2 selesai dan dikunci.' : null,
     },
   })
 }

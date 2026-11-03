@@ -1432,7 +1432,12 @@ export default function LiveDrawClient({
         externalBatchInputMode === 'PER_BATCH' &&
         externalPerBatchValidation.moto2Provided
         ? externalPerBatchValidation.orderedMoto2Batches[batchIndex - 1] ?? []
-        : []
+        : drawMode === 'external_draw' &&
+            externalBatchInputMode === 'GLOBAL' &&
+            batches.length === 1 &&
+            externalMoto2Validation.isProvided
+          ? externalMoto2Validation.orderedRiders
+          : []
     const moto3Manual =
       drawMode === 'external_draw' &&
         externalBatchInputMode === 'PER_BATCH' &&
@@ -1452,12 +1457,18 @@ export default function LiveDrawClient({
       (batches.length === 1 && singleBatchFinalEnabled))
     return [
       { title: `Moto 1 - Batch ${batchIndex}`, riders: batchRiders },
-      ...(singleBatchTwoMotoFinalEnabled && batches.length === 1 ? [] : [{
+      {
         title: `Moto 2 - Batch ${batchIndex}`,
         riders: qualificationBatchMode === 'ROTATE_EACH_MOTO'
           ? (moto2Manual.length > 0 ? moto2Manual : moto2Rotated)
-          : (moto2Manual.length > 0 ? moto2Manual : [...batchRiders].reverse()),
-      }]),
+          : moto2Manual.length > 0
+            ? moto2Manual
+            : moto2Order === 'SAME'
+              ? [...batchRiders]
+              : moto2Order === 'MIDDLE'
+                ? [...batchRiders.slice(Math.floor(batchRiders.length / 2)), ...batchRiders.slice(0, Math.floor(batchRiders.length / 2))]
+                : [...batchRiders].reverse(),
+      },
       ...(!singleBatchTwoMotoFinalEnabled && hasMoto3
         ? [{
             title: `Moto 3 - Batch ${batchIndex}`,
@@ -3553,7 +3564,7 @@ export default function LiveDrawClient({
                       </div>
                       <div style={{ marginTop: 12, display: 'grid', gap: 6, color: '#475569', fontWeight: 700 }}>
                         {singleBatchTwoMotoFinalEnabled && batches.length === 1 ? (
-                          <div>Moto 2 dibuat setelah hasil Moto 1 lengkap; gate mengikuti poin Moto 1. Final dibuat setelah Moto 2 selesai dan gate mengikuti total poin Moto 1 + 2.</div>
+                          <div>Moto 1 dan Moto 2 dibuat sekarang dari hasil drawing ini. Setelah Moto 2 selesai dan dikunci, Final dibuat otomatis dengan gate menurut total poin Moto 1 + 2. Moto 3 tidak dibuat.</div>
                         ) : <><div>
                           {qualificationBatchMode === 'ROTATE_EACH_MOTO'
                             ? 'Moto 2: rider masuk batch baru.'

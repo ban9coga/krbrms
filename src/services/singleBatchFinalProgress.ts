@@ -11,7 +11,7 @@ type MotoResult = {
   dnf_progress_percent?: number | null
 }
 
-/** Create the deferred Moto 2 once every Moto 1 rider has a result. */
+/** Legacy fallback: create Moto 2 for older draws that saved only Moto 1. */
 export async function createSingleBatchMoto2FromMoto1Results(motoId: string) {
   const { data: moto, error: motoError } = await adminClient
     .from('motos')
@@ -31,6 +31,16 @@ export async function createSingleBatchMoto2FromMoto1Results(motoId: string) {
     .maybeSingle()
   if (configError) return { ok: false as const, warning: configError.message }
   if (config?.single_batch_two_moto_final_enabled !== true) return { ok: true as const, skipped: true as const }
+
+  const { data: existingMoto2, error: existingMoto2Error } = await adminClient
+    .from('motos')
+    .select('id')
+    .eq('event_id', moto.event_id)
+    .eq('category_id', moto.category_id)
+    .ilike('moto_name', 'Moto 2 - Batch 1')
+    .limit(1)
+  if (existingMoto2Error) return { ok: false as const, warning: existingMoto2Error.message }
+  if (existingMoto2?.length) return { ok: true as const, skipped: true as const }
 
   const [{ data: assignments, error: assignmentError }, { data: results, error: resultError }, { data: flags, error: flagsError }] = await Promise.all([
     adminClient.from('moto_riders').select('moto_id, rider_id').eq('moto_id', motoId),

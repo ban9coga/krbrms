@@ -420,7 +420,7 @@ export default function DrawSettingsClient({ eventId }: { eventId: string }) {
                 <span className="grid gap-1">
                   <span>Final setelah 2 moto untuk kategori satu batch</span>
                   <span className="text-xs font-semibold leading-5 text-[#765946]">
-                    Draw hanya membuat Moto 1. Setelah semua hasil Moto 1 masuk, sistem membuat Moto 2 dengan gate menurut poin Moto 1. Setelah Moto 2 selesai dan dikunci, sistem membuat Final mengikuti aturan kelas kategori; gate Final diurutkan dari total poin Moto 1 dan 2.
+                    Khusus drawing satu batch: Moto 1 dan Moto 2 dibuat bersamaan saat drawing. Setelah hasil Moto 2 selesai dan dikunci, sistem membuat Final mengikuti aturan kelas kategori dengan urutan gate dari total poin Moto 1 dan 2. Moto 3 tidak dibuat.
                   </span>
                 </span>
               </label>
