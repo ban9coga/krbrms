@@ -1305,7 +1305,7 @@ export default function JCPage() {
       )
       // Keep the prep card in sync when this ready moto becomes live immediately.
       await loadMotos(true)
-      setWarningMessage(status === 'LIVE' ? 'Moto langsung LIVE karena moto sebelumnya sudah PROVISIONAL.' : 'Status prep rider saat ini dikunci.')
+      setWarningMessage(status === 'LIVE' ? null : 'Status prep rider saat ini dikunci.')
       setLastUpdated(new Date().toLocaleTimeString())
       setMotoReadyConfirmation({
         categoryLabel: selectedCategoryLabel,
