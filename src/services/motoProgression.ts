@@ -195,29 +195,27 @@ export async function promoteReadyMotoAfterPreviousProvisional(eventId: string, 
     if (nextMoto?.id === readyMotoId) return promoteNextMotoToLive(eventId, previousProvisional.id)
   }
 
-  // If there is an earlier moto in the sequence that is already READY or LIVE,
-  // do not promote this moto to LIVE; keep it as READY so earlier motos aren't skipped.
-  const earlierUnfinished = loaded.rows
-    .slice(0, readyIndex)
-    .find((row) => isLiveMoto(row) || isReadyMoto(row) || isLegacyPreparedMoto(row))
+  // Checker action ONLY sets moto to READY and NEVER promotes to LIVE directly,
+  // EXCEPT when this is the absolute first unstarted moto of the event/session (no moto has run yet).
+  // In all subsequent races, promoteNextMotoToLive is triggered by Finisher submitting the previous race.
+  const anyMotoHasRun = loaded.rows.some(
+    (row) => isLiveMoto(row) || isProvisionalMoto(row) || ['LOCKED', 'FINISHED', 'PROTEST_REVIEW'].includes(normalizeStatus(row.status))
+  )
 
-  if (earlierUnfinished) {
-    return {
-      ok: true as const,
-      skipped: true as const,
-      nextMotoId: readyMoto.id,
-      warning: `Auto-live ditunda karena ${earlierUnfinished.moto_name ?? 'moto sebelumnya'} masih ${earlierUnfinished.status}.`,
+  // Only allow opening LIVE on prep-ready if NO moto in the event has run yet,
+  // and this moto is the first eligible candidate in the workflow.
+  if (!anyMotoHasRun) {
+    const { nextMoto } = pickNextMotoToPromote(loaded.rows, readyMoto)
+    if (nextMoto?.id === readyMotoId) {
+      return promoteReadyMoto(eventId, loaded.rows, readyMoto)
     }
   }
 
-  // The first prepared moto can open directly only when it belongs to the
-  // event's active stage. A prepared manual choice still cannot skip a stage.
-  const liveMoto = loaded.rows.find(isLiveMoto) ?? null
-  const { nextMoto } = pickNextMotoToPromote(loaded.rows, liveMoto ?? readyMoto)
-  if (nextMoto?.id !== readyMotoId) {
-    return { ok: true as const, skipped: true as const, nextMotoId: nextMoto?.id ?? null, warning: 'Moto menunggu urutan stage aktif.' }
+  // Otherwise, the moto remains READY and waits for Finisher's submission of the previous moto.
+  return {
+    ok: true as const,
+    skipped: true as const,
+    nextMotoId: readyMoto.id,
+    warning: 'Moto siap (READY). Akan otomatis LIVE saat moto sebelumnya disubmit Finisher.',
   }
-
-  // A LIVE moto elsewhere remains the guard against two motos running together.
-  return promoteReadyMoto(eventId, loaded.rows, readyMoto)
 }
