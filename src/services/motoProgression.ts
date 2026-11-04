@@ -13,6 +13,15 @@ type MotoQueueRow = {
   checker_prep_ready_at?: string | null
 }
 
+const getStageGroup = (motoName?: string | null) => {
+  const normalized = String(motoName ?? '').trim().toUpperCase()
+  if (/^MOTO\s*\d+\s*-\s*BATCH\s*\d+/.test(normalized)) return 'QUALIFICATION'
+  if (/^REPECHAGE\s*-\s*(?:BATCH|HEAT)\s*\d+/.test(normalized)) return 'REPECHAGE'
+  if (/^QUARTER\s*FINAL\s*-\s*(?:BATCH|HEAT)\s*\d+/.test(normalized)) return 'QUARTER_FINAL'
+  if (/^SEMI\s*FINAL\s*-\s*(?:BATCH|HEAT)\s*\d+/.test(normalized)) return 'SEMI_FINAL'
+  if (/^FINAL\s+/.test(normalized)) return normalized
+  return normalized
+}
 const normalizeStatus = (status?: string | null) => (status ?? '').toUpperCase()
 const isUpcomingMoto = (row: MotoQueueRow) => normalizeStatus(row.status) === 'UPCOMING'
 const isReadyMoto = (row: MotoQueueRow) => normalizeStatus(row.status) === 'READY'
@@ -122,12 +131,18 @@ export async function promoteNextMotoToLive(eventId: string, currentMotoId: stri
   if (!currentMoto) return { ok: false as const, warning: 'Moto saat ini tidak ditemukan.' }
 
   const currentIndex = loaded.rows.findIndex((row) => row.id === currentMotoId)
-  const hasNextMotoInCategory = loaded.rows
+  const currentStage = getStageGroup(currentMoto.moto_name)
+  const hasNextMotoInStage = loaded.rows
     .slice(currentIndex + 1)
-    .some((row) => row.category_id === currentMoto.category_id && isNextCandidateMoto(row))
+    .some(
+      (row) =>
+        row.category_id === currentMoto.category_id &&
+        getStageGroup(row.moto_name) === currentStage &&
+        isNextCandidateMoto(row)
+    )
 
-  // Another category must not keep the last moto in this category provisional.
-  if (isProvisionalMoto(currentMoto) && !hasNextMotoInCategory) {
+  // Another category or next stage must not keep the last moto in this stage provisional.
+  if (isProvisionalMoto(currentMoto) && !hasNextMotoInStage) {
     const autoLock = await autoLockProvisionalMoto(eventId, currentMotoId)
     if (!autoLock.ok) {
       return { ok: false as const, skipped: true as const, warning: autoLock.warning, auto_lock: autoLock }
@@ -183,6 +198,19 @@ export async function promoteReadyMotoAfterPreviousProvisional(eventId: string, 
     return { ok: true as const, skipped: true as const, warning: 'Moto belum READY.' }
   }
 
+  // 1. If another moto is currently LIVE, DO NOT interrupt it.
+  // This moto stays READY and will be promoted to LIVE when Finisher submits the running moto.
+  const hasLiveMoto = loaded.rows.some((row) => row.id !== readyMotoId && isLiveMoto(row))
+  if (hasLiveMoto) {
+    return {
+      ok: true as const,
+      skipped: true as const,
+      nextMotoId: readyMoto.id,
+      warning: 'Moto siap (READY). Menunggu moto yang sedang LIVE selesai disubmit Finisher.',
+    }
+  }
+
+  // 2. If a previous moto is still PROVISIONAL, hand over through promoteNextMotoToLive.
   const beforeReady = loaded.rows.slice(0, readyIndex).reverse()
   const sameCategory = (row: MotoQueueRow) => row.category_id === readyMoto.category_id
   const previousProvisional =
@@ -195,20 +223,12 @@ export async function promoteReadyMotoAfterPreviousProvisional(eventId: string, 
     if (nextMoto?.id === readyMotoId) return promoteNextMotoToLive(eventId, previousProvisional.id)
   }
 
-  // Checker action ONLY sets moto to READY and NEVER promotes to LIVE directly,
-  // EXCEPT when this is the absolute first unstarted moto of the event/session (no moto has run yet).
-  // In all subsequent races, promoteNextMotoToLive is triggered by Finisher submitting the previous race.
-  const anyMotoHasRun = loaded.rows.some(
-    (row) => isLiveMoto(row) || isProvisionalMoto(row) || ['LOCKED', 'FINISHED', 'PROTEST_REVIEW'].includes(normalizeStatus(row.status))
-  )
-
-  // Only allow opening LIVE on prep-ready if NO moto in the event has run yet,
-  // and this moto is the first eligible candidate in the workflow.
-  if (!anyMotoHasRun) {
-    const { nextMoto } = pickNextMotoToPromote(loaded.rows, readyMoto)
-    if (nextMoto?.id === readyMotoId) {
-      return promoteReadyMoto(eventId, loaded.rows, readyMoto)
-    }
+  // 3. If NO moto is LIVE and NO moto is PROVISIONAL, the track is clear / idle
+  // (e.g. event start, stage transition where previous stage is already locked, or after a pause).
+  // In this state, Checker confirming "Moto Ready" should directly promote the moto to LIVE.
+  const anyProvisional = loaded.rows.some(isProvisionalMoto)
+  if (!anyProvisional) {
+    return promoteReadyMoto(eventId, loaded.rows, readyMoto)
   }
 
   // Otherwise, the moto remains READY and waits for Finisher's submission of the previous moto.
