@@ -1294,8 +1294,23 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
           ? stageRules.filter((rule) => (rule.batch_no ?? 1) === stageHeatIndex)
           : stageRules
       const matchedRule = matchingRules.find((rule) => rank >= rule.rank_from && rank <= rule.rank_to)
-      if (!matchedRule) return null
-      return formatQualificationTargetLabel(matchedRule.target_stage, matchedRule.target_final_class)
+      if (matchedRule) {
+        return formatQualificationTargetLabel(
+          matchedRule.target_stage,
+          matchedRule.target_final_class,
+          matchedRule.target_outcome
+        )
+      }
+      const maxAdvanceRank = Math.max(
+        ...matchingRules
+          .filter((rule) => rule.target_stage && rule.target_outcome !== 'FINISHER')
+          .map((rule) => rule.rank_to),
+        0
+      )
+      if (maxAdvanceRank > 0 && rank > maxAdvanceRank) {
+        return 'FINISHER'
+      }
+      return null
     }
 
     rows.forEach((row) => {
