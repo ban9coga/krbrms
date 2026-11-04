@@ -323,6 +323,5 @@ export const pickNextMotoInWorkflow = <T extends MotoLike & { id: string }>(rows
   const nextInSequence = afterAnchor.find((row) => candidates.some((candidate) => candidate.id === row.id))
   if (nextInSequence) return nextInSequence as T & { id: string }
 
-  const categoryBaseOrder = buildCategoryBaseOrder(rows)
   return [...candidates].sort((a, b) => compareMotoWorkflowSequence(a, b, categoryBaseOrder))[0] ?? null
 }
