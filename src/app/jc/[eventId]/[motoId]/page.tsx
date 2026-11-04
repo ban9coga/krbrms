@@ -1478,20 +1478,7 @@ export default function JCPage() {
             </div>
           )}
         </div>
-        {bannerDisabled && (
-          <div
-            style={{
-              padding: '10px 14px',
-              borderRadius: 8,
-              border: '1px solid #fecaca',
-              background: '#fef2f2',
-              color: '#991b1b',
-              fontWeight: 800,
-            }}
-          >
-            Belum ada moto prep yang aktif. Checker tetap bisa pakai panel incident moto LIVE kalau ada.
-          </div>
-        )}
+
         {errorMessage && (
           <div
             style={{
