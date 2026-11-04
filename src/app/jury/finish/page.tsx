@@ -136,6 +136,7 @@ export default function JuryFinishPage() {
   const [riders, setRiders] = useState<RiderItem[]>([])
   const [role, setRole] = useState<string | null>(null)
   const [motoLocked, setMotoLocked] = useState(false)
+  const [motoSelectorLocked, setMotoSelectorLocked] = useState(false)
   const [saving, setSaving] = useState(false)
   const [refreshingSelector, setRefreshingSelector] = useState(false)
   const [hasSubmitted, setHasSubmitted] = useState(false)
@@ -268,7 +269,7 @@ export default function JuryFinishPage() {
     const workflowMotos = [...rawMotos].sort((a, b) => compareMotoWorkflowSequence(a, b, categoryBaseOrder))
     setMotos(workflowMotos)
     setSelectedMotoId((prev) =>
-      localEditingRef.current && prev ? prev : pickNextSelectableMotoId(workflowMotos, prev)
+      (motoSelectorLocked || localEditingRef.current) && prev ? prev : pickNextSelectableMotoId(workflowMotos, prev)
     )
     return workflowMotos
   }, [apiFetch, eventId, pickNextSelectableMotoId])
@@ -280,7 +281,7 @@ export default function JuryFinishPage() {
     const categoryBaseOrder = buildCategoryBaseOrder(rawMotos)
     const workflowMotos = [...rawMotos].sort((a, b) => compareMotoWorkflowSequence(a, b, categoryBaseOrder))
     const nextSelectedMotoId =
-      localEditingRef.current && selectedMotoId
+      (motoSelectorLocked || localEditingRef.current) && selectedMotoId
         ? selectedMotoId
         : pickNextSelectableMotoId(workflowMotos, selectedMotoId)
 
@@ -892,14 +893,14 @@ export default function JuryFinishPage() {
               </select>
             </div>
             <div className="grid gap-2">
-              <label className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">Moto</label>
-              <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+              <label className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-500">Moto{motoSelectorLocked && <span className="ml-2 rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[10px] font-black text-amber-700">LOCKED</span>}</label>
+              <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-2">
                 <select
                   value={selectedMotoId}
                   onChange={(e) => {
                     if (!hasPendingFinisherEdits) setSelectedMotoId(e.target.value)
                   }}
-                  disabled={hasPendingFinisherEdits}
+                  disabled={hasPendingFinisherEdits || motoSelectorLocked}
                   className="public-filter w-full min-w-0"
                 >
                   {selectableMotos.length === 0 && <option value="">Belum ada moto aktif</option>}
@@ -923,6 +924,21 @@ export default function JuryFinishPage() {
                   <span className="finisher-refresh-front">
                     <span className={`finisher-refresh-icon ${refreshingSelector ? 'is-spinning' : ''}`} aria-hidden="true">
                       ↻
+                    </span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMotoSelectorLocked((prev) => !prev)}
+                  aria-label={motoSelectorLocked ? 'Unlock moto selector' : 'Lock moto selector'}
+                  title={motoSelectorLocked ? 'Unlock pilihan moto' : 'Lock pilihan moto agar tidak auto-switch'}
+                  className={`finisher-refresh-btn ${motoSelectorLocked ? 'is-pressed' : ''}`}
+                >
+                  <span className="finisher-refresh-shadow" />
+                  <span className="finisher-refresh-edge" />
+                  <span className="finisher-refresh-front">
+                    <span className="text-base" aria-hidden="true">
+                      {motoSelectorLocked ? '🔒' : '🔓'}
                     </span>
                   </span>
                 </button>
