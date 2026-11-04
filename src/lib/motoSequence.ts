@@ -285,17 +285,20 @@ export const pickNextMotoInWorkflow = <T extends MotoLike & { id: string }>(rows
   const eligible = getEligibleMotosInWorkflow(rows)
   if (eligible.length === 0) return null
 
-  // When selecting the next moto, if multiple motos are READY,
-  // pick the earliest one according to the race workflow sequence (NOT the most recently confirmed),
-  // so that moto-readying a later moto does not skip an earlier READY moto.
   const categoryBaseOrder = buildCategoryBaseOrder(rows)
-  const preparedSelection = eligible
-    .filter((moto) => String(moto.status ?? '').toUpperCase() === 'READY' && moto.checker_prep_ready_at)
-    .sort((a, b) => compareMotoWorkflowSequence(a, b, categoryBaseOrder))[0]
-  if (preparedSelection) return preparedSelection
-
   const candidates = [...eligible]
   const anchorIndex = anchorMoto ? rows.findIndex((row) => row.id === anchorMoto.id) : -1
+
+  // When selecting the next moto, only consider READY motos that come AFTER the
+  // anchor (the moto that just finished) in the raw rows order (moto_order).
+  // This prevents a READY moto from an earlier category (e.g. Girls Moto 2)
+  // from being picked before a later-sequenced moto (e.g. Boys Batch 3 Moto 1).
+  const afterAnchorRows = anchorMoto && anchorIndex >= 0 ? rows.slice(anchorIndex + 1) : rows
+  const preparedSelection = afterAnchorRows
+    .filter((row) => candidates.some((c) => c.id === row.id))
+    .filter((moto) => String(moto.status ?? '').toUpperCase() === 'READY' && moto.checker_prep_ready_at)[0]
+  if (preparedSelection) return preparedSelection as T & { id: string }
+
   if (anchorMoto && isAdvancementMoto(anchorMoto)) {
     const nextSameCategoryStage = candidates.find((candidate) => {
       const candidateIndex = rows.findIndex((row) => row.id === candidate.id)
@@ -319,8 +322,7 @@ export const pickNextMotoInWorkflow = <T extends MotoLike & { id: string }>(rows
   }
 
   if (!anchorMoto) return candidates[0] ?? null
-  const afterAnchor = anchorIndex >= 0 ? rows.slice(anchorIndex + 1) : rows
-  const nextInSequence = afterAnchor.find((row) => candidates.some((candidate) => candidate.id === row.id))
+  const nextInSequence = afterAnchorRows.find((row) => candidates.some((candidate) => candidate.id === row.id))
   if (nextInSequence) return nextInSequence as T & { id: string }
 
   return [...candidates].sort((a, b) => compareMotoWorkflowSequence(a, b, categoryBaseOrder))[0] ?? null
