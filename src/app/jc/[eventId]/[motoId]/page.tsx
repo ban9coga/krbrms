@@ -119,6 +119,13 @@ const isCategoryUnfinished = (list: MotoItem[], categoryId?: string | null) => {
 
   if (isCategoryAwaitingStageCompute(list, categoryId)) return true
 
+  const qualMotos = categoryMotos.filter((m) => parseMotoSequence(m.moto_name))
+  if (qualMotos.length > 0) {
+    const unfinishedQual = qualMotos.some((m) => !isLockedStatus(m.status))
+    if (unfinishedQual) return true
+    return false
+  }
+
   return categoryMotos.some((m) => {
     const s = String(m.status ?? '').toUpperCase()
     return s !== 'LOCKED' && s !== 'FINISHED'
@@ -147,21 +154,17 @@ const pickPrepMotoId = (
           .sort((a, b) => compareMotoWorkflowSequence(a, b, categoryBaseOrder))[0] ?? null
       : null
 
+  // A moto is only truly finalized if it is locked/live, or if it is READY and confirmed
+  const isCurrentActuallyFinalized = Boolean(
+    currentMoto &&
+    (isLockedStatus(currentMoto.status) ||
+     isMotoLive(currentMoto.status) ||
+     (isMotoReady(currentMoto.status) && (currentPrepFinalized || Boolean(currentMoto.checker_prep_ready_at))))
+  )
+
   if (currentMoto && isAdvancementMoto(currentMoto) && isLockedStatus(currentMoto.status)) {
     const sameCategoryNextStage = nextEligibleAdvancementInCategory(currentMoto.category_id)
     if (sameCategoryNextStage) return sameCategoryNextStage.id
-  }
-
-  if (currentMoto && parseMotoSequence(currentMoto.moto_name) && currentMoto.category_id) {
-    const categoryQualifications = list
-      .filter((moto) => moto.category_id === currentMoto.category_id && parseMotoSequence(moto.moto_name))
-      .sort(compareMotoSequence)
-    const isLastQualification = categoryQualifications.at(-1)?.id === currentMoto.id
-    const qualificationsComplete = categoryQualifications.length > 0 && categoryQualifications.every((moto) => isLockedStatus(moto.status))
-    if (isLastQualification && qualificationsComplete) {
-      const sameCategoryNextStage = nextEligibleAdvancementInCategory(currentMoto.category_id)
-      if (sameCategoryNextStage) return sameCategoryNextStage.id
-    }
   }
 
   const activeCategoryId =
@@ -180,19 +183,21 @@ const pickPrepMotoId = (
       currentInActiveCategory &&
       sameCategoryEligible.some((moto) => moto.id === currentInActiveCategory.id) &&
       isPrepMotoStatus(currentInActiveCategory.status) &&
-      !currentPrepFinalized
+      !isCurrentActuallyFinalized
     ) {
       return currentInActiveCategory.id
     }
 
     const nextCategoryCandidates = sameCategoryEligible.filter((moto) => moto.id !== currentInActiveCategory?.id)
-    const preparedCategoryMoto = nextCategoryCandidates
-      .filter((moto) => isMotoReady(moto.status) && Boolean(moto.checker_prep_ready_at))
-      .sort((a, b) => compareMotoWorkflowSequence(a, b, categoryBaseOrder))[0]
-    if (preparedCategoryMoto) return preparedCategoryMoto.id
-
     const anchorMoto = currentInActiveCategory ?? (liveMoto?.category_id === activeCategoryId ? liveMoto : null)
     const anchorIndex = anchorMoto ? list.findIndex((moto) => moto.id === anchorMoto.id) : -1
+
+    const afterAnchorCandidates = anchorIndex >= 0 ? list.slice(anchorIndex + 1) : list
+    const preparedCategoryMoto = afterAnchorCandidates
+      .filter((moto) => nextCategoryCandidates.some((c) => c.id === moto.id))
+      .filter((moto) => isMotoReady(moto.status) && Boolean(moto.checker_prep_ready_at))[0]
+    if (preparedCategoryMoto) return preparedCategoryMoto.id
+
     const nextSameCategoryMoto = nextCategoryCandidates.find(
       (moto) => list.findIndex((row) => row.id === moto.id) > anchorIndex
     )
@@ -221,7 +226,7 @@ const pickPrepMotoId = (
   if (currentId) {
     const currentMoto = list.find((m) => m.id === currentId)
     if (currentMoto) {
-      if (!isLockedStatus(currentMoto.status) && isPrepMotoStatus(currentMoto.status) && !currentPrepFinalized) {
+      if (!isLockedStatus(currentMoto.status) && isPrepMotoStatus(currentMoto.status) && !isCurrentActuallyFinalized) {
         return currentId
       }
       const nextMoto = pickUpcomingMoto(list, currentMoto)
