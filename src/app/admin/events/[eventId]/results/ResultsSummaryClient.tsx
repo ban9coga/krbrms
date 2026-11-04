@@ -36,6 +36,8 @@ type SummaryRow = {
   penalty_total: number | null
   total_point: number | null
   rank_point: number | null
+  batch_rank?: number | null
+  overall_rank?: number | null
   class_label?: string | null
   status?: string | null
 }
@@ -1073,7 +1075,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
                 <tbody>
                   {rows.map((row) => (
                     <tr key={`${batch.batch_index}-${row.rider_id}`} style={{ borderBottom: '1px solid #ddd' }}>
-                      <td style={{ padding: 8 }}>{row.rank_point ?? '-'}</td>
+                      <td style={{ padding: 8 }}>{row.batch_rank ?? row.rank_point ?? '-'}</td>
                       <td style={{ padding: 8, fontWeight: 800 }}>{row.name}</td>
                       <td style={{ padding: 8 }}>{row.no_plate}</td>
                       <td style={{ padding: 8 }}>{row.gate_moto1 ?? '-'}</td>

@@ -36,6 +36,8 @@ type QualificationRow = {
   penalty_total: number | null
   total_point: number | null
   rank_point: number | null
+  batch_rank?: number | null
+  overall_rank?: number | null
   status: ResultStatus
   class_label?: string | null
 }
@@ -167,7 +169,7 @@ function CompactQualificationTable({ batch, showMoto3, large }: { batch: Batch; 
               {showMoto3 && <td className="px-2 py-2.5 text-center font-black text-sky-700">{renderPoint(row.point_moto3 ?? null, row.moto3_status)}</td>}
               <td className="px-2 py-2.5 text-center font-black text-amber-700">{row.penalty_total ?? '-'}</td>
               <td className="px-2 py-2.5 text-center font-black text-slate-900">{row.total_point ?? '-'}</td>
-              <td className="px-2 py-2.5 text-center font-black text-emerald-700">{row.rank_point ?? '-'}</td>
+              <td className="px-2 py-2.5 text-center font-black text-emerald-700">{row.batch_rank ?? row.rank_point ?? '-'}</td>
               <td className="px-3 py-2.5 text-[10px] font-black uppercase leading-tight text-slate-600">{row.class_label || '-'}</td>
             </tr>
           ))}

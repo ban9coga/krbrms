@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import Image from 'next/image'
 import Link from 'next/link'
@@ -38,6 +38,8 @@ type Row = {
   penalty_total: number | null
   total_point?: number | null
   rank_point: number | null
+  batch_rank?: number | null
+  overall_rank?: number | null
   status: 'FINISHED' | 'DNF' | 'DNS' | 'PENDING' | 'DQ'
   class_label?: string | null
 }
@@ -568,10 +570,11 @@ export default function LiveScoreClient({
         if (!qualificationAdvancementsCalculated && row.class_label?.trim()) {
           standing.next_class_label = row.class_label
         }
-        if (row.rank_point !== null && row.rank_point !== undefined) {
+        const rankForStandings = row.overall_rank ?? row.rank_point
+        if (rankForStandings !== null && rankForStandings !== undefined) {
           standing.dynamicRank = standing.dynamicRank === null
-            ? row.rank_point
-            : Math.min(standing.dynamicRank, row.rank_point)
+            ? rankForStandings
+            : Math.min(standing.dynamicRank, rankForStandings)
         }
         if ((row.total_point !== null && row.total_point !== undefined) || statuses.some((status) => status && status !== 'PENDING')) {
           standing.hasRecordedResult = true
@@ -666,7 +669,7 @@ export default function LiveScoreClient({
         ...batch,
         rows:
           sortMode === 'RANK'
-            ? [...batch.rows].sort((a, b) => (a.rank_point ?? 9999) - (b.rank_point ?? 9999))
+            ? [...batch.rows].sort((a, b) => (a.batch_rank ?? a.rank_point ?? 9999) - (b.batch_rank ?? b.rank_point ?? 9999))
             : [...batch.rows].sort((a, b) => (a.gate_moto1 ?? 9999) - (b.gate_moto1 ?? 9999)),
       })),
     [batches, sortMode]
@@ -1264,7 +1267,7 @@ export default function LiveScoreClient({
                         {showMoto3 && <td className="live-score-mobile-point">{renderMotoResultCell(row.point_moto3, row.moto3_status)}</td>}
                         <td className="live-score-mobile-penalty">{row.penalty_total ?? '-'}</td>
                         <td className="live-score-mobile-total-cell">{row.total_point ?? '-'}</td>
-                        <td className="live-score-mobile-rank">{renderRankBadge(qualificationDisplayRankByRider.get(row.rider_id) ?? null)}</td>
+                        <td className="live-score-mobile-rank">{renderRankBadge(row.batch_rank ?? row.rank_point ?? null)}</td>
                         {showQualificationNextColumn && (
                           <td className="live-score-mobile-next-stage">
                             {usesGlobalActiveFirst ? qualificationDestinationLabel(row.class_label) : row.class_label || '-'}
@@ -1293,6 +1296,7 @@ export default function LiveScoreClient({
                           ...(showMoto3 ? ['Point M3'] : []),
                           'Total Penalti',
                           'Total Poin',
+                          'Rank',
                           ...(showQualificationNextColumn ? [qualificationHasFinisherOutcome ? 'Hasil Kualifikasi' : 'Next Stage'] : []),
                         ].map((h) => (
                         <th key={h} className="whitespace-nowrap">
@@ -1324,6 +1328,7 @@ export default function LiveScoreClient({
                         {showMoto3 && <td>{renderMotoResultCell(row.point_moto3, row.moto3_status)}</td>}
                         <td className="font-extrabold text-amber-600">{row.penalty_total ?? '-'}</td>
                         <td className="font-extrabold text-sky-700">{row.total_point ?? '-'}</td>
+                        <td className="font-extrabold text-center">{renderRankBadge(row.batch_rank ?? row.rank_point ?? null)}</td>
                         {showQualificationNextColumn && (
                           <td className="whitespace-nowrap">
                             <div className="flex flex-col items-start gap-1">

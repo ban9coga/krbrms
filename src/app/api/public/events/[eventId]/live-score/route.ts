@@ -995,6 +995,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
           const rank = rankMap.get(r.rider_id) ?? null
           return {
             ...r,
+            batch_rank: rank,
+            overall_rank: rank,
             rank_point: rank,
             class_label: nextQualificationLabelForRank(rank, r.rider_id, batchIndex),
           }
@@ -1065,7 +1067,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     batches.forEach((batch) => {
       batch.rows.forEach((row) => {
         const rank = combinedRankByRider.get(row.rider_id) ?? null
-        row.rank_point = rank
+        row.overall_rank = rank
+        row.rank_point = row.batch_rank ?? row.rank_point ?? rank
         row.class_label = nextQualificationLabelForRank(rank, row.rider_id, batch.batch_index)
       })
     })

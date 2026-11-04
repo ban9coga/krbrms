@@ -28,6 +28,8 @@ type Row = {
   penalty_total: number | null
   total_point: number | null
   rank_point: number | null
+  batch_rank?: number | null
+  overall_rank?: number | null
   status: 'FINISHED' | 'DNF' | 'DNS' | 'PENDING' | 'DQ'
   class_label?: string | null
 }
@@ -919,14 +921,14 @@ export default function LiveDisplayClient({
                           <tr
                             key={row.rider_id}
                             className={`border-t border-slate-100 ${
-                              row.rank_point === 1
+                              (row.batch_rank ?? row.rank_point) === 1
                                 ? 'bg-amber-50/75'
                                 : rowIndex % 2 === 0
                                 ? 'bg-sky-50/40'
                                 : 'bg-white'
                             }`}
                           >
-                            <td className="px-3 py-3 text-2xl font-black text-emerald-700">{row.rank_point ?? '-'}</td>
+                            <td className="px-3 py-3 text-2xl font-black text-emerald-700">{row.batch_rank ?? row.rank_point ?? '-'}</td>
                             <td className="px-3 py-3 text-sm font-black text-slate-700">{row.no_plate}</td>
                             <td className="px-3 py-3">
                               <div className="flex items-center gap-3">
@@ -968,7 +970,7 @@ export default function LiveDisplayClient({
                             </div>
                             <div className="text-right">
                               <div className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Rank</div>
-                              <div className="text-2xl font-black text-emerald-700">{row.rank_point ?? '-'}</div>
+                              <div className="text-2xl font-black text-emerald-700">{row.batch_rank ?? row.rank_point ?? '-'}</div>
                             </div>
                           </div>
                           <div className={`mt-3 grid gap-2 ${showLiveMoto3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
