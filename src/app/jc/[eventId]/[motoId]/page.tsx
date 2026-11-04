@@ -885,18 +885,27 @@ export default function JCPage() {
     setMotoPickerQuery('')
   }
   const activeCategoryWaitingStage = useMemo(() => {
-    const selectedCategoryId = motos.find((moto) => moto.id === selectedMotoId)?.category_id
-    const pendingLastQualification = motos
-      .filter((moto) => {
-        const status = String(moto.status ?? '').toUpperCase()
-        if (!['LIVE', 'PROVISIONAL', 'PROTEST_REVIEW'].includes(status) || !parseMotoSequence(moto.moto_name)) return false
+    const selectedMoto = motos.find((moto) => moto.id === selectedMotoId)
+    const selectedCategoryId = selectedMoto?.category_id ?? null
 
-        const categoryQualifications = motos
-          .filter((candidate) => candidate.category_id === moto.category_id && parseMotoSequence(candidate.moto_name))
-          .sort(compareMotoSequence)
-        return categoryQualifications.at(-1)?.id === moto.id
-      })
-      .sort((a, b) => Number(b.category_id === selectedCategoryId) - Number(a.category_id === selectedCategoryId))[0]
+    // If checker has selected an actionable moto, only show waiting state
+    // if THIS selected moto's category is the one awaiting stage compute.
+    // When checker selects a moto from a different category, display that moto normally.
+    const targetCategoryIds = selectedCategoryId
+      ? [selectedCategoryId]
+      : (Array.from(new Set(motos.map((moto) => moto.category_id).filter(Boolean))) as string[])
+
+    const pendingLastQualification = motos.find((moto) => {
+      if (!moto.category_id || !targetCategoryIds.includes(moto.category_id)) return false
+      const status = String(moto.status ?? '').toUpperCase()
+      if (!['LIVE', 'PROVISIONAL', 'PROTEST_REVIEW'].includes(status) || !parseMotoSequence(moto.moto_name)) return false
+
+      const categoryQualifications = motos
+        .filter((candidate) => candidate.category_id === moto.category_id && parseMotoSequence(candidate.moto_name))
+        .sort(compareMotoSequence)
+      return categoryQualifications.at(-1)?.id === moto.id
+    })
+
     if (pendingLastQualification) {
       const status = String(pendingLastQualification.status ?? '').toUpperCase()
       const statusDetail = status === 'LIVE'
@@ -911,17 +920,7 @@ export default function JCPage() {
       }
     }
 
-    const categoryIds = Array.from(new Set(motos.map((moto) => moto.category_id).filter(Boolean))) as string[]
-    const waitingCategories = categoryIds
-      .filter((categoryId) => isCategoryAwaitingStageCompute(motos, categoryId))
-      .sort((a, b) => {
-        if (a === selectedCategoryId) return -1
-        if (b === selectedCategoryId) return 1
-        const latestOrder = (categoryId: string) => Math.max(
-          ...motos.filter((moto) => moto.category_id === categoryId).map((moto) => moto.moto_order)
-        )
-        return latestOrder(b) - latestOrder(a)
-      })
+    const waitingCategories = targetCategoryIds.filter((categoryId) => isCategoryAwaitingStageCompute(motos, categoryId))
 
     for (const categoryId of waitingCategories) {
       const categoryMotos = motos.filter((moto) => moto.category_id === categoryId)
