@@ -805,21 +805,18 @@ export default function JCPage() {
     void loadIncidentMoto(true)
   }, [eventId, incidentMotoId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Background polling — always silent, never shows Loading
+  // Refresh once when screen/tab becomes visible (e.g. tablet unlocked).
+  // Continuous real-time updates are handled efficiently via useEventRaceRealtime broadcast.
   useEffect(() => {
     if (!eventId || !isPageVisible) return
 
-    const interval = setInterval(() => {
-      void (async () => {
-        if (pendingStatusMutationsRef.current.size > 0) return
-        const workflowMotos = (await loadMotos(true)) ?? []
-        const liveMotoId = workflowMotos.find((moto) => isMotoLive(moto.status))?.id ?? ''
-        const prepMotoId = manualSelectedMotoIdRef.current ?? pickPrepMotoId(workflowMotos, selectedMotoIdRef.current, liveMotoId, allReadyDone)
-        await refreshCheckerPollingState(prepMotoId, liveMotoId)
-      })()
-    }, CHECKER_POLL_INTERVAL_MS)
-
-    return () => clearInterval(interval)
+    void (async () => {
+      if (pendingStatusMutationsRef.current.size > 0) return
+      const workflowMotos = (await loadMotos(true)) ?? []
+      const liveMotoId = workflowMotos.find((moto) => isMotoLive(moto.status))?.id ?? ''
+      const prepMotoId = manualSelectedMotoIdRef.current ?? pickPrepMotoId(workflowMotos, selectedMotoIdRef.current, liveMotoId, allReadyDone)
+      await refreshCheckerPollingState(prepMotoId, liveMotoId)
+    })()
   }, [allReadyDone, eventId, isPageVisible, loadMotos, refreshCheckerPollingState])
 
   const categoryLabel = useMemo(() => {

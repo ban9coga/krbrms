@@ -272,7 +272,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
     snapshotRefreshSecret.length > 0 &&
     req.headers.get('x-racepushbike-snapshot-refresh') === snapshotRefreshSecret
   const cacheHeaders = includeUpcoming
-    ? { 'Cache-Control': 'no-store' }
+    ? { 'Cache-Control': 'public, s-maxage=3, stale-while-revalidate=5' }
     : { 'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=300' }
   if (!categoryId) return NextResponse.json({ error: 'category_id required' }, { status: 400 })
 

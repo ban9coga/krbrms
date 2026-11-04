@@ -492,25 +492,23 @@ export default function JuryFinishPage() {
     void loadAll()
 
     if (!isPageVisible) return
+    if (pressedId || saving) return
 
-    const interval = window.setInterval(() => {
-      if (pressedId || saving) return
-      void (async () => {
-        try {
-          const state = await refreshMotoState()
-          if (!state?.selectedMotoId) return
+    // Refresh once on focus / screen unlock. Live changes are pushed instantly via useEventRaceRealtime.
+    void (async () => {
+      try {
+        const state = await refreshMotoState()
+        if (!state?.selectedMotoId) return
 
-          const currentSelectedMoto = state.motos.find((m) => m.id === state.selectedMotoId) ?? null
-          const selectionChanged = state.selectedMotoId !== selectedMotoId
-          if (!selectionChanged && isMotoLive(currentSelectedMoto?.status) && !hasSubmitted) {
-            await refreshFinisherPollingState(state.selectedMotoId, currentSelectedMoto)
-          }
-        } catch {
-          // Keep the finisher's current local state when a background poll fails.
+        const currentSelectedMoto = state.motos.find((m) => m.id === state.selectedMotoId) ?? null
+        const selectionChanged = state.selectedMotoId !== selectedMotoId
+        if (!selectionChanged && isMotoLive(currentSelectedMoto?.status) && !hasSubmitted) {
+          await refreshFinisherPollingState(state.selectedMotoId, currentSelectedMoto)
         }
-      })()
-    }, 15000)
-    return () => window.clearInterval(interval)
+      } catch {
+        // Keep the finisher's current local state when a background poll fails.
+      }
+    })()
   }, [eventId, selectedMotoId, isPageVisible, hasSubmitted, pressedId, saving, loadAll, loadRiders, refreshFinisherPollingState, refreshMotoState])
 
   const availableRiders = useMemo(() => {

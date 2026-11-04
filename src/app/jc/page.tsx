@@ -114,12 +114,16 @@ export default function JCSelectorPage() {
     loadMotos()
   }, [loadMotos])
 
+  // Refresh only when tab becomes visible (no continuous background loop)
   useEffect(() => {
-    const timer = setInterval(() => {
-      loadEvents()
-      loadMotos()
-    }, 15000)
-    return () => clearInterval(timer)
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        loadEvents()
+        loadMotos()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
   }, [loadEvents, loadMotos])
 
   return (
