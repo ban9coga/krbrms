@@ -261,6 +261,34 @@ const renderRankBadge = (rank: number | null) => {
   )
 }
 
+const renderNextStageCell = (label: string | null | undefined) => {
+  if (!label || label === '-') return '-'
+
+  const isViaRepechage = label.includes('(via Repechage)')
+  const cleanLabel = label.replace(/\s*\(via Repechage\)/i, '').trim()
+
+  if (isViaRepechage) {
+    return (
+      <div className="inline-flex flex-wrap items-center gap-1.5">
+        <span className="font-black uppercase tracking-tight">{cleanLabel}</span>
+        <span className="inline-flex items-center gap-1 rounded border border-amber-500/50 bg-amber-200/70 px-1.5 py-0.5 text-[10px] font-black tracking-tight text-amber-950">
+          <span>🔁</span> via Repechage
+        </span>
+      </div>
+    )
+  }
+
+  if (/^repechage\b/i.test(label)) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded border border-amber-400 bg-amber-300/30 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-amber-950">
+        <span>⏳</span> {label}
+      </span>
+    )
+  }
+
+  return <span className="font-black uppercase tracking-tight">{label}</span>
+}
+
 const renderSortButtons = (
   sortMode: 'GATE' | 'RANK',
   setSortMode: (mode: 'GATE' | 'RANK') => void,
@@ -1060,7 +1088,7 @@ export default function LiveScoreClient({
                             <td className="qualification-standing-moto-point text-center font-bold">{row.total_point_moto2 ?? '-'}</td>
                             <td className="qualification-standing-moto-point text-center font-bold">{row.total_point_moto3 ?? '-'}</td>
                             <td className="qualification-standing-total text-center font-black">{row.total_point ?? '-'}</td>
-                            <td className="font-black uppercase">{row.next_class_label || '-'}</td>
+                            <td className="whitespace-nowrap">{renderNextStageCell(row.next_class_label)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -1270,7 +1298,7 @@ export default function LiveScoreClient({
                         <td className="live-score-mobile-rank">{renderRankBadge(row.batch_rank ?? row.rank_point ?? null)}</td>
                         {showQualificationNextColumn && (
                           <td className="live-score-mobile-next-stage">
-                            {usesGlobalActiveFirst ? qualificationDestinationLabel(row.class_label) : row.class_label || '-'}
+                            {renderNextStageCell(usesGlobalActiveFirst ? qualificationDestinationLabel(row.class_label) : row.class_label)}
                           </td>
                         )}
                       </tr>
@@ -1332,7 +1360,7 @@ export default function LiveScoreClient({
                         {showQualificationNextColumn && (
                           <td className="whitespace-nowrap">
                             <div className="flex flex-col items-start gap-1">
-                              <span>{usesGlobalActiveFirst ? qualificationDestinationLabel(row.class_label) : row.class_label || '-'}</span>
+                              {renderNextStageCell(usesGlobalActiveFirst ? qualificationDestinationLabel(row.class_label) : row.class_label)}
                             </div>
                           </td>
                         )}
@@ -1393,7 +1421,7 @@ export default function LiveScoreClient({
                           <td className="live-score-mobile-penalty">{row.penalty_total ?? '-'}</td>
                           <td className="live-score-mobile-total-cell">{row.total_point ?? '-'}</td>
                           <td className="live-score-mobile-rank">{renderRankBadge(row.rank)}</td>
-                          {showNextStageColumn && <td className="live-score-mobile-next-stage">{row.next_class_label || '-'}</td>}
+                          {showNextStageColumn && <td className="live-score-mobile-next-stage">{renderNextStageCell(row.next_class_label)}</td>}
                         </tr>
                       ))}
                     </tbody>
@@ -1430,7 +1458,7 @@ export default function LiveScoreClient({
                           <td className="whitespace-nowrap text-center">
                             {renderRankBadge(row.rank)}
                           </td>
-                          {showNextStageColumn && <td className="whitespace-nowrap">{row.next_class_label || '-'}</td>}
+                          {showNextStageColumn && <td className="whitespace-nowrap">{renderNextStageCell(row.next_class_label)}</td>}
                         </tr>
                       ))}
                     </tbody>

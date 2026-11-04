@@ -701,6 +701,22 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
         qualificationAssignment?.qualification_next_outcome === 'STAGE' &&
         qualificationAssignment.qualification_next_stage
       ) {
+        if (qualificationAssignment.qualification_next_stage === 'REPECHAGE') {
+          const subsequentStage = (['FINAL', 'SEMI_FINAL', 'QUARTER_FINAL'] as const)
+            .map((stage) => stageSeedRows.find((row) => row.rider_id === riderId && row.stage === stage))
+            .find((row) => row !== undefined)
+          if (subsequentStage) {
+            const label = formatQualificationTargetLabel(subsequentStage.stage as QualificationCustomRuleRow['target_stage'], subsequentStage.final_class ?? null)
+            return label ? `${label} (via Repechage)` : null
+          }
+          if (completedQualificationTieBreakRiderIds.has(riderId)) {
+            const repechageResult = stageSeedRows.find((row) => row.rider_id === riderId && row.stage === 'REPECHAGE')
+            if (repechageResult?.qualification_next_outcome === 'FINISHER') {
+              return 'FINISHER (via Repechage)'
+            }
+          }
+          return 'REPECHAGE'
+        }
         return formatQualificationTargetLabel(
           qualificationAssignment.qualification_next_stage,
           qualificationAssignment.qualification_next_final_class ?? null
@@ -709,18 +725,33 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
 
       // Older generated brackets predate the frozen fields; use their saved
       // stage assignment rather than recalculating an already-generated route.
-      const storedStageAssignment = (['REPECHAGE', 'QUARTER_FINAL', 'SEMI_FINAL', 'FINAL'] as const)
+      const hadRepechage = stageSeedRows.some((row) => row.rider_id === riderId && row.stage === 'REPECHAGE')
+      const storedStageAssignment = (['FINAL', 'SEMI_FINAL', 'QUARTER_FINAL', 'REPECHAGE'] as const)
         .map((stage) => stageSeedRows.find((row) => row.rider_id === riderId && row.stage === stage))
         .find((row) => row !== undefined)
       if (storedStageAssignment && storedStageAssignment.stage !== 'QUALIFICATION') {
-        return formatQualificationTargetLabel(storedStageAssignment.stage, storedStageAssignment.final_class ?? null)
+        const label = formatQualificationTargetLabel(storedStageAssignment.stage, storedStageAssignment.final_class ?? null)
+        if (label && hadRepechage && storedStageAssignment.stage !== 'REPECHAGE') {
+          return `${label} (via Repechage)`
+        }
+        return label
       }
     }
     if (
       qualificationTieBreakRepechage &&
-      activeQualificationTieBreakRiderIds.has(riderId) &&
-      !completedQualificationTieBreakRiderIds.has(riderId)
-    ) return 'REPECHAGE'
+      (activeQualificationTieBreakRiderIds.has(riderId) || completedQualificationTieBreakRiderIds.has(riderId))
+    ) {
+      if (completedQualificationTieBreakRiderIds.has(riderId)) {
+        const subsequentStage = (['FINAL', 'SEMI_FINAL', 'QUARTER_FINAL'] as const)
+          .map((stage) => stageSeedRows.find((row) => row.rider_id === riderId && row.stage === stage))
+          .find((row) => row !== undefined)
+        if (subsequentStage) {
+          const label = formatQualificationTargetLabel(subsequentStage.stage as QualificationCustomRuleRow['target_stage'], subsequentStage.final_class ?? null)
+          return label ? `${label} (via Repechage)` : null
+        }
+      }
+      return 'REPECHAGE'
+    }
     const rankForRules = qualificationAssignment?.position ?? rank
     if (!rankForRules || qualificationRules.length === 0) return null
     if (qualificationSplitBasis === 'GLOBAL_ACTIVE_FIRST') {
