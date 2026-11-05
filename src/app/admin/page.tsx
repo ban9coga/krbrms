@@ -249,6 +249,14 @@ export default function AdminDashboardPage() {
                   <Link href={`${eventBase}/motos`} className="admin-outline-button justify-center">Motos</Link>
                   <Link href={`${eventBase}/results`} className="admin-outline-button justify-center">Results</Link>
                 </div>
+                {isCentralAdmin && (
+                  <Link
+                    href={`${eventBase}/race-day`}
+                    className="admin-primary-button justify-center bg-rose-600 hover:bg-rose-700 focus-visible:ring-rose-500"
+                  >
+                    ⚡ Race Day Hub
+                  </Link>
+                )}
               </div>
             </div>
           ) : (

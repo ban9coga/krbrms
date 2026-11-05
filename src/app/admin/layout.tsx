@@ -27,7 +27,6 @@ const GLOBAL_NAV: NavItem[] = [
 ]
 
 const EVENT_NAV = (eventId: string): NavItem[] => [
-  { label: 'Race Day Hub', href: `/admin/events/${eventId}/race-day`, icon: 'raceDay' },
   { label: 'Setup Checklist', href: `/admin/events/${eventId}/checklist`, icon: 'checklist' },
   { label: 'Registrations', href: `/admin/events/${eventId}/registrations`, icon: 'registrations' },
   { label: 'Riders', href: `/admin/events/${eventId}/riders`, icon: 'riders' },
