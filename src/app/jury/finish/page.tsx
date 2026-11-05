@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '@/src/lib/supabaseClient'
 import { useHighVisibility } from '../../../hooks/useHighVisibility'
 import { buildCategoryBaseOrder, compareMotoWorkflowSequence } from '../../../lib/motoSequence'
-import { isMotoLive } from '../../../lib/motoStatus'
+import { isMotoLive, isMotoReady } from '../../../lib/motoStatus'
 import CheckerTopbar from '../../../components/CheckerTopbar'
 import LoadingState from '../../../components/LoadingState'
 import { usePageVisibility } from '../../../lib/usePageVisibility'
@@ -903,7 +903,7 @@ export default function JuryFinishPage() {
                 >
                   {selectableMotos.length === 0 && <option value="">Belum ada moto aktif</option>}
                   {selectableMotos.map((m) => (
-                    <option key={m.id} value={m.id} disabled={!isMotoLive(m.status)}>
+                    <option key={m.id} value={m.id} disabled={!isMotoLive(m.status) && !isMotoReady(m.status)}>
                       {m.moto_order}. {m.moto_name} - {categoryLabel.get(m.category_id ?? '') ?? 'Unknown'} - {m.status}
                     </option>
                   ))}
