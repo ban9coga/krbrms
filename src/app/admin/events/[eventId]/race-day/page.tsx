@@ -4,3 +4,4 @@ export default async function AdminRaceDayPage({ params }: { params: Promise<{ e
   const { eventId } = await params
   return <RaceDayClient eventId={eventId} />
 }
+

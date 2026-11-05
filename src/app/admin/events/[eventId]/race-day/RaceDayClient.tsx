@@ -86,17 +86,12 @@ export default function RaceDayClient({ eventId }: { eventId: string }) {
   const loadData = useCallback(async () => {
     if (!eventId) return
     try {
-      const [eventRes, catRes, gateRes, motoRes] = await Promise.all([
-        apiFetch(`/api/events/${eventId}`),
-        apiFetch(`/api/events/${eventId}/categories`),
-        apiFetch(`/api/events/${eventId}/gate-order`),
-        apiFetch(`/api/motos?event_id=${eventId}`),
+      const [eventJson, catJson, gateJson, motoJson] = await Promise.all([
+        apiFetch(`/api/events/${eventId}`).catch(() => ({})),
+        apiFetch(`/api/events/${eventId}/categories`).catch(() => ({})),
+        apiFetch(`/api/events/${eventId}/gate-order`).catch(() => ({})),
+        apiFetch(`/api/motos?event_id=${eventId}`).catch(() => ({})),
       ])
-
-      const eventJson = await eventRes.json().catch(() => ({}))
-      const catJson = await catRes.json().catch(() => ({}))
-      const gateJson = await gateRes.json().catch(() => ({}))
-      const motoJson = await motoRes.json().catch(() => ({}))
 
       if (eventJson?.data) {
         setEventData(eventJson.data)
@@ -223,14 +218,10 @@ export default function RaceDayClient({ eventId }: { eventId: string }) {
 
     setActionBusyId('event_status')
     try {
-      const res = await apiFetch(`/api/events/${eventId}`, {
+      await apiFetch(`/api/events/${eventId}`, {
         method: 'PATCH',
         body: JSON.stringify({ status: targetStatus }),
       })
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}))
-        throw new Error(errJson.error || 'Gagal mengubah status event')
-      }
       setEventData((prev) => (prev ? { ...prev, status: targetStatus } : null))
       showToast(`Status Event berhasil diubah menjadi ${targetStatus}!`)
       await loadData()
@@ -261,14 +252,10 @@ export default function RaceDayClient({ eventId }: { eventId: string }) {
         })
 
         // 2. Set target moto to LIVE
-        const res = await apiFetch(`/api/motos/${targetMoto.id}`, {
+        await apiFetch(`/api/motos/${targetMoto.id}`, {
           method: 'PATCH',
           body: JSON.stringify({ status: 'LIVE' }),
         })
-        if (!res.ok) {
-          const errJson = await res.json().catch(() => ({}))
-          throw new Error(errJson.error || 'Gagal menjadikan moto LIVE')
-        }
 
         showToast(`${formatMotoDisplayName(targetMoto.moto_name)} sekarang LIVE!`)
         await loadData()
@@ -287,14 +274,10 @@ export default function RaceDayClient({ eventId }: { eventId: string }) {
 
     setActionBusyId(targetMoto.id)
     try {
-      const res = await apiFetch(`/api/motos/${targetMoto.id}`, {
+      await apiFetch(`/api/motos/${targetMoto.id}`, {
         method: 'PATCH',
         body: JSON.stringify({ status: 'LIVE' }),
       })
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}))
-        throw new Error(errJson.error || 'Gagal mengubah moto ke LIVE')
-      }
       showToast(`${formatMotoDisplayName(targetMoto.moto_name)} sekarang LIVE!`)
       await loadData()
     } catch (err: unknown) {
@@ -317,14 +300,10 @@ export default function RaceDayClient({ eventId }: { eventId: string }) {
 
     setActionBusyId(moto.id)
     try {
-      const res = await apiFetch(`/api/motos/${moto.id}`, {
+      await apiFetch(`/api/motos/${moto.id}`, {
         method: 'PATCH',
         body: JSON.stringify({ status: newStatus }),
       })
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}))
-        throw new Error(errJson.error || 'Gagal mengubah status moto')
-      }
       showToast(`Status moto diubah menjadi ${newStatus}.`)
       await loadData()
     } catch (err: unknown) {
@@ -343,14 +322,10 @@ export default function RaceDayClient({ eventId }: { eventId: string }) {
 
     setActionBusyId(moto.id)
     try {
-      const res = await apiFetch(`/api/motos/${moto.id}/status`, {
+      await apiFetch(`/api/motos/${moto.id}/status`, {
         method: 'POST',
         body: JSON.stringify({ status: 'LOCKED' }),
       })
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}))
-        throw new Error(errJson.error || 'Gagal mengunci moto')
-      }
       showToast(`Moto ${formatMotoDisplayName(moto.moto_name)} berhasil dikunci (LOCKED).`)
       await loadData()
     } catch (err: unknown) {
@@ -981,3 +956,4 @@ export default function RaceDayClient({ eventId }: { eventId: string }) {
     </div>
   )
 }
+
