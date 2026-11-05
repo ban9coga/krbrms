@@ -902,11 +902,14 @@ export default function JuryFinishPage() {
                   className="public-filter w-full min-w-0"
                 >
                   {selectableMotos.length === 0 && <option value="">Belum ada moto aktif</option>}
-                  {selectableMotos.map((m) => (
-                    <option key={m.id} value={m.id} disabled={!isMotoLive(m.status) && !isMotoReady(m.status)}>
-                      {m.moto_order}. {m.moto_name} - {categoryLabel.get(m.category_id ?? '') ?? 'Unknown'} - {m.status}
-                    </option>
-                  ))}
+                  {selectableMotos.map((m) => {
+                    const isFinal = /^final\b/i.test(m.moto_name.trim())
+                    return (
+                      <option key={m.id} value={m.id} disabled={!isMotoLive(m.status) && !isMotoReady(m.status)}>
+                        {isFinal ? '🏆 [FINAL] ' : ''}{m.moto_order}. {m.moto_name} - {categoryLabel.get(m.category_id ?? '') ?? 'Unknown'} - {m.status}
+                      </option>
+                    )
+                  })}
                 </select>
                 <button
                   type="button"

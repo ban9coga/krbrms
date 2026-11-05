@@ -1383,12 +1383,18 @@ export default function JCPage() {
               disabled={prepSelectOptions.length === 0}
             >
               {prepSelectOptions.length === 0 && <option value="">Belum ada moto prep aktif</option>}
-              {prepSelectOptions.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.moto_order}. {m.moto_name} - {categoryLabel.get(m.category_id ?? '') ?? 'Category'}
-                  {isMotoReady(m.status) ? ' (READY)' : ''}
-                </option>
-                ))}
+              {prepSelectOptions.map((m) => {
+                const isFinal = /^final\b/i.test(m.moto_name.trim())
+                const isSemi = /^semi\s*final/i.test(m.moto_name.trim())
+                const isRep = /^repechage/i.test(m.moto_name.trim())
+                const stagePrefix = isFinal ? '🏆 [FINAL] ' : isSemi ? '⚡ [SEMI] ' : isRep ? '🔁 [REP] ' : ''
+                return (
+                  <option key={m.id} value={m.id}>
+                    {stagePrefix}{m.moto_order}. {m.moto_name} - {categoryLabel.get(m.category_id ?? '') ?? 'Category'}
+                    {isMotoReady(m.status) ? ' (READY)' : ''}
+                  </option>
+                )
+              })}
             </select>
             <div className="jc-header-actions">
               {hasOtherMotoOptions && (
@@ -1712,11 +1718,32 @@ export default function JCPage() {
               gap: 6,
               padding: isCompactLayout ? '10px 12px' : '12px 14px',
               borderRadius: 8,
-              border: '1px solid #e2e8f0',
-              background: '#f8fafc',
+              border: selectedMoto && /^final\b/i.test(selectedMoto.moto_name.trim()) ? '1.5px solid #f59e0b' : '1px solid #e2e8f0',
+              borderLeft: selectedMoto && /^final\b/i.test(selectedMoto.moto_name.trim()) ? '6px solid #d97706' : undefined,
+              background: selectedMoto && /^final\b/i.test(selectedMoto.moto_name.trim()) ? '#fffbeb' : '#f8fafc',
             }}
           >
-            <div style={{ fontSize: highVisibility ? (isCompactLayout ? 26 : 32) : isCompactLayout ? 24 : 30, fontWeight: 950, color: '#111827', textTransform: 'uppercase' }}>
+            {selectedMoto && /^final\b/i.test(selectedMoto.moto_name.trim()) && (
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '3px 8px',
+                  background: '#fef08a',
+                  color: '#713f12',
+                  border: '1px solid #fde047',
+                  borderRadius: 6,
+                  fontSize: 11,
+                  fontWeight: 950,
+                  width: 'fit-content',
+                }}
+              >
+                <span>🏆</span>
+                <span>STAGE FINAL (PEREBUTAN MEDALI)</span>
+              </div>
+            )}
+            <div style={{ fontSize: highVisibility ? (isCompactLayout ? 26 : 32) : isCompactLayout ? 24 : 30, fontWeight: 950, color: selectedMoto && /^final\b/i.test(selectedMoto.moto_name.trim()) ? '#78350f' : '#111827', textTransform: 'uppercase' }}>
               {selectedMoto?.moto_name ?? 'Belum ada moto prep'}
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -1733,7 +1760,7 @@ export default function JCPage() {
               >
                 {selectedCategoryLabel}
               </span>
-              <span style={{ fontSize: 12, color: '#475569', fontWeight: 800 }}>
+              <span style={{ fontSize: 12, color: selectedMoto && /^final\b/i.test(selectedMoto.moto_name.trim()) ? '#92400e' : '#475569', fontWeight: 800 }}>
                 {selectedMotoReady
                   ? allReadyDone
                     ? 'Moto sudah READY dan prep sudah dikonfirmasi.'
@@ -2536,37 +2563,144 @@ export default function JCPage() {
               style={{ width: '100%', minHeight: 42, padding: '9px 12px', border: '1px solid #cbd5e1', borderRadius: 8, background: '#fff', color: '#17202b', fontWeight: 700 }}
             />
             <div style={{ overflowY: 'auto', display: 'grid', alignContent: 'start', gap: 6, minHeight: 0 }}>
-              {searchedMotoOptions.map((moto) => (
-                <button
-                  key={moto.id}
-                  type="button"
-                  onClick={() => selectPrepMoto(moto.id)}
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    gap: 12,
-                    width: '100%',
-                    padding: '10px 12px',
-                    border: moto.id === selectedMotoId ? '1px solid #15803d' : '1px solid #d7dee7',
-                    borderRadius: 8,
-                    background: moto.id === selectedMotoId ? '#f0fdf4' : '#fff',
-                    color: '#17202b',
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <span style={{ minWidth: 0 }}>
-                    <span style={{ display: 'block', fontWeight: 900 }}>{moto.moto_order}. {moto.moto_name}</span>
-                    <span style={{ display: 'block', marginTop: 2, color: '#64748b', fontSize: 12, fontWeight: 700 }}>
-                      {categoryLabel.get(moto.category_id ?? '') ?? 'Kategori'}
+              {searchedMotoOptions.map((moto) => {
+                const isFinal = /^final\b/i.test(moto.moto_name.trim())
+                const isSemi = /^semi\s*final/i.test(moto.moto_name.trim())
+                const isQuarter = /^quarter\s*final/i.test(moto.moto_name.trim())
+                const isRepechage = /^repechage/i.test(moto.moto_name.trim())
+                const isSelected = moto.id === selectedMotoId
+                const ready = isMotoReady(moto.status)
+
+                let cardBg = '#fff'
+                let cardBorder = '1px solid #d7dee7'
+                let cardBorderLeft = '4px solid #cbd5e1'
+                let titleColor = '#17202b'
+                let subColor = '#64748b'
+
+                if (isFinal) {
+                  cardBg = isSelected ? '#fef3c7' : '#fffbeb'
+                  cardBorder = isSelected ? '2px solid #b45309' : '1.5px solid #f59e0b'
+                  cardBorderLeft = '6px solid #d97706'
+                  titleColor = '#78350f'
+                  subColor = '#92400e'
+                } else if (isSemi) {
+                  cardBg = isSelected ? '#e0f2fe' : '#f0f9ff'
+                  cardBorder = isSelected ? '2px solid #0284c7' : '1.5px solid #7dd3fc'
+                  cardBorderLeft = '5px solid #0284c7'
+                  titleColor = '#0c4a6e'
+                  subColor = '#0369a1'
+                } else if (isQuarter) {
+                  cardBg = isSelected ? '#ede9fe' : '#f5f3ff'
+                  cardBorder = isSelected ? '2px solid #7c3aed' : '1.5px solid #c4b5fd'
+                  cardBorderLeft = '5px solid #7c3aed'
+                  titleColor = '#4c1d95'
+                  subColor = '#6d28d9'
+                } else if (isRepechage) {
+                  cardBg = isSelected ? '#fae8ff' : '#fdf4ff'
+                  cardBorder = isSelected ? '2px solid #c026d3' : '1.5px solid #f0abfc'
+                  cardBorderLeft = '5px solid #c026d3'
+                  titleColor = '#701a75'
+                  subColor = '#a21caf'
+                } else if (isSelected) {
+                  cardBg = '#f0fdf4'
+                  cardBorder = '1.5px solid #15803d'
+                  cardBorderLeft = '5px solid #15803d'
+                }
+
+                return (
+                  <button
+                    key={moto.id}
+                    type="button"
+                    onClick={() => selectPrepMoto(moto.id)}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: 12,
+                      width: '100%',
+                      padding: '10px 12px',
+                      border: cardBorder,
+                      borderLeft: cardBorderLeft,
+                      borderRadius: 8,
+                      background: cardBg,
+                      color: '#17202b',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      boxShadow: isFinal ? '0 2px 6px rgba(217, 119, 6, 0.15)' : 'none',
+                    }}
+                  >
+                    <span style={{ minWidth: 0 }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 950, color: titleColor }}>
+                        {isFinal && <span style={{ fontSize: 14 }}>🏆</span>}
+                        {isSemi && <span style={{ fontSize: 13 }}>⚡</span>}
+                        {isRepechage && <span style={{ fontSize: 13 }}>🔁</span>}
+                        <span>{moto.moto_order}. {moto.moto_name}</span>
+                        {isFinal && (
+                          <span
+                            style={{
+                              fontSize: 10,
+                              background: '#fef08a',
+                              color: '#713f12',
+                              padding: '1px 6px',
+                              borderRadius: 4,
+                              fontWeight: 950,
+                              border: '1px solid #eab308',
+                              letterSpacing: '0.02em',
+                            }}
+                          >
+                            FINAL MEDALI
+                          </span>
+                        )}
+                        {isSemi && (
+                          <span
+                            style={{
+                              fontSize: 10,
+                              background: '#bae6fd',
+                              color: '#0369a1',
+                              padding: '1px 5px',
+                              borderRadius: 4,
+                              fontWeight: 900,
+                            }}
+                          >
+                            SEMI
+                          </span>
+                        )}
+                        {isRepechage && (
+                          <span
+                            style={{
+                              fontSize: 10,
+                              background: '#f5d0fe',
+                              color: '#86198f',
+                              padding: '1px 5px',
+                              borderRadius: 4,
+                              fontWeight: 900,
+                            }}
+                          >
+                            REPECHAGE
+                          </span>
+                        )}
+                      </span>
+                      <span style={{ display: 'block', marginTop: 2, color: subColor, fontSize: 12, fontWeight: 700 }}>
+                        {categoryLabel.get(moto.category_id ?? '') ?? 'Kategori'}
+                      </span>
                     </span>
-                  </span>
-                  <span style={{ flexShrink: 0, color: isMotoReady(moto.status) ? '#15803d' : '#a16207', fontSize: 11, fontWeight: 900 }}>
-                    {isMotoReady(moto.status) ? 'READY' : 'UPCOMING'}
-                  </span>
-                </button>
-              ))}
+                    <span
+                      style={{
+                        flexShrink: 0,
+                        color: ready ? '#15803d' : isFinal ? '#b45309' : '#a16207',
+                        background: ready ? '#dcfce7' : isFinal ? '#fef3c7' : '#fef9c3',
+                        border: ready ? '1px solid #86efac' : isFinal ? '1px solid #fde047' : '1px solid #fef08a',
+                        padding: '3px 8px',
+                        borderRadius: 6,
+                        fontSize: 11,
+                        fontWeight: 950,
+                      }}
+                    >
+                      {ready ? 'READY' : 'UPCOMING'}
+                    </span>
+                  </button>
+                )
+              })}
               {searchedMotoOptions.length === 0 && <div style={{ padding: 18, color: '#64748b', textAlign: 'center', fontWeight: 700 }}>Moto tidak ditemukan.</div>}
             </div>
           </section>

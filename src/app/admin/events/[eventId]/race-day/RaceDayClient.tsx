@@ -796,6 +796,7 @@ export default function RaceDayClient({ eventId }: { eventId: string }) {
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {filteredMotos.map((moto, index) => {
+                  const isFinal = /^final\b/i.test(moto.moto_name.trim())
                   const badgeStyle = STATUS_BADGE_STYLES[moto.status] ?? STATUS_BADGE_STYLES.UPCOMING
                   const isBusy = actionBusyId === moto.id
                   const isFirst = index === 0
@@ -805,7 +806,11 @@ export default function RaceDayClient({ eventId }: { eventId: string }) {
                     <tr
                       key={moto.id}
                       className={`transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/40 ${
-                        moto.status === 'LIVE' ? 'bg-rose-500/5 font-semibold' : ''
+                        moto.status === 'LIVE'
+                          ? 'bg-rose-500/10 font-bold border-l-4 border-l-rose-500'
+                          : isFinal
+                            ? 'bg-amber-500/10 dark:bg-amber-950/20 border-l-4 border-l-amber-500 font-medium'
+                            : ''
                       }`}
                     >
                       {/* Urutan & Move Up/Down */}
@@ -846,9 +851,17 @@ export default function RaceDayClient({ eventId }: { eventId: string }) {
 
                       {/* Moto Name */}
                       <td className="px-3 py-3.5">
-                        <span className="font-bold text-slate-900 dark:text-white">
-                          {formatMotoDisplayName(moto.moto_name)}
-                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {isFinal && <span className="text-sm">🏆</span>}
+                          <span className={`font-bold ${isFinal ? 'text-amber-800 dark:text-amber-300 font-black' : 'text-slate-900 dark:text-white'}`}>
+                            {formatMotoDisplayName(moto.moto_name)}
+                          </span>
+                          {isFinal && (
+                            <span className="rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-black text-amber-900 dark:bg-amber-900/60 dark:text-amber-200">
+                              FINAL MEDALI
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* Riders on Gate */}
