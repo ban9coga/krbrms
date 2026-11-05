@@ -62,6 +62,9 @@ const resolveCategory = async (
 }
 
 export async function GET(req: Request) {
+  const auth = await requireAdmin(req.headers.get('authorization'))
+  if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const { searchParams } = new URL(req.url)
   const eventId = searchParams.get('event_id')
   const categoryId = searchParams.get('category_id')

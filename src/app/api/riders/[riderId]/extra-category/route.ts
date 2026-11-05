@@ -2,7 +2,10 @@ import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../lib/auth'
 import { getLatestRiderExtraCategory, saveRiderExtraCategory } from '../../../../../lib/riderExtraCategory'
 
-export async function GET(_: Request, { params }: { params: Promise<{ riderId: string }> }) {
+export async function GET(req: Request, { params }: { params: Promise<{ riderId: string }> }) {
+  const auth = await requireAdmin(req.headers.get('authorization'))
+  if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const { riderId } = await params
   const { data, error } = await getLatestRiderExtraCategory(riderId)
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
