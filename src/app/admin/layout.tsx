@@ -12,7 +12,7 @@ import { supabase } from '@/src/lib/supabaseClient'
 type NavItem = {
   label: string
   href: string
-  icon: 'dashboard' | 'events' | 'content' | 'users' | 'registrations' | 'riders' | 'categories' | 'draw' | 'drawSettings' | 'motos' | 'sequence' | 'advanced' | 'customSplit' | 'schedule' | 'results' | 'penalties' | 'settings' | 'checklist'
+  icon: 'dashboard' | 'events' | 'content' | 'users' | 'registrations' | 'riders' | 'categories' | 'draw' | 'drawSettings' | 'motos' | 'sequence' | 'advanced' | 'customSplit' | 'schedule' | 'results' | 'penalties' | 'settings' | 'checklist' | 'raceDay'
 }
 
 const BRAND = {
@@ -27,6 +27,7 @@ const GLOBAL_NAV: NavItem[] = [
 ]
 
 const EVENT_NAV = (eventId: string): NavItem[] => [
+  { label: 'Race Day Hub', href: `/admin/events/${eventId}/race-day`, icon: 'raceDay' },
   { label: 'Setup Checklist', href: `/admin/events/${eventId}/checklist`, icon: 'checklist' },
   { label: 'Registrations', href: `/admin/events/${eventId}/registrations`, icon: 'registrations' },
   { label: 'Riders', href: `/admin/events/${eventId}/riders`, icon: 'riders' },
@@ -98,6 +99,13 @@ function Icon({ type, active }: { type: NavItem['icon']; active: boolean }) {
   const color = active ? 'text-slate-950' : 'text-slate-500'
   const common = `h-[18px] w-[18px] ${color}`
 
+  if (type === 'raceDay') {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={common}>
+        <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8Z" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  }
   if (type === 'dashboard') {
     return (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={common}>

@@ -474,6 +474,14 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
 
             <div className="flex flex-wrap gap-2">
               {!isRegistrationApprover && (
+                <Link
+                  href={`/admin/events/${event.id}/race-day`}
+                  className="event-card-nav-button font-bold text-amber-700 bg-amber-500/10 border-amber-500/30 hover:bg-amber-500/20"
+                >
+                  ⚡ Race Day
+                </Link>
+              )}
+              {!isRegistrationApprover && (
                 <Link href={`/admin/events/${event.id}/checklist`} className="event-card-nav-button">
                   Checklist
                 </Link>
@@ -1039,6 +1047,14 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
                     </div>
 
                       <div className="flex flex-wrap gap-2">
+              {!isRegistrationApprover && (
+                <Link
+                  href={`/admin/events/${event.id}/race-day`}
+                  className="event-card-nav-button font-bold text-amber-700 bg-amber-500/10 border-amber-500/30 hover:bg-amber-500/20"
+                >
+                  ⚡ Race Day
+                </Link>
+              )}
                         <Link href={`/admin/events/${event.id}/registrations`} className="event-card-nav-button">
                           <span>Registrations</span>
                           <span className="event-card-nav-arrow-wrapper" aria-hidden="true">
