@@ -1,12 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { broadcastRaceState } from '../../../../../../../lib/broadcastRaceState'
+import { requireAdmin } from '../../../../../../../lib/auth'
 
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ eventId: string; motoId: string }> }
 ) {
   const { eventId, motoId } = await params
+
+  // ── Auth guard ──────────────────────────────────────────────────────────────
+  const auth = await requireAdmin(request.headers.get('authorization'), eventId)
+  if (!auth.ok) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+  // ────────────────────────────────────────────────────────────────────────────
+
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
