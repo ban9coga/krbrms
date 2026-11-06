@@ -143,12 +143,12 @@ const getStageGroupSortKey = (title: string) => {
   if (normalized.startsWith('REPECHAGE')) return { stageOrder: 0, finalOrder: 0, heatOrder: normalized }
   if (normalized.startsWith('QUARTER FINAL')) return { stageOrder: 1, finalOrder: 0, heatOrder: normalized }
   if (normalized.startsWith('SEMI FINAL')) return { stageOrder: 2, finalOrder: 0, heatOrder: normalized }
-  if (normalized.startsWith('FINAL ')) {
-    const finalClass = normalized.replace(/^FINAL\s+/, '').trim()
+  if (normalized === 'FINAL' || normalized.startsWith('FINAL ') || normalized.startsWith('FINAL-') || normalized.startsWith('FINAL -')) {
+    const finalClass = normalized.replace(/^FINAL(?:\s+|-|\s*-\s*)/, '').trim()
     return {
       stageOrder: 3,
       finalOrder: finalStageDisplayOrder[finalClass] ?? 999,
-      heatOrder: finalClass,
+      heatOrder: finalClass || normalized,
     }
   }
   return { stageOrder: 9, finalOrder: 999, heatOrder: normalized }
@@ -159,8 +159,7 @@ const getStageTabLabel = (title: string) => {
   if (/^repechage\b/i.test(trimmed)) return 'Repechage'
   if (/^quarter\s*final\b/i.test(trimmed)) return 'Quarter Final'
   if (/^semi\s*final\b/i.test(trimmed)) return 'Semifinal'
-  const finalMatch = trimmed.match(/^final\s+(.+)$/i)
-  if (finalMatch) return `Final ${finalMatch[1].trim()}`
+  if (/^final\b/i.test(trimmed)) return 'Final'
   return trimmed.replace(/\s*-\s*(?:batch|heat)\s*\d+\s*$/i, '').trim()
 }
 const PUBLIC_LIVE_SCORE_FALLBACK_REFRESH_INTERVAL_MS = 60000
@@ -1383,6 +1382,15 @@ export default function LiveScoreClient({
                 <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-lg font-black uppercase text-[#fff8e8]">{stage.title}</h2>
+                    {stage.status && (
+                      <span className={`live-score-editorial-stage-badge rounded-full border px-2.5 py-0.5 text-[10px] font-black uppercase ${
+                        String(stage.status).toUpperCase() === 'LIVE'
+                          ? 'border-emerald-400 bg-emerald-500/20 text-emerald-300 animate-pulse'
+                          : 'border-white/20 bg-white/10 text-slate-200'
+                      }`}>
+                        {String(stage.status).toUpperCase() === 'LIVE' ? '🔴 LIVE' : formatMotoStatusLabel(stage.status)}
+                      </span>
+                    )}
                   </div>
                   {stageIndex === 0 && (stage.rows.length > 0 ? scoreControls : refreshOnlyControl)}
                 </div>
