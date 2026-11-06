@@ -3,12 +3,13 @@ import Image from 'next/image'
 import type { LiveEventItem } from '../lib/liveEvent'
 
 const heroStats = [
+  { value: 'Digital Scoring Room', label: 'Real-Time & Tanpa Kertas' },
   { value: 'Drawing Batch', label: 'Gate dan Moto Otomatis' },
-  { value: 'Race Day Crew', label: 'Checker, Finisher dan RD' },
   { value: 'Live Result', label: 'E-Sertifikat dengan QR' },
 ]
 
 const tickerItems = [
+  { label: 'YOUR DIGITAL SCORING ROOM', accent: true },
   { label: 'LIVE SCORING REAL-TIME', accent: false },
   { label: 'PENDAFTARAN ONLINE', accent: true },
   { label: 'DRAWING BATCH & GATE', accent: true },
@@ -59,7 +60,7 @@ export default function HeroRace({ liveEvent }: { liveEvent: LiveEventItem | nul
         <div className="homepage-editorial-hero-content">
           <div className="homepage-editorial-kicker">
             <span className={liveEvent ? 'homepage-editorial-live-dot' : 'homepage-editorial-idle-dot'} />
-            RACEPUSHBIKE.COM - PLATFORM EVENT PUSHBIKE INDONESIA
+            YOUR DIGITAL SCORING ROOM — RACEPUSHBIKE.COM
           </div>
 
           <h1 className="homepage-editorial-title">
@@ -70,8 +71,7 @@ export default function HeroRace({ liveEvent }: { liveEvent: LiveEventItem | nul
           </h1>
 
           <p className="homepage-editorial-copy">
-            Kelola pendaftaran, drawing batch, race day crew, live score, hasil final, dan e-sertifikat dalam satu
-            sistem untuk event pushbike.
+            Digital scoring room real-time untuk komunitas dan penyelenggara: kelola pendaftaran, drawing batch otomatis, kontrol race day crew dari HP masing-masing, hingga live score dan e-sertifikat.
           </p>
 
           <div className="homepage-editorial-actions">
