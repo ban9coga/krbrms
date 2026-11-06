@@ -38,6 +38,7 @@ type EventGuideMeta = {
   display_theme?: Record<string, unknown> | null
   final_class_options?: string[] | null
   qualification_batch_mode?: 'FIXED' | 'ROTATE_EACH_MOTO'
+  promote_next_best_on_dns?: boolean
 }
 
 type PenaltyGuideRule = {
@@ -644,6 +645,29 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
       alert(err instanceof Error ? err.message : 'Gagal memuat final class rules.')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const [updatingSettings, setUpdatingSettings] = useState(false)
+
+  const handleTogglePromoteNextBestOnDns = async (checked: boolean) => {
+    try {
+      setUpdatingSettings(true)
+      const res = await apiFetch(`/api/events/${eventId}/custom-final-split`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ promote_next_best_on_dns: checked }),
+      })
+      if (!res.ok) {
+        alert(res.error || 'Gagal mengubah pengaturan DNS Lucky Loser.')
+        return
+      }
+      setEventMeta((prev) => (prev ? { ...prev, promote_next_best_on_dns: checked } : prev))
+      await load()
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Gagal memperbarui pengaturan.')
+    } finally {
+      setUpdatingSettings(false)
     }
   }
 
@@ -1352,6 +1376,69 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
               <br /><b>Custom Per Batch</b> = tiap batch boleh punya rule sendiri.
             </>
           )}
+        </div>
+      </div>
+
+      <div
+        style={{
+          border: '2px solid #111',
+          borderRadius: 18,
+          background: eventMeta?.promote_next_best_on_dns ? '#f0fdf4' : '#fff',
+          padding: 18,
+          display: 'grid',
+          gap: 12,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+          <div style={{ display: 'grid', gap: 4, maxWidth: 820 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 17, fontWeight: 950 }}>
+                Promosikan Finisher Terbaik jika ada Rider DNS (Lucky Loser)
+              </span>
+              {eventMeta?.promote_next_best_on_dns ? (
+                <span
+                  style={{
+                    padding: '2px 8px',
+                    borderRadius: 999,
+                    background: '#16a34a',
+                    color: '#fff',
+                    fontSize: 11,
+                    fontWeight: 900,
+                  }}
+                >
+                  AKTIF
+                </span>
+              ) : (
+                <span
+                  style={{
+                    padding: '2px 8px',
+                    borderRadius: 999,
+                    background: '#e2e8f0',
+                    color: '#475569',
+                    fontSize: 11,
+                    fontWeight: 900,
+                  }}
+                >
+                  STANDAR (NONAKTIF)
+                </span>
+              )}
+            </div>
+            <div style={{ color: '#475569', fontSize: 13, fontWeight: 650, lineHeight: 1.5 }}>
+              Jika diaktifkan, rider yang murni DNS (tidak start dari moto kualifikasi) tidak akan mengambil kuota lolos ke Quarter/Semi/Final Elite. Slot kosong otomatis diberikan ke rider aktif terbaik berikutnya (Lucky Loser). Rider DNS tetap dialokasikan ke kelas Final terendah agar seluruh rider terdaftar tetap naik podium / dapat piala.
+            </div>
+          </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: updatingSettings ? 'not-allowed' : 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={eventMeta?.promote_next_best_on_dns === true}
+              disabled={updatingSettings || loading}
+              onChange={(e) => void handleTogglePromoteNextBestOnDns(e.target.checked)}
+              style={{ width: 22, height: 22, cursor: 'pointer', accentColor: '#16a34a' }}
+            />
+            <span style={{ fontWeight: 900, fontSize: 14 }}>
+              {updatingSettings ? 'Menyimpan...' : eventMeta?.promote_next_best_on_dns ? 'Aktif' : 'Nonaktif'}
+            </span>
+          </label>
         </div>
       </div>
 

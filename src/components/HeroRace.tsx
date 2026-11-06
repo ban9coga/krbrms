@@ -3,7 +3,7 @@ import Image from 'next/image'
 import type { LiveEventItem } from '../lib/liveEvent'
 
 const heroStats = [
-  { value: 'Digital Scoring Room', label: 'Real-Time & Tanpa Kertas' },
+  { value: 'Digital Scoring Room', label: 'Real-Time & Paperless' },
   { value: 'Drawing Batch', label: 'Gate dan Moto Otomatis' },
   { value: 'Live Result', label: 'E-Sertifikat dengan QR' },
 ]

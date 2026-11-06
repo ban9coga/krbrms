@@ -96,6 +96,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       event_poster_url: toPublicMediaUrl(typeof formatResult.data?.event_poster_url === 'string' ? formatResult.data.event_poster_url : null),
       sponsor_logo_urls: formatResult.sponsorLogoUrls,
       business_settings: formatResult.businessSettings,
+      promote_next_best_on_dns: formatResult.data?.promote_next_best_on_dns === true,
     },
   })
 }

@@ -80,6 +80,67 @@ const retainDisqualifiedFinalAdvances = (
 const resolveLowestFinalClass = (finalClasses: string[]) =>
   FINAL_CLASS_ORDER.find((finalClass) => finalClasses.includes(finalClass)) ?? FINAL_CLASS_ORDER[0]
 
+function applyDnsPromotionToAdvances(
+  advances: StageAdvance[],
+  activeRiderIds: Set<string>,
+  rankedActiveRows: Array<{ riderId: string }>,
+  lowestFinalClass: string
+): StageAdvance[] {
+  const isUpperStage = (adv: StageAdvance) => {
+    if (adv.toStage === 'QUARTER_FINAL' || adv.toStage === 'SEMI_FINAL') return true
+    if (adv.toStage === 'FINAL' && adv.finalClass && adv.finalClass !== lowestFinalClass) return true
+    return false
+  }
+
+  const dnsUpperAdvances = advances.filter((adv) => !activeRiderIds.has(adv.riderId) && isUpperStage(adv))
+  if (dnsUpperAdvances.length === 0) return advances
+
+  const alreadyAdvancedToActiveUpper = new Set(
+    advances.filter((adv) => activeRiderIds.has(adv.riderId) && isUpperStage(adv)).map((adv) => adv.riderId)
+  )
+
+  const eligibleActiveCandidates = rankedActiveRows
+    .map((r) => r.riderId)
+    .filter((id) => !alreadyAdvancedToActiveUpper.has(id))
+
+  const riderReplacementMap = new Map<string, string>()
+  let candidateIndex = 0
+
+  for (const dnsAdv of dnsUpperAdvances) {
+    if (candidateIndex < eligibleActiveCandidates.length) {
+      const luckyLoserId = eligibleActiveCandidates[candidateIndex++]
+      riderReplacementMap.set(dnsAdv.riderId, luckyLoserId)
+    }
+  }
+
+  const replacedDnsIds = new Set(riderReplacementMap.keys())
+  const promotedLuckyLoserIds = new Set(riderReplacementMap.values())
+  const result: StageAdvance[] = []
+
+  for (const adv of advances) {
+    if (replacedDnsIds.has(adv.riderId)) {
+      const luckyLoserId = riderReplacementMap.get(adv.riderId)!
+      result.push({
+        ...adv,
+        riderId: luckyLoserId,
+      })
+      result.push({
+        ...adv,
+        riderId: adv.riderId,
+        toStage: 'FINAL',
+        finalClass: lowestFinalClass,
+      })
+    } else {
+      if (promotedLuckyLoserIds.has(adv.riderId) && !isUpperStage(adv)) {
+        continue
+      }
+      result.push(adv)
+    }
+  }
+
+  return result
+}
+
 const disqualifiedRiderIdsForMotos = (results: ResultRow[], motoIds: string[]) => {
   const motoIdSet = new Set(motoIds)
   return new Set(
@@ -165,6 +226,7 @@ const loadQualificationEventSettings = async (eventId: string) => {
   return {
     qualificationTieBreakRepechage: settings.qualification_tiebreak_repechage === true,
     qualificationBatchMode: normalizeQualificationBatchMode(settings.qualification_batch_mode),
+    promoteNextBestOnDns: settings.promote_next_best_on_dns === true,
   }
 }
 
@@ -1263,10 +1325,12 @@ const isAdvancedStageMotoName = (name?: string | null) =>
 export async function computeQualificationAndStore(eventId: string, categoryId: string) {
   let qualificationTieBreakRepechage = false
   let qualificationBatchMode: QualificationBatchMode = 'FIXED'
+  let promoteNextBestOnDns = false
   try {
     const settings = await loadQualificationEventSettings(eventId)
     qualificationTieBreakRepechage = settings.qualificationTieBreakRepechage
     qualificationBatchMode = settings.qualificationBatchMode
+    promoteNextBestOnDns = settings.promoteNextBestOnDns
   } catch (err) {
     return { ok: false, warning: err instanceof Error ? err.message : 'Failed to load qualification tiebreak settings.' }
   }
@@ -1510,13 +1574,38 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
         )
       )
 
+  const effectiveAdvances = promoteNextBestOnDns
+    ? applyDnsPromotionToAdvances(
+        rawEffectiveAdvances as StageAdvance[],
+        activeQualificationRiderIds,
+        combinedQualificationRanks.length > 0
+          ? combinedQualificationRanks
+          : rankCombinedQualificationRows(
+              Object.entries(batchRanks).flatMap(([batchId, ranks]) =>
+                ranks.map((row) => ({
+                  riderId: row.riderId,
+                  points: row.points,
+                  rank: row.rank,
+                  batchId,
+                  tieBreakers: row.tieBreakers ?? [],
+                  qualificationTieBreak: row.qualificationTieBreak,
+                }))
+              ),
+              dnfProgressEnabled,
+              qualificationTieBreakMotoIndexes,
+              !qualificationTieBreakRepechage
+            ),
+        resolveLowestFinalClass(Array.from(allowedFinalClasses))
+      )
+    : (rawEffectiveAdvances as StageAdvance[])
+
   const filteredBaseAdvances = (dqRetainsFinalClassification
     ? retainDisqualifiedFinalAdvances(
-        rawEffectiveAdvances,
+        effectiveAdvances,
         disqualifiedQualificationRiderIds,
         resolveLowestFinalClass(Array.from(allowedFinalClasses))
       )
-    : excludeDisqualifiedAdvances(rawEffectiveAdvances, disqualifiedQualificationRiderIds)
+    : excludeDisqualifiedAdvances(effectiveAdvances, disqualifiedQualificationRiderIds)
   ).filter((row) => {
     if (row.toStage === 'QUARTER_FINAL' && !resolved.stages.enableQuarterFinal) return false
     if (row.toStage === 'SEMI_FINAL' && !resolved.stages.enableSemiFinal) return false
@@ -2625,10 +2714,12 @@ const loadStageMotos = async (eventId: string, categoryId: string, prefix: strin
 export async function computeStageAdvances(eventId: string, categoryId: string) {
   let qualificationTieBreakRepechage = false
   let qualificationBatchMode: QualificationBatchMode = 'FIXED'
+  let promoteNextBestOnDns = false
   try {
     const settings = await loadQualificationEventSettings(eventId)
     qualificationTieBreakRepechage = settings.qualificationTieBreakRepechage
     qualificationBatchMode = settings.qualificationBatchMode
+    promoteNextBestOnDns = settings.promoteNextBestOnDns
   } catch (err) {
     return { ok: false, warning: err instanceof Error ? err.message : 'Failed to load qualification tiebreak settings.' }
   }
@@ -3098,14 +3189,35 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
         )
       })
 
+  const effectiveQualificationAdvances = promoteNextBestOnDns
+    ? applyDnsPromotionToAdvances(
+        rawQualificationAdvances as StageAdvance[],
+        activeQualificationRiderIds,
+        rankCombinedQualificationRows(
+          Object.entries(qualificationRanksByBatch).flatMap(([batchId, ranks]) =>
+            ranks.map((row) => ({
+              riderId: row.riderId,
+              points: row.points,
+              rank: row.rank,
+              batchId,
+            }))
+          ),
+          dnfProgressEnabled,
+          undefined,
+          !qualificationTieBreakRepechage
+        ),
+        dqFallbackFinalClass
+      )
+    : (rawQualificationAdvances as StageAdvance[])
+
   const qualificationAdvances = dqRetainsFinalClassification
     ? retainDisqualifiedFinalAdvances(
-        rawQualificationAdvances,
+        effectiveQualificationAdvances,
         disqualifiedRiderIdsForMotos((preFinalResults ?? []) as ResultRow[], preFinalMotoIds),
         dqFallbackFinalClass
       )
     : excludeDisqualifiedAdvances(
-        rawQualificationAdvances,
+        effectiveQualificationAdvances,
         disqualifiedRiderIdsForMotos((preFinalResults ?? []) as ResultRow[], preFinalMotoIds)
       )
 

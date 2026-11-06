@@ -13,6 +13,7 @@ type EventItem = {
   status: 'UPCOMING' | 'LIVE' | 'FINISHED'
   event_date?: string | null
   location?: string | null
+  promote_next_best_on_dns?: boolean
 }
 
 type CategoryItem = {
@@ -228,6 +229,28 @@ export default function RaceDayClient({ eventId }: { eventId: string }) {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Gagal mengubah status event'
       alert(msg)
+    } finally {
+      setActionBusyId(null)
+    }
+  }
+
+  const handleTogglePromoteNextBestOnDns = async (checked: boolean) => {
+    setActionBusyId('promote_dns')
+    try {
+      const res = await apiFetch(`/api/events/${eventId}/custom-final-split`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ promote_next_best_on_dns: checked }),
+      })
+      if (!res.ok) {
+        showToast(res.error || 'Gagal mengubah opsi DNS Lucky Loser.', 'error')
+        return
+      }
+      setEventData((prev) => (prev ? { ...prev, promote_next_best_on_dns: checked } : null))
+      showToast(checked ? 'DNS Lucky Loser diaktifkan!' : 'DNS Lucky Loser dinonaktifkan.', 'success')
+      await loadData()
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : 'Gagal mengubah opsi DNS Lucky Loser.', 'error')
     } finally {
       setActionBusyId(null)
     }
@@ -515,7 +538,38 @@ export default function RaceDayClient({ eventId }: { eventId: string }) {
                 📱 Public Live Score
                 <span className="text-[10px] opacity-60">↗</span>
               </Link>
+              <Link
+                href={`/admin/events/${eventId}/custom-final-split`}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-800 transition hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-300"
+              >
+                ⚙️ Final Rules
+                <span className="text-[10px] opacity-60">↗</span>
+              </Link>
             </div>
+          </div>
+
+          {/* Lucky Loser Quick Option */}
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-2.5 dark:border-slate-800 dark:bg-slate-800/40">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-black text-slate-800 dark:text-slate-200">
+                ⭐ DNS Lucky Loser (Promote Best Finisher):
+              </span>
+              <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                Rider murni DNS tidak mengambil slot Semifinal/Final Elite
+              </span>
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={eventData?.promote_next_best_on_dns === true}
+                disabled={actionBusyId === 'promote_dns'}
+                onChange={(e) => void handleTogglePromoteNextBestOnDns(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+              />
+              <span className={`text-xs font-extrabold ${eventData?.promote_next_best_on_dns ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500'}`}>
+                {actionBusyId === 'promote_dns' ? 'Menyimpan...' : eventData?.promote_next_best_on_dns ? 'AKTIF' : 'NONAKTIF'}
+              </span>
+            </label>
           </div>
         </div>
       </div>

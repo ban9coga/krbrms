@@ -217,6 +217,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ eventId: s
         display_theme: ((settings?.display_theme ?? {}) as Record<string, unknown>) ?? {},
         final_class_options: finalClassOptions,
         qualification_batch_mode: normalizeQualificationBatchMode(raceFormatSettings.qualification_batch_mode),
+        promote_next_best_on_dns: raceFormatSettings.promote_next_best_on_dns === true,
       },
       categories: enrichedCategories,
       rules: (rules ?? []).map((rule) => ({
@@ -433,4 +434,58 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
         ? 'Qualification telah dijalankan dengan aturan Final Class Rules.'
         : warning,
   })
+}
+
+export async function PATCH(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  const { eventId } = await params
+  const auth = await requireAdmin(req.headers.get('authorization'), eventId)
+  if (!auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const body = await req.json().catch(() => ({}))
+  const { promote_next_best_on_dns } = body ?? {}
+
+  if (typeof promote_next_best_on_dns !== 'boolean') {
+    return NextResponse.json({ error: 'promote_next_best_on_dns (boolean) required' }, { status: 400 })
+  }
+
+  const { data: existingSettings } = await adminClient
+    .from('event_settings')
+    .select('race_format_settings')
+    .eq('event_id', eventId)
+    .maybeSingle()
+
+  const currentFormatSettings =
+    existingSettings?.race_format_settings && typeof existingSettings.race_format_settings === 'object'
+      ? (existingSettings.race_format_settings as Record<string, unknown>)
+      : {}
+
+  const updatedFormatSettings = {
+    ...currentFormatSettings,
+    promote_next_best_on_dns,
+  }
+
+  const { error } = await adminClient
+    .from('event_settings')
+    .upsert(
+      [
+        {
+          event_id: eventId,
+          race_format_settings: updatedFormatSettings,
+        },
+      ],
+      { onConflict: 'event_id' }
+    )
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+
+  const { data: categories } = await adminClient
+    .from('categories')
+    .select('id')
+    .eq('event_id', eventId)
+
+  for (const cat of categories ?? []) {
+    await syncAdvancedRaceProgress(eventId, cat.id).catch(() => null)
+  }
+
+  return NextResponse.json({ ok: true, promote_next_best_on_dns })
 }
