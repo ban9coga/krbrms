@@ -83,3 +83,4 @@ export function useJuryHeartbeat({
     }).catch(() => null)
   }, [apiFetch, enabled, eventId, isPageVisible, motoId])
 }
+

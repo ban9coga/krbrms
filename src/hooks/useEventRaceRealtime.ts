@@ -44,17 +44,43 @@ export function useEventRaceRealtime({
 
     let disposed = false
     let channel: ReturnType<typeof supabase.channel> | null = null
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+
+    const cleanup = () => {
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer)
+        reconnectTimer = null
+      }
+      if (channel) {
+        void supabase.removeChannel(channel)
+        channel = null
+      }
+    }
 
     const connect = async () => {
+      if (disposed) return
+
+      // Always fetch a fresh token so realtime auth doesn't silently fail
       let accessToken = readAccessTokenCookie()
       if (!accessToken) {
         const { data } = await supabase.auth.getSession()
+        accessToken = data.session?.access_token ?? null
+      }
+      // Try a token refresh if still empty
+      if (!accessToken) {
+        const { data } = await supabase.auth.refreshSession()
         accessToken = data.session?.access_token ?? null
       }
       if (!accessToken || disposed) return
 
       await supabase.realtime.setAuth(accessToken)
       if (disposed) return
+
+      // Clean up any previous channel before creating a new one
+      if (channel) {
+        void supabase.removeChannel(channel)
+        channel = null
+      }
 
       channel = supabase
         .channel(`race:event:${eventId}`, { config: { private: true } })
@@ -71,7 +97,19 @@ export function useEventRaceRealtime({
             if (latestSignal) callbackRef.current(latestSignal)
           }, debounceMs)
         })
-        .subscribe()
+        .subscribe((status) => {
+          // If the channel closes/errors unexpectedly, reconnect after 5s
+          if (disposed) return
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+            cleanup()
+            if (!disposed) {
+              reconnectTimer = setTimeout(() => {
+                reconnectTimer = null
+                void connect()
+              }, 5000)
+            }
+          }
+        })
     }
 
     void connect()
@@ -83,7 +121,7 @@ export function useEventRaceRealtime({
         timerRef.current = null
       }
       latestSignalRef.current = null
-      if (channel) void supabase.removeChannel(channel)
+      cleanup()
     }
   }, [debounceMs, enabled, eventId])
 }

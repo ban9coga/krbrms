@@ -210,7 +210,7 @@ export default function RaceDayClient({ eventId }: { eventId: string }) {
     },
   })
 
-  // Periodic polling for jury presence
+  // Periodic polling for jury presence (every 12s)
   useEffect(() => {
     if (!eventId || !isPageVisible) return
     const interval = window.setInterval(() => {
@@ -222,6 +222,17 @@ export default function RaceDayClient({ eventId }: { eventId: string }) {
     }, 12000)
     return () => window.clearInterval(interval)
   }, [apiFetch, eventId, isPageVisible])
+
+  // Polling fallback for all Race Day data every 30s
+  // This is the safety net when realtime broadcast is not received
+  // (e.g. realtime auth failed silently, channel dropped, etc.)
+  useEffect(() => {
+    if (!eventId || !isPageVisible) return
+    const interval = window.setInterval(() => {
+      void loadData()
+    }, 30000)
+    return () => window.clearInterval(interval)
+  }, [eventId, isPageVisible, loadData])
 
   // Category lookup
   const categoryMap = useMemo(() => {

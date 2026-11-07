@@ -56,3 +56,4 @@ export function isPresenceOnline(lastPingAt?: number | null): boolean {
   if (!lastPingAt) return false
   return Date.now() - lastPingAt < PING_EXPIRY_MS
 }
+
