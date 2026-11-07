@@ -56,6 +56,53 @@ const STATUS_BADGE_STYLES: Record<string, { bg: string; text: string; border: st
   FINISHED: { bg: 'bg-emerald-500/15', text: 'text-emerald-700 dark:text-emerald-400', border: 'border-emerald-500/40', label: 'FINISHED' },
 }
 
+type JuryUserStatus = {
+  id: string
+  email: string
+  name: string
+  role: string
+  role_label: string
+  crew_code?: string | null
+  online_status: 'ONLINE' | 'IDLE' | 'OFFLINE'
+  is_logged_in_today: boolean
+  last_sign_in_at?: string | null
+  last_ping_at?: string | null
+  current_moto_id?: string | null
+  current_moto_name?: string | null
+  page_url?: string | null
+  user_agent?: string | null
+  latest_operation?: string | null
+}
+
+type JuryPresencePayload = {
+  summary: {
+    checker_online: boolean
+    checker_logged_in: boolean
+    finisher_online: boolean
+    finisher_logged_in: boolean
+    all_online: boolean
+    all_logged_in: boolean
+  }
+  juries: JuryUserStatus[]
+  latest_checker_moto?: { id: string; moto_name: string; checker_prep_ready_at: string } | null
+  latest_finisher_moto?: { id: string; moto_name: string; provisional_at: string } | null
+  refreshed_at?: string
+}
+
+function formatRelativeTime(dateString?: string | null) {
+  if (!dateString) return 'Belum pernah login'
+  const date = new Date(dateString)
+  if (isNaN(date.getTime())) return 'Belum pernah login'
+  const diffSec = Math.floor((Date.now() - date.getTime()) / 1000)
+  if (diffSec < 60) return 'Baru saja'
+  const diffMin = Math.floor(diffSec / 60)
+  if (diffMin < 60) return `${diffMin} mnt lalu (${date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })})`
+  const diffHours = Math.floor(diffMin / 60)
+  if (diffHours < 24) return `${diffHours} jam lalu (${date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })})`
+  const diffDays = Math.floor(diffHours / 24)
+  return `${diffDays} hari lalu (${date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })})`
+}
+
 export default function RaceDayClient({ eventId }: { eventId: string }) {
   const isPageVisible = usePageVisibility()
   const apiFetch = useApiFetch()
@@ -73,6 +120,9 @@ export default function RaceDayClient({ eventId }: { eventId: string }) {
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'PROVISIONAL' | 'LOCKED'>('ACTIVE')
   const [searchQuery, setSearchQuery] = useState('')
 
+  // Jury Presence Monitor Data
+  const [juryData, setJuryData] = useState<JuryPresencePayload | null>(null)
+
   // Toast / Status Message
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
@@ -83,19 +133,32 @@ export default function RaceDayClient({ eventId }: { eventId: string }) {
     }, 4000)
   }, [])
 
+  const handleCopyJuryLink = useCallback((path: string, label: string) => {
+    if (typeof window === 'undefined') return
+    const url = `${window.location.origin}${path}`
+    void navigator.clipboard.writeText(url).then(
+      () => showToast(`Link ${label} disalin: ${url}`, 'success'),
+      () => showToast(`Gagal menyalin link: ${url}`, 'error')
+    )
+  }, [showToast])
+
   // Load all race day data
   const loadData = useCallback(async () => {
     if (!eventId) return
     try {
-      const [eventJson, catJson, gateJson, motoJson] = await Promise.all([
+      const [eventJson, catJson, gateJson, motoJson, juryJson] = await Promise.all([
         apiFetch(`/api/events/${eventId}`).catch(() => ({})),
         apiFetch(`/api/events/${eventId}/categories`).catch(() => ({})),
         apiFetch(`/api/events/${eventId}/gate-order`).catch(() => ({})),
         apiFetch(`/api/motos?event_id=${eventId}`).catch(() => ({})),
+        apiFetch(`/api/admin/events/${eventId}/jury-presence`).catch(() => ({})),
       ])
 
       if (eventJson?.data) {
         setEventData(eventJson.data)
+      }
+      if (juryJson?.data) {
+        setJuryData(juryJson.data)
       }
 
       const enabledCats = ((catJson?.data ?? []) as CategoryItem[]).filter((c) => c.enabled)
@@ -146,6 +209,19 @@ export default function RaceDayClient({ eventId }: { eventId: string }) {
       void loadData()
     },
   })
+
+  // Periodic polling for jury presence
+  useEffect(() => {
+    if (!eventId || !isPageVisible) return
+    const interval = window.setInterval(() => {
+      void apiFetch(`/api/admin/events/${eventId}/jury-presence`)
+        .then((res) => {
+          if (res?.data) setJuryData(res.data)
+        })
+        .catch(() => null)
+    }, 12000)
+    return () => window.clearInterval(interval)
+  }, [apiFetch, eventId, isPageVisible])
 
   // Category lookup
   const categoryMap = useMemo(() => {
@@ -572,6 +648,294 @@ export default function RaceDayClient({ eventId }: { eventId: string }) {
             </label>
           </div>
         </div>
+      </div>
+
+      {/* Live Monitor Kesiapan Jury (Checker & Finisher) */}
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-500/10 text-sm">
+                📡
+              </span>
+              <h2 className="text-base font-black tracking-tight text-slate-900 dark:text-white sm:text-lg">
+                Monitor Kesiapan Jury (Checker & Finisher)
+              </h2>
+            </div>
+            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+              Pantau status login akun dan kehadiran online petugas lapangan secara realtime
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2.5">
+            {juryData?.summary.all_online ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-black text-emerald-700 dark:text-emerald-400">
+                <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
+                🟢 SEMUA SIAP (2/2 ONLINE)
+              </span>
+            ) : juryData?.summary.all_logged_in ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-black text-amber-700 dark:text-amber-400">
+                <span className="h-2 w-2 rounded-full bg-amber-500" />
+                🟡 AKUN SUDAH LOGIN (STANDBY)
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-500/30 bg-rose-500/10 px-3 py-1 text-xs font-black text-rose-700 dark:text-rose-400 animate-pulse">
+                <span className="h-2 w-2 rounded-full bg-rose-500" />
+                🔴 PERHATIAN: PETUGAS BELUM LOGIN
+              </span>
+            )}
+
+            <button
+              type="button"
+              onClick={() => {
+                void apiFetch(`/api/admin/events/${eventId}/jury-presence`).then((res) => {
+                  if (res?.data) {
+                    setJuryData(res.data)
+                    showToast('Data kesiapan jury diperbarui.', 'success')
+                  }
+                })
+              }}
+              className="rounded-lg border border-slate-200 p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
+              title="Refresh status kehadiran petugas"
+            >
+              🔄
+            </button>
+          </div>
+        </div>
+
+        {/* 2 Main Columns: Checker vs Finisher */}
+        <div className="mt-5 grid gap-4 md:grid-cols-2">
+          {/* Card 1: Jury Checker (Gate Starter) */}
+          {(() => {
+            const checkers = juryData?.juries.filter((u) => u.role === 'CHECKER') ?? []
+            const activeChecker = checkers.find((c) => c.online_status === 'ONLINE') || checkers[0]
+            const isOnline = activeChecker?.online_status === 'ONLINE'
+            const isIdle = activeChecker?.online_status === 'IDLE'
+
+            return (
+              <div
+                className={`relative flex flex-col justify-between rounded-xl border p-4 transition-all ${
+                  isOnline
+                    ? 'border-emerald-400 bg-emerald-50/40 dark:border-emerald-800 dark:bg-emerald-950/20 shadow-sm'
+                    : isIdle
+                      ? 'border-amber-300 bg-amber-50/30 dark:border-amber-800 dark:bg-amber-950/20'
+                      : 'border-rose-200 bg-rose-50/20 dark:border-rose-900 dark:bg-rose-950/20'
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-lg">🚦</span>
+                      <span className="text-xs font-black tracking-wide text-slate-800 dark:text-slate-200 uppercase">
+                        Jury Checker (JC Gate)
+                      </span>
+                    </div>
+
+                    {isOnline ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-2.5 py-0.5 text-[11px] font-black text-white shadow-sm animate-pulse">
+                        <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                        ONLINE SEKARANG
+                      </span>
+                    ) : isIdle ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 border border-amber-500/40 px-2.5 py-0.5 text-[11px] font-bold text-amber-700 dark:text-amber-300">
+                        <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                        STANDBY (SUDAH LOGIN)
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-500/15 border border-rose-500/40 px-2.5 py-0.5 text-[11px] font-black text-rose-700 dark:text-rose-400">
+                        <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+                        BELUM LOGIN HARI INI
+                      </span>
+                    )}
+                  </div>
+
+                  {activeChecker ? (
+                    <div className="mt-3 space-y-2 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-slate-500 dark:text-slate-400">Akun Petugas:</span>
+                        <span className="font-bold text-slate-800 dark:text-slate-200">
+                          {activeChecker.name} {activeChecker.crew_code ? `(${activeChecker.crew_code})` : ''}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-slate-500 dark:text-slate-400">Email Login:</span>
+                        <span className="font-mono text-slate-700 dark:text-slate-300">{activeChecker.email}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-slate-500 dark:text-slate-400">Terakhir Login:</span>
+                        <span className="font-medium text-slate-700 dark:text-slate-300">
+                          {formatRelativeTime(activeChecker.last_sign_in_at)}
+                        </span>
+                      </div>
+                      {isOnline && activeChecker.current_moto_name && (
+                        <div className="flex items-center justify-between rounded-lg bg-emerald-500/10 px-2.5 py-1.5 text-emerald-800 dark:text-emerald-300">
+                          <span className="font-bold">Layar Aktif Petugas:</span>
+                          <span className="font-black">{activeChecker.current_moto_name}</span>
+                        </div>
+                      )}
+                      {activeChecker.latest_operation && (
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400 italic">
+                          Aktivitas terakhir: {activeChecker.latest_operation}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="mt-3 text-xs text-rose-600 dark:text-rose-400">
+                      Belum ada akun dengan role CHECKER terdaftar di sistem.
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-200/60 pt-3 dark:border-slate-800">
+                  <Link
+                    href="/jc"
+                    target="_blank"
+                    className="inline-flex items-center gap-1 rounded-lg bg-sky-600 px-2.5 py-1 text-xs font-bold text-white transition hover:bg-sky-500 shadow-sm"
+                  >
+                    Buka Layar JC ↗
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => handleCopyJuryLink('/jc', 'Jury Checker')}
+                    className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                  >
+                    📋 Salin Link JC
+                  </button>
+                </div>
+              </div>
+            )
+          })()}
+
+          {/* Card 2: Jury Finisher (Garis Finish) */}
+          {(() => {
+            const finishers = juryData?.juries.filter((u) => u.role === 'FINISHER') ?? []
+            const activeFinisher = finishers.find((f) => f.online_status === 'ONLINE') || finishers[0]
+            const isOnline = activeFinisher?.online_status === 'ONLINE'
+            const isIdle = activeFinisher?.online_status === 'IDLE'
+
+            return (
+              <div
+                className={`relative flex flex-col justify-between rounded-xl border p-4 transition-all ${
+                  isOnline
+                    ? 'border-emerald-400 bg-emerald-50/40 dark:border-emerald-800 dark:bg-emerald-950/20 shadow-sm'
+                    : isIdle
+                      ? 'border-amber-300 bg-amber-50/30 dark:border-amber-800 dark:bg-amber-950/20'
+                      : 'border-rose-200 bg-rose-50/20 dark:border-rose-900 dark:bg-rose-950/20'
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-lg">🏁</span>
+                      <span className="text-xs font-black tracking-wide text-slate-800 dark:text-slate-200 uppercase">
+                        Jury Finisher (JF Finish)
+                      </span>
+                    </div>
+
+                    {isOnline ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-2.5 py-0.5 text-[11px] font-black text-white shadow-sm animate-pulse">
+                        <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                        ONLINE SEKARANG
+                      </span>
+                    ) : isIdle ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 border border-amber-500/40 px-2.5 py-0.5 text-[11px] font-bold text-amber-700 dark:text-amber-300">
+                        <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                        STANDBY (SUDAH LOGIN)
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-500/15 border border-rose-500/40 px-2.5 py-0.5 text-[11px] font-black text-rose-700 dark:text-rose-400">
+                        <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+                        BELUM LOGIN HARI INI
+                      </span>
+                    )}
+                  </div>
+
+                  {activeFinisher ? (
+                    <div className="mt-3 space-y-2 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-slate-500 dark:text-slate-400">Akun Petugas:</span>
+                        <span className="font-bold text-slate-800 dark:text-slate-200">
+                          {activeFinisher.name} {activeFinisher.crew_code ? `(${activeFinisher.crew_code})` : ''}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-slate-500 dark:text-slate-400">Email Login:</span>
+                        <span className="font-mono text-slate-700 dark:text-slate-300">{activeFinisher.email}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-slate-500 dark:text-slate-400">Terakhir Login:</span>
+                        <span className="font-medium text-slate-700 dark:text-slate-300">
+                          {formatRelativeTime(activeFinisher.last_sign_in_at)}
+                        </span>
+                      </div>
+                      {isOnline && activeFinisher.current_moto_name && (
+                        <div className="flex items-center justify-between rounded-lg bg-emerald-500/10 px-2.5 py-1.5 text-emerald-800 dark:text-emerald-300">
+                          <span className="font-bold">Layar Aktif Petugas:</span>
+                          <span className="font-black">{activeFinisher.current_moto_name}</span>
+                        </div>
+                      )}
+                      {activeFinisher.latest_operation && (
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400 italic">
+                          Aktivitas terakhir: {activeFinisher.latest_operation}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="mt-3 text-xs text-rose-600 dark:text-rose-400">
+                      Belum ada akun dengan role FINISHER terdaftar di sistem.
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-200/60 pt-3 dark:border-slate-800">
+                  <Link
+                    href="/jury/finish"
+                    target="_blank"
+                    className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-bold text-white transition hover:bg-emerald-500 shadow-sm"
+                  >
+                    Buka Layar JF ↗
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => handleCopyJuryLink('/jury/finish', 'Jury Finisher')}
+                    className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                  >
+                    📋 Salin Link JF
+                  </button>
+                </div>
+              </div>
+            )
+          })()}
+        </div>
+
+        {/* Other Officers: Race Director & MC */}
+        {juryData?.juries.some((u) => u.role === 'RACE_DIRECTOR' || u.role === 'MC') && (
+          <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-3 dark:border-slate-800 text-xs">
+            <span className="font-semibold text-slate-400 uppercase text-[11px]">Petugas Lainnya:</span>
+            {juryData.juries
+              .filter((u) => u.role === 'RACE_DIRECTOR' || u.role === 'MC')
+              .map((officer) => (
+                <div
+                  key={officer.id}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 dark:border-slate-800 dark:bg-slate-800/60"
+                >
+                  <span
+                    className={`h-2 w-2 rounded-full ${
+                      officer.online_status === 'ONLINE'
+                        ? 'bg-emerald-500 animate-pulse'
+                        : officer.online_status === 'IDLE'
+                          ? 'bg-amber-500'
+                          : 'bg-slate-400'
+                    }`}
+                  />
+                  <span className="font-bold text-slate-800 dark:text-slate-200">{officer.role_label}</span>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                    ({officer.crew_code || officer.name}) · {officer.online_status === 'ONLINE' ? 'Online' : officer.online_status === 'IDLE' ? 'Standby' : 'Offline'}
+                  </span>
+                </div>
+              ))}
+          </div>
+        )}
       </div>
 
       {/* Hero Widget: Race Action Hub (Active LIVE vs Next Moto) */}

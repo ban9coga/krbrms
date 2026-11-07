@@ -10,6 +10,7 @@ import { useApiFetch } from '@/src/hooks/useApiFetch'
 import { isMotoLive, isMotoReady, isMotoUpcoming } from '../../../../lib/motoStatus'
 import { usePageVisibility } from '../../../../lib/usePageVisibility'
 import { useEventRaceRealtime } from '@/src/hooks/useEventRaceRealtime'
+import { useJuryHeartbeat } from '@/src/hooks/useJuryHeartbeat'
 
 
 type CategoryItem = {
@@ -826,6 +827,12 @@ export default function JCPage() {
   }, [categories])
 
   const selectedMoto = useMemo(() => motos.find((m) => m.id === selectedMotoId) ?? null, [motos, selectedMotoId])
+
+  useJuryHeartbeat({
+    eventId,
+    motoId: selectedMotoId,
+    motoName: selectedMoto?.moto_name ?? null,
+  })
   const workflowPrepMotoId = useMemo(
     () => pickPrepMotoId(motos, selectedMotoId, incidentMotoId, allReadyDone),
     [allReadyDone, incidentMotoId, motos, selectedMotoId]

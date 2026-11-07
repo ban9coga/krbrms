@@ -6,6 +6,7 @@ import CheckerTopbar from '../../components/CheckerTopbar'
 import { isMotoLive, isMotoReady, isMotoUpcoming } from '../../lib/motoStatus'
 import { buildCategoryBaseOrder, compareMotoWorkflowSequence } from '../../lib/motoSequence'
 import { useApiFetch } from '@/src/hooks/useApiFetch'
+import { useJuryHeartbeat } from '@/src/hooks/useJuryHeartbeat'
 
 type EventItem = {
   id: string
@@ -37,6 +38,11 @@ export default function JCSelectorPage() {
   const [didAutoRedirect, setDidAutoRedirect] = useState(false)
   const [loading, setLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  useJuryHeartbeat({
+    eventId: eventId || null,
+    motoId: motoId || null,
+  })
   const categoryMap = useMemo(() => new Map(categories.map((c) => [c.id, c.label])), [categories])
 
   const pickNextMotoId = useCallback((list: MotoItem[], currentMotoId: string) => {

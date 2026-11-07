@@ -10,6 +10,7 @@ import LoadingState from '../../../components/LoadingState'
 import { usePageVisibility } from '../../../lib/usePageVisibility'
 import { useApiFetch } from '@/src/hooks/useApiFetch'
 import { useEventRaceRealtime } from '@/src/hooks/useEventRaceRealtime'
+import { useJuryHeartbeat } from '@/src/hooks/useJuryHeartbeat'
 
 type EventItem = {
   id: string
@@ -298,6 +299,12 @@ export default function JuryFinishPage() {
   }, [categories])
 
   const selectedMoto = useMemo(() => motos.find((m) => m.id === selectedMotoId) ?? null, [motos, selectedMotoId])
+
+  useJuryHeartbeat({
+    eventId: eventId || null,
+    motoId: selectedMotoId || null,
+    motoName: selectedMoto?.moto_name ?? null,
+  })
   const selectedMotoLive = isMotoLive(selectedMoto?.status)
   const hasPendingFinisherEdits = Boolean(actions.length || saving || pressedId || dnsActionRiderId || submitPreviewOpen)
   const selectedCategoryLabel = selectedMoto
