@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import CheckerTopbar from '../../../components/CheckerTopbar'
@@ -571,10 +571,18 @@ export default function RaceDirectorApprovalPage() {
 
   const quickTargetMotos = useMemo(() => {
     if (!quickCategoryId) return []
-    return (motosByCategory.get(quickCategoryId) ?? []).filter(
+    const all = motosByCategory.get(quickCategoryId) ?? []
+    // Untuk CANCEL_PENALTY: tampilkan moto yang ada hasilnya (FINISHED/LOCKED juga boleh)
+    // Untuk PENALTY/DQ: hanya moto yang masih aktif
+    if (quickScreen === 'CANCEL_PENALTY') {
+      return all.filter(
+        (moto) => !['UPCOMING'].includes((moto.status ?? '').toUpperCase())
+      )
+    }
+    return all.filter(
       (moto) => !['LOCKED', 'FINISHED', 'PROTEST_REVIEW'].includes((moto.status ?? '').toUpperCase())
     )
-  }, [motosByCategory, quickCategoryId])
+  }, [motosByCategory, quickCategoryId, quickScreen])
   const selectedQuickMoto = quickTargetMotos.find((moto) => moto.id === quickMotoId) ?? null
   const quickPenaltyStage = selectedQuickMoto ? getPenaltyStageForMoto(selectedQuickMoto.moto_name) : 'MOTO'
   const quickPenaltyRules = useMemo(
