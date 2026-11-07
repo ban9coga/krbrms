@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import CheckerTopbar from '../../../components/CheckerTopbar'
 import { compareMotoSequence } from '../../../lib/motoSequence'
-import { useApiFetch } from '@/src/hooks/useApiFetch'
+import { useApiFetch, UnauthorizedError } from '@/src/hooks/useApiFetch'
 import { useEventRaceRealtime } from '@/src/hooks/useEventRaceRealtime'
 import { usePageVisibility } from '@/src/lib/usePageVisibility'
+import { supabase } from '@/src/lib/supabaseClient'
 
 type StatusUpdate = {
   id: string
@@ -156,6 +157,7 @@ export default function RaceDirectorApprovalPage() {
   const [motos, setMotos] = useState<MotoRow[]>([])
   const [lockedMap, setLockedMap] = useState<Record<string, boolean>>({})
   const [role, setRole] = useState<string | null>(null)
+  const [sessionExpired, setSessionExpired] = useState(false)
   const [riderMap, setRiderMap] = useState<Record<string, RiderItem>>({})
   const [categoryRiders, setCategoryRiders] = useState<RiderItem[]>([])
   const [penaltyRules, setPenaltyRules] = useState<PenaltyRuleItem[]>([])
@@ -242,7 +244,7 @@ export default function RaceDirectorApprovalPage() {
   const [loadingQuickMotoPenalties, setLoadingQuickMotoPenalties] = useState(false)
   const quickMotoPenaltiesRequestRef = useRef(0)
 
-  const apiFetch = useApiFetch()
+  const apiFetch = useApiFetch(false) // session expiry handled by banner below
 
   const showNotice = useCallback((type: 'success' | 'error', message: string) => {
     setActionNotice({ type, message })
@@ -369,6 +371,10 @@ export default function RaceDirectorApprovalPage() {
         setLastSyncAt(new Date().toLocaleTimeString())
         return true
       } catch (err: unknown) {
+        if (err instanceof UnauthorizedError) {
+          setSessionExpired(true)
+          return false
+        }
         if (notifyOnError) showNotice('error', getErrorMessage(err))
         return false
       } finally {
@@ -416,6 +422,26 @@ export default function RaceDirectorApprovalPage() {
       clearInterval(heavyTimer)
     }
   }, [eventId, isPageVisible, loadEventData])
+
+  // Proactive session refresh every 45 minutes to prevent mid-race logout
+  useEffect(() => {
+    if (!isPageVisible) return
+    const sessionRefreshTimer = setInterval(async () => {
+      try {
+        const { data, error } = await supabase.auth.refreshSession()
+        if (!error && data.session?.access_token) {
+          const secureCookie = window.location.protocol === 'https:' ? '; Secure' : ''
+          const maxAge = data.session.expires_in ?? 3600
+          const cookieVal = encodeURIComponent(data.session.access_token)
+          document.cookie = 'sb-access-token=' + cookieVal + '; Path=/; Max-Age=' + String(maxAge) + secureCookie + '; SameSite=Lax'
+          setSessionExpired(false)
+        }
+      } catch {
+        // silent — if refresh fails we'll catch it on the next API call
+      }
+    }, 45 * 60 * 1000)
+    return () => clearInterval(sessionRefreshTimer)
+  }, [isPageVisible])
 
   const categoriesSorted = useMemo(() => {
     return categories
@@ -1175,6 +1201,18 @@ export default function RaceDirectorApprovalPage() {
   return (
     <div className="min-h-screen overflow-x-hidden bg-slate-100 text-slate-900">
       <CheckerTopbar title="Race Director Panel" />
+      {sessionExpired && (
+        <div className="sticky top-[64px] z-40 flex items-center justify-between gap-3 bg-red-600 px-4 py-3 text-sm font-bold text-white shadow-md">
+          <span>⚠️ Session login habis. Simpan pekerjaan Anda lalu login ulang.</span>
+          <button
+            type="button"
+            onClick={() => { window.location.href = '/login' }}
+            className="rounded-lg bg-white px-4 py-1.5 text-sm font-black text-red-700 hover:bg-red-50"
+          >
+            Login ulang
+          </button>
+        </div>
+      )}
       <main className="public-main max-w-[1500px]">
         <section className="public-hero">
           <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-amber-400/15 blur-3xl" />

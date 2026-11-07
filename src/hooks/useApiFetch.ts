@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+﻿import { useCallback, useRef } from 'react'
 import { supabase } from '@/src/lib/supabaseClient'
 
 const readAccessTokenCookie = () => {
@@ -7,7 +7,21 @@ const readAccessTokenCookie = () => {
   return entry ? decodeURIComponent(entry.slice('sb-access-token='.length)) : null
 }
 
-export function useApiFetch() {
+/** Error thrown when the session has expired and cannot be refreshed. */
+export class UnauthorizedError extends Error {
+  readonly type = 'UNAUTHORIZED' as const
+  constructor() {
+    super('Session login habis. Silakan login ulang.')
+    this.name = 'UnauthorizedError'
+  }
+}
+
+/**
+ * @param redirectOnUnauthorized - If true (default), redirect to /login when session
+ *   expires and refresh fails. Set to false for pages that want to handle the error
+ *   themselves (e.g. show a banner instead of a hard redirect).
+ */
+export function useApiFetch(redirectOnUnauthorized = true) {
   const tokenRef = useRef<string | null>(null)
   const sessionReadRef = useRef<Promise<string | null> | null>(null)
   const refreshRef = useRef<Promise<string | null> | null>(null)
@@ -77,8 +91,8 @@ export function useApiFetch() {
       
       if (!res.ok) {
         if (res.status === 401) {
-          if (typeof window !== 'undefined') window.location.href = '/login'
-          throw new Error('Session login habis. Silakan login ulang.')
+          if (redirectOnUnauthorized && typeof window !== 'undefined') window.location.href = '/login'
+          throw new UnauthorizedError()
         }
         throw new Error(json?.error || 'Request failed')
       }
