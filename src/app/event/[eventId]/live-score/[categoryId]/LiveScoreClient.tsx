@@ -383,7 +383,7 @@ export default function LiveScoreClient({
   )
   const [batches, setBatches] = useState<Batch[]>(initialLiveScore?.batches ?? [])
   const [stages, setStages] = useState<StageGroup[]>(initialLiveScore?.stages ?? [])
-  const [sortMode, setSortMode] = useState<'GATE' | 'RANK'>('RANK')
+  const [tableSortModes, setTableSortModes] = useState<Record<string, 'GATE' | 'RANK'>>({})
   const [selectedRotatingView, setSelectedRotatingView] = useState<string | null>(null)
   const [selectedFixedStageView, setSelectedFixedStageView] = useState('AUTO')
   const [refreshing, setRefreshing] = useState(false)
@@ -692,14 +692,18 @@ export default function LiveScoreClient({
 
   const tableRowsByBatch = useMemo(
     () =>
-      batches.map((batch) => ({
-        ...batch,
-        rows:
-          sortMode === 'RANK'
-            ? [...batch.rows].sort((a, b) => (a.batch_rank ?? a.rank_point ?? 9999) - (b.batch_rank ?? b.rank_point ?? 9999))
-            : [...batch.rows].sort((a, b) => (a.gate_moto1 ?? 9999) - (b.gate_moto1 ?? 9999)),
-      })),
-    [batches, sortMode]
+      batches.map((batch) => {
+        const tableKey = `q-batch-${batch.batch_index}`
+        const mode = tableSortModes[tableKey] ?? 'RANK'
+        return {
+          ...batch,
+          rows:
+            mode === 'RANK'
+              ? [...batch.rows].sort((a, b) => (a.batch_rank ?? a.rank_point ?? 9999) - (b.batch_rank ?? b.rank_point ?? 9999))
+              : [...batch.rows].sort((a, b) => (a.gate_moto1 ?? 9999) - (b.gate_moto1 ?? 9999)),
+        }
+      }),
+    [batches, tableSortModes]
   )
   const showMoto3 = batches.some((batch) => Boolean(batch.moto3_id))
   const rotatingMotoViews = useMemo<RotatingMotoView[]>(() => {
@@ -740,9 +744,11 @@ export default function LiveScoreClient({
     ]
 
     return fields.flatMap((field) => {
-      const motoBatches = tableRowsByBatch
+      const motoBatches = batches
         .map((batch) => {
           const motoId = field.motoId(batch)
+          const tableKey = `moto-${field.index}-batch-${batch.batch_index}`
+          const mode = tableSortModes[tableKey] ?? 'RANK'
           const rows = batch.rows
             .filter(field.assigned)
             .map((row) => ({
@@ -758,7 +764,7 @@ export default function LiveScoreClient({
               status: field.resultStatus(row) as NonNullable<Row['moto1_status']>,
             }))
             .sort((a, b) => {
-              if (sortMode === 'GATE') {
+              if (mode === 'GATE') {
                 return (a.gate ?? Number.MAX_SAFE_INTEGER) - (b.gate ?? Number.MAX_SAFE_INTEGER)
               }
               if (a.total_point !== null && b.total_point !== null && a.total_point !== b.total_point) {
@@ -783,7 +789,7 @@ export default function LiveScoreClient({
         motoBatches[0].status
       return [{ index: field.index, title: `Moto ${field.index}`, status, batches: motoBatches }]
     })
-  }, [sortMode, tableRowsByBatch])
+  }, [batches, tableSortModes])
   const usesGlobalActiveFirst = qualificationSplitBasis === 'GLOBAL_ACTIVE_FIRST'
   const showQualificationNextColumn = tableRowsByBatch.some((batch) =>
     batch.rows.some((row) => Boolean(row.class_label?.trim()))
@@ -793,33 +799,37 @@ export default function LiveScoreClient({
   const sortedStages = useMemo(
     () =>
       [...stages]
-        .map((stage) => ({
-          ...stage,
-          rows: [...stage.rows].sort((a, b) => {
-            if (sortMode === 'GATE') {
-              const aGate = a.gate ?? Number.MAX_SAFE_INTEGER
-              const bGate = b.gate ?? Number.MAX_SAFE_INTEGER
-              if (aGate !== bGate) return aGate - bGate
+        .map((stage) => {
+          const tableKey = `stage-${stage.moto_id}`
+          const mode = tableSortModes[tableKey] ?? 'RANK'
+          return {
+            ...stage,
+            rows: [...stage.rows].sort((a, b) => {
+              if (mode === 'GATE') {
+                const aGate = a.gate ?? Number.MAX_SAFE_INTEGER
+                const bGate = b.gate ?? Number.MAX_SAFE_INTEGER
+                if (aGate !== bGate) return aGate - bGate
+                const aRank = a.rank ?? Number.MAX_SAFE_INTEGER
+                const bRank = b.rank ?? Number.MAX_SAFE_INTEGER
+                if (aRank !== bRank) return aRank - bRank
+                return a.name.localeCompare(b.name)
+              }
+
+              // A pre-race DQ has an administrative last-place rank, while the
+              // active riders are still PENDING. Keep starters visible first.
+              if (a.status === 'PENDING' && b.status === 'DQ') return -1
+              if (a.status === 'DQ' && b.status === 'PENDING') return 1
+
               const aRank = a.rank ?? Number.MAX_SAFE_INTEGER
               const bRank = b.rank ?? Number.MAX_SAFE_INTEGER
               if (aRank !== bRank) return aRank - bRank
+              const aGate = a.gate ?? Number.MAX_SAFE_INTEGER
+              const bGate = b.gate ?? Number.MAX_SAFE_INTEGER
+              if (aGate !== bGate) return aGate - bGate
               return a.name.localeCompare(b.name)
-            }
-
-            // A pre-race DQ has an administrative last-place rank, while the
-            // active riders are still PENDING. Keep starters visible first.
-            if (a.status === 'PENDING' && b.status === 'DQ') return -1
-            if (a.status === 'DQ' && b.status === 'PENDING') return 1
-
-            const aRank = a.rank ?? Number.MAX_SAFE_INTEGER
-            const bRank = b.rank ?? Number.MAX_SAFE_INTEGER
-            if (aRank !== bRank) return aRank - bRank
-            const aGate = a.gate ?? Number.MAX_SAFE_INTEGER
-            const bGate = b.gate ?? Number.MAX_SAFE_INTEGER
-            if (aGate !== bGate) return aGate - bGate
-            return a.name.localeCompare(b.name)
-          }),
-        }))
+            }),
+          }
+        })
         .sort((a, b) => {
           const keyA = getStageGroupSortKey(a.title)
           const keyB = getStageGroupSortKey(b.title)
@@ -827,7 +837,7 @@ export default function LiveScoreClient({
           if (keyA.finalOrder !== keyB.finalOrder) return keyA.finalOrder - keyB.finalOrder
           return keyA.heatOrder.localeCompare(keyB.heatOrder, undefined, { numeric: true })
         }),
-    [sortMode, stages]
+    [stages, tableSortModes]
   )
   const stageTabs = useMemo(() => {
     const groups = new Map<string, { key: string; label: string; stages: StageGroup[] }>()
@@ -892,18 +902,24 @@ export default function LiveScoreClient({
       </div>
     </>
   )
-  const refreshControl = renderRefreshButton(refresh, refreshing, canRefreshPublicScore)
+  const refreshControl = renderRefreshButton(refresh, refreshing, true)
   const refreshOnlyControl = (
     <div className="live-score-card-controls flex flex-nowrap items-center gap-1.5">
       {refreshControl}
     </div>
   )
-  const scoreControls = (
-    <div className="live-score-card-controls flex flex-nowrap items-center gap-1.5">
-      {refreshControl}
-      {renderSortButtons(sortMode, setSortMode)}
-    </div>
-  )
+  const renderTableControls = (tableKey: string, hasRows = true) => {
+    const tableSortMode = tableSortModes[tableKey] ?? 'RANK'
+    return (
+      <div className="live-score-card-controls flex flex-nowrap items-center gap-1.5">
+        {refreshControl}
+        {hasRows &&
+          renderSortButtons(tableSortMode, (mode) =>
+            setTableSortModes((prev) => ({ ...prev, [tableKey]: mode }))
+          )}
+      </div>
+    )
+  }
 
   return (
     <div className="public-page public-editorial-page live-score-editorial-page">
@@ -932,15 +948,18 @@ export default function LiveScoreClient({
                   </span>
                 )}
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="text-xs font-extrabold uppercase text-[#f3c63d]">
-                  {publicBrandName || 'Live Score'}
-                </p>
-                {event?.status && (
-                  <span className="live-score-event-status rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-[10px] font-black uppercase text-white">
-                    {event.status === 'LIVE' ? 'BERLANGSUNG' : event.status === 'UPCOMING' ? 'AKAN DATANG' : 'SELESAI'}
-                  </span>
-                )}
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-xs font-extrabold uppercase text-[#f3c63d]">
+                    {publicBrandName || 'Live Score'}
+                  </p>
+                  {event?.status && (
+                    <span className="live-score-event-status rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-[10px] font-black uppercase text-white">
+                      {event.status === 'LIVE' ? 'BERLANGSUNG' : event.status === 'UPCOMING' ? 'AKAN DATANG' : 'SELESAI'}
+                    </span>
+                  )}
+                </div>
+                {refreshControl}
               </div>
               <h1 className="max-w-4xl text-4xl font-black uppercase text-[#f3c63d] sm:text-5xl lg:text-[4rem] lg:leading-none">
                 {categoryLabel || 'Kategori'}
@@ -1109,14 +1128,16 @@ export default function LiveScoreClient({
               </article>
             ) : activeRotatingMotoView ? (
               <section className="grid gap-4" aria-label={`${activeRotatingMotoView.title} per batch`}>
-                {activeRotatingMotoView.batches.map((batch, batchIndex) => (
+                {activeRotatingMotoView.batches.map((batch) => {
+                  const tableKey = `moto-${activeRotatingMotoView.index}-batch-${batch.batch_index}`
+                  return (
                   <article key={batch.moto_id} className="public-panel-dark live-score-editorial-panel live-score-rotation-batch-panel">
                     <div className="live-score-rotation-batch-heading mb-3 flex flex-wrap items-center justify-between gap-2">
                       <h3 className="text-base font-black uppercase text-[#fff8e8]">
                         {activeRotatingMotoView.title} - Batch {batch.batch_index}
                       </h3>
                       <div className="flex flex-wrap items-center gap-2">
-                        {batchIndex === 0 && scoreControls}
+                        {renderTableControls(tableKey, batch.rows.length > 0)}
                         <span className="live-score-rotation-status rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[10px] font-black uppercase text-slate-200">
                           {formatMotoStatusLabel(batch.status)}
                         </span>
@@ -1190,7 +1211,7 @@ export default function LiveScoreClient({
                       </table>
                     </div>
                   </article>
-                ))}
+                )})}
               </section>
             ) : (
               <article className="public-panel-dark live-score-editorial-panel live-score-rotation-panel">
@@ -1245,7 +1266,9 @@ export default function LiveScoreClient({
               <p className="text-slate-400 text-sm text-center py-8">Belum ada batch tersedia.</p>
             </article>
           )}
-          {showFixedQualification && tableRowsByBatch.map((batch, batchIndex) => (
+          {showFixedQualification && tableRowsByBatch.map((batch) => {
+            const tableKey = `q-batch-${batch.batch_index}`
+            return (
             <article key={batch.batch_index} className="public-panel-dark live-score-editorial-panel">
               <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-wrap items-center gap-2">
@@ -1256,7 +1279,7 @@ export default function LiveScoreClient({
                     Kualifikasi Moto
                   </span>
                 </div>
-                {batchIndex === 0 && scoreControls}
+                {renderTableControls(tableKey, batch.rows.length > 0)}
               </div>
               <div className={`live-score-mobile-table-wrap lg:hidden${showMoto3 ? ' has-three-motos' : ''}`}>
                 <table className="live-score-mobile-table">
@@ -1369,14 +1392,15 @@ export default function LiveScoreClient({
                 </table>
               </div>
             </article>
-          ))}
+          )})}
         </section>
         )}
 
         {displayedStages.length > 0 && (
           <section className="grid gap-4">
-            {displayedStages.map((stage, stageIndex) => {
+            {displayedStages.map((stage) => {
               const showNextStageColumn = /^(REPECHAGE|QUARTER FINAL|SEMI FINAL)/i.test(stage.title)
+              const tableKey = `stage-${stage.moto_id}`
               return (
               <article key={stage.moto_id} className="public-panel-dark live-score-editorial-panel">
                 <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1392,7 +1416,7 @@ export default function LiveScoreClient({
                       </span>
                     )}
                   </div>
-                  {stageIndex === 0 && (stage.rows.length > 0 ? scoreControls : refreshOnlyControl)}
+                  {renderTableControls(tableKey, stage.rows.length > 0)}
                 </div>
                 {stage.rows.length === 0 ? (
                   <p className="rounded-xl border border-white/15 bg-white/5 px-4 py-6 text-center text-sm font-semibold text-slate-300">
