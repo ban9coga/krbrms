@@ -1,4 +1,4 @@
-import MotoSequenceClient from './MotoSequenceClient'
+import { redirect } from 'next/navigation'
 
 type PageProps = {
   params: Promise<{ eventId: string }>
@@ -10,5 +10,5 @@ export const metadata = {
 
 export default async function MotoSequencePage({ params }: PageProps) {
   const { eventId } = await params
-  return <MotoSequenceClient eventId={eventId} />
+  redirect(`/admin/events/${eventId}/motos?tab=sequence`)
 }

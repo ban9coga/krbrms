@@ -1,6 +1,12 @@
-import MotosClient from './MotosClient'
+import MotoWorkspaceClient from './MotoWorkspaceClient'
 
-export default async function AdminMotosPage({ params }: { params: Promise<{ eventId: string }> }) {
+type PageProps = {
+  params: Promise<{ eventId: string }>
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}
+
+export default async function AdminMotosPage({ params, searchParams }: PageProps) {
   const { eventId } = await params
-  return <MotosClient eventId={eventId} />
+  const { tab } = await searchParams
+  return <MotoWorkspaceClient eventId={eventId} initialTab={tab === 'sequence' ? 'sequence' : 'motos'} />
 }
