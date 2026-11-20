@@ -10,6 +10,7 @@ import { ThemeToggleSwitch, useTheme } from './ThemeProvider'
 import PublicBottomBar from './PublicBottomBar'
 import LiveEntryButton from './LiveEntryButton'
 import LogoutButton from './LogoutButton'
+import PublicMobileMenu from './PublicMobileMenu'
 
 const navItems = [
   { href: '/', label: 'Home' },
@@ -50,6 +51,7 @@ export default function MarketingTopbar({
 
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [roleKey, setRoleKey] = useState<string | null>(null)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const panelHref = useMemo(() => roleHome(roleKey), [roleKey])
   const panelLabel = useMemo(() => formatAppRoleLabel(roleKey), [roleKey])
@@ -110,7 +112,7 @@ export default function MarketingTopbar({
                 sizes="45px"
                 className={editorial ? 'h-9 w-9 object-contain' : 'h-10 w-10 object-contain'}
               />
-              <span className="min-w-0">
+              <span className="marketing-topbar-brand min-w-0">
                 <span
                   className={`block truncate font-black tracking-tight ${
                     editorial
@@ -144,10 +146,10 @@ export default function MarketingTopbar({
                     href={item.href}
                     className={
                       editorial
-                        ? `rounded-full px-4 py-2 transition-colors ${
+                      ? `inline-flex min-h-11 items-center rounded-full px-4 py-2 transition-colors ${
                             isActive(item.href) ? 'bg-[#1d0d07] text-white' : 'hover:bg-[#efe3c8]'
                           }`
-                        : `transition-colors ${isDark ? 'hover:text-amber-300' : 'hover:text-amber-500'} ${
+                      : `inline-flex min-h-11 items-center transition-colors ${isDark ? 'hover:text-amber-300' : 'hover:text-amber-500'} ${
                             isActive(item.href) ? (isDark ? 'text-amber-300' : 'text-amber-500') : ''
                           }`
                     }
@@ -158,11 +160,11 @@ export default function MarketingTopbar({
                 <LiveEntryButton
                   label="Live Results"
                   mode="results"
-                  fallbackHref="/dashboard#live-results"
+                  fallbackHref="/jadwal-race-pushbike"
                   className={
                     editorial
-                      ? 'rounded-full px-4 py-2 transition-colors hover:bg-[#efe3c8]'
-                      : `transition-colors ${isDark ? 'hover:text-amber-300' : 'hover:text-amber-500'}`
+                      ? 'inline-flex min-h-11 items-center rounded-full px-4 py-2 transition-colors hover:bg-[#efe3c8]'
+                      : `inline-flex min-h-11 items-center transition-colors ${isDark ? 'hover:text-amber-300' : 'hover:text-amber-500'}`
                   }
                   activeClassName={
                     editorial ? 'bg-[#1d0d07] text-white' : isDark ? 'text-amber-300' : 'text-amber-500'
@@ -171,8 +173,8 @@ export default function MarketingTopbar({
               </nav>
             )}
 
-            <div className={`flex shrink-0 items-center gap-2 ${editorial ? 'homepage-editorial-auth' : ''}`}>
-              <ThemeToggleSwitch />
+            <div className={`marketing-topbar-auth flex shrink-0 items-center gap-2 ${showNav ? 'has-mobile-menu' : ''}`}>
+              <ThemeToggleSwitch className="marketing-topbar-theme" />
               {showLoginButton && !isLoginPage ? (
                 <>
                 {isLoggedIn ? (
@@ -195,11 +197,13 @@ export default function MarketingTopbar({
                 ) : (
                   <Link
                     href="/login"
-                    className={
+                    className={`marketing-topbar-login-link ${
                       editorial
                         ? 'rounded-full bg-[#1d0d07] px-5 py-2 text-sm font-bold text-white transition-colors hover:bg-[#ee4b16]'
-                        : 'rounded-full bg-amber-400 px-5 py-2 text-sm font-bold text-slate-900 transition-colors hover:bg-amber-300'
-                    }
+                        : isDark
+                          ? 'text-slate-200 hover:text-amber-300'
+                          : 'text-slate-700 hover:text-amber-600'
+                    }`}
                   >
                     Login
                   </Link>
@@ -207,42 +211,18 @@ export default function MarketingTopbar({
                 </>
               ) : null}
             </div>
-          </div>
-
-          {showNav && (
-            <nav
-              className={`mt-3 flex items-center justify-center gap-4 text-sm font-semibold md:hidden ${
-                editorial ? 'text-[#2a160d]' : isDark ? 'text-slate-300' : 'text-slate-600'
-              }`}
-            >
-              {navItems.map((item) => (
-                <Link
-                  key={`${item.href}-mobile`}
-                  href={item.href}
-                  className={`transition-colors ${
-                    editorial
-                      ? isActive(item.href)
-                        ? 'font-black text-[#ee4b16]'
-                        : 'hover:text-[#ee4b16]'
-                      : `${isDark ? 'hover:text-amber-300' : 'hover:text-amber-500'} ${
-                          isActive(item.href) ? (isDark ? 'text-amber-300' : 'text-amber-500') : ''
-                        }`
-                  }`}
-                >
-                  {item.label}
-                </Link>
-              ))}
-              <LiveEntryButton
-                label="Live Results"
-                mode="results"
-                fallbackHref="/dashboard#live-results"
-                className={`transition-colors ${
-                  editorial ? 'hover:text-[#ee4b16]' : isDark ? 'hover:text-amber-300' : 'hover:text-amber-500'
-                }`}
-                activeClassName={editorial ? 'font-black text-[#ee4b16]' : isDark ? 'text-amber-300' : 'text-amber-500'}
+            {showNav && (
+              <PublicMobileMenu
+                isOpen={mobileMenuOpen}
+                onToggle={() => setMobileMenuOpen((open) => !open)}
+                onClose={() => setMobileMenuOpen(false)}
+                isLoggedIn={isLoggedIn}
+                panelHref={panelHref}
+                panelLabel={panelLabel}
+                onLogout={handleLogout}
               />
-            </nav>
-          )}
+            )}
+          </div>
         </div>
       </header>
       <PublicBottomBar variant={editorial ? 'editorial' : 'default'} />

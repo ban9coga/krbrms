@@ -1,22 +1,50 @@
 'use client'
 
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { createContext, useContext } from 'react'
+import { SITE_INSTAGRAM_URL } from '../lib/structuredData'
+
+const LiveEventAvailabilityContext = createContext(false)
+
+export function LiveEventAvailabilityProvider({
+  hasLiveEvent,
+  children,
+}: {
+  hasLiveEvent: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <LiveEventAvailabilityContext.Provider value={hasLiveEvent}>
+      {children}
+    </LiveEventAvailabilityContext.Provider>
+  )
+}
 
 const footerLinks = [
   { href: '/', label: 'Home' },
   { href: '/jadwal-race-pushbike', label: 'Jadwal Race' },
   { href: '/insight', label: 'Insight' },
   { href: '/registration-status', label: 'Cek Status' },
-  { href: '/live-results', label: 'Live Results' },
+  { href: '/jadwal-race-pushbike?status=live', label: 'Live Score' },
 ]
 
 export default function PublicBottomBar({ variant = 'default' }: { variant?: 'default' | 'editorial' }) {
+  const pathname = usePathname()
+  const hasLiveEvent = useContext(LiveEventAvailabilityContext)
   const editorial = variant === 'editorial'
   const currentYear = new Date().getFullYear()
   const mutedTextClass = editorial ? 'text-[#c9b7a5]' : 'text-slate-400'
   const linkClass = `inline-flex items-center gap-1.5 transition-colors ${
     editorial ? 'hover:text-[#f3c63d]' : 'hover:text-white'
   }`
+  const isLiveActive = /^\/event\/[^/]+\/live-score(?:\/|$)/.test(pathname)
+  const isEventActive =
+    pathname === '/jadwal-race-pushbike' ||
+    pathname.startsWith('/jadwal-race-pushbike/') ||
+    (pathname.startsWith('/event/') && !isLiveActive)
+  const isStatusActive = pathname === '/registration-status' || pathname.startsWith('/registration-status/')
+  const mobileItemClass = `public-mobile-bottom-item${editorial ? ' is-editorial' : ''}`
 
   return (
     <footer
@@ -26,8 +54,47 @@ export default function PublicBottomBar({ variant = 'default' }: { variant?: 'de
           : 'public-bottom-bar fixed bottom-0 left-0 right-0 z-40 border-t border-slate-800/80 bg-slate-950/95 text-slate-200 shadow-[0_-12px_32px_rgba(2,6,23,0.24)] backdrop-blur'
       }
     >
+      <nav aria-label="Navigasi utama" className={`public-mobile-bottom-nav md:hidden${editorial ? ' is-editorial' : ''}`}>
+        <Link
+          href="/jadwal-race-pushbike"
+          aria-current={isEventActive ? 'page' : undefined}
+          className={`${mobileItemClass}${isEventActive ? ' is-active' : ''}`}
+        >
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <rect x="3.5" y="4.5" width="17" height="16" rx="2.5" />
+            <path d="M7.5 2.8v3.5M16.5 2.8v3.5M4 9h16M7.5 12.5h3M7.5 16h3M14 12.5h3" />
+          </svg>
+          <span>Jadwal</span>
+        </Link>
+        <Link
+          href="/jadwal-race-pushbike?status=live"
+          aria-current={isLiveActive ? 'page' : undefined}
+          aria-label="Buka Live Score"
+          className={`${mobileItemClass}${isLiveActive ? ' is-active' : ''}`}
+        >
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <path d="M4 18.5h16M6.5 15V9.5M12 15V5.5M17.5 15v-3" />
+            <circle cx="6.5" cy="7" r="1.5" />
+            <circle cx="12" cy="3" r="1.5" />
+            <circle cx="17.5" cy="10" r="1.5" />
+          </svg>
+          {hasLiveEvent && <span className="public-mobile-live-dot" aria-hidden="true" />}
+          <span>Live Score</span>
+        </Link>
+        <Link
+          href="/registration-status"
+          aria-current={isStatusActive ? 'page' : undefined}
+          className={`${mobileItemClass}${isStatusActive ? ' is-active' : ''}`}
+        >
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <circle cx="12" cy="12" r="8.5" />
+            <path d="m8.5 12.2 2.3 2.3 4.8-5" />
+          </svg>
+          <span>Cek Status</span>
+        </Link>
+      </nav>
       <div
-        className="mx-auto flex w-full max-w-[1500px] flex-col gap-2 px-4 py-3 text-[11px] font-medium sm:px-6 md:flex-row md:items-center md:justify-between md:gap-4 md:px-8 md:text-xs"
+        className="mx-auto hidden w-full max-w-[1500px] flex-col gap-2 px-4 py-3 text-[11px] font-medium sm:px-6 md:flex md:flex-row md:items-center md:justify-between md:gap-4 md:px-8 md:text-xs"
         style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))' }}
       >
         <div className="min-w-0">
@@ -53,7 +120,7 @@ export default function PublicBottomBar({ variant = 'default' }: { variant?: 'de
             •
           </span>
           <a
-            href="https://instagram.com/racepushbike"
+            href={SITE_INSTAGRAM_URL}
             target="_blank"
             rel="noopener noreferrer"
             aria-label="Instagram RacePushbike"

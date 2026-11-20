@@ -10,10 +10,11 @@ import PublicBottomBar from './PublicBottomBar'
 import LiveEntryButton from './LiveEntryButton'
 import { ThemeToggleSwitch } from './ThemeProvider'
 import LogoutButton from './LogoutButton'
+import PublicMobileMenu from './PublicMobileMenu'
 
 const navItems = [
-  { href: '/', label: 'Home' },
-  { href: '/dashboard', label: 'Events' },
+  { href: '/', label: 'Beranda' },
+  { href: '/jadwal-race-pushbike', label: 'Event' },
   { href: '/insight', label: 'Insight' },
   { href: '/registration-status', label: 'Cek Status' },
 ]
@@ -64,6 +65,7 @@ export default function PublicTopbar({}: PublicTopbarProps) {
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [roleKey, setRoleKey] = useState<string | null>(null)
   const [eventBranding, setEventBranding] = useState<EventBranding | null>(null)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const panelHref = useMemo(() => roleHome(roleKey), [roleKey])
   const panelLabel = useMemo(() => formatAppRoleLabel(roleKey), [roleKey])
@@ -139,16 +141,16 @@ export default function PublicTopbar({}: PublicTopbarProps) {
                   className="relative h-10 w-10 object-contain"
                 />
               </span>
-              <span className="min-w-0">
+              <span className="public-topbar-brand min-w-0">
                 <span className="block truncate text-sm font-black sm:text-base md:text-lg">
                   RacePushbike
                 </span>
                 {eventBranding ? (
-                  <span className="block truncate text-[11px] font-bold text-[#796657]">
+                  <span className="public-topbar-subtitle block truncate text-[11px] font-bold text-[#796657]">
                     {formatEventBrandingLabel(eventBranding)}
                   </span>
                 ) : (
-                  <span className="block truncate text-[11px] font-bold text-[#796657]">
+                  <span className="public-topbar-subtitle block truncate text-[11px] font-bold text-[#796657]">
                     Public Event & Live Results
                   </span>
                 )}
@@ -168,7 +170,7 @@ export default function PublicTopbar({}: PublicTopbarProps) {
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={`rounded-full px-4 py-2 transition-colors ${
+                    className={`inline-flex min-h-11 items-center rounded-full px-4 py-2 transition-colors ${
                       active ? 'bg-[#1d0d07] text-[#fff8e8]' : 'hover:bg-[#efe3c8]'
                     }`}
                   >
@@ -177,16 +179,16 @@ export default function PublicTopbar({}: PublicTopbarProps) {
                 )
               })}
               <LiveEntryButton
-                label="Live Results"
+                label="Live Score"
                 mode="results"
-                fallbackHref="/dashboard#live-results"
-                className="rounded-full px-4 py-2 transition-colors hover:bg-[#efe3c8]"
+                fallbackHref="/jadwal-race-pushbike"
+                className="inline-flex min-h-11 items-center rounded-full px-4 py-2 transition-colors hover:bg-[#efe3c8]"
                 activeClassName="bg-[#1d0d07] text-[#fff8e8]"
               />
             </nav>
 
-            <div className="flex items-center gap-2">
-              <ThemeToggleSwitch />
+            <div className="public-topbar-auth flex items-center gap-2">
+              <ThemeToggleSwitch className="public-topbar-theme" />
               {isLoggedIn ? (
                 <>
                   <Link
@@ -201,43 +203,23 @@ export default function PublicTopbar({}: PublicTopbarProps) {
               ) : (
                 <Link
                   href="/login"
-                  className="rounded-full bg-[#1d0d07] px-5 py-2 text-sm font-bold text-[#fff8e8] transition-colors hover:bg-[#e84b16]"
+                  className="public-topbar-login-link"
                 >
-                  Login
+                  Masuk
                 </Link>
               )}
             </div>
-          </div>
-
-          <nav
-            className="mt-3 flex items-center justify-center gap-4 overflow-x-auto whitespace-nowrap text-xs font-semibold text-[#2a160d] sm:text-sm lg:hidden"
-          >
-            {navItems.map((item) => {
-              const baseHref = item.href.split('#')[0]
-              const active =
-                baseHref === '/'
-                  ? pathname === '/'
-                  : pathname === baseHref || pathname.startsWith(`${baseHref}/`)
-              return (
-                <Link
-                  key={`${item.href}-mobile`}
-                  href={item.href}
-                  className={`transition-colors ${
-                    active ? 'font-black text-[#e84b16]' : 'hover:text-[#e84b16]'
-                  }`}
-                >
-                  {item.label}
-                </Link>
-              )
-            })}
-            <LiveEntryButton
-              label="Live Results"
-              mode="results"
-              fallbackHref="/dashboard#live-results"
-              className="transition-colors hover:text-[#e84b16]"
-              activeClassName="font-black text-[#e84b16]"
+            <PublicMobileMenu
+              isOpen={mobileMenuOpen}
+              onToggle={() => setMobileMenuOpen((open) => !open)}
+              onClose={() => setMobileMenuOpen(false)}
+              isLoggedIn={isLoggedIn}
+              panelHref={panelHref}
+              panelLabel={panelLabel}
+              onLogout={handleLogout}
+              triggerBreakpoint="lg"
             />
-          </nav>
+          </div>
         </div>
       </header>
       <PublicBottomBar variant="editorial" />

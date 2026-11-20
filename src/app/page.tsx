@@ -1,7 +1,6 @@
 import HeroRace from '../components/HeroRace'
 import MarketingTopbar from '../components/MarketingTopbar'
-import EventCard from '../components/EventCard'
-import Link from 'next/link'
+import LandingEventCollection, { type LandingEventCardItem } from '../components/LandingEventCollection'
 import Image from 'next/image'
 import type { Metadata } from 'next'
 import { adminClient } from '../lib/auth'
@@ -33,6 +32,7 @@ export const metadata: Metadata = {
 
 type LandingEventSettings = {
   logo?: string | null
+  poster?: string | null
   slogan?: string | null
   event_scope?: 'PUBLIC' | 'INTERNAL'
   registration_open?: boolean
@@ -71,6 +71,7 @@ const loadEventSettings = async (eventIds: string[]) => {
     const eventScope = raceFormat.event_scope === 'INTERNAL' ? 'INTERNAL' : 'PUBLIC'
     settingsMap.set(row.event_id, {
       logo: toPublicMediaUrl(row.event_logo_url),
+      poster: toPublicMediaUrl(typeof raceFormat.event_poster_url === 'string' ? raceFormat.event_poster_url : null),
       slogan,
       event_scope: eventScope,
       registration_open: typeof row.registration_open === 'boolean' ? row.registration_open : true,
@@ -143,99 +144,24 @@ const attachLandingSettings = (events: EventItem[], settingsMap: Map<string, Lan
     registration_open: settingsMap.get(event.id)?.registration_open ?? true,
   }))
 
-function LandingEventSection({
-  eyebrow,
-  title,
-  description,
-  eyebrowAsTitle = false,
-  events,
-  settingsMap,
-  registrationAvailability,
-  emptyMessage,
-  actionLabel = 'Lihat Semua Event',
-  tone = 'light',
-  children,
-}: {
-  eyebrow: string
-  title: string
-  description: string
-  eyebrowAsTitle?: boolean
-  events: EventItem[]
-  settingsMap: Map<string, LandingEventSettings>
-  registrationAvailability?: Map<string, boolean>
-  emptyMessage: string
-  actionLabel?: string
-  tone?: 'light' | 'orange' | 'brown'
-  children?: React.ReactNode
-}) {
-  return (
-    <section className={`homepage-editorial-section homepage-editorial-section-${tone}`}>
-      <div className="homepage-editorial-section-inner">
-        <div className="homepage-editorial-section-heading">
-          <div>
-            {eyebrowAsTitle ? (
-              <h2>{eyebrow}</h2>
-            ) : (
-              <>
-                <p className="homepage-editorial-section-kicker">{eyebrow}</p>
-                <h2>{title}</h2>
-                <p className="homepage-editorial-section-description">{description}</p>
-              </>
-            )}
-          </div>
-
-          <Link href="/dashboard" className="homepage-editorial-section-action">
-            {actionLabel}
-            <span aria-hidden="true">→</span>
-          </Link>
-        </div>
-
-        <div className="homepage-editorial-events">
-          {events.length === 0 ? (
-            <div className="homepage-editorial-empty-state">{emptyMessage}</div>
-          ) : (
-            <div className="homepage-editorial-event-grid">
-              {events.map((event, idx) => (
-                <EventCard
-                  key={event.id}
-                  event={event}
-                  index={idx}
-                  logoUrl={settingsMap.get(event.id)?.logo ?? null}
-                  slogan={settingsMap.get(event.id)?.slogan ?? null}
-                  canRegister={
-                    event.status !== 'UPCOMING'
-                      ? true
-                      : event.registration_open !== false && (registrationAvailability?.get(event.id) ?? true)
-                  }
-                  variant="editorial"
-                />
-              ))}
-            </div>
-          )}
-        </div>
-
-        {children}
-      </div>
-    </section>
-  )
-}
-
 export default async function LandingPage() {
   const liveEvent = await getLiveEvent()
-  const [upcomingEventsRaw, finishedArchives, insightPosts] = await Promise.all([
+  const [upcomingEventsRaw, liveEventsRaw, finishedArchives, insightPosts] = await Promise.all([
     fetchLandingEvents('UPCOMING'),
+    fetchLandingEvents('LIVE'),
     getPublicFinishedEventArchives(),
     getLatestInsightPosts(3),
   ])
   const finishedEventsRaw = finishedArchives.map((archive) => archive.event)
   const [landingSettings, registrationAvailability] = await Promise.all([
-    loadEventSettings(upcomingEventsRaw.map((event) => event.id)),
+    loadEventSettings([...upcomingEventsRaw, ...liveEventsRaw].map((event) => event.id)),
     loadRegistrationAvailability(upcomingEventsRaw.map((event) => event.id)),
   ])
   const settingsMap = new Map(landingSettings.settingsMap)
   for (const archive of finishedArchives) {
     settingsMap.set(archive.event.id, {
       logo: archive.event.event_logo_url ?? null,
+      poster: archive.event.event_poster_url ?? null,
       slogan: archive.slogan,
       event_scope: archive.event.event_scope ?? 'PUBLIC',
       registration_open: archive.event.registration_open ?? true,
@@ -244,8 +170,35 @@ export default async function LandingPage() {
   const communityLogos = getCommunityShowcaseLogos(
     finishedArchives.map((archive) => ({ business_settings: archive.event.business_settings }))
   )
-  const upcomingEvents = attachLandingSettings(upcomingEventsRaw, settingsMap)
+  const activeEvents = attachLandingSettings([...liveEventsRaw, ...upcomingEventsRaw], settingsMap)
   const finishedEvents = attachLandingSettings(finishedEventsRaw, settingsMap)
+  const finishedArchiveById = new Map(finishedArchives.map((archive) => [archive.event.id, archive]))
+  const eventCards: LandingEventCardItem[] = [
+    ...activeEvents.map((event) => ({
+      ...event,
+      logoUrl: settingsMap.get(event.id)?.logo ?? null,
+      posterUrl: settingsMap.get(event.id)?.poster ?? null,
+      slogan: settingsMap.get(event.id)?.slogan ?? null,
+      canRegister:
+        event.status === 'UPCOMING' &&
+        event.registration_open !== false &&
+        (registrationAvailability.get(event.id) ?? true),
+    })),
+    ...finishedEvents.map((event) => ({
+      ...event,
+      logoUrl: settingsMap.get(event.id)?.logo ?? null,
+      posterUrl: settingsMap.get(event.id)?.poster ?? null,
+      slogan: settingsMap.get(event.id)?.slogan ?? null,
+      canRegister: false,
+      riderTotal: finishedArchiveById.get(event.id)?.riderTotal,
+    })),
+  ].sort((left, right) => {
+    const statusOrder: Record<EventStatus, number> = { LIVE: 0, UPCOMING: 1, FINISHED: 2 }
+    const statusDifference = statusOrder[left.status] - statusOrder[right.status]
+    if (statusDifference !== 0) return statusDifference
+    const dateDifference = new Date(left.event_date).getTime() - new Date(right.event_date).getTime()
+    return left.status === 'FINISHED' ? -dateDifference : dateDifference
+  })
 
   return (
     <div className="public-page homepage-editorial-page">
@@ -253,25 +206,7 @@ export default async function LandingPage() {
 
       <main>
         <HeroRace liveEvent={liveEvent} />
-        <LandingEventSection
-          eyebrow="Jadwal Race Pushbike Indonesia"
-          title="Event Race Pushbike yang Akan Datang"
-          description="Lihat jadwal race pushbike berikutnya, cek detail event, dan daftar rider selama registrasi masih dibuka."
-          events={upcomingEvents}
-          settingsMap={settingsMap}
-          registrationAvailability={registrationAvailability}
-          emptyMessage="Belum ada upcoming event yang dibuka untuk publik."
-          tone="brown"
-        />
-        <LandingEventSection
-          eyebrow="Completed Event"
-          title=""
-          description=""
-          eyebrowAsTitle
-          events={finishedEvents}
-          settingsMap={settingsMap}
-          emptyMessage="Belum ada completed event yang tampil untuk publik."
-        />
+        <LandingEventCollection events={eventCards} />
         <InsightHomeSection posts={insightPosts} />
         {communityLogos.length > 0 && (
           <section className="homepage-editorial-section homepage-editorial-community-section">

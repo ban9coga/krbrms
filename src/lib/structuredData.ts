@@ -1,7 +1,9 @@
 export const SITE_URL = 'https://racepushbike.com'
 export const SITE_NAME = 'RacePushbike'
 export const SITE_LOGO_URL = `${SITE_URL}/platform-logo.png`
-export const SITE_INSTAGRAM_URL = 'https://instagram.com/racepushbike'
+export const SITE_INSTAGRAM_USERNAME = 'racepushbike'
+export const SITE_INSTAGRAM_URL = `https://instagram.com/${SITE_INSTAGRAM_USERNAME}`
+export const SITE_INSTAGRAM_DM_URL = `https://ig.me/m/${SITE_INSTAGRAM_USERNAME}`
 
 export const serializeJsonLd = (data: unknown) => JSON.stringify(data).replace(/</g, '\\u003c')
 

@@ -126,7 +126,13 @@ const attachSettings = (events: EventItem[], settingsMap: Map<string, EventSetti
     registration_open: settingsMap.get(event.id)?.registration_open ?? true,
   }))
 
-export default async function JadwalRacePushbikePage() {
+export default async function JadwalRacePushbikePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string }>
+}) {
+  const params = await searchParams
+  const liveOnly = params.status === 'live'
   const [upcomingRaw, liveRaw, finishedRaw] = await Promise.all([
     fetchEvents('UPCOMING'),
     fetchEvents('LIVE'),
@@ -146,20 +152,16 @@ export default async function JadwalRacePushbikePage() {
       <MarketingTopbar variant="editorial" />
 
       <main className="dashboard-editorial-main">
-        <header className="dashboard-editorial-heading">
-          <p>Jadwal Race Pushbike Indonesia</p>
-          <h1>Jadwal Race Pushbike Indonesia 2026</h1>
-          <span>
-            Temukan event race pushbike dan balance bike di Indonesia, daftar rider secara online, lalu pantau live skor
-            dan hasil race dari satu halaman.
-          </span>
-        </header>
+        {!liveOnly && (
+          <header className="dashboard-editorial-heading">
+            <h1>Jadwal Race Pushbike Indonesia</h1>
+          </header>
+        )}
 
-        <section className="dashboard-editorial-section dashboard-editorial-section-live">
+        <section id="live-events" className="dashboard-editorial-section dashboard-editorial-section-live scroll-mt-24">
           <div className="dashboard-editorial-section-head">
             <div>
-              <p>Live score race pushbike</p>
-              <h2>Event Sedang Berlangsung</h2>
+              {liveOnly ? <h1>Event Live</h1> : <h2>Event Sedang Berlangsung</h2>}
             </div>
             <span>{liveEvents.length} event</span>
           </div>
@@ -181,10 +183,9 @@ export default async function JadwalRacePushbikePage() {
           )}
         </section>
 
-        <section className="dashboard-editorial-section dashboard-editorial-section-upcoming">
+        {!liveOnly && <section className="dashboard-editorial-section dashboard-editorial-section-upcoming">
           <div className="dashboard-editorial-section-head">
             <div>
-              <p>Pendaftaran race pushbike</p>
               <h2>Jadwal Event yang Akan Datang</h2>
             </div>
             <span>{upcomingEvents.length} event</span>
@@ -206,12 +207,11 @@ export default async function JadwalRacePushbikePage() {
               ))}
             </div>
           )}
-        </section>
+        </section>}
 
-        <section className="dashboard-editorial-section dashboard-editorial-section-finished">
+        {!liveOnly && <section className="dashboard-editorial-section dashboard-editorial-section-finished">
           <div className="dashboard-editorial-section-head">
             <div>
-              <p>Hasil race pushbike</p>
               <h2>Arsip Event Selesai</h2>
             </div>
             <span>{finishedEvents.length} event</span>
@@ -232,7 +232,7 @@ export default async function JadwalRacePushbikePage() {
               ))}
             </div>
           )}
-        </section>
+        </section>}
       </main>
     </div>
   )

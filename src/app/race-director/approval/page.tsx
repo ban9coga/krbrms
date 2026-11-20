@@ -388,6 +388,7 @@ export default function RaceDirectorApprovalPage() {
 
   const refreshFromRealtime = useCallback(() => {
     if (
+      quickScreen !== 'HOME' ||
       isFetchingRef.current ||
       decisionSubmitting ||
       addingPenalty ||
@@ -397,7 +398,7 @@ export default function RaceDirectorApprovalPage() {
       return
     }
     void loadEventData({ silent: true, includeHeavy: false })
-  }, [addingPenalty, decisionSubmitting, loadEventData, settingDq, voidingPenaltyId])
+  }, [addingPenalty, decisionSubmitting, loadEventData, quickScreen, settingDq, voidingPenaltyId])
 
   useEventRaceRealtime({
     eventId,
@@ -410,7 +411,7 @@ export default function RaceDirectorApprovalPage() {
   }, [loadEventData])
 
   useEffect(() => {
-    if (!eventId || !isPageVisible) return
+    if (!eventId || !isPageVisible || quickScreen !== 'HOME') return
     const lightTimer = setInterval(() => {
       void loadEventData({ silent: true, includeHeavy: false })
     }, 60000)
@@ -421,7 +422,7 @@ export default function RaceDirectorApprovalPage() {
       clearInterval(lightTimer)
       clearInterval(heavyTimer)
     }
-  }, [eventId, isPageVisible, loadEventData])
+  }, [eventId, isPageVisible, loadEventData, quickScreen])
 
   // Proactive session refresh every 45 minutes to prevent mid-race logout
   useEffect(() => {
@@ -917,6 +918,7 @@ export default function RaceDirectorApprovalPage() {
 
   const openQuickScreen = (screen: RDQuickScreen) => {
     setQuickScreen(screen)
+    if (screen === 'HOME') void loadEventData({ silent: true, includeHeavy: false })
     setQuickRiderSearch('')
     setQuickRiderId('')
     if (screen !== 'PENALTY') {

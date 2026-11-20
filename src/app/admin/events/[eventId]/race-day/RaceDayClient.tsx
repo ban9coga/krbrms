@@ -215,10 +215,10 @@ export default function RaceDayClient({ eventId }: { eventId: string }) {
     if (!eventId || !isPageVisible) return
     const interval = window.setInterval(() => {
       void apiFetch(`/api/admin/events/${eventId}/jury-presence`)
-        .then((res) => {
-          if (res?.data) setJuryData(res.data)
-        })
-        .catch(() => null)
+          .then((res) => {
+            if (res?.data) setJuryData(res.data)
+          })
+          .catch(() => null)
     }, 12000)
     return () => window.clearInterval(interval)
   }, [apiFetch, eventId, isPageVisible])
@@ -489,11 +489,10 @@ export default function RaceDayClient({ eventId }: { eventId: string }) {
       {/* Toast Notification */}
       {feedback && (
         <div
-          className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-xl px-5 py-3.5 text-sm font-semibold shadow-2xl transition-all ${
-            feedback.type === 'error'
+          className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-xl px-5 py-3.5 text-sm font-semibold shadow-2xl transition-all ${feedback.type === 'error'
               ? 'bg-rose-600 text-white'
               : 'bg-slate-900 text-emerald-400 border border-emerald-500/30'
-          }`}
+            }`}
         >
           <span>{feedback.type === 'error' ? '⚠️' : '✓'}</span>
           <span>{feedback.message}</span>
@@ -528,11 +527,10 @@ export default function RaceDayClient({ eventId }: { eventId: string }) {
                 type="button"
                 onClick={() => handleToggleEventStatus('UPCOMING')}
                 disabled={actionBusyId === 'event_status' || eventData?.status === 'UPCOMING'}
-                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
-                  eventData?.status === 'UPCOMING'
+                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${eventData?.status === 'UPCOMING'
                     ? 'bg-sky-600 text-white shadow-sm'
                     : 'text-slate-600 hover:bg-slate-200/60 dark:text-slate-300 dark:hover:bg-slate-700'
-                }`}
+                  }`}
               >
                 ⏸️ Upcoming
               </button>
@@ -540,11 +538,10 @@ export default function RaceDayClient({ eventId }: { eventId: string }) {
                 type="button"
                 onClick={() => handleToggleEventStatus('LIVE')}
                 disabled={actionBusyId === 'event_status' || eventData?.status === 'LIVE'}
-                className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-black transition-all ${
-                  eventData?.status === 'LIVE'
+                className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-black transition-all ${eventData?.status === 'LIVE'
                     ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30 animate-pulse'
                     : 'text-slate-600 hover:bg-slate-200/60 dark:text-slate-300 dark:hover:bg-slate-700'
-                }`}
+                  }`}
               >
                 <span className="h-2 w-2 rounded-full bg-white animate-ping" />
                 🔴 LIVE EVENT
@@ -553,11 +550,10 @@ export default function RaceDayClient({ eventId }: { eventId: string }) {
                 type="button"
                 onClick={() => handleToggleEventStatus('FINISHED')}
                 disabled={actionBusyId === 'event_status' || eventData?.status === 'FINISHED'}
-                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
-                  eventData?.status === 'FINISHED'
+                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${eventData?.status === 'FINISHED'
                     ? 'bg-emerald-600 text-white shadow-sm'
                     : 'text-slate-600 hover:bg-slate-200/60 dark:text-slate-300 dark:hover:bg-slate-700'
-                }`}
+                  }`}
               >
                 🏁 Finished
               </button>
@@ -725,13 +721,12 @@ export default function RaceDayClient({ eventId }: { eventId: string }) {
 
             return (
               <div
-                className={`relative flex flex-col justify-between rounded-xl border p-4 transition-all ${
-                  isOnline
+                className={`relative flex flex-col justify-between rounded-xl border p-4 transition-all ${isOnline
                     ? 'border-emerald-400 bg-emerald-50/40 dark:border-emerald-800 dark:bg-emerald-950/20 shadow-sm'
                     : isIdle
                       ? 'border-amber-300 bg-amber-50/30 dark:border-amber-800 dark:bg-amber-950/20'
                       : 'border-rose-200 bg-rose-50/20 dark:border-rose-900 dark:bg-rose-950/20'
-                }`}
+                  }`}
               >
                 <div>
                   <div className="flex items-center justify-between gap-2">
@@ -826,13 +821,12 @@ export default function RaceDayClient({ eventId }: { eventId: string }) {
 
             return (
               <div
-                className={`relative flex flex-col justify-between rounded-xl border p-4 transition-all ${
-                  isOnline
+                className={`relative flex flex-col justify-between rounded-xl border p-4 transition-all ${isOnline
                     ? 'border-emerald-400 bg-emerald-50/40 dark:border-emerald-800 dark:bg-emerald-950/20 shadow-sm'
                     : isIdle
                       ? 'border-amber-300 bg-amber-50/30 dark:border-amber-800 dark:bg-amber-950/20'
                       : 'border-rose-200 bg-rose-50/20 dark:border-rose-900 dark:bg-rose-950/20'
-                }`}
+                  }`}
               >
                 <div>
                   <div className="flex items-center justify-between gap-2">
@@ -931,13 +925,12 @@ export default function RaceDayClient({ eventId }: { eventId: string }) {
                   className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 dark:border-slate-800 dark:bg-slate-800/60"
                 >
                   <span
-                    className={`h-2 w-2 rounded-full ${
-                      officer.online_status === 'ONLINE'
+                    className={`h-2 w-2 rounded-full ${officer.online_status === 'ONLINE'
                         ? 'bg-emerald-500 animate-pulse'
                         : officer.online_status === 'IDLE'
                           ? 'bg-amber-500'
                           : 'bg-slate-400'
-                    }`}
+                      }`}
                   />
                   <span className="font-bold text-slate-800 dark:text-slate-200">{officer.role_label}</span>
                   <span className="text-[11px] text-slate-500 dark:text-slate-400">
@@ -953,19 +946,17 @@ export default function RaceDayClient({ eventId }: { eventId: string }) {
       <div className="grid gap-5 md:grid-cols-2">
         {/* Card 1: Currently LIVE Moto */}
         <div
-          className={`relative overflow-hidden rounded-2xl border p-6 transition-all ${
-            liveMoto
+          className={`relative overflow-hidden rounded-2xl border p-6 transition-all ${liveMoto
               ? 'border-rose-400 bg-gradient-to-br from-rose-50/90 via-white to-rose-50/30 shadow-lg shadow-rose-500/10 dark:border-rose-800 dark:from-rose-950/30 dark:via-slate-900 dark:to-slate-900'
               : 'border-dashed border-slate-300 bg-slate-50/60 p-6 dark:border-slate-800 dark:bg-slate-900/40'
-          }`}
+            }`}
         >
           <div className="flex items-center justify-between gap-3">
             <span
-              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-black tracking-wide uppercase ${
-                liveMoto
+              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-black tracking-wide uppercase ${liveMoto
                   ? 'bg-rose-500 text-white animate-pulse'
                   : 'bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
-              }`}
+                }`}
             >
               <span className={`h-2 w-2 rounded-full ${liveMoto ? 'bg-white' : 'bg-slate-400'}`} />
               {liveMoto ? 'MOTO SEDANG LIVE' : 'TIDAK ADA MOTO LIVE'}
@@ -1022,19 +1013,17 @@ export default function RaceDayClient({ eventId }: { eventId: string }) {
 
         {/* Card 2: Next Moto in Queue */}
         <div
-          className={`relative overflow-hidden rounded-2xl border p-6 transition-all ${
-            nextMoto
+          className={`relative overflow-hidden rounded-2xl border p-6 transition-all ${nextMoto
               ? 'border-emerald-300 bg-gradient-to-br from-emerald-50/70 via-white to-emerald-50/20 shadow-lg shadow-emerald-500/10 dark:border-emerald-800 dark:from-emerald-950/20 dark:via-slate-900 dark:to-slate-900'
               : 'border-dashed border-slate-300 bg-slate-50/60 p-6 dark:border-slate-800 dark:bg-slate-900/40'
-          }`}
+            }`}
         >
           <div className="flex items-center justify-between gap-3">
             <span
-              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-black tracking-wide uppercase ${
-                nextMoto?.status === 'READY'
+              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-black tracking-wide uppercase ${nextMoto?.status === 'READY'
                   ? 'bg-emerald-600 text-white'
                   : 'bg-sky-600 text-white'
-              }`}
+                }`}
             >
               ⚡ BERIKUTNYA DALAM URUTAN
             </span>
@@ -1053,11 +1042,10 @@ export default function RaceDayClient({ eventId }: { eventId: string }) {
                     {categoryMap.get(nextMoto.category_id)?.label ?? 'Kategori'}
                   </span>
                   <span
-                    className={`rounded-md px-2 py-0.5 text-xs font-black ${
-                      nextMoto.status === 'READY'
+                    className={`rounded-md px-2 py-0.5 text-xs font-black ${nextMoto.status === 'READY'
                         ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200'
                         : 'bg-sky-100 text-sky-800 dark:bg-sky-900/60 dark:text-sky-200'
-                    }`}
+                      }`}
                   >
                     {nextMoto.status === 'READY' ? 'GATE READY ✓' : 'UPCOMING'}
                   </span>
@@ -1120,44 +1108,40 @@ export default function RaceDayClient({ eventId }: { eventId: string }) {
               <button
                 type="button"
                 onClick={() => setStatusFilter('ACTIVE')}
-                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
-                  statusFilter === 'ACTIVE'
+                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${statusFilter === 'ACTIVE'
                     ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white'
                     : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
-                }`}
+                  }`}
               >
                 Aktif ({sortedMotos.filter((m) => ['UPCOMING', 'READY', 'LIVE'].includes(m.status)).length})
               </button>
               <button
                 type="button"
                 onClick={() => setStatusFilter('PROVISIONAL')}
-                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
-                  statusFilter === 'PROVISIONAL'
+                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${statusFilter === 'PROVISIONAL'
                     ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white'
                     : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
-                }`}
+                  }`}
               >
                 Provisional ({sortedMotos.filter((m) => ['PROVISIONAL', 'PROTEST_REVIEW'].includes(m.status)).length})
               </button>
               <button
                 type="button"
                 onClick={() => setStatusFilter('LOCKED')}
-                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
-                  statusFilter === 'LOCKED'
+                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${statusFilter === 'LOCKED'
                     ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white'
                     : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
-                }`}
+                  }`}
               >
                 Locked / Selesai ({sortedMotos.filter((m) => m.status === 'LOCKED' || m.status === 'FINISHED').length})
               </button>
               <button
                 type="button"
                 onClick={() => setStatusFilter('ALL')}
-                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
-                  statusFilter === 'ALL'
+                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${statusFilter === 'ALL'
                     ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white'
                     : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
-                }`}
+                  }`}
               >
                 Semua ({sortedMotos.length})
               </button>
@@ -1234,13 +1218,12 @@ export default function RaceDayClient({ eventId }: { eventId: string }) {
                   return (
                     <tr
                       key={moto.id}
-                      className={`transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/40 ${
-                        moto.status === 'LIVE'
+                      className={`transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/40 ${moto.status === 'LIVE'
                           ? 'bg-rose-500/10 font-bold border-l-4 border-l-rose-500'
                           : isFinal
                             ? 'bg-amber-500/10 dark:bg-amber-950/20 border-l-4 border-l-amber-500 font-medium'
                             : ''
-                      }`}
+                        }`}
                     >
                       {/* Urutan & Move Up/Down */}
                       <td className="py-3.5 pl-5 pr-2">

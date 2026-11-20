@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
+import type { ReactNode } from 'react'
 
 type LiveEntryButtonProps = {
   label: string
@@ -10,6 +11,8 @@ type LiveEntryButtonProps = {
   activeClassName?: string
   fallbackHref?: string
   title?: string
+  ariaLabel?: string
+  children?: ReactNode
 }
 
 type LiveEventSummary = {
@@ -20,6 +23,8 @@ type LiveCategorySummary = {
   id: string
   enabled?: boolean
 }
+
+const liveHrefRequests = new Map<'results' | 'display', Promise<string | null>>()
 
 const getLiveEventHref = async (mode: 'results' | 'display'): Promise<string | null> => {
   const eventRes = await fetch('/api/events?status=LIVE', { cache: 'no-store' })
@@ -43,13 +48,30 @@ const getLiveEventHref = async (mode: 'results' | 'display'): Promise<string | n
   return `/event/${liveEvent.id}`
 }
 
+const getSharedLiveEventHref = (mode: 'results' | 'display') => {
+  const existingRequest = liveHrefRequests.get(mode)
+  if (existingRequest) return existingRequest
+
+  const request = (async () => {
+    try {
+      return await getLiveEventHref(mode)
+    } finally {
+      liveHrefRequests.delete(mode)
+    }
+  })()
+  liveHrefRequests.set(mode, request)
+  return request
+}
+
 export default function LiveEntryButton({
   label,
   mode,
   className = '',
   activeClassName = '',
-  fallbackHref = '/dashboard',
+  fallbackHref = '/jadwal-race-pushbike',
   title,
+  ariaLabel,
+  children,
 }: LiveEntryButtonProps) {
   const router = useRouter()
   const pathname = usePathname()
@@ -62,7 +84,7 @@ export default function LiveEntryButton({
 
     const prime = async () => {
       try {
-        const href = await getLiveEventHref(mode)
+        const href = await getSharedLiveEventHref(mode)
         if (isMounted) {
           setPrefetchedHref(href)
           setHasCheckedLiveEvent(true)
@@ -85,7 +107,7 @@ export default function LiveEntryButton({
     if (isLoading) return
     setIsLoading(true)
     try {
-      const href = prefetchedHref ?? (await getLiveEventHref(mode))
+      const href = prefetchedHref ?? (await getSharedLiveEventHref(mode))
       if (!href) {
         router.push(fallbackHref)
         return
@@ -110,9 +132,11 @@ export default function LiveEntryButton({
       onClick={handleClick}
       className={`${className} ${isActive ? activeClassName : ''}`.trim()}
       title={title}
+      aria-label={ariaLabel}
+      aria-current={isActive ? 'page' : undefined}
       aria-busy={isLoading || !hasCheckedLiveEvent}
     >
-      {label}
+      {children ?? label}
     </button>
   )
 }

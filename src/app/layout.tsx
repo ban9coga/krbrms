@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Anton, Plus_Jakarta_Sans } from 'next/font/google'
 import FloatingLiveScoreButton from '../components/FloatingLiveScoreButton'
+import { LiveEventAvailabilityProvider } from '../components/PublicBottomBar'
 import { PwaRegister } from '../components/PwaRegister'
 import { ThemeProvider } from '../components/ThemeProvider'
 import { getLiveEvent } from '../lib/liveEvent'
@@ -91,10 +92,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           dangerouslySetInnerHTML={{ __html: serializeJsonLd(siteStructuredData) }}
         />
         <PwaRegister />
-        <ThemeProvider>
-          {children}
-          <FloatingLiveScoreButton hasLiveEvent={Boolean(liveEvent)} />
-        </ThemeProvider>
+        <LiveEventAvailabilityProvider hasLiveEvent={Boolean(liveEvent)}>
+          <ThemeProvider>
+            {children}
+            <FloatingLiveScoreButton hasLiveEvent={Boolean(liveEvent)} />
+          </ThemeProvider>
+        </LiveEventAvailabilityProvider>
       </body>
     </html>
   )
