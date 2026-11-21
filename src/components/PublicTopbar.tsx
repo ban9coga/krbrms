@@ -142,8 +142,8 @@ export default function PublicTopbar({}: PublicTopbarProps) {
                 />
               </span>
               <span className="public-topbar-brand min-w-0">
-                <span className="block truncate text-sm font-black sm:text-base md:text-lg">
-                  RacePushbike
+                <span className="public-brand-wordmark block truncate text-sm font-black sm:text-base md:text-lg">
+                  RacePushbike.com
                 </span>
                 {eventBranding ? (
                   <span className="public-topbar-subtitle block truncate text-[11px] font-bold text-[#796657]">

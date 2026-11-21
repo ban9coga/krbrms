@@ -1114,19 +1114,7 @@ export default function LiveScoreClient({
                   </div>
                 )}
               </article>
-            ) : selectedStageTab ? (
-              <article className="public-panel-dark live-score-editorial-panel live-score-rotation-panel">
-                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="text-base font-black uppercase text-[#fff8e8]">{selectedStageTab.label}</h3>
-                  <span className="live-score-rotation-status rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[10px] font-black uppercase text-slate-200">
-                    {selectedStageTab.stages.length} Moto Tersedia
-                  </span>
-                </div>
-                <p className="text-xs font-semibold text-slate-300">
-                  Moto-moto untuk stage ini sudah digenerate. Hasilnya ditampilkan di bawah.
-                </p>
-              </article>
-            ) : activeRotatingMotoView ? (
+            ) : selectedStageTab ? null : activeRotatingMotoView ? (
               <section className="grid gap-4" aria-label={`${activeRotatingMotoView.title} per batch`}>
                 {activeRotatingMotoView.batches.map((batch) => {
                   const tableKey = `moto-${activeRotatingMotoView.index}-batch-${batch.batch_index}`

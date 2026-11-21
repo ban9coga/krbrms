@@ -9,7 +9,7 @@ export const metadata = {
 
 export default function UntukPanitiaPage() {
   return (
-    <div className="min-h-screen bg-[#f5ecd7] text-[#1d0d07]">
+    <div className="public-organizer-page min-h-screen bg-[#f5ecd7] text-[#1d0d07]">
       <MarketingTopbar variant="editorial" />
       <main className="mx-auto grid min-h-[calc(100svh-72px)] w-full max-w-5xl place-items-center px-4 py-10 sm:px-6">
         <section className="w-full overflow-hidden rounded-3xl border border-[#5a4032] bg-[#1d0d07] px-6 py-9 text-[#fff8e8] shadow-2xl sm:px-10 sm:py-12">

@@ -87,7 +87,7 @@ export default function CertificateClient({ eventId }: { eventId: string }) {
   }
 
   return (
-    <div className="public-page public-editorial-page min-h-screen bg-[#f5ecd7] text-[#1d0d07]">
+    <div className="public-page public-editorial-page public-editorial-certificate min-h-screen bg-[#f5ecd7] text-[#1d0d07]">
       <PublicTopbar />
       <main className="mx-auto grid w-full max-w-[900px] gap-5 px-4 pb-20 pt-6 sm:px-6 md:pt-10">
         <section className="rounded-[2rem] border border-[#4f372b] bg-[#1d0d07] px-5 py-7 text-[#fff8e8] shadow-[0_28px_70px_rgba(55,23,9,0.24)] sm:px-8">

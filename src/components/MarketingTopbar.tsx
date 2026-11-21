@@ -116,9 +116,9 @@ export default function MarketingTopbar({
               </span>
               <span className="marketing-topbar-brand min-w-0">
                 <span
-                  className={`block truncate font-black tracking-tight ${
+                  className={`public-brand-wordmark block truncate font-black tracking-tight ${
                     editorial
-                      ? 'text-sm text-[#1d0d07] sm:text-base'
+                      ? 'text-sm text-[#1d0d07] sm:text-base md:text-lg'
                       : `text-sm sm:text-base md:text-lg ${isDark ? 'text-slate-100' : 'text-slate-900'}`
                   }`}
                 >
