@@ -326,6 +326,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   const [activeStep, setActiveStep] = useState(1)
   const [categories, setCategories] = useState<CategoryItem[]>([])
   const [eventName, setEventName] = useState<string | null>(null)
+  const [eventPosterUrl, setEventPosterUrl] = useState<string | null>(null)
   const [businessSettings, setBusinessSettings] = useState<BusinessSettings | null>(null)
   const [businessSettingsLoaded, setBusinessSettingsLoaded] = useState(false)
   const [registrationOpen, setRegistrationOpen] = useState(true)
@@ -363,10 +364,12 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         const res = await fetch(`/api/events/${eventId}`)
         const json = await res.json()
         setEventName(json?.data?.name ?? null)
+        setEventPosterUrl(typeof json?.data?.event_poster_url === 'string' ? json.data.event_poster_url : null)
         setBusinessSettings((json?.data?.business_settings ?? null) as BusinessSettings | null)
         setRegistrationOpen(json?.data?.registration_open !== false)
       } catch {
         setEventName(null)
+        setEventPosterUrl(null)
         setBusinessSettings(null)
         setRegistrationOpen(true)
       } finally {
@@ -1387,7 +1390,13 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
             </div>
           </section>
         )}
-        <section className="registration-editorial-hero relative overflow-hidden rounded-[2rem] border border-[#4f372b] bg-[#1d0d07] px-5 py-6 text-[#fff8e8] shadow-[0_28px_70px_rgba(55,23,9,0.24)] sm:px-7 md:py-8">
+        <section
+          className="registration-editorial-hero relative overflow-hidden rounded-[2rem] border border-[#4f372b] bg-[#1d0d07] bg-cover bg-center px-5 py-6 text-[#fff8e8] shadow-[0_28px_70px_rgba(55,23,9,0.24)] sm:px-7 md:py-8"
+          style={eventPosterUrl ? { backgroundImage: `url("${eventPosterUrl.replace(/["\\\r\n]/g, '')}")` } : undefined}
+        >
+          {eventPosterUrl && (
+            <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-r from-[#1d0d07]/90 via-[#1d0d07]/75 to-[#1d0d07]/45" />
+          )}
           <div className="relative z-10 grid gap-5 md:grid-cols-[minmax(0,1fr)_240px] md:items-center">
             <div className="grid gap-3">
               <p className="text-xs font-black uppercase text-[#f3c63d]">Event Registration</p>
