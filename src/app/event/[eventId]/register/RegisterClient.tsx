@@ -326,7 +326,6 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   const [activeStep, setActiveStep] = useState(1)
   const [categories, setCategories] = useState<CategoryItem[]>([])
   const [eventName, setEventName] = useState<string | null>(null)
-  const [eventLogoUrl, setEventLogoUrl] = useState<string | null>(null)
   const [businessSettings, setBusinessSettings] = useState<BusinessSettings | null>(null)
   const [businessSettingsLoaded, setBusinessSettingsLoaded] = useState(false)
   const [registrationOpen, setRegistrationOpen] = useState(true)
@@ -364,12 +363,10 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         const res = await fetch(`/api/events/${eventId}`)
         const json = await res.json()
         setEventName(json?.data?.name ?? null)
-        setEventLogoUrl(typeof json?.data?.event_logo_url === 'string' ? json.data.event_logo_url : null)
         setBusinessSettings((json?.data?.business_settings ?? null) as BusinessSettings | null)
         setRegistrationOpen(json?.data?.registration_open !== false)
       } catch {
         setEventName(null)
-        setEventLogoUrl(null)
         setBusinessSettings(null)
         setRegistrationOpen(true)
       } finally {
@@ -1437,22 +1434,6 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                 </div>
               )}
             </div>
-            {eventLogoUrl && (
-              <div className="mx-auto w-full max-w-[210px] rounded-[1.5rem] border border-white/15 bg-white/5 p-3 shadow-[0_22px_55px_rgba(2,6,23,0.18)] ring-1 ring-white/5 backdrop-blur md:max-w-none">
-                <div className="relative flex aspect-[4/5] items-center justify-center overflow-hidden rounded-[1rem] bg-transparent">
-                  <Image
-                    src={eventLogoUrl}
-                    alt={`${publicEventTitle} logo`}
-                    fill
-                    sizes="(min-width: 768px) 210px, 70vw"
-                    className="block h-full w-full object-contain"
-                  />
-                </div>
-                <div className="mt-3 text-center text-[10px] font-black uppercase tracking-[0.18em] text-slate-300">
-                  Official Event
-                </div>
-              </div>
-            )}
           </div>
         </section>
 
