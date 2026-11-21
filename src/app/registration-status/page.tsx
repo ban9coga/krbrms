@@ -4,6 +4,7 @@ import Image from 'next/image'
 import { useEffect, useState } from 'react'
 import PublicTopbar from '../../components/PublicTopbar'
 import RiderNotificationButton from '../../components/RiderNotificationButton'
+import { useTheme } from '../../components/ThemeProvider'
 import { buildQrCodeUrl } from '../../lib/publicLinks'
 
 type RegistrationStatusData = {
@@ -83,6 +84,7 @@ const formatDateTime = (value: string | null) =>
     : null
 
 export default function RegistrationStatusPage() {
+  const { theme } = useTheme()
   const [registrationCode, setRegistrationCode] = useState('')
   const [contactPhone, setContactPhone] = useState('')
   const [result, setResult] = useState<RegistrationStatusData | null>(null)
@@ -143,7 +145,7 @@ export default function RegistrationStatusPage() {
   }
 
   return (
-    <div className="public-page public-editorial-page min-h-screen bg-[#f5ecd7] text-[#1d0d07]">
+    <div className={`public-page public-editorial-page registration-status-page min-h-screen bg-[#f5ecd7] text-[#1d0d07]${theme === 'dark' ? ' theme-dark' : ''}`}>
       <PublicTopbar />
       <main className="mx-auto grid w-full max-w-[900px] gap-5 px-4 pb-20 pt-6 sm:px-6 md:pt-10">
         <section className="rounded-[2rem] border border-[#4f372b] bg-[#1d0d07] px-5 py-7 text-[#fff8e8] shadow-[0_28px_70px_rgba(55,23,9,0.24)] sm:px-8">

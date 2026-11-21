@@ -23,10 +23,10 @@ export function LiveEventAvailabilityProvider({
 
 const footerLinks = [
   { href: '/', label: 'Home' },
-  { href: '/jadwal-race-pushbike', label: 'Jadwal Race' },
+  { href: '/jadwal-race-pushbike', label: 'Event' },
   { href: '/insight', label: 'Insight' },
   { href: '/registration-status', label: 'Cek Status' },
-  { href: '/jadwal-race-pushbike?status=live', label: 'Live Score' },
+  { href: '/live-results', label: 'Live Score' },
 ]
 
 export default function PublicBottomBar({ variant = 'default' }: { variant?: 'default' | 'editorial' }) {
@@ -38,11 +38,12 @@ export default function PublicBottomBar({ variant = 'default' }: { variant?: 'de
   const linkClass = `inline-flex items-center gap-1.5 transition-colors ${
     editorial ? 'hover:text-[#f3c63d]' : 'hover:text-white'
   }`
-  const isLiveActive = /^\/event\/[^/]+\/live-score(?:\/|$)/.test(pathname)
+  const isLiveActive = pathname === '/live-results' || /^\/event\/[^/]+\/live-score(?:\/|$)/.test(pathname)
   const isEventActive =
     pathname === '/jadwal-race-pushbike' ||
     pathname.startsWith('/jadwal-race-pushbike/') ||
     (pathname.startsWith('/event/') && !isLiveActive)
+  const isHomeActive = pathname === '/'
   const isStatusActive = pathname === '/registration-status' || pathname.startsWith('/registration-status/')
   const mobileItemClass = `public-mobile-bottom-item${editorial ? ' is-editorial' : ''}`
 
@@ -56,6 +57,18 @@ export default function PublicBottomBar({ variant = 'default' }: { variant?: 'de
     >
       <nav aria-label="Navigasi utama" className={`public-mobile-bottom-nav md:hidden${editorial ? ' is-editorial' : ''}`}>
         <Link
+          href="/"
+          aria-current={isHomeActive ? 'page' : undefined}
+          aria-label="Home"
+          className={`${mobileItemClass}${isHomeActive ? ' is-active' : ''}`}
+        >
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <path d="m3.5 10.5 8.5-7 8.5 7" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M5.5 9.5v10h13v-10M9.5 19.5v-6h5v6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span>Home</span>
+        </Link>
+        <Link
           href="/jadwal-race-pushbike"
           aria-current={isEventActive ? 'page' : undefined}
           className={`${mobileItemClass}${isEventActive ? ' is-active' : ''}`}
@@ -64,10 +77,10 @@ export default function PublicBottomBar({ variant = 'default' }: { variant?: 'de
             <rect x="3.5" y="4.5" width="17" height="16" rx="2.5" />
             <path d="M7.5 2.8v3.5M16.5 2.8v3.5M4 9h16M7.5 12.5h3M7.5 16h3M14 12.5h3" />
           </svg>
-          <span>Jadwal</span>
+          <span>Event</span>
         </Link>
         <Link
-          href="/jadwal-race-pushbike?status=live"
+          href="/live-results"
           aria-current={isLiveActive ? 'page' : undefined}
           aria-label="Buka Live Score"
           className={`${mobileItemClass}${isLiveActive ? ' is-active' : ''}`}

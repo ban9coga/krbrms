@@ -3387,6 +3387,10 @@ html[data-theme='dark'] .setting-toggle-control:has(input:checked) .setting-togg
   gap: 14px;
 }
 
+.homepage-event-collection-hint {
+  display: none;
+}
+
 .homepage-event-card {
   min-width: 0;
   overflow: hidden;
@@ -4166,7 +4170,7 @@ html[data-theme='dark'] .homepage-event-date {
   .public-mobile-bottom-nav {
     box-sizing: border-box;
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     align-items: stretch;
     min-height: 54px;
     padding: 3px 12px max(4px, env(safe-area-inset-bottom, 0px));
@@ -4272,6 +4276,20 @@ html[data-theme='dark'] .homepage-event-date {
 .public-editorial-topbar,
 .public-editorial-bottom-bar {
   font-family: var(--font-body), Arial, "Helvetica Neue", Helvetica, sans-serif;
+}
+
+.platform-logo-backing {
+  box-sizing: border-box;
+  display: inline-flex;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid #dfd1b8;
+  border-radius: 12px;
+  background: #f5ecd7;
 }
 
 .public-editorial-page h1,
@@ -4455,9 +4473,44 @@ html[data-theme='dark'] .homepage-event-date {
   font-weight: 750;
 }
 
+.dashboard-editorial-empty p {
+  margin: 0 0 12px;
+}
+
+.dashboard-editorial-empty a {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  border: 1px solid #f3c63d;
+  border-radius: 999px;
+  padding: 0 14px;
+  color: #f3c63d;
+  font-size: 12px;
+  font-weight: 850;
+  text-decoration: none;
+}
+
+.dashboard-editorial-empty a:hover {
+  background: #f3c63d;
+  color: #1d0d07;
+}
+
 .dashboard-editorial-section-finished .dashboard-editorial-empty {
   border-color: #bba98c;
   color: #675344;
+}
+
+.schedule-events-page .dashboard-editorial-section-upcoming .dashboard-editorial-empty,
+.schedule-events-page .dashboard-editorial-section-finished .dashboard-editorial-empty {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 4px 0;
+  font-size: 14px;
+}
+
+.schedule-events-page .dashboard-editorial-section-head > span {
+  text-transform: none;
 }
 
 .live-score-editorial-page {
@@ -7565,13 +7618,43 @@ html[data-theme='dark'] .public-mobile-menu-account-link:hover {
   }
 
   .homepage-event-collection-list {
-    grid-template-columns: minmax(0, 1fr);
+    display: flex;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
     gap: 10px;
+    margin-right: -14px;
+    padding-right: 14px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .homepage-event-collection-list::-webkit-scrollbar {
+    display: none;
+  }
+
+  .homepage-event-collection-hint {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 5px;
+    margin: -5px 0 10px;
+    color: #765e4c;
+    font-size: 11px;
+    font-weight: 750;
+  }
+
+  .homepage-event-collection-hint span {
+    color: #a63a17;
+    font-size: 15px;
   }
 
   .homepage-event-card {
+    flex: 0 0 min(82vw, 330px);
     border-radius: 16px;
     padding: 0;
+    scroll-snap-align: start;
+    scroll-snap-stop: normal;
   }
 
   .homepage-event-card-cover {
@@ -7668,6 +7751,14 @@ html[data-theme='dark'] .public-editorial-topbar .public-mobile-menu-link.is-act
     padding-block: 0;
     font-size: 12px;
   }
+
+  .public-mobile-bottom-nav {
+    display: grid !important;
+    grid-auto-flow: column;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    grid-template-rows: minmax(54px, auto);
+    flex-wrap: nowrap;
+  }
 }
 
 /* Keep every homepage event card on the same RacePushbike color palette. */
@@ -7742,4 +7833,77 @@ html[data-theme='dark'] .public-editorial-topbar .public-mobile-menu-link.is-act
   border-color: #ffdc5d;
   background-color: #ffdc5d;
   color: #1d0d07;
+}
+
+.registration-status-page.theme-dark {
+  background: #120904 !important;
+  color: #fff8e8 !important;
+}
+
+.registration-status-page.theme-dark main > section:not(:first-child) {
+  border-color: #4f372b !important;
+  background: #1d0d07 !important;
+  color: #fff8e8 !important;
+}
+
+.registration-status-page.theme-dark [class~="bg-white"],
+.registration-status-page.theme-dark [class~="bg-[#fff8e8]"],
+.registration-status-page.theme-dark [class~="bg-[#f8eedb]"],
+.registration-status-page.theme-dark [class~="bg-[#efe2c7]"] {
+  border-color: #5a4032 !important;
+  background-color: #2a160d !important;
+  color: #fff8e8 !important;
+}
+
+.registration-status-page.theme-dark [class~="border-[#dfd1b8]"],
+.registration-status-page.theme-dark [class~="border-[#d9c9ae]"],
+.registration-status-page.theme-dark [class~="border-[#e2d5bd]"] {
+  border-color: #5a4032 !important;
+}
+
+.registration-status-page.theme-dark [class~="text-[#5f4638]"],
+.registration-status-page.theme-dark [class~="text-[#58493d]"],
+.registration-status-page.theme-dark [class~="text-[#796657]"] {
+  color: #c9b7a5 !important;
+}
+
+.registration-status-page.theme-dark [class~="text-[#1d0d07]"] {
+  color: #fff8e8 !important;
+}
+
+.registration-status-page.theme-dark [class~="text-[#087443]"] {
+  color: #8de0ae !important;
+}
+
+.registration-status-page.theme-dark [class~="text-[#8a5700]"] {
+  color: #f3c63d !important;
+}
+
+.registration-status-page.theme-dark input {
+  border-color: #705547 !important;
+  background: #2a160d !important;
+  color: #fff8e8 !important;
+  box-shadow: none !important;
+}
+
+.registration-status-page.theme-dark input::placeholder {
+  color: #a58b72 !important;
+}
+
+.registration-status-page.theme-dark [class*="border-[#9bc9ae]"] {
+  border-color: #408764 !important;
+  background-color: #123b2c !important;
+  color: #9be4b2 !important;
+}
+
+.registration-status-page.theme-dark [class*="border-[#ef9a9a]"] {
+  border-color: #954747 !important;
+  background-color: #4a1e1e !important;
+  color: #ffb3b3 !important;
+}
+
+.registration-status-page.theme-dark [class*="border-[#efd289]"] {
+  border-color: #846824 !important;
+  background-color: #382c12 !important;
+  color: #f2cf72 !important;
 }

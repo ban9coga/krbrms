@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { redirect } from 'next/navigation'
 import EventCard from '../../components/EventCard'
 import MarketingTopbar from '../../components/MarketingTopbar'
 import { adminClient } from '../../lib/auth'
@@ -133,65 +134,37 @@ export default async function JadwalRacePushbikePage({
 }) {
   const params = await searchParams
   const liveOnly = params.status === 'live'
-  const [upcomingRaw, liveRaw, finishedRaw] = await Promise.all([
+  if (liveOnly) redirect('/live-results')
+
+  const [upcomingRaw, finishedRaw] = await Promise.all([
     fetchEvents('UPCOMING'),
-    fetchEvents('LIVE'),
     fetchEvents('FINISHED'),
   ])
-  const eventIds = Array.from(new Set([...upcomingRaw, ...liveRaw, ...finishedRaw].map((event) => event.id)))
+  const eventIds = Array.from(new Set([...upcomingRaw, ...finishedRaw].map((event) => event.id)))
   const [settingsMap, registrationAvailability] = await Promise.all([
     loadEventSettings(eventIds),
     loadRegistrationAvailability(upcomingRaw.map((event) => event.id)),
   ])
   const upcomingEvents = attachSettings(upcomingRaw, settingsMap)
-  const liveEvents = attachSettings(liveRaw, settingsMap)
   const finishedEvents = attachSettings(finishedRaw, settingsMap)
 
   return (
-    <div className="public-page homepage-editorial-page dashboard-editorial-page">
+    <div className="public-page homepage-editorial-page dashboard-editorial-page schedule-events-page">
       <MarketingTopbar variant="editorial" />
 
       <main className="dashboard-editorial-main">
-        {!liveOnly && (
-          <header className="dashboard-editorial-heading">
-            <h1>Jadwal Race Pushbike Indonesia</h1>
-          </header>
-        )}
+        <header className="dashboard-editorial-heading">
+          <h1>Event</h1>
+        </header>
 
-        <section id="live-events" className="dashboard-editorial-section dashboard-editorial-section-live scroll-mt-24">
+        <section className="dashboard-editorial-section dashboard-editorial-section-upcoming">
           <div className="dashboard-editorial-section-head">
             <div>
-              {liveOnly ? <h1>Event Live</h1> : <h2>Event Sedang Berlangsung</h2>}
+              <h2>Akan Datang</h2>
             </div>
-            <span>{liveEvents.length} event</span>
-          </div>
-          {liveEvents.length === 0 ? (
-            <div className="dashboard-editorial-empty">Belum ada race pushbike yang sedang live.</div>
-          ) : (
-            <div className="dashboard-editorial-grid">
-              {liveEvents.map((event, idx) => (
-                <EventCard
-                  key={event.id}
-                  event={event}
-                  index={idx}
-                  logoUrl={settingsMap.get(event.id)?.logo ?? null}
-                  slogan={settingsMap.get(event.id)?.slogan ?? null}
-                  variant="editorial"
-                />
-              ))}
-            </div>
-          )}
-        </section>
-
-        {!liveOnly && <section className="dashboard-editorial-section dashboard-editorial-section-upcoming">
-          <div className="dashboard-editorial-section-head">
-            <div>
-              <h2>Jadwal Event yang Akan Datang</h2>
-            </div>
-            <span>{upcomingEvents.length} event</span>
           </div>
           {upcomingEvents.length === 0 ? (
-            <div className="dashboard-editorial-empty">Belum ada jadwal race pushbike yang dibuka untuk publik.</div>
+            <div className="dashboard-editorial-empty">Belum ada event mendatang.</div>
           ) : (
             <div className="dashboard-editorial-grid">
               {upcomingEvents.map((event, idx) => (
@@ -207,17 +180,16 @@ export default async function JadwalRacePushbikePage({
               ))}
             </div>
           )}
-        </section>}
+        </section>
 
-        {!liveOnly && <section className="dashboard-editorial-section dashboard-editorial-section-finished">
+        <section className="dashboard-editorial-section dashboard-editorial-section-finished">
           <div className="dashboard-editorial-section-head">
             <div>
-              <h2>Arsip Event Selesai</h2>
+              <h2>Selesai</h2>
             </div>
-            <span>{finishedEvents.length} event</span>
           </div>
           {finishedEvents.length === 0 ? (
-            <div className="dashboard-editorial-empty">Belum ada arsip hasil race pushbike yang tampil untuk publik.</div>
+            <div className="dashboard-editorial-empty">Belum ada hasil event yang ditampilkan.</div>
           ) : (
             <div className="dashboard-editorial-grid">
               {finishedEvents.map((event, idx) => (
@@ -232,7 +204,7 @@ export default async function JadwalRacePushbikePage({
               ))}
             </div>
           )}
-        </section>}
+        </section>
       </main>
     </div>
   )

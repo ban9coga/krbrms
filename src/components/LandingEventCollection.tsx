@@ -61,13 +61,21 @@ export default function LandingEventCollection({ events }: { events: LandingEven
             </button>
           ))}
         </div>
+        <p className="homepage-event-collection-hint" aria-hidden="true">
+          Geser ke samping untuk melihat event lainnya <span>→</span>
+        </p>
 
         {visibleEvents.length === 0 ? (
           <p className="homepage-event-collection-empty" role="status">
             {activeFilter === 'ALL' ? 'Belum ada event untuk ditampilkan.' : `Belum ada event ${filters.find((filter) => filter.id === activeFilter)?.label.toLowerCase()}.`}
           </p>
         ) : (
-          <div className="homepage-event-collection-list">
+          <div
+            className="homepage-event-collection-list"
+            role="region"
+            aria-label="Kartu event, geser ke samping untuk melihat lainnya"
+            tabIndex={0}
+          >
             {visibleEvents.map((event) => {
               const date = dateParts(event.event_date)
               const detailHref = `/event/${event.id}`

@@ -79,7 +79,7 @@ export default function HeroRace({ liveEvent }: { liveEvent: LiveEventItem | nul
               Cari Event &amp; Daftar
             </Link>
             <Link
-              href="/jadwal-race-pushbike?status=live"
+              href="/live-results"
               className={`homepage-editorial-action homepage-editorial-action-secondary ${
                 liveEvent ? 'homepage-editorial-live-score-cta' : ''
               }`}

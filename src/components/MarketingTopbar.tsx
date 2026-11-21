@@ -104,14 +104,16 @@ export default function MarketingTopbar({
         <div className={`relative w-full px-4 md:px-6 ${editorial ? 'py-2.5' : 'py-3'}`}>
           <div className="flex items-center justify-between gap-4">
             <Link href="/" className="flex min-w-0 items-center gap-3">
-              <Image
-                src="/platform-logo.png"
-                alt="Platform Logo"
-                width={45}
-                height={32}
-                sizes="45px"
-                className={editorial ? 'h-9 w-9 object-contain' : 'h-10 w-10 object-contain'}
-              />
+              <span className="platform-logo-backing">
+                <Image
+                  src="/platform-logo.png"
+                  alt="Platform Logo"
+                  width={45}
+                  height={32}
+                  sizes="45px"
+                  className="h-9 w-9 object-contain"
+                />
+              </span>
               <span className="marketing-topbar-brand min-w-0">
                 <span
                   className={`block truncate font-black tracking-tight ${

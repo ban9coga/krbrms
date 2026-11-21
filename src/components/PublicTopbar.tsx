@@ -131,14 +131,14 @@ export default function PublicTopbar({}: PublicTopbarProps) {
         <div className="relative w-full px-4 py-2.5 md:px-6">
           <div className="flex items-center justify-between gap-4">
             <Link href="/" className="flex min-w-0 items-center gap-3">
-              <span className="relative flex h-10 w-10 items-center justify-center">
+              <span className="platform-logo-backing">
                 <Image
                   src="/platform-logo.png"
                   alt="Platform Logo"
                   width={50}
                   height={35}
                   sizes="50px"
-                  className="relative h-10 w-10 object-contain"
+                  className="h-9 w-9 object-contain"
                 />
               </span>
               <span className="public-topbar-brand min-w-0">
