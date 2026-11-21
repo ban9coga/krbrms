@@ -4307,6 +4307,13 @@ html[data-theme='dark'] .homepage-event-date {
   letter-spacing: 0;
 }
 
+.homepage-editorial-topbar .public-brand-wordmark,
+.public-editorial-topbar .public-brand-wordmark {
+  font-family: var(--font-body), Arial, "Helvetica Neue", Helvetica, sans-serif;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
 .public-editorial-topbar *,
 .public-editorial-page *,
 .public-editorial-bottom-bar * {
