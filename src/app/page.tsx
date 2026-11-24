@@ -224,6 +224,7 @@ export default async function LandingPage() {
                         alt={item.alt ?? `${item.name} logo`}
                         width={112}
                         height={64}
+                        unoptimized
                         className="max-h-full max-w-full object-contain"
                       />
                     </div>
