@@ -23,24 +23,56 @@ const parseRaceFormatSettings = (value: unknown): Record<string, unknown> => {
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
   const status = searchParams.get('status')
+  const adminPage = searchParams.get('admin_page') === 'true'
+  const page = adminPage ? Math.max(0, Number.parseInt(searchParams.get('page') ?? '0', 10) || 0) : 0
+  const pageSize = adminPage ? Math.min(100, Math.max(1, Number.parseInt(searchParams.get('page_size') ?? '25', 10) || 25)) : null
+  const search = adminPage ? (searchParams.get('q') ?? '').trim().replace(/[%,_(),'"\\]/g, ' ') : ''
+  const scope = adminPage ? searchParams.get('scope') : null
   const auth = await requireBackoffice(req.headers.get('authorization'))
+  if (adminPage && !auth.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  let accessibleEventIds: string[] | null = null
   let query = adminClient
     .from('events')
-    .select('id, name, location, event_date, status, is_public, created_at, updated_at')
+    .select('id, name, location, event_date, status, is_public, created_at, updated_at', adminPage ? { count: 'exact' } : {})
     .order('event_date', { ascending: false })
   if (status) {
     query = query.eq('status', status)
   }
+  if (search) query = query.or(`name.ilike.%${search}%,location.ilike.%${search}%`)
   if (!auth.ok) {
     query = query.eq('is_public', true)
   } else if (auth.role !== 'SUPER_ADMIN') {
-    const accessibleEventIds = await getAccessibleEventIds(auth.user.id, ['ADMIN', 'SUPER_ADMIN', 'REGISTRATION_APPROVER', 'RC_ADMIN'])
+    accessibleEventIds = await getAccessibleEventIds(auth.user.id, ['ADMIN', 'SUPER_ADMIN', 'REGISTRATION_APPROVER', 'RC_ADMIN'])
     if (accessibleEventIds.length === 0) {
       return NextResponse.json({ data: [] })
     }
     query = query.in('id', accessibleEventIds)
   }
-  const { data, error } = await query
+
+  if (adminPage && (scope === 'PUBLIC' || scope === 'INTERNAL')) {
+    let settingsQuery = adminClient
+      .from('event_settings')
+      .select('event_id')
+      .contains('race_format_settings', { event_scope: 'INTERNAL' })
+    if (accessibleEventIds) {
+      if (accessibleEventIds.length === 0) return NextResponse.json({ data: [], total: 0, page, page_size: pageSize })
+      settingsQuery = settingsQuery.in('event_id', accessibleEventIds)
+    }
+    const { data: internalSettings, error: scopeError } = await settingsQuery
+    if (scopeError) return NextResponse.json({ error: scopeError.message }, { status: 400 })
+    const internalIds = Array.from(new Set((internalSettings ?? []).map((row) => row.event_id).filter((id): id is string => typeof id === 'string')))
+    if (scope === 'INTERNAL') {
+      if (internalIds.length === 0) return NextResponse.json({ data: [], total: 0, page, page_size: pageSize })
+      query = query.in('id', internalIds)
+    } else if (internalIds.length > 0) {
+      query = query.not('id', 'in', `(${internalIds.join(',')})`)
+    }
+  }
+
+  if (adminPage && pageSize !== null) {
+    query = query.range(page * pageSize, page * pageSize + pageSize - 1)
+  }
+  const { data, error, count } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
   const events = (data ?? []) as Array<Record<string, unknown>>
@@ -79,7 +111,9 @@ export async function GET(req: Request) {
     }
   })
 
-  return NextResponse.json({ data: normalizedData })
+  return NextResponse.json(adminPage
+    ? { data: normalizedData, total: count ?? normalizedData.length, page, page_size: pageSize }
+    : { data: normalizedData })
 }
 
 export async function POST(req: Request) {

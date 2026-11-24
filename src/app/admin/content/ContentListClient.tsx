@@ -1,5 +1,7 @@
 'use client'
 
+import { appConfirm } from '@/src/lib/appDialog'
+
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useApiFetch } from '@/src/hooks/useApiFetch'
@@ -63,7 +65,7 @@ export default function ContentListClient() {
   }, [load, search])
 
   const deleteContent = useCallback(async (item: ContentListItem) => {
-    const confirmed = window.confirm(
+    const confirmed = await appConfirm(
       `Hapus konten "${item.title}"? Artikel Insight dan paket Instagram terkait juga akan dihapus. Tindakan ini tidak bisa dibatalkan.`
     )
     if (!confirmed) return

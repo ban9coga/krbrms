@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { randomInt } from 'node:crypto'
 import { adminClient, requireScopedEventWorkspace } from '../../../../../lib/auth'
-import { isMissingPrimaryCategoryColumnError } from '../../../../../lib/categoryAssignment'
+import { isMissingPrimaryCategoryColumnError, riderBelongsToPrimaryCategory } from '../../../../../lib/categoryAssignment'
 import { normalizeDrawCategoryConfig, normalizeQualificationBatchMode } from '../../../../../lib/drawConfig'
 
 type CategoryRow = {
@@ -9,6 +9,9 @@ type CategoryRow = {
   year: number
   year_min?: number | null
   year_max?: number | null
+  category_basis?: 'BIRTH_YEAR' | 'AGE' | null
+  age_min?: number | null
+  age_max?: number | null
   gender: 'BOY' | 'GIRL' | 'MIX'
   enabled: boolean
 }
@@ -20,6 +23,7 @@ type RiderRow = {
   plate_number: string
   plate_suffix?: string | null
   birth_year: number
+  date_of_birth?: string | null
   primary_category_id?: string | null
   gender: 'BOY' | 'GIRL'
 }
@@ -186,7 +190,7 @@ const sameSet = (a: string[], b: string[]) => {
 const loadCategory = async (eventId: string, categoryId: string) => {
   const { data, error } = await adminClient
     .from('categories')
-    .select('id, year, year_min, year_max, gender, enabled')
+    .select('id, year, year_min, year_max, category_basis, age_min, age_max, gender, enabled')
     .eq('event_id', eventId)
     .eq('id', categoryId)
     .single()
@@ -202,8 +206,8 @@ const loadRidersForCategory = async (eventId: string, category: CategoryRow) => 
       .from('riders')
       .select(
         supportsPrimaryCategory
-          ? 'id, name, no_plate_display, plate_number, plate_suffix, birth_year, primary_category_id, gender'
-          : 'id, name, no_plate_display, plate_number, plate_suffix, birth_year, gender'
+          ? 'id, name, no_plate_display, plate_number, plate_suffix, birth_year, date_of_birth, primary_category_id, gender'
+          : 'id, name, no_plate_display, plate_number, plate_suffix, birth_year, date_of_birth, gender'
       )
       .eq('event_id', eventId)
   let query = buildQuery(true)
@@ -213,6 +217,24 @@ const loadRidersForCategory = async (eventId: string, category: CategoryRow) => 
     .eq('event_id', eventId)
     .eq('category_id', category.id)
   const extraIds = (extraRows ?? []).map((row) => row.rider_id)
+
+  if (category.category_basis === 'AGE') {
+    let { data, error } = await query
+    if (error && isMissingPrimaryCategoryColumnError(error.message)) {
+      ;({ data, error } = await buildQuery(false))
+    }
+    if (error) return { data: null, error }
+    const { data: event } = await adminClient.from('events').select('event_date').eq('id', eventId).maybeSingle()
+    const eventDate = typeof event?.event_date === 'string' ? event.event_date : null
+    const allRows = (data ?? []) as unknown as RiderRow[]
+    const rows = allRows.filter((rider) =>
+      extraIds.includes(rider.id) || riderBelongsToPrimaryCategory(rider as RiderRow, category, eventDate)
+    ) as unknown as RiderRow[]
+    return { data: rows.sort((a, b) => {
+      const plateCompare = String(a.plate_number).localeCompare(String(b.plate_number), undefined, { numeric: true })
+      return plateCompare || String(a.plate_suffix ?? '').localeCompare(String(b.plate_suffix ?? ''))
+    }), error: null }
+  }
 
   const withPrimaryFilters = () => {
     const legacyFilter =
@@ -310,7 +332,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   const riderBatches = (body?.rider_batches ?? []) as string[][]
   const riderBatchesMoto2 = (body?.rider_batches_moto2 ?? []) as string[][]
   const riderBatchesMoto3 = (body?.rider_batches_moto3 ?? []) as string[][]
-  const batchSize = Math.max(4, Math.min(8, Number(body?.batch_size ?? 8)))
+  const requestedBatchSize = Number(body?.batch_size)
   const hasCustomMoto2 = Array.isArray(riderIdsMoto2) && riderIdsMoto2.length > 0
   const hasManualBatches = Array.isArray(riderBatches) && riderBatches.length > 0
   const hasManualMoto2Batches = Array.isArray(riderBatchesMoto2) && riderBatchesMoto2.length > 0
@@ -337,6 +359,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   if (drawConfiguration.error) return NextResponse.json({ error: drawConfiguration.error }, { status: 400 })
 
+  const gateCapacity = Math.max(1, Number(drawConfiguration.gatePositions ?? 8))
+  const batchSize = Math.max(
+    1,
+    Math.min(
+      gateCapacity,
+      Number.isFinite(requestedBatchSize) && requestedBatchSize > 0 ? requestedBatchSize : gateCapacity
+    )
+  )
   const allowedIds = new Set((riders ?? []).map((r) => r.id))
   const effectiveBatches = hasManualBatches ? riderBatches.filter((batch) => Array.isArray(batch) && batch.length > 0) : chunk(riderIds, batchSize)
   const effectiveRiderIds = hasManualBatches ? flatten(effectiveBatches) : riderIds
@@ -391,9 +421,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     )
   }
 
-  // The error response above has already returned, but keep this value concrete
-  // for TypeScript because loadDrawConfiguration has an error-result branch.
-  const gateCapacity = Math.max(1, Number(drawConfiguration.gatePositions ?? 8))
   const configuredBatchSize = Math.max(
     1,
     Math.min(gateCapacity, drawConfiguration.config?.batch_size ?? gateCapacity)

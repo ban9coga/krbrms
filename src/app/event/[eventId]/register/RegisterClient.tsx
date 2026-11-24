@@ -1,9 +1,14 @@
 'use client'
 
+import { appAlert } from '@/src/lib/appDialog'
+
+import Link from 'next/link'
 import Image from 'next/image'
 import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent, type DragEvent } from 'react'
 import PublicTopbar from '../../../../components/PublicTopbar'
+import PublicEventFacts from '../../../../components/PublicEventFacts'
 import {
+  calculateAgeOnDate,
   getExactPrimaryCategoryCandidates,
   getFallbackPrimaryCategoryCandidates,
 } from '../../../../lib/categoryAssignment'
@@ -20,6 +25,9 @@ type CategoryItem = {
   year: number
   year_min?: number
   year_max?: number
+  category_basis?: 'BIRTH_YEAR' | 'AGE'
+  age_min?: number | null
+  age_max?: number | null
   capacity?: number | null
   filled?: number
   remaining?: number | null
@@ -38,6 +46,11 @@ type RiderForm = {
   club: string
   primaryCategoryId: string
   extraCategoryId: string
+  bundleId: string
+  pairedEventSelected: boolean
+  pairedPrimaryCategoryId: string
+  pairedExtraCategoryId: string
+  pairedBundleId: string
   requestedPlateNumber: string
   requestedPlateSuffix: string
   usePlateSuffix: boolean
@@ -47,6 +60,8 @@ type RiderForm = {
   photoUploadStatus?: UploadStatus
   photoUploadError?: string
   docKkUrl?: string | null
+  docKkPreviewUrl?: string | null
+  docKkPreviewType?: 'image' | 'pdf' | null
   docKkUploadStatus?: UploadStatus
   docKkUploadError?: string
 }
@@ -61,6 +76,8 @@ type PlateCheckState = {
 
 type RegistrationSuccess = {
   registrationCode: string
+  pairedRegistrationCode?: string | null
+  pairedEventName?: string | null
   riderNames: string[]
   totalAmount: number
   hasContactEmail: boolean
@@ -206,6 +223,11 @@ const initialRider = (): RiderForm => ({
   club: '',
   primaryCategoryId: '',
   extraCategoryId: '',
+  bundleId: '',
+  pairedEventSelected: false,
+  pairedPrimaryCategoryId: '',
+  pairedExtraCategoryId: '',
+  pairedBundleId: '',
   requestedPlateNumber: '',
   requestedPlateSuffix: '',
   usePlateSuffix: false,
@@ -215,6 +237,8 @@ const initialRider = (): RiderForm => ({
   photoUploadStatus: 'idle',
   photoUploadError: '',
   docKkUrl: null,
+  docKkPreviewUrl: null,
+  docKkPreviewType: null,
   docKkUploadStatus: 'idle',
   docKkUploadError: '',
 })
@@ -326,15 +350,29 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   const [activeStep, setActiveStep] = useState(1)
   const [categories, setCategories] = useState<CategoryItem[]>([])
   const [eventName, setEventName] = useState<string | null>(null)
+  const [eventDate, setEventDate] = useState<string | null>(null)
+  const [eventLocation, setEventLocation] = useState<string | null>(null)
   const [eventPosterUrl, setEventPosterUrl] = useState<string | null>(null)
   const [businessSettings, setBusinessSettings] = useState<BusinessSettings | null>(null)
+  const [pairedEvent, setPairedEvent] = useState<{ id: string; name: string; eventDate: string | null; registrationOpen: boolean } | null>(null)
+  const [pairedCategories, setPairedCategories] = useState<CategoryItem[]>([])
+  const [pairedBusinessSettings, setPairedBusinessSettings] = useState<BusinessSettings | null>(null)
+  const [pairedExtraPrice, setPairedExtraPrice] = useState(DEFAULT_EXTRA_PRICE)
+  const [pairedRequireJerseySize, setPairedRequireJerseySize] = useState(false)
   const [businessSettingsLoaded, setBusinessSettingsLoaded] = useState(false)
   const [registrationOpen, setRegistrationOpen] = useState(true)
   const [contactName, setContactName] = useState('')
   const [contactPhone, setContactPhone] = useState('')
+  const [prefillLoading, setPrefillLoading] = useState(false)
+  const [prefillMessage, setPrefillMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [prefillCandidates, setPrefillCandidates] = useState<Array<{ id: string; masked_name: string }>>([])
+  const [prefillModalOpen, setPrefillModalOpen] = useState(false)
+  const [selectedPrefillRiderIds, setSelectedPrefillRiderIds] = useState<string[]>([])
+  const [prefillDateOfBirths, setPrefillDateOfBirths] = useState<Record<string, string>>({})
+  const [loadedPrefillIds, setLoadedPrefillIds] = useState<string[]>([])
   const [contactEmail, setContactEmail] = useState('')
-  const [communityName, setCommunityName] = useState('')
   const [riders, setRiders] = useState<RiderForm[]>([initialRider()])
+  const eventBundleSelected = riders.some((rider) => rider.pairedEventSelected)
   const [basePrice, setBasePrice] = useState(DEFAULT_BASE_PRICE)
   const [extraPrice, setExtraPrice] = useState(DEFAULT_EXTRA_PRICE)
   const [requireJerseySize, setRequireJerseySize] = useState(false)
@@ -364,11 +402,15 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         const res = await fetch(`/api/events/${eventId}`)
         const json = await res.json()
         setEventName(json?.data?.name ?? null)
+        setEventDate(typeof json?.data?.event_date === 'string' ? json.data.event_date : null)
+        setEventLocation(typeof json?.data?.location === 'string' ? json.data.location : null)
         setEventPosterUrl(typeof json?.data?.event_poster_url === 'string' ? json.data.event_poster_url : null)
         setBusinessSettings((json?.data?.business_settings ?? null) as BusinessSettings | null)
         setRegistrationOpen(json?.data?.registration_open !== false)
       } catch {
         setEventName(null)
+        setEventDate(null)
+        setEventLocation(null)
         setEventPosterUrl(null)
         setBusinessSettings(null)
         setRegistrationOpen(true)
@@ -408,6 +450,61 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     loadCategories()
     loadSettings()
   }, [eventId])
+
+  useEffect(() => {
+    const offer = businessSettings?.event_bundle_offer
+    if (!offer?.enabled || !offer.paired_event_id || offer.paired_event_id === eventId) {
+      setPairedEvent(null)
+      setPairedCategories([])
+      setPairedBusinessSettings(null)
+      setRiders((current) => current.map((rider) => ({
+        ...rider,
+        pairedEventSelected: false,
+        pairedPrimaryCategoryId: '',
+        pairedExtraCategoryId: '',
+        pairedBundleId: '',
+      })))
+      return
+    }
+
+    let cancelled = false
+    const loadPairedEvent = async () => {
+      try {
+        const [eventResponse, categoriesResponse, settingsResponse] = await Promise.all([
+          fetch(`/api/events/${offer.paired_event_id}`),
+          fetch(`/api/events/${offer.paired_event_id}/categories`),
+          fetch(`/api/events/${offer.paired_event_id}/settings`),
+        ])
+        const [eventJson, categoriesJson, settingsJson] = await Promise.all([
+          eventResponse.json(), categoriesResponse.json(), settingsResponse.json(),
+        ])
+        if (!eventResponse.ok || !categoriesResponse.ok || !settingsResponse.ok) throw new Error('Data event pasangan belum tersedia.')
+        if (cancelled) return
+        const event = eventJson?.data
+        const settings = settingsJson?.data
+        setPairedEvent({
+          id: offer.paired_event_id,
+          name: typeof event?.name === 'string' ? event.name : offer.name,
+          eventDate: typeof event?.event_date === 'string' ? event.event_date : null,
+          registrationOpen: event?.registration_open !== false && settings?.registration_open !== false && event?.status !== 'FINISHED',
+        })
+        setPairedCategories(((categoriesJson?.data ?? []) as CategoryItem[]).filter((category) => category.enabled !== false))
+        setPairedBusinessSettings((event?.business_settings ?? settings?.business_settings ?? null) as BusinessSettings | null)
+        setPairedRequireJerseySize(Boolean(settings?.require_jersey_size))
+        const extra = Number(settings?.extra_price)
+        setPairedExtraPrice(Number.isFinite(extra) && extra >= 0 ? extra : DEFAULT_EXTRA_PRICE)
+      } catch {
+        if (!cancelled) {
+          setPairedEvent(null)
+          setPairedCategories([])
+          setPairedBusinessSettings(null)
+          setPairedRequireJerseySize(false)
+        }
+      }
+    }
+    void loadPairedEvent()
+    return () => { cancelled = true }
+  }, [businessSettings?.event_bundle_offer, eventId])
 
   const deletePendingUpload = async (path: string | null | undefined) => {
     if (!path) return
@@ -470,6 +567,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
               ...rider,
               [fileField]: file,
               [urlField]: null,
+              ...(kind === 'document' ? { docKkPreviewUrl: null, docKkPreviewType: null } : {}),
               [statusField]: 'uploading',
               [errorField]: '',
             }
@@ -560,6 +658,8 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     ) {
       normalizedUpdates.primaryCategoryId = ''
       normalizedUpdates.extraCategoryId = ''
+      normalizedUpdates.pairedPrimaryCategoryId = ''
+      normalizedUpdates.pairedExtraCategoryId = ''
     }
 
     if (Object.prototype.hasOwnProperty.call(normalizedUpdates, 'dateOfBirth')) {
@@ -597,6 +697,127 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     }
   }
 
+  const clearPrefillLookup = () => {
+    setPrefillCandidates([])
+    setPrefillModalOpen(false)
+    setSelectedPrefillRiderIds([])
+    setPrefillDateOfBirths({})
+    setPrefillMessage(null)
+  }
+
+  const lookupPreviousRiders = async () => {
+    if (!isValidWhatsappNumber(contactPhone)) {
+      setPrefillMessage({ type: 'error', text: 'Isi nomor WhatsApp wali yang sama seperti pendaftaran sebelumnya.' })
+      return
+    }
+    if (contactEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail.trim())) {
+      setPrefillMessage({ type: 'error', text: 'Format email wali belum benar.' })
+      return
+    }
+
+    setPrefillLoading(true)
+    setPrefillMessage(null)
+    try {
+      const response = await fetch(`/api/public/events/${eventId}/registration-prefill`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'lookup', contact_phone: normalizeWhatsappDigits(contactPhone), contact_email: contactEmail.trim().toLowerCase() }),
+      })
+      const json = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(json?.error || 'Data rider sebelumnya gagal dimuat.')
+      const candidates = Array.isArray(json?.data?.riders) ? json.data.riders : []
+      if (candidates.length === 0) throw new Error('Tidak ditemukan rider pada pendaftaran dengan nomor WhatsApp dan email tersebut.')
+      setPrefillCandidates(candidates)
+      setPrefillModalOpen(true)
+      setSelectedPrefillRiderIds([])
+      setPrefillDateOfBirths({})
+      setPrefillMessage({ type: 'success', text: `Ditemukan ${candidates.length} rider. Pilih nama yang cocok untuk melanjutkan verifikasi.` })
+      return true
+    } catch (error) {
+      setPrefillCandidates([])
+      setPrefillMessage({ type: 'error', text: error instanceof Error ? error.message : 'Data rider sebelumnya gagal dimuat.' })
+      return false
+    } finally {
+      setPrefillLoading(false)
+    }
+  }
+
+  const loadPreviousRiders = async () => {
+    if (selectedPrefillRiderIds.length === 0 || selectedPrefillRiderIds.some((id) => !prefillDateOfBirths[id])) {
+      setPrefillMessage({ type: 'error', text: 'Pilih satu atau beberapa rider, lalu isi tanggal lahir masing-masing.' })
+      return
+    }
+    setPrefillLoading(true)
+    setPrefillMessage(null)
+    try {
+      const response = await fetch(`/api/public/events/${eventId}/registration-prefill`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'load_many',
+          contact_phone: normalizeWhatsappDigits(contactPhone),
+          contact_email: contactEmail.trim().toLowerCase(),
+          riders: selectedPrefillRiderIds.map((id) => ({ id, date_of_birth: prefillDateOfBirths[id] })),
+        }),
+      })
+      const json = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(json?.error || 'Verifikasi data rider gagal.')
+      const sourceRiders = Array.isArray(json?.data?.riders) ? json.data.riders : []
+      if (sourceRiders.length !== selectedPrefillRiderIds.length || sourceRiders.some((rider: { name?: unknown }) => typeof rider?.name !== 'string')) {
+        throw new Error('Data rider tidak lengkap. Coba verifikasi lagi.')
+      }
+
+      const duplicateRider = sourceRiders.find((sourceRider: { name: string; date_of_birth: string }) =>
+        riders.some((rider) => rider.name.trim().toLowerCase() === sourceRider.name.trim().toLowerCase() && rider.dateOfBirth === sourceRider.date_of_birth)
+      )
+      if (duplicateRider) throw new Error(`Rider ${duplicateRider.name} sudah ada di formulir.`)
+
+      const nextRiders = [...riders]
+      const nextPlateChecks = [...plateChecks]
+      const nextBirthDateTouched = [...birthDateTouched]
+      for (const sourceRider of sourceRiders) {
+        const nextRider: RiderForm = {
+          ...initialRider(),
+          name: sourceRider.name,
+          nickname: sourceRider.nickname ?? '',
+          jerseySize: sourceRider.jersey_size ?? '',
+          dateOfBirth: sourceRider.date_of_birth,
+          gender: sourceRider.gender,
+          club: sourceRider.club ?? '',
+          requestedPlateNumber: sourceRider.requested_plate_number ?? '',
+          requestedPlateSuffix: sourceRider.requested_plate_suffix ?? '',
+          usePlateSuffix: Boolean(sourceRider.requested_plate_suffix),
+          docKkUrl: sourceRider.document_upload_path ?? null,
+          docKkPreviewUrl: sourceRider.document_preview_url ?? null,
+          docKkPreviewType: sourceRider.document_preview_type ?? null,
+          docKkUploadStatus: sourceRider.document_upload_path ? 'uploaded' : 'idle',
+        }
+        const emptyIndex = nextRiders.findIndex((rider) => !rider.name.trim() && !rider.dateOfBirth && !rider.photoUrl && !rider.docKkUrl)
+        if (emptyIndex >= 0) {
+          nextRiders[emptyIndex] = nextRider
+          nextPlateChecks[emptyIndex] = initialPlateCheck()
+          nextBirthDateTouched[emptyIndex] = false
+        } else {
+          nextRiders.push(nextRider)
+          nextPlateChecks.push(initialPlateCheck())
+          nextBirthDateTouched.push(false)
+        }
+      }
+      setRiders(nextRiders)
+      setPlateChecks(nextPlateChecks)
+      setBirthDateTouched(nextBirthDateTouched)
+      setLoadedPrefillIds((current) => [...new Set([...current, ...selectedPrefillRiderIds])])
+      setPrefillMessage({ type: 'success', text: `${sourceRiders.length} data rider berhasil ditambahkan ke formulir.` })
+      setSelectedPrefillRiderIds([])
+      setPrefillDateOfBirths({})
+      setPrefillModalOpen(false)
+    } catch (error) {
+      setPrefillMessage({ type: 'error', text: error instanceof Error ? error.message : 'Verifikasi data rider gagal.' })
+    } finally {
+      setPrefillLoading(false)
+    }
+  }
+
   const isCategoryFull = (category: CategoryItem) => {
     if (category.is_full === true) return true
     if (typeof category.capacity !== 'number') return false
@@ -604,22 +825,22 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     return category.remaining <= 0
   }
 
-  const getExactPrimaryCategories = useCallback((birthYear: number | null, gender: 'BOY' | 'GIRL') => {
+  const getExactPrimaryCategories = useCallback((birthYear: number | null, gender: 'BOY' | 'GIRL', dateOfBirth?: string) => {
     if (!birthYear) return []
-    return getExactPrimaryCategoryCandidates(categories, birthYear, gender)
-  }, [categories])
+    return getExactPrimaryCategoryCandidates(categories, birthYear, gender, dateOfBirth, eventDate)
+  }, [categories, eventDate])
 
-  const getAvailableExactPrimaryCategory = useCallback((birthYear: number | null, gender: 'BOY' | 'GIRL') => {
-    return getExactPrimaryCategories(birthYear, gender).find((category) => !isCategoryFull(category)) ?? null
+  const getAvailableExactPrimaryCategory = useCallback((birthYear: number | null, gender: 'BOY' | 'GIRL', dateOfBirth?: string) => {
+    return getExactPrimaryCategories(birthYear, gender, dateOfBirth).find((category) => !isCategoryFull(category)) ?? null
   }, [getExactPrimaryCategories])
 
-  const getFallbackPrimaryCategories = useCallback((birthYear: number | null, gender: 'BOY' | 'GIRL') => {
+  const getFallbackPrimaryCategories = useCallback((birthYear: number | null, gender: 'BOY' | 'GIRL', dateOfBirth?: string) => {
     if (!birthYear) return []
-    return getFallbackPrimaryCategoryCandidates(categories, birthYear, gender)
-  }, [categories])
+    return getFallbackPrimaryCategoryCandidates(categories, birthYear, gender, dateOfBirth, eventDate)
+  }, [categories, eventDate])
 
   const getAvailableBirthYearRange = useCallback((gender: 'BOY' | 'GIRL') => {
-    const compatibleCategories = categories.filter((category) => category.gender === gender || category.gender === 'MIX')
+    const compatibleCategories = categories.filter((category) => category.category_basis !== 'AGE' && (category.gender === gender || category.gender === 'MIX'))
     if (compatibleCategories.length === 0) return null
     const years = compatibleCategories.flatMap((category) => [
       category.year_min ?? category.year,
@@ -634,21 +855,23 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   const getSelectedFallbackPrimaryCategory = useCallback((
     birthYear: number | null,
     gender: 'BOY' | 'GIRL',
-    primaryCategoryId: string
-  ) => getFallbackPrimaryCategories(birthYear, gender).find((category) => category.id === primaryCategoryId) ?? null, [
+    primaryCategoryId: string,
+    dateOfBirth?: string
+  ) => getFallbackPrimaryCategories(birthYear, gender, dateOfBirth).find((category) => category.id === primaryCategoryId) ?? null, [
     getFallbackPrimaryCategories,
   ])
 
   const computePrimaryCategory = useCallback((
     birthYear: number | null,
     gender: 'BOY' | 'GIRL',
-    primaryCategoryId: string
+    primaryCategoryId: string,
+    dateOfBirth?: string
   ) => {
-    const exactCandidates = getExactPrimaryCategories(birthYear, gender)
+    const exactCandidates = getExactPrimaryCategories(birthYear, gender, dateOfBirth)
     if (birthYear && exactCandidates.length === 0) return null
-    const exact = getAvailableExactPrimaryCategory(birthYear, gender)
+    const exact = getAvailableExactPrimaryCategory(birthYear, gender, dateOfBirth)
     if (exact) return exact
-    const fallback = getSelectedFallbackPrimaryCategory(birthYear, gender, primaryCategoryId)
+    const fallback = getSelectedFallbackPrimaryCategory(birthYear, gender, primaryCategoryId, dateOfBirth)
     if (!fallback || isCategoryFull(fallback)) return null
     return fallback
   }, [getAvailableExactPrimaryCategory, getExactPrimaryCategories, getSelectedFallbackPrimaryCategory])
@@ -656,14 +879,15 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   const getPrimaryCategoryIssue = useCallback((
     birthYear: number | null,
     gender: 'BOY' | 'GIRL',
-    primaryCategoryId: string
+    primaryCategoryId: string,
+    dateOfBirth?: string
   ) => {
     if (!birthYear) return null
-    const exactCandidates = getExactPrimaryCategories(birthYear, gender)
+    const exactCandidates = getExactPrimaryCategories(birthYear, gender, dateOfBirth)
     if (exactCandidates.length === 0) return 'invalid'
     const exactAvailable = exactCandidates.find((category) => !isCategoryFull(category))
     if (exactAvailable) return null
-    const fallbackOptions = getFallbackPrimaryCategories(birthYear, gender).filter((category) => !isCategoryFull(category))
+    const fallbackOptions = getFallbackPrimaryCategories(birthYear, gender, dateOfBirth).filter((category) => !isCategoryFull(category))
     if (fallbackOptions.length === 0) return 'full'
     const selectedFallback = fallbackOptions.find((category) => category.id === primaryCategoryId)
     return selectedFallback ? null : 'fallback_required'
@@ -672,41 +896,96 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   const extraCategoryOptions = (
     birthYear: number | null,
     gender: 'BOY' | 'GIRL',
-    primaryCategory: CategoryItem | null
+    primaryCategory: CategoryItem | null,
+    dateOfBirth?: string
   ) => {
     const options: CategoryItem[] = []
     if (!birthYear || !primaryCategory) return options
     return categories.filter((c) => {
       if (c.id === primaryCategory.id) return false
-      const max = c.year_max ?? c.year
-      if (max >= birthYear) return false
+      if (c.category_basis === 'AGE') {
+        const age = calculateAgeOnDate(dateOfBirth, eventDate)
+        if (age == null || c.age_min == null || c.age_min <= age) return false
+      } else {
+        const max = c.year_max ?? c.year
+        if (max >= birthYear) return false
+      }
       if (c.gender === 'MIX') return true
       return c.gender === gender
     })
   }
 
+  const getPairedPrimaryOptions = (rider: RiderForm) => {
+    const birthYear = getCompleteBirthYear(rider.dateOfBirth)
+    if (!birthYear || !pairedEvent) return []
+    const exact = getExactPrimaryCategoryCandidates(pairedCategories, birthYear, rider.gender, rider.dateOfBirth, pairedEvent.eventDate)
+    const availableExact = exact.filter((category) => !isCategoryFull(category))
+    return availableExact.length > 0
+      ? [availableExact[0]]
+      : getFallbackPrimaryCategoryCandidates(pairedCategories, birthYear, rider.gender, rider.dateOfBirth, pairedEvent.eventDate)
+          .filter((category) => !isCategoryFull(category))
+  }
+
+  const getPairedPrimaryCategory = (rider: RiderForm) => {
+    const options = getPairedPrimaryOptions(rider)
+    return options.find((category) => category.id === rider.pairedPrimaryCategoryId) ?? options[0] ?? null
+  }
+
+  const getPairedExtraOptions = (rider: RiderForm) => {
+    const primary = getPairedPrimaryCategory(rider)
+    const birthYear = getCompleteBirthYear(rider.dateOfBirth)
+    if (!primary || !birthYear || !pairedEvent) return []
+    const age = calculateAgeOnDate(rider.dateOfBirth, pairedEvent.eventDate)
+    return pairedCategories.filter((category) => {
+      if (category.id === primary.id || isCategoryFull(category)) return false
+      if (category.category_basis === 'AGE') {
+        if (age == null || category.age_min == null || category.age_min <= age) return false
+      } else if ((category.year_max ?? category.year) >= birthYear) return false
+      return category.gender === 'MIX' || category.gender === rider.gender
+    })
+  }
+
   const totalAmount = useMemo(() => {
-    return riders.reduce((sum, rider) => sum + basePrice + (rider.extraCategoryId ? extraPrice : 0), 0)
-  }, [riders, basePrice, extraPrice])
+    const bundles = businessSettings?.registration_bundles ?? []
+    const pairedBundles = pairedBusinessSettings?.registration_bundles ?? []
+    const offer = businessSettings?.event_bundle_offer
+    const packageBase = offer?.enabled ? Number(offer.bundle_base_price_per_rider) || 0 : 0
+    return riders.reduce((sum, rider) => sum
+      + (rider.pairedEventSelected ? packageBase : basePrice)
+      + (rider.extraCategoryId ? extraPrice : 0)
+      + (bundles.find((bundle) => bundle.id === rider.bundleId && bundle.enabled)?.price ?? 0)
+      + (rider.pairedEventSelected && pairedEvent ? (rider.pairedExtraCategoryId ? pairedExtraPrice : 0) + (pairedBundles.find((bundle) => bundle.id === rider.pairedBundleId && bundle.enabled)?.price ?? 0) : 0), 0)
+  }, [riders, basePrice, extraPrice, businessSettings?.registration_bundles, businessSettings?.event_bundle_offer, pairedEvent, pairedExtraPrice, pairedBusinessSettings?.registration_bundles])
   const riderCount = riders.length
   const extraCategoryCount = riders.filter((rider) => Boolean(rider.extraCategoryId)).length
-  const baseAmount = riderCount * basePrice
+  const pairedRiderCount = riders.filter((rider) => rider.pairedEventSelected).length
+  const bundleBaseAmount = pairedRiderCount * Number(businessSettings?.event_bundle_offer?.bundle_base_price_per_rider ?? 0)
+  const baseRiderCount = riderCount - pairedRiderCount
+  const baseAmount = baseRiderCount * basePrice
   const extraAmount = extraCategoryCount * extraPrice
+  const enabledBundles = (businessSettings?.registration_bundles ?? []).filter((bundle) => bundle.enabled)
+  const bundleSelections = riders.filter((rider) => enabledBundles.some((bundle) => bundle.id === rider.bundleId))
+  const bundleAmount = bundleSelections.reduce((sum, rider) => sum + (enabledBundles.find((bundle) => bundle.id === rider.bundleId)?.price ?? 0), 0)
+  const pairedEnabledBundles = (pairedBusinessSettings?.registration_bundles ?? []).filter((bundle) => bundle.enabled)
+  const pairedBundleAmount = riders.reduce((sum, rider) => sum + (rider.pairedEventSelected ? (pairedEnabledBundles.find((bundle) => bundle.id === rider.pairedBundleId)?.price ?? 0) : 0), 0)
 
   const hasContact = contactName.trim() && contactPhone.trim()
   const riderPhotoUploadEnabled =
     typeof businessSettings?.registration_rider_photo_enabled === 'boolean'
       ? businessSettings.registration_rider_photo_enabled
       : true
+  const pairedRiderPhotoRequired = typeof pairedBusinessSettings?.registration_rider_photo_enabled === 'boolean'
+    ? pairedBusinessSettings.registration_rider_photo_enabled
+    : true
   const ridersComplete = riders.every(
     (r) =>
       r.name &&
       r.nickname &&
       r.club.trim() &&
-      (!requireJerseySize || r.jerseySize) &&
+      (!(requireJerseySize || (r.pairedEventSelected && pairedRequireJerseySize)) || r.jerseySize) &&
       r.dateOfBirth &&
       r.requestedPlateNumber &&
-      (!riderPhotoUploadEnabled || (r.photoUrl && r.photoUploadStatus === 'uploaded')) &&
+      (!(riderPhotoUploadEnabled || (r.pairedEventSelected && pairedRiderPhotoRequired)) || (r.photoUrl && r.photoUploadStatus === 'uploaded')) &&
       r.docKkUrl &&
       r.docKkUploadStatus === 'uploaded'
   )
@@ -718,22 +997,22 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
   const showTotal = Boolean(hasContact && ridersComplete)
   const hasMissingPrimaryCategory = riders.some((rider) => {
     const birthYear = getCompleteBirthYear(rider.dateOfBirth)
-    const issue = getPrimaryCategoryIssue(birthYear, rider.gender, rider.primaryCategoryId)
+    const issue = getPrimaryCategoryIssue(birthYear, rider.gender, rider.primaryCategoryId, rider.dateOfBirth)
     return issue === 'invalid'
   })
   const hasPrimaryCategoryAndFallbackFull = riders.some((rider) => {
     const birthYear = getCompleteBirthYear(rider.dateOfBirth)
-    const issue = getPrimaryCategoryIssue(birthYear, rider.gender, rider.primaryCategoryId)
+    const issue = getPrimaryCategoryIssue(birthYear, rider.gender, rider.primaryCategoryId, rider.dateOfBirth)
     return issue === 'full'
   })
   const hasPrimaryCategoryNeedsFallbackChoice = riders.some((rider) => {
     const birthYear = getCompleteBirthYear(rider.dateOfBirth)
-    const issue = getPrimaryCategoryIssue(birthYear, rider.gender, rider.primaryCategoryId)
+    const issue = getPrimaryCategoryIssue(birthYear, rider.gender, rider.primaryCategoryId, rider.dateOfBirth)
     return issue === 'fallback_required'
   })
   const hasPrimaryCategorySlotFull = riders.some((rider) => {
     const birthYear = getCompleteBirthYear(rider.dateOfBirth)
-    const issue = getPrimaryCategoryIssue(birthYear, rider.gender, rider.primaryCategoryId)
+    const issue = getPrimaryCategoryIssue(birthYear, rider.gender, rider.primaryCategoryId, rider.dateOfBirth)
     return issue === 'full' || issue === 'fallback_required'
   })
   const hasFullExtraCategory = riders.some((rider) => {
@@ -743,41 +1022,43 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     return isCategoryFull(category)
   })
   const publicEventTitle = businessSettings?.public_event_title?.trim() || eventName || 'Pendaftaran Event'
-  const publicBrandName = businessSettings?.public_brand_name?.trim() || ''
   const publicTagline = businessSettings?.public_tagline?.trim() || ''
   const paymentBankName = businessSettings?.payment_bank_name?.trim() || ''
   const paymentAccountName = businessSettings?.payment_account_name?.trim() || ''
   const paymentAccountNumber = businessSettings?.payment_account_number?.trim() || ''
   const paymentQrisImageUrl = businessSettings?.registration_qris_image_url?.trim() || ''
   const jerseySizeChartImageUrl = businessSettings?.registration_jersey_size_chart_url?.trim() || ''
-  const jerseySizeOptions =
-    Array.isArray(businessSettings?.jersey_size_options) && businessSettings.jersey_size_options.length > 0
-      ? businessSettings.jersey_size_options
-          .map((item) => (typeof item === 'string' ? item.trim().toUpperCase() : ''))
-          .map((item) => (item === 'XXL' ? '2XL' : item))
-          .filter((item): item is string => ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'].includes(item))
-          .filter((item, index, array) => array.indexOf(item) === index)
-      : DEFAULT_JERSEY_SIZE_OPTIONS
+  const normalizeSizeOptions = (options: unknown) => Array.isArray(options)
+    ? options.map((item) => (typeof item === 'string' ? item.trim().toUpperCase() : ''))
+        .map((item) => (item === 'XXL' ? '2XL' : item))
+        .filter((item): item is string => ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'].includes(item))
+    : []
+  const sourceJerseyOptions = normalizeSizeOptions(businessSettings?.jersey_size_options)
+  const pairedJerseyOptions = eventBundleSelected ? normalizeSizeOptions(pairedBusinessSettings?.jersey_size_options) : []
+  const combinedJerseyOptions = [...new Set([...sourceJerseyOptions, ...pairedJerseyOptions])]
+  const jerseySizeOptions = combinedJerseyOptions.length > 0 ? combinedJerseyOptions : DEFAULT_JERSEY_SIZE_OPTIONS
   const contactEmailValue = contactEmail.trim()
   const contactEmailInvalid = contactEmailValue.length > 0 && !isValidEmail(contactEmailValue)
   const contactPhoneValue = contactPhone.trim()
   const contactPhoneInvalid = contactPhoneValue.length > 0 && !isValidWhatsappNumber(contactPhoneValue)
 
-  const continueFromContact = () => {
+  const continueFromContact = async () => {
     if (!contactName.trim()) {
-      alert('Nama penanggung jawab wajib diisi.')
+      appAlert('Nama penanggung jawab wajib diisi.')
       return
     }
     if (!contactPhone.trim() || contactPhoneInvalid) {
-      alert('Masukkan nomor WhatsApp yang valid.')
+      appAlert('Masukkan nomor WhatsApp yang valid.')
       return
     }
     if (contactEmailInvalid) {
-      alert('Format email konfirmasi belum valid.')
+      appAlert('Format email konfirmasi belum valid.')
       return
     }
 
+    clearPrefillLookup()
     setContactPhone(normalizeWhatsappDigits(contactPhone))
+      await lookupPreviousRiders()
     setActiveStep(2)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -789,16 +1070,31 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
 
   const continueFromRider = () => {
     if (!ridersComplete) {
-      alert('Lengkapi seluruh data, kategori, plate, dan dokumen rider sebelum lanjut.')
+      appAlert('Lengkapi seluruh data, kategori, plate, dan dokumen rider sebelum lanjut.')
       return
     }
     if (hasPrimaryCategorySlotFull || hasMissingPrimaryCategory || hasFullExtraCategory) {
-      alert('Masih ada kategori rider yang belum valid atau kuotanya penuh.')
+      appAlert('Masih ada kategori rider yang belum valid atau kuotanya penuh.')
       return
+    }
+    if (eventBundleSelected) {
+      if (!pairedEvent?.registrationOpen) {
+        appAlert('Pendaftaran event pasangan sedang ditutup atau datanya belum tersedia.')
+        return
+      }
+      const invalidPairedRider = riders.findIndex((rider) => {
+        if (!rider.pairedEventSelected) return false
+        const primary = getPairedPrimaryCategory(rider)
+        return !primary || (rider.pairedExtraCategoryId && !getPairedExtraOptions(rider).some((category) => category.id === rider.pairedExtraCategoryId))
+      })
+      if (invalidPairedRider >= 0) {
+        appAlert(`Pilih kategori yang tersedia untuk rider #${invalidPairedRider + 1} di event pasangan.`)
+        return
+      }
     }
     if (unresolvedPlateIndex >= 0) {
       const plateCheck = plateChecks[unresolvedPlateIndex] ?? initialPlateCheck()
-      alert(
+      appAlert(
         plateCheck.message ||
           `Nomor plate rider #${unresolvedPlateIndex + 1} belum tersedia. Jika nomor utama sudah dipakai, tambahkan suffix/huruf sebelum lanjut.`
       )
@@ -809,11 +1105,11 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
 
   const continueFromPayment = () => {
     if (!bankName.trim() || !accountName.trim() || !accountNumber.trim()) {
-      alert('Lengkapi data rekening pengirim.')
+      appAlert('Lengkapi data rekening pengirim.')
       return
     }
     if (!paymentProof || !paymentProofUrl || paymentUploadStatus !== 'uploaded') {
-      alert(
+      appAlert(
         paymentUploadStatus === 'uploading'
           ? 'Bukti pembayaran masih diupload. Tunggu sampai selesai.'
           : paymentUploadError || 'Upload bukti pembayaran sebelum lanjut.'
@@ -822,32 +1118,25 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     }
     const paymentError = validateUploadFile(paymentProof, 'Bukti pembayaran', 'payment')
     if (paymentError) {
-      alert(paymentError)
+      appAlert(paymentError)
       return
     }
     goToStep(4)
   }
   const showPaymentDestination = Boolean(paymentBankName || paymentAccountName || paymentAccountNumber || paymentQrisImageUrl)
-  const showEventOwner = Boolean(
-    businessSettings?.show_event_owner_publicly && businessSettings?.event_owner_name?.trim()
-  )
+  const showEventOwner = Boolean(businessSettings?.show_event_owner_publicly && businessSettings?.event_owner_name?.trim())
   const showOperatingCommittee = Boolean(
     businessSettings?.show_operating_committee_publicly &&
       (businessSettings?.operating_committee_label?.trim() || businessSettings?.operating_committee_name?.trim())
   )
-  const showScoringSupport = Boolean(
-    businessSettings?.show_scoring_support_publicly &&
-      (businessSettings?.scoring_support_label?.trim() || businessSettings?.scoring_support_name?.trim())
-  )
+  const publicOrganizer = [
+    showEventOwner ? businessSettings?.event_owner_name?.trim() : '',
+    showOperatingCommittee
+      ? businessSettings?.operating_committee_label?.trim() || businessSettings?.operating_committee_name?.trim()
+      : '',
+  ].filter((name): name is string => Boolean(name)).join(' Ãƒâ€šÃ‚Â· ')
+  const showRaceDirector = Boolean(businessSettings?.show_race_director_publicly && businessSettings?.race_director_name?.trim())
   const showMc = Boolean(businessSettings?.show_mc_publicly && businessSettings?.mc_name?.trim())
-  const eventOwnerName = businessSettings?.event_owner_name?.trim() || ''
-  const operatingCommitteeLabel =
-    businessSettings?.operating_committee_label?.trim() ||
-    businessSettings?.operating_committee_name?.trim() ||
-    ''
-  const scoringSupportLabel =
-    businessSettings?.scoring_support_label?.trim() || businessSettings?.scoring_support_name?.trim() || ''
-  const mcName = businessSettings?.mc_name?.trim() || ''
   const publicContactName =
     businessSettings?.public_contact_name?.trim() ||
     businessSettings?.event_owner_contact_name?.trim() ||
@@ -897,7 +1186,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         }
         return `Rider #${riderIndex + 1}: tahun lahir ${birthYear} tidak cocok dengan kategori aktif untuk ${genderLabel}. Kategori event ini menerima tahun lahir ${range.min} sampai ${range.max}.`
       }
-      return `Rider #${riderIndex + 1}: tahun lahir dan gender rider tidak masuk kategori aktif event ini. Cek ulang tanggal lahir/gender, atau hubungi panitia jika kategori belum dibuat.`
+      return `Rider #${riderIndex + 1}: tanggal lahir/umur pada tanggal event atau gender rider tidak cocok dengan kategori aktif. Cek tanggal lahir dan hubungi panitia jika kategori belum dibuat.`
     }
     if (issue === 'full') {
       return `Rider #${riderIndex + 1}: kategori sesuai umur penuh, dan semua kategori di atas umur rider juga penuh.`
@@ -909,7 +1198,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     const issueEntry = riders.findIndex((rider, index) => {
       if (!birthDateTouched[index]) return false
       const birthYear = getCompleteBirthYear(rider.dateOfBirth)
-      const issue = getPrimaryCategoryIssue(birthYear, rider.gender, rider.primaryCategoryId)
+      const issue = getPrimaryCategoryIssue(birthYear, rider.gender, rider.primaryCategoryId, rider.dateOfBirth)
       return issue === 'invalid' || issue === 'full' || issue === 'fallback_required'
     })
 
@@ -920,7 +1209,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
 
     const rider = riders[issueEntry]
     const birthYear = getCompleteBirthYear(rider.dateOfBirth)
-    const issue = getPrimaryCategoryIssue(birthYear, rider.gender, rider.primaryCategoryId)
+    const issue = getPrimaryCategoryIssue(birthYear, rider.gender, rider.primaryCategoryId, rider.dateOfBirth)
     if (issue !== 'invalid' && issue !== 'full' && issue !== 'fallback_required') return
 
     const issueKey = `${issueEntry}-${rider.dateOfBirth}-${rider.gender}-${issue}`
@@ -1012,35 +1301,35 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     setDuplicateRegistrationModal(null)
     const normalizedContactPhone = normalizeWhatsappDigits(contactPhone)
     if (!registrationOpen) {
-      alert('Pendaftaran untuk event ini sedang ditutup oleh panitia.')
+      appAlert('Pendaftaran untuk event ini sedang ditutup oleh panitia.')
       return
     }
     if (!contactName || !contactPhone) {
-      alert('Nama dan nomor kontak wajib diisi')
+      appAlert('Nama dan nomor kontak wajib diisi')
       return
     }
     if (!isValidWhatsappNumber(contactPhone)) {
-      alert('Nomor WhatsApp belum valid. Gunakan format Indonesia 08.../62... atau internasional +60..., minimal 10 digit.')
+      appAlert('Nomor WhatsApp belum valid. Gunakan format Indonesia 08.../62... atau internasional +60..., minimal 10 digit.')
       return
     }
     if (contactEmailInvalid) {
-      alert('Format email tidak valid. Contoh: nama@email.com')
+      appAlert('Format email tidak valid. Contoh: nama@email.com')
       return
     }
     if (!bankName.trim()) {
-      alert('Bank pengirim wajib diisi')
+      appAlert('Bank pengirim wajib diisi')
       return
     }
     if (!accountName.trim()) {
-      alert('Nama pengirim wajib diisi')
+      appAlert('Nama pengirim wajib diisi')
       return
     }
     if (!accountNumber.trim()) {
-      alert('Nomor rekening pengirim wajib diisi')
+      appAlert('Nomor rekening pengirim wajib diisi')
       return
     }
     if (!paymentProof || !paymentProofUrl || paymentUploadStatus !== 'uploaded') {
-      alert(
+      appAlert(
         paymentUploadStatus === 'uploading'
           ? 'Bukti pembayaran masih diupload. Tunggu sampai selesai.'
           : paymentUploadError || 'Bukti pembayaran wajib diupload.'
@@ -1052,16 +1341,16 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         !r.name ||
         !r.nickname ||
         !r.club.trim() ||
-        (requireJerseySize && !r.jerseySize) ||
+        ((requireJerseySize || (r.pairedEventSelected && pairedRequireJerseySize)) && !r.jerseySize) ||
         !r.dateOfBirth ||
         !r.requestedPlateNumber ||
-        (riderPhotoUploadEnabled && (!r.photoUrl || r.photoUploadStatus !== 'uploaded')) ||
+        ((riderPhotoUploadEnabled || (r.pairedEventSelected && pairedRiderPhotoRequired)) && (!r.photoUrl || r.photoUploadStatus !== 'uploaded')) ||
         !r.docKkUrl ||
         r.docKkUploadStatus !== 'uploaded'
     )
     if (hasInvalid) {
-      alert(
-        riderPhotoUploadEnabled
+      appAlert(
+        riders.some((rider) => riderPhotoUploadEnabled || (rider.pairedEventSelected && pairedRiderPhotoRequired))
           ? 'Lengkapi data rider. Wajib: nama lengkap, panggilan, club/komunitas, nomor plate, foto rider, KK/Akte/KIA, dan ukuran jersey (jika diwajibkan).'
           : 'Lengkapi data rider. Wajib: nama lengkap, panggilan, club/komunitas, nomor plate, KK/Akte/KIA, dan ukuran jersey (jika diwajibkan).'
       )
@@ -1069,7 +1358,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     }
     const invalidPlateIndex = riders.findIndex((rider) => !/^\d{1,3}$/.test(rider.requestedPlateNumber.trim()))
     if (invalidPlateIndex >= 0) {
-      alert(`Nomor plate rider #${invalidPlateIndex + 1} wajib angka dan maksimal 3 digit.`)
+      appAlert(`Nomor plate rider #${invalidPlateIndex + 1} wajib angka dan maksimal 3 digit.`)
       return
     }
     const unresolvedPlateIndex = riders.findIndex((rider, index) => {
@@ -1082,7 +1371,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     })
     if (unresolvedPlateIndex >= 0) {
       const plateCheck = plateChecks[unresolvedPlateIndex] ?? initialPlateCheck()
-      alert(
+      appAlert(
         plateCheck.message ||
           `Nomor plate rider #${unresolvedPlateIndex + 1} belum tersedia. Jika disarankan suffix, klik/pilih suffix dulu sebelum lanjut.`
       )
@@ -1101,7 +1390,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     if (hasMissingPrimaryCategory) {
       const invalidIndex = riders.findIndex((rider) => {
         const birthYear = getCompleteBirthYear(rider.dateOfBirth)
-        return getPrimaryCategoryIssue(birthYear, rider.gender, rider.primaryCategoryId) === 'invalid'
+        return getPrimaryCategoryIssue(birthYear, rider.gender, rider.primaryCategoryId, rider.dateOfBirth) === 'invalid'
       })
       const invalidRider = invalidIndex >= 0 ? riders[invalidIndex] : null
       const invalidBirthYear = invalidRider ? getCompleteBirthYear(invalidRider.dateOfBirth) : null
@@ -1122,7 +1411,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     setSubmitting(true)
     try {
       riders.forEach((rider, idx) => {
-        if (riderPhotoUploadEnabled) {
+        if (riderPhotoUploadEnabled || (rider.pairedEventSelected && pairedRiderPhotoRequired)) {
           const photoError = validateUploadFile(rider.photo, `Foto rider #${idx + 1}`, 'rider-photo')
           if (photoError) throw new Error(photoError)
           if (!rider.photoUrl || rider.photoUploadStatus !== 'uploaded') {
@@ -1145,9 +1434,9 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
       const shouldSendEmail = contactEmail.trim().length > 0
       const items = riders.map((r, idx) => {
         const birthYear = getCompleteBirthYear(r.dateOfBirth)
-        const primaryCategory = computePrimaryCategory(birthYear, r.gender, r.primaryCategoryId)
+        const primaryCategory = computePrimaryCategory(birthYear, r.gender, r.primaryCategoryId, r.dateOfBirth)
         if (!birthYear || !primaryCategory) {
-          const issue = getPrimaryCategoryIssue(birthYear, r.gender, r.primaryCategoryId)
+          const issue = getPrimaryCategoryIssue(birthYear, r.gender, r.primaryCategoryId, r.dateOfBirth)
           if (issue === 'invalid' || issue === 'full' || issue === 'fallback_required') {
             throw new Error(getPrimaryIssueModalMessage(issue, idx, birthYear, r.gender))
           }
@@ -1164,10 +1453,37 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
           extra_category_id: r.extraCategoryId || null,
           requested_plate_number: r.requestedPlateNumber.trim() || null,
           requested_plate_suffix: r.requestedPlateSuffix.trim().toUpperCase().slice(0, 1) || null,
-          photo_url: riderPhotoUploadEnabled ? r.photoUrl : null,
+          photo_url: (riderPhotoUploadEnabled || (r.pairedEventSelected && pairedRiderPhotoRequired)) ? r.photoUrl : null,
           document_url: r.docKkUrl,
+          bundle_id: r.bundleId || null,
         }
       })
+      const pairedItems = eventBundleSelected ? riders
+        .map((rider, index) => ({ rider, index }))
+        .filter(({ rider }) => rider.pairedEventSelected)
+        .map(({ rider, index }) => {
+        const primary = getPairedPrimaryCategory(rider)
+        if (!pairedEvent || !primary) throw new Error(`Pilih kategori event pasangan untuk rider ${rider.name || index + 1}.`)
+        if (rider.pairedExtraCategoryId && !getPairedExtraOptions(rider).some((category) => category.id === rider.pairedExtraCategoryId)) {
+          throw new Error(`Kategori tambahan event pasangan untuk rider ${rider.name || index + 1} sudah tidak tersedia.`)
+        }
+        return {
+          rider_name: rider.name,
+          rider_nickname: rider.nickname || null,
+          jersey_size: rider.jerseySize || null,
+          date_of_birth: rider.dateOfBirth,
+          gender: rider.gender,
+          club: rider.club.trim(),
+          primary_category_id: primary.id,
+          extra_category_id: rider.pairedExtraCategoryId || null,
+          requested_plate_number: rider.requestedPlateNumber.trim() || null,
+          requested_plate_suffix: rider.requestedPlateSuffix.trim().toUpperCase().slice(0, 1) || null,
+          photo_url: pairedRiderPhotoRequired ? rider.photoUrl : null,
+          document_url: rider.docKkUrl,
+          bundle_id: rider.pairedBundleId || null,
+          source_item_index: index,
+        }
+      }) : null
 
       let createRes: Response
       try {
@@ -1175,7 +1491,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            community_name: communityName || null,
+            community_name: null,
             contact_name: contactName,
             contact_phone: normalizedContactPhone,
             contact_email: contactEmail || null,
@@ -1186,6 +1502,13 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
               account_number: accountNumber,
               proof_url: paymentProofUrl,
             },
+            ...(pairedItems && businessSettings?.event_bundle_offer ? {
+              event_bundle: {
+                offer_id: businessSettings.event_bundle_offer.id,
+                paired_event_id: businessSettings.event_bundle_offer.paired_event_id,
+                items: pairedItems,
+              },
+            } : {}),
           }),
         })
       } catch {
@@ -1194,8 +1517,11 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
       const createJson = await parseJsonResponse(createRes)
       if (!createRes.ok) throw new Error(createJson?.error || createJson?._raw || 'Gagal membuat pendaftaran')
 
-      const createdRegistrationId = createJson?.data?.registration?.id ?? null
-      const createdRegistrationCode = createJson?.data?.registration?.registration_code ?? null
+      const sourcePackageRegistration = createJson?.data?.registrations?.find((entry: { event_id?: string }) => entry.event_id === eventId)?.registration
+      const pairedPackageRegistration = createJson?.data?.registrations?.find((entry: { event_id?: string }) => entry.event_id !== eventId)
+      const createdRegistration = sourcePackageRegistration ?? createJson?.data?.registration
+      const createdRegistrationId = createdRegistration?.id ?? null
+      const createdRegistrationCode = createdRegistration?.registration_code ?? null
       if (!createdRegistrationId) {
         throw new Error('Registrasi berhasil dibuat, tetapi ID registrasi tidak ditemukan.')
       }
@@ -1205,6 +1531,8 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
 
       setSuccess({
         registrationCode: createdRegistrationCode,
+        pairedRegistrationCode: pairedPackageRegistration?.registration?.registration_code ?? null,
+        pairedEventName: pairedPackageRegistration?.event_name ?? null,
         riderNames: riders.map((rider) => rider.name.trim()).filter(Boolean),
         totalAmount,
         hasContactEmail: shouldSendEmail,
@@ -1226,7 +1554,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
       ) {
         openDuplicateRegistrationModal(message)
       } else {
-        alert(message)
+        appAlert(message)
       }
     } finally {
       setSubmitting(false)
@@ -1241,7 +1569,6 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     setContactName('')
     setContactPhone('')
     setContactEmail('')
-    setCommunityName('')
     setBankName('')
     setAccountName('')
     setAccountNumber('')
@@ -1317,7 +1644,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
 
     const error = validateUploadFile(file, label, uploadType)
     if (error) {
-      alert(error)
+      appAlert(error)
       return
     }
 
@@ -1350,7 +1677,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     const file = pickAcceptedFile(e.dataTransfer?.files, allowPdf)
     if (!file) {
       if (e.dataTransfer?.files?.length) {
-        alert(getUploadTypeError(label, uploadType))
+        appAlert(getUploadTypeError(label, uploadType))
       }
       return
     }
@@ -1367,7 +1694,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     const file = pickAcceptedFile(e.clipboardData?.files, allowPdf)
     if (!file) {
       if (e.clipboardData?.files?.length) {
-        alert(getUploadTypeError(label, uploadType))
+        appAlert(getUploadTypeError(label, uploadType))
       }
       return
     }
@@ -1399,52 +1726,46 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
           )}
           <div className="relative z-10 grid gap-5 md:grid-cols-[minmax(0,1fr)_240px] md:items-center">
             <div className="grid gap-3">
-              <p className="text-xs font-black uppercase text-[#f3c63d]">Event Registration</p>
-              {publicBrandName && (
-                <p className="text-sm font-extrabold uppercase text-[#eadcca]">{publicBrandName}</p>
+              <h1 className="max-w-4xl text-2xl font-black leading-tight text-[#fff8e8] md:text-4xl">{publicEventTitle}</h1>
+              {publicTagline && (
+                <p className="max-w-3xl text-sm font-semibold leading-6 text-[#c9b7a5] md:text-base">{publicTagline}</p>
               )}
-              <h1 className="max-w-4xl text-3xl font-black text-[#fff8e8] md:text-5xl">{publicEventTitle}</h1>
-              <p className="max-w-3xl text-base font-semibold leading-7 text-[#c9b7a5] md:text-lg">
-                {publicTagline || 'Form registrasi event'}
-              </p>
-              {publicContactPhone && (
-                <div className="flex flex-wrap items-center gap-2 text-xs font-extrabold uppercase tracking-[0.12em] text-slate-100">
-                  <span className="rounded-full border border-emerald-300/30 bg-emerald-400/10 px-3 py-1 text-emerald-100">
-                    Kontak Panitia: {publicContactName}
-                  </span>
-                  <a
-                    href={publicContactWhatsapp || undefined}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="rounded-full border border-emerald-300/30 bg-emerald-400/10 px-3 py-1 text-emerald-100 transition-colors hover:bg-emerald-400/20"
-                  >
-                    WA: {publicContactPhone}
-                  </a>
-                </div>
-              )}
-              {(showEventOwner || showOperatingCommittee || showScoringSupport || showMc) && (
-                <div className="mt-2 flex flex-wrap gap-2 text-xs font-extrabold uppercase tracking-[0.12em] text-slate-100">
-                  {showEventOwner && (
-                    <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">Event Owner: {eventOwnerName}</span>
-                  )}
-                  {showOperatingCommittee && (
-                    <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
-                      Operating Committee: {operatingCommitteeLabel}
+              {(eventDate || eventLocation) && (
+                <div className="flex flex-wrap gap-2 text-xs font-bold text-[#fff8e8] sm:text-sm">
+                  {eventDate && (
+                    <span className="rounded-full border border-white/20 bg-black/35 px-3 py-1.5">
+                      {new Date(eventDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
                     </span>
                   )}
-                  {showScoringSupport && (
-                    <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
-                      Scoring Support: {scoringSupportLabel}
-                    </span>
-                  )}
-                  {showMc && (
-                    <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">MC: {mcName}</span>
-                  )}
+                  {eventLocation && <span className="rounded-full border border-white/20 bg-black/35 px-3 py-1.5">{eventLocation}</span>}
                 </div>
               )}
             </div>
           </div>
         </section>
+
+        <PublicEventFacts
+          organizer={publicOrganizer || null}
+          raceDirector={showRaceDirector ? businessSettings?.race_director_name?.trim() : null}
+          mc={showMc ? businessSettings?.mc_name?.trim() : null}
+          contactName={publicContactName}
+          contactPhone={publicContactPhone}
+          basePrice={basePrice}
+          upclassPrice={extraPrice}
+          bundleInfoEnabled={businessSettings?.public_bundle_info_enabled === true}
+          bundleInfo={businessSettings?.public_bundle_info}
+          racepackInfoEnabled={businessSettings?.public_racepack_info_enabled === true}
+          racepackInfo={businessSettings?.public_racepack_info}
+          registrationBundles={businessSettings?.registration_bundles}
+          racepackItems={businessSettings?.public_racepack_items}
+        />
+
+        <Link
+          href={`/event/${eventId}/regulations`}
+          className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[#bca990] bg-[#fff8e8] px-4 py-3 text-sm font-extrabold text-[#4f372b] transition-colors hover:border-[#a83b16] hover:text-[#a83b16]"
+        >
+          Baca aturan & regulasi event
+        </Link>
 
         <section className="registration-stepper rounded-[1.5rem] border border-[#d9c9ae] bg-[#fff8e8] p-4 shadow-[0_14px_34px_rgba(55,23,9,0.1)] sm:p-5">
           <div className="grid grid-cols-4 gap-2">
@@ -1463,7 +1784,11 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                         : 'border-[#c8b699] bg-[#efe2c7] text-[#796657]'
                     }`}
                   >
-                    {isComplete ? '✓' : stepNumber}
+                    {isComplete ? (
+                      <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="m3 8 3 3 7-7" />
+                      </svg>
+                    ) : stepNumber}
                   </div>
                   <span
                     className={`truncate text-[10px] font-black uppercase sm:text-xs ${
@@ -1507,7 +1832,10 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
               <label className={labelClass}>{requiredLabel('Nomor WhatsApp')}</label>
               <input
                 value={contactPhone}
-                onChange={(e) => setContactPhone(e.target.value.replace(/[^\d+\s()-]/g, '').slice(0, 24))}
+                onChange={(e) => {
+                  setContactPhone(e.target.value.replace(/[^\d+\s()-]/g, '').slice(0, 24))
+                  clearPrefillLookup()
+                }}
                 onBlur={() => setContactPhone((current) => normalizeWhatsappDigits(current))}
                 placeholder="Contoh: 0812... / +60..."
                 type="tel"
@@ -1525,7 +1853,10 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
               <label className={labelClass}>Email Konfirmasi</label>
               <input
                 value={contactEmail}
-                onChange={(e) => setContactEmail(e.target.value)}
+                onChange={(e) => {
+                  setContactEmail(e.target.value)
+                  clearPrefillLookup()
+                }}
                 placeholder="Email aktif untuk konfirmasi pendaftaran"
                 type="email"
                 inputMode="email"
@@ -1537,36 +1868,60 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                   : 'Pastikan email aktif karena konfirmasi pendaftaran akan dikirim ke email ini.'}
               </div>
             </div>
-            <div className="grid gap-1.5">
-              <label className={labelClass}>Komunitas / Club</label>
-              <input
-                value={communityName}
-                onChange={(e) => setCommunityName(e.target.value)}
-                placeholder="Contoh: Pekanbaru Pushbike"
-                className={fieldClass}
-              />
-              <div className="text-[11px] font-semibold text-slate-400">
-                Opsional. Isi komunitas atau club keluarga/rider.
-              </div>
-            </div>
           </div>
         </section>
         ) : activeStep === 2 ? (
         <>
 
+        {prefillCandidates.length === 0 && prefillMessage?.type === 'error' && (
+          <p role="alert" className="mb-4 rounded-xl border border-amber-300/20 bg-amber-400/[0.06] p-3 text-sm font-bold text-amber-100">
+            {prefillMessage.text} Kamu tetap bisa mengisi data rider secara manual.
+          </p>
+        )}
+
+        {prefillCandidates.some((candidate) => !loadedPrefillIds.includes(candidate.id)) && (
+          <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-amber-300/25 bg-amber-400/[0.06] p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-black text-amber-100">Punya rider lain dengan wali yang sama?</p>
+              <p className="mt-1 text-xs font-medium text-slate-300">
+                {prefillMessage?.type === 'success' ? prefillMessage.text : 'Muat data rider berikutnya satu per satu.'}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => { setPrefillMessage(null); setPrefillModalOpen(true) }}
+              className="min-h-11 shrink-0 rounded-xl border border-amber-300/40 px-4 py-2 text-sm font-black text-amber-100 transition-colors hover:bg-amber-300/10"
+            >
+              Tambah Data Rider Lain
+            </button>
+          </div>
+        )}
+
+        {businessSettings?.event_bundle_offer?.enabled && !pairedEvent && (
+          <div role="status" className="mb-4 rounded-xl border border-amber-300/40 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+            <p className="font-bold">Paket event pasangan belum bisa dimuat.</p>
+            <p className="mt-1 text-xs">Muat ulang halaman. Jika pesan ini tetap muncul, hubungi panitia.</p>
+          </div>
+        )}
         {riders.map((rider, idx) => {
           const birthYear = getCompleteBirthYear(rider.dateOfBirth)
-          const primaryIssue = getPrimaryCategoryIssue(birthYear, rider.gender, rider.primaryCategoryId)
-          const primaryCategory = computePrimaryCategory(birthYear, rider.gender, rider.primaryCategoryId)
-          const fallbackPrimaryOptions = getFallbackPrimaryCategories(birthYear, rider.gender)
+          const primaryIssue = getPrimaryCategoryIssue(birthYear, rider.gender, rider.primaryCategoryId, rider.dateOfBirth)
+          const primaryCategory = computePrimaryCategory(birthYear, rider.gender, rider.primaryCategoryId, rider.dateOfBirth)
+          const fallbackPrimaryOptions = getFallbackPrimaryCategories(birthYear, rider.gender, rider.dateOfBirth)
           const availableFallbackPrimaryOptions = fallbackPrimaryOptions.filter((category) => !isCategoryFull(category))
           const showFallbackPrimarySelector = primaryIssue === 'fallback_required' && availableFallbackPrimaryOptions.length > 0
-          const extras = extraCategoryOptions(birthYear, rider.gender, primaryCategory)
+          const extras = extraCategoryOptions(birthYear, rider.gender, primaryCategory, rider.dateOfBirth)
           const hasMatchedFullCategory = primaryIssue === 'full' || primaryIssue === 'fallback_required'
           const extrasAvailable = extras.some((cat) => !isCategoryFull(cat))
           const selectedExtraCategory = extras.find((cat) => cat.id === rider.extraCategoryId) ?? null
           const selectedFallbackPrimaryCategory =
             fallbackPrimaryOptions.find((category) => category.id === rider.primaryCategoryId) ?? null
+          const pairedPrimaryOptions = getPairedPrimaryOptions(rider)
+          const pairedPrimaryCategory = getPairedPrimaryCategory(rider)
+          const pairedExtraOptions = getPairedExtraOptions(rider)
+          const pairedBundles = (pairedBusinessSettings?.registration_bundles ?? []).filter((bundle) => bundle.enabled)
+          const riderJerseySizeRequired = requireJerseySize || (rider.pairedEventSelected && pairedRequireJerseySize)
+          const riderPhotoIsRequired = riderPhotoUploadEnabled || (rider.pairedEventSelected && pairedRiderPhotoRequired)
           const plateCheck = plateChecks[idx] ?? initialPlateCheck()
           const showPlateSuffixField =
             rider.usePlateSuffix ||
@@ -1635,7 +1990,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                     />
                   </div>
                 </div>
-                {requireJerseySize && (
+                {riderJerseySizeRequired && (
                   <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
                     <div className="grid gap-2">
                       <label className={labelClass}>{requiredLabel('Ukuran Jersey')}</label>
@@ -1764,6 +2119,70 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                   )}
                 </div>
 
+                {pairedEvent && businessSettings?.event_bundle_offer?.enabled && (
+                  <label className={`flex items-start gap-3 rounded-2xl border p-4 ${pairedEvent.registrationOpen ? 'cursor-pointer border-[#e6bd38]/35 bg-[#f3c63d]/[0.06]' : 'cursor-not-allowed border-white/10 bg-slate-950/30 opacity-70'}`}>
+                    <input
+                      type="checkbox"
+                      checked={rider.pairedEventSelected}
+                      disabled={!pairedEvent.registrationOpen}
+                      onChange={(event) => updateRider(idx, {
+                        pairedEventSelected: event.target.checked,
+                        ...(!event.target.checked ? { pairedPrimaryCategoryId: '', pairedExtraCategoryId: '', pairedBundleId: '' } : {}),
+                      })}
+                      className="mt-1 h-5 w-5 shrink-0 accent-[#f3c63d]"
+                    />
+                    <span className="grid gap-1">
+                      <span className="text-sm font-black text-slate-100">Daftarkan rider ini juga ke {pairedEvent.name}</span>
+                      <span className="text-xs font-semibold text-slate-300">Biaya dasar paket {formatRupiah(Number(businessSettings.event_bundle_offer.bundle_base_price_per_rider))}; kategori dan biaya tambahan dihitung untuk rider ini saja.</span>
+                    </span>
+                  </label>
+                )}
+
+                {rider.pairedEventSelected && pairedEvent && (
+                  <div className="rounded-2xl border border-sky-300/20 bg-sky-500/[0.06] p-4">
+                    <div className="text-sm font-black text-slate-100">Kategori {pairedEvent.name}</div>
+                    <p className="mt-1 text-xs font-semibold text-slate-400">Kategori dihitung dari tanggal lahir rider dan tanggal event pasangan.</p>
+                    {!rider.dateOfBirth ? (
+                      <p className="mt-3 text-xs font-bold text-amber-200">Isi tanggal lahir untuk memilih kategori event pasangan.</p>
+                    ) : pairedPrimaryOptions.length === 0 ? (
+                      <p className="mt-3 text-xs font-bold text-rose-200">Tidak ada kategori yang cocok atau slot kategori event pasangan sudah penuh.</p>
+                    ) : (
+                      <>
+                        <label className="mt-3 grid gap-2">
+                          <span className={labelClass}>Kategori utama</span>
+                          <select
+                            value={pairedPrimaryCategory?.id ?? ''}
+                            onChange={(event) => updateRider(idx, { pairedPrimaryCategoryId: event.target.value, pairedExtraCategoryId: '' })}
+                            className={fieldClass}
+                          >
+                            {pairedPrimaryOptions.map((category) => <option key={category.id} value={category.id}>{category.label}</option>)}
+                          </select>
+                        </label>
+                        <label className="mt-3 grid gap-2">
+                          <span className={labelClass}>Kategori tambahan / upclass Ãƒâ€šÃ‚Â· {formatRupiah(pairedExtraPrice)}</span>
+                          <select
+                            value={rider.pairedExtraCategoryId}
+                            onChange={(event) => updateRider(idx, { pairedExtraCategoryId: event.target.value })}
+                            className={fieldClass}
+                          >
+                            <option value="">Tidak ikut kategori tambahan</option>
+                            {pairedExtraOptions.map((category) => <option key={category.id} value={category.id}>{category.label}</option>)}
+                          </select>
+                        </label>
+                        {pairedBundles.length > 0 && (
+                          <label className="mt-3 grid gap-2">
+                            <span className={labelClass}>Bundling tambahan event pasangan</span>
+                            <select value={rider.pairedBundleId} onChange={(event) => updateRider(idx, { pairedBundleId: event.target.value })} className={fieldClass}>
+                              <option value="">Tanpa bundling</option>
+                              {pairedBundles.map((bundle) => <option key={bundle.id} value={bundle.id}>{bundle.name} Ãƒâ€šÃ‚Â· {bundle.price === 0 ? 'tanpa biaya tambahan' : `+ ${formatRupiah(bundle.price)}`}</option>)}
+                            </select>
+                          </label>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+
                 <div className="rounded-2xl border border-emerald-300/20 bg-emerald-500/[0.06] p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="text-sm font-black text-slate-100">Kategori Tambahan / Up Category</div>
@@ -1794,6 +2213,24 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                     </div>
                   )}
                 </div>
+
+                {enabledBundles.length > 0 && (
+                  <div className="rounded-2xl border border-amber-300/20 bg-amber-400/[0.06] p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="text-sm font-black text-slate-100">Bundling tambahan</div>
+                      <div className="text-xs font-bold text-amber-200">Opsional Ãƒâ€šÃ‚Â· per rider</div>
+                    </div>
+                    <select value={rider.bundleId} onChange={(event) => updateRider(idx, { bundleId: event.target.value })} className={`${fieldClass} mt-3`}>
+                      <option value="">Tanpa bundling</option>
+                      {enabledBundles.map((bundle) => (
+                        <option key={bundle.id} value={bundle.id}>{bundle.name} Ãƒâ€šÃ‚Â· {bundle.price === 0 ? 'tanpa biaya tambahan' : `+ ${formatRupiah(bundle.price)}`}</option>
+                      ))}
+                    </select>
+                    {rider.bundleId && enabledBundles.find((bundle) => bundle.id === rider.bundleId)?.description && (
+                      <p className="mt-2 text-xs font-semibold text-slate-300">{enabledBundles.find((bundle) => bundle.id === rider.bundleId)?.description}</p>
+                    )}
+                  </div>
+                )}
 
                 <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1875,8 +2312,8 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                   )}
                 </div>
 
-                <div className={`grid gap-3 ${riderPhotoUploadEnabled ? 'md:grid-cols-2' : ''}`}>
-                  {riderPhotoUploadEnabled && (
+                <div className={`grid gap-3 ${riderPhotoIsRequired ? 'md:grid-cols-2' : ''}`}>
+                  {riderPhotoIsRequired && (
                     <div className="grid gap-2">
                     <label className={labelClass}>{requiredLabel('Upload Foto Rider')}</label>
                       <label
@@ -1941,7 +2378,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                       }
                     >
                         <span className="truncate text-sm font-bold text-slate-100">
-                          {rider.docKk ? rider.docKk.name : 'Pilih dokumen KK/Akte/KIA'}
+                          {rider.docKk ? rider.docKk.name : rider.docKkPreviewUrl ? 'Dokumen lama siap digunakan' : 'Pilih dokumen KK/Akte/KIA'}
                         </span>
                       <span className="rounded-full border border-amber-300/40 bg-amber-400/10 px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-wide text-amber-100">
                         Browse
@@ -1966,10 +2403,25 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                       <div className="text-[11px] font-black text-[#9a4b08]">Mengupload dokumen...</div>
                     )}
                     {rider.docKkUploadStatus === 'uploaded' && (
-                      <div className="text-[11px] font-black text-[#087443]">Dokumen berhasil diupload.</div>
+                      <div className="text-[11px] font-black text-[#087443]">{rider.docKkPreviewUrl ? 'Dokumen lama siap digunakan. Periksa pratinjau sebelum lanjut.' : 'Dokumen berhasil diupload.'}</div>
                     )}
                     {rider.docKkUploadStatus === 'error' && (
                       <div className="text-[11px] font-black text-[#b93612]">{rider.docKkUploadError}</div>
+                    )}
+                    {rider.docKkPreviewUrl && (
+                      <div className="grid gap-2 rounded-xl border border-emerald-300/25 bg-emerald-400/[0.05] p-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-xs font-black text-emerald-200">Pratinjau dokumen sebelumnya</span>
+                          <a href={rider.docKkPreviewUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-amber-200 underline">Buka</a>
+                        </div>
+                        {rider.docKkPreviewType === 'pdf' ? (
+                          <iframe title={`Pratinjau dokumen rider ${idx + 1}`} src={rider.docKkPreviewUrl} className="h-64 w-full rounded-lg border border-white/10 bg-white" />
+                        ) : (
+                          <a href={rider.docKkPreviewUrl} target="_blank" rel="noopener noreferrer" aria-label={`Buka pratinjau dokumen rider ${idx + 1}`}>
+                            <img src={rider.docKkPreviewUrl} alt={`Pratinjau dokumen rider ${idx + 1}`} className="max-h-72 w-full rounded-lg bg-white object-contain" />
+                          </a>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -2074,14 +2526,34 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
             <div className="rounded-2xl border border-emerald-300/20 bg-emerald-500/10 p-4">
               <div className="text-xs font-extrabold uppercase tracking-[0.14em] text-emerald-200">Ringkasan Biaya</div>
               <div className="mt-2 grid gap-2 text-sm font-semibold text-slate-200">
-                <div className="flex items-center justify-between gap-3">
-                  <span>{riderCount} rider x {formatRupiah(basePrice)}</span>
-                  <span>{formatRupiah(baseAmount)}</span>
-                </div>
+                {baseRiderCount > 0 && (
+                  <div className="flex items-center justify-between gap-3">
+                    <span>{baseRiderCount} rider x {formatRupiah(basePrice)}</span>
+                    <span>{formatRupiah(baseAmount)}</span>
+                  </div>
+                )}
+                {pairedRiderCount > 0 && pairedEvent && (
+                  <div className="flex items-center justify-between gap-3">
+                    <span>{pairedRiderCount} rider x paket {pairedEvent.name}</span>
+                    <span>{formatRupiah(bundleBaseAmount)}</span>
+                  </div>
+                )}
                 <div className="flex items-center justify-between gap-3">
                   <span>{extraCategoryCount} up category x {formatRupiah(extraPrice)}</span>
                   <span>{formatRupiah(extraAmount)}</span>
                 </div>
+                {enabledBundles.length > 0 && (
+                  <div className="flex items-center justify-between gap-3">
+                    <span>{bundleSelections.length} bundling pilihan</span>
+                    <span>{formatRupiah(bundleAmount)}</span>
+                  </div>
+                )}
+                {eventBundleSelected && pairedEvent && (riders.some((rider) => rider.pairedExtraCategoryId || rider.pairedBundleId)) && (
+                  <div className="flex items-center justify-between gap-3">
+                    <span>Upclass & bundling tambahan {pairedEvent.name}</span>
+                    <span>{formatRupiah(riders.filter((rider) => rider.pairedEventSelected && rider.pairedExtraCategoryId).length * pairedExtraPrice + pairedBundleAmount)}</span>
+                  </div>
+                )}
               </div>
               <div className="mt-3 flex items-center justify-between gap-3 border-t border-emerald-300/15 pt-3 text-sm font-black text-emerald-100">
                 <span>Total Bayar</span>
@@ -2149,7 +2621,6 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                 <div>{contactName}</div>
                 <div>{contactPhone}</div>
                 <div>{contactEmail || 'Email tidak diisi'}</div>
-                <div>{communityName || 'Komunitas tidak diisi'}</div>
               </div>
             </div>
 
@@ -2166,9 +2637,11 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                   const primaryCategory = computePrimaryCategory(
                     birthYear,
                     rider.gender,
-                    rider.primaryCategoryId
+                    rider.primaryCategoryId,
+                    rider.dateOfBirth
                   )
                   const extraCategory = categories.find((category) => category.id === rider.extraCategoryId) ?? null
+                  const selectedBundle = enabledBundles.find((bundle) => bundle.id === rider.bundleId) ?? null
                   const plate = formatPlateDisplay(
                     rider.requestedPlateNumber,
                     rider.requestedPlateSuffix,
@@ -2202,7 +2675,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                           <dt className="text-[10px] font-black uppercase text-[#9a4b08]">Club / Komunitas</dt>
                           <dd className="mt-1 font-bold text-[#3f2b20]">{rider.club}</dd>
                         </div>
-                        {requireJerseySize && (
+                        {(requireJerseySize || (rider.pairedEventSelected && pairedRequireJerseySize)) && (
                           <div>
                             <dt className="text-[10px] font-black uppercase text-[#9a4b08]">Ukuran Jersey</dt>
                             <dd className="mt-1 font-bold text-[#3f2b20]">{rider.jerseySize}</dd>
@@ -2216,7 +2689,24 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                           <dt className="text-[10px] font-black uppercase text-[#9a4b08]">Kategori Tambahan</dt>
                           <dd className="mt-1 font-bold text-[#3f2b20]">{extraCategory?.label ?? 'Tidak ikut'}</dd>
                         </div>
-                        {riderPhotoUploadEnabled && (
+                        {rider.pairedEventSelected && pairedEvent && (
+                          <div>
+                            <dt className="text-[10px] font-black uppercase text-[#9a4b08]">{pairedEvent.name}</dt>
+                            <dd className="mt-1 font-bold text-[#3f2b20]">
+                              {getPairedPrimaryCategory(rider)?.label ?? 'Kategori belum dipilih'}
+                              {rider.pairedExtraCategoryId ? ` + ${pairedCategories.find((category) => category.id === rider.pairedExtraCategoryId)?.label ?? 'Upclass'}` : ''}
+                            </dd>
+                          </div>
+                        )}
+                        {enabledBundles.length > 0 && (
+                          <div>
+                            <dt className="text-[10px] font-black uppercase text-[#9a4b08]">Bundling</dt>
+                            <dd className="mt-1 font-bold text-[#3f2b20]">
+                              {selectedBundle ? `${selectedBundle.name}${selectedBundle.price > 0 ? ` (+${formatRupiah(selectedBundle.price)})` : ''}` : 'Tidak memilih'}
+                            </dd>
+                          </div>
+                        )}
+                        {(riderPhotoUploadEnabled || (rider.pairedEventSelected && pairedRiderPhotoRequired)) && (
                           <div>
                             <dt className="text-[10px] font-black uppercase text-[#9a4b08]">Foto Rider</dt>
                             <dd className="mt-1 break-all font-bold text-[#3f2b20]">{rider.photo?.name ?? '-'}</dd>
@@ -2241,7 +2731,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                 </button>
               </div>
               <div className="mt-3 grid gap-1 text-sm font-semibold text-[#58493d]">
-                <div>{bankName} · {accountName}</div>
+                <div>{bankName} Ãƒâ€šÃ‚Â· {accountName}</div>
                 <div>{accountNumber}</div>
                 <div>Bukti: {paymentProof?.name}</div>
                 <div className="mt-2 text-lg font-black text-[#087443]">Total {formatRupiah(totalAmount)}</div>
@@ -2292,7 +2782,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#1d0d07]/75 px-4 backdrop-blur-sm">
           <div className="max-h-[calc(100vh-2rem)] w-full max-w-lg overflow-y-auto rounded-[1.75rem] border border-[#d9c9ae] bg-[#fff8e8] p-6 text-[#1d0d07] shadow-[0_30px_90px_rgba(55,23,9,0.45)]">
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-[#d8a916] bg-[#f3c63d] text-4xl font-black text-[#1d0d07] shadow-[0_10px_24px_rgba(243,198,61,0.28)]">
-              ✓
+              ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“
             </div>
             <div className="mt-4 text-center text-xs font-black uppercase tracking-[0.18em] text-[#e84b16]">
               Pendaftaran Berhasil Dikirim
@@ -2318,6 +2808,13 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
               <p className="mt-2 text-[11px] font-semibold text-[#796657]">
                 Scan QR untuk membuka halaman cek status.
               </p>
+              {success.pairedRegistrationCode && (
+                <div className="mt-3 rounded-xl border border-[#d9c9ae] bg-[#fff8e8] p-3 text-left">
+                  <div className="text-xs font-black uppercase text-[#796657]">Event pasangan Ãƒâ€šÃ‚Â· {success.pairedEventName}</div>
+                  <div className="mt-1 font-mono text-lg font-black tracking-wide text-[#1d0d07]">{success.pairedRegistrationCode}</div>
+                  <p className="mt-1 text-xs font-semibold text-[#796657]">Simpan kedua kode pendaftaran untuk memeriksa status masing-masing event.</p>
+                </div>
+              )}
               <button
                 type="button"
                 onClick={() => void copyRegistrationCode(success.registrationCode)}
@@ -2330,7 +2827,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
                   role="status"
                   className="mx-auto mt-3 w-fit rounded-full border border-[#9bc9ae] bg-[#e3f3e6] px-3 py-1.5 text-xs font-black text-[#087443] shadow-sm"
                 >
-                  ✓ Kode telah disalin
+                  ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“ Kode telah disalin
                 </div>
               )}
             </div>
@@ -2364,6 +2861,97 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {prefillModalOpen && prefillCandidates.length > 0 && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/75 px-4 py-6 backdrop-blur-sm">
+          <section role="dialog" aria-modal="true" aria-labelledby="prefill-rider-title" className="grid max-h-[90dvh] w-full max-w-lg gap-4 overflow-y-auto rounded-[1.75rem] border border-amber-300/30 bg-slate-900 p-5 text-slate-100 shadow-[0_30px_90px_rgba(2,6,23,0.65)] sm:p-6">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-300">Data pendaftaran sebelumnya</p>
+                <h2 id="prefill-rider-title" className="mt-1 text-xl font-black">Gunakan data rider ini?</h2>
+              </div>
+              <button type="button" onClick={() => setPrefillModalOpen(false)} aria-label="Tutup konfirmasi rider" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/15 text-slate-300 transition hover:border-amber-300 hover:text-amber-200">
+                <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <path d="m5 5 10 10M15 5 5 15" />
+                </svg>
+              </button>
+            </div>
+            <p className="text-sm font-medium leading-5 text-slate-300">
+              Ditemukan {prefillCandidates.length} rider dengan nomor WhatsApp ini. Pilih satu atau beberapa nama, lalu masukkan tanggal lahir masing-masing untuk verifikasi sebelum memuat data.
+            </p>
+            <div className="grid gap-2">
+              {prefillCandidates.map((candidate) => {
+                const loaded = loadedPrefillIds.includes(candidate.id)
+                const selected = selectedPrefillRiderIds.includes(candidate.id)
+                return (
+                  <div key={candidate.id} className={`rounded-xl border p-3 transition-colors ${loaded ? 'border-emerald-300/20 bg-emerald-300/[0.03]' : selected ? 'border-[#f3c63d]/50 bg-[#f3c63d]/[0.06]' : 'border-white/10 bg-slate-950/35'}`}>
+                    <label className={`flex min-h-8 items-center gap-3 text-sm font-bold ${loaded ? 'text-slate-500' : 'cursor-pointer text-slate-100'}`}>
+                      <input
+                        type="checkbox"
+                        name="previous-rider-candidate-modal"
+                        value={candidate.id}
+                        checked={selected}
+                        disabled={loaded || prefillLoading}
+                        className="sr-only"
+                        onChange={() => {
+                          setSelectedPrefillRiderIds((current) => selected ? current.filter((id) => id !== candidate.id) : [...current, candidate.id])
+                          setPrefillDateOfBirths((current) => {
+                            if (selected) {
+                              const next = { ...current }
+                              delete next[candidate.id]
+                              return next
+                            }
+                            return current
+                          })
+                          setPrefillMessage(null)
+                        }}
+                      />
+                      <span aria-hidden="true" className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 ${selected ? 'border-[#f3c63d] bg-[#f3c63d]' : loaded ? 'border-emerald-300/40' : 'border-slate-500'}`}>
+                        {selected && <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" className="h-3.5 w-3.5 text-[#1d0d07]" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m3 8 3 3 7-7" /></svg>}
+                        {loaded && <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" className="h-3.5 w-3.5 text-emerald-300" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m3 8 3 3 7-7" /></svg>}
+                      </span>
+                      <span className="flex-1">{candidate.masked_name}</span>
+                      {loaded && <span className="text-[10px] font-black uppercase text-emerald-300">Sudah dimuat</span>}
+                    </label>
+                    {selected && (
+                      <div className="mt-3 grid gap-1.5 border-t border-white/10 pt-3">
+                        <label htmlFor={`prefill-rider-dob-${candidate.id}`} className={labelClass}>Tanggal lahir {candidate.masked_name}</label>
+                        <input
+                          id={`prefill-rider-dob-${candidate.id}`}
+                          type="date"
+                          value={prefillDateOfBirths[candidate.id] ?? ''}
+                          onChange={(event) => setPrefillDateOfBirths((current) => ({ ...current, [candidate.id]: event.target.value }))}
+                          className={fieldClass}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+            {selectedPrefillRiderIds.length > 0 && (
+              <button
+                type="button"
+                disabled={prefillLoading || selectedPrefillRiderIds.some((id) => !prefillDateOfBirths[id])}
+                onClick={() => void loadPreviousRiders()}
+                className="min-h-11 rounded-xl bg-[#f3c63d] px-4 py-2 text-sm font-black text-[#1d0d07] disabled:opacity-60"
+              >
+                {prefillLoading ? 'Memverifikasi semua rider...' : `Gunakan ${selectedPrefillRiderIds.length} Data Rider`}
+              </button>
+            )}
+            {prefillMessage && (
+              <p role={prefillMessage.type === 'error' ? 'alert' : 'status'} className={`text-sm font-bold ${prefillMessage.type === 'error' ? 'text-rose-300' : 'text-emerald-300'}`}>
+                {prefillMessage.text}
+              </p>
+            )}
+            <div className="flex flex-col-reverse gap-2 border-t border-white/10 pt-3 sm:flex-row sm:justify-end">
+              <button type="button" onClick={() => setPrefillModalOpen(false)} className="min-h-11 rounded-xl border border-white/15 px-4 py-2 text-sm font-bold text-slate-200 hover:bg-white/5">
+                Isi Manual / Selesai
+              </button>
+            </div>
+          </section>
         </div>
       )}
 
@@ -2440,11 +3028,11 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
             </div>
             <button
               type="button"
-              disabled={!registrationOpen}
+              disabled={!registrationOpen || prefillLoading}
               onClick={continueFromContact}
               className="inline-flex min-h-[56px] items-center justify-center rounded-full bg-[#f3c63d] px-7 py-3 text-sm font-black uppercase text-[#1d0d07] shadow-[0_16px_35px_rgba(243,198,61,0.24)] transition-transform hover:-translate-y-0.5 hover:bg-[#ffda5a] disabled:cursor-not-allowed disabled:bg-[#705547] disabled:text-[#c9b7a5] md:min-w-[260px]"
             >
-              {registrationOpen ? 'Lanjut ke Data Rider' : 'Registrasi Ditutup'}
+              {!registrationOpen ? 'Registrasi Ditutup' : prefillLoading ? 'Mencari data rider...' : 'Lanjut ke Data Rider'}
             </button>
           </>
         ) : activeStep === 2 ? (

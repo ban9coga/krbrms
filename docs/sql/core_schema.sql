@@ -110,17 +110,30 @@ create table if not exists categories (
   year int not null,
   year_min int not null default 2017,
   year_max int not null default 2017,
+  category_basis text not null default 'BIRTH_YEAR',
+  age_min int,
+  age_max int,
   capacity int,
   gender gender_type not null,
   label text not null,
   enabled boolean not null default true,
   created_at timestamptz not null default now(),
-  constraint ck_categories_capacity check (capacity is null or capacity >= 0)
+  constraint ck_categories_capacity check (capacity is null or capacity >= 0),
+  constraint ck_categories_category_basis check (category_basis in ('BIRTH_YEAR', 'AGE')),
+  constraint ck_categories_age_range check (
+    (category_basis = 'BIRTH_YEAR' and age_min is null and age_max is null)
+    or (category_basis = 'AGE' and age_min is not null and age_max is not null and age_min >= 0 and age_min <= age_max)
+  )
 );
 
 create index if not exists idx_categories_event on categories(event_id);
 create index if not exists idx_categories_year_gender on categories(event_id, year, gender);
-create unique index if not exists uq_categories_event_year_gender on categories(event_id, year, gender);
+create unique index if not exists uq_categories_event_year_gender
+  on categories(event_id, year, gender)
+  where category_basis = 'BIRTH_YEAR';
+create unique index if not exists uq_categories_event_age_range_gender
+  on categories(event_id, age_min, age_max, gender)
+  where category_basis = 'AGE';
 
 do $$
 begin
@@ -320,6 +333,9 @@ create table if not exists registration_items (
   requested_plate_suffix char(1),
   photo_url text,
   price int not null default 0,
+  bundle_id text,
+  bundle_name text,
+  bundle_price int not null default 0,
   status registration_item_status not null default 'PENDING',
   venue_status text not null default 'UNMARKED',
   checked_in_at timestamptz,
@@ -330,6 +346,7 @@ create table if not exists registration_items (
   updated_at timestamptz not null default now(),
   constraint ck_registration_items_gender check (gender in ('BOY','GIRL')),
   constraint ck_registration_items_price check (price >= 0),
+  constraint ck_registration_items_bundle_price check (bundle_price >= 0),
   constraint ck_registration_items_venue_status check (
     venue_status in ('UNMARKED','CHECKED_IN','NOT_ATTENDING')
   ),

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin, requireRegistrationManager } from '../../../../../../../lib/auth'
 import {
+  calculateAgeOnDate,
   isMissingPrimaryCategoryColumnError,
   missingPrimaryCategoryMigrationMessage,
 } from '../../../../../../../lib/categoryAssignment'
@@ -388,7 +389,7 @@ const updateApprovedRegistrationUpclass = async ({
   if (nextCategoryIds.length > 0) {
     const { data: categories, error: categoryError } = await adminClient
       .from('categories')
-      .select('id, event_id, year, year_min, year_max, gender, enabled')
+      .select('id, event_id, year, year_min, year_max, category_basis, age_min, age_max, gender, enabled')
       .in('id', nextCategoryIds)
 
     if (categoryError) return NextResponse.json({ error: categoryError.message }, { status: 400 })
@@ -397,12 +398,16 @@ const updateApprovedRegistrationUpclass = async ({
     }
 
     const birthYear = Number(String(rider.date_of_birth).slice(0, 4))
+    const { data: eventRow } = await adminClient.from('events').select('event_date').eq('id', eventId).maybeSingle()
+    const riderAge = calculateAgeOnDate(rider.date_of_birth, eventRow?.event_date)
     for (const category of categories) {
       if (category.event_id !== eventId || category.enabled === false) {
         return NextResponse.json({ error: 'Kategori upclass tidak valid untuk event ini.' }, { status: 400 })
       }
-      const maxYear = (category.year_max ?? category.year) as number
-      if (!Number.isFinite(birthYear) || maxYear >= birthYear) {
+      const invalidAgeClass = category.category_basis === 'AGE'
+        ? riderAge == null || category.age_min == null || category.age_min <= riderAge
+        : !Number.isFinite(birthYear) || Number(category.year_max ?? category.year) >= birthYear
+      if (invalidAgeClass) {
         return NextResponse.json({ error: 'Kategori upclass harus berada di atas tahun lahir rider.' }, { status: 400 })
       }
       if (category.gender !== 'MIX' && category.gender !== rider.gender) {
@@ -609,7 +614,7 @@ export async function PATCH(
   if (categoryIds.size > 0) {
     const { data: categories, error: catError } = await adminClient
       .from('categories')
-      .select('id, year, year_min, year_max, gender, capacity, label')
+      .select('id, year, year_min, year_max, category_basis, age_min, age_max, gender, capacity, label')
       .in('id', Array.from(categoryIds))
     if (catError) return NextResponse.json({ error: catError.message }, { status: 400 })
 
@@ -628,6 +633,9 @@ export async function PATCH(
             year: number
             year_min?: number | null
             year_max?: number | null
+            category_basis?: 'BIRTH_YEAR' | 'AGE' | null
+            age_min?: number | null
+            age_max?: number | null
             gender: 'BOY' | 'GIRL' | 'MIX'
           }>,
           { excludePendingRegistrationId: registrationId }

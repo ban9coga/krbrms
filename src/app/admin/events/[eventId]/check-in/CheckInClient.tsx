@@ -250,18 +250,18 @@ export default function CheckInClient({ eventId }: { eventId: string }) {
   const needsNotAttendingOverride = registration?.attendance_status === 'NOT_ATTENDING' && checkedInCount === 0
 
   return (
-    <div className="min-h-screen bg-slate-100 p-4 text-slate-950 md:p-6">
-      <main className="mx-auto grid w-full max-w-4xl gap-5">
+    <div className="admin-check-in min-h-screen bg-slate-100 p-3 text-slate-950 sm:p-4 md:p-6">
+      <main className="mx-auto grid min-w-0 w-full max-w-4xl gap-4 sm:gap-5">
         <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <div className="text-xs font-black uppercase tracking-[0.18em] text-amber-700">Venue Operations</div>
-              <h1 className="mt-1 text-3xl font-black">Check-in & Goodie Bag</h1>
+              <h1 className="mt-1 text-2xl font-black sm:text-3xl">Check-in & Goodie Bag</h1>
               <p className="mt-2 text-sm font-semibold text-slate-600">{eventName}</p>
             </div>
             <Link
               href={`/admin/events/${eventId}/registrations`}
-              className="w-fit rounded-full border border-slate-300 bg-white px-4 py-2 text-xs font-black uppercase hover:border-slate-950"
+              className="w-fit max-w-full rounded-full border border-slate-300 bg-white px-4 py-2 text-center text-xs font-black uppercase hover:border-slate-950"
             >
               Kembali ke Registrasi
             </Link>
@@ -357,7 +357,7 @@ export default function CheckInClient({ eventId }: { eventId: string }) {
               </div>
             )}
 
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid min-w-0 grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
               <div className={`rounded-2xl border p-4 ${attendanceClass(registration.attendance_status)}`}>
                 <div className="text-xs font-black uppercase opacity-75">Konfirmasi Wali</div>
                 <div className="mt-2 font-black">{attendanceStatusLabel[registration.attendance_status]}</div>
@@ -418,7 +418,7 @@ export default function CheckInClient({ eventId }: { eventId: string }) {
                   }`}
                 >
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div>
+                    <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <div className="font-black">{index + 1}. {rider.rider_name}</div>
                         <span className="rounded-full border border-slate-300 bg-white px-3 py-1 text-[10px] font-black uppercase">
@@ -429,7 +429,7 @@ export default function CheckInClient({ eventId }: { eventId: string }) {
                               : 'Belum Diproses'}
                         </span>
                       </div>
-                      <div className="mt-1 text-xs font-semibold text-slate-600">
+                      <div className="mt-1 break-words text-xs font-semibold text-slate-600">
                         {rider.rider_nickname || '-'} · {getCategoryLabel(rider.categories)}
                       </div>
                       {rider.checked_in_at && (

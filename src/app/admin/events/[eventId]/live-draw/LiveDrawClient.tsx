@@ -1,5 +1,7 @@
 'use client'
 
+import { appAlert, appConfirm } from '@/src/lib/appDialog'
+
 import { useEffect, useMemo, useRef, useState } from 'react'
 import confetti from 'canvas-confetti'
 import { supabase } from '@/src/lib/supabaseClient'
@@ -314,7 +316,7 @@ export default function LiveDrawClient({
   const spinTimeoutRef = useRef<number | null>(null)
   const rollingIntervalRef = useRef<number | null>(null)
   const skipNextCategoryLoadRef = useRef(false)
-  const maxBatchRiders = useMemo(() => Math.max(4, Math.min(8, gatePositions || 8)), [gatePositions])
+  const maxBatchRiders = useMemo(() => Math.max(1, Number(gatePositions) || 8), [gatePositions])
   const minimumManualBatchCount = useMemo(
     () => Math.max(1, Math.ceil(Math.max(0, riders.length) / maxBatchRiders)),
     [maxBatchRiders, riders.length]
@@ -959,8 +961,8 @@ export default function LiveDrawClient({
       const nextGate = typeof format.gate_positions === 'number' ? format.gate_positions : 8
       setGatePositions(nextGate)
       setBatchSize((prev) => {
-        const maxGate = Math.max(4, nextGate)
-        const capped = Math.max(4, Math.min(maxGate, prev))
+        const maxGate = Math.max(1, nextGate)
+        const capped = Math.max(1, Math.min(maxGate, prev))
         return prev === 8 ? maxGate : capped
       })
     } catch {
@@ -979,7 +981,8 @@ export default function LiveDrawClient({
       const locked = Boolean(json?.has_motos)
       setRiders(list)
       setBatchMode(drawConfig.batch_mode)
-      setBatchSize(drawConfig.batch_size ?? Math.max(1, Number(json?.gate_positions ?? gatePositions)))
+      const gateCapacity = Math.max(1, Number(json?.gate_positions ?? gatePositions))
+      setBatchSize(Math.min(gateCapacity, Math.max(1, Number(drawConfig.batch_size ?? gateCapacity))))
       setManualBatchCount(drawConfig.batch_count ?? Math.max(1, Math.ceil(list.length / Math.max(1, Number(json?.gate_positions ?? gatePositions)))) )
       setCustomBatchPattern(drawConfig.custom_batch_sizes.join(', '))
       setMoto2Order(drawConfig.moto2_order)
@@ -1016,7 +1019,7 @@ export default function LiveDrawClient({
         }
       }
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Gagal memuat rider')
+      appAlert(err instanceof Error ? err.message : 'Gagal memuat rider')
     } finally {
       setLoading(false)
     }
@@ -1040,15 +1043,15 @@ export default function LiveDrawClient({
 
   const startDraw = () => {
     if (riders.length === 0) {
-      alert('Tidak ada rider di kategori ini.')
+      appAlert('Tidak ada rider di kategori ini.')
       return
     }
     if (hasDrawn) {
-      alert('Kategori ini sudah pernah didraw. Silakan pilih kategori lain.')
+      appAlert('Kategori ini sudah pernah didraw. Silakan pilih kategori lain.')
       return
     }
     if (batchMode === 'CUSTOM_BATCH_SIZES' && customBatchError) {
-      alert(customBatchError)
+      appAlert(customBatchError)
       return
     }
     setDrawing(true)
@@ -1143,24 +1146,24 @@ export default function LiveDrawClient({
 
   const applyExternalOrder = () => {
     if (riders.length === 0) {
-      alert('Tidak ada rider di kategori ini.')
+      appAlert('Tidak ada rider di kategori ini.')
       return
     }
     if (categoryLocked) {
-      alert('Kategori ini sudah terkunci. Reset moto dulu jika ingin ubah urutan.')
+      appAlert('Kategori ini sudah terkunci. Reset moto dulu jika ingin ubah urutan.')
       return
     }
     if (externalBatchInputMode === 'PER_BATCH') {
       if (!externalPerBatchValidation.isValid) {
-        alert('Input external per batch belum valid. Pastikan semua rider terisi tepat satu kali di batch yang benar.')
+        appAlert('Input external per batch belum valid. Pastikan semua rider terisi tepat satu kali di batch yang benar.')
         return
       }
       if (externalPerBatchValidation.moto2Provided && !externalPerBatchValidation.isValidMoto2) {
-        alert('Input Moto 2 per batch belum valid. Pastikan semua rider muncul tepat satu kali.')
+        appAlert('Input Moto 2 per batch belum valid. Pastikan semua rider muncul tepat satu kali.')
         return
       }
       if (externalPerBatchValidation.moto3Provided && !externalPerBatchValidation.isValidMoto3) {
-        alert('Input Moto 3 per batch belum valid. Pastikan semua rider muncul tepat satu kali.')
+        appAlert('Input Moto 3 per batch belum valid. Pastikan semua rider muncul tepat satu kali.')
         return
       }
       if (qualificationBatchMode === 'ROTATE_EACH_MOTO') {
@@ -1182,7 +1185,7 @@ export default function LiveDrawClient({
       setDrawnOrder(externalPerBatchValidation.orderedBatches.flat())
     } else {
       if (!externalValidation.isValid) {
-        alert('Urutan external belum valid. Pastikan semua rider terisi tepat satu kali.')
+        appAlert('Urutan external belum valid. Pastikan semua rider terisi tepat satu kali.')
         return
       }
       setDrawnOrder(externalValidation.orderedRiders)
@@ -1286,7 +1289,7 @@ export default function LiveDrawClient({
     if (externalTargetField.moto === 2 && (!assignedInMoto1 || assignedInMoto2)) return
     if (externalTargetField.moto === 3 && (!assignedInMoto1 || assignedInMoto3)) return
     if (targetBatchCount >= maxBatchRiders) {
-      alert(
+      appAlert(
         `Batch ${externalTargetField.batchIndex + 1} - Moto ${externalTargetField.moto} sudah penuh. Maksimal ${maxBatchRiders} rider per batch.`
       )
       return
@@ -1371,10 +1374,10 @@ export default function LiveDrawClient({
   const resetLockedDraw = async () => {
     if (!selectedCategory) return
     if (!deleteGuard.canDelete) {
-      alert(deleteGuard.reason || 'Reset draw diblokir untuk kategori ini.')
+      appAlert(deleteGuard.reason || 'Reset draw diblokir untuk kategori ini.')
       return
     }
-    const ok = window.confirm('Reset draw? Ini akan menghapus semua moto untuk kategori ini.')
+    const ok = await appConfirm('Reset draw? Ini akan menghapus semua moto untuk kategori ini.')
     if (!ok) return
     setSaveState('saving')
     try {
@@ -1400,9 +1403,9 @@ export default function LiveDrawClient({
       setResultModal(null)
       setDeleteGuard({ canDelete: true, reason: null })
       await loadRiders(selectedCategory)
-      alert('Draw berhasil direset.')
+      appAlert('Draw berhasil direset.')
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Gagal reset draw')
+      appAlert(err instanceof Error ? err.message : 'Gagal reset draw')
       setSaveState('idle')
     }
   }
@@ -1414,14 +1417,14 @@ export default function LiveDrawClient({
         return
       }
       await navigator.clipboard.writeText(text)
-      alert('Output share berhasil disalin.')
+      appAlert('Output share berhasil disalin.')
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === 'AbortError') return
       try {
         await navigator.clipboard.writeText(text)
-        alert('Output share berhasil disalin.')
+        appAlert('Output share berhasil disalin.')
       } catch {
-        alert('Gagal share/copy output. Coba copy manual dari browser.')
+        appAlert('Gagal share/copy output. Coba copy manual dari browser.')
       }
     }
   }
@@ -1486,7 +1489,7 @@ export default function LiveDrawClient({
 
   const buildDraftBatchShareText = (batch: (typeof batchLayouts)[number]) => {
     const lines = [
-      `🏁 DRAW RESULT`,
+      `Ã°Å¸ÂÂ DRAW RESULT`,
       eventName,
       `Kategori: ${selectedCategoryLabel}`,
       `Batch ${batch.index}`,
@@ -1501,7 +1504,7 @@ export default function LiveDrawClient({
 
   const buildSavedBatchShareText = (batch: (typeof savedMotoBatches)[number]) => {
     const lines = [
-      `🏁 DRAW RESULT`,
+      `Ã°Å¸ÂÂ DRAW RESULT`,
       eventName,
       `Kategori: ${selectedCategoryLabel}`,
       `Batch ${batch.batchNo}`,
@@ -1520,7 +1523,7 @@ export default function LiveDrawClient({
 
   const buildDraftCategoryShareText = () => {
     const lines = [
-      `🏁 DRAW RESULT`,
+      `Ã°Å¸ÂÂ DRAW RESULT`,
       eventName,
       `Kategori: ${selectedCategoryLabel}`,
       '',
@@ -1543,7 +1546,7 @@ export default function LiveDrawClient({
 
   const buildSavedCategoryShareText = () => {
     const lines = [
-      `🏁 DRAW RESULT`,
+      `Ã°Å¸ÂÂ DRAW RESULT`,
       eventName,
       `Kategori: ${selectedCategoryLabel}`,
       '',
@@ -1865,25 +1868,25 @@ export default function LiveDrawClient({
 
   const saveAsMoto = async () => {
     if (!selectedCategory) {
-      alert('Pilih kategori dulu.')
+      appAlert('Pilih kategori dulu.')
       return
     }
     if (drawMode === 'external_draw' && externalBatchInputMode === 'PER_BATCH') {
       if (!externalPerBatchValidation.isValid) {
-        alert('Susunan batch Moto 1 belum lengkap/valid. Pastikan semua rider sudah ditempatkan.')
+        appAlert('Susunan batch Moto 1 belum lengkap/valid. Pastikan semua rider sudah ditempatkan.')
         return
       }
       if (externalPerBatchValidation.moto2Provided && !externalPerBatchValidation.isValidMoto2) {
-        alert('Urutan Moto 2 manual per batch belum valid. Cek kembali input Moto 2.')
+        appAlert('Urutan Moto 2 manual per batch belum valid. Cek kembali input Moto 2.')
         return
       }
       if (externalPerBatchValidation.moto3Provided && !externalPerBatchValidation.isValidMoto3) {
-        alert('Urutan Moto 3 manual per batch belum valid. Cek kembali input Moto 3.')
+        appAlert('Urutan Moto 3 manual per batch belum valid. Cek kembali input Moto 3.')
         return
       }
     } else {
       if (drawnOrder.length === 0) {
-        alert(drawMode === 'external_draw' ? 'Klik "Gunakan Urutan External" dulu.' : 'Lakukan draw terlebih dulu.')
+        appAlert(drawMode === 'external_draw' ? 'Klik "Gunakan Urutan External" dulu.' : 'Lakukan draw terlebih dulu.')
         return
       }
       if (
@@ -1892,12 +1895,12 @@ export default function LiveDrawClient({
         externalMoto2Validation.isProvided &&
         !externalMoto2Validation.isValidForMoto1
       ) {
-        alert('Urutan Moto 2 manual belum valid per batch. Cek kembali input Moto 2.')
+        appAlert('Urutan Moto 2 manual belum valid per batch. Cek kembali input Moto 2.')
         return
       }
     }
     if (batchMode === 'CUSTOM_BATCH_SIZES' && customBatchError) {
-      alert(customBatchError)
+      appAlert(customBatchError)
       return
     }
     setSaveState('saving')
@@ -1950,14 +1953,14 @@ export default function LiveDrawClient({
       setSaveSuccessModal(true)
       setSaveState('saved')
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Gagal menyimpan hasil draw')
+      appAlert(err instanceof Error ? err.message : 'Gagal menyimpan hasil draw')
       setSaveState('idle')
     }
   }
 
   const handleDownloadLiveDrawExcel = async () => {
     if (lockedMotos.length === 0) {
-      alert('Belum ada moto tersimpan untuk diunduh.')
+      appAlert('Belum ada moto tersimpan untuk diunduh.')
       return
     }
 
@@ -2092,7 +2095,7 @@ export default function LiveDrawClient({
       )
     } catch (error) {
       console.error(error)
-      alert(error instanceof Error ? error.message : 'Gagal mengunduh Excel hasil draw.')
+      appAlert(error instanceof Error ? error.message : 'Gagal mengunduh Excel hasil draw.')
     }
   }
 
@@ -2117,7 +2120,7 @@ export default function LiveDrawClient({
               aria-expanded={categoryPickerOpen}
               onClick={() => setCategoryPickerOpen((isOpen) => !isOpen)}
             >
-              <span>{selectedCategoryLabel} · {riders.length} Riders</span>
+              <span>{selectedCategoryLabel} Ã‚Â· {riders.length} Riders</span>
               <svg aria-hidden="true" viewBox="0 0 16 16" focusable="false">
                 <path d="m3.25 5.75 4.75 4.5 4.75-4.5" />
               </svg>
@@ -2159,7 +2162,7 @@ export default function LiveDrawClient({
             onClick={() => loadRiders(selectedCategory)}
             disabled={loading || !selectedCategory}
           >
-            ↻
+            Ã¢â€ Â»
           </button>
         </section>
         <div className={`ld-mode-badge ld-mode-badge--${drawMode}`}>
@@ -3043,7 +3046,7 @@ export default function LiveDrawClient({
                   await shareOrDownloadPngs(blobs, filenames, `Hasil Draw - ${selectedCategoryLabel}`)
                 } catch (e) {
                   console.error(e)
-                  alert('Gagal membagikan draw')
+                  appAlert('Gagal membagikan draw')
                 }
               }}
               disabled={!categoryLocked && drawnOrder.length === 0}
@@ -3103,7 +3106,7 @@ export default function LiveDrawClient({
       {saveSuccessModal && (
         <div className="ld-save-success-overlay" role="dialog" aria-modal="true" aria-labelledby="ld-save-success-title">
           <div className="ld-save-success-modal">
-            <div className="ld-save-success-mark" aria-hidden="true">✓</div>
+            <div className="ld-save-success-mark" aria-hidden="true">Ã¢Å“â€œ</div>
             <div className="ld-kicker">Moto Tersimpan</div>
             <h2 id="ld-save-success-title">Moto kategori telah disimpan</h2>
             <p>{selectedCategoryLabel} siap digunakan di halaman Motos dan oleh crew race.</p>
@@ -3208,7 +3211,7 @@ export default function LiveDrawClient({
                       await shareOrDownloadPngs(blobs, filenames, `Hasil Draw - ${selectedCategoryLabel}`)
                     } catch (e) {
                       console.error(e)
-                      alert('Gagal membagikan draw')
+                      appAlert('Gagal membagikan draw')
                     }
                   }}
                   style={{
@@ -3371,7 +3374,7 @@ export default function LiveDrawClient({
                             className="ld-draw-share-control"
                             onClick={() => {
                               downloadDraftBatchPng(batch).catch((err: unknown) => {
-                                alert(err instanceof Error ? err.message : 'Gagal membuat PNG.')
+                                appAlert(err instanceof Error ? err.message : 'Gagal membuat PNG.')
                               })
                             }}
                             style={{
@@ -3620,7 +3623,7 @@ export default function LiveDrawClient({
                           className="ld-draw-share-control"
                           onClick={() => {
                             downloadSavedBatchPng(batch).catch((err: unknown) => {
-                              alert(err instanceof Error ? err.message : 'Gagal membuat PNG.')
+                              appAlert(err instanceof Error ? err.message : 'Gagal membuat PNG.')
                             })
                           }}
                           style={{

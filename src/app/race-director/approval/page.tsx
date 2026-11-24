@@ -1,12 +1,13 @@
-﻿'use client'
+'use client'
+
+import { appConfirm } from '@/src/lib/appDialog'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import CheckerTopbar from '../../../components/CheckerTopbar'
 import { compareMotoSequence } from '../../../lib/motoSequence'
-import { useApiFetch, UnauthorizedError } from '@/src/hooks/useApiFetch'
+import { useApiFetch } from '@/src/hooks/useApiFetch'
 import { useEventRaceRealtime } from '@/src/hooks/useEventRaceRealtime'
 import { usePageVisibility } from '@/src/lib/usePageVisibility'
-import { supabase } from '@/src/lib/supabaseClient'
 
 type StatusUpdate = {
   id: string
@@ -157,7 +158,6 @@ export default function RaceDirectorApprovalPage() {
   const [motos, setMotos] = useState<MotoRow[]>([])
   const [lockedMap, setLockedMap] = useState<Record<string, boolean>>({})
   const [role, setRole] = useState<string | null>(null)
-  const [sessionExpired, setSessionExpired] = useState(false)
   const [riderMap, setRiderMap] = useState<Record<string, RiderItem>>({})
   const [categoryRiders, setCategoryRiders] = useState<RiderItem[]>([])
   const [penaltyRules, setPenaltyRules] = useState<PenaltyRuleItem[]>([])
@@ -244,7 +244,7 @@ export default function RaceDirectorApprovalPage() {
   const [loadingQuickMotoPenalties, setLoadingQuickMotoPenalties] = useState(false)
   const quickMotoPenaltiesRequestRef = useRef(0)
 
-  const apiFetch = useApiFetch(false) // session expiry handled by banner below
+  const apiFetch = useApiFetch()
 
   const showNotice = useCallback((type: 'success' | 'error', message: string) => {
     setActionNotice({ type, message })
@@ -371,10 +371,6 @@ export default function RaceDirectorApprovalPage() {
         setLastSyncAt(new Date().toLocaleTimeString())
         return true
       } catch (err: unknown) {
-        if (err instanceof UnauthorizedError) {
-          setSessionExpired(true)
-          return false
-        }
         if (notifyOnError) showNotice('error', getErrorMessage(err))
         return false
       } finally {
@@ -423,26 +419,6 @@ export default function RaceDirectorApprovalPage() {
       clearInterval(heavyTimer)
     }
   }, [eventId, isPageVisible, loadEventData, quickScreen])
-
-  // Proactive session refresh every 45 minutes to prevent mid-race logout
-  useEffect(() => {
-    if (!isPageVisible) return
-    const sessionRefreshTimer = setInterval(async () => {
-      try {
-        const { data, error } = await supabase.auth.refreshSession()
-        if (!error && data.session?.access_token) {
-          const secureCookie = window.location.protocol === 'https:' ? '; Secure' : ''
-          const maxAge = data.session.expires_in ?? 3600
-          const cookieVal = encodeURIComponent(data.session.access_token)
-          document.cookie = 'sb-access-token=' + cookieVal + '; Path=/; Max-Age=' + String(maxAge) + secureCookie + '; SameSite=Lax'
-          setSessionExpired(false)
-        }
-      } catch {
-        // silent — if refresh fails we'll catch it on the next API call
-      }
-    }, 45 * 60 * 1000)
-    return () => clearInterval(sessionRefreshTimer)
-  }, [isPageVisible])
 
   const categoriesSorted = useMemo(() => {
     return categories
@@ -820,7 +796,7 @@ export default function RaceDirectorApprovalPage() {
 
   const handleLock = async (motoId: string, lock: boolean) => {
     if (lock) {
-      const ok = confirm(
+      const ok = await appConfirm(
         'Kunci hasil moto ini?\n\nSetelah dikunci, hasil tidak dapat diedit melalui alur biasa. Pastikan status rider dan penalti sudah diperiksa.'
       )
       if (!ok) return
@@ -973,7 +949,7 @@ export default function RaceDirectorApprovalPage() {
     const selectedRider = quickRiders.find((rider) => rider.id === quickRiderId)
     const riderLabel = selectedRider ? `${selectedRider.no_plate_display} - ${selectedRider.name}` : 'rider terpilih'
     const motoLabel = selectedQuickMoto?.moto_name ?? 'moto terpilih'
-    if (!window.confirm(`Terapkan DQ untuk ${riderLabel} pada ${motoLabel}?`)) return
+    if (!await appConfirm(`Terapkan DQ untuk ${riderLabel} pada ${motoLabel}?`)) return
 
     setSettingDq(true)
     try {
@@ -1040,7 +1016,7 @@ export default function RaceDirectorApprovalPage() {
     const rider = quickRiders.find((item) => item.id === penalty.rider_id)
       ?? (Array.isArray(penalty.riders) ? penalty.riders[0] : penalty.riders)
     const riderLabel = rider ? `${rider.no_plate_display} - ${rider.name}` : 'rider terpilih'
-    if (!window.confirm(`Batalkan penalti ${penalty.rule_code} untuk ${riderLabel}?`)) return
+    if (!await appConfirm(`Batalkan penalti ${penalty.rule_code} untuk ${riderLabel}?`)) return
 
     setVoidingPenaltyId(penalty.id)
     try {
@@ -1093,7 +1069,7 @@ export default function RaceDirectorApprovalPage() {
       ? `kategori ${selectedCategoryLabel ?? 'terpilih'}`
       : 'seluruh kategori'
     const confirmMsg = `Anda akan mendiskualifikasi ${riderName} dari ${scopeLabel} di event ini. Semua hasil moto rider ini akan diubah menjadi diskualifikasi. Lanjutkan?`
-    if (!window.confirm(confirmMsg)) return
+    if (!await appConfirm(confirmMsg)) return
 
     try {
       setSettingEventDq(true)
@@ -1138,7 +1114,7 @@ export default function RaceDirectorApprovalPage() {
     const scopeLabel = eventDqForm.scope === 'CATEGORY'
       ? `kategori ${selectedCategoryLabel ?? 'terpilih'}`
       : 'seluruh event'
-    if (!window.confirm(`Batalkan DQ ${riderName} dari ${scopeLabel}? Hasil finish sebelum DQ harus dicek dan diinput ulang bila diperlukan.`)) {
+    if (!await appConfirm(`Batalkan DQ ${riderName} dari ${scopeLabel}? Hasil finish sebelum DQ harus dicek dan diinput ulang bila diperlukan.`)) {
       return
     }
 
@@ -1203,18 +1179,6 @@ export default function RaceDirectorApprovalPage() {
   return (
     <div className="min-h-screen overflow-x-hidden bg-slate-100 text-slate-900">
       <CheckerTopbar title="Race Director Panel" />
-      {sessionExpired && (
-        <div className="sticky top-[64px] z-40 flex items-center justify-between gap-3 bg-red-600 px-4 py-3 text-sm font-bold text-white shadow-md">
-          <span>⚠️ Session login habis. Simpan pekerjaan Anda lalu login ulang.</span>
-          <button
-            type="button"
-            onClick={() => { window.location.href = '/login' }}
-            className="rounded-lg bg-white px-4 py-1.5 text-sm font-black text-red-700 hover:bg-red-50"
-          >
-            Login ulang
-          </button>
-        </div>
-      )}
       <main className="public-main max-w-[1500px]">
         <section className="public-hero">
           <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-amber-400/15 blur-3xl" />
@@ -1743,8 +1707,8 @@ export default function RaceDirectorApprovalPage() {
                   <span>{gateCategoryId === 'ALL' ? `${g.category_label ?? 'Category'} - ${g.moto_name}` : g.moto_name}</span>
                   <span className="rd-gate-meta">
                     {gateStatusLabel[g.status] ?? g.status}
-                    {' · '}{g.ready}/{g.total} gate siap
-                    {g.warnings && g.warnings > 0 ? ` · ${g.warnings} peringatan` : ''}
+                    {' Â· '}{g.ready}/{g.total} gate siap
+                    {g.warnings && g.warnings > 0 ? ` Â· ${g.warnings} peringatan` : ''}
                   </span>
                 </div>
               ))}
@@ -2374,7 +2338,7 @@ export default function RaceDirectorApprovalPage() {
                         textAlign: 'left',
                       }}
                     >
-                      {cat.label} · {list.length} moto {isOpen ? '−' : '+'}
+                      {cat.label} Â· {list.length} moto {isOpen ? 'âˆ’' : '+'}
                     </button>
                     {isOpen && (
                       <div id={`rd-motos-${cat.id}`} style={{ display: 'grid', gap: 8 }}>

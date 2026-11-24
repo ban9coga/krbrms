@@ -246,8 +246,11 @@ export function computeQualificationAdvancesFromRanks(
 export function computeCombinedQualificationBucketAdvances(
   ranked: RankedRider[],
   stages: StageFlagsLike,
-  finalClasses: FinalClass[]
+  finalClasses: FinalClass[],
+  maxRidersPerRace = 8
 ): StageAdvance[] {
+  const raceCapacity = Math.max(1, Number(maxRidersPerRace) || 8)
+  const nextStageCapacity = raceCapacity * 2
   const advances: StageAdvance[] = []
   const normalizedFinalClasses = [...finalClasses]
   const lowerClassesDescendingStrength = normalizedFinalClasses
@@ -255,10 +258,10 @@ export function computeCombinedQualificationBucketAdvances(
     .reverse()
 
   if (stages.enableQuarterFinal) {
-    const quarterFinalists = ranked.slice(0, 16)
+    const quarterFinalists = ranked.slice(0, nextStageCapacity)
     quarterFinalists.forEach((row) => advances.push({ riderId: row.riderId, toStage: 'QUARTER_FINAL' }))
     lowerClassesDescendingStrength.forEach((finalClass, classIndex) => {
-      ranked.slice(16 + classIndex * 8, 16 + (classIndex + 1) * 8).forEach((row) => {
+      ranked.slice(nextStageCapacity + classIndex * raceCapacity, nextStageCapacity + (classIndex + 1) * raceCapacity).forEach((row) => {
         advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass })
       })
     })
@@ -266,20 +269,20 @@ export function computeCombinedQualificationBucketAdvances(
   }
 
   if (stages.enableSemiFinal) {
-    const semiFinalists = ranked.slice(0, 16)
+    const semiFinalists = ranked.slice(0, nextStageCapacity)
     semiFinalists.forEach((row) => advances.push({ riderId: row.riderId, toStage: 'SEMI_FINAL' }))
     lowerClassesDescendingStrength.forEach((finalClass, classIndex) => {
-      ranked.slice(16 + classIndex * 8, 16 + (classIndex + 1) * 8).forEach((row) => {
+      ranked.slice(nextStageCapacity + classIndex * raceCapacity, nextStageCapacity + (classIndex + 1) * raceCapacity).forEach((row) => {
         advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass })
       })
     })
     return advances
   }
 
-  ranked.slice(0, 8).forEach((row) => {
+  ranked.slice(0, raceCapacity).forEach((row) => {
     advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass: 'ELITE' })
   })
-  ranked.slice(8, 16).forEach((row) => {
+  ranked.slice(raceCapacity, raceCapacity * 2).forEach((row) => {
     advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass: 'NOVICE' })
   })
   return advances

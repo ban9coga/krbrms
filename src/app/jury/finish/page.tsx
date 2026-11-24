@@ -1,5 +1,7 @@
 'use client'
 
+import { appConfirm } from '@/src/lib/appDialog'
+
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '@/src/lib/supabaseClient'
 import { useHighVisibility } from '../../../hooks/useHighVisibility'
@@ -660,7 +662,7 @@ export default function JuryFinishPage() {
   const handleSetDns = async (rider: RiderItem) => {
     if (!selectedMoto || role === 'RACE_DIRECTOR' || motoLocked || !selectedMotoLive || !flags.finisher_dns_enabled) return
     if (finishOrder.includes(rider.id) || dnfRiders.includes(rider.id)) return
-    const confirmed = window.confirm(
+    const confirmed = await appConfirm(
       `Tetapkan DNS untuk ${rider.no_plate_display} - ${rider.name}?\n\nRider akan dikeluarkan dari input urutan finish dan dapat di-undo sebelum Submit Result.`
     )
     if (!confirmed) return
@@ -702,7 +704,7 @@ export default function JuryFinishPage() {
     const sourceDetail = source && source.role !== 'FINISHER'
       ? `\n\nPerhatian: DNS ini ditetapkan oleh ${source.label} (${source.role}). Anda akan membatalkan keputusan role lain.`
       : ''
-    const confirmed = window.confirm(`Batalkan DNS untuk ${rider.no_plate_display} - ${rider.name}?${sourceDetail}`)
+    const confirmed = await appConfirm(`Batalkan DNS untuk ${rider.no_plate_display} - ${rider.name}?${sourceDetail}`)
     if (!confirmed) return
 
     const previousStatus = participationByRider[rider.id]
@@ -913,7 +915,7 @@ export default function JuryFinishPage() {
                     const isFinal = /^final\b/i.test(m.moto_name.trim())
                     return (
                       <option key={m.id} value={m.id} disabled={!isMotoLive(m.status) && !isMotoReady(m.status)}>
-                        {isFinal ? '🏆 [FINAL] ' : ''}{m.moto_order}. {m.moto_name} - {categoryLabel.get(m.category_id ?? '') ?? 'Unknown'} - {m.status}
+                        {isFinal ? 'Ã°Å¸Ââ€  [FINAL] ' : ''}{m.moto_order}. {m.moto_name} - {categoryLabel.get(m.category_id ?? '') ?? 'Unknown'} - {m.status}
                       </option>
                     )
                   })}
@@ -931,7 +933,7 @@ export default function JuryFinishPage() {
                   <span className="finisher-refresh-edge" />
                   <span className="finisher-refresh-front">
                     <span className={`finisher-refresh-icon ${refreshingSelector ? 'is-spinning' : ''}`} aria-hidden="true">
-                      ↻
+                      Ã¢â€ Â»
                     </span>
                   </span>
                 </button>
@@ -946,7 +948,7 @@ export default function JuryFinishPage() {
                   <span className="finisher-refresh-edge" />
                   <span className="finisher-refresh-front">
                     <span className="text-base" aria-hidden="true">
-                      {motoSelectorLocked ? '🔒' : '🔓'}
+                      {motoSelectorLocked ? 'Ã°Å¸â€â€™' : 'Ã°Å¸â€â€œ'}
                     </span>
                   </span>
                 </button>
@@ -1050,7 +1052,7 @@ export default function JuryFinishPage() {
               >
                 <span>Hasil sementara</span>
                 <strong>{completedRiderCount}/{riders.length}</strong>
-                <em>{allRidersHaveResult ? 'Siap disubmit · belum disimpan' : `${Math.max(riders.length - completedRiderCount, 0)} belum masuk · simpan saat submit`}</em>
+                <em>{allRidersHaveResult ? 'Siap disubmit Ã‚Â· belum disimpan' : `${Math.max(riders.length - completedRiderCount, 0)} belum masuk Ã‚Â· simpan saat submit`}</em>
               </div>
               <div className="mt-3 flex items-center justify-between gap-3">
                 <button
@@ -1313,10 +1315,10 @@ export default function JuryFinishPage() {
 
                 {dqRiders.length > 0 && (
                   <section className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                    <h3 className="text-sm font-black uppercase tracking-[0.1em] text-slate-700">DQ yang sudah tercatat · tidak dikirim ulang</h3>
+                    <h3 className="text-sm font-black uppercase tracking-[0.1em] text-slate-700">DQ yang sudah tercatat Ã‚Â· tidak dikirim ulang</h3>
                     <ul className="mt-2 grid gap-1 text-sm font-semibold text-slate-600">
                       {dqRiders.map(({ rider }) => (
-                        <li key={rider.id}>{rider.no_plate_display} · {rider.name}</li>
+                        <li key={rider.id}>{rider.no_plate_display} Ã‚Â· {rider.name}</li>
                       ))}
                     </ul>
                   </section>

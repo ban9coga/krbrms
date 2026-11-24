@@ -8,6 +8,9 @@ export type OccupancyCategory = {
   year: number
   year_min?: number | null
   year_max?: number | null
+  category_basis?: 'BIRTH_YEAR' | 'AGE' | null
+  age_min?: number | null
+  age_max?: number | null
   gender: CategoryGender
 }
 
@@ -34,6 +37,9 @@ export const buildCategoryOccupancyBreakdown = async (
   categories: OccupancyCategory[],
   options?: { excludePendingRegistrationId?: string | null }
 ) => {
+  const { data: eventRow, error: eventError } = await adminClient.from('events').select('event_date').eq('id', eventId).maybeSingle()
+  if (eventError) throw new Error(eventError.message)
+  const eventDate = typeof eventRow?.event_date === 'string' ? eventRow.event_date : null
   const approvedCounts = new Map<string, number>()
   const pendingCounts = new Map<string, number>()
 
@@ -62,7 +68,7 @@ export const buildCategoryOccupancyBreakdown = async (
 
   for (const rider of riders) {
     for (const category of categories) {
-      if (!riderBelongsToPrimaryCategory(rider, category)) continue
+      if (!riderBelongsToPrimaryCategory(rider, category, eventDate)) continue
       increaseCount(approvedCounts, category.id)
       break
     }

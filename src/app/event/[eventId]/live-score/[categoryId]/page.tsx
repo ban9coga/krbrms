@@ -54,7 +54,7 @@ const loadInitialEvent = async (eventId: string): Promise<EventItem | null> => {
 const loadInitialCategories = async (eventId: string): Promise<RiderCategory[]> => {
   const { data, error } = await adminClient
     .from('categories')
-    .select('id, year, year_min, year_max, capacity, gender, label, enabled, sequence_order')
+    .select('id, year, year_min, year_max, category_basis, age_min, age_max, capacity, gender, label, enabled, sequence_order')
     .eq('event_id', eventId)
     .order('sequence_order', { ascending: true })
     .order('year_min', { ascending: true })

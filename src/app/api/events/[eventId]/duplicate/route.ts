@@ -62,7 +62,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
 
     const { data: categoryRows, error: categoryError } = await adminClient
       .from('categories')
-      .select('id, year, year_min, year_max, capacity, gender, label, enabled, sequence_order')
+      .select('id, year, year_min, year_max, category_basis, age_min, age_max, capacity, gender, label, enabled, sequence_order')
       .eq('event_id', eventId)
       .order('sequence_order', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: true })
@@ -78,6 +78,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
         year: row.year,
         year_min: row.year_min,
         year_max: row.year_max,
+        category_basis: row.category_basis ?? 'BIRTH_YEAR',
+        age_min: row.age_min,
+        age_max: row.age_max,
         capacity: row.capacity,
         gender: row.gender,
         label: row.label,

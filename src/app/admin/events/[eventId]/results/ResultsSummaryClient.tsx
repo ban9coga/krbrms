@@ -1,5 +1,7 @@
 'use client'
 
+import { appAlert } from '@/src/lib/appDialog'
+
 import Image from 'next/image'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import * as XLSX from 'xlsx'
@@ -404,7 +406,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
       .filter((group) => group.stages.length > 0)
 
     if (selectedGroups.length === 0) {
-      alert('Tidak ada hasil final/stage untuk diexport.')
+      appAlert('Tidak ada hasil final/stage untuk diexport.')
       return
     }
 
@@ -488,7 +490,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
     })
 
     if (sheetCount === 0) {
-      alert('Tidak ada data final/stage sesuai filter.')
+      appAlert('Tidak ada data final/stage sesuai filter.')
       return
     }
 
@@ -512,7 +514,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
       link.click()
       URL.revokeObjectURL(pngUrl)
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Gagal download story card.')
+      appAlert(err instanceof Error ? err.message : 'Gagal download story card.')
     } finally {
       setStoryDownloading(false)
     }
@@ -1092,7 +1094,7 @@ export default function ResultsSummaryClient({ eventId }: { eventId: string }) {
                             <div style={{ display: 'grid', gap: 4, paddingTop: 4 }}>
                               {penaltyMap[row.rider_id].map((p, idx) => (
                                 <div key={`${row.rider_id}-${idx}`} style={{ fontSize: 12 }}>
-                                  {p.rule_code ?? 'RULE'} · {p.penalty_point ?? 0} · {p.approval_status ?? '-'}
+                                  {p.rule_code ?? 'RULE'} Ã‚Â· {p.penalty_point ?? 0} Ã‚Â· {p.approval_status ?? '-'}
                                 </div>
                               ))}
                             </div>

@@ -25,11 +25,22 @@ export async function GET(_: Request, { params }: { params: Promise<{ eventId: s
     )
   if (ruleError) return NextResponse.json({ error: ruleError.message }, { status: 400 })
 
+  const { data: eventSettings } = await adminClient
+    .from('event_settings')
+    .select('race_format_settings')
+    .eq('event_id', eventId)
+    .maybeSingle()
+  const raceFormatSettings = eventSettings?.race_format_settings && typeof eventSettings.race_format_settings === 'object'
+    ? eventSettings.race_format_settings as Record<string, unknown>
+    : {}
+  const gatePositions = Math.max(1, Number(raceFormatSettings.gate_positions ?? 8))
+
   return NextResponse.json({
     data: {
       categories: categories ?? [],
       configs: configs ?? [],
       rules: rules ?? [],
+      gate_positions: gatePositions,
     },
   })
 }
@@ -42,7 +53,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   const body = await req.json().catch(() => ({}))
   const category_id = body?.category_id as string | undefined
   const enabled = Boolean(body?.enabled ?? false)
-  const max_riders_per_race = Number(body?.max_riders_per_race ?? 8)
+  const { data: eventSettings } = await adminClient
+    .from('event_settings')
+    .select('race_format_settings')
+    .eq('event_id', eventId)
+    .maybeSingle()
+  const raceFormatSettings = eventSettings?.race_format_settings && typeof eventSettings.race_format_settings === 'object'
+    ? eventSettings.race_format_settings as Record<string, unknown>
+    : {}
+  const eventGateCapacity = Math.max(1, Number(raceFormatSettings.gate_positions ?? 8))
+  const max_riders_per_race = Number(body?.max_riders_per_race ?? eventGateCapacity)
   const qualification_moto_count = Number(body?.qualification_moto_count ?? 2)
   const repechage_max_riders_per_race =
     body?.repechage_max_riders_per_race === '' || body?.repechage_max_riders_per_race == null

@@ -1,5 +1,7 @@
 'use client'
 
+import { appConfirm } from '@/src/lib/appDialog'
+
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import CheckerTopbar from '../../../../components/CheckerTopbar'
@@ -119,6 +121,15 @@ const isCategoryUnfinished = (list: MotoItem[], categoryId?: string | null) => {
   if (hasActiveOrProvisional) return true
 
   if (isCategoryAwaitingStageCompute(list, categoryId)) return true
+
+  // Keep this category active after qualification has finished whenever a
+  // generated advancement moto is still waiting to be raced or locked.
+  // Otherwise the qualification-only check below marks the category complete
+  // and Checker jumps to another category before its next stage is handled.
+  const advancementMotos = categoryMotos.filter(isAdvancementMoto)
+  if (advancementMotos.some((moto) => !['LOCKED', 'FINISHED'].includes(String(moto.status ?? '').toUpperCase()))) {
+    return true
+  }
 
   const qualMotos = categoryMotos.filter((m) => parseMotoSequence(m.moto_name))
   if (qualMotos.length > 0) {
@@ -276,13 +287,13 @@ function overlayPendingSafetyChecks(
 }
 
 const SAFETY_ICON_OPTIONS = [
-  { key: 'helmet', icon: '⛑', shortLabel: 'Helm' },
-  { key: 'gloves', icon: '🧤', shortLabel: 'Gloves' },
-  { key: 'elbow', icon: '💪', shortLabel: 'Siku' },
-  { key: 'knee', icon: '🦵', shortLabel: 'Lutut' },
-  { key: 'jersey', icon: '👕', shortLabel: 'Jersey' },
-  { key: 'shoes', icon: '👟', shortLabel: 'Sepatu' },
-  { key: 'pants', icon: '🩳', shortLabel: 'Celana' },
+  { key: 'helmet', icon: 'Ã¢â€ºâ€˜', shortLabel: 'Helm' },
+  { key: 'gloves', icon: 'Ã°Å¸Â§Â¤', shortLabel: 'Gloves' },
+  { key: 'elbow', icon: 'Ã°Å¸â€™Âª', shortLabel: 'Siku' },
+  { key: 'knee', icon: 'Ã°Å¸Â¦Âµ', shortLabel: 'Lutut' },
+  { key: 'jersey', icon: 'Ã°Å¸â€˜â€¢', shortLabel: 'Jersey' },
+  { key: 'shoes', icon: 'Ã°Å¸â€˜Å¸', shortLabel: 'Sepatu' },
+  { key: 'pants', icon: 'Ã°Å¸Â©Â³', shortLabel: 'Celana' },
 ]
 
 function getSafetyVisual(label: string, iconKey?: string | null) {
@@ -315,7 +326,7 @@ function getSafetyVisual(label: string, iconKey?: string | null) {
     return SAFETY_ICON_OPTIONS[6]
   }
 
-  return { icon: '✓', shortLabel: label }
+  return { icon: 'Ã¢Å“â€œ', shortLabel: label }
 }
 
 const buildStatusMap = (
@@ -787,7 +798,7 @@ export default function JCPage() {
     onRaceStateChanged: refreshFromRealtime,
   })
 
-  // Initial load — only runs once per moto selection
+  // Initial load Ã¢â‚¬â€ only runs once per moto selection
   useEffect(() => {
     if (!eventId) return
     initialLoadDone.current = false
@@ -1182,7 +1193,7 @@ export default function JCPage() {
     const previousStatus = incidentStatuses[riderId]
     if (!previousStatus || previousStatus.participation_status !== 'DNS') return
     if (previousStatus.status_source_role && previousStatus.status_source_role !== 'CHECKER') {
-      const confirmed = window.confirm(
+      const confirmed = await appConfirm(
         `DNS ini ditetapkan oleh ${previousStatus.status_source_label || 'role lain'} (${previousStatus.status_source_role}).\n\nBatalkan DNS dan kembalikan rider ke status aktif?`
       )
       if (!confirmed) return
@@ -1394,7 +1405,7 @@ export default function JCPage() {
                 const isFinal = /^final\b/i.test(m.moto_name.trim())
                 const isSemi = /^semi\s*final/i.test(m.moto_name.trim())
                 const isRep = /^repechage/i.test(m.moto_name.trim())
-                const stagePrefix = isFinal ? '🏆 [FINAL] ' : isSemi ? '⚡ [SEMI] ' : isRep ? '🔁 [REP] ' : ''
+                const stagePrefix = isFinal ? 'Ã°Å¸Ââ€  [FINAL] ' : isSemi ? 'Ã¢Å¡Â¡ [SEMI] ' : isRep ? 'Ã°Å¸â€Â [REP] ' : ''
                 return (
                   <option key={m.id} value={m.id}>
                     {stagePrefix}{m.moto_order}. {m.moto_name} - {categoryLabel.get(m.category_id ?? '') ?? 'Category'}
@@ -1464,7 +1475,7 @@ export default function JCPage() {
                 boxShadow: 'none',
               }}
             >
-              <span style={{ fontSize: 22 }}>⏳</span>
+              <span style={{ fontSize: 22 }}>Ã¢ÂÂ³</span>
               <div>
                 <div style={{ fontWeight: 900, fontSize: 15 }}>
                   Menunggu hasil stage dihitung
@@ -1746,7 +1757,7 @@ export default function JCPage() {
                   width: 'fit-content',
                 }}
               >
-                <span>🏆</span>
+                <span>Ã°Å¸Ââ€ </span>
                 <span>STAGE FINAL (PEREBUTAN MEDALI)</span>
               </div>
             )}
@@ -2100,7 +2111,7 @@ export default function JCPage() {
                     <span className="jc-rider-action-shadow" />
                     <span className="jc-rider-action-edge" />
                     <span className="jc-rider-action-front">
-                      {isStatusSaving ? 'MENYIMPAN…' : isRiderReady ? 'UNDO READY' : 'READY'}
+                      {isStatusSaving ? 'MENYIMPANÃ¢â‚¬Â¦' : isRiderReady ? 'UNDO READY' : 'READY'}
                     </span>
                   </button>
                   <button
@@ -2116,7 +2127,7 @@ export default function JCPage() {
                     <span className="jc-rider-action-shadow" />
                     <span className="jc-rider-action-edge" />
                     <span className="jc-rider-action-front">
-                      {isStatusSaving ? 'MENYIMPAN…' : isRiderAbsent ? 'UNDO ABSENT' : 'ABSENT'}
+                      {isStatusSaving ? 'MENYIMPANÃ¢â‚¬Â¦' : isRiderAbsent ? 'UNDO ABSENT' : 'ABSENT'}
                     </span>
                   </button>
                 </div>
@@ -2485,7 +2496,7 @@ export default function JCPage() {
         >
           <div style={{ width: 'min(100%, 420px)', borderRadius: 8, border: '1px solid #bbf7d0', background: '#fff', padding: 24, boxShadow: '0 8px 24px rgba(15, 23, 42, 0.14)', textAlign: 'center' }}>
             <div aria-hidden="true" style={{ width: 62, height: 62, margin: '0 auto 14px', display: 'grid', placeItems: 'center', borderRadius: '50%', background: '#15803d', color: '#fff', fontSize: 36, fontWeight: 900 }}>
-              ✓
+              Ã¢Å“â€œ
             </div>
             <div id="moto-ready-confirmation-title" style={{ fontSize: 22, fontWeight: 950, color: '#14532d' }}>
               Moto Ready Terkonfirmasi
@@ -2557,7 +2568,7 @@ export default function JCPage() {
                 onClick={() => setMotoPickerOpen(false)}
                 style={{ width: 36, height: 36, border: '1px solid #cbd5e1', borderRadius: 8, background: '#fff', fontSize: 20, fontWeight: 800 }}
               >
-                ×
+                Ãƒâ€”
               </button>
             </div>
             <input
@@ -2638,9 +2649,9 @@ export default function JCPage() {
                   >
                     <span style={{ minWidth: 0 }}>
                       <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 950, color: titleColor }}>
-                        {isFinal && <span style={{ fontSize: 14 }}>🏆</span>}
-                        {isSemi && <span style={{ fontSize: 13 }}>⚡</span>}
-                        {isRepechage && <span style={{ fontSize: 13 }}>🔁</span>}
+                        {isFinal && <span style={{ fontSize: 14 }}>Ã°Å¸Ââ€ </span>}
+                        {isSemi && <span style={{ fontSize: 13 }}>Ã¢Å¡Â¡</span>}
+                        {isRepechage && <span style={{ fontSize: 13 }}>Ã°Å¸â€Â</span>}
                         <span>{moto.moto_order}. {moto.moto_name}</span>
                         {isFinal && (
                           <span

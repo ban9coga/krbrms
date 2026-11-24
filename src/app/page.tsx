@@ -207,7 +207,6 @@ export default async function LandingPage() {
       <main>
         <HeroRace liveEvent={liveEvent} />
         <LandingEventCollection events={eventCards} />
-        <InsightHomeSection posts={insightPosts} />
         {communityLogos.length > 0 && (
           <section className="homepage-editorial-section homepage-editorial-community-section">
             <div className="homepage-editorial-section-inner">
@@ -234,6 +233,7 @@ export default async function LandingPage() {
             </div>
           </section>
         )}
+        <InsightHomeSection posts={insightPosts} />
       </main>
 
     </div>

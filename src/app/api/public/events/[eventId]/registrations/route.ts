@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server'
-import { randomBytes } from 'crypto'
+import { randomBytes, randomUUID } from 'crypto'
 import { adminClient } from '../../../../../../lib/auth'
 import {
   getExactPrimaryCategoryCandidates,
   getFallbackPrimaryCategoryCandidates,
   getCategoryMaxYear,
+  calculateAgeOnDate,
 } from '../../../../../../lib/categoryAssignment'
 import { normalizePlateNumber, normalizePlateSuffix } from '../../../../../../lib/plate'
 import { buildCategoryOccupancyMap } from '../../../../../../services/categoryOccupancy'
@@ -13,6 +14,8 @@ import {
   getPendingRegistrationUploadPrefix,
   getRegistrationFileKind,
   prepareRegistrationUploadFile,
+  REGISTRATION_UPLOAD_BUCKET,
+  REGISTRATION_UPLOAD_CACHE_CONTROL_SECONDS,
   removeRegistrationStorageObjects,
   uploadRegistrationStorageObject,
 } from '../../../../../../lib/registrationUploads'
@@ -26,10 +29,12 @@ type RegistrationItemInput = {
   club?: string | null
   primary_category_id?: string | null
   extra_category_id?: string | null
+  bundle_id?: string | null
   requested_plate_number?: string | null
   requested_plate_suffix?: string | null
   photo_url?: string | null
   document_url?: string | null
+  source_item_index?: number
 }
 
 type PreparedItem =
@@ -43,6 +48,9 @@ type PreparedItem =
       club: string | null
       primary_category_id: string | null
       extra_category_id: string | null
+      bundle_id: string | null
+      bundle_name: string | null
+      bundle_price: number
       requested_plate_number: string | null
       requested_plate_suffix: string | null
       price: number
@@ -59,6 +67,11 @@ type RegistrationPayload = {
     account_name?: string
     account_number?: string
     proof_url?: string
+  }
+  event_bundle?: {
+    offer_id: string
+    paired_event_id: string
+    items: RegistrationItemInput[]
   }
 }
 
@@ -79,6 +92,9 @@ type EventCategory = {
   year: number
   year_min?: number | null
   year_max?: number | null
+  category_basis?: 'BIRTH_YEAR' | 'AGE' | null
+  age_min?: number | null
+  age_max?: number | null
   capacity?: number | null
   gender: 'BOY' | 'GIRL' | 'MIX'
   label: string
@@ -244,7 +260,7 @@ const rollbackRegistration = async (registrationId: string, uploadedPaths: strin
   }
 }
 
-const createBaseRegistration = async (eventId: string, payload: RegistrationPayload) => {
+const createBaseRegistration = async (eventId: string, payload: RegistrationPayload, options?: { basePriceOverride?: number; basePriceOverrides?: number[] }) => {
   const { community_name, contact_name, contact_phone, contact_email, items } = payload
   if (!contact_name || !contact_phone || !Array.isArray(items) || items.length === 0) {
     return { error: 'Missing required fields' }
@@ -265,6 +281,9 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
     .limit(1)
 
   if (settingsError) return { error: settingsError.message }
+  const { data: eventRow, error: eventError } = await adminClient.from('events').select('event_date').eq('id', eventId).maybeSingle()
+  if (eventError) return { error: eventError.message }
+  const eventDate = typeof eventRow?.event_date === 'string' ? eventRow.event_date : null
   const latestSettingsRow = (settingsRow ?? [])[0]
   if (latestSettingsRow?.registration_open === false) {
     return { error: 'Pendaftaran untuk event ini sedang ditutup.' }
@@ -274,12 +293,29 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
   const riderPhotoUploadEnabled = getRiderPhotoUploadEnabled(latestSettingsRow?.business_settings)
   const basePriceRaw = Number(latestSettingsRow?.base_price)
   const extraPriceRaw = Number(latestSettingsRow?.extra_price)
-  const basePrice = Number.isFinite(basePriceRaw) && basePriceRaw > 0 ? basePriceRaw : BASE_PRICE
+  const configuredBasePrice = Number.isFinite(basePriceRaw) && basePriceRaw > 0 ? basePriceRaw : BASE_PRICE
+  const basePrice = Number.isSafeInteger(options?.basePriceOverride) && Number(options?.basePriceOverride) >= 0
+    ? Number(options?.basePriceOverride)
+    : configuredBasePrice
   const extraPrice = Number.isFinite(extraPriceRaw) && extraPriceRaw >= 0 ? extraPriceRaw : EXTRA_PRICE
+  const businessSettings = latestSettingsRow?.business_settings && typeof latestSettingsRow.business_settings === 'object'
+    ? latestSettingsRow.business_settings as Record<string, unknown>
+    : {}
+  const bundleOptions = Array.isArray(businessSettings.registration_bundles)
+    ? businessSettings.registration_bundles.filter((option): option is { id: string; name: string; price: number; enabled: boolean } =>
+        Boolean(option) && typeof option === 'object' &&
+        typeof (option as { id?: unknown }).id === 'string' &&
+        typeof (option as { name?: unknown }).name === 'string' &&
+        Number.isSafeInteger((option as { price?: unknown }).price) &&
+        Number((option as { price?: unknown }).price) >= 0 &&
+        Number((option as { price?: unknown }).price) <= 1_000_000_000 &&
+        typeof (option as { enabled?: unknown }).enabled === 'boolean'
+      )
+    : []
 
   const { data: categories, error: catError } = await adminClient
     .from('categories')
-    .select('id, event_id, year, year_min, year_max, capacity, gender, label, enabled')
+    .select('id, event_id, year, year_min, year_max, category_basis, age_min, age_max, capacity, gender, label, enabled')
     .eq('event_id', eventId)
     .eq('enabled', true)
 
@@ -303,6 +339,9 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
           year: number
           year_min?: number | null
           year_max?: number | null
+          category_basis?: 'BIRTH_YEAR' | 'AGE' | null
+          age_min?: number | null
+          age_max?: number | null
           gender: 'BOY' | 'GIRL' | 'MIX'
         }>
       )
@@ -315,7 +354,7 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
   const workingCounts = new Map(currentCounts)
   const preparedItems: PreparedItem[] = []
 
-  for (const item of items) {
+  for (const [itemIndex, item] of items.entries()) {
     const birthYear = toYear(item.date_of_birth ?? '')
     if (!birthYear) {
       preparedItems.push({ error: 'Invalid date_of_birth' })
@@ -336,14 +375,14 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
       continue
     }
 
-    const exactCandidates = getExactPrimaryCategoryCandidates(eventCategories, birthYear, item.gender)
+    const exactCandidates = getExactPrimaryCategoryCandidates(eventCategories, birthYear, item.gender, item.date_of_birth, eventDate)
     if (exactCandidates.length === 0) {
       preparedItems.push({ error: 'Tahun lahir/gender rider tidak masuk kategori aktif event ini.' })
       continue
     }
 
     const availableExact = exactCandidates.find((category) => !isCategoryFull(category.id, capacityMap, workingCounts)) ?? null
-    const fallbackCandidates = getFallbackPrimaryCategoryCandidates(eventCategories, birthYear, item.gender)
+    const fallbackCandidates = getFallbackPrimaryCategoryCandidates(eventCategories, birthYear, item.gender, item.date_of_birth, eventDate)
       .filter((category) => !isCategoryFull(category.id, capacityMap, workingCounts))
 
     let primary = availableExact
@@ -376,8 +415,11 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
       continue
     }
 
-    const extraMax = extra ? getCategoryMaxYear(extra) : null
-    if (extra && extraMax !== null && extraMax >= birthYear) {
+    const riderAge = calculateAgeOnDate(item.date_of_birth, eventDate)
+    const extraIsNotOlderClass = extra && (extra.category_basis === 'AGE'
+      ? riderAge == null || extra.age_min == null || extra.age_min <= riderAge
+      : getCategoryMaxYear(extra) >= birthYear)
+    if (extra && extraIsNotOlderClass) {
       preparedItems.push({ error: 'Extra category must be above rider birth year' })
       continue
     }
@@ -387,6 +429,13 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
     }
     if (extra && isCategoryFull(extra.id, capacityMap, workingCounts)) {
       preparedItems.push({ error: `Kuota kategori "${extra.label}" penuh.` })
+      continue
+    }
+
+    const requestedBundleId = typeof item.bundle_id === 'string' ? item.bundle_id.trim() : ''
+    const bundle = requestedBundleId ? bundleOptions.find((option) => option.id === requestedBundleId && option.enabled) : null
+    if (requestedBundleId && !bundle) {
+      preparedItems.push({ error: 'Pilihan bundling tidak tersedia. Muat ulang halaman lalu pilih kembali.' })
       continue
     }
 
@@ -407,6 +456,10 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
       workingCounts.set(extra.id, (workingCounts.get(extra.id) ?? 0) + 1)
     }
 
+    const requestedItemBase = options?.basePriceOverrides?.[itemIndex]
+    const itemBasePrice = Number.isSafeInteger(requestedItemBase) && Number(requestedItemBase) >= 0
+      ? Number(requestedItemBase)
+      : basePrice
     preparedItems.push({
       rider_name: item.rider_name,
       rider_nickname: item.rider_nickname ?? null,
@@ -416,9 +469,12 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
       club: item.club.trim(),
       primary_category_id: primary.id,
       extra_category_id: extra?.id ?? null,
+      bundle_id: bundle?.id ?? null,
+      bundle_name: bundle?.name ?? null,
+      bundle_price: bundle?.price ?? 0,
       requested_plate_number: requestedPlateNumber,
       requested_plate_suffix: requestedPlateSuffix,
-      price: basePrice + (extra ? extraPrice : 0),
+      price: itemBasePrice + (extra ? extraPrice : 0) + (bundle?.price ?? 0),
     })
   }
 
@@ -603,6 +659,261 @@ const createBaseRegistration = async (eventId: string, payload: RegistrationPayl
   }
 }
 
+const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+
+const copyBundlePendingAsset = async (
+  sourcePath: string | null | undefined,
+  sourceEventId: string,
+  targetEventId: string,
+  kind: 'rider-photo' | 'document' | 'payment'
+) => {
+  if (!sourcePath) return null
+  const sourcePrefix = `${getPendingRegistrationUploadPrefix(sourceEventId)}${kind}-`
+  if (!sourcePath.startsWith(sourcePrefix)) throw new Error(`File ${kind} tidak berasal dari upload pendaftaran event ini.`)
+
+  const storage = adminClient.storage.from(REGISTRATION_UPLOAD_BUCKET)
+  const { data: file, error: downloadError } = await storage.download(sourcePath)
+  if (downloadError || !file) throw new Error(`Gagal menyalin ${kind} ke event pasangan.`)
+
+  const mime = file.type || ''
+  const sourceExt = sourcePath.split('?')[0]?.split('.').pop()?.toLowerCase() ?? ''
+  const extension = mime === 'application/pdf' || sourceExt === 'pdf'
+    ? 'pdf'
+    : mime === 'image/png' || sourceExt === 'png'
+      ? 'png'
+      : mime === 'image/webp' || sourceExt === 'webp'
+        ? 'webp'
+        : mime === 'image/avif' || sourceExt === 'avif'
+          ? 'avif'
+          : 'jpg'
+  const contentType = extension === 'pdf' ? 'application/pdf' : `image/${extension === 'jpg' ? 'jpeg' : extension}`
+  const targetPath = `${getPendingRegistrationUploadPrefix(targetEventId)}${kind}-${randomUUID()}.${extension}`
+  const { error: uploadError } = await storage.upload(targetPath, Buffer.from(await file.arrayBuffer()), {
+    contentType,
+    cacheControl: REGISTRATION_UPLOAD_CACHE_CONTROL_SECONDS,
+    upsert: false,
+  })
+  if (uploadError) throw new Error(`Gagal menyiapkan ${kind} untuk event pasangan.`)
+  return targetPath
+}
+
+const createEventBundleRegistration = async (eventId: string, payload: RegistrationPayload) => {
+  const requestedBundle = payload.event_bundle
+  const pairedEventId = requestedBundle?.paired_event_id?.trim() ?? ''
+  if (!requestedBundle || !pairedEventId || !Array.isArray(requestedBundle.items) || requestedBundle.items.length === 0) {
+    return NextResponse.json({ error: 'Data event pasangan belum lengkap.' }, { status: 400 })
+  }
+
+  const { data: sourceSettings, error: sourceSettingsError } = await adminClient
+    .from('event_settings')
+    .select('base_price, business_settings')
+    .eq('event_id', eventId)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (sourceSettingsError) return NextResponse.json({ error: sourceSettingsError.message }, { status: 400 })
+
+  const sourceBusiness = isPlainRecord(sourceSettings?.business_settings) ? sourceSettings.business_settings : {}
+  const configuredOffer = isPlainRecord(sourceBusiness.event_bundle_offer) ? sourceBusiness.event_bundle_offer : null
+  if (
+    !configuredOffer || configuredOffer.enabled !== true ||
+    configuredOffer.id !== requestedBundle.offer_id ||
+    configuredOffer.paired_event_id !== pairedEventId ||
+    !Number.isSafeInteger(configuredOffer.bundle_base_price_per_rider)
+  ) {
+    return NextResponse.json({ error: 'Paket event sudah tidak tersedia. Muat ulang halaman lalu coba lagi.' }, { status: 409 })
+  }
+
+  const { data: pairedEvent, error: pairedEventError } = await adminClient
+    .from('events')
+    .select('id, name, is_public, status')
+    .eq('id', pairedEventId)
+    .maybeSingle()
+  if (pairedEventError) return NextResponse.json({ error: pairedEventError.message }, { status: 400 })
+  if (!pairedEvent || pairedEvent.is_public === false || pairedEvent.status === 'FINISHED' || pairedEvent.id === eventId) {
+    return NextResponse.json({ error: 'Event pasangan tidak tersedia.' }, { status: 400 })
+  }
+
+  const sourceItems = payload.items ?? []
+  if (sourceItems.length === 0 || requestedBundle.items.length === 0 || requestedBundle.items.length > sourceItems.length) {
+    return NextResponse.json({ error: 'Pilih minimal satu rider untuk event pasangan.' }, { status: 400 })
+  }
+  const pairedItems: RegistrationItemInput[] = []
+  const pairedSourceIndexes: number[] = []
+  const pairedSourceIndexSet = new Set<number>()
+  for (let index = 0; index < requestedBundle.items.length; index += 1) {
+    const item = requestedBundle.items[index]
+    const sourceIndex = Number.isInteger(item.source_item_index) ? Number(item.source_item_index) : index
+    const sourceItem = sourceItems[sourceIndex]
+    if (
+      !sourceItem || pairedSourceIndexSet.has(sourceIndex) ||
+      String(item.rider_name ?? '').trim().toLowerCase() !== sourceItem.rider_name.trim().toLowerCase() ||
+      item.date_of_birth !== sourceItem.date_of_birth
+    ) {
+      return NextResponse.json({ error: 'Data rider di event pasangan tidak cocok dengan rider yang dipilih.' }, { status: 400 })
+    }
+    pairedSourceIndexSet.add(sourceIndex)
+    pairedSourceIndexes.push(sourceIndex)
+    pairedItems.push({
+      ...item,
+      rider_name: sourceItem.rider_name,
+      rider_nickname: sourceItem.rider_nickname,
+      date_of_birth: sourceItem.date_of_birth,
+      gender: sourceItem.gender,
+      club: sourceItem.club,
+    })
+  }
+
+  const { data: pairedSettings, error: pairedSettingsError } = await adminClient
+    .from('event_settings')
+    .select('base_price')
+    .eq('event_id', pairedEventId)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (pairedSettingsError) return NextResponse.json({ error: pairedSettingsError.message }, { status: 400 })
+  const sourceBase = Number(sourceSettings?.base_price) > 0 ? Number(sourceSettings?.base_price) : BASE_PRICE
+  const pairedBase = Number(pairedSettings?.base_price) > 0 ? Number(pairedSettings?.base_price) : BASE_PRICE
+  const bundleBasePrice = Number(configuredOffer.bundle_base_price_per_rider)
+  if (bundleBasePrice >= sourceBase + pairedBase) {
+    return NextResponse.json({ error: 'Harga paket harus lebih rendah daripada total biaya daftar normal kedua event.' }, { status: 400 })
+  }
+  const sourceAllocatedBase = Math.round(bundleBasePrice * sourceBase / (sourceBase + pairedBase))
+  const pairedAllocatedBase = bundleBasePrice - sourceAllocatedBase
+  const sourceBasePriceOverrides = sourceItems.map((_, index) =>
+    pairedSourceIndexSet.has(index) ? sourceAllocatedBase : sourceBase
+  )
+
+  const sourceCreated = await createBaseRegistration(eventId, payload, { basePriceOverrides: sourceBasePriceOverrides })
+  if ('error' in sourceCreated) return NextResponse.json({ error: sourceCreated.error }, { status: 400 })
+
+  const copiedPaths: string[] = []
+  let pairedCreated: Awaited<ReturnType<typeof createBaseRegistration>> | null = null
+  let orderId: string | null = null
+  try {
+    const pairedItemsWithAssets: RegistrationItemInput[] = []
+    for (let index = 0; index < pairedItems.length; index += 1) {
+      const pairedItem = pairedItems[index]
+      const sourceItem = sourceItems[pairedSourceIndexes[index]]
+      if (!pairedItem || !sourceItem) throw new Error('Data rider untuk event pasangan tidak valid.')
+      const photoPath = await copyBundlePendingAsset(sourceItem.photo_url, eventId, pairedEventId, 'rider-photo')
+      const documentPath = await copyBundlePendingAsset(sourceItem.document_url, eventId, pairedEventId, 'document')
+      if (photoPath) copiedPaths.push(photoPath)
+      if (documentPath) copiedPaths.push(documentPath)
+      pairedItemsWithAssets.push({ ...pairedItem, photo_url: photoPath, document_url: documentPath })
+    }
+
+    pairedCreated = await createBaseRegistration(pairedEventId, {
+      community_name: payload.community_name ?? null,
+      contact_name: payload.contact_name,
+      contact_phone: payload.contact_phone,
+      contact_email: payload.contact_email ?? null,
+      items: pairedItemsWithAssets,
+    }, { basePriceOverride: pairedAllocatedBase })
+    if ('error' in pairedCreated) throw new Error(pairedCreated.error)
+
+    const proofPath = await copyBundlePendingAsset(payload.payment?.proof_url, eventId, pairedEventId, 'payment')
+    if (!proofPath) throw new Error('Bukti pembayaran belum selesai diupload.')
+    copiedPaths.push(proofPath)
+
+    const bankName = payload.payment?.bank_name?.trim() ?? ''
+    const accountName = payload.payment?.account_name?.trim() ?? ''
+    const accountNumber = payload.payment?.account_number?.trim() ?? ''
+    if (!bankName || !accountName || !accountNumber) throw new Error('Lengkapi data rekening pengirim.')
+    const sourceProofPath = normalizePendingUploadPath(payload.payment?.proof_url, eventId, 'payment')
+    if (!sourceProofPath) throw new Error('Bukti pembayaran belum selesai diupload.')
+
+    const { data: order, error: orderError } = await adminClient
+      .from('registration_bundle_orders')
+      .insert({
+        offer_id: String(configuredOffer.id),
+        offer_name: String(configuredOffer.name),
+        source_event_id: eventId,
+        paired_event_id: pairedEventId,
+        bundle_base_price_per_rider: bundleBasePrice,
+        rider_count: pairedItems.length,
+        total_amount: sourceCreated.registration.total_amount + pairedCreated.registration.total_amount,
+        payment_status: 'PENDING',
+        bank_name: bankName,
+        account_name: accountName,
+        account_number: accountNumber,
+        proof_url: sourceProofPath,
+      })
+      .select('id')
+      .single()
+    if (orderError || !order) throw new Error(orderError?.message || 'Gagal membuat order paket event.')
+    orderId = order.id
+
+    const { error: linkError } = await adminClient
+      .from('registrations')
+      .update({ bundle_order_id: order.id })
+      .in('id', [sourceCreated.registration.id, pairedCreated.registration.id])
+    if (linkError) throw new Error(linkError.message)
+
+    const finalizeEventRegistration = async (
+      targetEventId: string,
+      created: Exclude<typeof sourceCreated, { error: string }>,
+      itemsForEvent: RegistrationItemInput[],
+      eventProofPath: string
+    ) => {
+      const targetEventName = targetEventId === pairedEventId ? pairedEvent.name : 'event utama'
+      const documents = itemsForEvent.map((item, index) => {
+        const photoPath = normalizePendingUploadPath(item.photo_url, targetEventId, 'rider-photo')
+        const documentPath = normalizePendingUploadPath(item.document_url, targetEventId, 'document')
+        if (created.riderPhotoUploadEnabled && !photoPath) throw new Error(`Foto rider #${index + 1} belum selesai diupload untuk ${targetEventName}.`)
+        if (!documentPath) throw new Error(`Dokumen rider #${index + 1} belum selesai diupload untuk ${targetEventName}.`)
+        return { itemId: created.itemRows[index].id, photoPath, documentPath }
+      })
+
+      for (const document of documents) {
+        if (!document.photoPath) continue
+        const { error } = await adminClient.from('registration_items').update({ photo_url: document.photoPath }).eq('id', document.itemId).eq('registration_id', created.registration.id)
+        if (error) throw new Error(error.message)
+      }
+      const { error: documentsError } = await adminClient.from('registration_documents').insert(documents.map((document) => ({
+        registration_id: created.registration.id,
+        registration_item_id: document.itemId,
+        document_type: DOCUMENT_TYPE,
+        file_url: document.documentPath,
+      })))
+      if (documentsError) throw new Error(documentsError.message)
+
+      const { data: payment, error: paymentError } = await adminClient.from('registration_payments').insert({
+        registration_id: created.registration.id,
+        amount: created.registration.total_amount,
+        bank_name: bankName,
+        account_name: accountName,
+        account_number: accountNumber,
+        proof_url: eventProofPath,
+        status: 'PENDING',
+        payment_method: 'MANUAL_TRANSFER',
+      }).select(REGISTRATION_PAYMENT_RETURN_SELECT).single()
+      if (paymentError) throw new Error(paymentError.message)
+      return payment
+    }
+
+    const sourcePayment = await finalizeEventRegistration(eventId, sourceCreated, sourceItems, sourceProofPath)
+    const pairedPayment = await finalizeEventRegistration(pairedEventId, pairedCreated, pairedItemsWithAssets, proofPath)
+
+    return NextResponse.json({ data: {
+      bundle_order: order,
+      total_amount: sourceCreated.registration.total_amount + pairedCreated.registration.total_amount,
+      registrations: [
+        { event_id: eventId, event_name: 'Event utama', registration: sourceCreated.registration, items: sourceCreated.itemRows, payment: sourcePayment },
+        { event_id: pairedEventId, event_name: pairedEvent.name, registration: pairedCreated.registration, items: pairedCreated.itemRows, payment: pairedPayment },
+      ],
+    } })
+  } catch (error) {
+    if (orderId) await adminClient.from('registration_bundle_orders').delete().eq('id', orderId)
+    await rollbackRegistration(sourceCreated.registration.id, [])
+    if (pairedCreated && !('error' in pairedCreated)) await rollbackRegistration(pairedCreated.registration.id, [])
+    await removeRegistrationStorageObjects(copiedPaths)
+    const message = error instanceof Error ? error.message : 'Gagal menyimpan pendaftaran paket event.'
+    return NextResponse.json({ error: message }, { status: 400 })
+  }
+}
+
 export const runtime = 'nodejs'
 
 export async function POST(req: Request, { params }: { params: Promise<{ eventId: string }> }) {
@@ -612,6 +923,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   const { eventId } = await params
   const { payload, formData, isMultipart } = await parseRequest(req)
   if (!payload) return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
+
+  if (payload.event_bundle) {
+    if (isMultipart) return NextResponse.json({ error: 'Paket event harus dikirim setelah semua file selesai diupload.' }, { status: 400 })
+    return createEventBundleRegistration(eventId, payload)
+  }
 
   const created = await createBaseRegistration(eventId, payload)
   if ('error' in created) {

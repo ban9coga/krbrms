@@ -1,5 +1,7 @@
 'use client'
 
+import { appConfirm } from '@/src/lib/appDialog'
+
 import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -148,7 +150,7 @@ function BlockEditor({
           <div className="grid gap-2">
             {block.items.map((item, itemIndex) => (
               <div key={`${block.id}-${itemIndex}`} className="flex gap-2">
-                <span className="flex w-7 shrink-0 items-center justify-center text-xs font-black text-slate-500">{block.type === 'numbered_list' ? itemIndex + 1 : '•'}</span>
+                <span className="flex w-7 shrink-0 items-center justify-center text-xs font-black text-slate-500">{block.type === 'numbered_list' ? itemIndex + 1 : 'Ã¢â‚¬Â¢'}</span>
                 <input className={inputClass} value={item} onChange={(event) => mutate({ items: block.items.map((value, index) => index === itemIndex ? event.target.value : value) })} placeholder="Item daftar" />
                 <button type="button" onClick={() => mutate({ items: block.items.filter((_, index) => index !== itemIndex) })} className="admin-danger-button">Hapus</button>
               </div>
@@ -269,7 +271,7 @@ export default function ContentEditorClient({ contentId }: { contentId?: string 
         return false
       })
     )
-    if (hasCurrentDraft && !window.confirm('Draf AI akan mengganti isi artikel dan paket Instagram di layar ini. Perubahan sebelumnya yang belum disimpan akan hilang. Lanjutkan?')) return
+    if (hasCurrentDraft && !await appConfirm('Draf AI akan mengganti isi artikel dan paket Instagram di layar ini. Perubahan sebelumnya yang belum disimpan akan hilang. Lanjutkan?')) return
 
     setGenerating(true)
     setFeedback(null)
@@ -347,7 +349,7 @@ export default function ContentEditorClient({ contentId }: { contentId?: string 
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><span className="admin-field-label">Cover Image</span><p className="mt-1 text-xs font-semibold text-slate-500">Gunakan gambar landscape agar kartu artikel lebih rapi.</p></div><label className="admin-outline-button cursor-pointer">Upload Cover<input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(file, 'cover', (url) => updateInsight({ cover_image_url: url })) }} /></label></div><input value={insight.cover_image_url} onChange={(event) => updateInsight({ cover_image_url: event.target.value })} className="admin-field-input mt-3" placeholder="https://..." />{insight.cover_image_url ? <img src={insight.cover_image_url} alt={insight.cover_image_alt || ''} className="mt-3 h-40 w-full rounded-lg border border-slate-200 object-cover" /> : null}</div>
             <div><div className="flex flex-wrap items-end justify-between gap-3"><div><span className="admin-field-label">Article Content</span><p className="mt-1 text-sm font-semibold text-slate-600">Susun artikel dengan block. HTML bebas tidak disimpan atau dirender.</p></div><div className="flex flex-wrap gap-2">{(Object.keys(blockLabel) as InsightContentBlock['type'][]).map((type) => <button key={type} type="button" onClick={() => updateInsight({ content_blocks: [...insight.content_blocks, blockFactory(type)] })} className="admin-outline-button">+ {blockLabel[type]}</button>)}</div></div><div className="mt-4 grid gap-3">{insight.content_blocks.map((block, index) => <BlockEditor key={block.id} block={block} index={index} total={insight.content_blocks.length} onChange={(next) => updateBlock(index, next)} onMove={(direction) => moveBlock(index, direction)} onRemove={() => updateInsight({ content_blocks: insight.content_blocks.filter((_, itemIndex) => itemIndex !== index) })} onUpload={(file, complete) => void upload(file, 'article', complete)} />)}</div></div>
           </div>
-          <aside className="h-fit rounded-lg border border-amber-200 bg-amber-50 p-5"><strong className="admin-heading block text-base">Publish checklist</strong><ul className="mt-3 grid gap-2 text-sm font-semibold text-slate-700"><li>{insight.title ? '✓' : '○'} Title</li><li>{insight.slug ? '✓' : '○'} Slug</li><li>{insight.excerpt ? '✓' : '○'} Excerpt</li><li>{insight.category ? '✓' : '○'} Category</li><li>{previewBlocks.some((block) => block.type !== 'divider') || insight.content_markdown ? '✓' : '○'} Article content</li></ul><p className="mt-4 text-xs font-semibold leading-5 text-slate-600">Instagram tidak wajib selesai agar artikel Insight dapat dipublish.</p></aside>
+          <aside className="h-fit rounded-lg border border-amber-200 bg-amber-50 p-5"><strong className="admin-heading block text-base">Publish checklist</strong><ul className="mt-3 grid gap-2 text-sm font-semibold text-slate-700"><li>{insight.title ? 'Ã¢Å“â€œ' : 'Ã¢â€”â€¹'} Title</li><li>{insight.slug ? 'Ã¢Å“â€œ' : 'Ã¢â€”â€¹'} Slug</li><li>{insight.excerpt ? 'Ã¢Å“â€œ' : 'Ã¢â€”â€¹'} Excerpt</li><li>{insight.category ? 'Ã¢Å“â€œ' : 'Ã¢â€”â€¹'} Category</li><li>{previewBlocks.some((block) => block.type !== 'divider') || insight.content_markdown ? 'Ã¢Å“â€œ' : 'Ã¢â€”â€¹'} Article content</li></ul><p className="mt-4 text-xs font-semibold leading-5 text-slate-600">Instagram tidak wajib selesai agar artikel Insight dapat dipublish.</p></aside>
         </section> : null}
 
         {tab === 'INSTAGRAM' ? <section className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]"><div className="grid gap-5"><div className="grid gap-4 md:grid-cols-2"><label><span className="admin-field-label">Instagram Post Type</span><select value={instagram.post_type} onChange={(event) => { setInstagram((value) => ({ ...value, post_type: event.target.value as ContentStudioInstagramPackage['post_type'] })); touch() }} className="admin-field-input"><option value="CAROUSEL">Carousel</option><option value="REEL">Reel</option><option value="SINGLE_IMAGE">Single Image</option></select></label><label><span className="admin-field-label">Social Status</span><select value={instagram.social_status} onChange={(event) => { setInstagram((value) => ({ ...value, social_status: event.target.value as ContentStudioInstagramPackage['social_status'] })); touch() }} className="admin-field-input"><option value="NOT_READY">Not Ready</option><option value="READY">Ready</option><option value="POSTED">Posted</option></select></label></div>

@@ -44,7 +44,7 @@ export async function capturePublicEventSnapshot(eventId: string) {
       .maybeSingle(),
     adminClient
       .from('categories')
-      .select('id, event_id, year, year_min, year_max, capacity, gender, label, enabled, sequence_order')
+      .select('id, event_id, year, year_min, year_max, category_basis, age_min, age_max, capacity, gender, label, enabled, sequence_order')
       .eq('event_id', eventId)
       .order('sequence_order', { ascending: true }),
     adminClient

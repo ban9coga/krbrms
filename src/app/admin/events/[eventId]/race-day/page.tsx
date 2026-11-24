@@ -1,7 +1,7 @@
-import RaceDayClient from './RaceDayClient'
+import { redirect } from 'next/navigation'
 
 export default async function AdminRaceDayPage({ params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params
-  return <RaceDayClient eventId={eventId} />
+  redirect(`/admin/events/${eventId}/motos`)
 }
 

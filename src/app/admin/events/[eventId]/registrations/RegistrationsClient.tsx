@@ -1,9 +1,12 @@
-﻿'use client'
+'use client'
+
+import { appConfirm } from '@/src/lib/appDialog'
 
 import type { ReactNode } from 'react'
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { isRegistrationApproverRole, normalizeAppRole } from '../../../../../lib/roles'
+import { calculateAgeOnDate } from '../../../../../lib/categoryAssignment'
 import { supabase } from '@/src/lib/supabaseClient'
 
 type CategoryItem = {
@@ -12,6 +15,9 @@ type CategoryItem = {
   year: number
   year_min?: number | null
   year_max?: number | null
+  category_basis?: 'BIRTH_YEAR' | 'AGE'
+  age_min?: number | null
+  age_max?: number | null
   gender: 'BOY' | 'GIRL' | 'MIX'
   capacity?: number | null
   approved_filled?: number
@@ -48,6 +54,9 @@ type RegistrationItem = {
   primary_category_id: string | null
   extra_category_id: string | null
   extra_category_ids?: string[] | null
+  bundle_id?: string | null
+  bundle_name?: string | null
+  bundle_price?: number | null
   requested_plate_number: string | null
   requested_plate_suffix: string | null
   photo_url?: string | null
@@ -74,6 +83,17 @@ type RegistrationDocument = {
 
 type RegistrationRow = {
   id: string
+  bundle_order_id?: string | null
+  bundle_order?: {
+    offer_name: string
+    total_amount: number
+    bundle_base_price_per_rider: number
+    rider_count: number
+    payment_status: PaymentStatus
+    bank_name: string | null
+    account_name: string | null
+    account_number: string | null
+  } | null
   registration_code?: string | null
   community_name: string | null
   contact_name: string
@@ -586,6 +606,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
   const [exportingRegistrationPdf, setExportingRegistrationPdf] = useState(false)
   const [exportingRiderPdf, setExportingRiderPdf] = useState(false)
   const [categories, setCategories] = useState<CategoryItem[]>([])
+  const [eventDate, setEventDate] = useState<string | null>(null)
   const [registrations, setRegistrations] = useState<RegistrationRow[]>([])
   const [meta, setMeta] = useState({ page: 1, pageSize: 10, total: 0, totalPages: 1 })
   const [attendanceSummary, setAttendanceSummary] = useState<AttendanceSummary | null>(null)
@@ -657,11 +678,15 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
         .filter((category) => category.id !== item.primary_category_id)
         .filter((category) => category.gender === 'MIX' || category.gender === item.gender)
         .filter((category) => {
+          if (category.category_basis === 'AGE') {
+            const age = calculateAgeOnDate(item.date_of_birth, eventDate)
+            return age != null && category.age_min != null && category.age_min > age
+          }
           const maxYear = category.year_max ?? category.year
           return typeof maxYear === 'number' && maxYear < birthYear
         })
     },
-    [categories]
+    [categories, eventDate]
   )
   const categoryKpis = useMemo(
     () =>
@@ -846,13 +871,15 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
 
     ;(async () => {
       try {
-        const [categoryRes, settingsRes] = await Promise.all([
+        const [categoryRes, settingsRes, eventRes] = await Promise.all([
           fetch(`/api/events/${eventId}/categories`),
           apiFetch<EventSettingsResponse>(`/api/events/${eventId}/settings`),
+          apiFetch<{ data?: { event_date?: string | null } }>(`/api/events/${eventId}`),
         ])
         const json = await categoryRes.json().catch(() => ({}))
         if (cancelled) return
         setCategories((json?.data ?? []) as CategoryItem[])
+        setEventDate(eventRes.data?.event_date ?? null)
         const businessSettings = settingsRes.data?.business_settings
         const theme = settingsRes.data?.display_theme ?? {}
         const photoEnabled = businessSettings?.registration_rider_photo_enabled
@@ -1447,9 +1474,8 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
             ? row
             : {
                 ...row,
-                registration_payments: row.registration_payments.map((entry) =>
-                  entry.id === payment.id ? { ...entry, status: nextStatus } : entry
-                ),
+                registration_payments: row.registration_payments.map((entry) => ({ ...entry, status: nextStatus })),
+                bundle_order: row.bundle_order ? { ...row.bundle_order, payment_status: nextStatus } : row.bundle_order,
               }
         )
       )
@@ -1583,7 +1609,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
         }
       )
       if (response.alreadySent) {
-        const resend = window.confirm(
+        const resend = await appConfirm(
           response.message ?? 'Pendaftaran ini sudah pernah dikirim QR dan status pendaftaran via email. Kirim ulang?'
         )
         if (resend) {
@@ -2218,6 +2244,9 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
         .map(({ registration, item, paymentAggregate, documentCount }, index) => {
           const primaryCategory = item.primary_category_id ? categoryMap.get(item.primary_category_id) ?? item.primary_category_id : '-'
           const extraCategory = formatUpclassCategories(item, categoryMap)
+          const bundleLabel = item.bundle_name
+            ? `${item.bundle_name}${Number(item.bundle_price) > 0 ? ` (+${formatRupiah(Number(item.bundle_price))})` : ''}`
+            : '-'
           const plate = buildPlateDisplay(item.requested_plate_number, item.requested_plate_suffix) || '-'
           const registrationCode = registration.registration_code?.trim() || '-'
           const statusUrl = getRegistrationStatusUrl(registration.registration_code) || '-'
@@ -2240,6 +2269,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
               <td>${escapeHtml(item.club ?? registration.community_name ?? '-')}</td>
               <td>${escapeHtml(primaryCategory)}</td>
               <td>${escapeHtml(extraCategory)}</td>
+              <td>${escapeHtml(bundleLabel)}</td>
               <td>${escapeHtml(item.jersey_size ?? '-')}</td>
               <td>${escapeHtml(plate)}</td>
               <td>${escapeHtml(formatRupiah(item.price || 0))}</td>
@@ -2282,6 +2312,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                   <th>Club</th>
                   <th>Kategori</th>
                   <th>Upclass</th>
+                  <th>Bundling</th>
                   <th>Jersey</th>
                   <th>Plate</th>
                   <th>Harga</th>
@@ -2386,6 +2417,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
           'Club',
           'Kategori Utama',
           'Kategori Upclass',
+          'Bundling',
           'Jersey',
           'Plate Request',
           'Harga Rider',
@@ -2429,6 +2461,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
             item.club ?? '-',
             item.primary_category_id ? categoryMap.get(item.primary_category_id) ?? item.primary_category_id : '-',
             formatUpclassCategories(item, categoryMap),
+            item.bundle_name ? `${item.bundle_name}${Number(item.bundle_price) > 0 ? ` (+${formatRupiah(Number(item.bundle_price))})` : ''}` : '-',
             item.jersey_size ?? '-',
             buildPlateDisplay(item.requested_plate_number, item.requested_plate_suffix) || '-',
             item.price,
@@ -2677,7 +2710,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
           return chunks.map((chunkRows, chunkIndex) => {
             const startNumber = chunkIndex * rowsPerSection
             const isContinuation = chunkIndex > 0
-            const title = `${summary.label}${isContinuation ? ` · Lanjutan ${chunkIndex + 1}` : ''}`
+            const title = `${summary.label}${isContinuation ? ` Â· Lanjutan ${chunkIndex + 1}` : ''}`
             const countLabel =
               totalChunks > 1
                 ? `${escapeHtml(startNumber + 1)}-${escapeHtml(startNumber + chunkRows.length)} dari ${escapeHtml(rows.length)} rider`
@@ -2745,7 +2778,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
   }
 
   return (
-    <div className="admin-compact-page grid gap-4 p-3 sm:gap-5 sm:p-4 md:p-6">
+    <div className="admin-compact-page admin-registration-review grid min-w-0 gap-4 p-3 sm:gap-5 sm:p-4 md:p-6">
       <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="grid gap-2">
@@ -2755,8 +2788,8 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
               Review bukti pembayaran, validasi dokumen, rapikan nomor plate, lalu approve rider saat semua persyaratan sudah aman.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <Link href={`/admin/events/${eventId}/check-in`} className="admin-primary-button">Check-in & Goodie Bag</Link>
+          <div className="grid gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
+            <Link href={`/admin/events/${eventId}/check-in`} className="admin-primary-button w-full sm:w-auto">Check-in & Goodie Bag</Link>
             <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
               Menampilkan <span className="font-black text-slate-950">{registrations.length}</span> dari{' '}
               <span className="font-black text-slate-950">{meta.total}</span> pendaftaran
@@ -3090,9 +3123,9 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
               </button>
               <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
                 Approved <span className="font-black text-slate-950">{totalApprovedAcrossCategories}</span>
-                <span className="mx-2 text-slate-300">•</span>
+                <span className="mx-2 text-slate-300">â€¢</span>
                 Pending <span className="font-black text-amber-900">{totalPendingAcrossCategories}</span>
-                <span className="mx-2 text-slate-300">•</span>
+                <span className="mx-2 text-slate-300">â€¢</span>
                 Full <span className="font-black text-rose-900">{fullCategoryCount}</span>
               </div>
             </div>
@@ -3127,7 +3160,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                   <div className="grid gap-1">
                     <div className="text-sm font-black text-slate-950">{category.label}</div>
                     <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-                      {category.gender} · {category.year}
+                      {category.gender} Â· {category.year}
                     </div>
                   </div>
                   <span
@@ -3199,7 +3232,18 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
       ) : (
         <div className="grid gap-4">
           {registrations.map((registration) => {
-            const paymentSummary = aggregatePaymentStatus(registration.registration_payments ?? [])
+            const paymentSummary = registration.bundle_order?.payment_status ?? aggregatePaymentStatus(registration.registration_payments ?? [])
+            const localBundlePayment = registration.registration_payments?.[0]
+            const reviewPayments: RegistrationPayment[] = registration.bundle_order && localBundlePayment
+              ? [{
+                  ...localBundlePayment,
+                  amount: registration.bundle_order.total_amount,
+                  bank_name: registration.bundle_order.bank_name,
+                  account_name: registration.bundle_order.account_name,
+                  account_number: registration.bundle_order.account_number,
+                  status: registration.bundle_order.payment_status,
+                }]
+              : registration.registration_payments
             const readiness = getApprovalReadiness(registration)
             const isExpanded = expanded[registration.id] ?? false
             const isActionMenuOpen = actionMenuOpen === registration.id
@@ -3212,10 +3256,10 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
               (!isCentralAdmin && registration.status !== 'REJECTED')
 
             return (
-              <section key={registration.id} className="admin-card overflow-visible p-0">
-                <div className="border-b border-slate-200 px-5 py-4">
+              <section key={registration.id} className="admin-registration-card admin-card overflow-visible p-0">
+                <div className="admin-registration-card-header border-b border-slate-200 px-4 py-4 sm:px-5">
                   <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                    <div className="grid gap-3">
+                    <div className="grid min-w-0 gap-3">
                       <div className="flex flex-wrap items-center gap-2">
                         <div className="text-lg font-black text-slate-950">{registration.contact_name}</div>
                         <span
@@ -3235,12 +3279,18 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                         <span className="admin-tone-badge admin-tone-neutral">
                           {registration.registration_items.length} Rider
                         </span>
+                        {registration.bundle_order && (
+                          <span className="rounded-full border border-indigo-300 bg-indigo-50 px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] text-indigo-800">
+                            Paket event: {registration.bundle_order.offer_name}
+                          </span>
+                        )}
                       </div>
                       <div className="grid gap-2 text-sm font-medium text-slate-600">
-                        <div className="flex flex-wrap gap-x-4 gap-y-1">
-                          <span>WA: {registration.contact_phone}</span>
+                        <div className="flex min-w-0 flex-wrap gap-x-4 gap-y-1">
+                          <span className="break-all">WA: {registration.contact_phone}</span>
                           <span>Dikirim {formatDateTime(registration.created_at)}</span>
                           <span>Total {formatRupiah(registration.total_amount)}</span>
+                          {registration.bundle_order && <span>Total gabungan paket {formatRupiah(registration.bundle_order.total_amount)}</span>}
                         </div>
                         <details className="admin-card-muted px-4 py-3">
                           <summary className="cursor-pointer list-none text-xs font-black uppercase tracking-[0.14em] text-slate-500">
@@ -3268,7 +3318,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                     </div>
 
                     <div className="grid gap-3 xl:min-w-[380px]">
-                      <div className="admin-action-row xl:justify-end">
+                      <div className="admin-action-row admin-registration-actions xl:justify-end">
                         <button
                           type="button"
                           onClick={() => setExpanded((prev) => ({ ...prev, [registration.id]: !isExpanded }))}
@@ -3423,24 +3473,26 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                 </div>
 
                 {isExpanded && (
-                  <div className="grid gap-5 px-5 py-5">
+                  <div className="grid gap-4 px-4 py-4 sm:gap-5 sm:px-5 sm:py-5">
                     <section className="admin-card-muted p-4">
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
                           <div className="text-sm font-black uppercase tracking-[0.14em] text-slate-500">Review Pembayaran</div>
                           <div className="mt-1 text-sm font-medium text-slate-600">
-                            Approve bukti transfer dulu sebelum rider dibuat permanen.
+                            {registration.bundle_order
+                              ? `Satu verifikasi untuk paket ${registration.bundle_order.offer_name}; status pembayaran kedua event ikut berubah.`
+                              : 'Approve bukti transfer dulu sebelum rider dibuat permanen.'}
                           </div>
                         </div>
                       </div>
 
                       <div className="mt-4 grid gap-3">
-                        {registration.registration_payments.length === 0 ? (
+                        {reviewPayments.length === 0 ? (
                           <div className="admin-card-muted border-dashed px-4 py-4 text-sm font-semibold">
                             Belum ada bukti pembayaran yang diupload.
                           </div>
                         ) : (
-                          registration.registration_payments.map((payment) => (
+                          reviewPayments.map((payment) => (
                             <div
                               key={payment.id}
                               className="admin-card grid gap-3 p-4 lg:grid-cols-[minmax(0,1fr)_auto]"
@@ -3456,6 +3508,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                                   </span>
                                   <span className="text-sm font-black text-slate-950">{formatRupiah(payment.amount)}</span>
                                 </div>
+                                {registration.bundle_order && <div className="font-black text-indigo-800">Total gabungan paket Â· {registration.bundle_order.rider_count} rider</div>}
                                 <div>
                                   {payment.bank_name || '-'} | {payment.account_number || '-'} | {payment.account_name || '-'}
                                 </div>
@@ -3475,7 +3528,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                                   onClick={() => updatePaymentStatus(registration, payment, 'APPROVED')}
                                   className="admin-success-button min-h-11"
                                 >
-                                  {savingKey === `payment:${payment.id}` ? 'Menyimpan...' : 'Approve Payment'}
+                                  {savingKey === `payment:${payment.id}` ? 'Menyimpan...' : registration.bundle_order ? 'Setujui Pembayaran Paket' : 'Approve Payment'}
                                 </button>
                                 <button
                                   type="button"
@@ -3483,7 +3536,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                                   onClick={() => updatePaymentStatus(registration, payment, 'REJECTED')}
                                   className="admin-danger-button min-h-11"
                                 >
-                                  {savingKey === `payment:${payment.id}` ? 'Menyimpan...' : 'Reject Payment'}
+                                  {savingKey === `payment:${payment.id}` ? 'Menyimpan...' : registration.bundle_order ? 'Tolak Pembayaran Paket' : 'Reject Payment'}
                                 </button>
                               </div>
 
@@ -3537,6 +3590,9 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                               <div>
                                 Kategori Upclass: {formatUpclassCategories(item, categoryMap)}
                               </div>
+                              {item.bundle_name && (
+                                <div>Bundling: {item.bundle_name}{Number(item.bundle_price) > 0 ? ` (+${formatRupiah(Number(item.bundle_price))})` : ''}</div>
+                              )}
                             </div>
 
                             <div className="mt-4 flex flex-wrap gap-2">
@@ -3842,7 +3898,7 @@ export default function RegistrationsClient({ eventId }: { eventId: string }) {
                       {getRiderEditChanges(modal.item).map(([label, previous, next]) => (
                         <div key={label} className="grid gap-1 rounded-xl border border-amber-200 bg-white/70 px-3 py-2 sm:grid-cols-[150px_minmax(0,1fr)]">
                           <dt className="font-black">{label}</dt>
-                          <dd className="font-semibold"><span className="text-slate-500">{previous || '-'}</span><span className="mx-2 text-amber-700">→</span><span>{next || '-'}</span></dd>
+                          <dd className="font-semibold"><span className="text-slate-500">{previous || '-'}</span><span className="mx-2 text-amber-700">â†’</span><span>{next || '-'}</span></dd>
                         </div>
                       ))}
                     </dl>

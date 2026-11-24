@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireRegistrationManager } from '../../../../../../../../../lib/auth'
-import { isCategoryGenderCompatible, isCategoryInRange } from '../../../../../../../../../lib/categoryAssignment'
+import { isCategoryEligibleForRider } from '../../../../../../../../../lib/categoryAssignment'
 import { normalizePlateNumber, normalizePlateSuffix } from '../../../../../../../../../lib/plate'
 
 type RiderGender = 'BOY' | 'GIRL'
@@ -58,7 +58,7 @@ export async function PATCH(
         .maybeSingle(),
       adminClient
         .from('categories')
-        .select('id, event_id, year, year_min, year_max, gender, enabled, label')
+        .select('id, event_id, year, year_min, year_max, category_basis, age_min, age_max, gender, enabled, label')
         .eq('id', primaryCategoryId)
         .maybeSingle(),
     ])
@@ -70,8 +70,11 @@ export async function PATCH(
     return NextResponse.json({ error: 'Kategori utama tidak valid atau sedang nonaktif.' }, { status: 400 })
   }
 
+  const [{ data: event }] = await Promise.all([
+    adminClient.from('events').select('event_date').eq('id', eventId).maybeSingle(),
+  ])
   const birthYear = Number(dateOfBirth.slice(0, 4))
-  if (!isCategoryInRange(category, birthYear) || !isCategoryGenderCompatible(category.gender, gender)) {
+  if (!isCategoryEligibleForRider(category, birthYear, gender, dateOfBirth, event?.event_date)) {
     return NextResponse.json({ error: `Kategori ${category.label} tidak sesuai dengan tahun lahir atau gender rider.` }, { status: 400 })
   }
 

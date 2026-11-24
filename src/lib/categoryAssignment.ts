@@ -6,6 +6,9 @@ export type CategoryAssignmentItem = {
   year_min?: number | null
   year_max?: number | null
   gender: CategoryGender
+  category_basis?: 'BIRTH_YEAR' | 'AGE' | null
+  age_min?: number | null
+  age_max?: number | null
 }
 
 export type RiderCategoryGender = 'BOY' | 'GIRL'
@@ -47,6 +50,42 @@ export const isCategoryInRange = (
   birthYear: number
 ) => birthYear >= getCategoryMinYear(category) && birthYear <= getCategoryMaxYear(category)
 
+export const calculateAgeOnDate = (dateOfBirth: string | null | undefined, eventDate: string | null | undefined) => {
+  if (!dateOfBirth || !eventDate) return null
+  const dobMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateOfBirth)
+  const eventMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(eventDate)
+  if (!dobMatch || !eventMatch) return null
+  const birthYear = Number(dobMatch[1])
+  const birthMonth = Number(dobMatch[2])
+  const birthDay = Number(dobMatch[3])
+  const raceYear = Number(eventMatch[1])
+  const raceMonth = Number(eventMatch[2])
+  const raceDay = Number(eventMatch[3])
+  if (birthMonth < 1 || birthMonth > 12 || raceMonth < 1 || raceMonth > 12 || birthDay < 1 || raceDay < 1) return null
+  const birth = new Date(Date.UTC(birthYear, birthMonth - 1, birthDay))
+  const race = new Date(Date.UTC(raceYear, raceMonth - 1, raceDay))
+  if (birth.getUTCFullYear() !== birthYear || birth.getUTCMonth() !== birthMonth - 1 || birth.getUTCDate() !== birthDay) return null
+  if (race.getUTCFullYear() !== raceYear || race.getUTCMonth() !== raceMonth - 1 || race.getUTCDate() !== raceDay || birth > race) return null
+  let age = raceYear - birthYear
+  if (raceMonth < birthMonth || (raceMonth === birthMonth && raceDay < birthDay)) age -= 1
+  return age
+}
+
+export const isCategoryEligibleForRider = (
+  category: CategoryAssignmentItem,
+  birthYear: number,
+  gender: RiderCategoryGender,
+  dateOfBirth?: string | null,
+  eventDate?: string | null
+) => {
+  if (!isCategoryGenderCompatible(category.gender, gender)) return false
+  if (category.category_basis === 'AGE') {
+    const age = calculateAgeOnDate(dateOfBirth, eventDate)
+    return age != null && category.age_min != null && category.age_max != null && age >= category.age_min && age <= category.age_max
+  }
+  return isCategoryInRange(category, birthYear)
+}
+
 const compareGenderPreference = (
   a: Pick<CategoryAssignmentItem, 'gender'>,
   b: Pick<CategoryAssignmentItem, 'gender'>,
@@ -57,33 +96,60 @@ const compareGenderPreference = (
   return aRank - bRank
 }
 
+const compareCategoryBasisAndRange = (a: CategoryAssignmentItem, b: CategoryAssignmentItem) => {
+  const aAge = a.category_basis === 'AGE'
+  const bAge = b.category_basis === 'AGE'
+  if (aAge !== bAge) return aAge ? -1 : 1
+  if (aAge && bAge) {
+    const widthCompare = (a.age_max ?? Infinity) - (a.age_min ?? 0) - ((b.age_max ?? Infinity) - (b.age_min ?? 0))
+    if (widthCompare !== 0) return widthCompare
+    return (a.age_min ?? Infinity) - (b.age_min ?? Infinity)
+  }
+  const maxCompare = getCategoryMaxYear(a) - getCategoryMaxYear(b)
+  if (maxCompare !== 0) return maxCompare
+  return getCategoryMinYear(a) - getCategoryMinYear(b)
+}
+
 export const getExactPrimaryCategoryCandidates = <T extends CategoryAssignmentItem>(
   categories: T[],
   birthYear: number,
-  riderGender: RiderCategoryGender
+  riderGender: RiderCategoryGender,
+  dateOfBirth?: string | null,
+  eventDate?: string | null
 ) =>
   categories
-    .filter((category) => isCategoryInRange(category, birthYear) && isCategoryGenderCompatible(category.gender, riderGender))
+    .filter((category) => isCategoryEligibleForRider(category, birthYear, riderGender, dateOfBirth, eventDate))
     .sort((a, b) => {
       const genderCompare = compareGenderPreference(a, b, riderGender)
       if (genderCompare !== 0) return genderCompare
-      const maxCompare = getCategoryMaxYear(a) - getCategoryMaxYear(b)
-      if (maxCompare !== 0) return maxCompare
-      return getCategoryMinYear(a) - getCategoryMinYear(b)
+      return compareCategoryBasisAndRange(a, b)
     })
 
 export const getFallbackPrimaryCategoryCandidates = <T extends CategoryAssignmentItem>(
   categories: T[],
   birthYear: number,
-  riderGender: RiderCategoryGender
+  riderGender: RiderCategoryGender,
+  dateOfBirth?: string | null,
+  eventDate?: string | null
 ) =>
   categories
-    .filter((category) => getCategoryMaxYear(category) < birthYear && isCategoryGenderCompatible(category.gender, riderGender))
+    .filter((category) => {
+      if (!isCategoryGenderCompatible(category.gender, riderGender)) return false
+      if (category.category_basis === 'AGE') {
+        const age = calculateAgeOnDate(dateOfBirth, eventDate)
+        return age != null && category.age_min != null && category.age_min > age
+      }
+      return getCategoryMaxYear(category) < birthYear
+    })
     .sort((a, b) => {
-      const maxCompare = getCategoryMaxYear(b) - getCategoryMaxYear(a)
-      if (maxCompare !== 0) return maxCompare
       const genderCompare = compareGenderPreference(a, b, riderGender)
       if (genderCompare !== 0) return genderCompare
+      const aAge = a.category_basis === 'AGE'
+      const bAge = b.category_basis === 'AGE'
+      if (aAge !== bAge) return aAge ? -1 : 1
+      if (aAge && bAge) return (a.age_min ?? Infinity) - (b.age_min ?? Infinity)
+      const maxCompare = getCategoryMaxYear(b) - getCategoryMaxYear(a)
+      if (maxCompare !== 0) return maxCompare
       return getCategoryMinYear(b) - getCategoryMinYear(a)
     })
 
@@ -98,7 +164,8 @@ const getBirthYear = (rider: Pick<RiderCategorySnapshot, 'birth_year' | 'date_of
 
 export const riderBelongsToPrimaryCategory = (
   rider: RiderCategorySnapshot,
-  category: CategoryAssignmentItem
+  category: CategoryAssignmentItem,
+  eventDate?: string | null
 ) => {
   if (typeof rider.primary_category_id === 'string' && rider.primary_category_id.length > 0) {
     return rider.primary_category_id === category.id
@@ -106,5 +173,5 @@ export const riderBelongsToPrimaryCategory = (
 
   const birthYear = getBirthYear(rider)
   if (!birthYear) return false
-  return isCategoryInRange(category, birthYear) && isCategoryGenderCompatible(category.gender, rider.gender)
+  return isCategoryEligibleForRider(category, birthYear, rider.gender, rider.date_of_birth, eventDate)
 }

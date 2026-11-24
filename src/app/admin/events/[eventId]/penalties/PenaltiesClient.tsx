@@ -1,5 +1,7 @@
 'use client'
 
+import { appAlert, appConfirm } from '@/src/lib/appDialog'
+
 import { useCallback, useEffect, useState } from 'react'
 import ToggleSwitch from '../../../../../components/ToggleSwitch'
 import { DEFAULT_DNF_AUTO_PENALTY, DEFAULT_DNS_AUTO_PENALTY } from '../../../../../lib/nonFinishScoring'
@@ -91,13 +93,13 @@ type RiderGroup = {
 }
 
 const SAFETY_ICON_OPTIONS = [
-  { key: 'helmet', icon: '⛑', shortLabel: 'Helm' },
-  { key: 'gloves', icon: '🧤', shortLabel: 'Gloves' },
-  { key: 'elbow', icon: '💪', shortLabel: 'Siku' },
-  { key: 'knee', icon: '🦵', shortLabel: 'Lutut' },
-  { key: 'jersey', icon: '👕', shortLabel: 'Jersey' },
-  { key: 'shoes', icon: '👟', shortLabel: 'Sepatu' },
-  { key: 'pants', icon: '🩳', shortLabel: 'Celana' },
+  { key: 'helmet', icon: 'Ã¢â€ºâ€˜', shortLabel: 'Helm' },
+  { key: 'gloves', icon: 'Ã°Å¸Â§Â¤', shortLabel: 'Gloves' },
+  { key: 'elbow', icon: 'Ã°Å¸â€™Âª', shortLabel: 'Siku' },
+  { key: 'knee', icon: 'Ã°Å¸Â¦Âµ', shortLabel: 'Lutut' },
+  { key: 'jersey', icon: 'Ã°Å¸â€˜â€¢', shortLabel: 'Jersey' },
+  { key: 'shoes', icon: 'Ã°Å¸â€˜Å¸', shortLabel: 'Sepatu' },
+  { key: 'pants', icon: 'Ã°Å¸Â©Â³', shortLabel: 'Celana' },
 ]
 
 const SAFETY_STANDARD: SafetyStandard[] = [
@@ -143,7 +145,7 @@ function getSafetyVisual(label: string, iconKey?: string | null) {
     return SAFETY_ICON_OPTIONS[6]
   }
 
-  return { icon: '✓', shortLabel: label }
+  return { icon: 'Ã¢Å“â€œ', shortLabel: label }
 }
 
 const sortCategories = (a: CategoryItem, b: CategoryItem) => {
@@ -342,7 +344,7 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Gagal memuat data penalties.'
       setErrorMessage(message)
-      alert(message)
+      appAlert(message)
     } finally {
       setLoading(false)
     }
@@ -366,7 +368,7 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Gagal menyimpan feature flags.'
       setErrorMessage(message)
-      alert(message)
+      appAlert(message)
     } finally {
       setSaving(false)
     }
@@ -374,7 +376,7 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
 
   const handleCreateRule = async () => {
     if (!ruleForm.code.trim() || !ruleForm.penalty_point.trim()) {
-      alert('Code dan Penalty Point wajib diisi.')
+      appAlert('Code dan Penalty Point wajib diisi.')
       return
     }
     setSaving(true)
@@ -405,7 +407,7 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Gagal menambah penalty rule.'
       setErrorMessage(message)
-      alert(message)
+      appAlert(message)
     } finally {
       setSaving(false)
     }
@@ -423,14 +425,14 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Gagal menyimpan penalty rule.'
       setErrorMessage(message)
-      alert(message)
+      appAlert(message)
     } finally {
       setSaving(false)
     }
   }
 
   const handleDeleteRule = async (ruleId: string) => {
-    if (!confirm('Hapus rule ini?')) return
+    if (!await appConfirm('Hapus rule ini?')) return
     setSaving(true)
     try {
       await apiFetch(`/api/events/${eventId}/penalties/${ruleId}`, { method: 'DELETE' })
@@ -439,7 +441,7 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Gagal menghapus penalty rule.'
       setErrorMessage(message)
-      alert(message)
+      appAlert(message)
     } finally {
       setSaving(false)
     }
@@ -451,7 +453,7 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
       return !Number.isFinite(points) || points < 1
     })
     if (invalidItem) {
-      alert(`Isi penalty point minimal 1 untuk ${invalidItem.label}.`)
+      appAlert(`Isi penalty point minimal 1 untuk ${invalidItem.label}.`)
       return
     }
 
@@ -518,11 +520,11 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
       }
       await loadAll()
       setErrorMessage(null)
-      alert('Safety standar berhasil diterapkan untuk event ini.')
+      appAlert('Safety standar berhasil diterapkan untuk event ini.')
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Gagal menerapkan safety standar.'
       setErrorMessage(message)
-      alert(message)
+      appAlert(message)
     } finally {
       setSaving(false)
     }
@@ -548,14 +550,14 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Gagal menyimpan safety mapping.'
       setErrorMessage(message)
-      alert(message)
+      appAlert(message)
     } finally {
       setSaving(false)
     }
   }
 
   const handleDeleteRequirement = async (requirementId: string) => {
-    if (!confirm('Hapus safety requirement ini?')) return
+    if (!await appConfirm('Hapus safety requirement ini?')) return
     setSaving(true)
     try {
       await apiFetch(`/api/events/${eventId}/safety-requirements`, {
@@ -568,7 +570,7 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Gagal menghapus safety requirement.'
       setErrorMessage(message)
-      alert(message)
+      appAlert(message)
     } finally {
       setSaving(false)
     }
@@ -605,7 +607,7 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Gagal menyimpan auto penalty DNS/DNF.'
       setErrorMessage(message)
-      alert(message)
+      appAlert(message)
     } finally {
       setSaving(false)
     }
@@ -616,7 +618,7 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
 
   const handleCreateRequirement = async () => {
     if (!requirementForm.label.trim()) {
-      alert('Label safety wajib diisi.')
+      appAlert('Label safety wajib diisi.')
       return
     }
     setSaving(true)
@@ -636,7 +638,7 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Gagal menambah safety requirement.'
       setErrorMessage(message)
-      alert(message)
+      appAlert(message)
     } finally {
       setSaving(false)
     }
@@ -658,7 +660,7 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Gagal menyimpan rider status.'
       setErrorMessage(message)
-      alert(message)
+      appAlert(message)
     } finally {
       setSaving(false)
     }
@@ -959,7 +961,7 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
             <div key={rule.id} style={{ padding: 10, border: '2px solid #111', borderRadius: 12, background: '#fff' }}>
               <div style={{ fontWeight: 900 }}>{rule.code}</div>
               <div style={{ fontSize: 12, color: '#333', fontWeight: 700 }}>
-                {rule.description || '-'} • {rule.penalty_point} pts • {rule.applies_to_stage}
+                {rule.description || '-'} Ã¢â‚¬Â¢ {rule.penalty_point} pts Ã¢â‚¬Â¢ {rule.applies_to_stage}
               </div>
               <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                 <ToggleSwitch
@@ -1460,7 +1462,7 @@ export default function PenaltiesClient({ eventId }: { eventId: string }) {
                       const statusOptions: RiderStatus['participation_status'][] = ['ACTIVE', 'DNS', 'DNF', 'ABSENT']
                       return (
                         <div key={r.id} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 8, alignItems: 'center' }}>
-                          <div style={{ fontWeight: 900 }}>{r.no_plate_display} • {r.name}</div>
+                          <div style={{ fontWeight: 900 }}>{r.no_plate_display} Ã¢â‚¬Â¢ {r.name}</div>
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                             {statusOptions.map((option) => {
                               const isActive = statusValue === option

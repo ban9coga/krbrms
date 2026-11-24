@@ -191,7 +191,9 @@ export default function YearClient({
                   <div className="grid gap-1">
                     <div className="text-lg font-black text-slate-900">{category.label}</div>
                     <div className="text-xs font-semibold text-slate-500">
-                      Year {category.year_min ?? category.year} - {category.year_max ?? category.year} • View & share results
+                      {category.category_basis === 'AGE'
+                        ? `Umur ${category.age_min}–${category.age_max} tahun • Lihat hasil`
+                        : `Tahun lahir ${category.year_min ?? category.year}–${category.year_max ?? category.year} • Lihat hasil`}
                     </div>
                   </div>
                   <StatusBadge label={category.status} />

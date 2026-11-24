@@ -1,5 +1,7 @@
 'use client'
 
+import { appAlert, appConfirm } from '@/src/lib/appDialog'
+
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { formatAppRoleLabel } from '../../../lib/roles'
 import { supabase } from '@/src/lib/supabaseClient'
@@ -77,7 +79,7 @@ export default function AdminUsersPage() {
       setUsers(json.data ?? [])
       setTotal(Number(json.total ?? 0))
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Gagal memuat users')
+      appAlert(err instanceof Error ? err.message : 'Gagal memuat users')
     } finally {
       setListLoading(false)
     }
@@ -96,7 +98,7 @@ export default function AdminUsersPage() {
 
     if (!token) {
       setLoading(false)
-      alert('Session tidak ditemukan. Silakan login ulang.')
+      appAlert('Session tidak ditemukan. Silakan login ulang.')
       return
     }
 
@@ -113,11 +115,11 @@ export default function AdminUsersPage() {
     setLoading(false)
 
     if (!res.ok) {
-      alert('Gagal membuat user: ' + (result?.error ?? 'Unknown error'))
+      appAlert('Gagal membuat user: ' + (result?.error ?? 'Unknown error'))
       return
     }
 
-    alert('Akun berhasil dibuat.')
+    appAlert('Akun berhasil dibuat.')
     setEmail('')
     setPassword('')
     setCrewCode('')
@@ -366,7 +368,7 @@ export default function AdminUsersPage() {
                         setPinDrafts((prev) => ({ ...prev, [u.id]: '' }))
                         await loadUsers(page)
                       } catch (err: unknown) {
-                        alert(err instanceof Error ? err.message : 'Gagal update role')
+                        appAlert(err instanceof Error ? err.message : 'Gagal update role')
                       } finally {
                         setSavingUserId(null)
                       }
@@ -380,7 +382,7 @@ export default function AdminUsersPage() {
                   <button
                     type="button"
                     onClick={async () => {
-                      if (!confirm('Hapus user ini?')) return
+                      if (!await appConfirm('Hapus user ini?')) return
                       setDeletingUserId(u.id)
                       try {
                         const { data: sessionData } = await supabase.auth.getSession()
@@ -394,7 +396,7 @@ export default function AdminUsersPage() {
                         if (!res.ok) throw new Error(json?.error || 'Gagal hapus user')
                         await loadUsers(page)
                       } catch (err: unknown) {
-                        alert(err instanceof Error ? err.message : 'Gagal hapus user')
+                        appAlert(err instanceof Error ? err.message : 'Gagal hapus user')
                       } finally {
                         setDeletingUserId(null)
                       }

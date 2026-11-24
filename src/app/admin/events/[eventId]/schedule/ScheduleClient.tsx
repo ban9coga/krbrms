@@ -1,5 +1,7 @@
 'use client'
 
+import { appAlert, appConfirm } from '@/src/lib/appDialog'
+
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/src/lib/supabaseClient'
 import { useApiFetch } from '@/src/hooks/useApiFetch'
@@ -106,20 +108,20 @@ export default function ScheduleClient({ eventId }: { eventId: string }) {
 
   const handleAdd = async () => {
     if (!form.category_id) {
-      alert('Pilih kategori.')
+      appAlert('Pilih kategori.')
       return
     }
     if (!eventDate) {
-      alert('Tanggal event belum tersedia.')
+      appAlert('Tanggal event belum tersedia.')
       return
     }
     if (!form.schedule_time || !form.end_time) {
-      alert('Isi jam mulai dan selesai.')
+      appAlert('Isi jam mulai dan selesai.')
       return
     }
     const defaultMoto = motosForCategory[0]
     if (!defaultMoto) {
-      alert('Belum ada moto untuk kategori ini.')
+      appAlert('Belum ada moto untuk kategori ini.')
       return
     }
     setSaving(true)
@@ -148,20 +150,20 @@ export default function ScheduleClient({ eventId }: { eventId: string }) {
       setForm({ category_id: '', schedule_time: '', end_time: '' })
       await load()
     } catch (err: unknown) {
-      alert(getErrorMessage(err))
+      appAlert(getErrorMessage(err))
     } finally {
       setSaving(false)
     }
   }
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Hapus schedule item ini?')) return
+    if (!await appConfirm('Hapus schedule item ini?')) return
     setSaving(true)
     try {
       await apiFetch(`/api/events/${eventId}/schedule/${id}`, { method: 'DELETE' })
       await load()
     } catch (err: unknown) {
-      alert(getErrorMessage(err))
+      appAlert(getErrorMessage(err))
     } finally {
       setSaving(false)
     }
@@ -320,7 +322,7 @@ export default function ScheduleClient({ eventId }: { eventId: string }) {
                 {it.motos?.moto_name ?? it.moto_id}
               </div>
               <div style={{ marginTop: 2, color: '#333', fontWeight: 700, fontSize: 13 }}>
-                Time: {it.schedule_time ? new Date(it.schedule_time).toLocaleString() : '-'} • Track:{' '}
+                Time: {it.schedule_time ? new Date(it.schedule_time).toLocaleString() : '-'} Ã¢â‚¬Â¢ Track:{' '}
                 {it.track_number ?? '-'}
               </div>
             </div>

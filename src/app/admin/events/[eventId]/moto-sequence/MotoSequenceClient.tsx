@@ -1,5 +1,7 @@
 'use client'
 
+import { appConfirm } from '@/src/lib/appDialog'
+
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { compareMotoDisplayOrder, formatMotoDisplayName } from '../../../../../lib/motoDisplayOrder'
 import { supabase } from '@/src/lib/supabaseClient'
@@ -506,7 +508,7 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
 
   const handleCancelMotoOrderDraft = async () => {
     if (!motoOrderDirty || savingSequence) return
-    const ok = window.confirm('Batalkan perubahan urutan moto yang belum disimpan?')
+    const ok = await appConfirm('Batalkan perubahan urutan moto yang belum disimpan?')
     if (!ok) return
     setMotoOrderDirtyValue(false)
     await loadData('refresh')
@@ -1255,7 +1257,7 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
                     padding: '3px 7px',
                   }}
                 >
-                  ↑
+                  Ã¢â€ â€˜
                 </button>
                 <button
                   type="button"
@@ -1274,7 +1276,7 @@ export default function MotoSequenceClient({ eventId }: { eventId: string }) {
                     padding: '3px 7px',
                   }}
                 >
-                  ↓
+                  Ã¢â€ â€œ
                 </button>
                 <button
                   type="button"

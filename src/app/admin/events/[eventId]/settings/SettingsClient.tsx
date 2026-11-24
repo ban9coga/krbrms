@@ -1,5 +1,7 @@
 'use client'
 
+import { appAlert } from '@/src/lib/appDialog'
+
 import Image from 'next/image'
 import Link from 'next/link'
 import { useEffect, useMemo, useState, type CSSProperties, type DragEvent } from 'react'
@@ -788,6 +790,10 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     business_public_brand_name: '',
     business_public_event_title: '',
     business_public_tagline: '',
+    business_public_bundle_info_enabled: false,
+    business_public_bundle_info: '',
+    business_public_racepack_info_enabled: false,
+    business_public_racepack_info: '',
     business_public_contact_name: '',
     business_public_contact_phone: '',
     business_public_contact_email: '',
@@ -1053,6 +1059,12 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
             typeof business.public_event_title === 'string' ? business.public_event_title : '',
           business_public_tagline:
             typeof business.public_tagline === 'string' ? business.public_tagline : '',
+          business_public_bundle_info_enabled: business.public_bundle_info_enabled === true,
+          business_public_bundle_info:
+            typeof business.public_bundle_info === 'string' ? business.public_bundle_info : '',
+          business_public_racepack_info_enabled: business.public_racepack_info_enabled === true,
+          business_public_racepack_info:
+            typeof business.public_racepack_info === 'string' ? business.public_racepack_info : '',
           business_public_contact_name:
             typeof business.public_contact_name === 'string' ? business.public_contact_name : '',
           business_public_contact_phone:
@@ -1404,7 +1416,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
       })
       await loadAdvancedSummary()
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Gagal menyimpan advanced config.')
+      appAlert(err instanceof Error ? err.message : 'Gagal menyimpan advanced config.')
       await loadAdvanced()
     } finally {
       setAdvancedSaving(false)
@@ -1461,7 +1473,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
       })
       await loadAdvanced()
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Gagal menyimpan ukuran stage.')
+      appAlert(err instanceof Error ? err.message : 'Gagal menyimpan ukuran stage.')
       await loadAdvanced()
     } finally {
       setAdvancedSaving(false)
@@ -1572,7 +1584,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
       })
       await loadAdvanced()
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Gagal menyimpan rules.')
+      appAlert(err instanceof Error ? err.message : 'Gagal menyimpan rules.')
     } finally {
       setAdvancedSaving(false)
     }
@@ -1735,9 +1747,9 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
         }),
       })
       await loadStaffAssignments()
-      alert('Staff assignment tersimpan.')
+      appAlert('Staff assignment tersimpan.')
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Gagal menyimpan staff assignment.')
+      appAlert(err instanceof Error ? err.message : 'Gagal menyimpan staff assignment.')
     } finally {
       setStaffSaving(false)
     }
@@ -1763,17 +1775,17 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     const normalizedCommunityLogos = sanitizeCommunityLogoDrafts(communityLogoItems)
     const bestTeamPointRulesResult = parseBestTeamPointRulesText(form.business_best_team_point_rules)
     if (bestTeamPointRulesResult.invalidLines.length > 0) {
-      alert(`Format point Best Team tidak valid:\n${bestTeamPointRulesResult.invalidLines.join('\n')}\n\nGunakan format rank=point, contoh 1=10`)
+      appAlert(`Format point Best Team tidak valid:\n${bestTeamPointRulesResult.invalidLines.join('\n')}\n\nGunakan format rank=point, contoh 1=10`)
       return
     }
     const bestTeamClubAliasesResult = parseBestTeamClubAliasesText(form.business_best_team_club_aliases)
     if (bestTeamClubAliasesResult.invalidLines.length > 0) {
-      alert(`Format alias club Best Team tidak valid:\n${bestTeamClubAliasesResult.invalidLines.join('\n')}\n\nGunakan format club asli => nama team skor`)
+      appAlert(`Format alias club Best Team tidak valid:\n${bestTeamClubAliasesResult.invalidLines.join('\n')}\n\nGunakan format club asli => nama team skor`)
       return
     }
     const bestTeamTiebreakOverridesResult = parseBestTeamTiebreakOverridesText(form.business_best_team_tiebreak_overrides)
     if (bestTeamTiebreakOverridesResult.invalidLines.length > 0) {
-      alert(`Format Manual Tiebreak tidak valid:\n${bestTeamTiebreakOverridesResult.invalidLines.join('\n')}\n\nGunakan format: Nama Tim = Skor`)
+      appAlert(`Format Manual Tiebreak tidak valid:\n${bestTeamTiebreakOverridesResult.invalidLines.join('\n')}\n\nGunakan format: Nama Tim = Skor`)
       return
     }
     const existingBusinessSettings =
@@ -1786,6 +1798,10 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
       public_brand_name: form.business_public_brand_name.trim() || null,
       public_event_title: form.business_public_event_title.trim() || null,
       public_tagline: form.business_public_tagline.trim() || null,
+      public_bundle_info_enabled: Boolean(form.business_public_bundle_info_enabled),
+      public_bundle_info: form.business_public_bundle_info.trim() || null,
+      public_racepack_info_enabled: Boolean(form.business_public_racepack_info_enabled),
+      public_racepack_info: form.business_public_racepack_info.trim() || null,
       public_contact_name: form.business_public_contact_name.trim() || null,
       public_contact_phone: form.business_public_contact_phone.trim() || null,
       public_contact_email: form.business_public_contact_email.trim() || null,
@@ -1846,11 +1862,11 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     const motoPerBatch = Number(form.race_moto_per_batch)
     const gatePositions = Number(form.race_gate_positions)
     if (!Number.isFinite(motoPerBatch) || motoPerBatch <= 0) {
-      alert('Moto per batch tidak valid.')
+      appAlert('Moto per batch tidak valid.')
       return
     }
     if (!Number.isFinite(gatePositions) || gatePositions <= 0) {
-      alert('Gate positions tidak valid.')
+      appAlert('Gate positions tidak valid.')
       return
     }
     const existingFormat =
@@ -1876,11 +1892,11 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
       const basePriceNum = Number(form.base_price)
       const extraPriceNum = Number(form.extra_price)
       if (!Number.isFinite(basePriceNum) || basePriceNum <= 0) {
-        alert('Base price tidak valid.')
+        appAlert('Base price tidak valid.')
         return
       }
       if (!Number.isFinite(extraPriceNum) || extraPriceNum < 0) {
-        alert('Extra price tidak valid.')
+        appAlert('Extra price tidak valid.')
         return
       }
       await apiFetch(`/api/events/${eventId}/settings`, {
@@ -1900,9 +1916,9 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
         }),
       })
       await load()
-      alert('Settings dan staff assignments tersimpan.')
+      appAlert('Settings dan staff assignments tersimpan.')
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Gagal menyimpan settings.')
+      appAlert(err instanceof Error ? err.message : 'Gagal menyimpan settings.')
     } finally {
       setSaving(false)
     }
@@ -1961,6 +1977,13 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
       <div style={{ marginTop: 8, color: '#475569', fontWeight: 700 }}>
         {advancedOnly ? 'Kelola workflow AMS per kategori dari halaman khusus ini.' : 'Logo/sponsor & konfigurasi display/scoring per event.'}
       </div>
+      {!advancedOnly && (
+        <div className="mt-3">
+          <Link href={`/admin/events/${eventId}/registration-options`} className="admin-outline-button">
+            Atur Bundling & Racepack
+          </Link>
+        </div>
+      )}
 
       {!advancedOnly && (
         <div className="admin-card mt-4 grid gap-3">
@@ -2395,7 +2418,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                     Wajib isi ukuran jersey per rider
                   </label>
                   <div style={{ fontSize: 12, color: '#333', fontWeight: 700 }}>
-                    Jika aktif, pendaftar harus memilih ukuran jersey (XS–XL).
+                    Jika aktif, pendaftar harus memilih ukuran jersey (XSÃ¢â‚¬â€œXL).
                   </div>
                   <input
                     placeholder="URL gambar size chart jersey"
@@ -2797,6 +2820,38 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                     onChange={(e) => setForm({ ...form, business_public_tagline: e.target.value })}
                     style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
                   />
+                  <div style={{ display: 'grid', gap: 10, padding: 12, border: '1px solid #cbd5e1', borderRadius: 12, background: '#fff' }}>
+                    <div style={{ fontWeight: 900 }}>Info tambahan untuk card publik</div>
+                    <ToggleSwitch
+                      checked={form.business_public_bundle_info_enabled}
+                      onChange={(checked) => setForm({ ...form, business_public_bundle_info_enabled: checked })}
+                      label="Tampilkan info bundling"
+                    />
+                    <textarea
+                      rows={2}
+                      maxLength={240}
+                      placeholder="Contoh: Pendaftaran 2 kategori lebih hemat Rp 50.000"
+                      value={form.business_public_bundle_info}
+                      onChange={(e) => setForm({ ...form, business_public_bundle_info: e.target.value })}
+                      style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 700, resize: 'vertical' }}
+                    />
+                    <ToggleSwitch
+                      checked={form.business_public_racepack_info_enabled}
+                      onChange={(checked) => setForm({ ...form, business_public_racepack_info_enabled: checked })}
+                      label="Tampilkan info racepack"
+                    />
+                    <textarea
+                      rows={2}
+                      maxLength={240}
+                      placeholder="Contoh: Jersey peserta, nomor plate, dan goodie bag"
+                      value={form.business_public_racepack_info}
+                      onChange={(e) => setForm({ ...form, business_public_racepack_info: e.target.value })}
+                      style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 700, resize: 'vertical' }}
+                    />
+                    <div style={{ fontSize: 12, color: '#475569', fontWeight: 700 }}>
+                      Ini hanya informasi publik event, belum mengubah harga atau pilihan paket saat pendaftaran.
+                    </div>
+                  </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
                     <input
                       placeholder="Nama Kontak Panitia"
@@ -3728,7 +3783,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
 
                 <div style={{ marginTop: 14, fontWeight: 900 }}>Race Format</div>
                 <div style={{ color: '#475569', fontWeight: 700, fontSize: 13 }}>
-                  Atur jumlah moto, gate, dan auto-advance untuk format balap event ini.
+                  Jumlah gate menentukan kapasitas maksimal rider per batch. Masukkan sesuai gate start event; tidak dibatasi 8.
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   <input
@@ -3739,14 +3794,17 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                     placeholder="Moto per batch"
                     style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
                   />
-                  <input
-                    type="number"
-                    min={1}
-                    value={form.race_gate_positions}
-                    onChange={(e) => setForm({ ...form, race_gate_positions: e.target.value })}
-                    placeholder="Gate positions"
-                    style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
-                  />
+                  <label style={{ display: 'grid', gap: 5, fontWeight: 800 }}>
+                    Jumlah gate start / maksimal rider per batch
+                    <input
+                      type="number"
+                      min={1}
+                      value={form.race_gate_positions}
+                      onChange={(e) => setForm({ ...form, race_gate_positions: e.target.value })}
+                      placeholder="Contoh: 8, 10, 12"
+                      style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                    />
+                  </label>
                 </div>
                 <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
                   <ToggleSwitch
@@ -3767,7 +3825,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                     label="Seri kualifikasi ditentukan lewat Repechage"
                   />
                   <div style={{ color: '#475569', fontWeight: 700, fontSize: 12 }}>
-                    Setelah semua moto kualifikasi terkunci, urutan seri adalah Total Poin, Moto 3, Moto 2, lalu Moto 1. Repechage H2H hanya dibuat jika seri melintasi batas antar kelas Final (misalnya Elite–Novice) atau batas Final–Finisher. Seri di dalam kelas Final yang sama atau sesama Finisher tidak membuat Repechage. Hasil H2H mengubah Rank dan tujuan, bukan poin kualifikasi. Perlu Advanced Stage aktif.
+                    Setelah semua moto kualifikasi terkunci, urutan seri adalah Total Poin, Moto 3, Moto 2, lalu Moto 1. Repechage H2H hanya dibuat jika seri melintasi batas antar kelas Final (misalnya EliteÃ¢â‚¬â€œNovice) atau batas FinalÃ¢â‚¬â€œFinisher. Seri di dalam kelas Final yang sama atau sesama Finisher tidak membuat Repechage. Hasil H2H mengubah Rank dan tujuan, bukan poin kualifikasi. Perlu Advanced Stage aktif.
                   </div>
                 </div>
                 <input
@@ -3798,7 +3856,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
         >
         <div style={{ fontWeight: 950, fontSize: 18 }}>Advanced Multi-Stage (Optional)</div>
         <div style={{ color: '#333', fontWeight: 700, fontSize: 13 }}>
-          Aktifkan per category jika ingin memakai skema Qualification → Quarter → Semi → Finals. Default OFF.
+          Aktifkan per category jika ingin memakai skema Qualification Ã¢â€ â€™ Quarter Ã¢â€ â€™ Semi Ã¢â€ â€™ Finals. Default OFF.
         </div>
 
         {advancedLoading && (
@@ -3949,7 +4007,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                     >
                       <div style={{ fontWeight: 900 }}>Ukuran Stage per Race</div>
                       <div style={{ color: '#475569', fontWeight: 700, fontSize: 13 }}>
-                        Kosongkan override untuk mengikuti gate size default event ({item.config?.max_riders_per_race ?? Math.max(1, Number(form.race_gate_positions) || 8)} rider).
+                        Kosongkan override untuk mengikuti batas rider per race kategori ({item.config?.max_riders_per_race ?? Math.max(1, Number(form.race_gate_positions) || 8)} rider). Kapasitas tiap stage tidak akan melebihi jumlah gate event.
                       </div>
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
                         <input

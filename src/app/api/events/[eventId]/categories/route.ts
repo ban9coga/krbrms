@@ -2,14 +2,14 @@ import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin, requireScopedEventWorkspace } from '../../../../../lib/auth'
 import { buildCategoryOccupancyBreakdown, type CategoryOccupancyBreakdown } from '../../../../../services/categoryOccupancy'
 
-const CATEGORY_RETURN_SELECT = 'id, event_id, year, year_min, year_max, capacity, gender, label, enabled, sequence_order'
+const CATEGORY_RETURN_SELECT = 'id, event_id, year, year_min, year_max, category_basis, age_min, age_max, capacity, gender, label, enabled, sequence_order'
 
 export async function GET(_: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params
 
   const { data: categories, error } = await adminClient
     .from('categories')
-    .select('id, year, year_min, year_max, capacity, gender, label, enabled, sequence_order')
+    .select('id, year, year_min, year_max, category_basis, age_min, age_max, capacity, gender, label, enabled, sequence_order')
     .eq('event_id', eventId)
     .order('sequence_order', { ascending: true })
     .order('year_min', { ascending: true })
@@ -37,6 +37,9 @@ export async function GET(_: Request, { params }: { params: Promise<{ eventId: s
       year: number
       year_min?: number | null
       year_max?: number | null
+      category_basis?: 'BIRTH_YEAR' | 'AGE' | null
+      age_min?: number | null
+      age_max?: number | null
       gender: 'BOY' | 'GIRL' | 'MIX'
     }>)
   } catch (err) {
@@ -73,13 +76,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   const body = await req.json().catch(() => null)
   if (!body) return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
 
-  const { label, year_min, year_max, gender, capacity, enabled }: Record<string, unknown> = body
+  const { label, year_min, year_max, category_basis, age_min, age_max, gender, capacity, enabled }: Record<string, unknown> = body
+  const categoryBasis = category_basis === 'AGE' ? 'AGE' : 'BIRTH_YEAR'
   const yearMin = Number(year_min)
   const yearMax = Number(year_max)
-  if (!Number.isFinite(yearMin) || !Number.isFinite(yearMax)) {
-    return NextResponse.json({ error: 'year_min and year_max are required numbers' }, { status: 400 })
+  const ageMin = Number(age_min)
+  const ageMax = Number(age_max)
+  if (categoryBasis === 'AGE' ? (!Number.isInteger(ageMin) || !Number.isInteger(ageMax) || ageMin < 0 || ageMin > ageMax) : (!Number.isFinite(yearMin) || !Number.isFinite(yearMax))) {
+    return NextResponse.json({ error: categoryBasis === 'AGE' ? 'Rentang umur harus berupa bilangan bulat dan umur minimum tidak boleh melebihi maksimum.' : 'year_min and year_max are required numbers' }, { status: 400 })
   }
-  if (yearMin > yearMax) {
+  if (categoryBasis === 'BIRTH_YEAR' && yearMin > yearMax) {
     return NextResponse.json({ error: 'year_min must be <= year_max' }, { status: 400 })
   }
   const normalizedGender = String(gender || '').toUpperCase()
@@ -100,7 +106,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     return NextResponse.json({ error: 'capacity must be >= 0' }, { status: 400 })
   }
 
-  const year = yearMax
+  const { data: eventRow } = categoryBasis === 'AGE'
+    ? await adminClient.from('events').select('event_date').eq('id', eventId).maybeSingle()
+    : { data: null }
+  if (categoryBasis === 'AGE' && !eventRow?.event_date) {
+    return NextResponse.json({ error: 'Isi tanggal event sebelum membuat kategori umur.' }, { status: 400 })
+  }
+  const eventYear = Number(String(eventRow?.event_date ?? '').slice(0, 4))
+  const year = categoryBasis === 'AGE'
+    ? (Number.isInteger(eventYear) && eventYear >= 1900 ? eventYear : new Date().getUTCFullYear())
+    : yearMax
+  const storedYearMin = categoryBasis === 'AGE' ? year : yearMin
+  const storedYearMax = categoryBasis === 'AGE' ? year : yearMax
   const { data: lastCategory } = await adminClient
     .from('categories')
     .select('sequence_order')
@@ -114,8 +131,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     .insert({
       event_id: eventId,
       year,
-      year_min: yearMin,
-      year_max: yearMax,
+      year_min: storedYearMin,
+      year_max: storedYearMax,
+      category_basis: categoryBasis,
+      age_min: categoryBasis === 'AGE' ? ageMin : null,
+      age_max: categoryBasis === 'AGE' ? ageMax : null,
       gender: normalizedGender,
       label: normalizedLabel,
       capacity: normalizedCapacity,

@@ -10,7 +10,7 @@ type Config = { category_id: string; enabled: boolean; max_riders_per_race: numb
 type Rule = { category_id: string; min_riders: number }
 type Draft = Omit<Config, 'category_id'> & { thresholds: string }
 
-const emptyDraft = (): Draft => ({ enabled: false, max_riders_per_race: 8, qualification_moto_count: 2, repechage_max_riders_per_race: null, quarter_final_max_riders_per_race: null, semi_final_max_riders_per_race: null, dnf_point_override: null, dns_point_override: null, thresholds: '' })
+const emptyDraft = (gatePositions = 8): Draft => ({ enabled: false, max_riders_per_race: gatePositions, qualification_moto_count: 2, repechage_max_riders_per_race: null, quarter_final_max_riders_per_race: null, semi_final_max_riders_per_race: null, dnf_point_override: null, dns_point_override: null, thresholds: '' })
 const numeric = (value: string) => value.trim() === '' ? null : Number(value)
 
 export default function RcAdminRulesPage() {
@@ -18,6 +18,7 @@ export default function RcAdminRulesPage() {
   const [categories, setCategories] = useState<Category[]>([])
   const [configs, setConfigs] = useState<Config[]>([])
   const [rules, setRules] = useState<Rule[]>([])
+  const [gatePositions, setGatePositions] = useState(8)
   const [selectedId, setSelectedId] = useState('')
   const [draft, setDraft] = useState<Draft>(emptyDraft())
   const [loading, setLoading] = useState(true)
@@ -36,6 +37,7 @@ export default function RcAdminRulesPage() {
       const json = await response.json()
       if (!response.ok) throw new Error(json.error ?? 'Gagal memuat aturan race.')
       setCategories(json.data.categories ?? []); setConfigs(json.data.configs ?? []); setRules(json.data.rules ?? [])
+      setGatePositions(Math.max(1, Number(json.data.gate_positions ?? 8)))
       setSelectedId((current) => current || json.data.categories?.[0]?.id || '')
     } catch (err) { setError(err instanceof Error ? err.message : 'Gagal memuat aturan race.') }
     finally { setLoading(false) }
@@ -47,12 +49,12 @@ export default function RcAdminRulesPage() {
     const config = configs.find((item) => item.category_id === selectedId)
     const categoryRules = rules.filter((item) => item.category_id === selectedId).map((item) => item.min_riders).sort((a, b) => a - b)
     setDraft({
-      ...emptyDraft(),
+      ...emptyDraft(gatePositions),
       ...config,
       qualification_moto_count: Number(config?.qualification_moto_count ?? 2) >= 3 ? 3 : 2,
       thresholds: categoryRules.join(', '),
     })
-  }, [selectedId, configs, rules])
+  }, [selectedId, configs, rules, gatePositions])
 
   const setField = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft((current) => ({ ...current, [key]: value }))
   const save = async () => {
@@ -93,7 +95,7 @@ export default function RcAdminRulesPage() {
         {selectedCategory && <div className="mt-5 grid gap-4">
           <label className="flex min-h-12 items-center justify-between gap-3 rounded-md border border-slate-200 px-3"><span className="text-sm font-bold">Aktifkan multi-stage untuk kategori ini</span><input type="checkbox" checked={draft.enabled} onChange={(event) => setField('enabled', event.target.checked)} className="h-5 w-5 accent-amber-500" /></label>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {numberField('Maks rider per race', 'max_riders_per_race', 2)}
+            {numberField(`Maks rider per race (gate event: ${gatePositions})`, 'max_riders_per_race', 2)}
             <label className="grid gap-1 text-sm font-bold text-slate-700">Moto kualifikasi per batch
               <select value={draft.qualification_moto_count} onChange={(event) => setField('qualification_moto_count', Number(event.target.value))} className="min-h-11 rounded-md border border-slate-300 bg-white px-3 font-semibold text-slate-950 focus:border-amber-500 focus:outline-none">
                 <option value={2}>2 moto</option><option value={3}>3 moto</option>
@@ -102,7 +104,7 @@ export default function RcAdminRulesPage() {
             </label>
             {numberField('Maks rider repechage (opsional)', 'repechage_max_riders_per_race', 2)}{numberField('Maks rider quarter-final (opsional)', 'quarter_final_max_riders_per_race', 2)}{numberField('Maks rider semi-final (opsional)', 'semi_final_max_riders_per_race', 2)}{numberField('Poin DNF (kosong = default)', 'dnf_point_override', 0)}{numberField('Poin DNS (kosong = default)', 'dns_point_override', 0)}
           </div>
-          <label className="grid gap-1.5 text-sm font-bold">Ambang jumlah rider untuk aturan stage<input value={draft.thresholds} onChange={(event) => setField('thresholds', event.target.value)} className="min-h-11 rounded-md border border-slate-300 px-3 font-semibold focus:border-amber-500 focus:outline-none" placeholder="Contoh: 8, 16, 24" /><span className="text-xs font-medium text-slate-500">Angka dipisahkan koma. Sistem menerapkan format stage default sesuai ambang yang dipenuhi.</span></label>
+          <label className="grid gap-1.5 text-sm font-bold">Ambang jumlah rider untuk aturan stage<input value={draft.thresholds} onChange={(event) => setField('thresholds', event.target.value)} className="min-h-11 rounded-md border border-slate-300 px-3 font-semibold focus:border-amber-500 focus:outline-none" placeholder={`Contoh: ${gatePositions}, ${gatePositions * 2}, ${gatePositions * 3}`} /><span className="text-xs font-medium text-slate-500">Angka dipisahkan koma. Sistem menerapkan format stage default sesuai ambang yang dipenuhi.</span></label>
           <p className="text-xs text-slate-500">Stage yang dihasilkan ditentukan oleh aturan default sistem dan jumlah rider. Simpan pengaturan ini sebelum mulai race.</p>
           <button type="button" onClick={save} disabled={saving} className="min-h-11 w-fit rounded-md bg-slate-950 px-5 text-sm font-extrabold text-white hover:bg-slate-800 disabled:opacity-60">{saving ? 'Menyimpan...' : 'Simpan aturan kategori'}</button>
         </div>}

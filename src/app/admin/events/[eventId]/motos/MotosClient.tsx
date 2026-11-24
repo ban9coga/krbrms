@@ -1,5 +1,7 @@
 'use client'
 
+import { appAlert, appConfirm, appPrompt } from '@/src/lib/appDialog'
+
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { compareMotoDisplayOrder, formatMotoDisplayName } from '../../../../../lib/motoDisplayOrder'
 import { normalizeAppRole } from '../../../../../lib/roles'
@@ -629,7 +631,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
         return
       }
 
-      const ok = confirm(
+      const ok = await appConfirm(
         `Ubah status ${formatMotoDisplayName(moto.moto_name)} dari ${moto.status} menjadi ${status}?\n\nGunakan override ini hanya bila alur lapangan memang perlu dikoreksi.`
       )
       if (!ok) return
@@ -640,7 +642,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       })
       await load()
     } catch (err: unknown) {
-      alert(getErrorMessage(err))
+      appAlert(getErrorMessage(err))
     }
   }
 
@@ -649,7 +651,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       await apiFetch(`/api/jury/motos/${motoId}/open-review`, { method: 'POST' })
       await load()
     } catch (err: unknown) {
-      alert(getErrorMessage(err))
+      appAlert(getErrorMessage(err))
     }
   }
 
@@ -657,7 +659,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     const moto = motos.find((m) => m.id === motoId)
     if (!moto) return
 
-    const ok = confirm(
+    const ok = await appConfirm(
       `Lock moto: ${formatMotoDisplayName(moto.moto_name)}?\n\nSetelah LOCKED, hasil dianggap final. Jika moto berikutnya sudah READY dari checker, sistem akan membuatnya LIVE sesuai urutan Moto Sequence.`
     )
     if (!ok) return
@@ -669,12 +671,12 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       })
       await load()
     } catch (err: unknown) {
-      alert(getErrorMessage(err))
+      appAlert(getErrorMessage(err))
     }
   }
 
   const handleRetryDeferredMoto2 = async (motoId: string) => {
-    const ok = confirm('Coba buat Moto 2 dari hasil Moto 1 yang sudah tersimpan?')
+    const ok = await appConfirm('Coba buat Moto 2 dari hasil Moto 1 yang sudah tersimpan?')
     if (!ok) return
 
     try {
@@ -683,9 +685,9 @@ export default function MotosClient({ eventId }: { eventId: string }) {
         body: JSON.stringify({ status: 'LOCKED', retry_deferred_moto2: true }),
       })
       await load()
-      alert('Moto 2 berhasil dibuat dari urutan poin Moto 1.')
+      appAlert('Moto 2 berhasil dibuat dari urutan poin Moto 1.')
     } catch (err: unknown) {
-      alert(getErrorMessage(err))
+      appAlert(getErrorMessage(err))
     }
   }
 
@@ -693,7 +695,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     const moto = motos.find((m) => m.id === motoId)
     if (!moto) return
 
-    const ok = confirm(`Unlock moto: ${formatMotoDisplayName(moto.moto_name)}? Moto akan kembali ke status PROVISIONAL.`)
+    const ok = await appConfirm(`Unlock moto: ${formatMotoDisplayName(moto.moto_name)}? Moto akan kembali ke status PROVISIONAL.`)
     if (!ok) return
 
     try {
@@ -703,7 +705,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       })
       await load()
     } catch (err: unknown) {
-      alert(getErrorMessage(err))
+      appAlert(getErrorMessage(err))
     }
   }
 
@@ -711,7 +713,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     const moto = motos.find((m) => m.id === motoId)
     if (!moto) return
 
-    const ok = confirm(
+    const ok = await appConfirm(
       `Delete moto: ${formatMotoDisplayName(moto.moto_name)}?\n\nWARNING: This will permanently delete this moto and all its results and gate assignments. Use this to reset incorrect Repechage or Final motos.`
     )
     if (!ok) return
@@ -722,7 +724,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       })
       await load()
     } catch (err: unknown) {
-      alert(getErrorMessage(err))
+      appAlert(getErrorMessage(err))
     }
   }
 
@@ -733,7 +735,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       const response = await apiFetch(`/api/admin/events/${eventId}/reset-race-data`)
       setRaceResetPreview(response.data as RaceResetPreview)
     } catch (err: unknown) {
-      alert(getErrorMessage(err))
+      appAlert(getErrorMessage(err))
     } finally {
       setRaceResetLoading(false)
     }
@@ -750,9 +752,9 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       const summary = response.data as { motos_deleted?: number; results_deleted?: number }
       setRaceResetPreview(null)
       await load('refresh', { includeAdvancedSummary: true })
-      alert(`Data race dibersihkan. ${summary.motos_deleted ?? 0} moto hasil race dan ${summary.results_deleted ?? 0} hasil dihapus.`)
+      appAlert(`Data race dibersihkan. ${summary.motos_deleted ?? 0} moto hasil race dan ${summary.results_deleted ?? 0} hasil dihapus.`)
     } catch (err: unknown) {
-      alert(getErrorMessage(err))
+      appAlert(getErrorMessage(err))
     } finally {
       setRaceResetSubmitting(false)
     }
@@ -764,11 +766,11 @@ export default function MotosClient({ eventId }: { eventId: string }) {
 
     const currentStatus = String(moto.status ?? '').toUpperCase()
     if (currentStatus === 'LOCKED') {
-      alert('Moto masih LOCKED. Unlock dulu sebelum reset results.')
+      appAlert('Moto masih LOCKED. Unlock dulu sebelum reset results.')
       return
     }
     if (currentStatus === 'PROTEST_REVIEW') {
-      alert('Moto sedang PROTEST_REVIEW. Selesaikan review dulu sebelum reset.')
+      appAlert('Moto sedang PROTEST_REVIEW. Selesaikan review dulu sebelum reset.')
       return
     }
 
@@ -780,17 +782,17 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     )
     let moveLiveMotoToReady = false
     if (liveMotoInSameCategory) {
-      moveLiveMotoToReady = confirm(
+      moveLiveMotoToReady = await appConfirm(
         `${formatMotoDisplayName(liveMotoInSameCategory.moto_name)} sedang LIVE.\n\n` +
           `Agar tidak ada dua moto LIVE, moto tersebut akan dikembalikan ke READY sebelum ${formatMotoDisplayName(moto.moto_name)} di-reset. Lanjutkan?`
       )
       if (!moveLiveMotoToReady) return
     }
 
-    const ok = confirm(`Reset results untuk moto: ${formatMotoDisplayName(moto.moto_name)}?`)
+    const ok = await appConfirm(`Reset results untuk moto: ${formatMotoDisplayName(moto.moto_name)}?`)
     if (!ok) return
 
-    const reason = window.prompt('Alasan reset results moto ini', 'Perbaikan hasil input')
+    const reason = await appPrompt('Alasan reset results moto ini', 'Perbaikan hasil input')
     if (reason === null) return
 
     try {
@@ -801,10 +803,10 @@ export default function MotosClient({ eventId }: { eventId: string }) {
           move_live_moto_to_ready: moveLiveMotoToReady,
         }),
       })
-      alert('Results berhasil direset!')
+      appAlert('Results berhasil direset!')
       await load()
     } catch (err: unknown) {
-      alert(getErrorMessage(err))
+      appAlert(getErrorMessage(err))
     }
   }
 
@@ -1061,7 +1063,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     const gateMap = await ensureGateOrdersLoaded()
     const exportGroups = buildPrintGroups(gateMap)
     if (exportGroups.length === 0) {
-      alert('Belum ada data rider per moto yang bisa diexport.')
+      appAlert('Belum ada data rider per moto yang bisa diexport.')
       return
     }
 
@@ -1139,7 +1141,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       XLSX.utils.book_append_sheet(workbook, detailSheet, 'Rider Per Moto')
       XLSX.writeFile(workbook, `rider-per-moto_${safeFilename(eventName)}_${timestampForFilename()}.xlsx`)
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Gagal export Excel rider per moto.')
+      appAlert(err instanceof Error ? err.message : 'Gagal export Excel rider per moto.')
     } finally {
       setExportingMotoExcel(false)
     }
@@ -1149,7 +1151,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
     const gateMap = await ensureGateOrdersLoaded()
     const exportGroups = buildPrintGroups(gateMap)
     if (exportGroups.length === 0) {
-      alert('Belum ada data rider per moto yang bisa diexport.')
+      appAlert('Belum ada data rider per moto yang bisa diexport.')
       return
     }
 
@@ -1289,7 +1291,7 @@ export default function MotosClient({ eventId }: { eventId: string }) {
       anchor.remove()
       URL.revokeObjectURL(url)
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Gagal export Word rider per moto.')
+      appAlert(err instanceof Error ? err.message : 'Gagal export Word rider per moto.')
     } finally {
       setExportingMotoWord(false)
     }
@@ -1337,26 +1339,6 @@ export default function MotosClient({ eventId }: { eventId: string }) {
               <path d="M5.6 9A7 7 0 0 1 17.5 6L20 12M4 12l2.5 6A7 7 0 0 0 18.4 15" />
             </svg>
             <span className="motos-topbar-label">{isAutoRefreshActive ? 'Auto Refresh ON' : 'Auto Refresh OFF'}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => load('refresh', { includeAdvancedSummary: true })}
-            disabled={loading || refreshing}
-            className="admin-primary-button"
-            style={{
-              cursor: loading || refreshing ? 'not-allowed' : 'pointer',
-              whiteSpace: 'nowrap',
-              opacity: loading || refreshing ? 0.6 : 1,
-            }}
-            title={loading || refreshing ? 'Sedang memuat ulang data' : 'Refresh Data'}
-            aria-label={loading || refreshing ? 'Sedang refresh data' : 'Refresh data'}
-          >
-            <svg className={`motos-topbar-icon${loading || refreshing ? ' motos-topbar-icon-spinning' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M20 11a8 8 0 0 0-14.9-3L3 11" />
-              <path d="M3 4v7h7M4 13a8 8 0 0 0 14.9 3L21 13" />
-              <path d="M21 20v-7h-7" />
-            </svg>
-            <span className="motos-topbar-label">{loading || refreshing ? 'Refreshing...' : 'Refresh Data'}</span>
           </button>
           {eventStatus === 'UPCOMING' && (
             <button
@@ -1494,8 +1476,18 @@ export default function MotosClient({ eventId }: { eventId: string }) {
         )}
 
         {!loading && motos.length === 0 && (
-          <div style={{ padding: 14, borderRadius: 16, border: '2px dashed #111', background: '#fff', fontWeight: 900 }}>
-            Belum ada moto.
+          <div style={{ padding: 14, borderRadius: 16, border: '2px dashed #111', background: '#fff', fontWeight: 900, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <span>Belum ada moto.</span>
+            <button
+              type="button"
+              onClick={() => void load('refresh', { includeAdvancedSummary: true })}
+              disabled={loading || refreshing}
+              className="admin-primary-button"
+              style={{ minHeight: 44, cursor: loading || refreshing ? 'not-allowed' : 'pointer', opacity: loading || refreshing ? 0.6 : 1 }}
+              aria-label={loading || refreshing ? 'Sedang refresh data' : 'Refresh data'}
+            >
+              {loading || refreshing ? 'Memuat...' : 'Refresh Data'}
+            </button>
           </div>
         )}
 
@@ -1583,6 +1575,25 @@ export default function MotosClient({ eventId }: { eventId: string }) {
                 )}
               </div>
               <div className="no-print motos-category-actions" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <button
+                  type="button"
+                  onClick={() => void load('refresh', { includeAdvancedSummary: true })}
+                  disabled={loading || refreshing}
+                  className="admin-primary-button"
+                  style={{
+                    minHeight: 44,
+                    padding: '6px 10px',
+                    borderRadius: 999,
+                    border: '2px solid #111',
+                    cursor: loading || refreshing ? 'not-allowed' : 'pointer',
+                    whiteSpace: 'nowrap',
+                    opacity: loading || refreshing ? 0.6 : 1,
+                  }}
+                  title={loading || refreshing ? 'Sedang memuat ulang data event' : `Refresh data ${categoryLabel.get(cat.id) ?? 'kategori ini'}`}
+                  aria-label={loading || refreshing ? 'Sedang refresh data event' : `Refresh data ${categoryLabel.get(cat.id) ?? 'kategori ini'}`}
+                >
+                  {loading || refreshing ? 'Memuat...' : 'Refresh'}
+                </button>
                 <button
                   type="button"
                   onClick={() => toggleCategoryExpansion(cat.id)}

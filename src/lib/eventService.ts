@@ -33,10 +33,52 @@ export type CommunityShowcaseItem = {
   is_active?: boolean | null
 }
 
+export type RegistrationBundleOption = {
+  id: string
+  name: string
+  description?: string | null
+  price: number
+  enabled: boolean
+}
+
+export type PublicRacepackItem = {
+  id: string
+  name: string
+  included: boolean
+}
+
+export type PublicEventRegulation = {
+  id: string
+  scope: 'EVENT' | 'CATEGORY' | 'STAGE'
+  category_id?: string | null
+  stage?: 'QUALIFICATION' | 'QUARTER_FINAL' | 'REPECHAGE' | 'SEMI_FINAL' | 'FINAL' | null
+  title: string
+  content: string
+  document_url?: string | null
+  enabled: boolean
+  sort_order: number
+}
+
+export type EventBundleOffer = {
+  id: string
+  name: string
+  paired_event_id: string
+  bundle_base_price_per_rider: number
+  enabled: boolean
+}
+
 export type BusinessSettings = {
   public_brand_name?: string | null
   public_event_title?: string | null
   public_tagline?: string | null
+  public_bundle_info_enabled?: boolean | null
+  public_bundle_info?: string | null
+  public_racepack_info_enabled?: boolean | null
+  public_racepack_info?: string | null
+  registration_bundles?: RegistrationBundleOption[] | null
+  event_bundle_offer?: EventBundleOffer | null
+  public_racepack_items?: PublicRacepackItem[] | null
+  public_regulations?: PublicEventRegulation[] | null
   whatsapp_group_invite_url?: string | null
   payment_bank_name?: string | null
   payment_account_name?: string | null
@@ -118,6 +160,8 @@ export type EventItem = {
   is_public?: boolean | null
   event_scope?: 'PUBLIC' | 'INTERNAL' | null
   registration_open?: boolean | null
+  base_price?: number | null
+  extra_price?: number | null
   event_logo_url?: string | null
   event_poster_url?: string | null
   sponsor_logo_urls?: string[] | null
@@ -136,6 +180,9 @@ export type RiderCategory = {
   year: number
   year_min?: number
   year_max?: number
+  category_basis?: 'BIRTH_YEAR' | 'AGE'
+  age_min?: number | null
+  age_max?: number | null
   capacity?: number | null
   filled?: number
   remaining?: number | null

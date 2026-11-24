@@ -4,6 +4,9 @@ export const SITE_LOGO_URL = `${SITE_URL}/platform-logo.png`
 export const SITE_INSTAGRAM_USERNAME = 'racepushbike'
 export const SITE_INSTAGRAM_URL = `https://instagram.com/${SITE_INSTAGRAM_USERNAME}`
 export const SITE_INSTAGRAM_DM_URL = `https://ig.me/m/${SITE_INSTAGRAM_USERNAME}`
+export const SITE_WHATSAPP_NUMBER = '6282169009990'
+export const SITE_WHATSAPP_DISPLAY = '0821 6900 9990'
+export const SITE_WHATSAPP_URL = `https://wa.me/${SITE_WHATSAPP_NUMBER}`
 
 export const serializeJsonLd = (data: unknown) => JSON.stringify(data).replace(/</g, '\\u003c')
 

@@ -1,5 +1,7 @@
 'use client'
 
+import { appAlert } from '@/src/lib/appDialog'
+
 import Image from 'next/image'
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/src/lib/supabaseClient'
@@ -642,7 +644,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
       setCategories(nextCategories)
       setRulesByCategory(grouped)
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Gagal memuat final class rules.')
+      appAlert(err instanceof Error ? err.message : 'Gagal memuat final class rules.')
     } finally {
       setLoading(false)
     }
@@ -659,13 +661,13 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
         body: JSON.stringify({ promote_next_best_on_dns: checked }),
       })
       if (!res.ok) {
-        alert(res.error || 'Gagal mengubah pengaturan DNS Lucky Loser.')
+        appAlert(res.error || 'Gagal mengubah pengaturan DNS Lucky Loser.')
         return
       }
       setEventMeta((prev) => (prev ? { ...prev, promote_next_best_on_dns: checked } : prev))
       await load()
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Gagal memperbarui pengaturan.')
+      appAlert(err instanceof Error ? err.message : 'Gagal memperbarui pengaturan.')
     } finally {
       setUpdatingSettings(false)
     }
@@ -924,7 +926,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
       })
       setShowPenaltyGuide(true)
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Gagal memuat panduan penalty event.')
+      appAlert(err instanceof Error ? err.message : 'Gagal memuat panduan penalty event.')
     } finally {
       setPenaltyGuideLoading(false)
     }
@@ -988,7 +990,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
     const frameDocument = frame.contentDocument ?? frameWindow?.document
     if (!frameWindow || !frameDocument) {
       frame.remove()
-      alert('Gagal membuka dokumen cetak panduan penalty.')
+      appAlert('Gagal membuka dokumen cetak panduan penalty.')
       return
     }
     frameDocument.open()
@@ -1013,9 +1015,9 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
   const copyGuideText = async () => {
     try {
       await navigator.clipboard.writeText(guideText)
-      alert('Race System Guide berhasil disalin.')
+      appAlert('Race System Guide berhasil disalin.')
     } catch {
-      alert('Gagal menyalin Race System Guide.')
+      appAlert('Gagal menyalin Race System Guide.')
     }
   }
 
@@ -1057,7 +1059,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
     const frameDocument = frame.contentDocument ?? frameWindow?.document
     if (!frameWindow || !frameDocument) {
       document.body.removeChild(frame)
-      alert('Gagal membuka dokumen cetak Race System Guide.')
+      appAlert('Gagal membuka dokumen cetak Race System Guide.')
       return
     }
 
@@ -1154,11 +1156,11 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
     const maxRidersPerFinal = Math.max(1, Number(category.max_riders_per_race ?? 8))
     const needsNovice = totalRiders > maxRidersPerFinal
     if (!finalClassOptions.includes('ELITE') || (needsNovice && !finalClassOptions.includes('NOVICE'))) {
-      alert('Aktifkan Final Class ELITE dan NOVICE pada Event Settings sebelum memakai format ini.')
+      appAlert('Aktifkan Final Class ELITE dan NOVICE pada Event Settings sebelum memakai format ini.')
       return
     }
     if (totalRiders === 0) {
-      alert('Kategori belum memiliki rider terdaftar.')
+      appAlert('Kategori belum memiliki rider terdaftar.')
       return
     }
 
@@ -1258,7 +1260,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
     const highestCoveredRank = qualificationRules.reduce((max, rule) => Math.max(max, Number(rule.rank_to) || 0), 0)
 
     if (qualificationBasis === 'COMBINED' && allQualificationCombined && totalRiders > 0 && highestCoveredRank < totalRiders) {
-      alert(
+      appAlert(
         `Rule saat ini hanya mencakup rank 1-${highestCoveredRank}, sementara total rider kategori ini ${totalRiders}. Lengkapi rule sampai rank ${totalRiders} dulu.`
       )
       return
@@ -1274,9 +1276,9 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
         }),
       })
       await load()
-      alert('Final class rules berhasil disimpan.')
+      appAlert('Final class rules berhasil disimpan.')
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Gagal menyimpan final class rules.')
+      appAlert(err instanceof Error ? err.message : 'Gagal menyimpan final class rules.')
     } finally {
       setSavingCategoryId(null)
     }
@@ -1976,7 +1978,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'start', flexWrap: 'wrap' }}>
               <div style={{ display: 'grid', gap: 5 }}>
                 <div style={{ fontSize: 26, fontWeight: 950, color: themeSecondary }}>Panduan Penalty Event</div>
-                <div style={{ color: '#475569', fontWeight: 750 }}>{eventMeta?.name ?? 'Event'} · aturan sesuai pengaturan event saat ini</div>
+                <div style={{ color: '#475569', fontWeight: 750 }}>{eventMeta?.name ?? 'Event'} Ã‚Â· aturan sesuai pengaturan event saat ini</div>
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <button type="button" onClick={printPenaltyGuide} style={{ padding: '10px 14px', borderRadius: 10, border: `2px solid ${themeSecondary}`, background: '#d9f99d', fontWeight: 900 }}>
@@ -2000,7 +2002,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
                       </div>
                       <div>{rule.description || 'Penalty Checker'}</div>
                       {rule.safetyLabels.length > 0 && <div style={{ color: '#475569' }}>Safety checklist: {rule.safetyLabels.join(', ')}</div>}
-                      <small style={{ color: '#475569' }}>Berlaku: {rule.scopeLabel} · {rule.is_active ? 'Aktif' : 'Rule nonaktif'}</small>
+                      <small style={{ color: '#475569' }}>Berlaku: {rule.scopeLabel} Ã‚Â· {rule.is_active ? 'Aktif' : 'Rule nonaktif'}</small>
                     </div>
                   ))}
                 </div>
@@ -2018,7 +2020,7 @@ export default function CustomFinalSplitClient({ eventId }: { eventId: string })
                         <b>{rule.code}</b><b style={{ color: themePrimary }}>+{rule.penalty_point} poin</b>
                       </div>
                       <div>{rule.description || 'Penalty manual RD'}</div>
-                      <small style={{ color: '#475569' }}>Berlaku: {rule.scopeLabel} · {rule.is_active ? 'Aktif' : 'Rule nonaktif'}</small>
+                      <small style={{ color: '#475569' }}>Berlaku: {rule.scopeLabel} Ã‚Â· {rule.is_active ? 'Aktif' : 'Rule nonaktif'}</small>
                     </div>
                   ))}
                 </div>

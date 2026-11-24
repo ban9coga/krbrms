@@ -1,24 +1,28 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../lib/auth'
 import {
+  calculateAgeOnDate,
   isMissingPrimaryCategoryColumnError,
   missingPrimaryCategoryMigrationMessage,
 } from '../../../../lib/categoryAssignment'
 import { normalizePlateNumber, normalizePlateSuffix, suggestPlateSuffix } from '../../../../lib/plate'
 
-const MIN_BIRTH_YEAR = 2016
-const MAX_BIRTH_YEAR = 2025
+const MIN_BIRTH_YEAR = 1900
+const MAX_BIRTH_YEAR = new Date().getUTCFullYear()
 const RIDER_RETURN_SELECT =
   'id, event_id, name, rider_nickname, jersey_size, date_of_birth, birth_year, primary_category_id, gender, plate_number, plate_suffix, no_plate_display, club, photo_url, photo_thumbnail_url'
 
 const resolveCategory = async (
   eventId: string,
   birthYear: number,
-  gender: 'BOY' | 'GIRL'
+  gender: 'BOY' | 'GIRL',
+  dateOfBirth: string
 ) => {
+  const { data: event } = await adminClient.from('events').select('event_date').eq('id', eventId).maybeSingle()
+  const eventDate = typeof event?.event_date === 'string' ? event.event_date : null
   const { data: categories } = await adminClient
     .from('categories')
-    .select('id, year, year_min, year_max, gender')
+    .select('id, year, year_min, year_max, category_basis, age_min, age_max, gender')
     .eq('event_id', eventId)
     .eq('enabled', true)
 
@@ -49,11 +53,21 @@ const resolveCategory = async (
     return created.id
   }
 
-  const candidates = list.filter((c) => birthYear >= c.year_min && birthYear <= c.year_max)
+  const riderAge = calculateAgeOnDate(dateOfBirth, eventDate)
+  const candidates = list.filter((c) => c.category_basis === 'AGE'
+    ? riderAge != null && c.age_min != null && c.age_max != null && riderAge >= c.age_min && riderAge <= c.age_max
+    : birthYear >= c.year_min && birthYear <= c.year_max)
+  const compareSpecificity = (a: (typeof list)[number], b: (typeof list)[number]) => {
+    if ((a.category_basis === 'AGE') !== (b.category_basis === 'AGE')) return a.category_basis === 'AGE' ? -1 : 1
+    if (a.category_basis === 'AGE' && b.category_basis === 'AGE') {
+      return ((a.age_max ?? Infinity) - (a.age_min ?? 0)) - ((b.age_max ?? Infinity) - (b.age_min ?? 0))
+    }
+    return a.year_max - b.year_max
+  }
   const genderMatch = candidates.filter((c) => c.gender === gender)
   const chosen =
-    genderMatch.sort((a, b) => a.year_max - b.year_max)[0] ??
-    candidates.filter((c) => c.gender === 'MIX').sort((a, b) => a.year_max - b.year_max)[0]
+    genderMatch.sort(compareSpecificity)[0] ??
+    candidates.filter((c) => c.gender === 'MIX').sort(compareSpecificity)[0]
 
   if (!chosen?.id) throw new Error('No matching category for rider')
   return chosen.id as string
@@ -167,11 +181,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ riderI
   }
 
   // Ensure the category row exists for the (possibly updated) DOB/gender.
-  const nextPrimaryCategoryId = await resolveCategory(rider.event_id, nextBirthYear, nextGender)
+  const nextPrimaryCategoryId = await resolveCategory(rider.event_id, nextBirthYear, nextGender, String(nextDob))
 
   const { data: existingExtraCategoryRows } = await adminClient
     .from('rider_extra_categories')
-    .select('id, category_id, categories(id, year, year_min, year_max, gender)')
+    .select('id, category_id, categories(id, year, year_min, year_max, category_basis, age_min, age_max, gender)')
     .eq('rider_id', riderId)
     .order('created_at', { ascending: false })
     .order('id', { ascending: false })
@@ -183,15 +197,18 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ riderI
   const linkedExtraCategory = (
     Array.isArray(linkedCategoryRaw) ? linkedCategoryRaw[0] : linkedCategoryRaw
   ) as
-    | { id: string; year: number; year_min?: number | null; year_max?: number | null; gender: 'BOY' | 'GIRL' | 'MIX' }
+    | { id: string; year: number; year_min?: number | null; year_max?: number | null; category_basis?: 'BIRTH_YEAR' | 'AGE'; age_min?: number | null; age_max?: number | null; gender: 'BOY' | 'GIRL' | 'MIX' }
     | null
 
   if (linkedExtraCategory) {
-    const maxYear = linkedExtraCategory.year_max ?? linkedExtraCategory.year
+    const { data: event } = await adminClient.from('events').select('event_date').eq('id', rider.event_id).maybeSingle()
+    const riderAge = calculateAgeOnDate(String(nextDob), event?.event_date)
+    const invalidAgeClass = linkedExtraCategory.category_basis === 'AGE'
+      ? riderAge == null || linkedExtraCategory.age_min == null || linkedExtraCategory.age_min <= riderAge
+      : (linkedExtraCategory.year_max ?? linkedExtraCategory.year) >= nextBirthYear
     const invalidGender = linkedExtraCategory.gender !== 'MIX' && linkedExtraCategory.gender !== nextGender
-    const invalidBirthYear = maxYear >= nextBirthYear
     const invalidSameAsPrimary = linkedExtraCategory.id === nextPrimaryCategoryId
-    if (invalidGender || invalidBirthYear || invalidSameAsPrimary) {
+    if (invalidGender || invalidAgeClass || invalidSameAsPrimary) {
       await adminClient.from('rider_extra_categories').delete().eq('rider_id', riderId)
     }
   }

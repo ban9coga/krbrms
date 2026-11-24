@@ -1,9 +1,12 @@
 'use client'
 
+import { appAlert, appConfirm } from '@/src/lib/appDialog'
+
 import Image from 'next/image'
 import { useEffect, useMemo, useState, type ClipboardEvent, type DragEvent } from 'react'
 import { buildBrandedPrintHtml } from '../../../../../lib/printTheme'
 import { isRegistrationApproverRole, normalizeAppRole } from '../../../../../lib/roles'
+import { calculateAgeOnDate } from '../../../../../lib/categoryAssignment'
 import { supabase } from '@/src/lib/supabaseClient'
 
 type CategoryItem = {
@@ -11,6 +14,9 @@ type CategoryItem = {
   year: number
   year_min?: number
   year_max?: number
+  category_basis?: 'BIRTH_YEAR' | 'AGE'
+  age_min?: number | null
+  age_max?: number | null
   capacity?: number | null
   filled?: number
   remaining?: number | null
@@ -462,11 +468,11 @@ export default function RidersClient({ eventId }: { eventId: string }) {
 
   const handleCreate = async () => {
     if (!eventId) {
-      alert('Event ID tidak ditemukan. Coba kembali ke Events lalu klik Manage Event lagi.')
+      appAlert('Event ID tidak ditemukan. Coba kembali ke Events lalu klik Manage Event lagi.')
       return
     }
     if (!form.name.trim() || !form.date_of_birth.trim() || !form.plate_number.trim()) {
-      alert('Nama, Tanggal Lahir, dan Plate Number wajib diisi.')
+      appAlert('Nama, Tanggal Lahir, dan Plate Number wajib diisi.')
       return
     }
 
@@ -494,9 +500,9 @@ export default function RidersClient({ eventId }: { eventId: string }) {
         const suggestion = json?.suggested_suffix as string | null
         if (suggestion) {
           setForm((prev) => ({ ...prev, plate_suffix: suggestion }))
-          alert(`Plate number sudah dipakai. Saran suffix: ${suggestion}`)
+          appAlert(`Plate number sudah dipakai. Saran suffix: ${suggestion}`)
         } else {
-          alert('Plate number sudah dipakai.')
+          appAlert('Plate number sudah dipakai.')
         }
         return
       }
@@ -520,9 +526,9 @@ export default function RidersClient({ eventId }: { eventId: string }) {
       setAddModalOpen(false)
       setPage(1)
       await loadRiders(1, query)
-      alert('Rider berhasil ditambahkan.')
+      appAlert('Rider berhasil ditambahkan.')
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Gagal menyimpan rider.')
+      appAlert(err instanceof Error ? err.message : 'Gagal menyimpan rider.')
     } finally {
       setSaving(false)
     }
@@ -562,11 +568,11 @@ export default function RidersClient({ eventId }: { eventId: string }) {
   const handleUpdate = async () => {
     if (!editing) return
     if (!editForm.name.trim() || !editForm.date_of_birth.trim()) {
-      alert('Nama dan Tanggal Lahir wajib diisi.')
+      appAlert('Nama dan Tanggal Lahir wajib diisi.')
       return
     }
     if (eventStatus !== 'LIVE' && !editForm.plate_number.trim()) {
-      alert('Plate Number wajib diisi.')
+      appAlert('Plate Number wajib diisi.')
       return
     }
     setSaving(true)
@@ -594,9 +600,9 @@ export default function RidersClient({ eventId }: { eventId: string }) {
         const suggestion = json?.suggested_suffix as string | null
         if (suggestion) {
           setEditForm((prev) => ({ ...prev, plate_suffix: suggestion }))
-          alert(`Plate number sudah dipakai. Saran suffix: ${suggestion}`)
+          appAlert(`Plate number sudah dipakai. Saran suffix: ${suggestion}`)
         } else {
-          alert('Plate number sudah dipakai.')
+          appAlert('Plate number sudah dipakai.')
         }
         return
       }
@@ -625,10 +631,10 @@ export default function RidersClient({ eventId }: { eventId: string }) {
 
       await Promise.all([loadRiders(page, query), loadCategories()])
       closeEdit()
-      alert('Rider berhasil diupdate.')
+      appAlert('Rider berhasil diupdate.')
     } catch (err: unknown) {
       if (editPhotoFile) setEditPhotoStatus('error')
-      alert(err instanceof Error ? err.message : 'Gagal update rider.')
+      appAlert(err instanceof Error ? err.message : 'Gagal update rider.')
     } finally {
       setSaving(false)
     }
@@ -637,10 +643,10 @@ export default function RidersClient({ eventId }: { eventId: string }) {
   const handleRemoveFromCurrentCategory = async (rider: RiderItem) => {
     if (!canManageRiders || !selectedCategory) return
     if (eventStatus === 'LIVE') {
-      alert('Event sudah LIVE. Rider tidak bisa diubah.')
+      appAlert('Event sudah LIVE. Rider tidak bisa diubah.')
       return
     }
-    const ok = window.confirm(
+    const ok = await appConfirm(
       `Lepas ${rider.name} dari kategori upclass ${selectedCategoryLabel || 'ini'}?\n\n` +
         'Rider tetap aman di kategori utama dan data pendaftaran tidak dihapus.'
     )
@@ -654,7 +660,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
       if (!res.ok) throw new Error(json?.error || 'Gagal melepas rider dari kategori upclass.')
       await Promise.all([loadRiders(page, query), loadCategories()])
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Gagal melepas rider dari kategori upclass.')
+      appAlert(err instanceof Error ? err.message : 'Gagal melepas rider dari kategori upclass.')
     } finally {
       setSaving(false)
     }
@@ -663,7 +669,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
   const handleDelete = async (rider: RiderItem) => {
     if (!canManageRiders) return
     if (eventStatus === 'LIVE') {
-      alert('Event sudah LIVE. Rider tidak bisa dihapus.')
+      appAlert('Event sudah LIVE. Rider tidak bisa dihapus.')
       return
     }
     const isUpclassContext = Boolean(selectedCategory && rider.primary_category_id && rider.primary_category_id !== selectedCategory)
@@ -672,7 +678,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
       return
     }
 
-    const ok = window.confirm(
+    const ok = await appConfirm(
       `HAPUS RIDER PERMANEN?\n\n` +
         `${rider.no_plate_display} - ${rider.name}\n\n` +
         'Aksi ini akan menghapus rider dari kategori utama, semua upclass, moto/gate, result, penalty/safety terkait rider.\n\n' +
@@ -685,7 +691,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
       if (!res.ok) throw new Error(json?.error || 'Gagal hapus rider.')
       await Promise.all([loadRiders(page, query), loadCategories()])
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Gagal hapus rider.')
+      appAlert(err instanceof Error ? err.message : 'Gagal hapus rider.')
     } finally {
       setSaving(false)
     }
@@ -1104,11 +1110,11 @@ export default function RidersClient({ eventId }: { eventId: string }) {
 
   const handleExportRiders = async () => {
     if (!eventId) {
-      alert('Event ID tidak valid.')
+      appAlert('Event ID tidak valid.')
       return
     }
     if (!selectedCategory) {
-      alert('Pilih kategori terlebih dahulu.')
+      appAlert('Pilih kategori terlebih dahulu.')
       return
     }
 
@@ -1117,7 +1123,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
       const exportRows = await fetchExportRows(selectedCategory)
 
       if (exportRows.length === 0) {
-        alert('Tidak ada data rider untuk diexport.')
+        appAlert('Tidak ada data rider untuk diexport.')
         return
       }
 
@@ -1158,7 +1164,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
       const categorySlug = toFileSlug(selectedCategoryLabel || selectedCategory)
       downloadCsvFile(`riders_${categorySlug}_${stamp}.csv`, lines)
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Gagal export rider.')
+      appAlert(err instanceof Error ? err.message : 'Gagal export rider.')
     } finally {
       setExporting(false)
     }
@@ -1166,11 +1172,11 @@ export default function RidersClient({ eventId }: { eventId: string }) {
 
   const handleExportRidersPdf = async () => {
     if (!eventId) {
-      alert('Event ID tidak valid.')
+      appAlert('Event ID tidak valid.')
       return
     }
     if (!selectedCategory) {
-      alert('Pilih kategori terlebih dahulu.')
+      appAlert('Pilih kategori terlebih dahulu.')
       return
     }
 
@@ -1178,7 +1184,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
     try {
       const exportRows = await fetchExportRows(selectedCategory)
       if (exportRows.length === 0) {
-        alert('Tidak ada data rider untuk diexport.')
+        appAlert('Tidak ada data rider untuk diexport.')
         return
       }
 
@@ -1231,7 +1237,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
 
       openPrintPreview(html)
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Gagal export PDF rider.')
+      appAlert(err instanceof Error ? err.message : 'Gagal export PDF rider.')
     } finally {
       setExportingPdf(false)
     }
@@ -1239,7 +1245,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
 
   const handleExportAllRiders = async () => {
     if (!eventId) {
-      alert('Event ID tidak valid.')
+      appAlert('Event ID tidak valid.')
       return
     }
 
@@ -1324,7 +1330,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
       const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
       downloadCsvFile(`riders_all_by_category_${stamp}.csv`, lines)
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Gagal export semua rider.')
+      appAlert(err instanceof Error ? err.message : 'Gagal export semua rider.')
     } finally {
       setExportingAll(false)
     }
@@ -1332,7 +1338,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
 
   const handleExportExcelRapi = async () => {
     if (!eventId) {
-      alert('Event ID tidak valid.')
+      appAlert('Event ID tidak valid.')
       return
     }
 
@@ -1432,7 +1438,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
       const stamp = generatedAt.toISOString().slice(0, 19).replace(/[:T]/g, '-')
       XLSX.writeFile(workbook, `riders_all_by_category_${stamp}.xlsx`)
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Gagal export Excel rider.')
+      appAlert(err instanceof Error ? err.message : 'Gagal export Excel rider.')
     } finally {
       setExportingExcel(false)
     }
@@ -1440,7 +1446,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
 
   const handleExportAllRidersPdf = async () => {
     if (!eventId) {
-      alert('Event ID tidak valid.')
+      appAlert('Event ID tidak valid.')
       return
     }
 
@@ -1461,7 +1467,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
           return chunks.map((chunkRows, chunkIndex) => {
             const startNumber = chunkIndex * rowsPerSection
             const isContinuation = chunkIndex > 0
-            const title = `${summary.label}${isContinuation ? ` · Lanjutan ${chunkIndex + 1}` : ''}`
+            const title = `${summary.label}${isContinuation ? ` Ã‚Â· Lanjutan ${chunkIndex + 1}` : ''}`
             const countLabel =
               totalChunks > 1
                 ? `${escapeHtml(startNumber + 1)}-${escapeHtml(startNumber + chunkRows.length)} dari ${escapeHtml(rows.length)} rider`
@@ -1519,7 +1525,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
 
       openPrintPreview(html)
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Gagal export semua rider ke PDF.')
+      appAlert(err instanceof Error ? err.message : 'Gagal export semua rider ke PDF.')
     } finally {
       setExportingAllPdf(false)
     }
@@ -1529,6 +1535,11 @@ export default function RidersClient({ eventId }: { eventId: string }) {
   const addEligibleCategories = categories.length > 0
   const addBirthYear = Number(String(form.date_of_birth).slice(0, 4))
   const addEligibleExtraCategories = categories.filter((category) => {
+    if (category.category_basis === 'AGE') {
+      const age = calculateAgeOnDate(form.date_of_birth, eventPdfMeta?.eventDate)
+      if (age == null || category.age_min == null || category.age_min <= age) return false
+      return category.gender === 'MIX' || category.gender === form.gender
+    }
     const max = category.year_max ?? category.year
     if (!Number.isFinite(addBirthYear)) return false
     if (max >= addBirthYear) return false
@@ -1537,6 +1548,11 @@ export default function RidersClient({ eventId }: { eventId: string }) {
   })
   const editBirthYear = Number(String(editForm.date_of_birth).slice(0, 4))
   const eligibleExtraCategories = categories.filter((category) => {
+    if (category.category_basis === 'AGE') {
+      const age = calculateAgeOnDate(editForm.date_of_birth, eventPdfMeta?.eventDate)
+      if (age == null || category.age_min == null || category.age_min <= age) return false
+      return category.gender === 'MIX' || category.gender === editForm.gender
+    }
     const max = category.year_max ?? category.year
     if (max >= editBirthYear) return false
     if (category.gender === 'MIX') return true
@@ -1607,7 +1623,9 @@ export default function RidersClient({ eventId }: { eventId: string }) {
                         {category.gender}
                       </span>
                       <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1">
-                        {category.year_min ?? category.year} - {category.year_max ?? category.year}
+                        {category.category_basis === 'AGE'
+                          ? `Umur ${category.age_min}Ã¢â‚¬â€œ${category.age_max} tahun`
+                          : `${category.year_min ?? category.year} - ${category.year_max ?? category.year}`}
                       </span>
                     </div>
                   </button>
@@ -1959,7 +1977,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
                 <div className={labelClass}>Daftar Upclass</div>
                 <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-950">Rider yang Mengambil Upclass</h2>
                 <p className="mt-1 text-sm font-semibold text-slate-500">
-                  Total {upclassRiders.length} rider · Ditampilkan {filteredUpclassRiders.length}
+                  Total {upclassRiders.length} rider Ã‚Â· Ditampilkan {filteredUpclassRiders.length}
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -2025,7 +2043,7 @@ export default function RidersClient({ eventId }: { eventId: string }) {
                           <td className="px-4 py-3">
                             <div className="font-black text-slate-950">{rider.name}</div>
                             <div className="text-xs font-semibold text-slate-500">
-                              {rider.rider_nickname || '-'} · {rider.gender}
+                              {rider.rider_nickname || '-'} Ã‚Â· {rider.gender}
                             </div>
                           </td>
                           <td className="px-4 py-3 font-semibold text-slate-700">{rider.club || '-'}</td>

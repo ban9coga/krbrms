@@ -1,6 +1,7 @@
 'use server'
 
 import { adminClient } from '@/src/lib/auth'
+import { riderBelongsToPrimaryCategory } from '@/src/lib/categoryAssignment'
 
 export type ChecklistStatus = 'done' | 'warning' | 'todo'
 
@@ -30,9 +31,9 @@ export async function getEventSetupChecklist(eventId: string): Promise<Checklist
   ] = await Promise.all([
     adminClient.from('events').select('name, location, event_date, is_public').eq('id', eventId).maybeSingle(),
     adminClient.from('event_settings').select('race_format_settings').eq('event_id', eventId).maybeSingle(),
-    adminClient.from('categories').select('id, year, year_min, year_max, gender').eq('event_id', eventId).eq('enabled', true),
+    adminClient.from('categories').select('id, year, year_min, year_max, category_basis, age_min, age_max, gender').eq('event_id', eventId).eq('enabled', true),
     adminClient.from('registrations').select('id', { count: 'exact', head: true }).eq('event_id', eventId),
-    adminClient.from('riders').select('id, primary_category_id, birth_year, gender').eq('event_id', eventId),
+    adminClient.from('riders').select('id, primary_category_id, birth_year, date_of_birth, gender').eq('event_id', eventId),
     adminClient.from('rider_extra_categories').select('rider_id, category_id').eq('event_id', eventId),
     adminClient.from('event_penalty_rules').select('id', { count: 'exact', head: true }).eq('event_id', eventId).eq('is_active', true),
     adminClient.from('user_event_roles').select('role').eq('event_id', eventId).eq('is_active', true),
@@ -93,11 +94,7 @@ export async function getEventSetupChecklist(eventId: string): Promise<Checklist
     }
     if (rider.primary_category_id) continue
     for (const category of enabledCategories) {
-      const minYear = category.year_min ?? category.year
-      const maxYear = category.year_max ?? category.year
-      const matchesYear = rider.birth_year >= minYear && rider.birth_year <= maxYear
-      const matchesGender = category.gender === 'MIX' || rider.gender === category.gender
-      if (matchesYear && matchesGender) expectedPairs.add(`${category.id}:${rider.id}`)
+      if (riderBelongsToPrimaryCategory(rider, category, event?.event_date)) expectedPairs.add(`${category.id}:${rider.id}`)
     }
   }
   for (const extra of riderExtraCategories ?? []) {

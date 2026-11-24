@@ -26,7 +26,7 @@ export async function PATCH(
 
   const { data: registration, error: regError } = await adminClient
     .from('registrations')
-    .select('id, status, contact_email')
+    .select('id, status, contact_email, bundle_order_id')
     .eq('id', registrationId)
     .eq('event_id', eventId)
     .maybeSingle()
@@ -34,15 +34,26 @@ export async function PATCH(
   if (regError) return NextResponse.json({ error: regError.message }, { status: 400 })
   if (!registration) return NextResponse.json({ error: 'Registration not found' }, { status: 404 })
 
-  const { data, error } = await adminClient
-    .from('registration_payments')
-    .update({ status })
-    .eq('id', paymentId)
-    .eq('registration_id', registrationId)
-    .select(PAYMENT_RETURN_SELECT)
-    .single()
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  let data: Record<string, unknown> | null = null
+  if (registration.bundle_order_id) {
+    const { error } = await adminClient.rpc('set_registration_bundle_order_payment_status', {
+      p_event_id: eventId,
+      p_registration_id: registrationId,
+      p_payment_id: paymentId,
+      p_status: status,
+    })
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  } else {
+    const { data: payment, error } = await adminClient
+      .from('registration_payments')
+      .update({ status })
+      .eq('id', paymentId)
+      .eq('registration_id', registrationId)
+      .select(PAYMENT_RETURN_SELECT)
+      .single()
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+    data = payment
+  }
 
   let email: RegistrationEmailResult | { status: 'failed'; reason: string } | null = null
   if (status === 'REJECTED') {

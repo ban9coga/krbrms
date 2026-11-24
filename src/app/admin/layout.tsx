@@ -12,7 +12,7 @@ import { supabase } from '@/src/lib/supabaseClient'
 type NavItem = {
   label: string
   href: string
-  icon: 'dashboard' | 'events' | 'content' | 'users' | 'registrations' | 'riders' | 'categories' | 'draw' | 'drawSettings' | 'motos' | 'sequence' | 'advanced' | 'customSplit' | 'schedule' | 'results' | 'penalties' | 'settings' | 'checklist' | 'raceDay'
+  icon: 'dashboard' | 'events' | 'content' | 'users' | 'registrations' | 'riders' | 'categories' | 'draw' | 'drawSettings' | 'motos' | 'sequence' | 'advanced' | 'customSplit' | 'schedule' | 'results' | 'penalties' | 'settings' | 'checklist' | 'raceDay' | 'regulations'
 }
 
 const BRAND = {
@@ -39,6 +39,7 @@ const EVENT_NAV = (eventId: string): NavItem[] => [
   { label: 'Race Schedule', href: `/admin/events/${eventId}/schedule`, icon: 'schedule' },
   { label: 'Rekap Hasil Akhir', href: `/admin/events/${eventId}/results`, icon: 'results' },
   { label: 'Penalties', href: `/admin/events/${eventId}/penalties`, icon: 'penalties' },
+  { label: 'Regulasi Event', href: `/admin/events/${eventId}/regulations`, icon: 'regulations' },
   { label: 'Event Settings', href: `/admin/events/${eventId}/settings`, icon: 'settings' },
 ]
 
@@ -224,6 +225,14 @@ function Icon({ type, active }: { type: NavItem['icon']; active: boolean }) {
     return (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={common}>
         <path d="M12 3v12M7 8h10M8 21h8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  }
+  if (type === 'regulations') {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={common}>
+        <path d="M6 3h9l4 4v14H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M14 3v5h5M8 12h8M8 16h8" strokeLinecap="round" />
       </svg>
     )
   }

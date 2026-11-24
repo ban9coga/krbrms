@@ -52,7 +52,7 @@ const getExistingRegistrationOpen = async (eventId: string) => {
 const getLatestRaceFormatSettings = async (eventId: string) => {
   const { data, error } = await adminClient
     .from('event_settings')
-    .select('race_format_settings, event_logo_url, sponsor_logo_urls, business_settings, registration_open, updated_at')
+    .select('race_format_settings, event_logo_url, sponsor_logo_urls, base_price, extra_price, business_settings, registration_open, updated_at')
     .eq('event_id', eventId)
     .order('updated_at', { ascending: false })
     .limit(1)
@@ -62,6 +62,8 @@ const getLatestRaceFormatSettings = async (eventId: string) => {
     data: parseRaceFormatSettings(row?.race_format_settings),
     eventLogoUrl: toPublicMediaUrl(typeof row?.event_logo_url === 'string' ? row.event_logo_url : null),
     sponsorLogoUrls: toPublicMediaUrls(row?.sponsor_logo_urls),
+    basePrice: row?.base_price != null && Number.isFinite(Number(row.base_price)) ? Number(row.base_price) : null,
+    extraPrice: row?.extra_price != null && Number.isFinite(Number(row.extra_price)) ? Number(row.extra_price) : null,
     businessSettings: proxyBusinessSettingsMedia(parseBusinessSettings(row?.business_settings)),
     registrationOpen: typeof row?.registration_open === 'boolean' ? row.registration_open : true,
     error: null,
@@ -92,6 +94,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
       draw_mode: drawMode,
       event_scope: eventScope,
       registration_open: formatResult.registrationOpen,
+      base_price: formatResult.basePrice,
+      extra_price: formatResult.extraPrice,
       event_logo_url: formatResult.eventLogoUrl,
       event_poster_url: toPublicMediaUrl(typeof formatResult.data?.event_poster_url === 'string' ? formatResult.data.event_poster_url : null),
       sponsor_logo_urls: formatResult.sponsorLogoUrls,

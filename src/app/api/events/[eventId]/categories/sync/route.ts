@@ -24,7 +24,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
 
   const { data: existingCategories, error: existingError } = await adminClient
     .from('categories')
-    .select('year, gender')
+    .select('year, gender, category_basis')
     .eq('event_id', eventId)
 
   if (existingError) return NextResponse.json({ error: existingError.message }, { status: 400 })
@@ -40,7 +40,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   }
 
   const existingKeys = new Set(
-    (existingCategories ?? []).map((category) => `${Number(category.year)}-${String(category.gender).toUpperCase()}`)
+    (existingCategories ?? []).filter((category) => category.category_basis !== 'AGE').map((category) => `${Number(category.year)}-${String(category.gender).toUpperCase()}`)
   )
 
   const payload = Array.from(unique.values())

@@ -196,7 +196,9 @@ export default function ResultsClient({
                     <div className="flex flex-wrap gap-2">
                       <span className="public-chip">{category.gender}</span>
                       <span className="public-chip">
-                        {category.year_min ?? category.year} - {category.year_max ?? category.year}
+                        {category.category_basis === 'AGE'
+                          ? `Umur ${category.age_min}–${category.age_max} tahun`
+                          : `${category.year_min ?? category.year} - ${category.year_max ?? category.year}`}
                       </span>
                     </div>
                     <Link

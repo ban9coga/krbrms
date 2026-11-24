@@ -16,6 +16,7 @@ const ATTENDANCE_FILTERS = [
 
 const REGISTRATION_LIST_SELECT = `
   id,
+  bundle_order_id,
   registration_code,
   community_name,
   contact_name,
@@ -39,6 +40,9 @@ const REGISTRATION_LIST_SELECT = `
     club,
     primary_category_id,
     extra_category_id,
+    bundle_id,
+    bundle_name,
+    bundle_price,
     requested_plate_number,
     requested_plate_suffix,
     photo_url,
@@ -370,7 +374,22 @@ export async function GET(req: Request, { params }: { params: Promise<{ eventId:
 
     const total = count ?? 0
     const totalPages = Math.max(1, Math.ceil(total / pageSize))
-    const rows = await withOfficialRiderData(eventId, data ?? [])
+    let rows = await withOfficialRiderData(eventId, data ?? [])
+    const bundleOrderIds = Array.from(new Set(rows
+      .map((row) => typeof row.bundle_order_id === 'string' ? row.bundle_order_id : null)
+      .filter((id): id is string => Boolean(id))))
+    if (bundleOrderIds.length > 0) {
+      const { data: bundleOrders, error: bundleOrdersError } = await adminClient
+        .from('registration_bundle_orders')
+        .select('id, offer_name, total_amount, bundle_base_price_per_rider, rider_count, payment_status, bank_name, account_name, account_number')
+        .in('id', bundleOrderIds)
+      if (bundleOrdersError) return NextResponse.json({ error: bundleOrdersError.message }, { status: 400 })
+      const orderById = new Map((bundleOrders ?? []).map((order) => [order.id, order]))
+      rows = rows.map((row) => ({
+        ...row,
+        bundle_order: typeof row.bundle_order_id === 'string' ? orderById.get(row.bundle_order_id) ?? null : null,
+      }))
+    }
 
     return NextResponse.json({
       data: rows,

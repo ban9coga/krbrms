@@ -1,5 +1,7 @@
 'use client'
 
+import { appConfirm } from '@/src/lib/appDialog'
+
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -89,15 +91,6 @@ const formatDate = (value: string) =>
     year: 'numeric',
   }).format(new Date(value))
 
-function SummaryCard({ label, value }: { label: string; value: number }) {
-  return (
-    <article className="admin-card">
-      <div className="admin-kicker">{label}</div>
-      <div className="admin-heading mt-3 text-2xl">{value}</div>
-    </article>
-  )
-}
-
 function EventBadge({ label, tone }: { label: string; tone: EventTone }) {
   return <span className={`admin-tone-badge ${toneClass[tone]}`}>{label}</span>
 }
@@ -106,8 +99,11 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
   const router = useRouter()
   const [events, setEvents] = useState<EventItem[]>([])
   const [query, setQuery] = useState('')
+  const [appliedQuery, setAppliedQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL')
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>('ALL')
+  const [page, setPage] = useState(0)
+  const [totalEventCount, setTotalEventCount] = useState(0)
   const [loading, setLoading] = useState(false)
   const [creating, setCreating] = useState(false)
   const [canCreate, setCanCreate] = useState(false)
@@ -137,7 +133,7 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (token) headers.Authorization = `Bearer ${token}`
 
-    const res = await fetch(url, { ...options, headers })
+    const res = await fetch(url, { ...options, headers, cache: 'no-store' })
     const json = await res.json().catch(() => ({}))
     if (!res.ok) {
       throw new Error(json?.error || 'Request failed')
@@ -145,22 +141,32 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
     return json
   }, [])
 
-  const loadEvents = useCallback(async () => {
+  const loadEvents = useCallback(async (targetPage = 0) => {
     setLoading(true)
     try {
-      const json = await apiFetch('/api/events')
+      const params = new URLSearchParams({
+        admin_page: 'true',
+        page: String(targetPage),
+        page_size: '25',
+        scope: scopeFilter,
+      })
+      if (statusFilter !== 'ALL') params.set('status', statusFilter)
+      if (appliedQuery) params.set('q', appliedQuery)
+      const json = await apiFetch(`/api/events?${params.toString()}`)
       setEvents(json.data ?? [])
+      setTotalEventCount(Number(json.total ?? json.data?.length ?? 0))
+      setPage(Number(json.page ?? targetPage))
     } catch (err: unknown) {
       setFeedback({ type: 'error', message: `Gagal memuat event: ${getErrorMessage(err)}` })
     } finally {
       setLoading(false)
     }
-  }, [apiFetch])
+  }, [apiFetch, appliedQuery, scopeFilter, statusFilter])
 
   useEffect(() => {
     const loadUser = async () => {
-      const { data } = await supabase.auth.getUser()
-      const user = data.user
+      const { data } = await supabase.auth.getSession()
+      const user = data.session?.user
       const meta = (user?.user_metadata ?? {}) as Record<string, unknown>
       const appMeta = (user?.app_metadata ?? {}) as Record<string, unknown>
       const metaRole = typeof meta.role === 'string' ? meta.role : null
@@ -171,16 +177,29 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
     }
 
     void loadUser()
-    void loadEvents()
+  }, [])
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setAppliedQuery(query.trim()), 300)
+    return () => window.clearTimeout(timeout)
+  }, [query])
+
+  useEffect(() => {
+    void loadEvents(0)
   }, [loadEvents])
 
   const runEventAction = useCallback(
-    async (key: string, task: () => Promise<void>, successMessage: string) => {
+    async (key: string, task: () => Promise<void>, successMessage: string, localPatch?: Partial<EventItem>) => {
       setActionKey(key)
       setFeedback(null)
       try {
         await task()
-        await loadEvents()
+        if (localPatch && statusFilter === 'ALL' && scopeFilter === 'ALL' && !appliedQuery) {
+          const eventId = key.slice(key.indexOf('-') + 1)
+          setEvents((current) => current.map((event) => event.id === eventId ? { ...event, ...localPatch } : event))
+        } else {
+          await loadEvents(page)
+        }
         setFeedback({ type: 'success', message: successMessage })
         return true
       } catch (err: unknown) {
@@ -190,7 +209,7 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
         setActionKey(null)
       }
     },
-    [loadEvents]
+    [appliedQuery, loadEvents, page, scopeFilter, statusFilter]
   )
 
   const handleCreate = async () => {
@@ -212,6 +231,10 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
         draw_mode: form.draw_mode,
       }
       const created = await apiFetch('/api/events', { method: 'POST', body: JSON.stringify(payload) })
+      if (created?.data?.id) {
+        setEvents((current) => [...current, { ...created.data, registration_open: true } as EventItem])
+        setTotalEventCount((current) => current + 1)
+      }
       setForm({
         name: '',
         location: '',
@@ -221,7 +244,6 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
         draw_mode: 'internal_live_draw',
       })
       setShowCreateForm(false)
-      await loadEvents()
       setFeedback({ type: 'success', message: 'Event baru berhasil dibuat.' })
       if (created?.data?.id) router.push(`/admin/events/${created.data.id}/checklist`)
     } catch (err: unknown) {
@@ -259,7 +281,8 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
           }),
         })
       },
-      `Event "${event.name}" berhasil diperbarui.`
+      `Event "${event.name}" berhasil diperbarui.`,
+      { name: editForm.name.trim(), location: editForm.location.trim() || null, event_date: editForm.event_date }
     )
     if (saved) setEditingEvent(null)
   }
@@ -301,8 +324,13 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
             confirmation_password: deleteForm.password,
           }),
       })
-      await loadEvents()
       setDeletingEvent(null)
+      if (events.length === 1 && page > 0) {
+        await loadEvents(page - 1)
+      } else {
+        setEvents((current) => current.filter((item) => item.id !== event.id))
+        setTotalEventCount((current) => Math.max(0, current - 1))
+      }
       setDeleteForm({ name: '', password: '' })
       setFeedback({ type: 'success', message: `Event "${event.name}" berhasil dihapus.` })
     } catch (err: unknown) {
@@ -321,12 +349,13 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
           body: JSON.stringify({ status }),
         })
       },
-      `Status "${event.name}" diperbarui ke ${STATUS_META[status].label}.`
+      `Status "${event.name}" diperbarui ke ${STATUS_META[status].label}.`,
+      { status }
     )
   }
 
   const handleRefreshFinalArchive = async (event: EventItem) => {
-    const confirmed = window.confirm(
+    const confirmed = await appConfirm(
       `Buat ulang arsip publik final untuk "${event.name}"?\n\nGunakan setelah koreksi hasil resmi. Halaman publik akan memakai hasil terbaru setelah refresh.`
     )
     if (!confirmed) return
@@ -349,7 +378,8 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
           body: JSON.stringify({ is_public: isPublic }),
         })
       },
-      isPublic ? `Event "${event.name}" tampil di publik.` : `Event "${event.name}" disembunyikan dari publik.`
+      isPublic ? `Event "${event.name}" tampil di publik.` : `Event "${event.name}" disembunyikan dari publik.`,
+      { is_public: isPublic }
     )
   }
 
@@ -362,7 +392,8 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
           body: JSON.stringify({ draw_mode: drawMode }),
         })
       },
-      `Draw mode "${event.name}" berhasil diperbarui.`
+      `Draw mode "${event.name}" berhasil diperbarui.`,
+      { draw_mode: drawMode }
     )
   }
 
@@ -375,7 +406,8 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
           body: JSON.stringify({ event_scope: eventScope }),
         })
       },
-      `Tipe event "${event.name}" berhasil diperbarui.`
+      `Tipe event "${event.name}" berhasil diperbarui.`,
+      { event_scope: eventScope }
     )
   }
 
@@ -390,7 +422,8 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
       },
       registrationOpen
         ? `Registrasi untuk "${event.name}" dibuka kembali.`
-        : `Registrasi untuk "${event.name}" ditutup.`
+        : `Registrasi untuk "${event.name}" ditutup.`,
+      { registration_open: registrationOpen }
     )
   }
 
@@ -406,39 +439,14 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
     )
   }
 
-  const filteredEvents = useMemo(() => {
-    const q = query.trim().toLowerCase()
-
-    return [...events]
-      .filter((event) => {
-        if (statusFilter !== 'ALL' && event.status !== statusFilter) return false
-
-        const resolvedScope = event.event_scope === 'INTERNAL' ? 'INTERNAL' : 'PUBLIC'
-        if (scopeFilter !== 'ALL' && resolvedScope !== scopeFilter) return false
-
-        if (!q) return true
-        const haystack = `${event.name} ${event.location ?? ''} ${event.event_date}`.toLowerCase()
-        return haystack.includes(q)
-      })
-      .sort((a, b) => {
+  const filteredEvents = useMemo(
+    () => [...events].sort((a, b) => {
         const weight = STATUS_META[a.status].weight - STATUS_META[b.status].weight
         if (weight !== 0) return weight
         return new Date(b.event_date).getTime() - new Date(a.event_date).getTime()
-      })
-  }, [events, query, scopeFilter, statusFilter])
-
-  const summary = useMemo(() => {
-    const liveEvents = events.filter((event) => event.status === 'LIVE').length
-    const upcomingEvents = events.filter((event) => event.status === 'UPCOMING').length
-    const finishedEvents = events.filter((event) => event.status === 'FINISHED').length
-
-    return {
-      total: events.length,
-      liveEvents,
-      upcomingEvents,
-      finishedEvents,
-    }
-  }, [events])
+      }),
+    [events]
+  )
 
   const isRegistrationApprover = isRegistrationApproverRole(roleKey)
   const activeEvents = filteredEvents.filter((event) => event.status !== 'FINISHED')
@@ -494,6 +502,11 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
               {!isRegistrationApprover && (
                 <Link href={`/admin/events/${event.id}/settings`} className="event-card-nav-button">
                   Settings
+                </Link>
+              )}
+              {!isRegistrationApprover && (
+                <Link href={`/admin/events/${event.id}/registration-options`} className="event-card-nav-button">
+                  Bundling & Racepack
                 </Link>
               )}
               <Link href={`/event/${event.id}`} className="event-card-nav-button">
@@ -628,18 +641,11 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
                 {showCreateForm ? 'Tutup Form Event' : 'Tambah Event Baru'}
               </button>
             )}
-            <button type="button" onClick={() => void loadEvents()} disabled={loading} className={primaryButtonClass}>
-              {loading ? 'Refreshing…' : 'Refresh Events'}
+            <button type="button" onClick={() => void loadEvents(page)} disabled={loading} className={primaryButtonClass}>
+              {loading ? 'RefreshingÃ¢â‚¬Â¦' : 'Refresh Events'}
             </button>
           </div>
         </div>
-      </section>
-
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard label="Total Event" value={summary.total} />
-        <SummaryCard label="Live Event" value={summary.liveEvents} />
-        <SummaryCard label="Upcoming Event" value={summary.upcomingEvents} />
-        <SummaryCard label="Finished Event" value={summary.finishedEvents} />
       </section>
 
       {feedback && (
@@ -697,7 +703,7 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
                 <div className="admin-kicker">Event yang akan dihapus</div>
                 <div className="mt-1 break-words text-base font-black text-slate-950">{deletingEvent.name}</div>
                 <div className="mt-1 text-sm font-semibold text-slate-600">
-                  {deletingEvent.location || 'Lokasi belum diisi'} · {formatDate(deletingEvent.event_date)}
+                  {deletingEvent.location || 'Lokasi belum diisi'} Ã‚Â· {formatDate(deletingEvent.event_date)}
                 </div>
               </div>
 
@@ -915,7 +921,7 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
             <div className="rounded-[1.75rem] border border-slate-200 bg-slate-50 p-5">
               <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Action</div>
               <button type="button" onClick={handleCreate} disabled={creating} className={`${primaryButtonClass} mt-6 w-full`}>
-                {creating ? 'Creating Event…' : 'Create Event'}
+                {creating ? 'Creating EventÃ¢â‚¬Â¦' : 'Create Event'}
               </button>
               <button
                 type="button"
@@ -937,13 +943,13 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
             <h2 className="text-2xl font-black tracking-tight text-slate-950">Event Directory</h2>
           </div>
           <div className="admin-tone-badge admin-tone-neutral w-fit">
-            {loading ? 'Memuat daftar event…' : `${filteredEvents.length} event tampil`}
+            {loading ? 'Memuat daftar event...' : `${totalEventCount} hasil cocok`}
           </div>
         </div>
 
         <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1.4fr)_220px_220px]">
           <input
-            placeholder="Cari event berdasarkan nama, lokasi, atau tanggal"
+            placeholder="Cari event berdasarkan nama atau lokasi"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className={fieldClass}
@@ -1056,6 +1062,14 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
                             </span>
                           </Link>
                         )}
+                        {!isRegistrationApprover && (
+                          <Link href={`/admin/events/${event.id}/registration-options`} className="event-card-nav-button">
+                            <span>Bundling & Racepack</span>
+                            <span className="event-card-nav-arrow-wrapper" aria-hidden="true">
+                              <span className="event-card-nav-arrow" />
+                            </span>
+                          </Link>
+                        )}
                         <Link href={`/event/${event.id}`} className="event-card-nav-button">
                           <span>Public Page</span>
                           <span className="event-card-nav-arrow-wrapper" aria-hidden="true">
@@ -1128,7 +1142,7 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
                         disabled={busy}
                         label="Tampilkan di publik"
                       />
-                      {busy && <EventBadge label="Saving…" tone="accent" />}
+                      {busy && <EventBadge label="SavingÃ¢â‚¬Â¦" tone="accent" />}
                     </div>
 
                     <details className="admin-card-muted group">
@@ -1195,6 +1209,20 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
               <div className="admin-heading text-lg">Belum ada event yang cocok.</div>
             </div>
           )}
+
+          <div className="mt-5 flex flex-col gap-3 border-t border-slate-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="admin-muted text-sm font-semibold">
+              {totalEventCount === 0 ? 'Tidak ada hasil' : `Menampilkan ${page * 25 + 1}-${Math.min((page + 1) * 25, totalEventCount)} dari ${totalEventCount} event`}
+            </p>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => void loadEvents(page - 1)} disabled={loading || page <= 0} className={subtleButtonClass}>
+                Sebelumnya
+              </button>
+              <button type="button" onClick={() => void loadEvents(page + 1)} disabled={loading || (page + 1) * 25 >= totalEventCount} className={subtleButtonClass}>
+                Berikutnya
+              </button>
+            </div>
+          </div>
         </div>
       </section>
     </div>

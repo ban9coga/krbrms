@@ -1,5 +1,7 @@
 'use client'
 
+import { appAlert } from '@/src/lib/appDialog'
+
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/src/lib/supabaseClient'
@@ -81,7 +83,7 @@ export default function LiveClient({ eventId }: { eventId: string }) {
 
   const handleSubmit = async () => {
     if (!selectedMotoId) {
-      alert('Pilih moto terlebih dahulu.')
+      appAlert('Pilih moto terlebih dahulu.')
       return
     }
 
@@ -91,7 +93,7 @@ export default function LiveClient({ eventId }: { eventId: string }) {
       .filter(Boolean)
 
     if (orderedPlates.length === 0) {
-      alert('Masukkan urutan no plate.')
+      appAlert('Masukkan urutan no plate.')
       return
     }
 
@@ -103,7 +105,7 @@ export default function LiveClient({ eventId }: { eventId: string }) {
     }))
 
     if (results.some((row) => !row.rider_id)) {
-      alert('Ada no plate yang tidak ditemukan.')
+      appAlert('Ada no plate yang tidak ditemukan.')
       return
     }
 
@@ -113,10 +115,10 @@ export default function LiveClient({ eventId }: { eventId: string }) {
         method: 'POST',
         body: JSON.stringify({ results }),
       })
-      alert('Result tersimpan.')
+      appAlert('Result tersimpan.')
       setInput('')
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Gagal menyimpan result.')
+      appAlert(err instanceof Error ? err.message : 'Gagal menyimpan result.')
     } finally {
       setSaving(false)
     }
@@ -203,7 +205,7 @@ export default function LiveClient({ eventId }: { eventId: string }) {
 
         {selectedMoto && (
           <div style={{ color: '#333', fontWeight: 800, fontSize: 13 }}>
-            Selected: {selectedMoto.moto_name} • Status: {selectedMoto.status}
+            Selected: {selectedMoto.moto_name} Ã¢â‚¬Â¢ Status: {selectedMoto.status}
           </div>
         )}
       </div>

@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from 'react'
 import LoadingState from '../../../components/LoadingState'
 import EmptyState from '../../../components/EmptyState'
 import PublicTopbar from '../../../components/PublicTopbar'
+import PublicEventFacts from '../../../components/PublicEventFacts'
 import SponsorMarquee from '../../../components/SponsorMarquee'
 import { compareMotoDisplayOrder, formatMotoDisplayName } from '../../../lib/motoDisplayOrder'
 import {
@@ -170,37 +171,31 @@ export default function EventDetailClient({
   const sponsorLogoUrls = event?.sponsor_logo_urls ?? []
   const business = event?.business_settings ?? null
   const publicEventTitle = business?.public_event_title?.trim() || event?.name || 'Event Detail'
-  const publicBrandName = business?.public_brand_name?.trim() || ''
   const publicTagline = business?.public_tagline?.trim() || ''
-  const hasDistinctPublicBrandName =
-    Boolean(publicBrandName) && publicBrandName.trim().toLocaleLowerCase() !== publicEventTitle.trim().toLocaleLowerCase()
   const showEventOwner = Boolean(business?.show_event_owner_publicly && business?.event_owner_name?.trim())
   const showOperatingCommittee = Boolean(
     business?.show_operating_committee_publicly &&
       (business?.operating_committee_label?.trim() || business?.operating_committee_name?.trim())
   )
-  const showScoringSupport = Boolean(
-    business?.show_scoring_support_publicly &&
-      (business?.scoring_support_label?.trim() || business?.scoring_support_name?.trim())
-  )
   const showRaceDirector = Boolean(business?.show_race_director_publicly && business?.race_director_name?.trim())
   const showMc = Boolean(business?.show_mc_publicly && business?.mc_name?.trim())
-  const eventOwnerName = business?.event_owner_name?.trim() || ''
-  const operatingCommitteeLabel =
-    business?.operating_committee_label?.trim() || business?.operating_committee_name?.trim() || ''
-  const scoringSupportLabel =
-    business?.scoring_support_label?.trim() || business?.scoring_support_name?.trim() || ''
-  const raceDirectorName = business?.race_director_name?.trim() || ''
-  const mcName = business?.mc_name?.trim() || ''
-  const publicStaff = [
-    showEventOwner ? { role: 'Event Owner', name: eventOwnerName, photoUrl: business?.event_owner_photo_url?.trim() || '' } : null,
+  const organizerNames = [
+    showEventOwner ? business?.event_owner_name?.trim() : '',
     showOperatingCommittee
-      ? { role: 'Operating Committee', name: operatingCommitteeLabel, photoUrl: business?.operating_committee_photo_url?.trim() || '' }
-      : null,
-    showScoringSupport ? { role: 'Scoring Support', name: scoringSupportLabel, photoUrl: business?.scoring_support_photo_url?.trim() || '' } : null,
-    showRaceDirector ? { role: 'Race Director', name: raceDirectorName, photoUrl: business?.race_director_photo_url?.trim() || '' } : null,
-    showMc ? { role: 'MC / Announcer', name: mcName, photoUrl: business?.mc_photo_url?.trim() || '' } : null,
-  ].filter((staff): staff is { role: string; name: string; photoUrl: string } => staff !== null)
+      ? business?.operating_committee_label?.trim() || business?.operating_committee_name?.trim()
+      : '',
+  ].filter((name): name is string => Boolean(name))
+  const publicContactName =
+    business?.public_contact_name?.trim() ||
+    business?.event_owner_contact_name?.trim() ||
+    business?.operating_committee_contact_name?.trim() ||
+    business?.event_owner_name?.trim() ||
+    ''
+  const publicContactPhone =
+    business?.public_contact_phone?.trim() ||
+    business?.event_owner_contact_phone?.trim() ||
+    business?.operating_committee_contact_phone?.trim() ||
+    ''
   const daysToEvent =
     eventDate ? Math.ceil((eventDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null
   const registrationOpen = event?.registration_open !== false
@@ -287,29 +282,6 @@ export default function EventDetailClient({
     }
   }
 
-  const renderPublicStaffCards = () => publicStaff.map((staff) => (
-    <div key={staff.role} className="flex min-w-0 flex-1 items-center gap-3 rounded-xl border border-white/15 bg-white/5 px-3 py-2 sm:min-w-[220px]">
-      {staff.photoUrl ? (
-        <Image
-          src={staff.photoUrl}
-          alt={`Foto ${staff.name}`}
-          width={52}
-          height={52}
-          sizes="52px"
-          className="h-[52px] w-[52px] shrink-0 rounded-full border border-[#f3c63d]/60 object-cover"
-        />
-      ) : (
-        <span className="grid h-[52px] w-[52px] shrink-0 place-items-center rounded-full border border-[#f3c63d]/60 bg-[#2a160d] text-sm font-black text-[#f3c63d]">
-          {staff.name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || '-'}
-        </span>
-      )}
-      <span className="grid min-w-0 gap-0.5">
-        <span className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[#c9b7a5]">{staff.role}</span>
-        <span className="truncate text-sm font-extrabold text-[#fff8e8]">{staff.name}</span>
-      </span>
-    </div>
-  ))
-
   return (
     <div className="public-page public-editorial-page public-editorial-detail bg-[#f5ecd7] text-[#1d0d07]">
       <PublicTopbar />
@@ -329,54 +301,16 @@ export default function EventDetailClient({
               <div className="relative z-10 grid gap-4 sm:gap-6">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="grid gap-2">
-                    {hasDistinctPublicBrandName && (
-                      <p className="text-sm font-extrabold uppercase text-[#eadcca]">
-                        {publicBrandName}
-                      </p>
-                    )}
-                    <h1 className="text-2xl font-black leading-tight text-[#fff8e8] sm:text-3xl md:text-5xl">
+                    <h1 className="max-w-4xl text-xl font-black leading-tight text-[#fff8e8] sm:text-2xl md:text-3xl">
                       {publicEventTitle}
                     </h1>
                     {publicTagline && (
                       <p className="max-w-3xl text-sm font-semibold text-[#c9b7a5] md:text-base">{publicTagline}</p>
                     )}
-                    <div className="flex flex-wrap gap-3 text-sm font-semibold text-[#eadcca] md:text-base">
-                      <span className="inline-flex items-center gap-2">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4 text-amber-300">
-                          <path d="M12 20s6-5.2 6-10a6 6 0 1 0-12 0c0 4.8 6 10 6 10z" strokeLinecap="round" />
-                          <circle cx="12" cy="10" r="2.3" />
-                        </svg>
-                        {event.location || '-'}
-                      </span>
-                      <span className="inline-flex items-center gap-2">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4 text-amber-300">
-                          <rect x="3.5" y="5.5" width="17" height="15" rx="2" />
-                          <path d="M7.5 3.5v4M16.5 3.5v4M3.5 10h17" strokeLinecap="round" />
-                        </svg>
-                        {formattedDate ?? '-'}
-                      </span>
+                    <div className="flex flex-wrap gap-2 text-xs font-bold text-[#fff8e8] sm:text-sm">
+                      {formattedDate && <span className="rounded-full border border-white/20 bg-black/35 px-3 py-1.5">{formattedDate}</span>}
+                      {event.location && <span className="rounded-full border border-white/20 bg-black/35 px-3 py-1.5">{event.location}</span>}
                     </div>
-                    {publicStaff.length > 0 && (
-                      <>
-                        <div className="hidden max-w-6xl gap-2 pt-1 sm:grid">
-                          <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-[#c9b7a5]">Panitia & Official</p>
-                          <div className="flex flex-wrap gap-2 xl:flex-nowrap">
-                            {renderPublicStaffCards()}
-                          </div>
-                        </div>
-                        <details className="group max-w-full pt-1 sm:hidden">
-                          <summary className="flex w-fit max-w-full cursor-pointer list-none items-center gap-1.5 rounded-full border border-white/20 bg-white/5 px-2.5 py-2 text-[11px] font-extrabold text-[#eadcca]">
-                            Lihat Panitia &amp; Official ({publicStaff.length})
-                            <svg className="h-4 w-4 transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                              <path d="m6 9 6 6 6-6" />
-                            </svg>
-                          </summary>
-                          <div className="mt-2 grid gap-2">
-                            {renderPublicStaffCards()}
-                          </div>
-                        </details>
-                      </>
-                    )}
                   </div>
                   <div className="grid justify-items-end gap-2">
                     {event.status === 'UPCOMING' && daysToEvent !== null && (
@@ -395,6 +329,12 @@ export default function EventDetailClient({
                 </div>
 
                 <div className="flex flex-wrap gap-3">
+                  <Link
+                    href={`/event/${event.id}/regulations`}
+                    className="inline-flex min-h-[48px] items-center rounded-full border border-[#fff8e8]/55 bg-[#2a160d]/70 px-5 py-3 text-sm font-extrabold text-[#fff8e8] transition-colors hover:bg-[#3e2113]"
+                  >
+                    Aturan & Regulasi
+                  </Link>
                   {event.status === 'LIVE' && (
                     <Link
                       href={`/event/${event.id}/display`}
@@ -432,6 +372,22 @@ export default function EventDetailClient({
               </div>
             </section>
 
+            <PublicEventFacts
+              organizer={organizerNames.length ? organizerNames.join(' · ') : null}
+              raceDirector={showRaceDirector ? business?.race_director_name?.trim() : null}
+              mc={showMc ? business?.mc_name?.trim() : null}
+              contactName={publicContactName}
+              contactPhone={publicContactPhone}
+              basePrice={event.base_price}
+              upclassPrice={event.extra_price}
+              bundleInfoEnabled={business?.public_bundle_info_enabled === true}
+              bundleInfo={business?.public_bundle_info}
+              racepackInfoEnabled={business?.public_racepack_info_enabled === true}
+              racepackInfo={business?.public_racepack_info}
+              registrationBundles={business?.registration_bundles}
+              racepackItems={business?.public_racepack_items}
+            />
+
             <section
               id="race-categories"
               className="rounded-[1.5rem] border border-[#4f372b] bg-[#1d0d07] px-4 py-5 text-[#fff8e8] shadow-[0_20px_40px_rgba(55,23,9,0.18)] sm:px-6"
@@ -449,19 +405,32 @@ export default function EventDetailClient({
                     <div className="rounded-2xl border border-dashed border-slate-600 bg-slate-950/40 p-4 text-sm font-semibold text-slate-300">
                       Belum ada kategori yang dibuka.
                     </div>
-                  ) : categoryCards.map((category) => (
-                    <Link
-                      key={category.id}
-                      href={`/event/${eventId}/live-score/${encodeURIComponent(category.id)}`}
-                      className="block rounded-xl border border-[#705547] bg-[#2a160d] px-4 py-3 transition hover:border-emerald-400/70 hover:bg-[#341b10] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
-                      aria-label={`Buka live score kategori ${category.label}`}
-                    >
-                      <h3 className="text-base font-black uppercase text-[#fff8e8]">{category.label}</h3>
-                      <div className="mt-2">
-                        <CategoryMotoStatusBadges counts={categoryMotoBadges.get(category.id)} />
-                      </div>
-                    </Link>
-                  ))}
+                  ) : categoryCards.map((category) => {
+                      const capacity = typeof category.capacity === 'number' ? category.capacity : null
+                      const remaining = typeof category.remaining === 'number'
+                        ? Math.max(0, category.remaining)
+                        : capacity === null
+                          ? null
+                          : Math.max(0, capacity - Number(category.filled ?? 0))
+                      const full = isCategoryFull(category) || remaining === 0
+
+                      return (
+                        <Link
+                          key={category.id}
+                          href={`/event/${eventId}/live-score/${encodeURIComponent(category.id)}`}
+                          className="block rounded-xl border border-[#705547] bg-[#2a160d] px-4 py-3 transition hover:border-emerald-400/70 hover:bg-[#341b10] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
+                          aria-label={`Buka live score kategori ${category.label}`}
+                        >
+                          <h3 className="text-base font-black uppercase text-[#fff8e8]">{category.label}</h3>
+                          <p className={`mt-1 text-xs font-extrabold ${full ? 'text-rose-300' : 'text-emerald-300'}`}>
+                            {full ? 'Penuh · 0 slot tersedia' : remaining === null ? 'Kuota terbuka' : `${remaining} slot tersedia`}
+                          </p>
+                          <div className="mt-2">
+                            <CategoryMotoStatusBadges counts={categoryMotoBadges.get(category.id)} />
+                          </div>
+                        </Link>
+                      )
+                  })}
                 </div>
               ) : (
                 <div className="grid gap-5">
@@ -602,7 +571,7 @@ export default function EventDetailClient({
                                           <div className="text-xs font-extrabold uppercase tracking-wide text-amber-300">
                                             {stage}
                                           </div>
-                                          {rows.slice(0, 8).map((r) => (
+                                          {rows.map((r) => (
                                             <div
                                               key={r.id}
                                               className="flex flex-wrap items-center justify-between gap-2 text-sm font-semibold text-slate-100"

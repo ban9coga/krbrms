@@ -1227,9 +1227,12 @@ const resolveHybridGuaranteedPerBatch = (stages: { enableQuarterFinal: boolean; 
   return 4
 }
 
-const resolveHybridStageTargetCount = (stages: { enableQuarterFinal: boolean; enableSemiFinal: boolean }) => {
-  if (stages.enableQuarterFinal || stages.enableSemiFinal) return 16
-  return 8
+const resolveHybridStageTargetCount = (
+  stages: { enableQuarterFinal: boolean; enableSemiFinal: boolean },
+  maxRidersPerRace: number
+) => {
+  if (stages.enableQuarterFinal || stages.enableSemiFinal) return maxRidersPerRace * 2
+  return maxRidersPerRace
 }
 
 const computeHybridQualificationAdvances = (
@@ -1238,11 +1241,13 @@ const computeHybridQualificationAdvances = (
   finalClasses: string[],
   dnfProgressEnabled = false,
   motoIndexes?: number[],
-  statusTiebreakEnabled = true
+  statusTiebreakEnabled = true,
+  maxRidersPerRace = 8
 ) => {
   type Candidate = { riderId: string; points: number; rank: number; tieBreakers?: number[]; qualificationTieBreak?: QualificationTieBreakData; batchId: string; guaranteed: boolean }
+  const raceCapacity = Math.max(1, Number(maxRidersPerRace) || 8)
   const guaranteedPerBatch = resolveHybridGuaranteedPerBatch(stages)
-  const stageTargetCount = resolveHybridStageTargetCount(stages)
+  const stageTargetCount = resolveHybridStageTargetCount(stages, raceCapacity)
   const guaranteedIds = new Set<string>()
   const candidates: Candidate[] = []
 
@@ -1308,7 +1313,7 @@ const computeHybridQualificationAdvances = (
 
   const remaining = combined.filter((row) => !stageIds.has(row.riderId))
   lowerFinalClasses.forEach((finalClass, classIndex) => {
-    remaining.slice(classIndex * 8, (classIndex + 1) * 8).forEach((row) => {
+    remaining.slice(classIndex * raceCapacity, (classIndex + 1) * raceCapacity).forEach((row) => {
       advances.push({ riderId: row.riderId, toStage: 'FINAL', finalClass })
     })
   })
@@ -1334,10 +1339,10 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
   } catch (err) {
     return { ok: false, warning: err instanceof Error ? err.message : 'Failed to load qualification tiebreak settings.' }
   }
-  const [{ data: config }, { data: featureFlags }] = await Promise.all([
+  const [{ data: config }, { data: featureFlags }, { data: eventSettings }] = await Promise.all([
     adminClient
       .from('race_stage_config')
-      .select('enabled, qualification_moto_count, single_batch_final_enabled, single_batch_two_moto_final_enabled, dnf_point_override, dns_point_override')
+      .select('enabled, max_riders_per_race, qualification_moto_count, single_batch_final_enabled, single_batch_two_moto_final_enabled, dnf_point_override, dns_point_override')
       .eq('event_id', eventId)
       .eq('category_id', categoryId)
       .maybeSingle(),
@@ -1346,10 +1351,20 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
       .select('dq_retains_final_classification, dnf_progress_enabled')
       .eq('event_id', eventId)
       .maybeSingle(),
+    adminClient
+      .from('event_settings')
+      .select('race_format_settings')
+      .eq('event_id', eventId)
+      .maybeSingle(),
   ])
   if (!config?.enabled) return { ok: false, warning: 'Advanced race disabled.' }
   const dqRetainsFinalClassification = featureFlags?.dq_retains_final_classification === true
   const dnfProgressEnabled = featureFlags?.dnf_progress_enabled === true
+  const raceFormatSettings = eventSettings?.race_format_settings && typeof eventSettings.race_format_settings === 'object'
+    ? eventSettings.race_format_settings as Record<string, unknown>
+    : {}
+  const eventGateCapacity = Math.max(1, Number(raceFormatSettings.gate_positions ?? 8))
+  const maxRidersPerRace = Math.min(eventGateCapacity, Math.max(1, Number(config.max_riders_per_race ?? eventGateCapacity)))
 
   const baseResolved = await resolveCategoryConfig(categoryId)
   const customRules = await loadCustomSplitRules(categoryId)
@@ -1550,7 +1565,8 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
             resolved.finalClasses,
             dnfProgressEnabled,
             qualificationTieBreakMotoIndexes,
-            !qualificationTieBreakRepechage
+            !qualificationTieBreakRepechage,
+            maxRidersPerRace
           )
       : useDefaultHybrid
       ? computeHybridQualificationAdvances(
@@ -1559,7 +1575,8 @@ export async function computeQualificationAndStore(eventId: string, categoryId: 
           resolved.finalClasses,
           dnfProgressEnabled,
           qualificationTieBreakMotoIndexes,
-          !qualificationTieBreakRepechage
+          !qualificationTieBreakRepechage,
+          maxRidersPerRace
         )
     : qualificationInput.batches.flatMap((batch) =>
         computeQualificationAdvancesFromRanks(
@@ -1823,9 +1840,21 @@ export async function generateStageMotos(eventId: string, categoryId: string) {
   const dqRetainsFinalClassification = featureFlags?.dq_retains_final_classification === true
   const dnfProgressEnabled = featureFlags?.dnf_progress_enabled === true
 
-  const repechageMaxRiders = Math.max(4, Number(config.repechage_max_riders_per_race ?? config.max_riders_per_race ?? 8))
-  const quarterMaxRiders = Math.max(4, Number(config.quarter_final_max_riders_per_race ?? config.max_riders_per_race ?? 8))
-  const semiMaxRiders = Math.max(4, Number(config.semi_final_max_riders_per_race ?? config.max_riders_per_race ?? 8))
+  const { data: eventSettings } = await adminClient
+    .from('event_settings')
+    .select('race_format_settings')
+    .eq('event_id', eventId)
+    .maybeSingle()
+  const raceFormatSettings = eventSettings?.race_format_settings && typeof eventSettings.race_format_settings === 'object'
+    ? eventSettings.race_format_settings as Record<string, unknown>
+    : {}
+  const eventGateCapacity = Math.max(1, Number(raceFormatSettings.gate_positions ?? 8))
+  const maxRidersPerRace = Math.min(eventGateCapacity, Math.max(1, Number(config.max_riders_per_race ?? eventGateCapacity)))
+  const resolveStageCapacity = (override: number | null | undefined) =>
+    Math.min(eventGateCapacity, Math.max(1, Number(override ?? maxRidersPerRace)))
+  const repechageMaxRiders = resolveStageCapacity(config.repechage_max_riders_per_race)
+  const quarterMaxRiders = resolveStageCapacity(config.quarter_final_max_riders_per_race)
+  const semiMaxRiders = resolveStageCapacity(config.semi_final_max_riders_per_race)
   const baseResolved = await resolveCategoryConfig(categoryId)
   const customRules = await loadCustomSplitRules(categoryId)
   const qualificationRules = customRules.filter((rule) => rule.sourceStage === 'QUALIFICATION')
@@ -2729,7 +2758,7 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
     qualificationBatchMode === 'ROTATE_EACH_MOTO' ||
     qualificationSplitBasis === 'GLOBAL_ACTIVE_FIRST' ||
     qualificationSplitBasis === 'COMBINED'
-  const [{ data: config }, { data: featureFlags }] = await Promise.all([
+  const [{ data: config }, { data: featureFlags }, { data: eventSettings }] = await Promise.all([
     adminClient
       .from('race_stage_config')
       .select('enabled, max_riders_per_race, single_batch_final_enabled, single_batch_two_moto_final_enabled, dnf_point_override, dns_point_override')
@@ -2741,10 +2770,20 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
       .select('dnf_progress_enabled, dq_retains_final_classification')
       .eq('event_id', eventId)
       .maybeSingle(),
+    adminClient
+      .from('event_settings')
+      .select('race_format_settings')
+      .eq('event_id', eventId)
+      .maybeSingle(),
   ])
   if (!config?.enabled) return { ok: false, warning: 'Advanced race disabled.' }
   const dnfProgressEnabled = featureFlags?.dnf_progress_enabled === true
   const dqRetainsFinalClassification = featureFlags?.dq_retains_final_classification === true
+  const raceFormatSettings = eventSettings?.race_format_settings && typeof eventSettings.race_format_settings === 'object'
+    ? eventSettings.race_format_settings as Record<string, unknown>
+    : {}
+  const eventGateCapacity = Math.max(1, Number(raceFormatSettings.gate_positions ?? 8))
+  const maxRidersPerRace = Math.min(eventGateCapacity, Math.max(1, Number(config.max_riders_per_race ?? eventGateCapacity)))
   const resolved = await resolveCategoryConfig(categoryId)
   const dqFallbackFinalClass = resolveLowestFinalClass(resolved.finalClasses)
 
@@ -3131,7 +3170,8 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
           resolved.finalClasses,
           dnfProgressEnabled,
           undefined,
-          !qualificationTieBreakRepechage
+          !qualificationTieBreakRepechage,
+          maxRidersPerRace
         )
     : useCombinedCustomSplit
     ? computeQualificationAdvancesFromRanks(
@@ -3170,7 +3210,8 @@ export async function computeStageAdvances(eventId: string, categoryId: string) 
           resolved.finalClasses,
           false,
           undefined,
-          !qualificationTieBreakRepechage
+          !qualificationTieBreakRepechage,
+          maxRidersPerRace
         )
     : Object.entries(qualificationRanksByBatch).flatMap(([batchId, rankedRows]) => {
         const batchIndex = qualificationBatchIndexById[batchId] ?? null

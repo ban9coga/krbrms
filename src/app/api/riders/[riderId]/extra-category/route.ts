@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '../../../../../lib/auth'
 import { getLatestRiderExtraCategory, saveRiderExtraCategory } from '../../../../../lib/riderExtraCategory'
+import { calculateAgeOnDate } from '../../../../../lib/categoryAssignment'
 
 export async function GET(req: Request, { params }: { params: Promise<{ riderId: string }> }) {
   const auth = await requireAdmin(req.headers.get('authorization'))
@@ -35,7 +36,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ riderId:
 
   const { data: category } = await adminClient
     .from('categories')
-    .select('id, event_id, year, year_min, year_max, gender')
+    .select('id, event_id, year, year_min, year_max, category_basis, age_min, age_max, gender')
     .eq('id', categoryId)
     .maybeSingle()
 
@@ -44,8 +45,14 @@ export async function PUT(req: Request, { params }: { params: Promise<{ riderId:
   }
 
   const birthYear = Number(String(rider.date_of_birth).slice(0, 4))
-  const maxYear = (category.year_max ?? category.year) as number
-  if (maxYear >= birthYear) {
+  const [{ data: event }] = await Promise.all([
+    adminClient.from('events').select('event_date').eq('id', rider.event_id).maybeSingle(),
+  ])
+  const riderAge = calculateAgeOnDate(rider.date_of_birth, event?.event_date)
+  const invalidAgeClass = category.category_basis === 'AGE'
+    ? riderAge == null || category.age_min == null || category.age_min <= riderAge
+    : Number(category.year_max ?? category.year) >= birthYear
+  if (invalidAgeClass) {
     return NextResponse.json({ error: 'Extra category must be above rider birth year' }, { status: 400 })
   }
 

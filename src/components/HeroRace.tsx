@@ -60,19 +60,15 @@ export default function HeroRace({ liveEvent }: { liveEvent: LiveEventItem | nul
         <div className="homepage-editorial-hero-content">
           <div className="homepage-editorial-kicker">
             <span className={liveEvent ? 'homepage-editorial-live-dot' : 'homepage-editorial-idle-dot'} />
-            YOUR DIGITAL SCORING ROOM — RACEPUSHBIKE.COM
+            PLATFORM EVENT RACE PUSHBIKE INDONESIA
           </div>
 
           <h1 className="homepage-editorial-title">
-            <span>Race Pushbike Indonesia</span>
+          
             <span className="homepage-editorial-title-line">
-              <mark>Dari Registrasi, Drawing Batch</mark> sampai E-Certificate.
+             <span>Dari </span><mark>Registrasi,</mark> Drawing <mark> Batch, </mark> Live Score <mark> Realtime,</mark>  sampai <mark>E-Certificate.</mark>
             </span>
           </h1>
-
-          <p className="homepage-editorial-copy">
-            Digital scoring room real-time untuk komunitas dan penyelenggara: kelola pendaftaran, drawing batch otomatis, kontrol race day crew dari HP masing-masing, hingga live score dan e-sertifikat.
-          </p>
 
           <div className="homepage-editorial-actions">
             <Link href="/jadwal-race-pushbike" className="homepage-editorial-action homepage-editorial-action-primary">
@@ -90,7 +86,14 @@ export default function HeroRace({ liveEvent }: { liveEvent: LiveEventItem | nul
                   {liveEvent.name}
                 </span>
               ) : null}
-              <span aria-hidden="true">→</span>
+              
+            </Link>
+          </div>
+
+          <div className="homepage-editorial-organizer-cta">
+            <p>Komunitas atau EO? Percayakan event pushbike Anda dengan RacePushbike.com</p>
+            <Link href="/untuk-panitia" className="homepage-editorial-organizer-button">
+              Lihat fitur <span aria-hidden="true">→</span>
             </Link>
           </div>
 
