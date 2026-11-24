@@ -1383,6 +1383,70 @@ html[data-theme='dark'] .login-editorial-password-toggle {
     }
   }
 
+  /* Back-office pages use dense operational tables. Keep them inside the
+     mobile viewport and let each table scroll independently when needed. */
+  @media (max-width: 767px) {
+    .admin-theme-scope main {
+      min-width: 0;
+      padding-bottom: calc(2rem + env(safe-area-inset-bottom, 0px));
+    }
+
+    .admin-theme-scope main > div {
+      min-width: 0;
+    }
+
+    .admin-theme-scope main table {
+      display: block;
+      width: max-content !important;
+      min-width: 0 !important;
+      max-width: 100%;
+      overflow-x: auto;
+      overscroll-behavior-inline: contain;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .admin-theme-scope main th,
+    .admin-theme-scope main td {
+      white-space: nowrap;
+    }
+
+    .admin-theme-scope main input,
+    .admin-theme-scope main select,
+    .admin-theme-scope main textarea {
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    .admin-theme-scope main img,
+    .admin-theme-scope main video,
+    .admin-theme-scope main canvas {
+      max-width: 100%;
+    }
+
+    .admin-theme-scope [role='dialog'] {
+      max-height: calc(100dvh - 1.5rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .admin-theme-scope main [class*='w-[280px]'] {
+      width: min(280px, calc(100vw - 2rem)) !important;
+      max-width: calc(100vw - 2rem);
+    }
+
+    .admin-theme-scope .role-logout-button {
+      width: 44px;
+      min-width: 44px;
+      min-height: 44px;
+      justify-content: center;
+      padding: 0;
+    }
+
+    .admin-theme-scope .role-logout-label {
+      display: none;
+    }
+  }
   .admin-export-button {
     @apply inline-flex items-center justify-center gap-2 rounded-full border px-3 py-1.5 text-xs font-black transition-colors disabled:cursor-not-allowed disabled:opacity-60;
     border-color: var(--panel-border);

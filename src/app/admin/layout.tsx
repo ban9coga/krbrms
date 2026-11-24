@@ -669,26 +669,26 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       }`}
     >
       <div className={`fixed inset-x-0 top-0 z-40 backdrop-blur-xl ${isDark ? 'border-b border-slate-800 bg-slate-950/82' : 'border-b border-[#dfd1c2] bg-[#fff8e8]/95'}`}>
-        <div className="mx-auto flex h-18 max-w-[1800px] items-center gap-4 px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto flex h-16 max-w-[1800px] items-center gap-2 px-3 sm:h-[72px] sm:gap-4 sm:px-6 lg:px-8">
           {isMobile && (
-            <button type="button" onClick={() => setSidebarOpen(true)} className="admin-secondary-button shrink-0 px-3">
+            <button type="button" onClick={() => setSidebarOpen(true)} className="admin-secondary-button min-h-11 min-w-11 shrink-0 px-3" aria-label="Buka menu admin">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-[18px] w-[18px]">
                 <path d="M4 7h16M4 12h16M4 17h10" strokeLinecap="round" />
               </svg>
-              <span>Menu</span>
+              <span className="hidden min-[420px]:inline">Menu</span>
             </button>
           )}
 
           <div className="min-w-0 flex-1">
             <div className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Admin workspace</div>
             <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2">
-              <span className={`truncate text-lg font-black tracking-tight ${isDark ? 'text-slate-100' : 'text-[#1d0d07]'}`}>
+              <span className={`truncate text-base font-black tracking-tight sm:text-lg ${isDark ? 'text-slate-100' : 'text-[#1d0d07]'}`}>
                 {eventId ? eventMenuLabel : 'Control Dashboard'}
               </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
             <div className="hidden items-center gap-2 xl:flex">
               {topbarQuickActions.map((action) => (
                 <Link
@@ -729,7 +729,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </aside>
         </div>
 
-        <main className={`min-w-0 flex-1 px-4 py-5 sm:px-6 sm:py-6 lg:px-0 lg:py-8 ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+        <main className={`min-w-0 flex-1 px-3 py-4 pb-[calc(2rem+env(safe-area-inset-bottom))] sm:px-6 sm:py-6 lg:px-0 lg:py-8 ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
           <div className="mx-auto min-w-0 max-w-[1440px]">{children}</div>
         </main>
       </div>
