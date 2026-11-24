@@ -75,6 +75,7 @@ export default function EventCard({
               fill
               sizes="(max-width: 640px) calc(100vw - 24px), (max-width: 1024px) 50vw, 420px"
               quality={55}
+              unoptimized
               className="editorial-event-card-image"
             />
           )}
@@ -159,6 +160,7 @@ export default function EventCard({
               fill
               sizes="(max-width: 640px) calc(100vw - 24px), (max-width: 1024px) 50vw, 420px"
               quality={65}
+              unoptimized
               className="object-cover transition-transform duration-500 group-hover:scale-105"
             />
           ) : (

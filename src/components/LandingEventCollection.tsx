@@ -98,6 +98,7 @@ export default function LandingEventCollection({ events }: { events: LandingEven
                         fill
                         sizes="(max-width: 760px) calc(100vw - 56px), (max-width: 1180px) 50vw, 560px"
                         quality={65}
+                        unoptimized
                         className="homepage-event-card-cover-image"
                       />
                     ) : <span className="homepage-event-card-cover-placeholder" aria-hidden="true">RP</span>}
