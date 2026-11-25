@@ -76,7 +76,7 @@ export default async function InsightArticlePage({ params }: InsightArticlePageP
       author: { '@type': 'Organization', name: post.author_name },
       publisher: { '@type': 'Organization', name: 'RacePushbike', url: SITE_URL },
       mainEntityOfPage: articleUrl,
-      image: post.cover_image_url || undefined,
+      image: post.cover_image_url || `${SITE_URL}/og-racepushbike.png`,
     },
     {
       '@context': 'https://schema.org',
@@ -119,8 +119,9 @@ export default async function InsightArticlePage({ params }: InsightArticlePageP
                 src={post.cover_image_url}
                 alt={post.cover_image_alt || post.title}
                 fill
-                sizes="(max-width: 900px) 100vw, 920px"
-                priority
+                loading="lazy"
+                sizes="(max-width: 900px) calc(100vw - 32px), 920px"
+                unoptimized
               />
             </figure>
           ) : (

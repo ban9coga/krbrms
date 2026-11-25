@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import LiveScoreClient from './LiveScoreClient'
 import { GET as getLiveScore } from '../../../../api/public/events/[eventId]/live-score/route'
 import { adminClient } from '../../../../../lib/auth'
@@ -5,8 +6,14 @@ import { proxyBusinessSettingsMedia, toPublicMediaUrl, toPublicMediaUrls } from 
 import type { BusinessSettings, EventItem, RiderCategory } from '../../../../../lib/eventService'
 import { unstable_cache } from 'next/cache'
 import { getPublicFinishedEventArchive } from '../../../../../services/publicFinishedEventArchive'
+import { canonicalMetadata } from '../../../../../lib/seoMetadata'
 
 export const dynamic = 'force-dynamic'
+
+export async function generateMetadata({ params }: { params: Promise<{ eventId: string; categoryId: string }> }): Promise<Metadata> {
+  const { eventId, categoryId } = await params
+  return canonicalMetadata(`/event/${eventId}/live-score/${categoryId}`)
+}
 
 const parseBusinessSettings = (value: unknown): BusinessSettings => {
   if (value && typeof value === 'object' && !Array.isArray(value)) {

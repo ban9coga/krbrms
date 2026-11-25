@@ -6,6 +6,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent, type DragEvent } from 'react'
 import PublicTopbar from '../../../../components/PublicTopbar'
+import PublicBackLink from '../../../../components/PublicBackLink'
 import PublicEventFacts from '../../../../components/PublicEventFacts'
 import {
   calculateAgeOnDate,
@@ -1709,6 +1710,7 @@ export default function RegisterClient({ eventId }: { eventId: string }) {
     <div className="public-page public-editorial-page public-editorial-registration min-h-screen bg-[#f5ecd7] text-[#1d0d07]">
       <PublicTopbar />
       <main className="mx-auto grid w-full max-w-[1120px] gap-4 px-4 pb-36 pt-5 sm:px-6 md:gap-5 md:pt-7">
+        <PublicBackLink href={`/event/${eventId}`}>Kembali ke detail event</PublicBackLink>
         {!registrationOpen && (
           <section className="rounded-2xl border border-rose-300/45 bg-rose-500/15 p-4 shadow-[0_16px_36px_rgba(244,63,94,0.14)]">
             <div className="text-xs font-black uppercase tracking-[0.16em] text-rose-200">Registrasi Ditutup</div>

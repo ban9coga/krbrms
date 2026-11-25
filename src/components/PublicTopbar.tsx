@@ -7,15 +7,15 @@ import { useEffect, useMemo, useState } from 'react'
 import { formatAppRoleLabel, normalizeAppRole } from '../lib/roles'
 import { supabase } from '@/src/lib/supabaseClient'
 import PublicBottomBar from './PublicBottomBar'
-import LiveEntryButton from './LiveEntryButton'
 import { ThemeToggleSwitch } from './ThemeProvider'
 import LogoutButton from './LogoutButton'
 import PublicMobileMenu from './PublicMobileMenu'
 
 const navItems = [
-  { href: '/', label: 'Beranda' },
+  { href: '/', label: 'Home' },
   { href: '/jadwal-race-pushbike', label: 'Event' },
   { href: '/insight', label: 'Insight' },
+  { href: '/live-results', label: 'Live Score' },
   { href: '/registration-status', label: 'Cek Status' },
 ]
 
@@ -178,13 +178,6 @@ export default function PublicTopbar({}: PublicTopbarProps) {
                   </Link>
                 )
               })}
-              <LiveEntryButton
-                label="Live Score"
-                mode="results"
-                fallbackHref="/jadwal-race-pushbike"
-                className="inline-flex min-h-11 items-center rounded-full px-4 py-2 transition-colors hover:bg-[#efe3c8]"
-                activeClassName="bg-[#1d0d07] text-[#fff8e8]"
-              />
             </nav>
 
             <div className="public-topbar-auth flex items-center gap-2">

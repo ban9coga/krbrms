@@ -1,10 +1,17 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import PublicTopbar from '../../../../components/PublicTopbar'
 import { adminClient } from '../../../../lib/auth'
 import type { PublicEventRegulation } from '../../../../lib/eventService'
+import { canonicalMetadata } from '../../../../lib/seoMetadata'
 
 export const revalidate = 60
+
+export async function generateMetadata({ params }: { params: Promise<{ eventId: string }> }): Promise<Metadata> {
+  const { eventId } = await params
+  return canonicalMetadata(`/event/${eventId}/regulations`)
+}
 
 const stageLabels: Record<string, string> = {
   QUALIFICATION: 'Kualifikasi', QUARTER_FINAL: 'Quarter Final', REPECHAGE: 'Repechage',

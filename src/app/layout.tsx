@@ -39,16 +39,6 @@ export const metadata: Metadata = {
   manifest: '/manifest.webmanifest',
   description:
     'Cari jadwal race pushbike Indonesia, daftar rider, cek live skor, dan pantau hasil race real-time dari komunitas pushbike di berbagai kota.',
-  keywords: [
-    'race pushbike',
-    'race pushbike indonesia',
-    'jadwal race pushbike',
-    'pendaftaran race pushbike',
-    'live skor pushbike',
-    'hasil race pushbike',
-    'balance bike indonesia',
-    'pushbike indonesia',
-  ],
   authors: [{ name: 'FernTech Studio' }],
   creator: 'FernTech Studio',
   metadataBase: new URL('https://racepushbike.com'),
@@ -63,12 +53,19 @@ export const metadata: Metadata = {
     siteName: 'RacePushbike',
     locale: 'id_ID',
     type: 'website',
+    images: [{
+      url: '/og-racepushbike.png',
+      width: 1200,
+      height: 630,
+      alt: 'RacePushbike Indonesia — jadwal, pendaftaran, live score, dan hasil race pushbike',
+    }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Race Pushbike Indonesia — Jadwal, Pendaftaran & Live Skor | RacePushbike',
     description:
       'Cari jadwal race pushbike Indonesia, daftar rider, cek live skor, dan pantau hasil race real-time dari komunitas pushbike di berbagai kota.',
+    images: ['/og-racepushbike.png'],
   },
   robots: {
     index: true,

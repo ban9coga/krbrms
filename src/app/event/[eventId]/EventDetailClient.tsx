@@ -1,11 +1,11 @@
 'use client'
 
 import Link from 'next/link'
-import Image from 'next/image'
 import { useEffect, useMemo, useState } from 'react'
 import LoadingState from '../../../components/LoadingState'
 import EmptyState from '../../../components/EmptyState'
 import PublicTopbar from '../../../components/PublicTopbar'
+import PublicBackLink from '../../../components/PublicBackLink'
 import PublicEventFacts from '../../../components/PublicEventFacts'
 import SponsorMarquee from '../../../components/SponsorMarquee'
 import { compareMotoDisplayOrder, formatMotoDisplayName } from '../../../lib/motoDisplayOrder'
@@ -286,6 +286,7 @@ export default function EventDetailClient({
     <div className="public-page public-editorial-page public-editorial-detail bg-[#f5ecd7] text-[#1d0d07]">
       <PublicTopbar />
       <main className="mx-auto w-full max-w-[1500px] px-2 py-4 sm:px-4 md:px-6 md:py-8">
+        <div className="mb-4"><PublicBackLink href="/jadwal-race-pushbike">Kembali ke daftar event</PublicBackLink></div>
         {loading && <LoadingState label="Memuat detail event..." />}
         {!loading && !event && <EmptyState label="Event tidak ditemukan." />}
 
@@ -356,7 +357,7 @@ export default function EventDetailClient({
                       href={`/event/${event.id}/certificate`}
                       className="inline-flex min-h-[54px] items-center rounded-full border border-[#f3c63d]/70 bg-[#2a160d] px-7 py-3 text-sm font-black uppercase text-[#f3c63d] transition-colors hover:bg-[#3e2113]"
                     >
-                      Unduh E-Sertifikat
+                      Unduh E-Certificate
                     </Link>
                   )}
                 </div>

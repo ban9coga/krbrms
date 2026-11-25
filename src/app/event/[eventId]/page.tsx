@@ -119,8 +119,9 @@ const buildEventStructuredData = (event: EventItem, eventId: string) => {
     },
   }
 
-  if (event.event_logo_url) {
-    data.image = [event.event_logo_url]
+  const eventImage = event.event_poster_url || event.event_logo_url
+  if (eventImage) {
+    data.image = [eventImage]
   }
 
   return data
@@ -141,7 +142,9 @@ export async function generateMetadata({ params }: { params: Promise<{ eventId: 
   const title = `${getPublicEventTitle(event)} - Race Pushbike Indonesia`
   const description = buildEventDescription(event)
   const url = `${SITE_URL}/event/${eventId}`
-  const images = event.event_logo_url ? [{ url: event.event_logo_url, alt: getPublicEventTitle(event) }] : undefined
+  const imagePath = event.event_poster_url || event.event_logo_url || '/og-racepushbike.png'
+  const imageUrl = imagePath.startsWith('/') ? `${SITE_URL}${imagePath}` : imagePath
+  const images = [{ url: imageUrl, alt: `${getPublicEventTitle(event)} — poster event` }]
 
   return {
     title,
@@ -154,6 +157,7 @@ export async function generateMetadata({ params }: { params: Promise<{ eventId: 
       description,
       url,
       siteName: SITE_NAME,
+      locale: 'id_ID',
       type: 'website',
       images,
     },
@@ -161,7 +165,7 @@ export async function generateMetadata({ params }: { params: Promise<{ eventId: 
       card: 'summary_large_image',
       title,
       description,
-      images: event.event_logo_url ? [event.event_logo_url] : undefined,
+      images: [imageUrl],
     },
   }
 }

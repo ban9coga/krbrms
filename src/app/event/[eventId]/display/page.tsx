@@ -1,4 +1,6 @@
 import LiveDisplayClient from './LiveDisplayClient'
+import type { Metadata } from 'next'
+import { canonicalMetadata } from '../../../../lib/seoMetadata'
 import { adminClient } from '../../../../lib/auth'
 import type { BusinessSettings, EventItem } from '../../../../lib/eventService'
 import { proxyBusinessSettingsMedia, toPublicMediaUrl, toPublicMediaUrls } from '../../../../lib/publicMedia'
@@ -36,4 +38,9 @@ export default async function LiveDisplayPage({ params }: { params: Promise<{ ev
     : null
 
   return <LiveDisplayClient eventId={eventId} initialEvent={initialEvent} />
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ eventId: string }> }): Promise<Metadata> {
+  const { eventId } = await params
+  return canonicalMetadata(`/event/${eventId}/display`)
 }

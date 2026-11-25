@@ -1,0 +1,14 @@
+# Local race-data experiments and debug scripts; not part of the web deployment.
+/scripts/check_*.js
+/scripts/find_valid_pairs.js
+/scripts/inspect_*.js
+/scripts/lock_repechage.js
+/scripts/prepare_tiebreak_plan.js
+/scripts/reset_finals.js
+/scripts/run_compute.js
+/scripts/run_sync_direct.ts
+/scripts/seed_*.js
+/scripts/test_*.js
+/scripts/verify_live_score.js
+/tmp/
+/tmp_find_zeta.js

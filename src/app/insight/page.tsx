@@ -20,12 +20,16 @@ export const metadata: Metadata = {
     title: 'RacePushbike Insight | Cerita, Aturan, dan Kultur Race Pushbike',
     description: 'Liputan dan panduan race pushbike untuk wali rider, komunitas, dan panitia.',
     url: `${SITE_URL}/insight`,
+    siteName: 'RacePushbike',
+    locale: 'id_ID',
     type: 'website',
+    images: [{ url: `${SITE_URL}/og-racepushbike.png`, width: 1200, height: 630, alt: 'RacePushbike Indonesia' }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'RacePushbike Insight | Cerita, Aturan, dan Kultur Race Pushbike',
     description: 'Liputan dan panduan race pushbike untuk wali rider, komunitas, dan panitia.',
+    images: ['/og-racepushbike.png'],
   },
 }
 
@@ -50,7 +54,7 @@ export default async function InsightListingPage({ searchParams }: InsightListin
             src="/homepage-hero-texture-v2.webp"
             alt=""
             fill
-            priority
+            loading="lazy"
             sizes="(max-width: 1400px) 100vw, 1380px"
             className="insight-listing-hero-media"
             aria-hidden="true"
@@ -91,7 +95,7 @@ export default async function InsightListingPage({ searchParams }: InsightListin
                 <p>Cover story</p>
                 <h2 id="featured-insight-title">Mulai dari yang paling baru.</h2>
               </div>
-              <InsightCard post={featured} featured priority />
+              <InsightCard post={featured} featured />
             </section>
 
             {rest.length > 0 ? (

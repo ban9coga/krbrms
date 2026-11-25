@@ -8,14 +8,15 @@ import { formatAppRoleLabel, normalizeAppRole } from '../lib/roles'
 import { supabase } from '@/src/lib/supabaseClient'
 import { ThemeToggleSwitch, useTheme } from './ThemeProvider'
 import PublicBottomBar from './PublicBottomBar'
-import LiveEntryButton from './LiveEntryButton'
 import LogoutButton from './LogoutButton'
 import PublicMobileMenu from './PublicMobileMenu'
 
 const navItems = [
   { href: '/', label: 'Home' },
-  { href: '/jadwal-race-pushbike', label: 'Events' },
+  { href: '/jadwal-race-pushbike', label: 'Event' },
   { href: '/insight', label: 'Insight' },
+  { href: '/live-results', label: 'Live Score' },
+  { href: '/registration-status', label: 'Cek Status' },
 ]
 
 type MarketingTopbarProps = {
@@ -136,7 +137,7 @@ export default function MarketingTopbar({
               <nav
                 className={
                   editorial
-                    ? 'homepage-editorial-desktop-nav absolute left-1/2 hidden -translate-x-1/2 items-center gap-1 rounded-full border border-[#d9ceb4] bg-[#fffaf0] p-1 text-sm font-bold text-[#2a160d] shadow-sm md:flex'
+                      ? 'homepage-editorial-desktop-nav absolute left-1/2 hidden -translate-x-1/2 items-center gap-0 rounded-full border border-[#d9ceb4] bg-[#fffaf0] p-1 text-xs font-bold text-[#2a160d] shadow-sm md:flex lg:gap-1 lg:text-sm'
                     : `absolute left-1/2 hidden -translate-x-1/2 items-center gap-6 text-sm font-semibold md:flex ${
                         isDark ? 'text-slate-300' : 'text-slate-600'
                       }`
@@ -159,19 +160,6 @@ export default function MarketingTopbar({
                     {item.label}
                   </Link>
                 ))}
-                <LiveEntryButton
-                  label="Live Results"
-                  mode="results"
-                  fallbackHref="/jadwal-race-pushbike"
-                  className={
-                    editorial
-                      ? 'inline-flex min-h-11 items-center rounded-full px-4 py-2 transition-colors hover:bg-[#efe3c8]'
-                      : `inline-flex min-h-11 items-center transition-colors ${isDark ? 'hover:text-amber-300' : 'hover:text-amber-500'}`
-                  }
-                  activeClassName={
-                    editorial ? 'bg-[#1d0d07] text-white' : isDark ? 'text-amber-300' : 'text-amber-500'
-                  }
-                />
               </nav>
             )}
 

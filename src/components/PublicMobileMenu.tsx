@@ -3,14 +3,19 @@
 import Link from 'next/link'
 import { useEffect } from 'react'
 import { usePathname } from 'next/navigation'
+import { SITE_WHATSAPP_URL } from '../lib/structuredData'
 import LogoutButton from './LogoutButton'
 
-const menuItems = [
+const menuItems: Array<{ href: string; label: string; external?: boolean }> = [
+  { href: '/', label: 'Home' },
   { href: '/jadwal-race-pushbike', label: 'Event' },
+  { href: '/insight', label: 'Insight' },
   { href: '/live-results', label: 'Live Score' },
   { href: '/registration-status', label: 'Cek Status' },
-  { href: '/insight', label: 'Insight' },
   { href: '/untuk-panitia', label: 'Untuk Panitia' },
+  { href: SITE_WHATSAPP_URL, label: 'Kontak', external: true },
+  { href: '/kebijakan-privasi', label: 'Kebijakan Privasi' },
+  { href: '/syarat-ketentuan', label: 'Syarat & Ketentuan' },
 ]
 
 type PublicMobileMenuProps = {
@@ -74,7 +79,18 @@ export default function PublicMobileMenu({
         hidden={!isOpen}
       >
         <nav aria-label="Menu utama" className="public-mobile-menu-links">
-          {menuItems.map((item) => (
+          {menuItems.map((item) => item.external ? (
+            <a
+              key={item.href}
+              href={item.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={onClose}
+              className="public-mobile-menu-link"
+            >
+              {item.label}
+            </a>
+          ) : (
             <Link
               key={item.href}
               href={item.href}

@@ -5,6 +5,7 @@ import MarketingTopbar from '../../components/MarketingTopbar'
 import { adminClient } from '../../lib/auth'
 import type { EventItem, EventStatus } from '../../lib/eventService'
 import { toPublicMediaUrl } from '../../lib/publicMedia'
+import { SITE_URL } from '../../lib/structuredData'
 
 export const revalidate = 30
 
@@ -12,16 +13,23 @@ export const metadata: Metadata = {
   title: 'Jadwal Race Pushbike Indonesia 2026 — Daftar Event & Live Skor',
   description:
     'Lihat jadwal race pushbike Indonesia, daftar event pushbike terdekat, cek status registrasi, dan pantau live skor race secara real-time.',
+  alternates: { canonical: `${SITE_URL}/jadwal-race-pushbike` },
   openGraph: {
     title: 'Jadwal Race Pushbike Indonesia 2026 — Daftar Event & Live Skor',
     description:
       'Lihat jadwal race pushbike Indonesia, daftar event pushbike terdekat, cek status registrasi, dan pantau live skor race secara real-time.',
     url: 'https://racepushbike.com/jadwal-race-pushbike',
+    siteName: 'RacePushbike',
+    locale: 'id_ID',
+    type: 'website',
+    images: [{ url: `${SITE_URL}/og-racepushbike.png`, width: 1200, height: 630, alt: 'RacePushbike Indonesia' }],
   },
   twitter: {
+    card: 'summary_large_image',
     title: 'Jadwal Race Pushbike Indonesia 2026 — Daftar Event & Live Skor',
     description:
       'Lihat jadwal race pushbike Indonesia, daftar event pushbike terdekat, cek status registrasi, dan pantau live skor race secara real-time.',
+    images: ['/og-racepushbike.png'],
   },
 }
 

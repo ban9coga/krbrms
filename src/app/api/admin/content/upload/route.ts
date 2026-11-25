@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { adminClient, requireAdmin } from '@/src/lib/auth'
+import { prepareImageUpload, preparePassthroughUpload } from '@/src/lib/imageUpload'
 
 const BUCKET = 'insight-assets'
 const MAX_FILE_SIZE = 10 * 1024 * 1024
@@ -40,9 +41,28 @@ export async function POST(req: NextRequest) {
   const bucketError = await ensureBucket()
   if (bucketError) return NextResponse.json({ error: bucketError.message }, { status: 500 })
 
-  const path = `insight/${placement}/${randomUUID()}.${extensionByMime[file.type]}`
-  const { error: uploadError } = await adminClient.storage.from(BUCKET).upload(path, file, {
-    contentType: file.type,
+  let upload
+  try {
+    upload = placement === 'covers'
+      ? await prepareImageUpload(file, {
+          maxBytes: MAX_FILE_SIZE,
+          maxDimension: 1600,
+          quality: 78,
+          label: 'Cover Insight',
+        })
+      : await preparePassthroughUpload(file, {
+          maxBytes: MAX_FILE_SIZE,
+          contentType: file.type,
+          extension: extensionByMime[file.type],
+          label: 'Gambar artikel',
+        })
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Gambar gagal diproses.' }, { status: 400 })
+  }
+
+  const path = `insight/${placement}/${randomUUID()}.${upload.extension}`
+  const { error: uploadError } = await adminClient.storage.from(BUCKET).upload(path, upload.buffer, {
+    contentType: upload.contentType,
     cacheControl: '31536000',
     upsert: false,
   })

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import PublicTopbar from '@/src/components/PublicTopbar'
+import PublicBackLink from '@/src/components/PublicBackLink'
 
 type CertificateRider = {
   id: string
@@ -90,8 +91,9 @@ export default function CertificateClient({ eventId }: { eventId: string }) {
     <div className="public-page public-editorial-page public-editorial-certificate min-h-screen bg-[#f5ecd7] text-[#1d0d07]">
       <PublicTopbar />
       <main className="mx-auto grid w-full max-w-[900px] gap-5 px-4 pb-20 pt-6 sm:px-6 md:pt-10">
+        <PublicBackLink href={`/event/${eventId}`}>Kembali ke detail event</PublicBackLink>
         <section className="rounded-[2rem] border border-[#4f372b] bg-[#1d0d07] px-5 py-7 text-[#fff8e8] shadow-[0_28px_70px_rgba(55,23,9,0.24)] sm:px-8">
-          <div className="text-xs font-black uppercase tracking-[0.18em] text-[#f3c63d]">E-Sertifikat</div>
+          <div className="text-xs font-black uppercase tracking-[0.18em] text-[#f3c63d]">E-Certificate</div>
           <h1 className="mt-3 text-3xl font-black md:text-5xl">Unduh sertifikat rider</h1>
           <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-[#c9b7a5] md:text-base">
             Masukkan nomor registrasi dan nomor WhatsApp wali yang digunakan saat mendaftar. Setelah cocok, pilih sertifikat untuk setiap rider.

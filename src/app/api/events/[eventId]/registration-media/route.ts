@@ -90,7 +90,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
           })
         : await prepareImageUpload(file, {
             maxBytes: kind === 'event-poster' ? EVENT_POSTER_MAX_BYTES : REGISTRATION_MEDIA_MAX_BYTES,
-            maxDimension: kind === 'event-poster' ? 2200 : 1200,
+            maxDimension: kind === 'event-poster' ? 1600 : 1200,
             quality: 82,
             label: kind === 'qris' ? 'Gambar QRIS' : kind === 'event-poster' ? 'Poster event' : 'Gambar size chart',
           })

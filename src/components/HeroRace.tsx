@@ -3,9 +3,9 @@ import Image from 'next/image'
 import type { LiveEventItem } from '../lib/liveEvent'
 
 const heroStats = [
-  { value: 'Digital Scoring Room', label: 'Real-Time & Paperless' },
+  { value: 'Digital Scoring Room', label: 'Paperless' },
   { value: 'Drawing Batch', label: 'Gate dan Moto Otomatis' },
-  { value: 'Live Result', label: 'E-Sertifikat dengan QR' },
+  { value: 'Live Result', label: 'Realtime' },
 ]
 
 const tickerItems = [
@@ -15,13 +15,19 @@ const tickerItems = [
   { label: 'DRAWING BATCH & GATE', accent: true },
   { label: 'JADWAL RACE PUSHBIKE INDONESIA', accent: false },
   { label: 'HASIL RACE TRANSPARAN', accent: false },
-  { label: 'E-SERTIFIKAT TERVERIFIKASI', accent: true },
+  { label: 'E-CERTIFICATE TERVERIFIKASI', accent: true },
   { label: 'MULTI KATEGORI USIA', accent: true },
   { label: 'JURY & MARSHAL DASHBOARD', accent: false },
   { label: 'KOMUNITAS PUSHBIKE & BALANCE BIKE INDONESIA', accent: true },
 ]
 
-export default function HeroRace({ liveEvent }: { liveEvent: LiveEventItem | null }) {
+export default function HeroRace({
+  liveEvent,
+  hasActiveEvents,
+}: {
+  liveEvent: LiveEventItem | null
+  hasActiveEvents: boolean
+}) {
   return (
     <section className="homepage-editorial-hero-shell">
       <div className="homepage-editorial-hero">
@@ -66,13 +72,13 @@ export default function HeroRace({ liveEvent }: { liveEvent: LiveEventItem | nul
           <h1 className="homepage-editorial-title">
           
             <span className="homepage-editorial-title-line">
-             <span>Dari </span><mark>Registrasi,</mark> Drawing <mark> Batch, </mark> Live Score <mark> Realtime,</mark>  sampai <mark>E-Certificate.</mark>
+             <span>Dari </span><mark>Registrasi,</mark> Drawing <mark> Batch, </mark> Live Score <mark> Real-Time,</mark>  sampai <mark>E-Certificate.</mark>
             </span>
           </h1>
 
           <div className="homepage-editorial-actions">
             <Link href="/jadwal-race-pushbike" className="homepage-editorial-action homepage-editorial-action-primary">
-              Cari Event &amp; Daftar
+              {hasActiveEvents ? 'Cari Event & Daftar' : 'Lihat Jadwal & Hasil Event'}
             </Link>
             <Link
               href="/live-results"

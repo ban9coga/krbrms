@@ -7,6 +7,7 @@ import EmptyState from '../../../../components/EmptyState'
 import LoadingState from '../../../../components/LoadingState'
 import PageSection from '../../../../components/PageSection'
 import PublicTopbar from '../../../../components/PublicTopbar'
+import PublicBackLink from '../../../../components/PublicBackLink'
 import StatusBadge from '../../../../components/StatusBadge'
 import {
   getEventById,
@@ -128,6 +129,7 @@ export default function ResultsClient({
     <div className="public-page">
       <PublicTopbar />
       <main className="public-main">
+        <div className="mb-4"><PublicBackLink href={`/event/${eventId}`}>Kembali ke detail event</PublicBackLink></div>
         <section className="public-hero">
           <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-amber-400/15 blur-3xl" />
           <div className="pointer-events-none absolute -top-24 right-0 h-72 w-72 rounded-full bg-sky-400/15 blur-3xl" />

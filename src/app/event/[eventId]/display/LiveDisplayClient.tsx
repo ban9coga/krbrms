@@ -1,6 +1,7 @@
 'use client'
 
 import Image from 'next/image'
+import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import EmptyState from '../../../../components/EmptyState'
 import LoadingState from '../../../../components/LoadingState'
@@ -627,6 +628,9 @@ export default function LiveDisplayClient({
   return (
     <div className="live-display-shell min-h-screen bg-slate-950 text-white">
       <main className="live-display-main mx-auto flex min-h-screen w-full max-w-[1920px] flex-col gap-4 px-3 py-3 sm:gap-6 sm:px-4 sm:py-4">
+        <Link href={`/event/${eventId}`} className="inline-flex min-h-11 w-fit items-center gap-2 rounded-full border border-slate-600 bg-slate-900/90 px-4 py-2 text-sm font-extrabold text-slate-100 hover:border-amber-300 hover:text-amber-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300">
+          <span aria-hidden="true">←</span><span>Kembali ke detail event</span>
+        </Link>
         <section className="live-display-hero relative overflow-hidden rounded-[28px] border border-slate-700/70 bg-slate-900 shadow-2xl">
           <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(15,23,42,0.16)_0%,rgba(15,23,42,0.05)_32%,rgba(251,191,36,0.10)_100%)]" />
           <div className="pointer-events-none absolute -bottom-20 -left-16 h-72 w-72 rounded-full bg-slate-100/10 blur-3xl" />

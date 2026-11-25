@@ -4,9 +4,10 @@ export type CommunityShowcaseLogo = {
   name: string
   logoSrc: string
   alt?: string
+  href?: string
 }
 
-export const getCommunityShowcaseLogos = (settingsRows: Array<{ business_settings?: unknown }>): CommunityShowcaseLogo[] => {
+export const getCommunityShowcaseLogos = (settingsRows: Array<{ event_id?: string; business_settings?: unknown }>): CommunityShowcaseLogo[] => {
   const logos = new Map<string, CommunityShowcaseLogo>()
 
   for (const row of settingsRows) {
@@ -27,6 +28,7 @@ export const getCommunityShowcaseLogos = (settingsRows: Array<{ business_setting
           name,
           logoSrc,
           alt: `${name} logo`,
+          href: row.event_id ? `/event/${row.event_id}` : undefined,
         })
       }
     }

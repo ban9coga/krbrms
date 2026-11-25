@@ -2,6 +2,7 @@ import HeroRace from '../components/HeroRace'
 import MarketingTopbar from '../components/MarketingTopbar'
 import LandingEventCollection, { type LandingEventCardItem } from '../components/LandingEventCollection'
 import Image from 'next/image'
+import Link from 'next/link'
 import type { Metadata } from 'next'
 import { adminClient } from '../lib/auth'
 import type { EventItem, EventStatus } from '../lib/eventService'
@@ -11,6 +12,7 @@ import { getLiveEvent } from '../lib/liveEvent'
 import { getPublicFinishedEventArchives } from '../services/publicFinishedEventArchive'
 import { getLatestInsightPosts } from '../lib/insight'
 import InsightHomeSection from '../components/InsightHomeSection'
+import { SITE_URL } from '../lib/structuredData'
 
 export const revalidate = 30
 
@@ -18,15 +20,27 @@ export const metadata: Metadata = {
   title: 'Race Pushbike Indonesia — Jadwal, Pendaftaran & Live Skor | RacePushbike',
   description:
     'Cari jadwal race pushbike Indonesia, daftar rider, cek live skor, dan pantau hasil race real-time dari komunitas pushbike di berbagai kota.',
+  alternates: { canonical: SITE_URL },
   openGraph: {
     title: 'Race Pushbike Indonesia — Jadwal, Pendaftaran & Live Skor | RacePushbike',
     description:
       'Cari jadwal race pushbike Indonesia, daftar rider, cek live skor, dan pantau hasil race real-time dari komunitas pushbike di berbagai kota.',
+    url: SITE_URL,
+    siteName: 'RacePushbike',
+    locale: 'id_ID',
+    type: 'website',
+    images: [{
+      url: '/og-racepushbike.png',
+      width: 1200,
+      height: 630,
+      alt: 'RacePushbike Indonesia — jadwal, pendaftaran, live score, dan hasil race pushbike',
+    }],
   },
   twitter: {
     title: 'Race Pushbike Indonesia — Jadwal, Pendaftaran & Live Skor | RacePushbike',
     description:
       'Cari jadwal race pushbike Indonesia, daftar rider, cek live skor, dan pantau hasil race real-time dari komunitas pushbike di berbagai kota.',
+    images: ['/og-racepushbike.png'],
   },
 }
 
@@ -168,7 +182,7 @@ export default async function LandingPage() {
     })
   }
   const communityLogos = getCommunityShowcaseLogos(
-    finishedArchives.map((archive) => ({ business_settings: archive.event.business_settings }))
+    finishedArchives.map((archive) => ({ event_id: archive.event.id, business_settings: archive.event.business_settings }))
   )
   const activeEvents = attachLandingSettings([...liveEventsRaw, ...upcomingEventsRaw], settingsMap)
   const finishedEvents = attachLandingSettings(finishedEventsRaw, settingsMap)
@@ -205,20 +219,19 @@ export default async function LandingPage() {
       <MarketingTopbar variant="editorial" />
 
       <main>
-        <HeroRace liveEvent={liveEvent} />
+        <HeroRace liveEvent={liveEvent} hasActiveEvents={activeEvents.length > 0} />
         <LandingEventCollection events={eventCards} />
         {communityLogos.length > 0 && (
           <section className="homepage-editorial-section homepage-editorial-community-section">
             <div className="homepage-editorial-section-inner">
               <div className="homepage-editorial-community">
                 <h3>Komunitas &amp; Partner</h3>
+                <p className="homepage-editorial-community-intro">
+                  Komunitas dan partner yang ikut menggerakkan race pushbike Indonesia.
+                </p>
                 <div className="homepage-editorial-community-logos">
-                  {communityLogos.map((item) => (
-                    <div
-                      key={item.name}
-                      className="homepage-editorial-community-logo"
-                      title={item.name}
-                    >
+                  {communityLogos.map((item) => {
+                    const logo = (
                       <Image
                         src={item.logoSrc}
                         alt={item.alt ?? `${item.name} logo`}
@@ -227,8 +240,24 @@ export default async function LandingPage() {
                         unoptimized
                         className="max-h-full max-w-full object-contain"
                       />
-                    </div>
-                  ))}
+                    )
+
+                    return item.href ? (
+                      <Link
+                        key={`${item.name}-${item.logoSrc}`}
+                        href={item.href}
+                        className="homepage-editorial-community-logo"
+                        aria-label={`Lihat event terkait komunitas ${item.name}`}
+                        title={item.name}
+                      >
+                        {logo}
+                      </Link>
+                    ) : (
+                      <div key={`${item.name}-${item.logoSrc}`} className="homepage-editorial-community-logo" title={item.name}>
+                        {logo}
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             </div>

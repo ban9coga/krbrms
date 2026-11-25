@@ -5,12 +5,29 @@ import MarketingTopbar from '../../components/MarketingTopbar'
 import { adminClient } from '../../lib/auth'
 import type { EventItem } from '../../lib/eventService'
 import { toPublicMediaUrl } from '../../lib/publicMedia'
+import { SITE_URL } from '../../lib/structuredData'
 
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
   title: 'Live Score Race Pushbike Indonesia',
   description: 'Lihat event pushbike yang sedang berlangsung dan buka live score-nya.',
+  alternates: { canonical: `${SITE_URL}/live-results` },
+  openGraph: {
+    title: 'Live Score Race Pushbike Indonesia',
+    description: 'Lihat event pushbike yang sedang berlangsung dan buka live score-nya.',
+    url: `${SITE_URL}/live-results`,
+    siteName: 'RacePushbike',
+    locale: 'id_ID',
+    type: 'website',
+    images: [{ url: `${SITE_URL}/og-racepushbike.png`, width: 1200, height: 630, alt: 'RacePushbike Indonesia' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Live Score Race Pushbike Indonesia',
+    description: 'Lihat event pushbike yang sedang berlangsung dan buka live score-nya.',
+    images: ['/og-racepushbike.png'],
+  },
 }
 
 type LiveEventSettings = {

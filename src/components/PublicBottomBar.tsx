@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { createContext, useContext } from 'react'
-import { SITE_INSTAGRAM_URL } from '../lib/structuredData'
+import { SITE_INSTAGRAM_URL, SITE_WHATSAPP_URL } from '../lib/structuredData'
 
 const LiveEventAvailabilityContext = createContext(false)
 
@@ -21,12 +21,16 @@ export function LiveEventAvailabilityProvider({
   )
 }
 
-const footerLinks = [
+const footerLinks: Array<{ href: string; label: string; external?: boolean }> = [
   { href: '/', label: 'Home' },
   { href: '/jadwal-race-pushbike', label: 'Event' },
   { href: '/insight', label: 'Insight' },
-  { href: '/registration-status', label: 'Cek Status' },
   { href: '/live-results', label: 'Live Score' },
+  { href: '/registration-status', label: 'Cek Status' },
+  { href: '/untuk-panitia', label: 'Untuk Panitia' },
+  { href: SITE_WHATSAPP_URL, label: 'Kontak', external: true },
+  { href: '/kebijakan-privasi', label: 'Kebijakan Privasi' },
+  { href: '/syarat-ketentuan', label: 'Syarat & Ketentuan' },
 ]
 
 export default function PublicBottomBar({ variant = 'default' }: { variant?: 'default' | 'editorial' }) {
@@ -44,6 +48,7 @@ export default function PublicBottomBar({ variant = 'default' }: { variant?: 'de
     pathname.startsWith('/jadwal-race-pushbike/') ||
     (pathname.startsWith('/event/') && !isLiveActive)
   const isHomeActive = pathname === '/'
+  const isInsightActive = pathname === '/insight' || pathname.startsWith('/insight/')
   const isStatusActive = pathname === '/registration-status' || pathname.startsWith('/registration-status/')
   const mobileItemClass = `public-mobile-bottom-item${editorial ? ' is-editorial' : ''}`
 
@@ -78,6 +83,16 @@ export default function PublicBottomBar({ variant = 'default' }: { variant?: 'de
             <path d="M7.5 2.8v3.5M16.5 2.8v3.5M4 9h16M7.5 12.5h3M7.5 16h3M14 12.5h3" />
           </svg>
           <span>Event</span>
+        </Link>
+        <Link
+          href="/insight"
+          aria-current={isInsightActive ? 'page' : undefined}
+          className={`${mobileItemClass}${isInsightActive ? ' is-active' : ''}`}
+        >
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <path d="M5 4.5h14v15H5zM8 8h8M8 11.5h8M8 15h5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span>Insight</span>
         </Link>
         <Link
           href="/live-results"
@@ -122,9 +137,13 @@ export default function PublicBottomBar({ variant = 'default' }: { variant?: 'de
             editorial ? 'text-[#eadcca]' : 'text-slate-300'
           }`}
         >
-          <nav aria-label="Navigasi footer" className="flex h-5 flex-wrap items-center gap-x-3 gap-y-1 leading-none">
-            {footerLinks.map((item) => (
-              <Link key={item.href} href={item.href} className={`${linkClass} h-5 whitespace-nowrap leading-none`}>
+          <nav aria-label="Navigasi footer" className="flex flex-wrap items-center gap-x-3 gap-y-2 leading-none">
+            {footerLinks.map((item) => item.external ? (
+              <a key={item.href} href={item.href} target="_blank" rel="noopener noreferrer" className={`${linkClass} min-h-5 whitespace-nowrap leading-none`}>
+                {item.label}
+              </a>
+            ) : (
+              <Link key={item.href} href={item.href} className={`${linkClass} min-h-5 whitespace-nowrap leading-none`}>
                 {item.label}
               </Link>
             ))}

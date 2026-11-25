@@ -4,11 +4,10 @@ import { formatInsightDate, getInsightCategoryLabel, type InsightPost } from '..
 
 type InsightCardProps = {
   post: InsightPost
-  priority?: boolean
   featured?: boolean
 }
 
-export default function InsightCard({ post, priority = false, featured = false }: InsightCardProps) {
+export default function InsightCard({ post, featured = false }: InsightCardProps) {
   const publishedDate = formatInsightDate(post.published_at)
 
   return (
@@ -23,8 +22,9 @@ export default function InsightCard({ post, priority = false, featured = false }
             src={post.cover_image_url}
             alt={post.cover_image_alt || `Ilustrasi ${post.title}`}
             fill
-            priority={priority}
-            sizes={featured ? '(max-width: 900px) 100vw, 58vw' : '(max-width: 700px) 100vw, 33vw'}
+            loading="lazy"
+            sizes={featured ? '(max-width: 640px) calc(100vw - 32px), (max-width: 900px) 100vw, 58vw' : '(max-width: 640px) calc(100vw - 32px), (max-width: 700px) 100vw, 33vw'}
+            unoptimized
             className="object-cover"
           />
         ) : (

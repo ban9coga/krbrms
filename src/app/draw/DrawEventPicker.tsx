@@ -56,7 +56,7 @@ export default function DrawEventPicker() {
     <main className="draw-workspace-page">
       <header className="draw-workspace-topbar">
         <Link href="/" className="draw-workspace-brand">
-          <Image src="/platform-logo.png" alt="RacePushbike" width={40} height={40} priority />
+          <Image src="/platform-logo.png" alt="RacePushbike" width={40} height={40} loading="lazy" />
           <span>
             <strong>RacePushbike</strong>
             <small>Drawing Workspace</small>
