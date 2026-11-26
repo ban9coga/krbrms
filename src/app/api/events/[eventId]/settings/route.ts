@@ -102,17 +102,47 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ eventI
     race_format_settings,
     business_settings,
   } = body ?? {}
-  const normalizedRaceFormatSettings = normalizeRaceFormatSettings(race_format_settings)
+  const incomingRaceFormatSettings = normalizeRaceFormatSettings(race_format_settings)
 
   const { data: existingRows, error: existingError } = await adminClient
     .from('event_settings')
-    .select('registration_open')
+    .select('registration_open, race_format_settings')
     .eq('event_id', eventId)
     .order('updated_at', { ascending: false })
     .limit(1)
 
   if (existingError) return NextResponse.json({ error: existingError.message }, { status: 400 })
   const existingRow = (existingRows ?? [])[0] ?? null
+  const existingRaceFormatSettings = normalizeRaceFormatSettings(existingRow?.race_format_settings)
+  const requestedScoringFormat = incomingRaceFormatSettings.scoring_format
+  if (requestedScoringFormat != null && !['MOTO_POINTS', 'DRAG_MANUAL', 'DRAG_TIMING'].includes(String(requestedScoringFormat))) {
+    return NextResponse.json({ error: 'Format penilaian event tidak valid.' }, { status: 400 })
+  }
+  const normalizedRaceFormatSettings = {
+    ...existingRaceFormatSettings,
+    ...incomingRaceFormatSettings,
+    scoring_format:
+      typeof requestedScoringFormat === 'string'
+        ? requestedScoringFormat
+        : typeof existingRaceFormatSettings.scoring_format === 'string'
+          ? existingRaceFormatSettings.scoring_format
+          : 'MOTO_POINTS',
+  }
+  const currentScoringFormat = typeof existingRaceFormatSettings.scoring_format === 'string'
+    ? existingRaceFormatSettings.scoring_format
+    : 'MOTO_POINTS'
+  if (normalizedRaceFormatSettings.scoring_format !== currentScoringFormat) {
+    const [{ data: existingMotos, error: motoCheckError }, { data: existingDragHeats, error: dragCheckError }] = await Promise.all([
+      adminClient.from('motos').select('id').eq('event_id', eventId).limit(1),
+      adminClient.from('drag_heats').select('id').eq('event_id', eventId).limit(1),
+    ])
+    if (motoCheckError || dragCheckError) {
+      return NextResponse.json({ error: motoCheckError?.message || dragCheckError?.message }, { status: 400 })
+    }
+    if ((existingMotos ?? []).length || (existingDragHeats ?? []).length) {
+      return NextResponse.json({ error: 'Format penilaian event tidak dapat diubah setelah drawing dibuat.' }, { status: 409 })
+    }
+  }
   const normalizedRegistrationOpen =
     typeof registration_open === 'boolean'
       ? registration_open

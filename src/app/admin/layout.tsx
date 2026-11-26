@@ -32,7 +32,7 @@ const EVENT_NAV = (eventId: string): NavItem[] => [
   { label: 'Riders', href: `/admin/events/${eventId}/riders`, icon: 'riders' },
   { label: 'Categories', href: `/admin/events/${eventId}/categories`, icon: 'categories' },
   { label: 'Draw Settings', href: `/admin/events/${eventId}/draw-settings`, icon: 'drawSettings' },
-  { label: 'Draw Setup', href: `/admin/events/${eventId}/live-draw`, icon: 'draw' },
+  { label: 'Drawing Batch', href: `/admin/events/${eventId}/live-draw`, icon: 'draw' },
   { label: 'Motos', href: `/admin/events/${eventId}/motos`, icon: 'motos' },
   { label: 'Advanced Multi-Stage', href: `/admin/events/${eventId}/advanced-race`, icon: 'advanced' },
   { label: 'Final Class Rules', href: `/admin/events/${eventId}/custom-final-split`, icon: 'customSplit' },

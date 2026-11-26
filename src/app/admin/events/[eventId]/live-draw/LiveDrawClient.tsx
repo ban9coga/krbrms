@@ -294,6 +294,7 @@ export default function LiveDrawClient({
   const [categoryLocked, setCategoryLocked] = useState(false)
   const [lockedMotos, setLockedMotos] = useState<GateMoto[]>([])
   const [openMotoId, setOpenMotoId] = useState<string | null>(null)
+  const [selectedResultMoto, setSelectedResultMoto] = useState(1)
   const [externalOrderText, setExternalOrderText] = useState('')
   const [externalMoto2OrderText, setExternalMoto2OrderText] = useState('')
   const [externalBatchInputMode, setExternalBatchInputMode] = useState<'GLOBAL' | 'PER_BATCH'>('PER_BATCH')
@@ -843,9 +844,9 @@ export default function LiveDrawClient({
       ctx.moveTo(0, 0)
       ctx.arc(0, 0, radius - 2, start, end)
       ctx.closePath()
-      ctx.fillStyle = i % 3 === 0 ? '#173b3b' : i % 2 === 0 ? '#1b2b2f' : '#142126'
+      ctx.fillStyle = ['#c94b12', '#fff0cf', '#5c3927'][i % 3]
       ctx.fill()
-      ctx.strokeStyle = '#315557'
+      ctx.strokeStyle = '#d7b98a'
       ctx.lineWidth = 2
       ctx.stroke()
 
@@ -854,23 +855,45 @@ export default function LiveDrawClient({
       ctx.rotate(mid)
       ctx.translate(radius * 0.58, 0)
       ctx.rotate(Math.PI / 2)
-      ctx.fillStyle = '#d7f6f3'
+      ctx.fillStyle = i % 3 === 1 ? '#5c3927' : '#fff8eb'
       ctx.font = `${count > 24 ? '700 11px' : '700 15px'} Inter, Arial, Helvetica, sans-serif`
       ctx.textAlign = 'center'
       ctx.fillText(list[i]?.no_plate_display?.slice(0, 5) ?? String(i + 1), 0, 5)
       ctx.restore()
     }
 
+    // One eligible rider correctly occupies one whole result sector. Add
+    // subtle rim graduations so the wheel still reads as a draw wheel without
+    // suggesting extra riders or invented choices.
+    if (count === 1) {
+      ctx.save()
+      ctx.strokeStyle = 'rgba(255, 240, 207, 0.72)'
+      ctx.lineWidth = 1.5
+      ctx.beginPath()
+      ctx.arc(0, 0, radius * 0.84, 0, Math.PI * 2)
+      ctx.stroke()
+      for (let tick = 0; tick < 24; tick += 1) {
+        const angle = (tick * Math.PI * 2) / 24
+        const innerRadius = radius * (tick % 2 === 0 ? 0.84 : 0.87)
+        const outerRadius = radius * 0.9
+        ctx.beginPath()
+        ctx.moveTo(Math.cos(angle) * innerRadius, Math.sin(angle) * innerRadius)
+        ctx.lineTo(Math.cos(angle) * outerRadius, Math.sin(angle) * outerRadius)
+        ctx.stroke()
+      }
+      ctx.restore()
+    }
+
     ctx.beginPath()
     ctx.arc(0, 0, radius * 0.18, 0, Math.PI * 2)
-    ctx.fillStyle = '#0b1418'
+    ctx.fillStyle = '#24140d'
     ctx.fill()
-    ctx.strokeStyle = '#38585b'
+    ctx.strokeStyle = '#fff0cf'
     ctx.lineWidth = 3
     ctx.stroke()
     ctx.beginPath()
     ctx.arc(0, 0, radius * 0.07, 0, Math.PI * 2)
-    ctx.fillStyle = '#ff6b00'
+    ctx.fillStyle = '#c94b12'
     ctx.fill()
     ctx.restore()
   }, [drawMode, visibleWheelRiders])
@@ -1489,7 +1512,7 @@ export default function LiveDrawClient({
 
   const buildDraftBatchShareText = (batch: (typeof batchLayouts)[number]) => {
     const lines = [
-      `Ã°Å¸ÂÂ DRAW RESULT`,
+      'HASIL DRAW',
       eventName,
       `Kategori: ${selectedCategoryLabel}`,
       `Batch ${batch.index}`,
@@ -1504,7 +1527,7 @@ export default function LiveDrawClient({
 
   const buildSavedBatchShareText = (batch: (typeof savedMotoBatches)[number]) => {
     const lines = [
-      `Ã°Å¸ÂÂ DRAW RESULT`,
+      'HASIL DRAW',
       eventName,
       `Kategori: ${selectedCategoryLabel}`,
       `Batch ${batch.batchNo}`,
@@ -1523,7 +1546,7 @@ export default function LiveDrawClient({
 
   const buildDraftCategoryShareText = () => {
     const lines = [
-      `Ã°Å¸ÂÂ DRAW RESULT`,
+      'HASIL DRAW',
       eventName,
       `Kategori: ${selectedCategoryLabel}`,
       '',
@@ -1546,7 +1569,7 @@ export default function LiveDrawClient({
 
   const buildSavedCategoryShareText = () => {
     const lines = [
-      `Ã°Å¸ÂÂ DRAW RESULT`,
+      'HASIL DRAW',
       eventName,
       `Kategori: ${selectedCategoryLabel}`,
       '',
@@ -1694,7 +1717,7 @@ export default function LiveDrawClient({
     ctx.textAlign = 'left'
     ctx.fillStyle = '#f8ce3d'
     ctx.font = 'italic 900 24px Arial, Helvetica, sans-serif'
-    ctx.fillText('DRAW RESULT', 204, 86)
+    ctx.fillText('HASIL DRAW', 204, 86)
     ctx.fillStyle = '#ffffff'
     ctx.font = 'italic 900 38px Arial, Helvetica, sans-serif'
     wrapCanvasText(ctx, eventName, 204, 132, 800, 42, 1)
@@ -2099,6 +2122,21 @@ export default function LiveDrawClient({
     }
   }
 
+  const draftResultMotos = !categoryLocked && drawnOrder.length > 0 && batchLayouts[0]
+    ? getDraftMotoAssignments(batchLayouts[0].index, batchLayouts[0].riders)
+        .map((moto) => ({ ...moto, motoNo: parseMotoBatch(moto.title).motoNo }))
+        .filter((moto) => moto.motoNo > 0)
+    : []
+  const savedResultMotoNumbers = [...new Set(
+    savedMotoBatches.flatMap((batch) => batch.motos.map((moto) => parseMotoBatch(moto.moto_name).motoNo))
+  )].filter((motoNo) => motoNo > 0).sort((a, b) => a - b)
+  const resultMotoNumbers = categoryLocked
+    ? savedResultMotoNumbers
+    : draftResultMotos.map((moto) => moto.motoNo)
+  const activeResultMoto = resultMotoNumbers.includes(selectedResultMoto)
+    ? selectedResultMoto
+    : resultMotoNumbers[0] ?? 1
+
   return (
     <div className="ld-client" style={{ maxWidth: 1280 }}>
       <header className="ld-page-head ld-workspace-head">
@@ -2120,7 +2158,7 @@ export default function LiveDrawClient({
               aria-expanded={categoryPickerOpen}
               onClick={() => setCategoryPickerOpen((isOpen) => !isOpen)}
             >
-              <span>{selectedCategoryLabel} Ã‚Â· {riders.length} Riders</span>
+              <span>{selectedCategoryLabel} | {riders.length} rider</span>
               <svg aria-hidden="true" viewBox="0 0 16 16" focusable="false">
                 <path d="m3.25 5.75 4.75 4.5 4.75-4.5" />
               </svg>
@@ -2147,11 +2185,11 @@ export default function LiveDrawClient({
             )}
           </div>
           <div className="ld-config-chip ld-config-chip--moto-one">
-            <span>Moto 1</span>
-            <strong>{displayedBatchCount} Batches</strong>
+            <span>Batch Moto 1</span>
+            <strong>{displayedBatchCount} batch</strong>
           </div>
           <div className="ld-config-chip ld-config-chip--moto-two">
-            <span>Moto 2</span>
+            <span>Urutan Moto 2</span>
             <strong>{moto2OrderLabel}</strong>
           </div>
           <button
@@ -2162,13 +2200,17 @@ export default function LiveDrawClient({
             onClick={() => loadRiders(selectedCategory)}
             disabled={loading || !selectedCategory}
           >
-            Ã¢â€ Â»
+            <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20 7v5h-5" /><path d="M19 12a7 7 0 1 0 1.7 4.6" />
+            </svg>
           </button>
         </section>
-        <div className={`ld-mode-badge ld-mode-badge--${drawMode}`}>
-          <span />
-          {drawMode === 'external_draw' ? 'External Order' : 'Live Spin'}
-        </div>
+        {drawMode === 'external_draw' && (
+          <div className="ld-mode-badge ld-mode-badge--external_draw">
+            <span />
+            Urutan Manual
+          </div>
+        )}
       </header>
 
       <div
@@ -2927,20 +2969,38 @@ export default function LiveDrawClient({
 
         <aside
           className={`ld-results-panel ${drawMode === 'external_draw' ? 'ld-results-panel--manual' : ''} ${
-            drawMode === 'external_draw' && !categoryLocked && drawnOrder.length === 0 ? 'is-empty' : ''
+            !categoryLocked && drawnOrder.length === 0 ? 'is-empty' : ''
           }`}
         >
           <div className="ld-results-panel__head">
             <div>
               <div className="ld-results-panel__title-row">
-                <div className="ld-kicker">Draw Result</div>
+                <div className="ld-kicker">Hasil Drawing</div>
                 <div className="ld-results-panel__category">{selectedCategoryLabel}</div>
               </div>
               {categoryLocked && <div className="ld-results-panel__meta">{savedMotoBatches.length} batch tersimpan</div>}
             </div>
+            {resultMotoNumbers.length > 0 && (
+              <div className="ld-results-panel__tabs" role="group" aria-label="Pilih moto hasil drawing">
+                {resultMotoNumbers.map((motoNo) => (
+                  <button
+                    key={motoNo}
+                    type="button"
+                    aria-pressed={activeResultMoto === motoNo}
+                    className={activeResultMoto === motoNo ? 'is-active' : ''}
+                    onClick={() => setSelectedResultMoto(motoNo)}
+                  >
+                    Moto {motoNo}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
-          <div className="ld-results-panel__body">
+          <div
+            className="ld-results-panel__body"
+            id="ld-results-panel-body"
+          >
             {!categoryLocked && drawnOrder.length === 0 && (
               <div className="ld-draw-idle-state" role="status">
                 {drawing ? (
@@ -2962,18 +3022,20 @@ export default function LiveDrawClient({
                 >
                   <div className="ld-result-card__title">
                     <span>Batch {batch.index}</span>
-                    <small>{batch.riders.length} riders</small>
+                    <small>{batch.riders.length} rider</small>
                   </div>
-                  <div className="ld-result-moto">
-                    <div className="ld-result-moto__label">Moto 1</div>
-                    {batch.riders.map((rider, index) => (
+                  {getDraftMotoAssignments(batch.index, batch.riders)
+                    .filter((moto) => parseMotoBatch(moto.title).motoNo === activeResultMoto)
+                    .map((moto) => <div className="ld-result-moto" key={`inline-draft-moto-${batch.index}-${activeResultMoto}`}>
+                    <div className="ld-result-moto__label">{moto.title}</div>
+                    {moto.riders.map((rider, index) => (
                       <div key={`inline-draft-m1-${batch.index}-${rider.id}`} className="ld-result-row">
                         <span>G{index + 1}</span>
                         <strong>{rider.no_plate_display}</strong>
                         <em>{rider.name}</em>
                       </div>
                     ))}
-                  </div>
+                  </div>)}
                 </div>
               )
             })}
@@ -2982,9 +3044,9 @@ export default function LiveDrawClient({
               <div key={`inline-saved-${batch.batchNo}`} className="ld-result-card">
                 <div className="ld-result-card__title">
                   <span>Batch {batch.batchNo}</span>
-                  <small>{batch.motos.find((moto) => /^Moto 1\b/i.test(moto.moto_name))?.gates.length ?? 0} riders</small>
+                  <small>{batch.motos.find((moto) => parseMotoBatch(moto.moto_name).motoNo === activeResultMoto)?.gates.length ?? 0} rider</small>
                 </div>
-                {batch.motos.filter((moto) => /^Moto 1\b/i.test(moto.moto_name)).map((moto) => (
+                {batch.motos.filter((moto) => parseMotoBatch(moto.moto_name).motoNo === activeResultMoto).map((moto) => (
                   <div key={`inline-saved-moto-${moto.id}`} className="ld-result-moto">
                     <div className="ld-result-moto__label">{moto.moto_name}</div>
                     {moto.gates.map((gate) => (
@@ -3062,13 +3124,13 @@ export default function LiveDrawClient({
               Bagikan Draw
             </button>
             {categoryLocked && (
-              <button type="button" onClick={handleDownloadLiveDrawExcel}>
+              <button type="button" className="ld-download-excel-btn" onClick={handleDownloadLiveDrawExcel}>
                 Download Excel
               </button>
             )}
             {!categoryLocked && drawnOrder.length > 0 && (
               <button className="ld-save-moto-btn" type="button" onClick={saveAsMoto} disabled={saveState === 'saving'}>
-                {saveState === 'saving' ? 'Saving...' : 'Save as Moto'}
+                {saveState === 'saving' ? 'Menyimpan...' : 'Simpan'}
               </button>
             )}
           </div>
@@ -3094,11 +3156,10 @@ export default function LiveDrawClient({
         >
           <div className="ld-save-progress-modal">
             <span className="ld-save-progress-spinner" aria-hidden="true" />
-            <div className="ld-kicker">Mohon Tunggu</div>
-            <h2 id="ld-save-progress-title">Menyimpan moto kategori</h2>
-            <p id="ld-save-progress-description">
-              Sistem sedang menyimpan susunan gate dan memuat ulang data moto. Jangan tutup halaman ini.
-            </p>
+            <div className="ld-save-progress-copy">
+              <h2 id="ld-save-progress-title">Menyimpan moto...</h2>
+              <p id="ld-save-progress-description">Mohon tunggu sebentar.</p>
+            </div>
           </div>
         </div>
       )}
@@ -3106,12 +3167,12 @@ export default function LiveDrawClient({
       {saveSuccessModal && (
         <div className="ld-save-success-overlay" role="dialog" aria-modal="true" aria-labelledby="ld-save-success-title">
           <div className="ld-save-success-modal">
-            <div className="ld-save-success-mark" aria-hidden="true">Ã¢Å“â€œ</div>
+            <div className="ld-save-success-mark" aria-hidden="true">✓</div>
             <div className="ld-kicker">Moto Tersimpan</div>
             <h2 id="ld-save-success-title">Moto kategori telah disimpan</h2>
             <p>{selectedCategoryLabel} siap digunakan di halaman Motos dan oleh crew race.</p>
             <div className="ld-save-success-actions">
-              <button type="button" className="ld-save-success-excel" onClick={handleDownloadLiveDrawExcel}>
+              <button type="button" className="ld-save-success-excel ld-download-excel-btn" onClick={handleDownloadLiveDrawExcel}>
                 Download Excel
               </button>
               <button
@@ -3760,7 +3821,7 @@ export default function LiveDrawClient({
                         cursor: saveState === 'saving' ? 'not-allowed' : 'pointer',
                       }}
                     >
-                      {saveState === 'saving' ? 'Saving...' : 'Save as Moto'}
+                      {saveState === 'saving' ? 'Menyimpan...' : 'Simpan'}
                     </button>
                   </>
                 )}
@@ -3768,6 +3829,7 @@ export default function LiveDrawClient({
                   <>
                     <button
                       type="button"
+                      className="ld-download-excel-btn"
                       onClick={handleDownloadLiveDrawExcel}
                       style={{
                         padding: '12px 16px',

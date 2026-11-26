@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import LiveScoreClient from './LiveScoreClient'
+import DragLiveScoreClient from './DragLiveScoreClient'
 import { GET as getLiveScore } from '../../../../api/public/events/[eventId]/live-score/route'
 import { adminClient } from '../../../../../lib/auth'
 import { proxyBusinessSettingsMedia, toPublicMediaUrl, toPublicMediaUrls } from '../../../../../lib/publicMedia'
@@ -7,6 +8,8 @@ import type { BusinessSettings, EventItem, RiderCategory } from '../../../../../
 import { unstable_cache } from 'next/cache'
 import { getPublicFinishedEventArchive } from '../../../../../services/publicFinishedEventArchive'
 import { canonicalMetadata } from '../../../../../lib/seoMetadata'
+import { resolveDragScoringFormat } from '../../../../../lib/dragRaceScoring'
+import { GET as getDragScore } from '../../../../api/public/events/[eventId]/drag-score/route'
 
 export const dynamic = 'force-dynamic'
 
@@ -61,7 +64,7 @@ const loadInitialEvent = async (eventId: string): Promise<EventItem | null> => {
 const loadInitialCategories = async (eventId: string): Promise<RiderCategory[]> => {
   const { data, error } = await adminClient
     .from('categories')
-    .select('id, year, year_min, year_max, category_basis, age_min, age_max, capacity, gender, label, enabled, sequence_order')
+    .select('id, year, year_min, year_max, category_basis, age_min, age_max, capacity, gender, label, enabled, sequence_order, scoring_format_override')
     .eq('event_id', eventId)
     .order('sequence_order', { ascending: true })
     .order('year_min', { ascending: true })
@@ -70,6 +73,31 @@ const loadInitialCategories = async (eventId: string): Promise<RiderCategory[]> 
   if (error) return []
   return (data ?? []) as RiderCategory[]
 }
+
+const loadEventScoringFormat = async (eventId: string) => {
+  const { data } = await adminClient.from('event_settings').select('race_format_settings').eq('event_id', eventId).order('updated_at', { ascending: false }).limit(1).maybeSingle()
+  const format = data?.race_format_settings && typeof data.race_format_settings === 'object' && !Array.isArray(data.race_format_settings)
+    ? (data.race_format_settings as Record<string, unknown>).scoring_format
+    : null
+  return format === 'DRAG_MANUAL' || format === 'DRAG_TIMING' ? format : 'MOTO_POINTS'
+}
+
+const loadInitialDragScore = async (eventId: string, categoryId: string) => {
+  const response = await getDragScore(new Request(`https://racepushbike.local/api/public/events/${eventId}/drag-score?category_id=${encodeURIComponent(categoryId)}`), { params: Promise.resolve({ eventId }) })
+  if (!response.ok) return null
+  const json = await response.json().catch(() => null) as { data?: unknown } | null
+  return json?.data ?? null
+}
+
+const loadCachedFinishedDragScore = unstable_cache(
+  async (eventId: string, categoryId: string) => loadInitialDragScore(eventId, categoryId),
+  ['public-finished-drag-score'],
+  {
+    // Finished results are immutable, so repeat visits should not query Supabase again.
+    revalidate: false,
+    tags: ['public-finished-drag-score'],
+  }
+)
 
 const loadInitialLiveScore = async (
   eventId: string,
@@ -109,9 +137,25 @@ export default async function LiveScorePage({
 }) {
   const { eventId, categoryId } = await params
   const archive = await getPublicFinishedEventArchive(eventId)
-  const [event, categories] = archive
-    ? [archive.event, archive.categories]
-    : await Promise.all([loadInitialEvent(eventId), loadInitialCategories(eventId)])
+  const [event, categories, eventScoringFormat] = await Promise.all([
+    archive ? Promise.resolve(archive.event) : loadInitialEvent(eventId),
+    loadInitialCategories(eventId),
+    loadEventScoringFormat(eventId),
+  ])
+  const categoryOverride = (categories.find((category) => category.id === categoryId) as (RiderCategory & { scoring_format_override?: string | null }) | undefined)?.scoring_format_override
+  const scoringFormat = resolveDragScoringFormat(eventScoringFormat, categoryOverride)
+  if (scoringFormat === 'DRAG_MANUAL' || scoringFormat === 'DRAG_TIMING') {
+    const initialDragScore = event?.status === 'FINISHED'
+      ? await loadCachedFinishedDragScore(eventId, categoryId)
+      : await loadInitialDragScore(eventId, categoryId)
+    return <DragLiveScoreClient
+      eventId={eventId}
+      categoryId={categoryId}
+      initialEvent={event}
+      initialCategories={categories}
+      initialData={initialDragScore as never}
+    />
+  }
   const includePhotos = event?.business_settings?.show_rider_photos_public === true
   const isFinishedEvent = event?.status === 'FINISHED'
   const initialLiveScore = isFinishedEvent

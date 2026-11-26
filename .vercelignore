@@ -9,6 +9,8 @@
 /scripts/run_sync_direct.ts
 /scripts/seed_*.js
 /scripts/test_*.js
+/scripts/test_*.ts
+/scripts/test-*.mjs
 /scripts/verify_live_score.js
 /tmp/
 /tmp_find_zeta.js

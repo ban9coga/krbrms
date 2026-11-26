@@ -841,6 +841,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
     business_best_team_tiebreak_overrides: '',
     race_moto_per_batch: '3',
     race_gate_positions: '8',
+    race_scoring_format: 'MOTO_POINTS',
     race_qualification_enabled: true,
     race_auto_advance: true,
     race_qualification_tiebreak_repechage: false,
@@ -1164,6 +1165,10 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
             typeof format.moto_per_batch === 'number' ? String(format.moto_per_batch) : '3',
           race_gate_positions:
             typeof format.gate_positions === 'number' ? String(format.gate_positions) : '8',
+          race_scoring_format:
+            ['MOTO_POINTS', 'DRAG_MANUAL', 'DRAG_TIMING'].includes(String(format.scoring_format))
+              ? String(format.scoring_format)
+              : 'MOTO_POINTS',
           race_qualification_enabled:
             typeof format.qualification_enabled === 'boolean' ? format.qualification_enabled : true,
           race_auto_advance:
@@ -1875,6 +1880,7 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
         : {}
     const format = {
       ...existingFormat,
+      scoring_format: form.race_scoring_format,
       event_poster_url: form.event_poster_url.trim() || null,
       moto_per_batch: motoPerBatch,
       gate_positions: gatePositions,
@@ -3782,6 +3788,21 @@ export default function SettingsClient({ eventId, mode = 'full' }: { eventId: st
                 />
 
                 <div style={{ marginTop: 14, fontWeight: 900 }}>Race Format</div>
+                <label style={{ display: 'grid', gap: 6, fontWeight: 900 }}>
+                  Format penilaian default event
+                  <select
+                    value={form.race_scoring_format}
+                    onChange={(e) => setForm({ ...form, race_scoring_format: e.target.value })}
+                    style={{ padding: 12, borderRadius: 12, border: '2px solid #111', fontWeight: 800 }}
+                  >
+                    <option value="MOTO_POINTS">Moto (poin posisi finish)</option>
+                    <option value="DRAG_MANUAL">Drag Race (juri pilih pemenang)</option>
+                    <option value="DRAG_TIMING">Drag Race (RT + ET)</option>
+                  </select>
+                </label>
+                <div style={{ color: '#475569', fontWeight: 700, fontSize: 13 }}>
+                  Ini menjadi default kategori. Override kategori di halaman Categories. Format dikunci setelah drawing dibuat.
+                </div>
                 <div style={{ color: '#475569', fontWeight: 700, fontSize: 13 }}>
                   Jumlah gate menentukan kapasitas maksimal rider per batch. Masukkan sesuai gate start event; tidak dibatasi 8.
                 </div>

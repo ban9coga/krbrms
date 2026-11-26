@@ -18,6 +18,7 @@ type CategoryItem = {
   gender: 'BOY' | 'GIRL' | 'MIX'
   label: string
   enabled: boolean
+  scoring_format_override?: 'MOTO_POINTS' | 'DRAG_MANUAL' | 'DRAG_TIMING' | null
 }
 
 type CreateDraft = {
@@ -29,6 +30,7 @@ type CreateDraft = {
   age_max: string
   gender: CategoryItem['gender']
   capacity: string
+  scoring_format_override: '' | 'MOTO_POINTS' | 'DRAG_MANUAL' | 'DRAG_TIMING'
 }
 
 const initialDraft = (): CreateDraft => ({
@@ -40,6 +42,7 @@ const initialDraft = (): CreateDraft => ({
   age_max: '',
   gender: 'BOY',
   capacity: '',
+  scoring_format_override: '',
 })
 
 export default function CategoriesClient({ eventId }: { eventId: string }) {
@@ -80,6 +83,21 @@ export default function CategoriesClient({ eventId }: { eventId: string }) {
       await apiFetch(`/api/categories/${item.id}`, {
         method: 'PATCH',
         body: JSON.stringify({ enabled: !item.enabled }),
+      })
+      await load()
+    } catch (err: unknown) {
+      appAlert(getErrorMessage(err))
+    } finally {
+      setSavingId(null)
+    }
+  }
+
+  const updateScoringFormat = async (item: CategoryItem, scoringFormat: string) => {
+    setSavingId(item.id)
+    try {
+      await apiFetch(`/api/categories/${item.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ scoring_format_override: scoringFormat || null }),
       })
       await load()
     } catch (err: unknown) {
@@ -198,6 +216,7 @@ export default function CategoriesClient({ eventId }: { eventId: string }) {
           age_max: createDraft.category_basis === 'AGE' ? ageMax : null,
           gender: createDraft.gender,
           capacity: capacityValue,
+          scoring_format_override: createDraft.scoring_format_override || null,
           enabled: true,
         }),
       })
@@ -283,6 +302,19 @@ export default function CategoriesClient({ eventId }: { eventId: string }) {
             style={{ padding: 8, borderRadius: 8, border: '1px solid #111' }}
           />
         </div>
+        <label style={{ display: 'grid', gap: 5, fontWeight: 800 }}>
+          Format penilaian kategori
+          <select
+            value={createDraft.scoring_format_override}
+            onChange={(e) => setCreateDraft((prev) => ({ ...prev, scoring_format_override: e.target.value as CreateDraft['scoring_format_override'] }))}
+            style={{ padding: 8, borderRadius: 8, border: '1px solid #111' }}
+          >
+            <option value="">Ikuti format default event</option>
+            <option value="MOTO_POINTS">Moto (poin posisi finish)</option>
+            <option value="DRAG_MANUAL">Drag Race (juri pilih pemenang)</option>
+            <option value="DRAG_TIMING">Drag Race (RT + ET)</option>
+          </select>
+        </label>
         <button
           type="button"
           onClick={createCategory}
@@ -330,6 +362,20 @@ export default function CategoriesClient({ eventId }: { eventId: string }) {
               <div style={{ fontSize: 12, fontWeight: 800, color: '#333' }}>
                 Quota: {item.capacity == null ? 'Unlimited' : item.capacity}
               </div>
+              <label style={{ display: 'grid', gap: 5, marginTop: 6, fontSize: 12, fontWeight: 900 }}>
+                Format penilaian kategori
+                <select
+                  value={item.scoring_format_override ?? ''}
+                  onChange={(e) => void updateScoringFormat(item, e.target.value)}
+                  disabled={savingId === item.id}
+                  style={{ padding: 8, borderRadius: 8, border: '1px solid #111', fontWeight: 800 }}
+                >
+                  <option value="">Ikuti format default event</option>
+                  <option value="MOTO_POINTS">Moto (poin posisi finish)</option>
+                  <option value="DRAG_MANUAL">Drag Race (juri pilih pemenang)</option>
+                  <option value="DRAG_TIMING">Drag Race (RT + ET)</option>
+                </select>
+              </label>
               <div style={{ display: 'grid', gap: 6, marginTop: 6 }}>
                 <input
                   placeholder="Label"

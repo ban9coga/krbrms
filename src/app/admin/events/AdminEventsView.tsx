@@ -500,6 +500,11 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
                 </Link>
               )}
               {!isRegistrationApprover && (
+                <Link href={`/admin/events/${event.id}/drag-race`} className="event-card-nav-button">
+                  Drag Race
+                </Link>
+              )}
+              {!isRegistrationApprover && (
                 <Link href={`/admin/events/${event.id}/settings`} className="event-card-nav-button">
                   Settings
                 </Link>
@@ -1049,6 +1054,14 @@ export default function AdminEventsView({ showCreate = true }: AdminEventsViewPr
                         {!isRegistrationApprover && (
                           <Link href={`/admin/events/${event.id}/riders`} className="event-card-nav-button">
                             <span>Riders</span>
+                            <span className="event-card-nav-arrow-wrapper" aria-hidden="true">
+                              <span className="event-card-nav-arrow" />
+                            </span>
+                          </Link>
+                        )}
+                        {!isRegistrationApprover && (
+                          <Link href={`/admin/events/${event.id}/drag-race`} className="event-card-nav-button">
+                            <span>Drag Race</span>
                             <span className="event-card-nav-arrow-wrapper" aria-hidden="true">
                               <span className="event-card-nav-arrow" />
                             </span>

@@ -2,14 +2,14 @@ import { NextResponse } from 'next/server'
 import { adminClient, requireAdmin, requireScopedEventWorkspace } from '../../../../../lib/auth'
 import { buildCategoryOccupancyBreakdown, type CategoryOccupancyBreakdown } from '../../../../../services/categoryOccupancy'
 
-const CATEGORY_RETURN_SELECT = 'id, event_id, year, year_min, year_max, category_basis, age_min, age_max, capacity, gender, label, enabled, sequence_order'
+const CATEGORY_RETURN_SELECT = 'id, event_id, year, year_min, year_max, category_basis, age_min, age_max, capacity, gender, label, enabled, sequence_order, scoring_format_override'
 
 export async function GET(_: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params
 
   const { data: categories, error } = await adminClient
     .from('categories')
-    .select('id, year, year_min, year_max, category_basis, age_min, age_max, capacity, gender, label, enabled, sequence_order')
+    .select('id, year, year_min, year_max, category_basis, age_min, age_max, capacity, gender, label, enabled, sequence_order, scoring_format_override')
     .eq('event_id', eventId)
     .order('sequence_order', { ascending: true })
     .order('year_min', { ascending: true })
@@ -76,7 +76,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
   const body = await req.json().catch(() => null)
   if (!body) return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
 
-  const { label, year_min, year_max, category_basis, age_min, age_max, gender, capacity, enabled }: Record<string, unknown> = body
+  const { label, year_min, year_max, category_basis, age_min, age_max, gender, capacity, enabled, scoring_format_override }: Record<string, unknown> = body
   const categoryBasis = category_basis === 'AGE' ? 'AGE' : 'BIRTH_YEAR'
   const yearMin = Number(year_min)
   const yearMax = Number(year_max)
@@ -104,6 +104,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       : NaN
   if (Number.isNaN(normalizedCapacity)) {
     return NextResponse.json({ error: 'capacity must be >= 0' }, { status: 400 })
+  }
+  const scoringFormatOverride = scoring_format_override == null || scoring_format_override === ''
+    ? null
+    : String(scoring_format_override)
+  if (scoringFormatOverride !== null && !['MOTO_POINTS', 'DRAG_MANUAL', 'DRAG_TIMING'].includes(scoringFormatOverride)) {
+    return NextResponse.json({ error: 'Format skor kategori tidak valid.' }, { status: 400 })
   }
 
   const { data: eventRow } = categoryBasis === 'AGE'
@@ -141,6 +147,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       capacity: normalizedCapacity,
       enabled: enabled !== false,
       sequence_order: (Number(lastCategory?.sequence_order ?? 0) || 0) + 1,
+      scoring_format_override: scoringFormatOverride,
     })
     .select(CATEGORY_RETURN_SELECT)
     .single()

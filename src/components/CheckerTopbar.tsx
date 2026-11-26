@@ -115,6 +115,9 @@ export default function CheckerTopbar({ title = 'Checker Control' }: CheckerTopb
           </Link>
 
           <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto sm:flex-nowrap sm:justify-end sm:gap-3">
+            <Link href="/jury/drag-race" className="rounded-full border border-slate-300 px-3 py-2 text-xs font-extrabold text-slate-800 hover:bg-slate-100">
+              Drag Race
+            </Link>
             <div className="min-w-0 flex-1 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-left sm:max-w-[260px] sm:flex-none sm:text-right">
               <div className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-slate-500">{formatAppRoleLabel(roleKey)}</div>
               <div className="truncate text-sm font-bold text-slate-900">{name}</div>

@@ -175,15 +175,13 @@ export const loadCertificateContext = async (
     ])
   )
   const riderIds = (eventRiders ?? []).map((rider) => rider.id)
-  const { data: finalRows } = riderIds.length
-    ? await adminClient
-        .from('race_stage_result')
-        .select('rider_id, category_id, final_class, position')
-        .eq('stage', 'FINAL')
-        .in('rider_id', riderIds)
-        .not('position', 'is', null)
-    : { data: [] as Array<{ rider_id: string; category_id: string; final_class: string | null; position: number | null }> }
-  const finalLookup = new Map((finalRows ?? []).map((row) => [`${row.rider_id}|${row.category_id}`, row]))
+  const [{ data: motoFinalRows }, { data: dragFinalRows }] = riderIds.length
+    ? await Promise.all([
+        adminClient.from('race_stage_result').select('rider_id, category_id, final_class, position').eq('stage', 'FINAL').in('rider_id', riderIds).not('position', 'is', null),
+        adminClient.from('drag_final_results').select('rider_id, category_id, final_class, position').in('rider_id', riderIds),
+      ])
+    : [{ data: [] as Array<{ rider_id: string; category_id: string; final_class: string | null; position: number | null }> }, { data: [] as Array<{ rider_id: string; category_id: string; final_class: string | null; position: number | null }> }]
+  const finalLookup = new Map([...(motoFinalRows ?? []), ...(dragFinalRows ?? [])].map((row) => [`${row.rider_id}|${row.category_id}`, row]))
 
   const riders = approvedItems.map((item) => {
     const plate = `${item.requested_plate_number ?? ''}${item.requested_plate_suffix ?? ''}`.trim() || '-'
@@ -273,17 +271,14 @@ export const revalidateCertificateDownload = async (
     return { data: null, error: 'Sertifikat prestasi belum tersedia untuk rider ini.', status: 409 }
   }
 
-  const { data: final, error: finalError } = await adminClient
-    .from('race_stage_result')
-    .select('final_class, position')
-    .eq('rider_id', rider.riderId)
-    .eq('category_id', rider.categoryId)
-    .eq('stage', 'FINAL')
-    .not('position', 'is', null)
-    .maybeSingle()
+  const [{ data: motoFinal, error: motoFinalError }, { data: dragFinal, error: dragFinalError }] = await Promise.all([
+    adminClient.from('race_stage_result').select('final_class, position').eq('rider_id', rider.riderId).eq('category_id', rider.categoryId).eq('stage', 'FINAL').not('position', 'is', null).maybeSingle(),
+    adminClient.from('drag_final_results').select('final_class, position').eq('rider_id', rider.riderId).eq('category_id', rider.categoryId).maybeSingle(),
+  ])
+  const final = dragFinal ?? motoFinal
   const position = typeof final?.position === 'number' ? final.position : null
   const finalClass = String(final?.final_class ?? '').trim()
-  if (finalError || !position || !finalClass) {
+  if ((motoFinalError && dragFinalError) || !position || !finalClass) {
     return { data: null, error: 'Hasil final rider belum tersedia atau sedang diperbarui.', status: 409 }
   }
 
