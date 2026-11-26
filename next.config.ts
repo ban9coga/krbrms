@@ -55,6 +55,8 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   images: {
+    // Serve source image URLs directly; avoid Vercel Image Optimization transforms.
+    unoptimized: true,
     remotePatterns: [
       {
         protocol: "https",

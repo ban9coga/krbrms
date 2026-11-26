@@ -2351,7 +2351,7 @@ html[data-theme='dark'] .setting-toggle-control:has(input:checked) .setting-togg
   font-size: clamp(2rem, 5vw, 3.5rem);
   font-weight: 950;
   letter-spacing: 0;
-  line-height: 1.12;
+  line-height: 1.22;
   overflow-wrap: anywhere;
 }
 
@@ -2367,8 +2367,12 @@ html[data-theme='dark'] .setting-toggle-control:has(input:checked) .setting-togg
 .homepage-editorial-title mark {
   display: inline;
   border-radius: 5px;
-  background: #f4c63d;
-  padding: 0.02em 0.12em;
+  background-color: transparent;
+  background-image: linear-gradient(#f4c63d, #f4c63d);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 100% calc(100% - 0.16em);
+  padding-inline: 0.10em;
   color: #1d0d07;
   font: inherit;
   -webkit-box-decoration-break: clone;
@@ -2958,7 +2962,7 @@ html[data-theme='dark'] .setting-toggle-control:has(input:checked) .setting-togg
   .homepage-editorial-title {
     margin-top: 14px;
     font-size: clamp(30px, 8vw, 32px);
-    line-height: 1.12;
+    line-height: 1.24;
   }
 
   .homepage-editorial-actions {
@@ -2972,10 +2976,6 @@ html[data-theme='dark'] .setting-toggle-control:has(input:checked) .setting-togg
 
   .homepage-editorial-live-event-name {
     max-width: min(42vw, 220px);
-  }
-
-  .homepage-editorial-title mark {
-    padding-inline: 0.12em;
   }
 
   .homepage-editorial-ticker {
@@ -3181,7 +3181,7 @@ html[data-theme='dark'] .setting-toggle-control:has(input:checked) .setting-togg
   .homepage-editorial-title {
     margin-top: 20px;
     font-size: clamp(30px, 8vw, 32px);
-    line-height: 1.2;
+    line-height: 1.24;
   }
 
   .homepage-editorial-actions {
