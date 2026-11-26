@@ -266,6 +266,7 @@ export default function LiveDrawClient({
   const [selectedCategory, setSelectedCategory] = useState<string>('')
   const [riders, setRiders] = useState<RiderItem[]>([])
   const [loading, setLoading] = useState(false)
+  const [initialLoading, setInitialLoading] = useState(true)
   const [eventName, setEventName] = useState('Event')
   const [drawing, setDrawing] = useState(false)
   const [drawnOrder, setDrawnOrder] = useState<RiderItem[]>([])
@@ -832,6 +833,16 @@ export default function LiveDrawClient({
     const size = canvas.width
     const radius = size / 2
     const step = (Math.PI * 2) / count
+    const wheelColors = [
+      { fill: '#c94b12', text: '#fff8eb' },
+      { fill: '#138a83', text: '#fff8eb' },
+      { fill: '#e3b341', text: '#3e291d' },
+      { fill: '#456fa8', text: '#fff8eb' },
+      { fill: '#b84f73', text: '#fff8eb' },
+      { fill: '#7c9b52', text: '#241a12' },
+      { fill: '#75509c', text: '#fff8eb' },
+      { fill: '#d58a2c', text: '#3e291d' },
+    ]
 
     ctx.clearRect(0, 0, size, size)
     ctx.save()
@@ -844,7 +855,8 @@ export default function LiveDrawClient({
       ctx.moveTo(0, 0)
       ctx.arc(0, 0, radius - 2, start, end)
       ctx.closePath()
-      ctx.fillStyle = ['#c94b12', '#fff0cf', '#5c3927'][i % 3]
+      const color = wheelColors[i % wheelColors.length]
+      ctx.fillStyle = color.fill
       ctx.fill()
       ctx.strokeStyle = '#d7b98a'
       ctx.lineWidth = 2
@@ -855,7 +867,7 @@ export default function LiveDrawClient({
       ctx.rotate(mid)
       ctx.translate(radius * 0.58, 0)
       ctx.rotate(Math.PI / 2)
-      ctx.fillStyle = i % 3 === 1 ? '#5c3927' : '#fff8eb'
+      ctx.fillStyle = color.text
       ctx.font = `${count > 24 ? '700 11px' : '700 15px'} Inter, Arial, Helvetica, sans-serif`
       ctx.textAlign = 'center'
       ctx.fillText(list[i]?.no_plate_display?.slice(0, 5) ?? String(i + 1), 0, 5)
@@ -946,6 +958,7 @@ export default function LiveDrawClient({
   }
 
   const loadCategories = async () => {
+    setInitialLoading(true)
     setLoading(true)
     try {
       const [, eventRes, categoryRes] = await Promise.all([
@@ -970,6 +983,7 @@ export default function LiveDrawClient({
       }
     } finally {
       setLoading(false)
+      setInitialLoading(false)
     }
   }
 
@@ -3137,7 +3151,25 @@ export default function LiveDrawClient({
         </aside>
       </div>
 
-      {loading && (
+      {initialLoading && (
+        <div
+          className="ld-initial-loading-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="ld-initial-loading-title"
+          aria-describedby="ld-initial-loading-description"
+          aria-busy="true"
+        >
+          <div className="ld-initial-loading-modal">
+            <span className="ld-initial-loading-spinner" aria-hidden="true" />
+            <div>
+              <h2 id="ld-initial-loading-title">Menyiapkan Drawing Batch</h2>
+              <p id="ld-initial-loading-description">Memuat kategori dan data awal. Mohon tunggu sebentar.</p>
+            </div>
+          </div>
+        </div>
+      )}
+      {loading && !initialLoading && (
         <div className="ld-page-loading" role="status" aria-live="polite">
           <span className="ld-page-loading__spinner" aria-hidden="true" />
           <span>Memuat data...</span>
